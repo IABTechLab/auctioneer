@@ -27,17 +27,28 @@ fn source(prefilter: bool, meta: bool) -> String {
             }
         }
     });
+    let prefilter_reference = prefilter.then(|| quote! { let _ = prefilter; });
+    let meta_reference = meta.then(|| quote! { let _ = regex; });
     quote! {
         #prefilter_source
         #meta_source
-        fn main() { let _ = core::mem::size_of::<regex_automata::MatchKind>(); }
+        fn main() {
+            #prefilter_reference
+            #meta_reference
+            let _ = core::mem::size_of::<regex_automata::MatchKind>();
+        }
     }
     .to_string()
 }
 
 fn check(directory: &Path) -> Output {
     run(
-        cargo(directory).args(["check", "--offline", "--locked", "-j2"]),
+        cargo(directory).env("CARGO_BUILD_WARNINGS", "deny").args([
+            "check",
+            "--offline",
+            "--locked",
+            "-j2",
+        ]),
         BUILD_TIMEOUT,
     )
     .unwrap()

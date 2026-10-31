@@ -836,35 +836,41 @@ mod tests {
     }
 
     fn fake_binding_import_module(call_import: bool) -> Vec<u8> {
+        use wasm_encoder::{
+            CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection,
+            ImportSection, Instruction, Module, TypeSection, ValType,
+        };
+
         // Two function types, one unavailable binding import and an integer
         // export. Only the negative control calls the imported function.
-        let mut bytes = b"\0asm\x01\0\0\0".to_vec();
-        let mut section = |id: u8, payload: &[u8]| {
-            bytes.extend([id, u8::try_from(payload.len()).unwrap()]);
-            bytes.extend(payload);
-        };
-        section(1, &[2, 0x60, 0, 0, 0x60, 0, 1, 0x7e]);
-        let mut import = vec![1];
-        for name in ["__wbindgen_placeholder__", "__wbindgen_describe"] {
-            import.push(u8::try_from(name.len()).unwrap());
-            import.extend(name.as_bytes());
+        let mut module = Module::new();
+        let mut types = TypeSection::new();
+        types.ty().function([], []);
+        types.ty().function([], [ValType::I64]);
+        module.section(&types);
+        let mut imports = ImportSection::new();
+        imports.import(
+            "__wbindgen_placeholder__",
+            "__wbindgen_describe",
+            EntityType::Function(0),
+        );
+        module.section(&imports);
+        let mut functions = FunctionSection::new();
+        functions.function(1);
+        module.section(&functions);
+        let mut exports = ExportSection::new();
+        exports.export("auctioneer_probe_version", ExportKind::Func, 1);
+        module.section(&exports);
+        let mut function = Function::new([]);
+        if call_import {
+            function.instruction(&Instruction::Call(0));
         }
-        import.extend([0, 0]);
-        section(2, &import);
-        section(3, &[1, 1]);
-        let mut export = vec![1, 20];
-        export.extend(b"auctioneer_probe_version");
-        export.extend([0, 1]);
-        section(7, &export);
-        let body = if call_import {
-            vec![0, 0x10, 0, 0x42, 1, 0x0b]
-        } else {
-            vec![0, 0x42, 1, 0x0b]
-        };
-        let mut code = vec![1, u8::try_from(body.len()).unwrap()];
-        code.extend(body);
-        section(10, &code);
-        bytes
+        function.instruction(&Instruction::I64Const(1));
+        function.instruction(&Instruction::End);
+        let mut code = CodeSection::new();
+        code.function(&function);
+        module.section(&code);
+        module.finish()
     }
 
     #[test]
