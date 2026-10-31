@@ -2,6 +2,7 @@ name: "Run Format"
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:

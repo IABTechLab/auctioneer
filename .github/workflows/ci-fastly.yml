@@ -24,6 +24,7 @@ name: "CI: Fastly"
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:

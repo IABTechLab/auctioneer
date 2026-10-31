@@ -24,6 +24,7 @@ name: "CI: Spin"
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
