@@ -1,7 +1,8 @@
 # Auctioneer Agent Guidance
 
-This is the canonical policy for all coding agents. `CLAUDE.md` is a relative
-symlink to this file; edit this file, not a duplicate. Read
+This is the canonical policy for all coding agents. `CLAUDE.md` imports this
+file with `@AGENTS.md`; edit this file, not a duplicate. Keep that import as a
+regular file because the CLI's source-identity contract rejects symlinks. Read
 [crate rules](crates/AGENTS.md) before changing any crate. More-specific rules
 add constraints; they must not weaken those rules.
 

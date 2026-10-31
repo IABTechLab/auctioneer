@@ -1,8 +1,9 @@
 # Claude Agent Roles
 
 Repository policy lives in [AGENTS.md](../AGENTS.md). Root `CLAUDE.md` is a
-relative symlink to that same file, not a separate policy copy. Read the
-applicable crate instructions explicitly when working in a crate.
+one-line `@AGENTS.md` import of that same file, not a separate policy copy.
+It must be a regular file: the CLI source-identity check rejects symlinks.
+Read the applicable crate instructions explicitly when working in a crate.
 
 The workflow is selectively adapted from
 [Trusted Server's agent guidance](https://github.com/IABTechLab/trusted-server/blob/main/AGENTS.md),
