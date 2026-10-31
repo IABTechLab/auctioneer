@@ -1,0 +1,14 @@
+schema = "feedad"
+path = "adapters/feedad/params_test.go"
+blob = "279b6c6c6d815107876961e36745ce0b5d15baab"
+sha256 = "edc6e30d96eb6b3a6c5bb7509d22ed672b9abaf34b70169500fb87a4cfb72d39"
+bytes = 4247
+valid_cases = 19
+invalid_cases = 20
+valid_span = {start = 907, end = 2720}
+invalid_span = {start = 2752, end = 4245}
+verdict_counts = [19, 20, 0]
+previous = false
+original = false
+duplicates = [["valid", 2, 3], ["invalid", 14, 15]]
+lexical = []

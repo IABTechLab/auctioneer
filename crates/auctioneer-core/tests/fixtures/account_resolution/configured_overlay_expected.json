@@ -1,0 +1,38 @@
+{
+  "id": "auc-configured-overlay",
+  "seatbid": [
+    {
+      "seat": "fake_ac",
+      "bid": [
+        {
+          "id": "bid-1",
+          "impid": "imp-1",
+          "price": 1.5,
+          "crid": "creative-1",
+          "w": 300,
+          "h": 250,
+          "ext": {
+            "prebid": {
+              "type": "banner",
+              "targeting": {
+                "acct_bidder": "fake_ac",
+                "acct_bidder_fake_ac": "fake_ac",
+                "acct_pb": "1.50",
+                "acct_pb_fake_ac": "1.50",
+                "acct_size": "300x250",
+                "acct_size_fake_ac": "300x250"
+              },
+              "meta": {}
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "cur": "USD",
+  "ext": {
+    "responsetimemillis": { "fake_ac": 10 },
+    "tmaxrequest": 1000,
+    "prebid": { "auctiontimestamp": 0 }
+  }
+}

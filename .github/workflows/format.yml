@@ -1,0 +1,113 @@
+name: "Run Format"
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: cargo fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Set up rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          components: "clippy, rustfmt"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Fetch dependencies (locked)
+        run: cargo fetch --locked
+
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+      # rustfmt does not follow modules declared by generated include! code.
+      - name: Check discovered bidder source formatting
+        run: find crates/auctioneer-bidder/src/bidders -type f -name '*.rs' -exec rustfmt --edition 2024 --check {} +
+
+      - name: Run cargo clippy (default features)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run cargo clippy (insecure-bidders feature)
+        run: cargo clippy --workspace --all-targets --features insecure-bidders -- -D warnings
+
+  # The two `--workspace --all-targets` passes above lint every workspace
+  # target EXCEPT the three `fanout_conformance` integration binaries: those
+  # carry `required-features = ["conformance-suite"]`, and `--all-targets`
+  # does not satisfy `required-features` — cargo skips such targets silently.
+  # A lint that only fires under the feature is therefore invisible to the
+  # job above, which is how 57 `tests_outside_test_module` occurrences once
+  # reached review. This job passes the feature so those binaries are linted.
+  #
+  # Separate job, not a fourth step: `format` is this workflow's only job, so
+  # a step there would extend its critical path, and the feature-unified
+  # artifacts would force it to recheck the same crates under a second
+  # feature set. Jobs run on their own runners in parallel and cache
+  # independently.
+  conformance-clippy:
+    name: cargo clippy (fanout conformance suite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-conformance-clippy-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-conformance-clippy-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Set up rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          components: "clippy"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Fetch dependencies (locked)
+        run: cargo fetch --locked
+
+      # Same four packages the conformance-suite job in test.yml runs, and
+      # the same feature. `--all-targets` now reaches the `[[test]]` targets
+      # because the feature satisfies their `required-features`.
+      - name: Run cargo clippy (conformance-suite feature)
+        run: >
+          cargo clippy
+          -p auctioneer-core -p auctioneer-adapter-cloudflare -p auctioneer-adapter-fastly
+          -p auctioneer-adapter-spin
+          --all-targets --features conformance-suite -- -D warnings

@@ -1,0 +1,17 @@
+schema_version = 1
+schema = "yahooAds"
+schema_sha256 = "7dd88adecf6cd48889d3a155aac7399271218030a98928958a6bfc42bb1aee57"
+origin = "authored_schema_derived"
+rows = [
+  { id = "both_required", schema = "yahooAds", valid = true, input_json = '{"dcn":"d","pos":"p"}' },
+  { id = "dcn_empty", schema = "yahooAds", valid = false, input_json = '{"dcn":"","pos":"p"}' },
+  { id = "pos_empty", schema = "yahooAds", valid = false, input_json = '{"dcn":"d","pos":""}' },
+  { id = "missing_dcn", schema = "yahooAds", valid = false, input_json = '{"pos":"p"}' },
+  { id = "missing_pos", schema = "yahooAds", valid = false, input_json = '{"dcn":"d"}' },
+  { id = "pos_wrong_type", schema = "yahooAds", valid = false, input_json = '{"dcn":"d","pos":1}' },
+]
+[expected]
+authored = 6
+imported = 0
+accepts = 1
+rejects = 5

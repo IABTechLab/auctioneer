@@ -1,0 +1,17 @@
+schema_version = 1
+schema = "sharethrough"
+schema_sha256 = "2fa8313a5f5096c0e27d80a5ec1f8acb62bcf3fa54e41fe8b29f334aba0f2f61"
+origin = "authored_schema_derived"
+rows = [
+  { id = "pkey_only", schema = "sharethrough", valid = true, input_json = '{"pkey":"p"}' },
+  { id = "empty_arrays_allowed", schema = "sharethrough", valid = true, input_json = '{"pkey":"p","badv":[],"bcat":[]}' },
+  { id = "string_elements", schema = "sharethrough", valid = true, input_json = '{"pkey":"p","badv":["example.test"],"bcat":["IAB-1"]}' },
+  { id = "advertiser_wrong_element", schema = "sharethrough", valid = false, input_json = '{"pkey":"p","badv":[1]}' },
+  { id = "category_wrong_element", schema = "sharethrough", valid = false, input_json = '{"pkey":"p","bcat":[1]}' },
+  { id = "advertiser_wrong_type", schema = "sharethrough", valid = false, input_json = '{"pkey":"p","badv":"example.test"}' },
+]
+[expected]
+authored = 6
+imported = 0
+accepts = 3
+rejects = 3

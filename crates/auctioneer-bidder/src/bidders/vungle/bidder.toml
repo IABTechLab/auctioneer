@@ -1,0 +1,54 @@
+key = "vungle"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/vungle"
+tree = "a404ee8c3e6088d1b3e85259b549748bb2651d6e"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/vungle.yaml"
+source_blob = "43470bc7020149b933422c7cf40beb95a6c01ae0"
+source_bytes = 236
+source_sha256 = "e8a921fa00f3e8be54cd1c5f86513117888dc1d43a7fd00029694a9d3c24cb83"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/vungle.json"
+source_blob = "6ad85e178003ea15b2f084fb2151cf55174e9b1d"
+source_bytes = 535
+source_sha256 = "437c5b5b81115bca701113d4324392e04a539b2119919d4f33b8e1a13dfb6308"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 535
+source_sha256 = "437c5b5b81115bca701113d4324392e04a539b2119919d4f33b8e1a13dfb6308"

@@ -1,0 +1,14 @@
+schema = "yahooAds"
+path = "adapters/yahooAds/params_test.go"
+blob = "9da14a18b0780c77c7e0655b87e3450bb5a10c0f"
+sha256 = "7e504361a6efcc4ea62a55e91eb900af63b245b9cc005b5d54b268581e1f178d"
+bytes = 1546
+valid_cases = 1
+invalid_cases = 10
+valid_span = {start = 1357, end = 1391}
+invalid_span = {start = 1423, end = 1544}
+verdict_counts = [1, 9, 1]
+previous = true
+original = false
+duplicates = []
+lexical = []

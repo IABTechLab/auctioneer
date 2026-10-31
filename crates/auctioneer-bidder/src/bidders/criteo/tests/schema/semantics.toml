@@ -1,0 +1,19 @@
+schema_version = 1
+schema = "criteo"
+schema_sha256 = "6f0c02a7e244976f6b76d262aa1a5b39f5caca11b5014b824f088604f392d3d2"
+origin = "authored_schema_derived"
+rows = [
+  { id = "zone_zero", schema = "criteo", valid = true, input_json = '{"zoneid":0}' },
+  { id = "network_camel", schema = "criteo", valid = true, input_json = '{"networkId":1}' },
+  { id = "both_anyof", schema = "criteo", valid = true, input_json = '{"zoneid":0,"networkid":0}' },
+  { id = "uid_zero", schema = "criteo", valid = true, input_json = '{"zoneid":0,"uid":0}' },
+  { id = "uid_negative", schema = "criteo", valid = false, input_json = '{"zoneid":0,"uid":-1}' },
+  { id = "uid_wrong_type", schema = "criteo", valid = false, input_json = '{"zoneid":0,"uid":"1"}' },
+  { id = "pubid_empty", schema = "criteo", valid = false, input_json = '{"zoneid":0,"pubid":""}' },
+  { id = "selector_missing", schema = "criteo", valid = false, input_json = '{}' },
+]
+[expected]
+authored = 8
+imported = 0
+accepts = 4
+rejects = 4

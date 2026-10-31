@@ -1,0 +1,18 @@
+schema_version = 1
+schema = "sovrn"
+schema_sha256 = "fd44c8813141d814028e0fa7cb0244c15f4e1c939ecebb6c556d16594dd01b2d"
+origin = "authored_schema_derived"
+rows = [
+  { id = "snake_only", schema = "sovrn", valid = true, input_json = '{"tagid":"t"}' },
+  { id = "camel_only", schema = "sovrn", valid = true, input_json = '{"tagId":"t"}' },
+  { id = "both", schema = "sovrn", valid = false, input_json = '{"tagid":"t","tagId":"t"}' },
+  { id = "neither", schema = "sovrn", valid = false, input_json = '{}' },
+  { id = "floor_number", schema = "sovrn", valid = true, input_json = '{"tagid":"t","bidfloor":0}' },
+  { id = "floor_string", schema = "sovrn", valid = true, input_json = '{"tagid":"t","bidfloor":"0"}' },
+  { id = "floor_boolean", schema = "sovrn", valid = false, input_json = '{"tagid":"t","bidfloor":false}' },
+]
+[expected]
+authored = 7
+imported = 0
+accepts = 4
+rejects = 3

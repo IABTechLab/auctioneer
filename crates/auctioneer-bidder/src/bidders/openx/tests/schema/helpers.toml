@@ -1,0 +1,2 @@
+schema = "openx"
+helpers = [{index = 0, prefixes = 3, onepass = true, alternative = false}, {index = 1, prefixes = 2, onepass = true, alternative = true}, {index = 2, prefixes = 2, onepass = true, alternative = false}]

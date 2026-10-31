@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic ASCII counter compiler control",
+  "description": "Independent fake-bidder counter for anchored ASCII matching, type alternatives and explicit-cache reuse.",
+  "type": "object",
+  "properties": {
+    "counter": { "$ref": "#/definitions/ascii_counter" }
+  },
+  "required": ["counter"],
+  "additionalProperties": false,
+  "definitions": {
+    "ascii_counter": {
+      "type": ["integer", "string"],
+      "pattern": "^[0-9]+$"
+    }
+  }
+}

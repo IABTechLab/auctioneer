@@ -1,0 +1,2 @@
+schema = "consumable"
+helpers = [{index = 0, prefixes = 2, onepass = true, alternative = false}, {index = 1, prefixes = 2, onepass = true, alternative = false}, {index = 2, prefixes = 4, onepass = false, alternative = false}]

@@ -1,0 +1,14 @@
+schema = "thetradedesk"
+path = "adapters/thetradedesk/params_test.go"
+blob = "1cf105857c858a7892eb05e9c5bb682e6ac8d5bd"
+sha256 = "6532459d4167ed93676bef0684045ad13c26672416bdea83d61644651ac69fb3"
+bytes = 1489
+valid_cases = 3
+invalid_cases = 9
+valid_span = {start = 1107, end = 1308}
+invalid_span = {start = 1340, end = 1487}
+verdict_counts = [3, 8, 1]
+previous = true
+original = false
+duplicates = []
+lexical = []

@@ -1,0 +1,419 @@
+key = "criteo"
+factory = true
+native_only = true
+
+[definitions.criteo]
+defaultEnabled = false
+endpoint = "https://ssp-bidder.criteo.com/openrtb/pbs/auction/request?profile=230"
+gvlVendorID = 91
+
+[definitions.criteo.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.criteo.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.criteo.maintainer]
+email = "prebid@criteo.com"
+
+[definitions.criteo.openrtb]
+gpp-supported = true
+multiformat-supported = true
+version = 2.6
+
+[definitions.criteo.userSync.iframe]
+url = "https://ssp-sync.criteo.com/user-sync/iframe?gdprapplies={{.GDPR}}&gdpr={{.GDPRConsent}}&ccpa={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&redir={{.RedirectURL}}&profile=230"
+userMacro = "${CRITEO_USER_ID}"
+
+[definitions.criteo.userSync.redirect]
+url = "https://ssp-sync.criteo.com/user-sync/redirect?gdprapplies={{.GDPR}}&gdpr={{.GDPRConsent}}&ccpa={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&redir={{.RedirectURL}}&profile=230"
+userMacro = "${CRITEO_USER_ID}"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/criteo"
+tree = "c20fec73c98f94ce49874ae106f5171ec40fd6ed"
+port_differences = [
+    """\
+    Bounded Rust protocol candidate with an opt-in native-only public definition under AG's \
+    approved 2026-10-30 design. Publication does not establish resource qualification, \
+    selected-flow acceptance or live authorization.""",
+    """\
+    Request contract: one borrowed OpenRTB POST through the existing bounded sink \
+    and endpoint builder, all scoped impression IDs in order, no provider-added headers, no \
+    caller clone or uncapped intermediate body. Host and Content-Length remain \
+    transport-owned.""",
+    """\
+    Response contract: 204 is empty, HTTP 400 is code 2, other non-200 is code 4. \
+    Source numeric status messages are fixed/redacted. Sealed malformed input remains code \
+    14/ResponseParse and node refusal code 4/ResponseParse. Wire currency is preserved \
+    including absent/empty, without replacing it with USD.""",
+    """\
+    Criteo ext.prebid.type selects offered media and ordinary bids must correlate with both \
+    request and exact sent-call IDs. Bid-local unsupported media, bad networkName or \
+    ambiguous known keys preserve valid siblings and independently parsed browser configs. \
+    All-invalid bids with valid configs remain an Ok result carrying errors.""",
+    """\
+    Response networkName enriches existing bid.ext.prebid.meta.networkName while preserving \
+    other metadata. No second TypedBid metadata channel is introduced. Optional \
+    missing/empty networkName does not fabricate metadata.""",
+    """\
+    Only the first igs entry in each igi group supplies config; an absent first config does \
+    not search later entries. Any present JSON config including null is preserved. Owned \
+    parsed.ext values are moved, never cloned, serialized or reparsed from raw bytes.""",
+    """\
+    Malformed optional IGI shapes or ambiguous recognized optional keys suppress all \
+    optional configs, never ordinary bids. Null group/igs pointers are handled safely \
+    instead of reproducing source panic behavior. Node-budget refusal remains fatal before \
+    optional interpretation.""",
+    """\
+    Single ASCII-case-insensitive known-key spellings are accepted; competing spellings are \
+    rejected at optional-root or bid-local scope. Generic envelope case matching, duplicate \
+    identical JSON keys and Go numeric/parser quirks are not bidder-local compatibility \
+    goals.""",
+    """\
+    The existing typed sealed decoder rejects malformed canonical bid.ext/prebid/type before \
+    bidder dispatch. It also erases canonical null presence for some Option fields, \
+    preventing reliable null-plus-case-variant ambiguity detection. These inherited decoder \
+    boundaries need shared ownership; raw-body access or a second parse is not an acceptable \
+    workaround.""",
+    """\
+    BrowserAuctionConfig contains only imp_id and config. The exchange authorizes records \
+    against request and nonempty sent IDs and supplies requested bidder plus canonical \
+    adapter identities. Opaque provider payload names never authorize wrapper identities.""",
+    """\
+    Thirteen verbatim protocol captures total 42563 bytes: ten successful source examples \
+    and HTTP 204/400/500. Seven successful originals omit response.id: conformance asserts \
+    the original sealed refusal, then explicitly replays an envelope-only required-ID \
+    correction to cover media and IGI without changing retained bytes or claiming \
+    original-envelope parity.""",
+    """\
+    Parameter cases are the literal 16 validParams and 19 invalidParams JSON strings \
+    extracted from pinned params_test.go, not results generated by running Go. No Go, YAML \
+    or license files are retained. The adjacent factory fixture is independently authored \
+    local evidence, not an immutable source artifact.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/criteo.yaml"
+source_blob = "2619408237943bee361568988915b42dedbfe7e6"
+source_bytes = 1039
+source_sha256 = "64ec8b42153532e2c65dec6a6c931217ddace60fd8d644c67d6959eb4dda48d8"
+port_differences = [
+    """\
+    Approved controlled-native publication preserves the source HTTPS endpoint, vendor, \
+    capabilities, maintainer, OpenRTB declarations and both sync templates. Runtime \
+    defaultEnabled=false; source geoscope is not a runtime routing rule. The source \
+    multiformat-supported flag is retained as a declaration, not a new shared capability. \
+    Publication does not establish selected-flow acceptance or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/criteo.json"
+source_blob = "a706cfa9158197dbdf0d921028d161032175d7eb"
+source_bytes = 1544
+source_sha256 = "6f0c02a7e244976f6b76d262aa1a5b39f5caca11b5014b824f088604f392d3d2"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 1544
+source_sha256 = "6f0c02a7e244976f6b76d262aa1a5b39f5caca11b5014b824f088604f392d3d2"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary"
+tree = "6673be77332bb184613df6b8a754de4a60ddfd63"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/supplemental"
+tree = "71d92b105910d24fefe260cfc462cdbcc59dce07"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-banner-cookie-uid.json"
+source_blob = "82ad75d6b57e18e3fd7f1376a5e42b2b55f510cc"
+source_bytes = 3080
+source_sha256 = "56c538614b36a1ad6adb55f0c82fdeaa8fecbc040e39d54ed65c198b6a72a7f9"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-cookie-uid.json"
+source_bytes = 3080
+source_sha256 = "56c538614b36a1ad6adb55f0c82fdeaa8fecbc040e39d54ed65c198b6a72a7f9"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-banner-inapp.json"
+source_blob = "8bf2aa7c40c3ab1bdb1769b4737daecd3a852b6f"
+source_bytes = 3028
+source_sha256 = "fddf5a189893dc267bfe04aeaa14cdd0888006e5113d138d663ff9bb9822be4b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-inapp.json"
+source_bytes = 3028
+source_sha256 = "fddf5a189893dc267bfe04aeaa14cdd0888006e5113d138d663ff9bb9822be4b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-banner-multiple-bids.json"
+source_blob = "beb0d2ec1f5d1fbe47e3a26dcf9c5c1f24b5c58e"
+source_bytes = 5135
+source_sha256 = "d83f35de2497c8a74dda6911263176a4181c530d2c828d4083f0251eb4221a17"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-multiple-bids.json"
+source_bytes = 5135
+source_sha256 = "d83f35de2497c8a74dda6911263176a4181c530d2c828d4083f0251eb4221a17"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-banner-paapi.json"
+source_blob = "e1dc6de96435c7a144d14947be5481c0c35f63d1"
+source_bytes = 3908
+source_sha256 = "a45a6b7e4e312ce3392933bf863036a844b34911050c2d7f809409d294eead48"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-paapi.json"
+source_bytes = 3908
+source_sha256 = "a45a6b7e4e312ce3392933bf863036a844b34911050c2d7f809409d294eead48"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-banner-uid.json"
+source_blob = "cfa11d9e4aa4cdb9fa4c08975a3f03bb0547fbdf"
+source_bytes = 3490
+source_sha256 = "55673926550285ff77a5f438ff2d572b1ba216f4bd0e23ca8038fbfc3db67c35"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-uid.json"
+source_bytes = 3490
+source_sha256 = "55673926550285ff77a5f438ff2d572b1ba216f4bd0e23ca8038fbfc3db67c35"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-multi-type-banner.json"
+source_blob = "369bdd44286f473e3693976e14d823af3469ab02"
+source_bytes = 3642
+source_sha256 = "e48b89557d1cde6851814992077d6d740166fd65b007584729741973974dcd99"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-multi-type-banner.json"
+source_bytes = 3642
+source_sha256 = "e48b89557d1cde6851814992077d6d740166fd65b007584729741973974dcd99"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-multi-type-video.json"
+source_blob = "88b871b477f3f4e2ee870d1b48bfdc8829389521"
+source_bytes = 3513
+source_sha256 = "9264d1e2f5e8aa36be82ba266896e52825587805ef81dcb661e71d50fdaac861"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-multi-type-video.json"
+source_bytes = 3513
+source_sha256 = "9264d1e2f5e8aa36be82ba266896e52825587805ef81dcb661e71d50fdaac861"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-native.json"
+source_blob = "6181ee17305c8060e25cc791902b255d0d43fc38"
+source_bytes = 3942
+source_sha256 = "0b063811505db4db0b6c396cef91ae332fb7a9286adaade94a45d4e17369dde4"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-native.json"
+source_bytes = 3942
+source_sha256 = "0b063811505db4db0b6c396cef91ae332fb7a9286adaade94a45d4e17369dde4"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/exemplary/simple-video.json"
+source_blob = "be973bced8ef6f117306fe012790950b72017872"
+source_bytes = 3185
+source_sha256 = "822e03147ca67cbb7bf8ad6de61b8691cd1aa5941d9886f3ae45a8f6384d945d"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-video.json"
+source_bytes = 3185
+source_sha256 = "822e03147ca67cbb7bf8ad6de61b8691cd1aa5941d9886f3ae45a8f6384d945d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/supplemental/204-response-from-target.json"
+source_blob = "449607ddb9b32a7e1a9f0bb376bde867bc1c7a62"
+source_bytes = 1981
+source_sha256 = "5b380d24a2ad3e15ec177f384e12de5a073d2f5d6da999e2a67e6475f587c5bb"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/204-response-from-target.json"
+source_bytes = 1981
+source_sha256 = "5b380d24a2ad3e15ec177f384e12de5a073d2f5d6da999e2a67e6475f587c5bb"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/supplemental/400-response-from-target.json"
+source_blob = "b0c6b8b4ae22ffcbe4a614bda1a987a7376dc77e"
+source_bytes = 2125
+source_sha256 = "1eebaf04d306632c497e68e2c7fad4526bc78cd901df10fbf78dfe9cf3f75a01"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/400-response-from-target.json"
+source_bytes = 2125
+source_sha256 = "1eebaf04d306632c497e68e2c7fad4526bc78cd901df10fbf78dfe9cf3f75a01"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/supplemental/500-response-from-target.json"
+source_blob = "d9a507f8e9ee8913981d8cbc693a12024aabacbe"
+source_bytes = 2125
+source_sha256 = "5ae579fe123831b5bd416730f31cd3c7399b68ebeb69260422a7e9b58082b3c5"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/500-response-from-target.json"
+source_bytes = 2125
+source_sha256 = "5ae579fe123831b5bd416730f31cd3c7399b68ebeb69260422a7e9b58082b3c5"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/criteo/criteotest/supplemental/simple-banner-with-ipv6.json"
+source_blob = "55821d647055fe2376b74a25684aefa311dfe3c4"
+source_bytes = 3409
+source_sha256 = "b9690f12d4a2c2304a24d4c2af937a340f9bfdf9303d76e9fa241d6899f7190f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/simple-banner-with-ipv6.json"
+source_bytes = 3409
+source_sha256 = "b9690f12d4a2c2304a24d4c2af937a340f9bfdf9303d76e9fa241d6899f7190f"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/criteo/criteo.go"
+source_blob = "6779a20f8749f0ec6ada327c97730334d7159a5d"
+source_bytes = 4097
+source_sha256 = "e0a4ad2124589b5a1d74c6c0df8ecd72b43c343280a9247bb03b765325ab9864"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/criteo/criteo_test.go"
+source_blob = "f3fd11ba0197381baa54834dbab8f6d8f0b0cf30"
+source_bytes = 1854
+source_sha256 = "21cf5c78d1b9843350afdaf36a18c1217c25a4768ba1fce7b212e108974be466"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "adapters/criteo/params_test.go"
+source_blob = "98f5f77f384cd88d6cb86e48c9f4254c1580c1d2"
+source_bytes = 2502
+source_sha256 = "d6c601edb51e3d6694bbb014febead5b6dff846a347cbd24998a680bfff90a2f"
+transformation = """\
+Extract validParams and invalidParams raw-string literals verbatim into JSON string arrays; \
+only the capture container and JSON string escaping are locally authored. No source execution."""
+
+[provenance.artifacts.retained]
+source_path = "fixtures/parameters.json"
+source_bytes = 1375
+source_sha256 = "4af6ef9fb745ae29e1c75c011d31e47f9fca064d1cdc4ee4e35a3804ae59f9ba"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/response.go"
+source_blob = "6c3c6a82370da0f8aae88ea273ef03c7fc441a87"
+source_bytes = 721
+source_sha256 = "b13407cbea94e6ef82fa188b5d0a95a30009e1e00f1d8300e8fd6435e022c0dc"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/bid.go"
+source_blob = "e8afbae3bda9df3f6b95b7b8e4fcd9e56832d317"
+source_bytes = 7575
+source_sha256 = "db65e4e96eae77ea0a9012525ccd55770eb09b8d68bc0b4829e100800529d978"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "errortypes/code.go"
+source_blob = "07b4727727e78400039fe1b162c4dea2c659e184"
+source_bytes = 1510
+source_sha256 = "6697a3f4df221451fbb953f5936eac5e53ad0f464f9ff52ed5c426b7196ef99c"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/response.go"
+source_blob = "449ff939bf5d2e4a42e8643f41da904f07a0aad9"
+source_bytes = 5632
+source_sha256 = "18fe2df47f16355f9b4c8ac01f7f754e5eae4f04f7868573a76b6b3b0484e500"

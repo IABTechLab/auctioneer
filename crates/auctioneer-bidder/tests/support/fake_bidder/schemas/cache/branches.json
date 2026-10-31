@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "choice": {"oneOf": [{"type": "string", "pattern": "^a+$"}, {"type": "string", "pattern": "[0-9]+"}]},
+    "items": {"type": "array", "items": {"anyOf": [{"type": "string", "pattern": "^z+$"}, {"type": "integer"}]}},
+    "names": {"type": "object", "propertyNames": {"pattern": "^ok"}, "patternProperties": {"": {"type": "string", "pattern": "[0-9]+"}}},
+    "strict": {"type": "boolean"}
+  },
+  "required": ["choice", "items", "names"],
+  "if": {"properties": {"strict": {"const": true}}, "required": ["strict"]},
+  "then": {"properties": {"choice": {"pattern": "^a+$"}}},
+  "additionalProperties": false
+}

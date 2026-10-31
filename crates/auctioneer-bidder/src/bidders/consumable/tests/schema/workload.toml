@@ -1,0 +1,7 @@
+order = 5
+rows = [{id = "short", valid = true, transforms = [], input_json = "{\"siteId\":1,\"networkId\":2,\"unitId\":3,\"unitName\":\"a\"}"}, {id = "max-string", valid = true, transforms = [{op = "max_string", pointer = "/unitName", character = "a", invalid = false}], input_json = "{\"siteId\":1,\"networkId\":2,\"unitId\":3,\"unitName\":\"a\"}"}, {id = "max-string-invalid-tail", valid = false, transforms = [{op = "max_string", pointer = "/unitName", character = "a", invalid = true}], input_json = "{\"siteId\":1,\"networkId\":2,\"unitId\":3,\"unitName\":\"a\"}"}, {id = "unicode", valid = false, transforms = [], input_json = "{\"siteId\":1,\"networkId\":2,\"unitId\":3,\"unitName\":\"١\"}"}, {id = "placement-string", valid = true, transforms = [], input_json = "{\"placementId\":\"abc123\",\"unitName\":\"valid-name\"}"}, {id = "placement-invalid", valid = false, transforms = [], input_json = "{\"placementId\":\"abc!\",\"unitName\":\"valid-name\"}"}]
+maximum_string = true
+string_refusals = true
+pattern_initialization = true
+retained_constructor = false
+schema = "consumable"

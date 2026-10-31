@@ -1,0 +1,135 @@
+[package]
+name = "auctioneer-cli"
+build = "src/build.rs"
+description = "Command-line interface for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = ["application"]
+# Weak forwarding keeps maintenance tests independent of embedded application data.
+test-support = ["auctioneer-core?/test-support"]
+# Repair/reference commands must build without the embedded config build script.
+application = [
+    "dep:base64", "dep:bytes", "dep:flate2", "dep:http",
+    "dep:http-body-util", "dep:hyper", "dep:hyper-util", "dep:edgezero-cli",
+    "dep:edgezero-core", "dep:edgezero-adapter-axum", "dep:log",
+    "dep:auctioneer-privacy",
+    "dep:auctioneer-core", "dep:tokio-rustls", "dep:rustls", "dep:url", "dep:validator", "dep:tar",
+    "dep:auctioneer-config", "dep:auctioneer-adapter-axum", "dep:auctioneer-adapter-cloudflare",
+    "dep:auctioneer-adapter-fastly", "dep:auctioneer-adapter-spin",
+    "dep:edgezero-adapter-cloudflare", "dep:edgezero-adapter-fastly", "dep:edgezero-adapter-spin",
+]
+
+[dependencies]
+anyhow = { workspace = true }
+base64 = { workspace = true, optional = true }
+clap = { workspace = true }
+bytes = { workspace = true, optional = true }
+chrono = { workspace = true }
+flate2 = { workspace = true, optional = true }
+fs2 = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true, optional = true }
+http-body-util = { workspace = true, optional = true }
+hyper = { workspace = true, features = ["client", "server", "http1"], optional = true }
+hyper-util = { workspace = true, features = ["tokio"], optional = true }
+# Need the `cli` feature for the run_* entry points, plus each adapter
+# feature so build/deploy/serve dispatch reaches the wrapper that
+# matches the user's target.
+edgezero-cli = { workspace = true, optional = true, features = [
+    "cli",
+    "edgezero-adapter-axum",
+    "edgezero-adapter-cloudflare",
+    "edgezero-adapter-fastly",
+    "edgezero-adapter-spin",
+] }
+# `AuctioneerPushSource` hand-writes `AppConfigMeta` / `Validate` rather
+# than deriving `AppConfig`, so the CLI needs the trait definitions
+# directly.
+edgezero-core = { workspace = true, optional = true }
+edgezero-adapter-axum = { workspace = true, optional = true }
+edgezero-adapter-cloudflare = { workspace = true, optional = true }
+edgezero-adapter-fastly = { workspace = true, optional = true }
+edgezero-adapter-spin = { workspace = true, optional = true }
+auctioneer-config = { workspace = true, optional = true }
+auctioneer-adapter-axum = { workspace = true, optional = true }
+auctioneer-adapter-cloudflare = { workspace = true, optional = true }
+auctioneer-adapter-fastly = { workspace = true, optional = true }
+auctioneer-adapter-spin = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+auctioneer-gvl-schema = { workspace = true }
+auctioneer-openrtb-catalogue = { workspace = true }
+auctioneer-privacy = { workspace = true, optional = true }
+auctioneer-runtime = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+yaml-rust2 = { workspace = true }
+auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-core = { workspace = true, optional = true }
+serde = { workspace = true }
+tempfile = { workspace = true }
+tar = { workspace = true, optional = true }
+time = { workspace = true }
+tokio = { workspace = true, features = ["fs", "io-std", "io-util", "net", "process", "signal", "sync", "time"] }
+tokio-rustls = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+# The `[baked.*]` tables ride through the push wrapper as opaque
+# values; `toml::Value` is what holds them.
+toml = { workspace = true }
+validator = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true }
+
+[dev-dependencies]
+auctioneer-cli = { workspace = true, default-features = false, features = ["test-support"] }
+flate2 = { workspace = true }
+syn = { workspace = true }
+quote = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+
+[build-dependencies]
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[[test]]
+name = "qualification_cli"
+required-features = ["application"]
+
+[[test]]
+name = "qualification_evidence"
+required-features = ["application"]
+
+[[test]]
+name = "qualification_harness"
+required-features = ["application"]
+
+[[test]]
+name = "qualification_migration"
+required-features = ["application"]
+
+[[test]]
+name = "bidders_resources"
+required-features = ["application"]
+
+[[test]]
+name = "bidders_evidence"
+required-features = ["application"]
+
+[[test]]
+name = "resource_boot_parity"
+path = "tests/resource_boot_parity/main.rs"
+required-features = ["application"]

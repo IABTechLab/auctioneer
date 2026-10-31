@@ -1,0 +1,170 @@
+key = "admatic"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/admatic"
+tree = "a003c7b9aa314714456a2250ba4a3673d9278c3b"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/admatic.yaml"
+source_blob = "a63e910b3feee58f650ac790d948fe71419958d3"
+source_bytes = 495
+source_sha256 = "6b47ff3deb675365d93ba019b8a16a85ff6c68a4590efba97651175994a3c31c"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/admaticde.yaml"
+source_blob = "fdd9b6107d66beb5d8d96fe1f6bd6a1707c73e27"
+source_bytes = 36
+source_sha256 = "41ef92c2cb18cc77d15e743b818e1826a2757494eab8e3985ad1a6bd835734bc"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+inherited_from = "admatic"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adt.yaml"
+source_blob = "29520d5e515a80e69314970bbcbd31b7d6e387e4"
+source_bytes = 84
+source_sha256 = "25dbce010b1f26089db76fde06e83a1e8f6f5d81cf2b9534da88aa4639c3b1e1"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+inherited_from = "admatic"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/monetixads.yaml"
+source_blob = "32b0d79280309a0e3220ae15b1a4897742ec0008"
+source_bytes = 79
+source_sha256 = "968eddc2f62166659fc3b28e944e22a752fe05292e39a611106ae93c7df87d17"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+inherited_from = "admatic"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/netaddiction.yaml"
+source_blob = "70a26fca5f8cdd741e6d4eec0db0d91c93fa24eb"
+source_bytes = 94
+source_sha256 = "5995f275b42f0d0f45e4b4dbee8b94e02072dddd5f1523c522d1ef6861cf81bf"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+inherited_from = "admatic"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/pixad.yaml"
+source_blob = "bc9a6fe6996fc7cf02957957abe8750165e75f11"
+source_bytes = 79
+source_sha256 = "d330ea1df3f54fe91429be3ac351c42dab4681c9acf123a7a4ecf0fe4aa431d4"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+inherited_from = "admatic"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/yobee.yaml"
+source_blob = "94023eef0bbf22f66ee487fe057f0300ac57f880"
+source_bytes = 74
+source_sha256 = "4dfc1346097708c1a512d1fbee1208dca5c4a9089b9bb5b8dfeec26d003afb8d"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.admatic.com.tr?host={{.Host}}"
+selected_url = "https://pbs.admatic.com.tr?host={{.Host}}"
+inherited_from = "admatic"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/admatic.json"
+source_blob = "016a95cfb0ad77c129750eddd64e73f5a3308a0d"
+source_bytes = 524
+source_sha256 = "4d694e8f07d719f63eae322f967d0b95c87b15ec0d3b7556f1f5bd5a295d1fb7"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 524
+source_sha256 = "4d694e8f07d719f63eae322f967d0b95c87b15ec0d3b7556f1f5bd5a295d1fb7"

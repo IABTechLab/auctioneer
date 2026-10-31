@@ -1,0 +1,24 @@
+error[E0080]: evaluation panicked: multiple metadata catch-alls
+ --> tests/conformance/fail/duplicate_catch_all.rs:2:10
+  |
+2 | #[derive(OpenRtbFieldMetadata)]
+  |          ^^^^^^^^^^^^^^^^^^^^ evaluation of `<Root as auctioneer_openrtb::field_metadata::FieldMetadata>::MODEL` failed inside this call
+  |
+note: inside `Model::new::<Root>`
+ --> $RUST/core/src/panic.rs
+  |
+  |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
+  |
+ ::: $WORKSPACE/crates/auctioneer-openrtb/src/field_metadata.rs
+  |
+  |                 assert!(!catch_all, "multiple metadata catch-alls");
+  |                 --------------------------------------------------- in this macro invocation
+
+note: erroneous constant encountered
+ --> tests/conformance/fail/duplicate_catch_all.rs:2:10
+  |
+2 | #[derive(OpenRtbFieldMetadata)]
+  |          ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this note originates in the derive macro `OpenRtbFieldMetadata` (in Nightly builds, run with -Z macro-backtrace for more info)

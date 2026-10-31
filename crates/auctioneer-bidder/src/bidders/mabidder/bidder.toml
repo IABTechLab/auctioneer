@@ -1,0 +1,54 @@
+key = "mabidder"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/mabidder"
+tree = "53ff6412e4b3b652222169e5c15c48919ebd1244"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/mabidder.yaml"
+source_blob = "b66e9a8bab62308b5b90bbb69804116bfc752f81"
+source_bytes = 340
+source_sha256 = "b8cf3bbfaedf8eb453553766751aa6a7d7ebdd1922287dec2c010a41c29b65b4"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/mabidder.json"
+source_blob = "f005e88e33d0ac03bf855c882ce280efdb6f8f32"
+source_bytes = 340
+source_sha256 = "68b773f0713605e46bacc2e812680a763f72ef003640c931b0150a4d7787284c"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 340
+source_sha256 = "68b773f0713605e46bacc2e812680a763f72ef003640c931b0150a4d7787284c"

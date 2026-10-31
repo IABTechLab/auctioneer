@@ -1,0 +1,2 @@
+schema = "yandex"
+cases = [{input_json = "{\"page_id\":1,\"imp_id\":1}", valid = true}, {input_json = "{\"page_id\":\"x\",\"imp_id\":\"x\"}", valid = false}]

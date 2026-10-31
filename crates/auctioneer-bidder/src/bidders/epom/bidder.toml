@@ -1,0 +1,54 @@
+key = "epom"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/epom"
+tree = "fd090515b432a1a6599e96c73900d4221ee44498"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/epom.yaml"
+source_blob = "dc3b9908bcaa359d568f581bff4c9ca0902323ec"
+source_bytes = 288
+source_sha256 = "84d9050f9acbb25f4f4abcfbe3bcf31cd15f2b031a787cb8145c643ca8e7560c"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/epom.json"
+source_blob = "ee8c14e4f7e1f9bd0bec5a6dbdc0e7a0b219c202"
+source_bytes = 215
+source_sha256 = "b08a6648e3a14c3f49e9d93b6e26c73bf8deaade94e0187819796823188e8c4d"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 215
+source_sha256 = "b08a6648e3a14c3f49e9d93b6e26c73bf8deaade94e0187819796823188e8c4d"

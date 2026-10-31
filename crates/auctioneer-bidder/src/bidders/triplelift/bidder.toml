@@ -1,0 +1,365 @@
+key = "triplelift"
+factory = true
+native_only = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.triplelift]
+defaultEnabled = false
+endpoint = "https://tlx.3lift.com/s2s/auction?sra=1&supplier_id=20"
+endpointCompression = "gzip"
+gvlVendorID = 28
+
+[definitions.triplelift.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.triplelift.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.triplelift.maintainer]
+email = "prebid@triplelift.com"
+
+[definitions.triplelift.openrtb]
+gpp-supported = true
+version = 2.6
+
+[definitions.triplelift.userSync.iframe]
+url = "https://eb2.3lift.com/sync?gdpr={{.GDPR}}&cmp_cs={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&redir={{.RedirectURL}}"
+userMacro = "$UID"
+
+[definitions.triplelift.userSync.redirect]
+url = "https://eb2.3lift.com/getuid?gdpr={{.GDPR}}&cmp_cs={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&redir={{.RedirectURL}}"
+userMacro = "$UID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/triplelift"
+tree = "ffe1d2c46af7dba7973f74dcd694d6feaf826125"
+port_differences = [
+    """\
+    Bounded Rust protocol candidate with a discovered stateless factory and opt-in native-only \
+    publication; serving acceptance, schema/resource qualification and \
+    complete migration remain open. Pending wave approval is not inferred.""",
+    """\
+    Borrowed capped serialization replaces source request/impression copies and a retained \
+    survivor slice. Parameters are inspected allocation-free in preflight and streaming; \
+    diagnostics are recorded once. Metadata and body include the same ordered survivors.""",
+    """\
+    Parameter decode errors (source 14) and unsupported media (source 999) use the shared \
+    capped construction diagnostics with code 2; the all-invalid No valid impressions for \
+    triplelift error retains source 999. Safe fixed diagnostics never echo request values or \
+    parser errors.""",
+    """\
+    Zero and negative-zero floor overrides clear old floors and omit bidfloor, and \
+    empty/default inventory clears old tagid and omits it. The original extension remains \
+    unchanged. AG separately approved single case-insensitive inventoryCode, floor, \
+    triplelift_pb and format keys on 2026-10-23. Competing spellings reject only the affected \
+    impression or bid, even with equal/null values; source last-on-wire precedence cannot be \
+    recovered from shared parsed maps. Exact duplicate-key order remains an inherited gap.""",
+    """\
+    Source json-iterator's general parameter decoder lowercases inventoryCode keys, including \
+    dotted capital I; its optimized one-field media decoders fold ASCII only. The \
+    allocation-free Rust lookup preserves that distinction, with malformed and ambiguous \
+    dotted-I controls. The source JSON helper and dependency manifest are pinned separately.""",
+    """\
+    Presence-aware typed imp.ext.bidder now distinguishes missing, null and value: missing \
+    refuses, while explicit null allows source defaults and remains null on the outbound wire. \
+    Shared parsed response extensions still merge absence and null into the current banner \
+    fallback; those response and envelope-level case gaps remain unqualified. Unrelated source \
+    imp.ext.ae/prebid validation is not recreated by scoped parameter parsing.""",
+    """\
+    HTTP 204 ignores its body, 400 is code 2 and other non-200 statuses are source code 999. \
+    The source numeric-only status message is preserved. Valid response currency is \
+    deliberately ignored for USD, as in source.""",
+    """\
+    Nested integer triplelift_pb.format 11/12/17 supplies video, otherwise banner. Shared \
+    classification additionally rejects contradictions, unoffered media and unknown IDs, and \
+    this bidder checks actual sent-call coverage so filtered impressions cannot regain bids. \
+    Candidate-local failures preserve valid siblings; all-invalid results use Auctioneer Err rather \
+    than an empty response plus errors.""",
+    """\
+    Twelve verbatim captures total 29226 bytes: ten candidate end-to-end cases and two \
+    shared-boundary controls. String imp.ext fails shared typed ingress before dispatch, while \
+    string bid.ext fails sealed whole-response decoding before local classification. They are \
+    not evidence of source-local-error parity. Only captured integral bidfloor 20 versus Rust \
+    f64 20.0 is normalized explicitly for comparison.""",
+]
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/exemplary"
+tree = "2d2f248771e62b0c2b84821a20918d2bd6a699fa"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental"
+tree = "5789e31bf6c6a01b646d014f8266998b054fe392"
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/triplelift.yaml"
+source_blob = "79a8951680f8d2e5f3160e673e0ae0c6d31c41ee"
+source_bytes = 1073
+source_sha256 = "3453e13246d48cb185b9b07b763179ecb8e3fe4aa1016da8cd9bcf065299cf36"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication preserves the source HTTPS endpoint, \
+    banner/video capabilities, vendor, maintainer, OpenRTB and both sync templates. Source \
+    GZIP normalizes to the strict Auctioneer gzip enum. \
+    Runtime defaultEnabled=false; no separate native integration is promoted. Publication \
+    is not selected-flow acceptance, resource qualification or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/triplelift.json"
+source_blob = "1983ae4fab967d81eca6805c27b85849dd837e96"
+source_bytes = 493
+source_sha256 = "9642f3ebeaba75db426826efcc02335f7517843356c8bb4baefb89106f44f0f4"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 493
+source_sha256 = "9642f3ebeaba75db426826efcc02335f7517843356c8bb4baefb89106f44f0f4"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/triplelift/triplelift.go"
+source_blob = "736773075eb175da44bb79dc74715a17f1a356de"
+source_bytes = 4296
+source_sha256 = "0738383d81aab9990dcded3ac253064783fcfe48d8dc3f2e7649a4da15bf2a01"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/triplelift/triplelift_test.go"
+source_blob = "547c8609bbc7a032d6ca58276552cb903d15f7ab"
+source_bytes = 609
+source_sha256 = "5925eecde4558e726d245037c2c2306a3d9576a514c247d22e56d512d2066494"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "openrtb_ext/imp_triplelift.go"
+source_blob = "34b054846fca756a91b3a2b0f08fb25a2a6f99bf"
+source_bytes = 220
+source_sha256 = "bbd72840188af45d23793197c90fe84acf63ab000b9f212d401fd833b7dcb62a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.mod"
+source_blob = "998750a0ab0830ae6a24f6d2f2abbddf2ba85855"
+source_bytes = 3548
+source_sha256 = "00d82a3d3a03e1dc411876b858a857a832bfc7a6dc4b5ace95a3d52b37e4e549"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/exemplary/optional-params.json"
+source_blob = "33da6cb2968c3fcf48b8942568a4085fcdb183e4"
+source_bytes = 1381
+source_sha256 = "cbb281d7f3df4a94e680e66ef9f297948473c73910d474ff84fed133d5ec94e2"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/optional-params.json"
+source_bytes = 1381
+source_sha256 = "cbb281d7f3df4a94e680e66ef9f297948473c73910d474ff84fed133d5ec94e2"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/exemplary/simple-banner.json"
+source_blob = "36fb2b66c981d118c73179f93730c6fc00e75616"
+source_bytes = 2876
+source_sha256 = "0129718aea4f258fb7336ea067abee10dda2af928535114c36ec4fabc2a0dc76"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner.json"
+source_bytes = 2876
+source_sha256 = "0129718aea4f258fb7336ea067abee10dda2af928535114c36ec4fabc2a0dc76"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/exemplary/simple-video.json"
+source_blob = "8d63b9acf3f9fa7543f4ae8ced730f0cc21e5bc2"
+source_bytes = 3349
+source_sha256 = "68ae1f1854fda19d2766580241092e58d0f20dfa3fedc8ec115a6799030fbfda"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-video.json"
+source_bytes = 3349
+source_sha256 = "68ae1f1854fda19d2766580241092e58d0f20dfa3fedc8ec115a6799030fbfda"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/badext.json"
+source_blob = "7c4b8190faf109badc9512fd5119654ac2689e46"
+source_bytes = 611
+source_sha256 = "6e190b7f0f9c6d0af25e2c9c9599cd66fa788fdc87b76f0f1693637bab583c2e"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/badext.json"
+source_bytes = 611
+source_sha256 = "6e190b7f0f9c6d0af25e2c9c9599cd66fa788fdc87b76f0f1693637bab583c2e"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/badextbidder.json"
+source_blob = "c5b0c1fcbed6b3f87e2894869221e97094bc103d"
+source_bytes = 664
+source_sha256 = "36695e4bf9c6385b0aaff9c5a024d09f96c630f9e7df257f71e308924af2a713"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/badextbidder.json"
+source_bytes = 664
+source_sha256 = "36695e4bf9c6385b0aaff9c5a024d09f96c630f9e7df257f71e308924af2a713"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/badlyformed.json"
+source_blob = "724980803aa3426a174cf7cbd13ad6f61cf48e3e"
+source_bytes = 479
+source_sha256 = "3ca39f74a9104a8940e9da0f9a1bf66cd8938fc9c743a4550020751b96f7dc06"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/badlyformed.json"
+source_bytes = 479
+source_sha256 = "3ca39f74a9104a8940e9da0f9a1bf66cd8938fc9c743a4550020751b96f7dc06"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/badresponseext.json"
+source_blob = "3c217f64f4e31e359e30abc91be580261b1c83fb"
+source_bytes = 2284
+source_sha256 = "1d77b00a669f08e71fda085a6203b1627fa8f658c15c86ad2f248d8e07298b18"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/badresponseext.json"
+source_bytes = 2284
+source_sha256 = "1d77b00a669f08e71fda085a6203b1627fa8f658c15c86ad2f248d8e07298b18"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/badstatuscode.json"
+source_blob = "a4c9ee0014778018e2285964640595c0026272e8"
+source_bytes = 2380
+source_sha256 = "1dadc5d1388c5892ef38a736058d1b141f6b02c9bb3035b50131ad42b87d2263"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/badstatuscode.json"
+source_bytes = 2380
+source_sha256 = "1dadc5d1388c5892ef38a736058d1b141f6b02c9bb3035b50131ad42b87d2263"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/notgoodstatuscode.json"
+source_blob = "f15871f514507c609cfe0fb9fc3b7ffc5bf2029d"
+source_bytes = 2380
+source_sha256 = "3425410e40247ae4dddddeaf4d054d0e92def298dd4ca2cfd114ab2054218092"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/notgoodstatuscode.json"
+source_bytes = 2380
+source_sha256 = "3425410e40247ae4dddddeaf4d054d0e92def298dd4ca2cfd114ab2054218092"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/video-format-11.json"
+source_blob = "372cc51ea08049bf2bcd59e7b87b8e51cae3fdcc"
+source_bytes = 4274
+source_sha256 = "609039f8b60ea061b9f73690e0e9045a77ffa2c0d0630108cf6a3d7bd0269fc3"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/video-format-11.json"
+source_bytes = 4274
+source_sha256 = "609039f8b60ea061b9f73690e0e9045a77ffa2c0d0630108cf6a3d7bd0269fc3"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/video-format-12.json"
+source_blob = "f2b55a040136c85cd73da95233f384bf11e90aaa"
+source_bytes = 4274
+source_sha256 = "6b8ba0ec49421ae8508694b7aa942598d47719297e25dec4e2e9f90a2f40145f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/video-format-12.json"
+source_bytes = 4274
+source_sha256 = "6b8ba0ec49421ae8508694b7aa942598d47719297e25dec4e2e9f90a2f40145f"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/triplelift/triplelifttest/supplemental/video-format-17.json"
+source_blob = "26dcc943af84eaf39703ac570106081940899a0d"
+source_bytes = 4274
+source_sha256 = "7803f646b66f05eeba34d3d5f04749a62b724cc3f8b053cda0ef6f54b5a9fd57"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/video-format-17.json"
+source_bytes = 4274
+source_sha256 = "7803f646b66f05eeba34d3d5f04749a62b724cc3f8b053cda0ef6f54b5a9fd57"

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "implementation": "mocktioneer",
+  "fixture": "full-privacy-context-v1",
+  "banner_response_prebid": {},
+  "publisher": {"mode": "preserve"},
+  "impression_extension": {"mode": "preserve"},
+  "request_extension": {
+    "preserve_input": true,
+    "absent_input": {"mode": "missing"},
+    "present_input": {},
+    "requested_bidder_path": null
+  }
+}

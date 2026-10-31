@@ -1,0 +1,54 @@
+key = "elementaltv"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/elementaltv"
+tree = "e5d349b01180d3dbd8f10af8425285a24b26f73e"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/elementaltv.yaml"
+source_blob = "ffc219f7f75088d6c85431514ca3147ecffee41b"
+source_bytes = 316
+source_sha256 = "bace92072127fa0d403323e422638ad8724d1b7159dd48dc4c07d29c892c8c90"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/elementaltv.json"
+source_blob = "fbe36a9606e2b0bfa5aec96fd3a0be81f857c381"
+source_bytes = 360
+source_sha256 = "efdc3ed1c641e9dbe7265e0bf8b309c565508175894d05c708cfeb84ed03e792"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 360
+source_sha256 = "efdc3ed1c641e9dbe7265e0bf8b309c565508175894d05c708cfeb84ed03e792"

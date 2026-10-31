@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "implementation": "pubmatic",
+  "fixture": "full-privacy-context-v1",
+  "banner_response_prebid": {"video": {"duration": 0, "primary_category": ""}},
+  "publisher": {"mode": "replace", "id": "fake_publisher"},
+  "impression_extension": {"mode": "replace", "fields": {"key_val": "slot=top"}},
+  "request_extension": {
+    "preserve_input": false,
+    "absent_input": {"mode": "object", "fields": {}},
+    "present_input": {"wrapper": {"biddercode": ""}},
+    "requested_bidder_path": "/wrapper/biddercode"
+  }
+}

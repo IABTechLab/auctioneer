@@ -1,0 +1,398 @@
+key = "sharethrough"
+factory = true
+native_only = true
+
+[definitions.sharethrough]
+defaultEnabled = false
+endpoint = "https://btlr.sharethrough.com/universal/v1?supply_id=FGMrCMMc"
+gvlVendorID = 80
+
+[definitions.sharethrough.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.sharethrough.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.sharethrough.maintainer]
+email = "pubgrowth.engineering@sharethrough.com"
+
+[definitions.sharethrough.openrtb]
+version = 2.6
+
+[definitions.sharethrough.userSync.redirect]
+url = "https://match.sharethrough.com/FGMrCMMc/v1?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&redirectUri={{.RedirectURL}}"
+userMacro = "$UID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/sharethrough"
+tree = "baf4ec315b0844a52f0e5ed8abf9ae08e52199c2"
+port_differences = [
+    """\
+    Stateless Rust protocol candidate with source captures, native allocation controls and \
+    sealed-response conformance. Current verification belongs to the priority-services plan, \
+    not this provenance record. Opt-in native-only publication does not imply \
+    publisher delivery or schema/resource qualification.""",
+    """\
+    Frozen reviewed version contract: source.ext.str is 10.0 and source.ext.version is the \
+    compiled Cargo package version. Captured source expectations retain their original empty \
+    version string; only comparison copies substitute the approved compiled value.""",
+    """\
+    Request contract: banner, video, then native calls per impression, with audio \
+    removed. Root blocklists accumulate root entries and each successfully parsed impression's \
+    entries, including preceding unsupported-media impressions, without deduplication. Placement \
+    keys replace tagid. A zero test flag is omitted on the wire, matching source omitempty; \
+    nonzero flags remain. Scoped input and unrelated fields remain unchanged.""",
+    """\
+    Approved FX contract: borrow operator-owned floor_currency from BidderRequestInfo; convert \
+    positive nonempty non-USD floors to USD. ASCII-case-equivalent USD bypasses conversion. \
+    Foreign three-letter ASCII codes use the shared fixed-stack case normalization; operator \
+    snapshot keys remain strictly uppercase. Malformed codes refuse. Any conversion failure \
+    is bidder-fatal and refunds all previously accepted calls, including when the \
+    failing impression has no supported media. Conversion refusals use a fixed generic code \
+    999 diagnostic, never rate or currency contents. No request-provided rates or invented \
+    defaults are used.""",
+    """\
+    Reviewed OpenRTB-first response contract: valid standard mtype takes priority; declared \
+    legacy ext.prebid.type fills only missing mtype. Null, invalid and unsupported standard \
+    codes reject locally, never falling back. Media must match both the scoped impression \
+    and the exact sent split-call correlation and covered ID. Missing both declarations \
+    refuses instead of guessing from sent media. Valid siblings survive local failures. \
+    Response currency is USD even when the provider declares another currency.""",
+    """\
+    The shared response partitioner and sent-media lookup remain authoritative for error \
+    isolation and exact call coverage. Standard-first classification checks the scoped \
+    impression without cloning or erasing its original legacy extension; only missing \
+    standard media uses the existing shared bid classifier's named-hint checks.""",
+    """\
+    Source.ext absent/null is initialized safely instead of reproducing a nil-map panic. \
+    Nonobject source.ext is safely refused by the typed ingress model before bidder entry; \
+    no bidder-local raw decoder bypass is added. Shared eager typed response extensions can \
+    still reject malformed nested objects before bid-local classification; this remains an \
+    explicit shared-decoder boundary, not complete malformed-sibling parity.""",
+    """\
+    Status contract: 204 skips body parsing, 400 is bad input, and zero or every other non-200 \
+    status is a fixed bad-server-response refusal. Provider content never enters diagnostics. \
+    Sealed response parsing and existing budgets remain mandatory.""",
+    """\
+    Eleven original protocol captures retain all 37909 bytes, including the multiformat \
+    capture's missing final newline. Source HTTP whatever.url is unchanged; local tests use \
+    a fixed HTTPS endpoint without implying destination approval. No metadata YAML, foreign \
+    source program or duplicate license is retained. Factory expectations are locally authored.""",
+    """\
+    Borrowed capped serializers retain neither transformed caller trees nor cumulative \
+    blocklist/rate copies. Prefix projection revalidates successfully decoded parameters \
+    while streaming. Native controls independently vary root, impression, source, placement, \
+    current/preceding blocklists, call slots, impression count, body caps and operator-map \
+    width. Real tree/map clones are negative controls against existing funding bounds; \
+    passing allocation or hosted execution is not claimed before coordinator verification.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/sharethrough.yaml"
+source_blob = "0c4f93dc62443000f10caa74733306dfa858b260"
+source_bytes = 571
+source_sha256 = "49fba515cf56de225b617fc1a1ca8a3b31e084925c2321202939105a21e90f74"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication preserves the source HTTPS endpoint, \
+    capabilities, vendor, maintainer, OpenRTB version and redirect sync template. Runtime \
+    defaultEnabled=false; source geoscope is not a routing fallback. Publication is not \
+    selected-flow acceptance, resource qualification or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/sharethrough.json"
+source_blob = "f1357e9133f6a397033925398888a88e73a901fc"
+source_bytes = 666
+source_sha256 = "2fa8313a5f5096c0e27d80a5ec1f8acb62bcf3fa54e41fe8b29f334aba0f2f61"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 666
+source_sha256 = "2fa8313a5f5096c0e27d80a5ec1f8acb62bcf3fa54e41fe8b29f334aba0f2f61"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/exemplary"
+tree = "c4175cb386954a58dc2cdc25b22fbcd50631ed6e"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental"
+tree = "daa59243e50b089b6a1327c32eb8d517625c2fa2"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "adapters/sharethrough/params_test.go"
+source_blob = "03c60cec38bcba527a20c387d9e1d850bfc8d160"
+source_bytes = 1588
+source_sha256 = "cc8def6b40eb989680584a8f08c35b8c4f1d0835b2b639b04311a3bedbdbd43f"
+transformation = "extract-go-raw-json-literals"
+port_differences = [
+    """\
+    Exact seven validParams and fourteen invalidParams literals, in source order, extracted \
+    without executing Go. Only the surrounding JSON container and escaping are locally authored. \
+    The empty-string invalid case is intentionally retained.""",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/parameters.json"
+source_bytes = 821
+source_sha256 = "2138913fb2911b46d13fbc68e655449af12d2ea18a39cb36f2336c79feef3457"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethrough.go"
+source_blob = "76631227881c787d7f4a00e4760318ce52d034c9"
+source_bytes = 5887
+source_sha256 = "d972411723e26b8e6886d55d71a3172495acb24e62f48b927fb8ba3d4725366a"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethrough_test.go"
+source_blob = "fd2c5d12ed4e80b4fc8a0365868fa0b741af96a2"
+source_bytes = 610
+source_sha256 = "b283af0f97469fa0491bb38dbfcd712a1ec372f836a2f5c28c7af000ca5518ce"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/exemplary/app-banner.json"
+source_blob = "c66d0981582fef5ea49b29a973e10962a1a2ef33"
+source_bytes = 2897
+source_sha256 = "0ae32b658e7fe1d0359beac930d36aab8d0eb209b35a0559c4e4ec178bd6b15c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/app-banner.json"
+source_bytes = 2897
+source_sha256 = "0ae32b658e7fe1d0359beac930d36aab8d0eb209b35a0559c4e4ec178bd6b15c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/exemplary/app-native.json"
+source_blob = "b5e3991690d7ec6215ea919d5f2e4a157d23e6bf"
+source_bytes = 2307
+source_sha256 = "56a496fbadb2e7f4c2b97f9e1df1f81c1e071bbeddd0cbbdb51a8c508515f408"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/app-native.json"
+source_bytes = 2307
+source_sha256 = "56a496fbadb2e7f4c2b97f9e1df1f81c1e071bbeddd0cbbdb51a8c508515f408"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/exemplary/app-video.json"
+source_blob = "ec75dfdf34298a695d5c03dfe9ba86578c2df8a6"
+source_bytes = 3236
+source_sha256 = "8f73c6204ee36e5022fdfbb469f394b818e2e3283512b7fe09b78c27948f8f6a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/app-video.json"
+source_bytes = 3236
+source_sha256 = "8f73c6204ee36e5022fdfbb469f394b818e2e3283512b7fe09b78c27948f8f6a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/exemplary/web-banner.json"
+source_blob = "86c4d6d6d073b2fe843a611bb229bf142d84fecd"
+source_bytes = 2933
+source_sha256 = "f38475c34a23e1d4c3f4f412acfacce475a8e7bdb8b2eb4beaae38e337cb5816"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/web-banner.json"
+source_bytes = 2933
+source_sha256 = "f38475c34a23e1d4c3f4f412acfacce475a8e7bdb8b2eb4beaae38e337cb5816"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/exemplary/web-video.json"
+source_blob = "639ebc8b47fd869d0cc4a74da89753ffa1aeedc0"
+source_bytes = 3277
+source_sha256 = "1bdb6682e5ef1ff71bdffbc8ab290e92a812cbcbd042f189afafb54272cad8d5"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/web-video.json"
+source_bytes = 3277
+source_sha256 = "1bdb6682e5ef1ff71bdffbc8ab290e92a812cbcbd042f189afafb54272cad8d5"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental/error-bad-request.json"
+source_blob = "1b6fe5f6a2f5504d31cbeb7e67a34981f709d8ac"
+source_bytes = 1951
+source_sha256 = "cda9b6788d08400a0753d2ca06a97bf4e398bb74a8022e334376eacd9d8dea92"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/error-bad-request.json"
+source_bytes = 1951
+source_sha256 = "cda9b6788d08400a0753d2ca06a97bf4e398bb74a8022e334376eacd9d8dea92"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental/error-internal-server.json"
+source_blob = "288e9fe626caa91981ff7f84d2324a69e34ca886"
+source_bytes = 1951
+source_sha256 = "2842dcfbff2cee84dd05129e4317a3acaf0256eeac00dcea0bcec515e1695f35"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/error-internal-server.json"
+source_bytes = 1951
+source_sha256 = "2842dcfbff2cee84dd05129e4317a3acaf0256eeac00dcea0bcec515e1695f35"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental/multi-imp.json"
+source_blob = "1a0fe70971a5ee7c289fbf2abd8c679a05c4f868"
+source_bytes = 5529
+source_sha256 = "11a2cf42f2b0670d73ef86541c62936a88ca0854c5ef8996bcf48cee220c6a7f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/multi-imp.json"
+source_bytes = 5529
+source_sha256 = "11a2cf42f2b0670d73ef86541c62936a88ca0854c5ef8996bcf48cee220c6a7f"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental/multiformat-impression.json"
+source_blob = "580f89d68ec8b52d8be24746ba230f8ca190831a"
+source_bytes = 8023
+source_sha256 = "6106639916452ecd2171805fcc2091534b1436b804cf361c0225bfc8f76a0b3a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/multiformat-impression.json"
+source_bytes = 8023
+source_sha256 = "6106639916452ecd2171805fcc2091534b1436b804cf361c0225bfc8f76a0b3a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental/no-fill.json"
+source_blob = "605b3ffd5cffac1fdef34392a27f8c104742f4d4"
+source_bytes = 1861
+source_sha256 = "868e7f86bdb4c191160ea5238703f2cf69a1ef49b18d890f20003490428b1020"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/no-fill.json"
+source_bytes = 1861
+source_sha256 = "868e7f86bdb4c191160ea5238703f2cf69a1ef49b18d890f20003490428b1020"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sharethrough/sharethroughtest/supplemental/schain.json"
+source_blob = "28b5565b2a6e1c406a874820f01249fcd225a4a2"
+source_bytes = 3944
+source_sha256 = "6b5b34cf65a8cf97e40ecf15448d04e35b4040f4c5b2f42c752c5a89586c139f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/schain.json"
+source_bytes = 3944
+source_sha256 = "6b5b34cf65a8cf97e40ecf15448d04e35b4040f4c5b2f42c752c5a89586c139f"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp_sharethrough.go"
+source_blob = "abcbe11ed2dac45eb08afeb2388dee0e7ec246e7"
+source_bytes = 163
+source_sha256 = "09a0505ed6ad7a9141930aacae0bdcd8594e78683b3698e34133843bb8705712"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/bid.go"
+source_blob = "e8afbae3bda9df3f6b95b7b8e4fcd9e56832d317"
+source_bytes = 7575
+source_sha256 = "db65e4e96eae77ea0a9012525ccd55770eb09b8d68bc0b4829e100800529d978"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "version/version.go"
+source_blob = "55705b2ad20fd92b9291324dac40fa8872bc6b26"
+source_bytes = 650
+source_sha256 = "6a26bfa6fb97fde223345769ed5cc2e6a9e969eba6a09e09b4c26c4bff5d47b3"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "currency/aggregate_conversions.go"
+source_blob = "a15404fe50133225c16ccb2a092f61f94d39058b"
+source_bytes = 1588
+source_sha256 = "3db7c70a50041f681b1ecbc8788b4d8776d6ec01869423219742d0b12232948b"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "currency/constant_rates.go"
+source_blob = "ccc5c24d3fce7e4fa344e78a6e2c6d4205a4c396"
+source_bytes = 1012
+source_sha256 = "adfc889dcf3ea84f58311f9ea63c02e1e795487bc6424f35fc42259796a1e35f"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "currency/validation.go"
+source_blob = "45b2522a59ebf4e8faf0987289748bb475cd3626"
+source_bytes = 1219
+source_sha256 = "cee9fc4ae04f5a408a4c3ce3485dfdceded0120ea67a8ff874720404ebbc3569"

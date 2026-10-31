@@ -1,0 +1,22 @@
+{
+  "id": "device-context-json-fidelity",
+  "site": { "id": "site" },
+  "imp": [{ "id": "imp", "banner": { "w": 300, "h": 250 } }],
+  "device": {
+    "make": null,
+    "h": null,
+    "w": 9223372036854775807,
+    "ppi": 9223372036854775807,
+    "pxratio": 2,
+    "sua": {
+      "browsers": [],
+      "platform": null,
+      "mobile": null
+    },
+    "ext": {
+      "prebid": {
+        "interstitial": { "minwidthperc": 80, "minheightperc": 70 }
+      }
+    }
+  }
+}

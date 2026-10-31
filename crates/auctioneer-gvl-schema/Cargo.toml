@@ -1,0 +1,30 @@
+# Standalone by design: NO build.rs and NO dependency on auctioneer-config,
+# so this crate always builds even when the checked-in GVL archive is
+# broken — the refresh tool depends on it to repair the archive, and a
+# schema crate that failed to build with the archive would wedge that
+# bootstrap. Must keep cross-compiling to wasm32 (no fs2 here; the
+# advisory-lock deps live with the lock takers).
+[package]
+name = "auctioneer-gvl-schema"
+description = "GVL manifest + vendor-list schema validation shared by build scripts, runtime, and tooling."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_path_to_error = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+
+[dev-dependencies]
+# tests/schema.rs builds fixture JSON with the json! macro and pins
+# validation instants with time's datetime! macro.
+serde_json = { workspace = true }
+time = { workspace = true }

@@ -1,0 +1,16 @@
+error[E0277]: the trait bound `serde_json::Map<std::string::String, std::string::String>: FieldMetadata` is not satisfied
+ --> tests/conformance/fail/string_map_flatten.rs:6:12
+  |
+6 |     other: serde_json::Map<String, String>,
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `FieldMetadata` is not implemented for `serde_json::Map<std::string::String, std::string::String>`
+  |
+help: the trait `FieldMetadata` is implemented for `serde_json::Map<std::string::String, serde_json::Value>`
+ --> $WORKSPACE/crates/auctioneer-openrtb/src/field_metadata.rs
+  |
+  | impl FieldMetadata for Map<String, Value> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `auctioneer_openrtb::field_metadata::Field::of`
+ --> $WORKSPACE/crates/auctioneer-openrtb/src/field_metadata.rs
+  |
+  |     pub const fn of<T: FieldMetadata + ?Sized>(name: &'static str, flattened: bool) -> Self {
+  |                        ^^^^^^^^^^^^^ required by this bound in `Field::of`

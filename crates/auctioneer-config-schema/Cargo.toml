@@ -1,0 +1,78 @@
+# Dependency-neutral by design: serde-only by default, never
+# auctioneer-core or auctioneer-config. `auctioneer-config`'s BUILD SCRIPT
+# deserializes `auctioneer.toml` through the root DTO here, and
+# `auctioneer-core` depends on `auctioneer-config`, so hosting this type in
+# `auctioneer-core` would make that build script cyclic. Same pattern as
+# `auctioneer-gvl-schema`: a build-dependency on a sibling path crate is
+# legal and has no cycle because the sibling has no build.rs of its
+# own.
+[package]
+name = "auctioneer-config-schema"
+description = "Configuration schemas and optional native build support shared by auctioneer crates."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+# Shared effective configuration and validation, without parsers or code generators.
+config-model = [
+    "dep:ipnetwork",
+    "dep:auctioneer-runtime",
+    "dep:percent-encoding",
+    "dep:unicode-case-mapping",
+    "dep:url",
+    "serde/rc",
+]
+# Native tooling and build scripts only. Serving dependencies use config-model.
+build-support = [
+    "config-model",
+    "dep:hex",
+    "dep:auctioneer-openrtb",
+    "dep:auctioneer-openrtb-catalogue",
+    "dep:proc-macro2",
+    "dep:quote",
+    "dep:serde_json",
+    "dep:sha2",
+    "dep:syn",
+    "dep:time",
+    "dep:toml",
+    "dep:validator",
+]
+insecure-bidders = []
+
+[dependencies]
+serde = { workspace = true }
+hex = { workspace = true, optional = true }
+ipnetwork = { workspace = true, optional = true }
+auctioneer-runtime = { workspace = true, optional = true }
+auctioneer-openrtb = { workspace = true, optional = true }
+auctioneer-openrtb-catalogue = { workspace = true, optional = true }
+percent-encoding = { workspace = true, optional = true }
+proc-macro2 = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+syn = { workspace = true, optional = true }
+time = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+unicode-case-mapping = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+validator = { workspace = true, optional = true }
+
+[dev-dependencies]
+# tests/root_shape.rs deserializes one fixture document under both
+# generic instantiations, which needs a TOML parser and the opaque
+# `toml::Value` the CLI side uses for the baked tables.
+serde = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+auctioneer-macros = { workspace = true }
+serde_json = { workspace = true }
+rustix = { workspace = true }
+tempfile = { workspace = true }

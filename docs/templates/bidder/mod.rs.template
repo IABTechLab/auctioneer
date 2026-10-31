@@ -1,0 +1,44 @@
+//! REPLACE_WITH_REVIEWED_PROTOCOL_AND_OWNERSHIP_DESCRIPTION
+
+compile_error!("Replace the bidder template with a reviewed implementation before enabling it");
+
+mod request;
+mod response;
+
+use crate::{
+    Bidder, BidderError, BidderHttpResponse, BidderRequestInfo, BidderResponse,
+    OutboundRequestMeta, OutboundRequestSink,
+};
+use auctioneer_openrtb::types::bid_request::BidRequest;
+
+pub struct ReplaceWithBidder;
+
+pub(crate) fn create_bidder() -> Box<dyn Bidder> {
+    Box::new(ReplaceWithBidder)
+}
+
+impl Bidder for ReplaceWithBidder {
+    fn make_requests(
+        &self,
+        request: &BidRequest,
+        info: &BidderRequestInfo<'_>,
+        sink: &mut OutboundRequestSink<'_>,
+    ) -> Result<(), Vec<BidderError>> {
+        request::make_requests(request, info, sink)
+    }
+
+    fn make_bids(
+        &self,
+        request: &BidRequest,
+        sent: &OutboundRequestMeta,
+        response: &BidderHttpResponse,
+    ) -> Result<BidderResponse, Vec<BidderError>> {
+        response::make_bids(request, sent, response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(target_arch = "wasm32"))]
+    mod conformance;
+}

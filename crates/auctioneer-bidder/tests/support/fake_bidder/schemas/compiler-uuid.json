@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic trace format compiler control",
+  "description": "Independent fake-bidder trace identifier; custom format validation is toggled without changing the schema.",
+  "type": "object",
+  "properties": { "trace": { "type": "string", "format": "uuid" } },
+  "required": ["trace"],
+  "additionalProperties": false
+}

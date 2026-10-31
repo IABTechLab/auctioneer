@@ -1,0 +1,648 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=$UID",
+        "family": "adnxs",
+        "round_trip": {
+          "account": "",
+          "account_value_count": 0,
+          "bidder": "appnexus",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://ib.adnxs.com/getuid?https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dappnexus%26gdpr%3D%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26uid%3D%24UID",
+        "user_macro": "$UID"
+      },
+      "id": "appnexus_redirect_named_false_gdpr_ambiguous",
+      "input": {
+        "account": "",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "appnexus",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "adnxs",
+          "endpoint_url": "https://ib.adnxs.com/getuid?{{.RedirectURL}}",
+          "user_macro": "$UID"
+        },
+        "privacy": {
+          "GDPR": "",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it.",
+        "paths": [
+          "static/bidder-info/appnexus.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=$UID",
+        "family": "adnxs",
+        "round_trip": {
+          "account": "",
+          "account_value_count": 0,
+          "bidder": "appnexus",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://ib.adnxs.com/getuid?https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dappnexus%26gdpr%3D1%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26uid%3D%24UID",
+        "user_macro": "$UID"
+      },
+      "id": "appnexus_redirect_named_false_gdpr_yes",
+      "input": {
+        "account": "",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "appnexus",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "adnxs",
+          "endpoint_url": "https://ib.adnxs.com/getuid?{{.RedirectURL}}",
+          "user_macro": "$UID"
+        },
+        "privacy": {
+          "GDPR": "1",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it.",
+        "paths": [
+          "static/bidder-info/appnexus.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=$UID",
+        "family": "adnxs",
+        "round_trip": {
+          "account": "tenant &+%=\"雪",
+          "account_value_count": 1,
+          "bidder": "appnexus",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://ib.adnxs.com/getuid?https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dappnexus%26gdpr%3D%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26account%3Dtenant%2B%2526%252B%2525%253D%2522%25E9%259B%25AA%26uid%3D%24UID",
+        "user_macro": "$UID"
+      },
+      "id": "appnexus_redirect_named_true_gdpr_ambiguous",
+      "input": {
+        "account": "tenant &+%=\"雪",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "appnexus",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "adnxs",
+          "endpoint_url": "https://ib.adnxs.com/getuid?{{.RedirectURL}}",
+          "user_macro": "$UID"
+        },
+        "privacy": {
+          "GDPR": "",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it. Account is an explicitly configured custom host template, NOT automatic propagation in Prebid.",
+        "paths": [
+          "static/bidder-info/appnexus.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=$UID",
+        "family": "adnxs",
+        "round_trip": {
+          "account": "tenant &+%=\"雪",
+          "account_value_count": 1,
+          "bidder": "appnexus",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=appnexus&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://ib.adnxs.com/getuid?https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dappnexus%26gdpr%3D1%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26account%3Dtenant%2B%2526%252B%2525%253D%2522%25E9%259B%25AA%26uid%3D%24UID",
+        "user_macro": "$UID"
+      },
+      "id": "appnexus_redirect_named_true_gdpr_yes",
+      "input": {
+        "account": "tenant &+%=\"雪",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "appnexus",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "adnxs",
+          "endpoint_url": "https://ib.adnxs.com/getuid?{{.RedirectURL}}",
+          "user_macro": "$UID"
+        },
+        "privacy": {
+          "GDPR": "1",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it. Account is an explicitly configured custom host template, NOT automatic propagation in Prebid.",
+        "paths": [
+          "static/bidder-info/appnexus.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&uid=",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "",
+          "account_value_count": 0,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "b",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "iframe",
+        "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr=&gdpr_consent=consent-test&us_privacy=1NYN&predirect=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Db%26uid%3D",
+        "user_macro": ""
+      },
+      "id": "pubmatic_iframe_named_false_gdpr_ambiguous",
+      "input": {
+        "account": "",
+        "allowed_types": [
+          "iframe"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&predirect={{.RedirectURL}}",
+          "user_macro": ""
+        },
+        "privacy": {
+          "GDPR": "",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&uid=",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "",
+          "account_value_count": 0,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "b",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "iframe",
+        "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr=1&gdpr_consent=consent-test&us_privacy=1NYN&predirect=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D1%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Db%26uid%3D",
+        "user_macro": ""
+      },
+      "id": "pubmatic_iframe_named_false_gdpr_yes",
+      "input": {
+        "account": "",
+        "allowed_types": [
+          "iframe"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&predirect={{.RedirectURL}}",
+          "user_macro": ""
+        },
+        "privacy": {
+          "GDPR": "1",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "tenant &+%=\"雪",
+          "account_value_count": 1,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "b",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "iframe",
+        "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr=&gdpr_consent=consent-test&us_privacy=1NYN&predirect=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Db%26account%3Dtenant%2B%2526%252B%2525%253D%2522%25E9%259B%25AA%26uid%3D",
+        "user_macro": ""
+      },
+      "id": "pubmatic_iframe_named_true_gdpr_ambiguous",
+      "input": {
+        "account": "tenant &+%=\"雪",
+        "allowed_types": [
+          "iframe"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&predirect={{.RedirectURL}}",
+          "user_macro": ""
+        },
+        "privacy": {
+          "GDPR": "",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it. Account is an explicitly configured custom host template, NOT automatic propagation in Prebid.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "tenant &+%=\"雪",
+          "account_value_count": 1,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=b&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "b",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "iframe",
+        "url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr=1&gdpr_consent=consent-test&us_privacy=1NYN&predirect=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D1%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Db%26account%3Dtenant%2B%2526%252B%2525%253D%2522%25E9%259B%25AA%26uid%3D",
+        "user_macro": ""
+      },
+      "id": "pubmatic_iframe_named_true_gdpr_yes",
+      "input": {
+        "account": "tenant &+%=\"雪",
+        "allowed_types": [
+          "iframe"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&predirect={{.RedirectURL}}",
+          "user_macro": ""
+        },
+        "privacy": {
+          "GDPR": "1",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it. Account is an explicitly configured custom host template, NOT automatic propagation in Prebid.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=#PMUID",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "",
+          "account_value_count": 0,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr=&gdpr_consent=consent-test&us_privacy=1NYN&pu=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26uid%3D%23PMUID",
+        "user_macro": "#PMUID"
+      },
+      "id": "pubmatic_redirect_named_false_gdpr_ambiguous",
+      "input": {
+        "account": "",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&pu={{.RedirectURL}}",
+          "user_macro": "#PMUID"
+        },
+        "privacy": {
+          "GDPR": "",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=#PMUID",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "",
+          "account_value_count": 0,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr=1&gdpr_consent=consent-test&us_privacy=1NYN&pu=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D1%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26uid%3D%23PMUID",
+        "user_macro": "#PMUID"
+      },
+      "id": "pubmatic_redirect_named_false_gdpr_yes",
+      "input": {
+        "account": "",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&pu={{.RedirectURL}}",
+          "user_macro": "#PMUID"
+        },
+        "privacy": {
+          "GDPR": "1",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=#PMUID",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "tenant &+%=\"雪",
+          "account_value_count": 1,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr=&gdpr_consent=consent-test&us_privacy=1NYN&pu=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26account%3Dtenant%2B%2526%252B%2525%253D%2522%25E9%259B%25AA%26uid%3D%23PMUID",
+        "user_macro": "#PMUID"
+      },
+      "id": "pubmatic_redirect_named_true_gdpr_ambiguous",
+      "input": {
+        "account": "tenant &+%=\"雪",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&pu={{.RedirectURL}}",
+          "user_macro": "#PMUID"
+        },
+        "privacy": {
+          "GDPR": "",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it. Account is an explicitly configured custom host template, NOT automatic propagation in Prebid.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=#PMUID",
+        "family": "pubmatic",
+        "round_trip": {
+          "account": "tenant &+%=\"雪",
+          "account_value_count": 1,
+          "bidder": "pubmatic",
+          "callback_utf8": "https://sync.example.com/base/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent-test&gpp=&gpp_sid=&f=i&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid=a%26b%2Bc%25%3Dd%22%E9%9B%AA",
+          "format": "i",
+          "fragment": "",
+          "uid": "a&b+c%=d\"雪",
+          "uid_value_count": 1
+        },
+        "type": "redirect",
+        "url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr=1&gdpr_consent=consent-test&us_privacy=1NYN&pu=https%3A%2F%2Fsync.example.com%2Fbase%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D1%26gdpr_consent%3Dconsent-test%26gpp%3D%26gpp_sid%3D%26f%3Di%26account%3Dtenant%2B%2526%252B%2525%253D%2522%25E9%259B%25AA%26uid%3D%23PMUID",
+        "user_macro": "#PMUID"
+      },
+      "id": "pubmatic_redirect_named_true_gdpr_yes",
+      "input": {
+        "account": "tenant &+%=\"雪",
+        "allowed_types": [
+          "redirect"
+        ],
+        "bidder": "pubmatic",
+        "callback_template": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&account=tenant+%26%2B%25%3D%22%E9%9B%AA&uid={{.UserMacro}}",
+        "external_url": "https://sync.example.com/base",
+        "metadata": {
+          "declared_family": "",
+          "endpoint_url": "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&pu={{.RedirectURL}}",
+          "user_macro": "#PMUID"
+        },
+        "privacy": {
+          "GDPR": "1",
+          "GDPRConsent": "consent-test",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "simulated_uid": "a&b+c%=d\"雪"
+      },
+      "operation": "template",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "BuildSyncers reads original bidder YAML, then GetSync. Bidder simulation substitutes QueryEscape(uid) after outer callback decoding and BEFORE parsing callback as URL; append-only mode appends it. Account is an explicitly configured custom host template, NOT automatic propagation in Prebid.",
+        "paths": [
+          "static/bidder-info/pubmatic.yaml",
+          "config/config.go",
+          "usersync/syncersbuilder.go",
+          "usersync/syncer.go"
+        ]
+      }
+    }
+  ],
+  "reference": {
+    "generator_version": 1,
+    "go": "go1.23.12",
+    "license": "Apache-2.0",
+    "now": "2026-09-30T12:00:00Z",
+    "revision": "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+  },
+  "schema_version": 1
+}

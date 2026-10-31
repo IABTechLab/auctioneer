@@ -1,0 +1,43 @@
+{
+  "id": "auc-gdpr-section2",
+  "tmax": 1000,
+  "cur": ["USD"],
+  "site": {
+    "page": "https://publisher.example/story",
+    "publisher": { "id": "acct-1" }
+  },
+  "device": {
+    "ua": "Mozilla/5.0",
+    "ip": "93.184.216.34",
+    "geo": { "country": "DEU", "lat": 52.520008, "lon": 13.404954 }
+  },
+  "user": {
+    "id": "user-abc",
+    "buyeruid": "buyer-xyz",
+    "consent": "CP5TLYAP5TLYAEsACBENCuFgAPAAAEAAAAYgAQAAAAAEAIAAAAACAAA.IAAo"
+  },
+  "regs": { "gdpr": 1, "gpp_sid": [2] },
+  "imp": [
+    {
+      "id": "imp-1",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_consented_bidder": {} } } }
+    },
+    {
+      "id": "imp-2",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_bidder": {} } } }
+    },
+    {
+      "id": "imp-3",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_alias": {} } } }
+    }
+  ],
+  "ext": {
+    "prebid": {
+      "aliasgvlids": { "fake_alias": 999 },
+      "returnallbidstatus": true
+    }
+  }
+}

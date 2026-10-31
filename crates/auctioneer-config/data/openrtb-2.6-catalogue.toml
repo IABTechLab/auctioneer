@@ -1,0 +1,473 @@
+[[fields]]
+object = "BrandVersion"
+field = "brand"
+type = "string"
+section = "3.2.30"
+
+[[fields]]
+object = "BrandVersion"
+field = "ext"
+type = "object"
+section = "3.2.30"
+
+[[fields]]
+object = "BrandVersion"
+field = "version"
+type = "string array"
+section = "3.2.30"
+
+[[fields]]
+object = "Device"
+field = "carrier"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "connectiontype"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "devicetype"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "didmd5"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "didsha1"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "dnt"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "dpidmd5"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "dpidsha1"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "ext"
+type = "object"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "flashver"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "geo"
+type = "object"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "geofetch"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "h"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "hwv"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "ifa"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "ip"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "ipv6"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "js"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "langb"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "language"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "lmt"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "macmd5"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "macsha1"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "make"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "mccmnc"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "model"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "os"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "osv"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "ppi"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "pxratio"
+type = "float"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "sua"
+type = "object"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "ua"
+type = "string"
+section = "3.2.18"
+
+[[fields]]
+object = "Device"
+field = "w"
+type = "integer"
+section = "3.2.18"
+
+[[fields]]
+object = "EID"
+field = "ext"
+type = "object"
+section = "3.2.27"
+
+[[fields]]
+object = "EID"
+field = "inserter"
+type = "string"
+section = "3.2.27"
+
+[[fields]]
+object = "EID"
+field = "matcher"
+type = "string"
+section = "3.2.27"
+
+[[fields]]
+object = "EID"
+field = "mm"
+type = "integer"
+section = "3.2.27"
+
+[[fields]]
+object = "EID"
+field = "source"
+type = "string"
+section = "3.2.27"
+
+[[fields]]
+object = "EID"
+field = "uids"
+type = "object array"
+section = "3.2.27"
+
+[[fields]]
+object = "Geo"
+field = "accuracy"
+type = "integer"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "city"
+type = "string"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "country"
+type = "string"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "ext"
+type = "object"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "ipservice"
+type = "integer"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "lastfix"
+type = "integer"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "lat"
+type = "float"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "lon"
+type = "float"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "metro"
+type = "string"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "region"
+type = "string"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "regionfips104"
+type = "string"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "type"
+type = "integer"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "utcoffset"
+type = "integer"
+section = "3.2.19"
+
+[[fields]]
+object = "Geo"
+field = "zip"
+type = "string"
+section = "3.2.19"
+
+[[fields]]
+object = "UID"
+field = "atype"
+type = "integer"
+section = "3.2.28"
+
+[[fields]]
+object = "UID"
+field = "ext"
+type = "object"
+section = "3.2.28"
+
+[[fields]]
+object = "UID"
+field = "id"
+type = "string"
+section = "3.2.28"
+
+[[fields]]
+object = "User"
+field = "buyeruid"
+type = "string"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "consent"
+type = "string"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "customdata"
+type = "string"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "data"
+type = "object array"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "eids"
+type = "object array"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "ext"
+type = "object"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "gender"
+type = "string"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "geo"
+type = "object"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "id"
+type = "string"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "keywords"
+type = "string"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "kwarray"
+type = "string array"
+section = "3.2.20"
+
+[[fields]]
+object = "User"
+field = "yob"
+type = "integer"
+section = "3.2.20"
+
+[[fields]]
+object = "UserAgent"
+field = "architecture"
+type = "string"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "bitness"
+type = "string"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "browsers"
+type = "object array"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "ext"
+type = "object"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "mobile"
+type = "integer"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "model"
+type = "string"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "platform"
+type = "object"
+section = "3.2.29"
+
+[[fields]]
+object = "UserAgent"
+field = "source"
+type = "integer"
+section = "3.2.29"

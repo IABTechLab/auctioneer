@@ -1,0 +1,255 @@
+{
+  "allowed": {
+    "at": 1,
+    "device": {},
+    "ext": {
+      "prebid": {
+        "aliases": {
+          "fake_a_denied": "fake_bb",
+          "fake_b_sampled": "fake_bb",
+          "fake_c~": "fake_bb",
+          "fake_d/": "fake_bb",
+          "fake_e_cap": "fake_bb"
+        },
+        "bidderparams": {
+          "fake_c~": {
+            "own": 99,
+            "supplement": "tilde"
+          },
+          "fake_d/": {
+            "supplement": "slash"
+          }
+        },
+        "returnallbidstatus": true
+      }
+    },
+    "id": "mixed",
+    "imp": [
+      {
+        "banner": {
+          "h": 250,
+          "w": 300
+        },
+        "ext": {
+          "bidder": {
+            "own": 2,
+            "supplement": "slash"
+          },
+          "hint": "keep",
+          "prebid": {},
+          "tid": "imp-tid"
+        },
+        "id": "imp-1",
+        "tagid": "allow-fpd"
+      }
+    ],
+    "site": {
+      "ext": {
+        "amp": 0
+      },
+      "id": "s"
+    },
+    "source": {
+      "tid": "source-tid"
+    },
+    "tmax": 1000,
+    "user": {
+      "buyeruid": "buyer",
+      "id": "u"
+    }
+  },
+  "response": {
+    "cur": "USD",
+    "ext": {
+      "prebid": {
+        "auctiontimestamp": 1788220800000,
+        "seatnonbid": [
+          {
+            "nonbid": [
+              {
+                "impid": "imp-1",
+                "statuscode": 300
+              },
+              {
+                "impid": "imp-2",
+                "statuscode": 300
+              }
+            ],
+            "seat": "fake_a_denied"
+          }
+        ]
+      },
+      "responsetimemillis": {
+        "fake_c~": 1,
+        "fake_d/": 1
+      },
+      "tmaxrequest": 1000,
+      "warnings": {
+        "fake_a_denied": [
+          {
+            "code": 10017,
+            "message": "bidder blocked by privacy settings: fake_a_denied"
+          }
+        ],
+        "fake_aaa": [
+          {
+            "code": 6,
+            "message": "bidder fake_aaa disabled by overlay (imp[0])"
+          },
+          {
+            "code": 6,
+            "message": "bidder fake_aaa disabled by overlay (imp[1])"
+          }
+        ],
+        "fake_e_cap": [
+          {
+            "code": 10999,
+            "message": "bidder dropped: max_bidders_per_auction (2) exceeded"
+          }
+        ]
+      }
+    },
+    "id": "mixed",
+    "seatbid": [
+      {
+        "bid": [
+          {
+            "ext": {
+              "prebid": {
+                "meta": {},
+                "targeting": {
+                  "hb_bidder": "fake_c~",
+                  "hb_bidder_fake_c~": "fake_c~",
+                  "hb_pb": "1.00",
+                  "hb_pb_fake_c~": "1.00",
+                  "hb_size": "300x250",
+                  "hb_size_fake_c~": "300x250"
+                },
+                "type": "banner"
+              }
+            },
+            "h": 250,
+            "id": "bid-imp-1",
+            "impid": "imp-1",
+            "price": 1.0,
+            "w": 300
+          },
+          {
+            "ext": {
+              "prebid": {
+                "meta": {},
+                "targeting": {
+                  "hb_bidder": "fake_c~",
+                  "hb_bidder_fake_c~": "fake_c~",
+                  "hb_pb": "1.00",
+                  "hb_pb_fake_c~": "1.00",
+                  "hb_size": "300x250",
+                  "hb_size_fake_c~": "300x250"
+                },
+                "type": "banner"
+              }
+            },
+            "h": 250,
+            "id": "bid-imp-2",
+            "impid": "imp-2",
+            "price": 1.0,
+            "w": 300
+          }
+        ],
+        "seat": "fake_c~"
+      },
+      {
+        "bid": [
+          {
+            "ext": {
+              "prebid": {
+                "meta": {},
+                "targeting": {
+                  "hb_bidder_fake_d/": "fake_d/",
+                  "hb_pb_fake_d/": "1.00",
+                  "hb_size_fake_d/": "300x250"
+                },
+                "type": "banner"
+              }
+            },
+            "h": 250,
+            "id": "bid-imp-1",
+            "impid": "imp-1",
+            "price": 1.0,
+            "w": 300
+          }
+        ],
+        "seat": "fake_d/"
+      }
+    ]
+  },
+  "scrubbed": {
+    "at": 1,
+    "device": {},
+    "ext": {
+      "prebid": {
+        "aliases": {
+          "fake_a_denied": "fake_bb",
+          "fake_b_sampled": "fake_bb",
+          "fake_c~": "fake_bb",
+          "fake_d/": "fake_bb",
+          "fake_e_cap": "fake_bb"
+        },
+        "bidderparams": {
+          "fake_c~": {
+            "own": 99,
+            "supplement": "tilde"
+          },
+          "fake_d/": {
+            "supplement": "slash"
+          }
+        },
+        "returnallbidstatus": true
+      }
+    },
+    "id": "mixed",
+    "imp": [
+      {
+        "banner": {
+          "h": 250,
+          "w": 300
+        },
+        "ext": {
+          "bidder": {
+            "own": 1,
+            "supplement": "tilde"
+          },
+          "hint": "keep",
+          "prebid": {}
+        },
+        "id": "imp-1",
+        "tagid": "scrub-fpd"
+      },
+      {
+        "banner": {
+          "h": 250,
+          "w": 300
+        },
+        "ext": {
+          "bidder": {
+            "own": 1,
+            "supplement": "tilde"
+          },
+          "hint": "keep",
+          "prebid": {}
+        },
+        "id": "imp-2",
+        "tagid": "scrub-fpd"
+      }
+    ],
+    "site": {
+      "ext": {
+        "amp": 0
+      },
+      "id": "s"
+    },
+    "source": {},
+    "tmax": 1000,
+    "user": {}
+  }
+}

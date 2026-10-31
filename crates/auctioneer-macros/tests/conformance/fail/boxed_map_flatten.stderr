@@ -1,0 +1,27 @@
+error[E0080]: evaluation panicked: flattened metadata requires a direct serde_json map
+ --> tests/conformance/fail/boxed_map_flatten.rs:3:10
+  |
+3 | #[derive(OpenRtbFieldMetadata)]
+  |          ^^^^^^^^^^^^^^^^^^^^ evaluation of `<Root as auctioneer_openrtb::field_metadata::FieldMetadata>::MODEL` failed inside this call
+  |
+note: inside `auctioneer_openrtb::field_metadata::Field::of::<Box<serde_json::Map<std::string::String, serde_json::Value>>>`
+ --> $RUST/core/src/panic.rs
+  |
+  |           $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
+  |
+ ::: $WORKSPACE/crates/auctioneer-openrtb/src/field_metadata.rs
+  |
+  | /         assert!(
+  | |             !flattened || matches!(T::STORAGE, Storage::JsonMap),
+  | |             "flattened metadata requires a direct serde_json map"
+  | |         );
+  | |_________- in this macro invocation
+
+note: erroneous constant encountered
+ --> tests/conformance/fail/boxed_map_flatten.rs:3:10
+  |
+3 | #[derive(OpenRtbFieldMetadata)]
+  |          ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this note originates in the derive macro `OpenRtbFieldMetadata` (in Nightly builds, run with -Z macro-backtrace for more info)

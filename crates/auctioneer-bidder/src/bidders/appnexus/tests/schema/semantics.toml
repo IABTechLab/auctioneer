@@ -1,0 +1,26 @@
+schema_version = 1
+schema = "appnexus"
+schema_sha256 = "20a3f193c62b1b3d6d2a0daf5dfaa3935a045c52b83af236693ebe9c3459106d"
+origin = "authored_schema_derived"
+rows = [
+  { id = "placement_snake", schema = "appnexus", valid = true, input_json = '{"placement_id":1}' },
+  { id = "placement_camel", schema = "appnexus", valid = true, input_json = '{"placementId":"1"}' },
+  { id = "inventory_snake", schema = "appnexus", valid = true, input_json = '{"inv_code":"i","member":1}' },
+  { id = "inventory_camel", schema = "appnexus", valid = true, input_json = '{"invCode":"i","member":"1"}' },
+  { id = "selectors_missing", schema = "appnexus", valid = false, input_json = '{}' },
+  { id = "placement_both", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"placementId":1}' },
+  { id = "outer_both", schema = "appnexus", valid = false, input_json = '{"placementId":1,"invCode":"i","member":1}' },
+  { id = "not_isolated", schema = "appnexus", valid = false, input_json = '{"placementId":1,"placement_id":1,"invCode":"i","member":1}' },
+  { id = "keywords_empty_string", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"keywords":""}' },
+  { id = "keywords_empty_array", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"keywords":[]}' },
+  { id = "keyword_value_empty", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"keywords":[{"key":"k","value":[]}]}' },
+  { id = "keyword_value_wrong_element", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"keywords":[{"key":"k","value":[1]}]}' },
+  { id = "size_missing_width", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"private_sizes":[{"h":1}]}' },
+  { id = "size_missing_height", schema = "appnexus", valid = false, input_json = '{"placement_id":1,"private_sizes":[{"w":1}]}' },
+  { id = "additional_allowed", schema = "appnexus", valid = true, input_json = '{"placement_id":1,"fake_extra":{}}' },
+]
+[expected]
+authored = 15
+imported = 0
+accepts = 5
+rejects = 10

@@ -1,0 +1,14 @@
+# Duplicate and escaped-equivalent root keys are lexical controls that a
+# serde_json::Value object would collapse before the bidder guard sees them.
+crates/auctioneer-bidder/src/bidders/aps/request.rs 2
+
+# Exact-byte decoder witnesses retain the independent byte denominator while
+# shared exchange controls use the synthetic bidder.
+crates/auctioneer-bidder/src/bidders/generic/tests/allocation_conformance.rs 9
+
+# Byte bodies and serialization fixtures passed directly to the decoder.
+crates/auctioneer-bidder/src/bidders/generic/response.rs 1
+
+# Case-variant media keys must reach the decoder in both wire orders;
+# json! maps sort them before serialization and cannot express this control.
+crates/auctioneer-bidder/src/bidders/kargo/response.rs 2

@@ -1,0 +1,68 @@
+[package]
+name = "auctioneer-adapter-fastly"
+description = "Fastly Compute@Edge adapter for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "auctioneer-adapter-fastly"
+path = "src/main.rs"
+
+# The crate was binary-only, which made its timer, cooperator and
+# outbound profile unreachable from an integration test: a `[[bin]]`
+# target exports nothing. The library holds all three plus the boot
+# sequence, and `main.rs` is the thin entrypoint that calls into it.
+[lib]
+name = "auctioneer_adapter_fastly"
+path = "src/lib.rs"
+
+[features]
+default = []
+fastly = ["edgezero-adapter-fastly/fastly"]
+insecure-bidders = ["auctioneer-core/insecure-bidders"]
+# Forwards to auctioneer-core so this crate's conformance binary can see the
+# shared harness. Without the forward the feature would be on here and
+# off in the library that actually defines the seam.
+conformance-suite = ["auctioneer-core/conformance-suite"]
+
+# `required-features` makes cargo SKIP this target silently when the
+# feature is off, so the conformance commands must pass
+# `--features conformance-suite` explicitly.
+[[test]]
+name = "fanout_conformance"
+path = "tests/fanout_conformance.rs"
+required-features = ["conformance-suite"]
+
+[dependencies]
+auctioneer-core = { path = "../auctioneer-core" }
+edgezero-adapter-fastly = { workspace = true }
+edgezero-core = { workspace = true }
+log = { workspace = true }
+# Host-visible, not wasm-gated: the timer, the decode cooperator and the
+# outbound profile are plain logic over a `DelaySource`, and the host
+# rows in `tests/fanout.rs` drive all three. Only the `fastly` SDK calls
+# stay under the wasm target below.
+async-trait = { workspace = true }
+auctioneer-runtime = { workspace = true }
+
+[dev-dependencies]
+auctioneer-core = { workspace = true, features = ["test-support"] }
+futures = { workspace = true }
+auctioneer-bidder = { workspace = true }
+auctioneer-config = { workspace = true }
+auctioneer-exchange = { workspace = true }
+time = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+edgezero-adapter-fastly = { workspace = true, features = ["fastly"] }
+edgezero-core = { workspace = true }
+fastly = { workspace = true }
+auctioneer-runtime = { workspace = true }
+once_cell = { workspace = true }

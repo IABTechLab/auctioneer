@@ -1,0 +1,54 @@
+key = "cointraffic"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/cointraffic"
+tree = "5b5c0c844eecd2435c6746fbb9647ed5737957fc"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/cointraffic.yaml"
+source_blob = "d1139ee517de580bd21b357ae2325b9af2c06cd3"
+source_bytes = 186
+source_sha256 = "8e56fca7f5cbfb6245c1b54911fd15995ac91140c018fb609646fcb0ac342576"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/cointraffic.json"
+source_blob = "8a749fdfac3f9124291da5a9671d42550582005e"
+source_bytes = 390
+source_sha256 = "8f04dd90d8ca6e816a4c21e2a95ba5dc47072d67db2e9d57d3c864ea624e80e7"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 390
+source_sha256 = "8f04dd90d8ca6e816a4c21e2a95ba5dc47072d67db2e9d57d3c864ea624e80e7"

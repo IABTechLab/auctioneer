@@ -1,0 +1,35 @@
+schema_version = 1
+schema = "rubicon"
+schema_sha256 = "f1aa818fa0af09c4cf5143f3c70edba541500f43f2f7e9e121cb4f865d379380"
+origin = "authored_schema_derived"
+rows = [
+  { id = "all_strings", schema = "rubicon", valid = true, input_json = '{"accountId":"1","siteId":"2","zoneId":"3"}' },
+  { id = "all_integers", schema = "rubicon", valid = true, input_json = '{"accountId":1,"siteId":2,"zoneId":3}' },
+  { id = "string_zero_ignores_minimum", schema = "rubicon", valid = true, input_json = '{"accountId":"0","siteId":1,"zoneId":"3"}' },
+  { id = "missing_account", schema = "rubicon", valid = false, input_json = '{"siteId":1,"zoneId":1}' },
+  { id = "missing_site", schema = "rubicon", valid = false, input_json = '{"accountId":1,"zoneId":1}' },
+  { id = "missing_zone", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1}' },
+  { id = "account_zero", schema = "rubicon", valid = false, input_json = '{"accountId":0,"siteId":1,"zoneId":1}' },
+  { id = "site_zero", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":0,"zoneId":1}' },
+  { id = "zone_zero", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1,"zoneId":0}' },
+  { id = "account_negative", schema = "rubicon", valid = false, input_json = '{"accountId":-1,"siteId":1,"zoneId":1}' },
+  { id = "site_negative", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":-1,"zoneId":1}' },
+  { id = "zone_negative", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1,"zoneId":-1}' },
+  { id = "account_bad_string", schema = "rubicon", valid = false, input_json = '{"accountId":"1a","siteId":"1","zoneId":"1"}' },
+  { id = "site_bad_string", schema = "rubicon", valid = false, input_json = '{"accountId":"1","siteId":"2a","zoneId":"1"}' },
+  { id = "zone_bad_string", schema = "rubicon", valid = false, input_json = '{"accountId":"1","siteId":"1","zoneId":"3a"}' },
+  { id = "account_unicode_digit", schema = "rubicon", valid = false, input_json = '{"accountId":"\u0661","siteId":"1","zoneId":"1"}' },
+  { id = "site_unicode_digit", schema = "rubicon", valid = false, input_json = '{"accountId":"1","siteId":"\u0662","zoneId":"1"}' },
+  { id = "zone_unicode_digit", schema = "rubicon", valid = false, input_json = '{"accountId":"1","siteId":"1","zoneId":"\u0663"}' },
+  { id = "video_string_dimensions_unconstrained", schema = "rubicon", valid = true, input_json = '{"accountId":1,"siteId":1,"zoneId":1,"video":{"playerHeight":"","playerWidth":"w"}}' },
+  { id = "video_dimension_wrong_type", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1,"zoneId":1,"video":{"playerHeight":true}}' },
+  { id = "multiformat_wrong_type", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1,"zoneId":1,"bidonmultiformat":"true"}' },
+  { id = "inventory_nonarray", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1,"zoneId":1,"inventory":{"k":false}}' },
+  { id = "visitor_nonarray", schema = "rubicon", valid = false, input_json = '{"accountId":1,"siteId":1,"zoneId":1,"visitor":{"k":false}}' },
+  { id = "dictionary_arrays", schema = "rubicon", valid = true, input_json = '{"accountId":1,"siteId":1,"zoneId":1,"inventory":{"k":[]},"visitor":{"k":[]}}' },
+]
+[expected]
+authored = 24
+imported = 0
+accepts = 5
+rejects = 19

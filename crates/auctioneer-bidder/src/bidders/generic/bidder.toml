@@ -1,0 +1,22 @@
+key = "generic"
+factory = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[provenance]
+origin = "local"
+# Generic passes through OpenRTB and defines no bidder-specific parameter schema.
+
+[definitions.generic]
+endpoint = "https://generic.example/openrtb2/auction"
+
+[definitions.generic.maintainer]
+email = "maintainer@auctioneer.example"
+
+[definitions.generic.capabilities.app]
+mediaTypes = ["banner", "video", "native"]
+
+[definitions.generic.capabilities.site]
+mediaTypes = ["banner", "video", "native"]

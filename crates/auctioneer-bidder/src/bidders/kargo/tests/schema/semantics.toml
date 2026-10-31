@@ -1,0 +1,17 @@
+schema_version = 1
+schema = "kargo"
+schema_sha256 = "6332b44f32d8150fa6a299964f32d3e6868f5a1aee31c32c3896a462aa3575fb"
+origin = "authored_schema_derived"
+rows = [
+  { id = "placement_only_empty_allowed", schema = "kargo", valid = true, input_json = '{"placementId":""}' },
+  { id = "slot_only_empty_allowed", schema = "kargo", valid = true, input_json = '{"adSlotID":""}' },
+  { id = "neither", schema = "kargo", valid = false, input_json = '{}' },
+  { id = "both", schema = "kargo", valid = false, input_json = '{"placementId":"p","adSlotID":"s"}' },
+  { id = "wrong_type", schema = "kargo", valid = false, input_json = '{"placementId":1}' },
+  { id = "wrong_case", schema = "kargo", valid = false, input_json = '{"placementID":"p"}' },
+]
+[expected]
+authored = 6
+imported = 0
+accepts = 2
+rejects = 4

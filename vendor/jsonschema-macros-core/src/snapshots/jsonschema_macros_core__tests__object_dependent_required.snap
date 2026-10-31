@@ -1,0 +1,26 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"dependentRequired\":{\"a\":[\"b\"]},\"properties\":{\"a\":{\"type\":\"integer\"}},\"type\":\"object\"}"
+expression: is_valid_body(schema)
+---
+match instance {
+            __Value::Object(obj) => {
+                (if obj.contains_key("a") { obj.contains_key("b") } else { true })
+                    && ({
+                        obj.iter()
+                            .all(|(key, instance)| {
+                                let key_str = key.as_str();
+                                match key_str {
+                                    "a" => {
+                                        match instance {
+                                            __Value::Number(n) => __types::is_integer(n),
+                                            _ => false,
+                                        }
+                                    }
+                                    _ => true,
+                                }
+                            })
+                    })
+            }
+            _ => false,
+        }

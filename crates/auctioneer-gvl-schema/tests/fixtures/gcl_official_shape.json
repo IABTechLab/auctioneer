@@ -1,0 +1,41 @@
+{
+  "lastUpdated": "2026-08-27T16:00:21Z",
+  "cmps": {
+    "2": {
+      "id": 2,
+      "name": "AppConsent by SFBX",
+      "isCommercial": true,
+      "environments": [
+        "Web",
+        "Native App (Mobile)",
+        "Native App (CTV)"
+      ]
+    },
+    "3": {
+      "id": 3,
+      "name": "LiveRamp",
+      "deletedDate": "2024-11-13T14:55:31.549Z",
+      "isCommercial": true,
+      "environments": [
+        "Web",
+        "Native App (Mobile)",
+        "Native App (CTV)"
+      ]
+    },
+    "5": {
+      "id": 5,
+      "name": "Usercentrics",
+      "isCommercial": true,
+      "environments": [
+        "Web",
+        "Native App (Mobile)",
+        "Native App (CTV)"
+      ]
+    },
+    "515": {
+      "id": 515,
+      "name": "Fixture High Id CMP",
+      "isCommercial": false
+    }
+  }
+}

@@ -1,0 +1,18 @@
+schema_version = 1
+schema = "triplelift"
+schema_sha256 = "9642f3ebeaba75db426826efcc02335f7517843356c8bb4baefb89106f44f0f4"
+origin = "authored_schema_derived"
+rows = [
+  { id = "inventory_only", schema = "triplelift", valid = true, input_json = '{"inventoryCode":"i"}' },
+  { id = "empty_inventory_allowed", schema = "triplelift", valid = true, input_json = '{"inventoryCode":""}' },
+  { id = "negative_floor_allowed", schema = "triplelift", valid = true, input_json = '{"inventoryCode":"i","floor":-0.1}' },
+  { id = "zero_floor", schema = "triplelift", valid = true, input_json = '{"inventoryCode":"i","floor":0}' },
+  { id = "missing_inventory", schema = "triplelift", valid = false, input_json = '{}' },
+  { id = "inventory_wrong_type", schema = "triplelift", valid = false, input_json = '{"inventoryCode":1}' },
+  { id = "floor_wrong_type", schema = "triplelift", valid = false, input_json = '{"inventoryCode":"i","floor":"1"}' },
+]
+[expected]
+authored = 7
+imported = 0
+accepts = 4
+rejects = 3

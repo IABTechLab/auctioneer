@@ -1,0 +1,54 @@
+key = "afront"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/afront"
+tree = "c919c2b164c49d99becc9f5f03bb6326bd82c377"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/afront.yaml"
+source_blob = "4a233c3ed3b9d404c2d9c5b1ed262dd9416b4b01"
+source_bytes = 563
+source_sha256 = "8e7f1986d52df68afd244c03b6e549296bc427961d302a1163aaa5a045bc02c3"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/afront.json"
+source_blob = "c472dd3b59115900c5c0de0d1587eaf6a0f1e943"
+source_bytes = 494
+source_sha256 = "7a4cc5f8f3add488cd388086680fc7194c7502b3c23e97f4eaba93d938632d61"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 494
+source_sha256 = "7a4cc5f8f3add488cd388086680fc7194c7502b3c23e97f4eaba93d938632d61"

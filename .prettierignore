@@ -1,0 +1,25 @@
+# Historical qualification evidence and profiles are hashed as exact bytes.
+/docs/testing/evidence/native-axum-*/
+# Preserve the exact exploratory samples, not reformatted qualification claims.
+/crates/auctioneer-bidder/tests/data/schema-matchers/
+/docs/testing/fixtures/resource-qualification/native-axum-local-*.json
+/docs/testing/fixtures/resource-qualification/native-axum-rust-*.json
+# The harness ownership gate consumes this approved inventory table verbatim.
+/docs/superpowers/plans/2026-10-15-rust-qualification-harnesses.md
+# The roster gate consumes this historical declaration layout verbatim.
+/docs/superpowers/plans/2026-07-10-m3b-multi-adapter-production-fanout.md
+
+# Original captures, schemas, manifests, and accounting snapshots are byte-pinned.
+/crates/auctioneer-bidder/tests/conformance/fixtures/reference/catalog/*.toml
+/crates/auctioneer-bidder/tests/conformance/fixtures/reference/schema-reference/*.json
+/crates/auctioneer-bidder/tests/conformance/fixtures/waves/*.toml
+/crates/auctioneer-bidder/tests/conformance/fixtures/usersync/
+/crates/auctioneer-bidder/tests/conformance/fixtures/openrtb/*.json
+/crates/auctioneer-bidder/src/bidders/*/fixtures/
+/crates/auctioneer-bidder/src/bidders/*/bidder.toml
+/crates/auctioneer-bidder/src/bidders/*/parameters.json
+/crates/auctioneer-bidder/src/bidders/*/schemas/*.schema.json
+/crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline*.toml
+/crates/auctioneer-config/data/gvl_archive/
+/crates/auctioneer-config/data/openrtb-2.6-source.md
+/vendor/

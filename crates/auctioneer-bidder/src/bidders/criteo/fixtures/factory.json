@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "implementation": "criteo",
+  "manifest_sha256": "5612afd69701e4411a58abbdb05063164e9313a70218e985fb91f00fda1defd0",
+  "cases": [
+    {
+      "name": "borrowed-openrtb-and-independent-browser-results",
+      "request": {
+        "id": "factory-criteo",
+        "imp": [
+          {
+            "id": "i",
+            "banner": {
+              "w": 300,
+              "h": 250
+            },
+            "ext": {
+              "bidder": {
+                "zoneId": 123456,
+                "networkId": 78910
+              },
+              "preserve": "imp"
+            }
+          },
+          {
+            "id": "v",
+            "video": {
+              "mimes": [
+                "video/mp4"
+              ]
+            },
+            "ext": {
+              "bidder": {
+                "networkId": 78910
+              }
+            }
+          }
+        ],
+        "ext": {
+          "preserve": {
+            "privacy_scrubbed": true
+          }
+        }
+      },
+      "context": {
+        "account_id": "catalog-account",
+        "endpoint_template": "https://bidder.example.test/openrtb?profile=230",
+        "endpoint_macros": [],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/openrtb?profile=230",
+          "required_headers": [],
+          "absent_headers": [
+            "Content-Type",
+            "Accept",
+            "Authorization",
+            "Cookie",
+            "Sec-GPC"
+          ],
+          "imp_ids": [
+            "i",
+            "v"
+          ],
+          "body": {
+            "id": "factory-criteo",
+            "imp": [
+              {
+                "id": "i",
+                "banner": {
+                  "w": 300,
+                  "h": 250
+                },
+                "ext": {
+                  "bidder": {
+                    "zoneId": 123456,
+                    "networkId": 78910
+                  },
+                  "preserve": "imp"
+                }
+              },
+              {
+                "id": "v",
+                "video": {
+                  "mimes": [
+                    "video/mp4"
+                  ]
+                },
+                "ext": {
+                  "bidder": {
+                    "networkId": 78910
+                  }
+                }
+              }
+            ],
+            "ext": {
+              "preserve": {
+                "privacy_scrubbed": true
+              }
+            }
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "valid-with-bad-media-unsent-and-browser-config",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "bid": [
+                  {
+                    "id": "good",
+                    "impid": "i",
+                    "price": 1.25,
+                    "ext": {
+                      "prebid": {
+                        "type": "banner"
+                      }
+                    }
+                  },
+                  {
+                    "id": "bad-media",
+                    "impid": "i",
+                    "price": 1.25,
+                    "ext": {
+                      "prebid": {
+                        "type": "unsupported"
+                      }
+                    }
+                  },
+                  {
+                    "id": "unsent",
+                    "impid": "forged",
+                    "price": 1.25,
+                    "ext": {
+                      "prebid": {
+                        "type": "banner"
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "ext": {
+              "igi": [
+                {
+                  "impid": "i",
+                  "bidder": "forged",
+                  "adapter": "forged",
+                  "igs": [
+                    {
+                      "config": {
+                        "seller": "seller.test",
+                        "bidder": "opaque-payload"
+                      }
+                    },
+                    {
+                      "config": {
+                        "ignored": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "good",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": [
+              4,
+              4
+            ],
+            "auction_configs": [
+              {
+                "impid": "i",
+                "config": {
+                  "seller": "seller.test",
+                  "bidder": "opaque-payload"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "browser-only-foreign-currency-null-is-present",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "EUR",
+            "seatbid": [
+              {
+                "bid": []
+              }
+            ],
+            "ext": {
+              "igi": [
+                {
+                  "impid": "v",
+                  "igs": [
+                    {
+                      "config": null
+                    }
+                  ]
+                },
+                {
+                  "impid": "i",
+                  "igs": [
+                    {
+                      "config": [
+                        "opaque",
+                        true
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "EUR",
+            "bids": [],
+            "errors": [],
+            "auction_configs": [
+              {
+                "impid": "v",
+                "config": null
+              },
+              {
+                "impid": "i",
+                "config": [
+                  "opaque",
+                  true
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "malformed-optional-root-preserves-server-bid",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "bid": [
+                  {
+                    "id": "good",
+                    "impid": "i",
+                    "price": 1.25,
+                    "ext": {
+                      "prebid": {
+                        "type": "banner"
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "ext": {
+              "igi": [
+                {
+                  "impid": "i",
+                  "igs": [
+                    {
+                      "config": {
+                        "must_not_escape": true
+                      }
+                    }
+                  ]
+                },
+                null
+              ]
+            }
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "good",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": [],
+            "auction_configs": []
+          }
+        },
+        {
+          "name": "empty-wire-currency-is-not-defaulted",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "",
+            "seatbid": [
+              {
+                "bid": [
+                  {
+                    "id": "good",
+                    "impid": "i",
+                    "price": 1.25,
+                    "ext": {
+                      "prebid": {
+                        "type": "banner"
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "ext": {}
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "",
+            "bids": [
+              {
+                "id": "good",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": [],
+            "auction_configs": []
+          }
+        }
+      ]
+    }
+  ]
+}

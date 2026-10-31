@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "implementation": "REPLACE_WITH_IMPLEMENTATION_KEY",
+  "manifest_sha256": "REPLACE_WITH_FINAL_REVIEWED_MANIFEST_SHA256",
+  "cases": [
+    {
+      "name": "REPLACE_WITH_BEHAVIOR_NAME",
+      "request": "REPLACE_WITH_REAL_SCOPED_REQUEST_OBJECT",
+      "context": {
+        "account_id": "REPLACE_WITH_AUTHORED_ACCOUNT_CONTEXT",
+        "endpoint_template": "REPLACE_WITH_REVIEWED_HTTPS_ENDPOINT_TEMPLATE",
+        "endpoint_macros": "REPLACE_WITH_ARRAY_OF_DECLARED_MACRO_NAMES",
+        "host_allowlist": "REPLACE_WITH_NULL_OR_REVIEWED_HOST_ARRAY"
+      },
+      "outbound": [
+        {
+          "method": "REPLACE_WITH_PROTOCOL_METHOD",
+          "url": "REPLACE_WITH_EXACT_EXPECTED_HTTPS_URL",
+          "required_headers": "REPLACE_WITH_ORDERED_HEADER_PAIRS",
+          "absent_headers": "REPLACE_WITH_ARRAY_OF_ABSENT_HEADERS",
+          "imp_ids": "REPLACE_WITH_ORDERED_SENT_IMPRESSION_IDS",
+          "body": "REPLACE_WITH_INDEPENDENT_EXACT_EXPECTED_BODY"
+        }
+      ],
+      "responses": [
+        {
+          "name": "REPLACE_WITH_RESPONSE_BEHAVIOR_NAME",
+          "call": 0,
+          "status": "REPLACE_WITH_NUMERIC_HTTP_STATUS",
+          "body": "REPLACE_WITH_INDEPENDENT_PROVIDER_RESPONSE",
+          "expected": "REPLACE_WITH_TYPED_OK_OR_ERROR_EXPECTATION_OBJECT"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,306 @@
+[workspace]
+members = [
+  "crates/auctioneer-openrtb-catalogue",
+  "crates/auctioneer-core",
+  "crates/auctioneer-adapter-axum",
+  "crates/auctioneer-adapter-cloudflare",
+  "crates/auctioneer-adapter-fastly",
+  "crates/auctioneer-adapter-spin",
+  "crates/auctioneer-bidder",
+  "crates/auctioneer-cli",
+  "crates/auctioneer-config",
+  "crates/auctioneer-config-schema",
+  "crates/auctioneer-exchange",
+  "crates/auctioneer-gvl-schema",
+  "crates/auctioneer-macros",
+  "crates/auctioneer-openrtb",
+  "crates/auctioneer-privacy",
+  "crates/auctioneer-runtime",
+]
+exclude = ["vendor/jsonschema-macros-core", "vendor/regex-automata"]
+resolver = "2"
+
+[patch.crates-io]
+# Reviewed compiler/layout patches; see vendor/README.md.
+jsonschema-macros-core = { path = "vendor/jsonschema-macros-core" }
+regex-automata = { path = "vendor/regex-automata" }
+
+[workspace.package]
+authors = ["IAB Tech Lab"]
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+version = "0.1.0"
+
+[workspace.dependencies]
+auctioneer-adapter-axum = { path = "crates/auctioneer-adapter-axum", default-features = false }
+auctioneer-adapter-cloudflare = { path = "crates/auctioneer-adapter-cloudflare", default-features = false }
+auctioneer-adapter-fastly = { path = "crates/auctioneer-adapter-fastly", default-features = false }
+auctioneer-adapter-spin = { path = "crates/auctioneer-adapter-spin", default-features = false }
+anyhow = "1"
+# Native qualification of the already-locked literal engine's public layouts.
+aho-corasick = { version = "=1.1.4", default-features = false }
+async-trait = "0.1"
+axum = "0.8"
+# Qualified by the user-sync reference suite before production use.
+base64 = { version = "=0.22.1", default-features = false, features = ["std"] }
+bytes = "=1.12.1"
+cookie = { version = "=0.18.1", default-features = false }
+hmac = { version = "=0.12.1", default-features = false }
+# Native HTTP version entries. The adapter's real-socket fixtures use Tokio TCP;
+# production crates route HTTP through EdgeZero, not directly through hyper.
+hyper = { version = "1", default-features = false }
+hyper-util = { version = "0.1", default-features = false }
+# Qualification-only candidate; do not add to deployed dependencies before its gate passes.
+jsonschema = { version = "=0.58.6", default-features = false, features = ["macros"] }
+jsonschema-macros-core = "=0.58.6"
+# Dev-only log-capture helper used by regression tests that inspect
+# `log::warn!` output. Idempotent global setup — no cross-test
+# serialisation lock.
+testing_logger = "0.1"
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9", default-features = false }
+edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9", default-features = false }
+edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9", default-features = false }
+edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9", default-features = false }
+edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9", default-features = false }
+edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9", default-features = false }
+fastly = "=0.13.1"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# GVL-archive build gate: brotli-11 compressed-bundle pass in
+# auctioneer-config's build.rs (pin matches the M3b budget work).
+brotli = "=8.0.4"
+# Advisory flock on the committed gvl_archive.lock / refresh.lock
+# sentinels — shared by auctioneer-config's build.rs (reader) and
+# auctioneer-cli's maintenance refresh (writer). NOT a auctioneer-gvl-schema dep;
+# that crate must keep cross-compiling to wasm32.
+fs2 = "0.4"
+hex = "0.4"
+# `executor` enables `futures::executor::block_on` used by determinism +
+# ingress-hook tests. The default-features set already pulls `std`;
+# `executor` adds the single-threaded LocalPool used in synchronous test
+# contexts. No async runtime is added — `block_on` here is test-only.
+futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
+getrandom = { version = "0.3", default-features = false }
+# Native qualification reads compiler-emitted DWARF layout facts, never guesses
+# private dependency layouts. Write support is for synthetic conformance input.
+gimli = { version = "=0.32.3", default-features = false, features = ["read", "write", "std"] }
+http = "1"
+http-body-util = "0.1"
+ipnetwork = { version = "0.20", default-features = false }
+log = "0.4"
+# Entry-count-bounded parse cache behind auctioneer-privacy's GvlStore.
+lru = "0.12"
+auctioneer-bidder = { path = "crates/auctioneer-bidder" }
+auctioneer-cli = { path = "crates/auctioneer-cli", default-features = false }
+auctioneer-config = { path = "crates/auctioneer-config" }
+auctioneer-config-schema = { path = "crates/auctioneer-config-schema" }
+auctioneer-core = { path = "crates/auctioneer-core" }
+auctioneer-exchange = { path = "crates/auctioneer-exchange" }
+auctioneer-gvl-schema = { path = "crates/auctioneer-gvl-schema" }
+auctioneer-macros = { path = "crates/auctioneer-macros" }
+auctioneer-openrtb = { path = "crates/auctioneer-openrtb" }
+auctioneer-openrtb-catalogue = { path = "crates/auctioneer-openrtb-catalogue" }
+auctioneer-privacy = { path = "crates/auctioneer-privacy" }
+auctioneer-runtime = { path = "crates/auctioneer-runtime" }
+mime = "0.3.17"
+once_cell = "1"
+# Native-only application artifact inspection and synthetic object controls.
+object = { version = "=0.37.3", default-features = false, features = ["read", "write", "std"] }
+percent-encoding = "2"
+# Test-only decoder for the original Prebid tracking pixel.
+png = { version = "=0.17.16", default-features = false }
+# Dev-only property testing (auctioneer-privacy TCF parser: never-panic +
+# round-trip properties).
+# Property tests run in-process on native and WASM; no test uses fork/timeout.
+proptest = { version = "1", default-features = false, features = ["std", "bit-set"] }
+proc-macro2 = "1"
+quote = "1"
+psl = "2"
+# Native maintenance fetches retain the archive tool's existing HTTP policy.
+reqwest = { version = "0.12", features = ["blocking", "json", "gzip"] }
+regex = "=1.12.4"
+# Qualification-only direct API; this is the existing regex feature closure.
+regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "meta", "nfa", "dfa-onepass", "dfa-search", "hybrid", "perf", "unicode"] }
+# Structured HIR inspection in native schema qualification only.
+regex-syntax = { version = "=0.8.11", default-features = false, features = ["std", "unicode"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", default-features = false, features = ["std", "raw_value"] }
+# Native-only reference inventory/import; not a guest configuration loader.
+serde_yaml_ng = "=0.10.0"
+yaml-rust2 = { version = "=0.11.0", default-features = false }
+# Dotted-field-path retention for GVL/GCL schema errors
+# (`MalformedEntry { path }` diagnostics in auctioneer-gvl-schema).
+serde_path_to_error = "0.1"
+sha2 = "0.10"
+rustix = { version = "1.1", features = ["fs", "process", "system"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+tempfile = "3"
+tar = { version = "0.4.46", default-features = false }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
+simple_logger = "5"
+spin-sdk = { version = "=7.0.0", git = "https://github.com/stackpop/spin-rust-sdk.git", rev = "6c59ed5b4fcb377072763aee0b27a3abdd8edb72", default-features = false, features = ["http", "key-value", "variables"] }
+# Constant-time comparison for the health-endpoint bearer digest —
+# wasm-compatible, no timing side channel on token verification.
+subtle = "2"
+syn = { version = "2", features = ["full"] }
+thiserror = "1"
+time = { version = "0.3", default-features = false, features = ["std", "macros", "parsing", "formatting"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+toml = "0.8"
+trybuild = "=1.0.122"
+tracing = "0.1"
+# Unicode 15 simple folding, qualified against Go 1.23.12 over every scalar.
+unicode-case-mapping = "=0.5.0"
+# `url` is needed by auctioneer-exchange::validate_endpoint.
+url = { version = "2", default-features = false }
+uuid-simd = { version = "=0.8.0", default-features = false, features = ["std", "detect"] }
+# Declarative validation. Used for field-level constraints (range,
+# length, etc.) where the check is purely a shape predicate. Domain-
+# specific validators (SSRF gate, syncer-URL macro allow-list, etc.)
+# stay as plain fns in `auctioneer-config/build_support.rs` because
+# they have arguments validator's per-field derive cannot pass
+# (e.g. `allow_insecure: bool` for the URL gate).
+validator = { version = "0.21", features = ["derive"] }
+wasmparser = { version = "=0.247.0", default-features = false, features = ["std", "validate", "features", "component-model", "simd"] }
+# Native-only artifact conformance fixtures use the matching standard encoder.
+wasm-encoder = { version = "=0.247.0", default-features = false, features = ["std", "component-model"] }
+# Portable monotonic clock. The SAME major as EdgeZero's own pin, so
+# Cargo unifies both on one `web-time` crate and
+# `auctioneer_runtime::MonotonicInstant` IS
+# `edgezero_core::time::MonotonicInstant` by type identity. On
+# wasm32-unknown-unknown it is backed by `performance.now()`, where
+# `std::time::Instant` does not exist.
+web-time = "1"
+worker = { version = "=0.8.5", default-features = false, features = ["http"] }
+
+[profile.release]
+# Line-level debuginfo for the NATIVE build only, where a release
+# backtrace is readable and artifact size does not matter.
+debug = 1
+codegen-units = 1
+lto = "fat"
+
+# Dependencies carry no debuginfo in release. They dominate the wasm
+# artifacts, which are shipped to the vendor and charged against a size
+# ceiling: the Spin component measured 52_353_020 bytes with dependency
+# debuginfo against 24_978_256 without, and the 50_000_000-byte project
+# budget sits between the two. No vendor runtime surfaces Rust file/line
+# in production logs, so those symbols were paid for on every deploy and
+# read by nobody.
+#
+# Workspace members keep `debug = 1` from the profile above, so a native
+# release backtrace still resolves auctioneer's OWN frames to file and line
+# — verified by panicking a release binary under this exact profile.
+# Stripping debuginfo changes no emitted code, only what a crash report
+# can say.
+[profile.release.package."*"]
+debug = false
+
+# Deployment artifacts omit debuginfo without changing native diagnostics.
+[profile.wasm-release]
+inherits = "release"
+debug = false
+strip = "debuginfo"
+
+[workspace.lints.clippy]
+# Strict gate, modeled on the EdgeZero workspace. The allow-list below
+# disables RESTRICTION-group lints that are stylistic / cosmetic / would
+# require sprinkling `#[expect]` annotations across the codebase. Lints
+# that catch real correctness bugs (arithmetic overflow, UTF-8 slicing,
+# improper unwrap, lossy casts) stay denied. Tests are exempted from
+# unwrap/expect/panic/indexing via clippy.toml.
+pedantic = { level = "warn", priority = -1 }
+restriction = { level = "deny", priority = -1 }
+
+# Meta — required when enabling `restriction` as a group.
+blanket_clippy_restriction_lints = "allow"
+
+# Documentation — private items don't need full docs.
+missing_docs_in_private_items = "allow"
+
+# Style / formatting — match idiomatic Rust conventions.
+implicit_return = "allow"
+question_mark_used = "allow"
+single_call_fn = "allow"
+separated_literal_suffix = "allow"
+# Intentional repository-wide style policy: unit tests must stay colocated
+# with their implementation, as required by the user; inline modules are allowed.
+inline_modules = "allow"
+# Intentional repository-wide style policy: retain the existing inline-bound
+# idiom rather than require where clauses for every generic API.
+inline_trait_bounds = "allow"
+# Provided trait methods are deliberate defaults for optional capabilities.
+# Required methods remain compiler-checked; do not duplicate no-op overrides.
+missing_trait_methods = "allow"
+# `pub_with_shorthand` flags the shorthand `pub(crate)` form and wants the
+# longhand `pub(in crate)` form, but rustfmt unconditionally rewrites
+# `pub(in crate)` → `pub(crate)` on save — no spelling satisfies both.
+pub_with_shorthand = "allow"
+# `module_name_repetitions`: 39 EdgeZero sites; flat re-export surface
+# makes `Manifest*` prefixes load-bearing — see EdgeZero Cargo.toml.
+module_name_repetitions = "allow"
+
+# `pattern_type_mismatch` and `ref_patterns` are mutually exclusive in modern
+# Rust — every `if let Some(x) = &foo` flags the first, every
+# `*foo { Variant(ref x) => ... }` flags the second. We pick match-ergonomics.
+pattern_type_mismatch = "allow"
+
+# API design — `exhaustive_structs` fires on the unit struct generated by
+# `edgezero_core::app!`. `exhaustive_enums` would force wildcard arms across
+# all 37 external matchsites of `edgezero::body::Body`.
+exhaustive_structs = "allow"
+exhaustive_enums = "allow"
+# `struct_excessive_bools`: spec-mirroring input structs (Appendix E.3
+# targeting flags, Appendix E.7 response-builder flags) naturally carry
+# 4+ bool fields that map 1:1 to spec flags — refactoring into
+# two-variant enums would double the code without clarifying anything.
+struct_excessive_bools = "allow"
+# Same rationale for function parameters: `attach_targeting_for_imp` fans
+# in Appendix E.3 targeting flags per-call.
+fn_params_excessive_bools = "allow"
+
+# Module-file layout: `mod_module_files` and `self_named_module_files` are
+# mutually exclusive — one forbids `foo/mod.rs`, the other forbids
+# `foo.rs` + `foo/` — so exactly one of them is allowed here and the
+# other stays denied by the `restriction` group.
+#
+# `foo/mod.rs` is the layout: each bidder owns a DIRECTORY, so a bidder
+# that grows a second concern adds a file inside its own folder instead
+# of scattering `fake_owner_params.rs` beside its siblings. The directory
+# is the unit of ownership, which is what makes "add a bidder" and
+# "remove a bidder" single-directory operations.
+mod_module_files = "allow"
+
+# Item ordering / inlining / API surface — cosmetic restriction lints that
+# fight spec-driven code (`arbitrary_source_item_ordering` insists on
+# alphabetical fields/variants where the spec narrative ordering reads
+# better), force `#[inline]` everywhere (modern rustc handles cross-crate
+# inlining without hints), and discourage flat re-export surfaces (the
+# idiomatic Rust pattern). Each was previously sprinkled across files as
+# a per-site `#[expect(...)]`; consolidating here is cleaner.
+arbitrary_source_item_ordering = "allow"
+missing_inline_in_public_items = "allow"
+pub_use = "allow"
+
+# Identifier style — `'a` lifetime names, single-letter loop / closure
+# variables, and `let x = ...` patterns are conventional Rust. M1's
+# `OpenRTB` types use `w`, `h`, `id` etc. as protocol field names; the
+# restriction would force a workspace-wide rename for no readability
+# gain.
+min_ident_chars = "allow"
+single_char_lifetime_names = "allow"
+
+# Empty-struct shape — `pub struct PrivacyContext {}` keeps the future-
+# field growth a non-syntactic change; the unit-struct form (`PrivacyContext;`)
+# would force a syntactic flip when M3/M4 add fields.
+empty_structs_with_brackets = "allow"
+
+# Imports / paths — std-using app code, not no_std libraries.
+std_instead_of_alloc = "allow"
+std_instead_of_core = "allow"
+
+[workspace.lints.rust]
+unsafe_code = "deny"

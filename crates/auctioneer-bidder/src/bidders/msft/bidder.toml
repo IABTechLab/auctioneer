@@ -1,0 +1,795 @@
+key = "msft"
+factory = true
+native_only = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[settings.fields]
+hb_source = "optional_i64"
+hb_source_video = "optional_i64"
+
+[definitions.msft]
+defaultEnabled = false
+endpoint = "https://ib.adnxs.com/openrtb2"
+gvlVendorID = 32
+
+[definitions.msft.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.msft.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.msft.maintainer]
+email = "prebid@microsoft.com"
+
+[definitions.msft.openrtb]
+version = 2.6
+
+[definitions.msft.userSync]
+key = "adnxs"
+
+[definitions.msft.userSync.redirect]
+url = "https://ib.adnxs.com/getuid?{{.RedirectURL}}"
+userMacro = "$UID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/msft"
+tree = "3bf17770b0be04d6238475555344a6a65ae3cf82"
+port_differences = [
+    """\
+    Stateless protocol candidate with opt-in native-only publication under AG's approved \
+    2026-10-30 design. Metadata selects the HTTPS default under AG's 2026-10-28 policy, \
+    retaining the original HTTP source URL. Full source-language parity, selected-flow \
+    acceptance and live authorization are not established by publication.""",
+    """\
+    Borrowed serializers preserve the scoped request while rewriting impression and root \
+    appnexus namespaces. Valid-member disagreement is fatal before calls; invalid impressions \
+    retain valid siblings through bounded diagnostics. Calls cover ordered chunks of at most \
+    10 valid impressions. Generated typed host settings resolve requested before base, then \
+    normalize zero/absence to 5 for Auction/Amp or 6 for Video. Trusted entrypoint only.""",
+    """\
+    SDK projection is lazy and cached within one construction. Plain strings borrow the scoped \
+    App extension; escaped strings and parser scratch reuse released working-copy storage. \
+    Explicit display versions skip decoding. App is serialized before impressions, so an \
+    oversized containing App refuses before derived allocation. Field order preserves JSON \
+    meaning but can change gzip bytes and encoded-cap admission; gzip parity is not claimed.""",
+    """\
+    Nonzero member routing uses the shared bounded query setter, replacing every decoded \
+    matching member_id after macro expansion. Unrelated expanded query bytes are preserved, \
+    not reference-normalized; original and final URLs must each fit. Literal fragments refuse. \
+    Zero member leaves the endpoint untouched. No URL reconstruction or scheme substitution.""",
+    """\
+    Original request ext must prove absence or object shape; typed Some is sufficient when \
+    original evidence is unavailable. Null, malformed, duplicate and unknown-none shapes \
+    refuse before calls. Canonical OpenRTB is the baseline, not numeric lexical, Unicode \
+    folding or duplicate-key-order emulation. Single ASCII-equivalent owned spellings bind; \
+    competing bindings refuse at request, impression or bid scope as appropriate.""",
+    """\
+    Sealed response parsing only. Missing/null outer bid.ext collapse to None and are refused \
+    per bid; nonobject or incompatible reserved extension fields remain envelope failures. \
+    Malformed provider fields and unsupported 0/1/3 media codes are bid-local. Shared offered \
+    media/hint checks and exact sent-call identity remain mandatory. These strict typed-model \
+    boundaries are explicit differences, not a second tolerant decoder or full source parity. \
+    Category arrays must contain only strings; malformed elements refuse the envelope.""",
+    """\
+    All 95 source category pairs have an independently pinned extracted witness. Accepted \
+    bids preserve provider fields and receive reserved prebid.video duration and empty \
+    primary_category for every media type, including zero/negative duration. That video block \
+    is replaced; unrelated extension fields remain. Signed i64 deal priority is preserved in \
+    the typed reserved slot, with zero omitted; no clamping, side channel or new ranking rule.""",
+    """\
+    HTTP 204 ignores bodies; 400 is code 2, other non-200 is code 4, sealed failures code 14. \
+    Currency defaults to USD and preserves nonempty source values; conversion and shared \
+    video/native/AMP/browser delivery remain separate gates. The 31 verbatim protocol captures \
+    total 117400 bytes, including original missing terminal newlines. Extra-info settings \
+    use source literals 50/60; direct adapter capture success does not bypass schema admission.""",
+    """\
+    The original repeated-SDK capture returns test-imp-id while its actual call covers only \
+    test-imp-id-1 and test-imp-id-2. Preserve the capture unchanged and assert the shared unsent \
+    identity refusal rather than claiming response parity or weakening call-local coverage.""",
+    """\
+    Native allocation controls must measure actual request construction and post-parse \
+    metadata growth against existing charges. No workload ceiling, coefficient, pool, \
+    dependency or public route is widened. Schema/resource qualification, composed privacy, \
+    deadlines/gzip and publisher delivery remain open after this protocol candidate.""",
+
+]
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/response.go"
+source_blob = "6c3c6a82370da0f8aae88ea273ef03c7fc441a87"
+source_bytes = 721
+source_sha256 = "b13407cbea94e6ef82fa188b5d0a95a30009e1e00f1d8300e8fd6435e022c0dc"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/response_test.go"
+source_blob = "70106756b4f68c973c2d0984c7042a95f67352f8"
+source_bytes = 1125
+source_sha256 = "d1e6b2dc6575c43c527e7009d60dc0f27e03822a8794bbe32b4a2d402d73beb6"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "errortypes/code.go"
+source_blob = "07b4727727e78400039fe1b162c4dea2c659e184"
+source_bytes = 1510
+source_sha256 = "6697a3f4df221451fbb953f5936eac5e53ad0f464f9ff52ed5c426b7196ef99c"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.mod"
+source_blob = "998750a0ab0830ae6a24f6d2f2abbddf2ba85855"
+source_bytes = 3548
+source_sha256 = "00d82a3d3a03e1dc411876b858a857a832bfc7a6dc4b5ace95a3d52b37e4e549"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.sum"
+source_blob = "2d03cb08c4350a7beb75e8529d8d66c0720e3366"
+source_bytes = 100645
+source_sha256 = "8f3c2e47aa0cc516a7440a30c5d376dd1b4bf49a26ca79bd92905738d06ccd9b"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/bid.go"
+source_blob = "e8afbae3bda9df3f6b95b7b8e4fcd9e56832d317"
+source_bytes = 7575
+source_sha256 = "db65e4e96eae77ea0a9012525ccd55770eb09b8d68bc0b4829e100800529d978"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp.go"
+source_blob = "85be31245489ddfaa7eb61f6b24f745de9fdc988"
+source_bytes = 3337
+source_sha256 = "74906c9f9d9842956179f551b3e7868af871e5c11c7076bffa1f964395b0dd47"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp_msft.go"
+source_blob = "80e4cb8eee2166cfa77c05c609e14ffb24698817"
+source_bytes = 855
+source_sha256 = "7ab17943f9f1ffdb92eb2b69b16d20eaa0d46cccb3606f1e3a2a93ed04f8242f"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "usersync/syncer.go"
+source_blob = "10ec089abb4a8b48125b18e2d357a4b75e46152a"
+source_bytes = 7988
+source_sha256 = "d8066a062fef5ace38e2691bf1d407b51015dd3140598bb02df2be8586d4f3e0"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "usersync/syncersbuilder.go"
+source_blob = "b8a11e66ddb5fb620f5e6eb4102a7a9d22327bfb"
+source_bytes = 3757
+source_sha256 = "00c9edddd8f1ea2fb2b3314f84d4d11e72c67e41d11417adbd2e93c3a827576d"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/ptrutil/ptrutil.go"
+source_blob = "c700e6de826f76564175012544e143b7b242c1ce"
+source_bytes = 404
+source_sha256 = "f86892d9c19235009fabe37daf82a3a70197a6281907f6196be64f0794388095"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/msft/iab_categories.go"
+source_blob = "4340e4cc6d3a2368f874a5cfeec49ecbee0e14bb"
+source_bytes = 1914
+source_sha256 = "c4cb343b6185ab0142127a72004bca3470b46678483375152d64296581319812"
+transformation = """\
+    Extract all 95 literal integer-to-IAB pairs from the pinned Go map into an independent \
+    JSON unit-test witness; do not execute the port."""
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/iab_categories.json"
+source_bytes = 2948
+source_sha256 = "578473209003239c466881c352cdac8c439ef80b231ceb021ec9e351e952cc24"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/msft/models.go"
+source_blob = "7a3bf291fb5aa18a6e9af2cc28f23e5457637987"
+source_bytes = 1910
+source_sha256 = "dc32f47efbc58fbbf4772f0bfe357c678c6e6f2ac04db34b5e72a31bc8d8a318"
+port_differences = [
+    """\
+    extraAdapterInfo.HBSource/HBSourceVideo have original JSON \
+    names hb_source/hb_source_video. Auctioneer declares optional signed i64 on every target \
+    rather than target-width Go int; no parser compatibility layer or numeric range beyond \
+    i64. No source program is retained or executed; protocol differences are recorded above.""",
+]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/msft/msft.go"
+source_blob = "8eae4790cc404555335cf39be04fcef2eb0c602e"
+source_bytes = 10170
+source_sha256 = "6ab21657fd65623b05a3fe868ac193cd0be771f01bab87acbdadabc0578d659d"
+port_differences = [
+    """\
+    parseExtraInfo and buildDefaultExtraInfo select \
+    defaultHBSource=5/defaultHBSourceVideo=6 for zero or absent values. Generated refs \
+    preserve absence and explicit zero through requested-before-base precedence; bidder code \
+    normalizes only afterward. Controlled-native publication does not change these defaults.""",
+]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/msft/msft_test.go"
+source_blob = "6247788282c0e3a7f5b418a765ca7153e67297ed"
+source_bytes = 2300
+source_sha256 = "992df209291eecae0d7211d9d284038cb897ddaf98830283911f65816779865f"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/msft.yaml"
+source_blob = "7511ce39ff1e53f8275c83bc5b0ba54461b06d6c"
+source_bytes = 406
+source_sha256 = "d17d4b2728a8a8e087e9c117112edfa9e40a30133d190efc34f4846f98259d75"
+port_differences = [
+    """\
+    Approved controlled-native publication binds the scheme-only HTTPS default with \
+    defaultEnabled=false. Source platform_id remains provenance; protocol HB-source \
+    defaults and independent optional host settings remain bidder-owned. Publication is \
+    not selected-flow acceptance, resource qualification or live authorization.""",
+    """\
+    Source-only metadata witness: the HTTP auction URL remains provenance for the selected \
+    HTTPS definition. No YAML copy is retained. Sync declares redirect \
+    https://ib.adnxs.com/getuid?{{.RedirectURL}}, userMacro $UID, family adnxs, vendor 32. No \
+    credential or sync URL is invented.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ib.adnxs.com/openrtb2"
+selected_url = "https://ib.adnxs.com/openrtb2"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "adapters/msft/params_test.go"
+source_blob = "6c897aafd15c0993dbb2146a293591a2d24e4a2c"
+source_bytes = 2859
+source_sha256 = "f2b6cb58a50f2811ae677f52d972c6c6c067e2f753dbd32fdfd7e8192ea79492"
+transformation = """\
+    Extract all 12 validParams and 21 invalidParams raw Go string literals, verdicts, indices, \
+    byte offsets, lengths and SHA256 into JSON without executing Go."""
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/parameters.json"
+source_bytes = 9255
+source_sha256 = "ca1d4a214e0e306a2a8a81cda59670584c7e180ee69732135c88ddc80fa140fa"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test-extrainfo/exemplary/simple-banner.json"
+source_blob = "2cf992dce8a63f16088133b8a24f4e1752a693eb"
+source_bytes = 3642
+source_sha256 = "498c574e162fbd120b3aebeb84f66d129601aa1c57ac61215e8179b08e1d45cd"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test-extrainfo/exemplary/simple-banner.json"
+source_bytes = 3642
+source_sha256 = "498c574e162fbd120b3aebeb84f66d129601aa1c57ac61215e8179b08e1d45cd"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test-extrainfo/video/simple-video.json"
+source_blob = "4f7527c2b28b183681600bd3ce52904d99c0e2c9"
+source_bytes = 3910
+source_sha256 = "ec371d92e7d684eb7852a0e8b19716aff7c3776f7d314ac4315fe76fef5e0396"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test-extrainfo/video/simple-video.json"
+source_bytes = 3910
+source_sha256 = "ec371d92e7d684eb7852a0e8b19716aff7c3776f7d314ac4315fe76fef5e0396"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/amp/simple-banner.json"
+source_blob = "ac02667baae7fddaa408f9b56f0e2b8e39b03e42"
+source_bytes = 3666
+source_sha256 = "98ad80f99618b891e55b5c6e560ff1ae056d3bb10b36132337a0d73beae65ff8"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/amp/simple-banner.json"
+source_bytes = 3666
+source_sha256 = "98ad80f99618b891e55b5c6e560ff1ae056d3bb10b36132337a0d73beae65ff8"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/exemplary/all-params.json"
+source_blob = "ea9d9aa57f80edf2741d133beba312a18549d335"
+source_bytes = 4756
+source_sha256 = "da3a65fb0ec5217b61d19cc7b6a92b39fa1e51793a4dd953b31089d0a4af3806"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/exemplary/all-params.json"
+source_bytes = 4756
+source_sha256 = "da3a65fb0ec5217b61d19cc7b6a92b39fa1e51793a4dd953b31089d0a4af3806"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/exemplary/simple-banner.json"
+source_blob = "dac4ab160df09e9b37f68a842027a3ce7e9467d7"
+source_bytes = 3641
+source_sha256 = "1228c105f0aece8e8203bd740e1da4f6b1fcf9337df4acfea85bd67c1c2c6bfe"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/exemplary/simple-banner.json"
+source_bytes = 3641
+source_sha256 = "1228c105f0aece8e8203bd740e1da4f6b1fcf9337df4acfea85bd67c1c2c6bfe"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/exemplary/simple-native.json"
+source_blob = "b5c9fcdaf819b3a4d4757a419ae8d0d334c948df"
+source_bytes = 5303
+source_sha256 = "c34d37995c8762a51128ef398f9932dd08eb46f5336185b417b09d2bb288cd12"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/exemplary/simple-native.json"
+source_bytes = 5303
+source_sha256 = "c34d37995c8762a51128ef398f9932dd08eb46f5336185b417b09d2bb288cd12"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/exemplary/simple-video.json"
+source_blob = "9e9fb4c2b1ff8c96c6d9cd785d8871745ac87877"
+source_bytes = 3909
+source_sha256 = "7dea4090ea6c80ab51b5072fc529ef23e70d6b7811cf325c1be2ff9556700864"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/exemplary/simple-video.json"
+source_bytes = 3909
+source_sha256 = "7dea4090ea6c80ab51b5072fc529ef23e70d6b7811cf325c1be2ff9556700864"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/banner-api-not-overridden.json"
+source_blob = "2b168abf3d70c69042e1bffe9bab8437d0b84e14"
+source_bytes = 4013
+source_sha256 = "1320eae2cdc5fbd6ca139f35d1a245c5cc7654b713cd8fbe558e79a3db9fefbf"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/banner-api-not-overridden.json"
+source_bytes = 4013
+source_sha256 = "1320eae2cdc5fbd6ca139f35d1a245c5cc7654b713cd8fbe558e79a3db9fefbf"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/bid-cat-brand-category-override.json"
+source_blob = "d41757a91f310eaac4221347fc46ad580b21f47c"
+source_bytes = 3719
+source_sha256 = "3d72c4fd6907489413fd091cde21c74bad1794aadb379e3981fa6cca8f245d40"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/bid-cat-brand-category-override.json"
+source_bytes = 3719
+source_sha256 = "3d72c4fd6907489413fd091cde21c74bad1794aadb379e3981fa6cca8f245d40"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/bid-cat-multiple.json"
+source_blob = "cc31db1fc987c78b4a3fa4b3d7a472f2eefff796"
+source_bytes = 3604
+source_sha256 = "81f1c346d76b7b50fed7bd87972961fcc8f3063c2f4f991f4961385ff70d6824"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/bid-cat-multiple.json"
+source_bytes = 3604
+source_sha256 = "81f1c346d76b7b50fed7bd87972961fcc8f3063c2f4f991f4961385ff70d6824"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/bid-cat.json"
+source_blob = "2abad1b60c38b24674e7ca88e3d71d8a095fc150"
+source_bytes = 3633
+source_sha256 = "e1c1a7a02dc5bc36a55c046ab99e34c58b208983d42b73231cf37b1220000f83"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/bid-cat.json"
+source_bytes = 3633
+source_sha256 = "e1c1a7a02dc5bc36a55c046ab99e34c58b208983d42b73231cf37b1220000f83"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/bid-type-invalid.json"
+source_blob = "18bc30f535cf0c06cce6b4bf9f7978ed6e506284"
+source_bytes = 2880
+source_sha256 = "fac5ed88de816a2b594c6615ab3f4dddd947d1fa090bcce2f83eab272ce5866e"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/bid-type-invalid.json"
+source_bytes = 2880
+source_sha256 = "fac5ed88de816a2b594c6615ab3f4dddd947d1fa090bcce2f83eab272ce5866e"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/displaymanagerver-generated-missing-source.json"
+source_blob = "df1fb7085057333505f60b69f6a0d096969def38"
+source_bytes = 3725
+source_sha256 = "884a828242608da77b8ef0d08c72999024353d063716f275b75844b1897bfdb7"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/displaymanagerver-generated-missing-source.json"
+source_bytes = 3725
+source_sha256 = "884a828242608da77b8ef0d08c72999024353d063716f275b75844b1897bfdb7"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/displaymanagerver-generated-missing-version.json"
+source_blob = "2c8d2a8181b9b582a8ab8b4b094ca9c0fde234f5"
+source_bytes = 3739
+source_sha256 = "9847be18f70af66d827e86bc82f1534b21ec1376b4eb23aadb403c108cb307c9"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/displaymanagerver-generated-missing-version.json"
+source_bytes = 3739
+source_sha256 = "9847be18f70af66d827e86bc82f1534b21ec1376b4eb23aadb403c108cb307c9"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/displaymanagerver-generated-multiple-imps.json"
+source_blob = "aa9e201f379ca4620c3965c6a2a752b1fea58448"
+source_bytes = 4840
+source_sha256 = "7ddaae066ba13ef7d1f2fd0ec5347f80252d12cf1e5d0debc3f4317a54fd9e20"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/displaymanagerver-generated-multiple-imps.json"
+source_bytes = 4840
+source_sha256 = "7ddaae066ba13ef7d1f2fd0ec5347f80252d12cf1e5d0debc3f4317a54fd9e20"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/displaymanagerver-generated.json"
+source_blob = "6b7f7de6da05d3ec5164e814e89e929f4040e3ea"
+source_bytes = 3863
+source_sha256 = "21b1beb4d6b1808b363a30324eea8805a61d8d372ec65794a3044cef359d61fb"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/displaymanagerver-generated.json"
+source_bytes = 3863
+source_sha256 = "21b1beb4d6b1808b363a30324eea8805a61d8d372ec65794a3044cef359d61fb"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/explicit-dimensions.json"
+source_blob = "0afe7c6980302c4a94a0f59d793f5bfb26a05ad8"
+source_bytes = 3681
+source_sha256 = "69d55be29c41e825a36b671e91c755593dee02c1d69e5a791e9fe33f9d465195"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/explicit-dimensions.json"
+source_bytes = 3681
+source_sha256 = "69d55be29c41e825a36b671e91c755593dee02c1d69e5a791e9fe33f9d465195"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/foreign-currency.json"
+source_blob = "c1a13695e8de100242111f0742a97c46ad62f2ed"
+source_bytes = 3641
+source_sha256 = "8dd1caeb0e1588b73a79a12b10533eda857bab01a34904ecef7c97b1ea10c257"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/foreign-currency.json"
+source_bytes = 3641
+source_sha256 = "8dd1caeb0e1588b73a79a12b10533eda857bab01a34904ecef7c97b1ea10c257"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/gpid-passthrough.json"
+source_blob = "0888d786565886cd3856ccbdf8265e8851af488f"
+source_bytes = 3705
+source_sha256 = "cb3fec2eb36afcdd9f7ef82ec1cf1b92b7dbe9a173387861c839735afb75dcb2"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/gpid-passthrough.json"
+source_bytes = 3705
+source_sha256 = "cb3fec2eb36afcdd9f7ef82ec1cf1b92b7dbe9a173387861c839735afb75dcb2"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/imps-none-valid.json"
+source_blob = "12250af4f01f6b5d9a9208a7cf6319b0e4208d2a"
+source_bytes = 1105
+source_sha256 = "c1bc81e6d2b49da3bc5fd09aa8111e6fea4434bef4d08b0a0a25dfc546253b43"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/imps-none-valid.json"
+source_bytes = 1105
+source_sha256 = "c1bc81e6d2b49da3bc5fd09aa8111e6fea4434bef4d08b0a0a25dfc546253b43"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/include-brand-category.json"
+source_blob = "fab8e0ed5c465ca168a2f7bc149e866540211444"
+source_bytes = 4241
+source_sha256 = "94760b454dfd5cecd1aa533baf0b3cdc93fad24373a545f956de3d00649eec5a"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/include-brand-category.json"
+source_bytes = 4241
+source_sha256 = "94760b454dfd5cecd1aa533baf0b3cdc93fad24373a545f956de3d00649eec5a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/inv-code-overridden.json"
+source_blob = "1aa68eac386319998350430f325218bc4d28a1ac"
+source_bytes = 3845
+source_sha256 = "67bc1ce4a526233ebae77e3cf98d17ebd762f4bc37ddf74b2ee8bc1e576d2005"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/inv-code-overridden.json"
+source_bytes = 3845
+source_sha256 = "67bc1ce4a526233ebae77e3cf98d17ebd762f4bc37ddf74b2ee8bc1e576d2005"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/member-id-conflict.json"
+source_blob = "23915eafac8b30a18000bbbfe1b512a95de8a2ca"
+source_bytes = 1138
+source_sha256 = "9d78bb248da25c4e09b62dca126266c03573518b2d9d4a19fa898102de51abce"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/member-id-conflict.json"
+source_bytes = 1138
+source_sha256 = "9d78bb248da25c4e09b62dca126266c03573518b2d9d4a19fa898102de51abce"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/member-id.json"
+source_blob = "5fa1fb4755bbeb45ef15be163f9d35fdcdeb59fb"
+source_bytes = 3659
+source_sha256 = "2d8e16d43a400e5c60b20bcf7f3921b0ae472bceb0cf42a54dac040e0c5e552b"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/member-id.json"
+source_bytes = 3659
+source_sha256 = "2d8e16d43a400e5c60b20bcf7f3921b0ae472bceb0cf42a54dac040e0c5e552b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/multi-bid.json"
+source_blob = "6be967d5fe4d9c4a4723430e45e75fca0ff4cb7a"
+source_bytes = 5445
+source_sha256 = "39ffdbdb4b2f8d17e0792931285d3aba160828191441bf4eb0176e8d18d76a4a"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/multi-bid.json"
+source_bytes = 5445
+source_sha256 = "39ffdbdb4b2f8d17e0792931285d3aba160828191441bf4eb0176e8d18d76a4a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/request-ext-appnexus-invalid.json"
+source_blob = "a814f8ec0205681456d19587399f0cc04246c14d"
+source_bytes = 734
+source_sha256 = "11c8203d3e7976a7e7dc8a7a98e7291f4baa03a1ee4840bcfca7e6f19c34f2f8"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/request-ext-appnexus-invalid.json"
+source_bytes = 734
+source_sha256 = "11c8203d3e7976a7e7dc8a7a98e7291f4baa03a1ee4840bcfca7e6f19c34f2f8"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/request-ext-appnexus-passthrough.json"
+source_blob = "760432eb3d36617252be082b2e556eb5e07b36de"
+source_bytes = 3780
+source_sha256 = "eb500b2500a04879518001be1f7771e514752571a2632a19756b31da694a1f6d"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/request-ext-appnexus-passthrough.json"
+source_bytes = 3780
+source_sha256 = "eb500b2500a04879518001be1f7771e514752571a2632a19756b31da694a1f6d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/request-splitting.json"
+source_blob = "a1abded515c199c364124e76c265c791ef5c9bfd"
+source_bytes = 10378
+source_sha256 = "ffe43625043bd1472417a9a21904623e7ef83e74623a458c0e62a3949a7984c7"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/request-splitting.json"
+source_bytes = 10378
+source_sha256 = "ffe43625043bd1472417a9a21904623e7ef83e74623a458c0e62a3949a7984c7"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/status-400.json"
+source_blob = "932b520a8030ee790daeb3a9896d779b459ad1d7"
+source_bytes = 1709
+source_sha256 = "f974a5716e2f24b4426a969bec0ee3af7f9bf2b45a78ca20525da23aed8ea5c0"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/status-400.json"
+source_bytes = 1709
+source_sha256 = "f974a5716e2f24b4426a969bec0ee3af7f9bf2b45a78ca20525da23aed8ea5c0"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/supplemental/unmapped-brand-category.json"
+source_blob = "a3dce7ada700792aac6eb86d47bb6cadd8aab9f8"
+source_bytes = 3587
+source_sha256 = "87950add7a1a9d5a6d486eb038826b61f7ce016b25a10245a4e36179dec9fe1c"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/supplemental/unmapped-brand-category.json"
+source_bytes = 3587
+source_sha256 = "87950add7a1a9d5a6d486eb038826b61f7ce016b25a10245a4e36179dec9fe1c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/msft/test/video/simple-video.json"
+source_blob = "418af77582c0d0a9b64cfbca36f679b17b9dca4a"
+source_bytes = 3909
+source_sha256 = "acf7a36e3e6235bb4ac3611e8622c32b9966c42e207495e06ab41db864f200f3"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/test/video/simple-video.json"
+source_bytes = 3909
+source_sha256 = "acf7a36e3e6235bb4ac3611e8622c32b9966c42e207495e06ab41db864f200f3"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/msft.json"
+source_blob = "36894a5295c512a8e22f8c9f3e22fa40a66ac914"
+source_bytes = 2193
+source_sha256 = "f0f5e273bbe4598198aca62942e81de1290d3d111d9a22a9e059a08c1ee20999"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 2193
+source_sha256 = "f0f5e273bbe4598198aca62942e81de1290d3d111d9a22a9e059a08c1ee20999"

@@ -1,0 +1,14 @@
+schema = "pubmatic"
+path = "adapters/pubmatic/params_test.go"
+blob = "5ca06fdaf922d4e3e73df8aad5bb05e2b3f7f44f"
+sha256 = "4964187f28b2dd2b3c5f231b2d160826419dc73db5bd27dd1545c44b980b37d2"
+bytes = 2915
+valid_cases = 6
+invalid_cases = 20
+valid_span = {start = 1389, end = 1852}
+invalid_span = {start = 1884, end = 2913}
+verdict_counts = [6, 19, 1]
+previous = true
+original = true
+duplicates = []
+lexical = []

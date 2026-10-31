@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "implementation": "kargo",
+  "manifest_sha256": "76c2264e2010e4e03e3a615c84974eeaf6a1e84236de357f111105b1d4acd518",
+  "cases": [
+    {
+      "name": "banner-and-unsent-sibling",
+      "request": {
+        "id": "catalog-request",
+        "imp": [
+          {
+            "id": "i",
+            "banner": {
+              "w": 300,
+              "h": 250
+            },
+            "ext": {
+              "bidder": {
+                "placementId": "slot",
+                "placement_id": 42,
+                "accountID": "account",
+                "org": "publisher",
+                "tagid": "sovrn-tag",
+                "siteid": 123,
+                "dcn": "yahoo-site",
+                "pos": "yahoo-slot",
+                "publisherId": "ttd-publisher",
+                "supplySourceId": "ttd-route"
+              }
+            }
+          }
+        ],
+        "ext": {
+          "appnexus": {
+            "member_id": 7,
+            "placement_ids": [
+              99
+            ]
+          },
+          "catalog_test": {
+            "preserve": true
+          }
+        }
+      },
+      "context": {
+        "account_id": "catalog-account",
+        "endpoint_template": "https://bidder.example.test/openrtb?account={{.AccountID}}",
+        "endpoint_macros": [
+          "AccountID"
+        ],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/openrtb?account=catalog-account",
+          "required_headers": [
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Accept",
+              "application/json"
+            ]
+          ],
+          "absent_headers": [],
+          "imp_ids": [
+            "i"
+          ],
+          "body": {
+            "id": "catalog-request",
+            "imp": [
+              {
+                "id": "i",
+                "banner": {
+                  "w": 300,
+                  "h": 250
+                },
+                "ext": {
+                  "bidder": {
+                    "placementId": "slot",
+                    "placement_id": 42,
+                    "accountID": "account",
+                    "org": "publisher",
+                    "tagid": "sovrn-tag",
+                    "siteid": 123,
+                    "dcn": "yahoo-site",
+                    "pos": "yahoo-slot",
+                    "publisherId": "ttd-publisher",
+                    "supplySourceId": "ttd-route"
+                  }
+                }
+              }
+            ],
+            "ext": {
+              "appnexus": {
+                "member_id": 7,
+                "placement_ids": [
+                  99
+                ]
+              },
+              "catalog_test": {
+                "preserve": true
+              }
+            }
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "valid",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "factory-bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "mtype": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "factory-bid",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": []
+          }
+        },
+        {
+          "name": "valid-with-unsent",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "factory-bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "mtype": 1
+                  },
+                  {
+                    "id": "rejected-bid",
+                    "impid": "not-sent",
+                    "price": 1.25,
+                    "mtype": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "factory-bid",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": [
+              4
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

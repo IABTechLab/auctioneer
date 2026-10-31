@@ -1,0 +1,29 @@
+schema = "adf"
+
+[[cases]]
+input_json = '{"mid":5}'
+valid = true
+
+[[cases]]
+input_json = '{"inv":5,"mname":"slot"}'
+valid = true
+
+[[cases]]
+input_json = '{"mid":5,"inv":5,"mname":"slot"}'
+valid = true
+
+[[cases]]
+input_json = '{"inv":5}'
+valid = false
+
+[[cases]]
+input_json = '{"mid":5,"priceType":"net"}'
+valid = true
+
+[[cases]]
+input_json = '{"mid":5,"priceType":"prefixgrosssuffix"}'
+valid = true
+
+[[cases]]
+input_json = '{"mid":5,"priceType":"other"}'
+valid = false

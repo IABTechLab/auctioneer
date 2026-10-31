@@ -1,0 +1,22 @@
+# The sibling of `gdpr_section2_scrub.toml`: identical except special
+# feature 1 (geolocation) IS enforced and no opt-in can be read, so
+# `PassGeo = !sf1_enforced` is false and the geo/IP scrub runs on the
+# outbound body alongside the ID scrub.
+
+[gdpr]
+enabled = true
+
+[gdpr.tcf2]
+enabled = true
+
+[gdpr.tcf2.purposes.2]
+enforce_algo    = "full"
+enforce_purpose = "disabled"
+enforce_vendors = "disabled"
+
+[gdpr.tcf2.special_features.1]
+enforce = "enabled"
+
+[accounts."acct-1".gdpr]
+enabled         = "enabled"
+channel_enabled = { web = "enabled" }

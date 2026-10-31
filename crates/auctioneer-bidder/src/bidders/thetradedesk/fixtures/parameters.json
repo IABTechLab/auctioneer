@@ -1,0 +1,18 @@
+{
+  "valid": [
+    "{\"publisherId\": \"123456\", \"supplySourceId\": \"xyz_123\"}",
+    "{\"publisherId\": \"pub-123456\", \"supplySourceId\": \"direct_123\"}",
+    "{\"publisherId\": \"publisherIDAllString\", \"supplySourceId\": \"direct123\"}"
+  ],
+  "invalid": [
+    "",
+    "null",
+    "true",
+    "5",
+    "4.2",
+    "[]",
+    "{}",
+    "{\"publisherId\": 123456, \"supplySourceId\": 123}",
+    "{\"publisherId\": 0, \"supplySourceId\": 0}"
+  ]
+}

@@ -1,0 +1,21 @@
+error[E0391]: cycle detected when expanding type alias `First`
+ --> tests/conformance/fail/alias_cycle.rs:2:25
+  |
+2 | type First = Option<Box<Second>>;
+  |                         ^^^^^^
+  |
+note: ...which requires expanding type alias `Second`...
+ --> tests/conformance/fail/alias_cycle.rs:3:19
+  |
+3 | type Second = Vec<First>;
+  |                   ^^^^^
+  = note: ...which again requires expanding type alias `First`, completing the cycle
+  = note: type aliases cannot be recursive
+  = help: consider using a struct, enum, or union instead to break the cycle
+  = help: see <https://doc.rust-lang.org/reference/types.html#recursive-types> for more information
+note: cycle used when checking that `First` is well-formed
+ --> tests/conformance/fail/alias_cycle.rs:2:1
+  |
+2 | type First = Option<Box<Second>>;
+  | ^^^^^^^^^^
+  = note: for more information, see <https://rustc-dev-guide.rust-lang.org/overview.html#queries> and <https://rustc-dev-guide.rust-lang.org/query.html>

@@ -1,0 +1,31 @@
+schema_version = 1
+kind = "supplemental_schema_reference_only"
+require_all = true
+
+[[schema]]
+key = "aps"
+name = "aps"
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a"
+source_path = "static/bidder-params/aps.json"
+source_blob = "48f5de753f4175e671f0d584ab532120c8c9cd5d"
+source_bytes = 513
+source_sha256 = "64f033004924ed57417549f59b08df4f54f12b40e9562379d0276d187d406dc3"
+[schema.retained]
+source_path = "parameters.json"
+source_bytes = 513
+source_sha256 = "64f033004924ed57417549f59b08df4f54f12b40e9562379d0276d187d406dc3"
+
+[[schema]]
+key = "mocktioneer"
+name = "mocktioneer"
+repository = "https://github.com/stackpop/prebid-server.git"
+revision = "c9ae35110d45f4dca35efc064d97f955a48445bf"
+source_path = "static/bidder-params/mocktioneer.json"
+source_blob = "5e3060c1e61b2e0db25b80a76f37c35d082bfd8e"
+source_bytes = 521
+source_sha256 = "bff17431f5fe1932250b15a58f8f8eb531d93f600095e5e5b8b1be7851c73a9d"
+[schema.retained]
+source_path = "parameters.json"
+source_bytes = 521
+source_sha256 = "bff17431f5fe1932250b15a58f8f8eb531d93f600095e5e5b8b1be7851c73a9d"

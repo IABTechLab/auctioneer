@@ -1,0 +1,28 @@
+[package]
+name = "auctioneer-openrtb"
+description = "OpenRTB 2.6 request/response types used by auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[dependencies]
+ipnetwork = { workspace = true }
+auctioneer-macros = { workspace = true }
+psl = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+# The parse-factor guard asserts its allocator measurement against the
+# factor constants the isolate budget charges. Dev-only: the shipping
+# dependency graph is unchanged and `auctioneer-runtime` still depends on
+# no auctioneer crate.
+auctioneer-runtime = { workspace = true }

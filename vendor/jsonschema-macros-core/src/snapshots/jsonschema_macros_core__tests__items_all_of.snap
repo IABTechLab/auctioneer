@@ -1,0 +1,26 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"allOf\":[{\"prefixItems\":[{\"type\":\"integer\"}]}],\"type\":\"array\",\"unevaluatedItems\":false}"
+expression: is_valid_body(schema)
+---
+(match instance {
+            __Value::Array(arr) => {
+                arr.iter()
+                    .enumerate()
+                    .all(|(idx, item)| { if idx < 1usize { true } else { false } })
+            }
+            _ => false,
+        })
+            && (match instance {
+                __Value::Array(arr) => {
+                    arr.get(0usize)
+                        .map_or(
+                            true,
+                            |instance| match instance {
+                                __Value::Number(n) => __types::is_integer(n),
+                                _ => false,
+                            },
+                        )
+                }
+                _ => true,
+            })

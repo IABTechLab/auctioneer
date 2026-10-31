@@ -1,0 +1,1066 @@
+id = "publisher-display-priority"
+kind = "priority_display_design"
+review_status = "pending"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+schema_version = 1
+shared_prerequisites = [
+    "schema_qualification",
+    "funded_registry",
+    "host_context",
+    "call_correlation",
+    "construction_diagnostics",
+    "response_decoding",
+    "media_delivery",
+    "brand_categories",
+    "marketplace_metadata",
+    "currency_conversion",
+]
+
+[[bidders]]
+base = "msft"
+implementation = "msft"
+metadata_blob = "7511ce39ff1e53f8275c83bc5b0ba54461b06d6c"
+name = "msft"
+routing = "https_default_pending"
+schema_blob = "36894a5295c512a8e22f8c9f3e22fa40a66ac914"
+settings = "Typed optional hb_source/hb_source_video; defaults 5/6, zero/missing defaults, nonzero override; no bidder secret. Apply the HTTPS default at the unchanged source destination; retain transport provenance and deterministic route checks."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Cover canonical placement_id versus member/inv_code alternatives, optional fields and malformed types using the pinned schema and all external parameter cases; oneOf requires exactly one complete alternative. Keep schema qualification distinct from direct adapter behavior and preserve missing versus null without coercion."
+driver = "auctioneer-bidder::msft"
+id = "params"
+shared_prerequisites = ["schema_qualification"]
+
+[[bidders.operations]]
+assertion = "All nonzero member values on valid impressions must agree; set exactly one encoded member_id query value, replacing existing member_id values while preserving other query parameters. Conflict refuses the whole bidder before calls; zero/absent members do not conflict."
+driver = "auctioneer-bidder::msft"
+id = "member_consistency"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Replace imp.ext with appnexus containing placement_id, allow_smaller_sizes, use_pmt_rule, keywords, traffic_source_code, pub_click from pubclick, ext_inv_code and ext_imp_id; retain nonempty gpid and discard other extension keys. Nonempty inv_code overwrites tagid; member is query-only and banner_frameworks fills banner.api only when nil, not an explicit empty array. Set first-format w/h only when both are nil and a format exists; invalid impressions retain valid siblings and input is unchanged."
+driver = "auctioneer-bidder::msft"
+id = "imp_transform"
+shared_prerequisites = ["construction_diagnostics"]
+
+[[bidders.operations]]
+assertion = "Fill missing or empty displaymanagerver from exact app.ext.prebid.source and app.ext.prebid.version string fields as source-version; both strings are required but may be empty. Preserve a nonempty explicit displaymanagerver; missing or malformed source/version produces no generated value, including across repeated impressions."
+driver = "auctioneer-bidder::msft"
+id = "sdk_version"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Preserve other request.ext keys; rebuild request.ext.appnexus from typed include_brand_category, brand_category_uniqueness, is_amp and hb_source fields, rejecting malformed recognized values and discarding unknown appnexus keys. An object at exact request.ext.prebid.targeting.includebrandcategory sets both category flags true. Override hb_source with non-video-entrypoint default 5 or video-entrypoint default 6; zero/missing settings default, reviewed nonzero overrides and malformed settings differ."
+driver = "auctioneer-bidder::msft"
+id = "request_ext"
+shared_prerequisites = ["host_context"]
+
+[[bidders.operations]]
+assertion = "Split valid impressions in source order into at most 10 per POST: 10/11/21 produce 1/2/3 calls, with exact ordered coverage and unchanged request identity. Emit Content-Type application/json;charset=utf-8, Accept application/json and x-openrtb-version 2.6; independent call exhaustion cannot allocate refused bodies."
+driver = "auctioneer-bidder::msft"
+id = "chunks"
+shared_prerequisites = [
+    "call_correlation",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "bid.ext.appnexus.bid_ad_type 0/1/3 maps banner/video/native; malformed extension or any other decoded value rejects only that bid. A good bid across another seat survives. Source media selection uses bid_ad_type, not mtype; shared offered-media, sent-call and conflicting-hint checks remain required."
+driver = "auctioneer-bidder::msft"
+id = "bid_local_media"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Apply all 95 pinned brand_category_id-to-IAB mappings, replacing bid.cat on a match; unknown categories retain at most one existing category and clear longer lists without adapter-local rejection. Every accepted bid carries video metadata with duration from creative_info.video.duration and empty primary_category, including zero/negative duration and non-video bids, and unchanged deal_priority without a positivity filter. Nonempty response.cur replaces default USD without claiming FX/player delivery."
+driver = "auctioneer-bidder::msft"
+id = "category_video_deal"
+shared_prerequisites = [
+    "brand_categories",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Injected typed AMP context sets request.ext.appnexus.is_amp to 1; injected video-entrypoint context selects hb_source_video, while other contexts select hb_source. Video impression presence alone does not select the video setting. Neither creates a new public route; both source-local branches remain required for full migration."
+driver = "auctioneer-bidder::msft"
+id = "entrypoints"
+shared_prerequisites = [
+    "host_context",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "HTTP 204 is no bid without body decoding; 400 is BadInput and other non-200 statuses are BadServerResponse. HTTP 200 requires sealed decoding, including empty/malformed/wrong-shaped JSON, empty seats and multiple seats; envelope parse failures remain separate from bid-local rejection. Successful decoding defaults currency to USD and preserves a nonempty response.cur unchanged."
+driver = "auctioneer-bidder::msft"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "4340e4cc6d3a2368f874a5cfeec49ecbee0e14bb"
+path = "adapters/msft/iab_categories.go"
+
+[[bidders.source_files]]
+blob = "7a3bf291fb5aa18a6e9af2cc28f23e5457637987"
+path = "adapters/msft/models.go"
+
+[[bidders.source_files]]
+blob = "8eae4790cc404555335cf39be04fcef2eb0c602e"
+path = "adapters/msft/msft.go"
+
+[[bidders.source_files]]
+blob = "6247788282c0e3a7f5b418a765ca7153e67297ed"
+path = "adapters/msft/msft_test.go"
+
+[[bidders.source_files]]
+blob = "6c897aafd15c0993dbb2146a293591a2d24e4a2c"
+path = "adapters/msft/params_test.go"
+
+[[bidders]]
+base = "thetradedesk"
+implementation = "thetradedesk"
+metadata_blob = "78ed8c79b51c41a464c90c20dad1ee0a08268b43"
+name = "ttd"
+routing = "https_review_pending"
+schema_blob = "63dae6d978564714c1425eb197c74d9fb0654541"
+settings = "Typed optional SupplyId host default; impression value wins; bounded path construction and baked destination. No secret; alias base has support-only sync but selected alias has no declaration."
+sync = "absent"
+
+[[bidders.operations]]
+assertion = "ttd retains requested attribution, vendor 21, canonical thetradedesk schema and base veto; alias true without base eligibility makes zero calls. Alias sync remains absent even though base declares support."
+driver = "auctioneer-bidder::thetradedesk"
+id = "alias_activation"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Select first nonempty publisher and SupplyId independently, possibly from different impressions; later conflicts cannot replace them. Site precedes app; empty selected publisher preserves an existing ID."
+driver = "auctioneer-bidder::thetradedesk"
+id = "publisher_selection"
+shared_prerequisites = ["schema_qualification"]
+
+[[bidders.operations]]
+assertion = "First banner format overwrites W/H, formats remain; all impressions share one POST with charset JSON Content-Type and JSON Accept."
+driver = "auctioneer-bidder::thetradedesk"
+id = "banner_and_batch"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Impression SupplyId overrides optional host default; no invented default. Encode/reject path traversal rather than raw source substitution; exact HTTPS destination remains baked, and rejected SupplyId cannot escape it."
+driver = "auctioneer-bidder::thetradedesk"
+id = "supply_route"
+shared_prerequisites = ["host_context"]
+
+[[bidders.operations]]
+assertion = "mtype banner/video/native, not ext.prebid.type; unsupported mtype is bid-local in Auctioneer although source aborts response. Preserve valid seats/bids and response currency, including absent/empty cases."
+driver = "auctioneer-bidder::thetradedesk"
+id = "mtype_isolation"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Replace every exact ${AUCTION_PRICE} in adm/nurl/burl, retain differently cased text; do not issue notification requests."
+driver = "auctioneer-bidder::thetradedesk"
+id = "price_macros"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::thetradedesk"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "1cf105857c858a7892eb05e9c5bb682e6ac8d5bd"
+path = "adapters/thetradedesk/params_test.go"
+
+[[bidders.source_files]]
+blob = "f567b43d9e75f59a9f41647fea03be2313f3f9e4"
+path = "adapters/thetradedesk/thetradedesk.go"
+
+[[bidders.source_files]]
+blob = "050d64498ac9cf93aacad57032263fe838591f3f"
+path = "adapters/thetradedesk/thetradedesk_test.go"
+
+[[bidders]]
+base = "rise"
+implementation = "rise"
+metadata_blob = "0d941622e86bef7f9bf3c97f5aecc928a851b470"
+name = "rise"
+routing = "https_review_pending"
+schema_blob = "ee8a469cbbc37679f25186a1e285e5f1a3697ded"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Scan impressions in order; org wins over publisher_id within one row, earlier publisher wins over later org; return after trim even if empty. Decode error before selection is fatal, rows after selection uninspected; no invented consistency rule."
+driver = "auctioneer-bidder::rise"
+id = "org_selection"
+shared_prerequisites = ["schema_qualification"]
+
+[[bidders.operations]]
+assertion = "One POST of unchanged scoped request and all IDs, charset JSON Content-Type. Source concatenates ?publisher_id= without encoding; reviewed structured query construction must cover reserved characters and existing query without host/path changes."
+driver = "auctioneer-bidder::rise"
+id = "wire_route"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "mtype 1/2/4 selects banner/video/native; absent/audio/unknown is bid-local failure, not request-media fallback. Preserve source response currency including empty; test good sibling and all-invalid cases."
+driver = "auctioneer-bidder::rise"
+id = "media_currency"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::rise"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "d9d9c2a4bc9ca86b13d317b601d22cad05802250"
+path = "adapters/rise/rise.go"
+
+[[bidders.source_files]]
+blob = "8d10cedb95b2eb68e8ee9225541ffb8b66c39cdb"
+path = "adapters/rise/rise_test.go"
+
+[[bidders]]
+base = "sovrn"
+implementation = "sovrn"
+metadata_blob = "fad1850d4b3d31752e994413a162891efdf54ac5"
+name = "sovrn"
+routing = "https_default_pending"
+schema_blob = "7f81604a9ffb5819446ce6f634476f9868ef22a6"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "From scoped data only, copy nonempty UA/IP/language into User-Agent/X-Forwarded-For/Accept-Language, emit present DNT even zero, and trimmed nonempty buyeruid as ljt_reader cookie; no privacy-denied data resurrection."
+driver = "auctioneer-bidder::sovrn"
+id = "headers"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "tagid precedes tagId; malformed/missing tag removes only that impression. Existing nonzero floor wins, otherwise accept positive numeric/parseable-string extension floor; invalid/nonpositive ignored, currency unchanged."
+driver = "auctioneer-bidder::sovrn"
+id = "impressions"
+shared_prerequisites = [
+    "schema_qualification",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "Video requires present MIME/protocol slices and nonzero maxduration, preserving nil versus empty distinction. All invalid means no call; mixed valid/invalid preserves one aggregate call."
+driver = "auctioneer-bidder::sovrn"
+id = "video_requirements"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.operations]]
+assertion = "Query-unescape adm including plus-to-space; invalid escapes drop that bid. Unknown imp yields bid-local BadInput; matching video precedes banner regardless of mtype. Currency remains source USD."
+driver = "auctioneer-bidder::sovrn"
+id = "response"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::sovrn"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "873ec63a1eb27d5ac4703fc03b0e7989a3b6b3bb"
+path = "adapters/sovrn/params_test.go"
+
+[[bidders.source_files]]
+blob = "25bbced73f9bf4898e380125c3aebd3016bd2819"
+path = "adapters/sovrn/sovrn.go"
+
+[[bidders.source_files]]
+blob = "12545b3f6f596d3aa010eec227e7b577582a1685"
+path = "adapters/sovrn/sovrn_test.go"
+
+[[bidders]]
+base = "yahooAds"
+implementation = "yahoo_ads"
+metadata_blob = "c53d1b14e0c03769db607d6a5ea80bedced65712"
+name = "yahooAds"
+routing = "https_review_pending"
+schema_blob = "77e7107350c6fe6f2f8f29a46aa7762525ccfc3e"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "supports_only"
+
+[[bidders.operations]]
+assertion = "One POST per valid impression; pos replaces tagid, dcn replaces site ID before app ID, neither inventory need be synthesized. Preserve extensions; charset JSON/Accept/OpenRTB 2.5 plus nonempty scoped UA."
+driver = "auctioneer-bidder::yahoo_ads"
+id = "split_rewrite"
+shared_prerequisites = [
+    "schema_qualification",
+    "call_correlation",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "Both W/H present rejects zero values; otherwise replace both from first format, reject missing format, and preserve source's non-revalidation of fallback dimensions as an explicit reviewed branch."
+driver = "auctioneer-bidder::yahoo_ads"
+id = "dimensions"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Only nonempty top-level GPP relocates into regs.ext, conditionally overwrite SID, preserve unrelated ext and clear top-level fields. Null/nonobject extension handling must be safe, with call-local fixed diagnostics."
+driver = "auctioneer-bidder::yahoo_ads"
+id = "gpp_transition"
+shared_prerequisites = ["construction_diagnostics"]
+
+[[bidders.operations]]
+assertion = "Banner precedes video; ignore other media. Source aborts on unknown impression and searches original request; Auctioneer uses exact call coverage and bid-local semantic refusal so an earlier good sibling survives. Ignore source response currency; non-200/non-204 is BadServerResponse."
+driver = "auctioneer-bidder::yahoo_ads"
+id = "response_scope"
+shared_prerequisites = [
+    "call_correlation",
+    "response_decoding",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::yahoo_ads"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "9da14a18b0780c77c7e0655b87e3450bb5a10c0f"
+path = "adapters/yahooAds/params_test.go"
+
+[[bidders.source_files]]
+blob = "1be27dc3c52434df4bf51df118bd107697dee10d"
+path = "adapters/yahooAds/yahooAds.go"
+
+[[bidders.source_files]]
+blob = "6b07ef32c1d2aee949cf28cf82d86114236211ac"
+path = "adapters/yahooAds/yahooAds_test.go"
+
+[[bidders]]
+base = "unruly"
+implementation = "unruly"
+metadata_blob = "1f00d816d73daf5151ff4652b9e5fab9ac8cdb71"
+name = "unruly"
+routing = "https_review_pending"
+schema_blob = "f5bfcb13edbb516941cd139e70b349a51bfd1946"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Typed params serialize only ext.bidder with both siteid/siteId including zero; no invented nonzero rule. Source treats any extension decode failure as bidder-fatal. One aggregate POST with JSON/Accept; source empty endpoint yields no call, not a dummy route."
+driver = "auctioneer-bidder::unruly"
+id = "rewrite"
+shared_prerequisites = [
+    "schema_qualification",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "Match exact sent impression, banner before video, unknown/unsupported is bid-local error; ignore mtype and response currency. Only video with dur>0 gets duration, with valid sibling retained."
+driver = "auctioneer-bidder::unruly"
+id = "response"
+shared_prerequisites = [
+    "call_correlation",
+    "response_decoding",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::unruly"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "cbda2463108d1a0e489702f8770dd8e140b77395"
+path = "adapters/unruly/params_test.go"
+
+[[bidders.source_files]]
+blob = "4acf708f2588c9c31b937d99d2452f16712a0920"
+path = "adapters/unruly/unruly.go"
+
+[[bidders.source_files]]
+blob = "dc86bb3e68b7f60dccd3a554814fff82197b368b"
+path = "adapters/unruly/unruly_test.go"
+
+[[bidders]]
+base = "sharethrough"
+implementation = "sharethrough"
+metadata_blob = "0c4f93dc62443000f10caa74733306dfa858b260"
+name = "sharethrough"
+routing = "https_review_pending"
+schema_blob = "f1357e9133f6a397033925398888a88e73a901fc"
+settings = "Reviewed Auctioneer version identifier and a bounded currency converter; no bidder secret. Source version constant is not copied as our version."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Preserve source.ext keys, overwrite str=10.0 and version. Source uses its server version; choose and record a reviewed Auctioneer version difference, not that unrelated version. Absent/malformed/null extensions must not panic."
+driver = "auctioneer-bidder::sharethrough"
+id = "source_metadata"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Convert only positive floors with nonempty non-USD currency case-insensitively. Conversion failure is bidder-fatal and rolls back earlier calls; success sets USD."
+driver = "auctioneer-bidder::sharethrough"
+id = "floor_conversion"
+shared_prerequisites = [
+    "currency_conversion",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "pkey to tagid; accumulate blocked categories/domains even from unsupported prior impressions; emit banner/video/native calls in that order, strip audio. Cover each combination and local invalid params/unsupported-only impression."
+driver = "auctioneer-bidder::sharethrough"
+id = "media_split"
+shared_prerequisites = [
+    "schema_qualification",
+    "call_correlation",
+    "construction_diagnostics",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Use ext.prebid.type, not mtype; source appends an empty-type bid after classification error. Auctioneer rejects that candidate while retaining valid siblings and never rereads retained outbound JSON; source response currency stays USD."
+driver = "auctioneer-bidder::sharethrough"
+id = "response_type"
+shared_prerequisites = [
+    "response_decoding",
+    "call_correlation",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::sharethrough"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "03c60cec38bcba527a20c387d9e1d850bfc8d160"
+path = "adapters/sharethrough/params_test.go"
+
+[[bidders.source_files]]
+blob = "76631227881c787d7f4a00e4760318ce52d034c9"
+path = "adapters/sharethrough/sharethrough.go"
+
+[[bidders.source_files]]
+blob = "fd2c5d12ed4e80b4fc8a0365868fa0b741af96a2"
+path = "adapters/sharethrough/sharethrough_test.go"
+
+[[bidders]]
+base = "openx"
+implementation = "openx"
+metadata_blob = "12612046b0c1b052778755e0112613d1c42547ac"
+name = "openx"
+routing = "https_default_pending"
+schema_blob = "0b58e03a15c5a6d4c29de176c98652ca6a1a0c6c"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Banner precedes video precedes native for grouping; aggregate banner/native, separate video calls, omit unsupported-only. Grouping does not remove other media objects; assert ordered call coverage independently of classification."
+driver = "auctioneer-bidder::openx"
+id = "grouping"
+shared_prerequisites = [
+    "call_correlation",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Last processed delDomain/platform overwrite request extension, including empty, but never destination URI. Retain bc=hb_pbs_1.0.0 as reviewed wire identifier, unit to tagid, custom positive floor only at zero, remove bidder/prebid ext and move customParams."
+driver = "auctioneer-bidder::openx"
+id = "rewrite"
+shared_prerequisites = [
+    "schema_qualification",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "Existing video extension becomes rewarded-only for rwdd==1, otherwise disappears; test all media combinations and absent extension."
+driver = "auctioneer-bidder::openx"
+id = "rewarded"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.operations]]
+assertion = "Recognized mtype wins; source request-media fallback/default banner is reviewed against Auctioneer exact sent coverage. Preserve duration/category and quoted DSP/brand parsing; omit malformed optional metadata safely; test all-nonpositive filtering and nonempty currency override."
+driver = "auctioneer-bidder::openx"
+id = "response_metadata"
+shared_prerequisites = [
+    "response_decoding",
+    "call_correlation",
+    "marketplace_metadata",
+]
+
+[[bidders.operations]]
+assertion = "Extract source response FLEDGE config even with no bids, preserve impression/config identity and builder bidder attribution; malformed extension ignored. Bounded extraction is not browser auction execution or consent."
+driver = "auctioneer-bidder::openx"
+id = "browser_config"
+shared_prerequisites = ["marketplace_metadata"]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::openx"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "5148ffde25ffc867e3e8f41a8412584827a6ec24"
+path = "adapters/openx/openx.go"
+
+[[bidders.source_files]]
+blob = "dd320b717fc5f6cd5d77ae1ef9844ca991ace40c"
+path = "adapters/openx/openx_test.go"
+
+[[bidders.source_files]]
+blob = "1fc71fce7e95989c372e948722b3b0b55aaa0403"
+path = "adapters/openx/params_test.go"
+
+[[bidders]]
+base = "kargo"
+implementation = "kargo"
+metadata_blob = "accbf1a3fcdfa50a3cd69f241fe5a14d9a940abd"
+name = "kargo"
+routing = "https_review_pending"
+schema_blob = "314eb63f3e75888c3c9548d8642e21455cbf86e0"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Exactly one string placementId/adSlotID including empty strings; both/neither invalid. No invented rewrite or adapter-level nonempty rule."
+driver = "auctioneer-bidder::kargo"
+id = "params"
+shared_prerequisites = ["schema_qualification"]
+
+[[bidders.operations]]
+assertion = "One POST containing unchanged scoped request and all IDs; source adds no owned headers/parameter rewrite. Metadata is site-only with gzip; do not infer app support or custom endpoint."
+driver = "auctioneer-bidder::kargo"
+id = "passthrough"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "ext.mediaType video/native, absent/malformed/other falls back banner subject to shared media compatibility. 204 empty; 400 and every non-200 is BadServerResponse; retain response currency."
+driver = "auctioneer-bidder::kargo"
+id = "media_status"
+shared_prerequisites = [
+    "response_decoding",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::kargo"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "c75b681280f168e53e46b9443c2893e4086d3a81"
+path = "adapters/kargo/kargo.go"
+
+[[bidders.source_files]]
+blob = "fe3ba8bab569eb90dc39934610a8ad7db6cd9130"
+path = "adapters/kargo/kargo_test.go"
+
+[[bidders.source_files]]
+blob = "2bd805d0a3e99c8ee17f07a48d87fa3151c4270c"
+path = "adapters/kargo/params_test.go"
+
+[[bidders]]
+base = "rubicon"
+implementation = "rubicon"
+metadata_blob = "b4c2cfce6d219777a0a0edfcc7da9aee59437cbf"
+name = "rubicon"
+routing = "regional_credentials_required"
+schema_blob = "9aac0d596bacedf19f1bb70203f3137d1fb636a6"
+settings = "Typed approved region and source policy reclassification; single versioned username/password/tracker secret bundle; lazy coupled read, currency converter and redacted diagnostics. Source placeholders are not usable values."
+sync = "supports_only"
+
+[[bidders.operations]]
+assertion = "Preserve source disabled=true provenance and approved compiled-safe/opt-in distinction. Review named regional HTTPS endpoints; no arbitrary host or literal REGION placeholder, no automatic permission from operator activation."
+driver = "auctioneer-bidder::rubicon"
+id = "region_auth"
+shared_prerequisites = ["host_context"]
+
+[[bidders.operations]]
+assertion = "One versioned username/password/tracker bundle per participating identity; Basic auth, tk_xint and pbs_login share one read. Missing/invalid/oversize/expired read yields no calls. Redact query/body/header/debug and test coherent rotation."
+driver = "auctioneer-bidder::rubicon"
+id = "credential_rotation"
+shared_prerequisites = ["host_context"]
+
+[[bidders.operations]]
+assertion = "Normally one call per impression; bidonmultiformat splits supported media with exact call/media correlation independent of map order. Audio split cannot become supported audio; test bounded local refusal and valid siblings."
+driver = "auctioneer-bidder::rubicon"
+id = "splits"
+shared_prerequisites = [
+    "call_correlation",
+    "construction_diagnostics",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Move account/site/zone, secure=1, banner MIME, GPID/SKAdN/TID, first multibid entry and at most 50 blocked domains; remove request currency/ext. Bidder-invalid impression must not erase valid sibling work."
+driver = "auctioneer-bidder::rubicon"
+id = "rp_transform"
+shared_prerequisites = [
+    "schema_qualification",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "AG approved canonical OpenRTB 2.6 ingress plus consumed-field guards on 2026-10-27 (master spec section 8.1). Before credential selection or sink work, validate consumed supply-chain locations, legacy EIDs, DSA, first-entry multibid maxbids, rewarded flags, GPID and slot/adserver data, including shadowed locations and otherwise-filtered impressions. Invalid consumed conversion fields are bidder-fatal despite valid siblings; local rp.target/parameter/media/floor failures remain sibling-preserving. Shared native decoding/legacy-privacy rejection is not repeated; unused reference-wrapper framework fields are not decoded inside this bidder. This intentionally differs from complete source-wrapper DTO validation."
+driver = "auctioneer-bidder::rubicon"
+id = "request_preflight"
+shared_prerequisites = ["construction_diagnostics"]
+
+[[bidders.operations]]
+assertion = "Freeze source merge/scalar conversion, GAM versus pbadslot, keywords/IAB segments/EIDs/consent, pixel ratio, user geo/yob/gender removal, schain/GDPR/USP relocation. Apply only scoped data; pin shared conversion helper source before implementing it."
+driver = "auctioneer-bidder::rubicon"
+id = "fpd_transition"
+shared_prerequisites = ["host_context"]
+
+[[bidders.operations]]
+assertion = "USD/empty currency, zero/negative floor and conversion success/failure independently; conversion failure suppresses only affected call."
+driver = "auctioneer-bidder::rubicon"
+id = "floors"
+shared_prerequisites = [
+    "currency_conversion",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "Bound buyer/adm_native envelope; classify by sent impression. Preserve CPM-override priority, zero-price filter, ID 0 replacement, markup precedence and buyer/seat metadata, default USD. Malformed candidate must not erase valid siblings."
+driver = "auctioneer-bidder::rubicon"
+id = "proprietary_response"
+shared_prerequisites = [
+    "response_decoding",
+    "call_correlation",
+    "marketplace_metadata",
+]
+
+[[bidders.operations]]
+assertion = "Source rewarded/video selection, native-version/request_native validation and native response markup remain required; injected context tests neither add public routes nor certify rendering."
+driver = "auctioneer-bidder::rubicon"
+id = "rewarded_native"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::rubicon"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "efcde7037c42fd240aa59bad552170ec174a4e49"
+path = "adapters/rubicon/rubicon.go"
+
+[[bidders.source_files]]
+blob = "fe9f079c00e0bf8f493299c0176f347c16114745"
+path = "adapters/rubicon/rubicon_test.go"
+
+[[bidders]]
+base = "pubmatic"
+implementation = "pubmatic"
+metadata_blob = "c55272251a389ca9f59174ef0ea25ae48c5d1af8"
+name = "pubmatic"
+routing = "https_review_pending"
+schema_blob = "2b90360824bbbb3a24862eee541f820fa4fdf201"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Trim publisher/adslot; bare adslot/tag and adslot@WxH with optional suffix differ. Invalid width/height/shape is impression-local; first-format fallback and explicit W/H are separate. No invented splitting from unused MAX_IMPRESSIONS constant."
+driver = "auctioneer-bidder::pubmatic"
+id = "params_adslot"
+shared_prerequisites = [
+    "schema_qualification",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "Request wrapper profile/version take precedence; otherwise fill first missing values from impressions, publisher from first nonempty trimmed value; site before app. Set requested identity as biddercode, never arbitrary unordered request alias."
+driver = "auctioneer-bidder::pubmatic"
+id = "wrapper_publisher"
+shared_prerequisites = ["construction_diagnostics"]
+
+[[bidders.operations]]
+assertion = "Valid kadfloor maxes existing floor; invalid ignored. Keyword pmZoneID normalizes to pmZoneId, direct dctr/pmZoneId wins, empty keyword values ignored."
+driver = "auctioneer-bidder::pubmatic"
+id = "floor_keywords"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "GAM adslot before pbadslot, typed FPD scalar/string-array conversion into key_val, AE/GPID/SKAdN and source/version fallback; malformed data cannot panic or resurrect privacy-denied fields."
+driver = "auctioneer-bidder::pubmatic"
+id = "fpd_sdk"
+shared_prerequisites = []
+
+[[bidders.operations]]
+assertion = "Request-extension decoding, including malformed request wrapper/acat, fails before impressions and is bidder-fatal: zero calls with otherwise-valid impressions. Distinguish impression-local wrapper failure, which retains valid siblings. Cover absent extension, acat trimming and alternate-bidder allowed/all forms. One POST of valid banner/video/native survivors, strip audio, all-invalid zero calls."
+driver = "auctioneer-bidder::pubmatic"
+id = "request_ext"
+shared_prerequisites = [
+    "construction_diagnostics",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Required mtype, first category only, marketplace seat, positive deal priority, optional duration and IBV metadata. Separate malformed ext/candidate-local media errors from whole-envelope parse failures, preserving good siblings and nonempty currency."
+driver = "auctioneer-bidder::pubmatic"
+id = "response_metadata"
+shared_prerequisites = [
+    "response_decoding",
+    "marketplace_metadata",
+]
+
+[[bidders.operations]]
+assertion = "Unwrap adm.native with bounded lexical parser; malformed native adm retains explicit diagnostics. Extract fledge_auction_configs by impression only with qualified bounded DTOs; no player or browser-auction delivery claim."
+driver = "auctioneer-bidder::pubmatic"
+id = "native_browser_config"
+shared_prerequisites = [
+    "response_decoding",
+    "marketplace_metadata",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::pubmatic"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "5ca06fdaf922d4e3e73df8aad5bb05e2b3f7f44f"
+path = "adapters/pubmatic/params_test.go"
+
+[[bidders.source_files]]
+blob = "ebc6634090ddb94c1823d4535a79fe08ac487ce8"
+path = "adapters/pubmatic/pubmatic.go"
+
+[[bidders.source_files]]
+blob = "de7afcd4d4310998898919bfbb02a0e78dcdd8b0"
+path = "adapters/pubmatic/pubmatic_test.go"
+
+[[bidders]]
+base = "triplelift"
+implementation = "triplelift"
+metadata_blob = "79a8951680f8d2e5f3160e673e0ae0c6d31c41ee"
+name = "triplelift"
+routing = "https_review_pending"
+schema_blob = "1983ae4fab967d81eca6805c27b85849dd837e96"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Malformed ext or neither banner nor video drops only that impression; tag from inventoryCode; optional floor overrides otherwise preserves; one POST of survivors, exact sra=1/supplier_id=20 destination query and gzip."
+driver = "auctioneer-bidder::triplelift"
+id = "impressions"
+shared_prerequisites = [
+    "schema_qualification",
+    "construction_diagnostics",
+]
+
+[[bidders.operations]]
+assertion = "bid.ext.triplelift_pb.format 11/12/17 means video, otherwise banner; a flat bid.ext.format counterexample must not select video. Malformed bid extension drops only that bid. Source ignores response currency and stays USD; pin a non-USD counterexample. Native uses a separate source implementation and is not implied here."
+driver = "auctioneer-bidder::triplelift"
+id = "response"
+shared_prerequisites = [
+    "response_decoding",
+    "media_delivery",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::triplelift"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "736773075eb175da44bb79dc74715a17f1a356de"
+path = "adapters/triplelift/triplelift.go"
+
+[[bidders.source_files]]
+blob = "547c8609bbc7a032d6ca58276552cb903d15f7ab"
+path = "adapters/triplelift/triplelift_test.go"
+
+[[bidders]]
+base = "criteo"
+implementation = "criteo"
+metadata_blob = "2619408237943bee361568988915b42dedbfe7e6"
+name = "criteo"
+routing = "https_review_pending"
+schema_blob = "a706cfa9158197dbdf0d921028d161032175d7eb"
+settings = "Reviewed baked endpoint plus source-owned nonsecret protocol constants; no bidder-owned secret consumption found in pinned builder/request code. Sync endpoints/settings require their independent contract."
+sync = "declared"
+
+[[bidders.operations]]
+assertion = "Nonnegative zone/network IDs in each declared casing, optional UID/pubid; one unchanged scoped POST, no owned headers, fixed profile=230 query and no secret requirement."
+driver = "auctioneer-bidder::criteo"
+id = "params_passthrough"
+shared_prerequisites = ["schema_qualification"]
+
+[[bidders.operations]]
+assertion = "ext.prebid.type selects media, nonempty networkName enters metadata. Shared validation rejects invalid declared type; malformed extension is candidate-local rather than source's whole-response abort."
+driver = "auctioneer-bidder::criteo"
+id = "media_network"
+shared_prerequisites = [
+    "response_decoding",
+    "marketplace_metadata",
+]
+
+[[bidders.operations]]
+assertion = "ext.igi outer impression ID and first igs.config only, with builder identity; preserve ignored later igs and malformed extension branches. Null safety and bounded raw-config handling required; extraction never claims browser execution."
+driver = "auctioneer-bidder::criteo"
+id = "igi_config"
+shared_prerequisites = [
+    "response_decoding",
+    "marketplace_metadata",
+]
+
+[[bidders.operations]]
+assertion = "Drive 200, 204, 400, other status, malformed/empty/wrong-shaped JSON, empty seats and multiple seats through sealed decoding. Preserve this family's status classification and currency behavior separately from candidate-local rejection."
+driver = "auctioneer-bidder::criteo"
+id = "status_envelope"
+shared_prerequisites = ["response_decoding"]
+
+[[bidders.operations]]
+assertion = "Inspect actual scoped serialized calls under ID/geo/FPD denial, independent survivor identities, original deadline, exact/one-over raw/encoded/node/call caps, cancellation and rollback; zero calls for denied work."
+driver = "auctioneer-exchange::bidder_protocol_limits"
+id = "privacy_limits"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Use only source-declared sync endpoints and identity/family ownership; support-only or absent declarations cannot invent URLs. Exercise privacy denial, callback encoding, signed browser-bounded cookies and fresh activation snapshots where sync exists."
+driver = "auctioneer-core::usersync_catalog"
+id = "sync_contract"
+shared_prerequisites = ["funded_registry"]
+
+[[bidders.operations]]
+assertion = "Display acceptance is distinct from full source migration. Missing shared video/native/AMP/browser-auction delivery remains an explicit blocker; refusal-only evidence cannot complete the corresponding source branches or claim live certification."
+driver = "auctioneer-core::bidder_onboarding"
+id = "shared_feature_refusal"
+shared_prerequisites = ["media_delivery"]
+
+[[bidders.source_files]]
+blob = "6779a20f8749f0ec6ada327c97730334d7159a5d"
+path = "adapters/criteo/criteo.go"
+
+[[bidders.source_files]]
+blob = "f3fd11ba0197381baa54834dbab8f6d8f0b0cf30"
+path = "adapters/criteo/criteo_test.go"
+
+[[bidders.source_files]]
+blob = "98f5f77f384cd88d6cb86e48c9f4254c1580c1d2"
+path = "adapters/criteo/params_test.go"

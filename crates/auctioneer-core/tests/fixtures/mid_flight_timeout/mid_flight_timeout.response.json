@@ -1,0 +1,59 @@
+{
+  "id": "auc-mid-flight-timeout",
+  "seatbid": [
+    {
+      "seat": "fake_on_time",
+      "bid": [
+        {
+          "id": "bid-imp-ontime",
+          "impid": "imp-ontime",
+          "price": 2.25,
+          "crid": "creative-imp-ontime",
+          "w": 300,
+          "h": 250,
+          "ext": {
+            "prebid": {
+              "type": "banner",
+              "targeting": {
+                "hb_bidder": "fake_on_time",
+                "hb_bidder_fake_on_time": "fake_on_time",
+                "hb_pb": "2.20",
+                "hb_pb_fake_on_time": "2.20",
+                "hb_size": "300x250",
+                "hb_size_fake_on_time": "300x250"
+              },
+              "meta": {}
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "cur": "USD",
+  "ext": {
+    "errors": {
+      "fake_bidder_timeout": [{ "code": 1, "message": "bidder timeout" }],
+      "fake_auction_deadline": [{ "code": 1, "message": "bidder timeout" }],
+      "prebid": [{ "code": 12, "message": "tmax expired" }]
+    },
+    "responsetimemillis": {
+      "fake_bidder_timeout": 1000,
+      "fake_on_time": 10,
+      "fake_auction_deadline": 1000
+    },
+    "tmaxrequest": 1000,
+    "prebid": {
+      "auctiontimestamp": 0,
+      "seatnonbid": [
+        {
+          "seat": "fake_bidder_timeout",
+          "nonbid": [{ "impid": "imp-bidder-timeout", "statuscode": 101 }]
+        },
+        {
+          "seat": "fake_auction_deadline",
+          "nonbid": [{ "impid": "imp-auction-deadline", "statuscode": 101 }]
+        }
+      ]
+    }
+  }
+}

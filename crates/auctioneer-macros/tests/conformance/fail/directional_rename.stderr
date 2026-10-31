@@ -1,0 +1,5 @@
+error: directional serde `rename` is unsupported; use `rename = "..."`
+ --> tests/conformance/fail/directional_rename.rs:4:13
+  |
+4 |     #[serde(rename(serialize = "out", deserialize = "in"))]
+  |             ^^^^^^

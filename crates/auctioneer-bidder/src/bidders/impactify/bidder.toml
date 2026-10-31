@@ -1,0 +1,54 @@
+key = "impactify"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/impactify"
+tree = "d5fa73f06c14722d19222d832787f996278c172b"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/impactify.yaml"
+source_blob = "ac0d0c3a9e68a66bdd070f6418578659d999e893"
+source_bytes = 396
+source_sha256 = "a994992cbdfbb2b9abb440e38acc00c61d10f790b35c00bc4a765ae1757e7d50"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/impactify.json"
+source_blob = "a8ecfb4f7395720cac43112155977eb596877b66"
+source_bytes = 612
+source_sha256 = "cc546792bafd93c17f60fa5407b1d92326e8f39c00a718b1728dbe0d8ad438bf"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 612
+source_sha256 = "cc546792bafd93c17f60fa5407b1d92326e8f39c00a718b1728dbe0d8ad438bf"

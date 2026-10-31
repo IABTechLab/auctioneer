@@ -1,0 +1,14 @@
+schema = "msft"
+path = "adapters/msft/params_test.go"
+blob = "6c897aafd15c0993dbb2146a293591a2d24e4a2c"
+sha256 = "f2b6cb58a50f2811ae677f52d972c6c6c067e2f753dbd32fdfd7e8192ea79492"
+bytes = 2859
+valid_cases = 12
+invalid_cases = 21
+valid_span = {start = 1325, end = 2088}
+invalid_span = {start = 2120, end = 2857}
+verdict_counts = [12, 20, 1]
+previous = true
+original = false
+duplicates = []
+lexical = []

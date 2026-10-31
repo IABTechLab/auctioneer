@@ -1,0 +1,1528 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "bidders": [
+          "pubmatic",
+          "appnexus"
+        ]
+      },
+      "id": "order_requested_true_cooperative_false",
+      "input": {
+        "available": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "cooperative": false,
+        "priority_groups": [
+          [
+            "rubicon"
+          ],
+          [
+            "pubmatic"
+          ]
+        ],
+        "requested": [
+          "pubmatic",
+          "appnexus"
+        ]
+      },
+      "operation": "bidder_order",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual standardBidderChooser with identity shuffler. Group order evidence, not Go/Rust RNG parity.",
+        "paths": [
+          "usersync/bidderchooser.go",
+          "usersync/bidderchooser_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "bidders": [
+          "pubmatic",
+          "appnexus",
+          "rubicon",
+          "pubmatic",
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ]
+      },
+      "id": "order_requested_true_cooperative_true",
+      "input": {
+        "available": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "cooperative": true,
+        "priority_groups": [
+          [
+            "rubicon"
+          ],
+          [
+            "pubmatic"
+          ]
+        ],
+        "requested": [
+          "pubmatic",
+          "appnexus"
+        ]
+      },
+      "operation": "bidder_order",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual standardBidderChooser with identity shuffler. Group order evidence, not Go/Rust RNG parity.",
+        "paths": [
+          "usersync/bidderchooser.go",
+          "usersync/bidderchooser_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ]
+      },
+      "id": "order_requested_false_cooperative_false",
+      "input": {
+        "available": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "cooperative": false,
+        "priority_groups": [
+          [
+            "rubicon"
+          ],
+          [
+            "pubmatic"
+          ]
+        ],
+        "requested": []
+      },
+      "operation": "bidder_order",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual standardBidderChooser with identity shuffler. Group order evidence, not Go/Rust RNG parity.",
+        "paths": [
+          "usersync/bidderchooser.go",
+          "usersync/bidderchooser_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "bidders": [
+          "rubicon",
+          "pubmatic",
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ]
+      },
+      "id": "order_requested_false_cooperative_true",
+      "input": {
+        "available": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "cooperative": true,
+        "priority_groups": [
+          [
+            "rubicon"
+          ],
+          [
+            "pubmatic"
+          ]
+        ],
+        "requested": []
+      },
+      "operation": "bidder_order",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual standardBidderChooser with identity shuffler. Group order evidence, not Go/Rust RNG parity.",
+        "paths": [
+          "usersync/bidderchooser.go",
+          "usersync/bidderchooser_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "appnexus",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "allowed",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [],
+        "privacy_calls": [],
+        "status": "user_optout",
+        "status_code": 1
+      },
+      "id": "optout_before_host",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{\"optout\":true}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": false
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [],
+        "privacy_calls": [
+          "host"
+        ],
+        "status": "privacy_denied",
+        "status_code": 6
+      },
+      "id": "host_denied",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": false
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "not-a-bidder",
+            "family": "",
+            "status": "unknown_bidder",
+            "status_code": 3
+          }
+        ],
+        "privacy_calls": [
+          "host"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "unknown",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "not-a-bidder"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "rubicon",
+            "family": "",
+            "status": "unconfigured_bidder",
+            "status_code": 8
+          }
+        ],
+        "privacy_calls": [
+          "host"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "known_unconfigured",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "rubicon"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "privacy_denied",
+            "status_code": 6
+          },
+          {
+            "bidder": "pubmatic",
+            "family": "adnxs",
+            "status": "duplicate_family",
+            "status_code": 5
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "shared_family_first_denied",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus",
+          "pubmatic"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": false,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": true
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "filter_rejected",
+            "status_code": 4
+          },
+          {
+            "bidder": "pubmatic",
+            "family": "adnxs",
+            "status": "duplicate_family",
+            "status_code": 5
+          }
+        ],
+        "privacy_calls": [
+          "host"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "shared_family_first_filtered",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus",
+          "pubmatic"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "exclude_appnexus"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": true
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "already_synced",
+            "status_code": 2
+          }
+        ],
+        "privacy_calls": [
+          "host"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "already_synced",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"live\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": false,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "privacy_denied",
+            "status_code": 6
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "activity_before_gdpr",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": false,
+          "bidder": false,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "privacy_denied",
+            "status_code": 6
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "gdpr_before_disabled",
+      "input": {
+        "appnexus_enabled": false,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": false,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "disabled",
+            "status_code": 9
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "disabled_before_skip",
+      "input": {
+        "appnexus_enabled": false,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": true,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "regulation_scope",
+            "status_code": 7
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "skip_gdpr",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": true,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "regulation_scope",
+            "status_code": 7
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "skip_sid_exact",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "2,6",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "appnexus",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "skip_sid_reordered",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "6,2",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "appnexus",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "skip_sid_leading_zero",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "02,6",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "regulation_scope",
+            "status_code": 7
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "skip_sid_sentinel",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "-1",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "appnexus",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "ccpa_callback_not_called",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": false,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "appnexus",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "not-a-bidder",
+            "family": "",
+            "status": "unknown_bidder",
+            "status_code": 3
+          },
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "failed_candidates_do_not_consume_limit",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "not-a-bidder",
+          "appnexus",
+          "pubmatic"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 1,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "appnexus",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:appnexus",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "duplicate_requested",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "appnexus",
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "APPNEXUS",
+            "default_type": "redirect",
+            "family": "adnxs"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "APPNEXUS",
+            "family": "adnxs",
+            "status": "ok",
+            "status_code": 0
+          },
+          {
+            "bidder": "appnexus",
+            "family": "adnxs",
+            "status": "duplicate_family",
+            "status_code": 5
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:APPNEXUS",
+          "gdpr:appnexus",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "case_variant_duplicate",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "APPNEXUS",
+          "appnexus"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "chosen": [
+          {
+            "bidder": "pubmatic",
+            "default_type": "iframe",
+            "family": "pubmatic"
+          }
+        ],
+        "evaluated": [
+          {
+            "bidder": "pubmatic",
+            "family": "pubmatic",
+            "status": "ok",
+            "status_code": 0
+          }
+        ],
+        "privacy_calls": [
+          "host",
+          "activity:pubmatic",
+          "gdpr:pubmatic",
+          "scope"
+        ],
+        "status": "ok",
+        "status_code": 0
+      },
+      "id": "iframe_preference",
+      "input": {
+        "appnexus_enabled": true,
+        "appnexus_skip_gdpr": true,
+        "appnexus_skip_sid": [
+          "2,6",
+          "-1"
+        ],
+        "bidders": [
+          "pubmatic"
+        ],
+        "cookie_json_utf8": "{}",
+        "cooperative": false,
+        "filter": {
+          "iframe": "include_all",
+          "image": "include_all"
+        },
+        "gpp_sid": "",
+        "known_bidders": [
+          "appnexus",
+          "pubmatic",
+          "rubicon"
+        ],
+        "limit": 0,
+        "privacy": {
+          "activity": true,
+          "bidder": true,
+          "ccpa": true,
+          "gdpr_in_scope": false,
+          "host": true
+        },
+        "pubmatic_uses_appnexus_syncer": false
+      },
+      "operation": "choose",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Source chooser with explicit synthetic controls and identity shuffler; no real consent authorization implied. shared-family cases deliberately remap pubmatic to the AppNexus syncer.",
+        "paths": [
+          "usersync/chooser.go",
+          "usersync/bidderchooser.go"
+        ]
+      }
+    }
+  ],
+  "reference": {
+    "generator_version": 1,
+    "go": "go1.23.12",
+    "license": "Apache-2.0",
+    "now": "2026-09-30T12:00:00Z",
+    "revision": "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+  },
+  "schema_version": 1
+}

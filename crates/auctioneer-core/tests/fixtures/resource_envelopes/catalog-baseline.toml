@@ -1,0 +1,3830 @@
+schema_version = 1
+code_base_commit = "e71e40aba611215bb9305f82e2449e13fb0f41ed"
+sdk_revision = "bc300ace5ca1ffe7060594a7bdb01c1da80de305"
+lock_sha256 = "f20a05604c912c0d9946e7c86020f1e12549abbf6007bfe8d56883dda1a7a1c1"
+toolchain = """
+rustc 1.98.1 (48a229cea 2026-09-01)
+binary: rustc
+commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+commit-date: 2026-09-01
+host: aarch64-apple-darwin
+release: 1.98.1
+LLVM version: 22.1.8"""
+features = ["application"]
+
+[runtime_facts]
+probe_config_min_permits = 1
+probe_response_permits = 4
+gvl_cache_max_entries = 4
+
+[[adapters]]
+
+[adapters.report]
+adapter = "axum"
+effective_profile_sha256 = "a8e0604edb535a0a36053cd4364dc9a143e417437634cf56c3d072c1a9c9fd31"
+platform_profile = "axum"
+dispatch_profile = "axum"
+memory_scope = "PerInstance"
+outbound_meta_bytes = 4064
+baked_config_bytes = 1584
+baked_config_sha256 = "a73ce0324113f975751cfa7b8d31b3cde8e4b773cc976cfff353d7816afc0842"
+actual_gvl_cache_entries = 4
+required_fit = false
+
+[adapters.report.identity]
+code_base_commit = "e71e40aba611215bb9305f82e2449e13fb0f41ed"
+dirty = false
+source_tree_matches_commit = true
+sdk_revision = "bc300ace5ca1ffe7060594a7bdb01c1da80de305"
+lock_sha256 = "f20a05604c912c0d9946e7c86020f1e12549abbf6007bfe8d56883dda1a7a1c1"
+declared_toolchain = """
+fastly 16.0.0
+nodejs 24.20.0
+rust 1.98.1
+spin 4.1.0
+viceroy 0.21.0
+wasmtime 48.0.2
+"""
+features = ["application"]
+source_sha256 = "560df50ceecc1bc6e5d335d624097c7d002333cca85435175539150e82563b1b"
+source_file_count = 1322
+compiler_verbose = """
+rustc 1.98.1 (48a229cea 2026-09-01)
+binary: rustc
+commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+commit-date: 2026-09-01
+host: aarch64-apple-darwin
+release: 1.98.1
+LLVM version: 22.1.8"""
+compiled_target = "aarch64-apple-darwin"
+reporter_abi = "aarch64-macos-64bit"
+target_abi = "native"
+layout_evidence = "native_control"
+artifact_proof = "pending_not_a_deployment_observation"
+
+[adapters.report.platform_facts.ceiling]
+status = "pending"
+reason = "Some(OperatorConfigured)"
+
+[adapters.report.platform_facts.inbound_population]
+status = "pending"
+reason = "Some(OperatorConfigured)"
+
+[adapters.report.platform_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(OperatorConfigured)"
+
+[adapters.report.dispatch_facts.ceiling]
+status = "pending"
+reason = "Some(OperatorConfigured)"
+
+[adapters.report.dispatch_facts.inbound_population]
+status = "pending"
+reason = "Some(OperatorConfigured)"
+
+[adapters.report.dispatch_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(OperatorConfigured)"
+
+[adapters.report.raw_limits]
+isolate_total_bytes = 4294967296
+baseline_bytes = 144769024
+inbound_request_bytes = 32768
+inbound_parse_factor = 36
+max_outbound_request_bytes = 32768
+max_outbound_raw_bytes = 32768
+max_transport_bytes = 16384
+max_decoded_bytes = 32768
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 1572864
+egress_permits = 2
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 1
+aux_route_peak_bytes = 134217728
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 16
+max_outbound_requests = 16
+max_concurrent_auctions = 2
+max_active_body_streams = 2
+max_runtime_config_bytes = 131072
+max_runtime_config_blob_bytes = 65536
+max_parsed_nodes = 2048
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 8
+max_config_json_nodes = 8192
+terminal_response_permits = 384
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.effective_limits]
+isolate_total_bytes = 4294967296
+baseline_bytes = 144769024
+inbound_request_bytes = 32768
+inbound_parse_factor = 36
+max_outbound_request_bytes = 32768
+max_outbound_raw_bytes = 32768
+max_transport_bytes = 16384
+max_decoded_bytes = 32768
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 1572864
+egress_permits = 2
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 1
+aux_route_peak_bytes = 134217728
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 16
+max_outbound_requests = 16
+max_concurrent_auctions = 2
+max_active_body_streams = 2
+max_runtime_config_bytes = 131072
+max_runtime_config_blob_bytes = 65536
+max_parsed_nodes = 2048
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 8
+max_config_json_nodes = 8192
+terminal_response_permits = 384
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.target_constants]
+platform_concurrent_ceiling = 384
+header_entry_overhead_bytes = 64
+parser_header_ceiling_bytes = 55424
+parser_header_knob_bytes = 55425
+max_request_target_bytes = 33792
+h1_max_buf_size_bytes = 65536
+h1_max_headers = 128
+parser_max_header_entries = 1732
+pseudoheader_allowance_bytes = 34816
+parser_transient_bytes = 1048576
+egress_handoff_factor = 2
+
+[adapters.report.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.catalog_costs]
+resident_bytes = 0
+initialization_bytes = 0
+schema_validation_per_auction_bytes = 0
+context_per_auction_bytes = 0
+
+[adapters.report.terms]
+auction_egress = 6299648
+auctions = 1309755768
+auxiliary = 536879104
+baseline = 144769024
+body_streams = 42700096
+catalog_initialization = 0
+catalog_resident = 0
+gvl = 3584000
+pre_admission_parser = 487784448
+probe_output = 90112
+terminal_egress = 1769472
+
+[adapters.report.auction_receipts]
+config = 30603264
+ingress = 15844452
+privacy = 14680864
+projection = 365295256
+outbound = 1760768
+response = 226693280
+
+[adapters.report.derived]
+catalog_resident_term = 0
+catalog_initialization_term = 0
+schema_validation_term = 0
+catalog_context_term = 0
+runtime_config_term = 30603264
+request_side_term = 381139708
+call_side_term = 215866880
+bookkeeping_term = 3276800
+debug_term = 9310368
+assembly_scratch_bytes = 1572864
+per_auction_peak = 654877884
+per_stream_peak = 21350048
+decoder_chain_bytes = 21258240
+gvl_terms = 3584000
+egress_term = 6299648
+aux_term = 536879104
+terminal_term = 1769472
+probe_output_term = 90112
+h2_slot_peak = 1270272
+h1_slot_peak = 90112
+pre_admission_parser_term = 487784448
+total_bytes = 2533631672
+margin_bytes = 1761335624
+max_outbound_raw_bytes_usize = 32768
+
+[adapters.report.derived.isolate_terms]
+baseline = 144769024
+gvl = 3584000
+auctions = 1309755768
+auction_egress = 6299648
+auxiliary = 536879104
+terminal_egress = 1769472
+probe_output = 90112
+pre_admission_parser = 487784448
+body_streams = 42700096
+catalog_resident = 0
+catalog_initialization = 0
+
+[adapters.report.derived.auction_charges]
+config = 30603264
+ingress = 15844452
+privacy = 14680864
+projection = 365295256
+outbound = 1760768
+response = 226693280
+
+[adapters.report.derived.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.validation]
+sdk_result = "Indeterminate { available_primary_bytes: None, minimum_required_primary_bytes: 2533631672, reasons: [UnknownMemoryCeiling { reason: OperatorConfigured }, UnknownInboundRequestPopulation { reason: OperatorConfigured }, UnknownHostIngressMemoryAccounting { reason: OperatorConfigured }] }"
+external_blockers = [
+    "unknown_memory_ceiling",
+    "unknown_inbound_request_population",
+    "unknown_host_ingress_memory_accounting",
+]
+configured_cap_exceeded = false
+population_covered = false
+platform_cap_exceeded = false
+profile_matches_dispatch = true
+required_fit = false
+
+[adapters.report.validation.sdk_verdict]
+status = "indeterminate"
+minimum_required_primary_bytes = 2533631672
+reasons = [
+    "UnknownMemoryCeiling { reason: OperatorConfigured }",
+    "UnknownInboundRequestPopulation { reason: OperatorConfigured }",
+    "UnknownHostIngressMemoryAccounting { reason: OperatorConfigured }",
+]
+
+[adapters.auxiliary_receipts]
+config = 25499648
+body = 1212416
+query = 77824
+input_headers = 24576
+cookie = 49152
+signing = 530432
+nodes = 19259392
+privacy = 10616832
+chooser = 397312
+urls = 98304
+retained_urls = 262144
+output = 552960
+
+[[adapters.component_receipts]]
+component = "auction_config"
+bytes = 61206528
+
+[[adapters.component_receipts]]
+component = "auction_ingress"
+bytes = 31688904
+
+[[adapters.component_receipts]]
+component = "auction_privacy"
+bytes = 29361728
+
+[[adapters.component_receipts]]
+component = "auction_projection"
+bytes = 730590512
+
+[[adapters.component_receipts]]
+component = "auction_outbound"
+bytes = 3521536
+
+[[adapters.component_receipts]]
+component = "auction_response"
+bytes = 453386560
+
+[[adapters.component_receipts]]
+component = "runtime_config"
+bytes = 61206528
+
+[[adapters.component_receipts]]
+component = "request_side"
+bytes = 762279416
+
+[[adapters.component_receipts]]
+component = "call_side"
+bytes = 431733760
+
+[[adapters.component_receipts]]
+component = "bookkeeping"
+bytes = 6553600
+
+[[adapters.component_receipts]]
+component = "debug"
+bytes = 18620736
+
+[[adapters.component_receipts]]
+component = "assembly"
+bytes = 3145728
+
+[[adapters.component_receipts]]
+component = "aux_config"
+bytes = 50999296
+
+[[adapters.component_receipts]]
+component = "aux_body"
+bytes = 2424832
+
+[[adapters.component_receipts]]
+component = "aux_query"
+bytes = 155648
+
+[[adapters.component_receipts]]
+component = "aux_input_headers"
+bytes = 49152
+
+[[adapters.component_receipts]]
+component = "aux_cookie"
+bytes = 98304
+
+[[adapters.component_receipts]]
+component = "aux_signing"
+bytes = 1060864
+
+[[adapters.component_receipts]]
+component = "aux_nodes"
+bytes = 38518784
+
+[[adapters.component_receipts]]
+component = "aux_privacy"
+bytes = 21233664
+
+[[adapters.component_receipts]]
+component = "aux_chooser"
+bytes = 794624
+
+[[adapters.component_receipts]]
+component = "aux_urls"
+bytes = 196608
+
+[[adapters.component_receipts]]
+component = "aux_retained_urls"
+bytes = 524288
+
+[[adapters.component_receipts]]
+component = "aux_output"
+bytes = 1105920
+
+[[adapters.component_receipts]]
+component = "aux_declared_work"
+bytes = 268435456
+
+[[adapters.component_receipts]]
+component = "aux_transmit"
+bytes = 8192
+
+[[adapters.component_receipts]]
+component = "aux_handoff"
+bytes = 268435456
+
+[[adapters.component_receipts]]
+component = "aux_routes"
+bytes = 268439552
+
+[[adapters.component_receipts]]
+component = "probe_config"
+bytes = 268439552
+
+[[adapters.owners]]
+term_id = "baseline"
+allocation_owner = "Auctioneer target/core maintainers"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Cold initialization of defaults, registry and singleton state"
+release = "Instance or execution teardown"
+overlapping_copies = "Existing startup reserves remain additive with admitted work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "A declared baseline is not an allocator byte gate"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[[adapters.owners]]
+term_id = "gvl"
+allocation_owner = "Auctioneer privacy maintainer"
+source_path = "crates/auctioneer-privacy/src/gvl.rs"
+acquire = "GvlStore::get parses and caches a version; requests clone a handle"
+release = "Last cache or request handle, including requests pinning evicted versions"
+overlapping_copies = "Cache entries plus distinct auction-held and auxiliary-held versions; handles are not duplicate parsed lists"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 7
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "GVL_PARSE_CACHE_MAX_ENTRIES plus auction and auxiliary admission populations"
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer privacy maintainer"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[[adapters.owners]]
+term_id = "auctions"
+allocation_owner = "Auctioneer core/exchange maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Auction admission and all six phase receipts before config extraction"
+release = "Serialization completion or cancellation drops the work receipts"
+overlapping_copies = "Config, decoded ingress, privacy projections, outbound requests and completed results can coexist"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AdmissionGate and prepaid AuctionBudget phase receipts"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/exchange maintainers"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[[adapters.owners]]
+term_id = "auction_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Egress reservation before response serialization"
+release = "Terminal response completion or cancellation, not work completion"
+overlapping_copies = "Serialized body, provider handoff copies and transmit state can outlive auction work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "EgressGate lease bound to terminal completion"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[[adapters.owners]]
+term_id = "auxiliary"
+allocation_owner = "Auctioneer core auxiliary-route maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Auxiliary route admission/work reservation or independent probe-config work"
+release = "Route completion versus probe config resolution/render/publication; counters are independent"
+overlapping_copies = "Auxiliary work and max(auxiliary, probe minimum) config work coexist with output handoff"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AuxGate, AuxWorkBudget and independent probe-config permits"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core auxiliary-route maintainer"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[[adapters.owners]]
+term_id = "terminal_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Terminal/static output reservation, including detached head refusals"
+release = "Response completion or cancellation"
+overlapping_copies = "Refusal output and transmit state are independent of auction and auxiliary work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 384
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StaticEgressGate terminal lease"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[[adapters.owners]]
+term_id = "probe_output"
+allocation_owner = "Auctioneer core health maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Independent probe-output reservation, including preboot responses"
+release = "Output completion; the cached verdict remains resident independently"
+overlapping_copies = "Live probe output population plus one cached verdict, not probe-config work count"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 5
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "Probe egress permits and bounded cached response"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core health maintainer"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[[adapters.owners]]
+term_id = "pre_admission_parser"
+allocation_owner = "EdgeZero adapter maintainer/provider"
+source_path = "crates/auctioneer-runtime/src/budget.rs"
+acquire = "Host/framing/head parsing before Auctioneer route admission"
+release = "Host/parser cleanup, including rejected and cancelled input"
+overlapping_copies = "No Auctioneer admission counter bounds the pre-admission population; outbound connections are not inbound requests"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "pending"
+reason = "The declared parser population has no published inbound bound"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and enforce an ingress population at the selected memory scope"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Host ingress/framing accounting is unpublished at the pinned SDK"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[[adapters.owners]]
+term_id = "body_streams"
+allocation_owner = "Auctioneer outbound/target maintainers"
+source_path = "crates/auctioneer-core/src/outbound/wave.rs"
+acquire = "Global wave stream lease before dispatch and decode"
+release = "Wave settlement, EOF or cancellation"
+overlapping_copies = "Completed response slots survive stream release across waves and remain in auction response funding"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StreamGate wave leases and bounded decoder chain"
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer outbound/target maintainers"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[[adapters.owners]]
+term_id = "catalog_resident"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental generated catalog/validator residency at initialization"
+release = "Instance or execution teardown"
+overlapping_copies = "Zero incremental descriptor does not remove existing registry residency funded by baseline"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Catalog descriptor is an allocation bound, not an independent allocator gate"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[[adapters.owners]]
+term_id = "catalog_initialization"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental catalog initialization scratch, including validation failure"
+release = "Initialization completion or error cleanup"
+overlapping_copies = "Initialization remains an additive term even when no auction is currently executing"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "pending"
+reason = "The SDK does not publish the memory ceiling scope"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator declarations and the enforced accounting scope"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "No incremental scratch is claimed by the current zero descriptor"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer target/core maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "baseline"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer privacy maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "gvl"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auctions"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auction_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auxiliary"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "terminal_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core health maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "probe_output"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "EdgeZero adapter maintainer/provider"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "pre_admission_parser"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer outbound/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "body_streams"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_resident"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_initialization"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_projection"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_response"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "request_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "call_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_declared_work"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_handoff"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_routes"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "probe_config"
+
+[adapters.artifact]
+status = "pending"
+reason = "This capture inspects source declarations, not a deployed or guest artifact"
+owner = "Auctioneer target maintainer"
+next_action = "Build the selected target and record the artifact digest, ABI, compiler and covered paths"
+
+[adapters.abi]
+status = "pending"
+reason = "Native layout substitutions do not prove target heap, host copies or separate stack"
+owner = "Auctioneer target maintainer"
+next_action = "Execute an artifact-bound guest/host ownership measurement and prove each funded upper bound"
+
+[[adapters.pending_facts]]
+fact = "unknown_memory_ceiling"
+reason = "The current source report remains blocked by unknown_memory_ceiling"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Publish operator ceiling and memory scope through the SDK and exercise configured overflow independently"
+
+[[adapters.pending_facts]]
+fact = "unknown_inbound_request_population"
+reason = "The current source report remains blocked by unknown_inbound_request_population"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish or enforce a scope-bound inbound population; do not reuse the outbound connection limit"
+
+[[adapters.pending_facts]]
+fact = "unknown_host_ingress_memory_accounting"
+reason = "The current source report remains blocked by unknown_host_ingress_memory_accounting"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and test host ingress/framing allocation ownership and bounds including cancelled and refused requests"
+
+[adapters.gap_bytes]
+status = "pending"
+reason = "Unknown effective platform ceiling prevents a numeric fit-gap claim"
+owner = "AG/operator and EdgeZero adapter maintainer"
+next_action = "Supply the missing ceiling and scope; preserve the independent configured-cap refusal"
+
+[[adapters]]
+
+[adapters.report]
+adapter = "cloudflare"
+effective_profile_sha256 = "4ef9fa8b4b201cf49ab2db2fdb6851cc479d7ed20595fa927c01071e52e4945f"
+platform_profile = "cloudflare"
+dispatch_profile = "cloudflare"
+memory_scope = "PerInstance"
+outbound_meta_bytes = 4384
+baked_config_bytes = 1584
+baked_config_sha256 = "a73ce0324113f975751cfa7b8d31b3cde8e4b773cc976cfff353d7816afc0842"
+actual_gvl_cache_entries = 4
+required_fit = false
+
+[adapters.report.identity]
+code_base_commit = "e71e40aba611215bb9305f82e2449e13fb0f41ed"
+dirty = false
+source_tree_matches_commit = true
+sdk_revision = "bc300ace5ca1ffe7060594a7bdb01c1da80de305"
+lock_sha256 = "f20a05604c912c0d9946e7c86020f1e12549abbf6007bfe8d56883dda1a7a1c1"
+declared_toolchain = """
+fastly 16.0.0
+nodejs 24.20.0
+rust 1.98.1
+spin 4.1.0
+viceroy 0.21.0
+wasmtime 48.0.2
+"""
+features = ["application"]
+source_sha256 = "560df50ceecc1bc6e5d335d624097c7d002333cca85435175539150e82563b1b"
+source_file_count = 1322
+compiler_verbose = """
+rustc 1.98.1 (48a229cea 2026-09-01)
+binary: rustc
+commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+commit-date: 2026-09-01
+host: aarch64-apple-darwin
+release: 1.98.1
+LLVM version: 22.1.8"""
+compiled_target = "aarch64-apple-darwin"
+reporter_abi = "aarch64-macos-64bit"
+target_abi = "wasm32-unknown-unknown"
+layout_evidence = "host_native_substitute"
+artifact_proof = "pending_not_a_deployment_observation"
+
+[adapters.report.platform_facts.ceiling]
+status = "known"
+source = 'Some(PlatformLimit { provider: "Cloudflare Workers" })'
+
+[adapters.report.platform_facts.ceiling.value]
+primary_bytes = 128000000
+scope = "PerInstance"
+
+[adapters.report.platform_facts.inbound_population]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.platform_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.dispatch_facts.ceiling]
+status = "known"
+source = 'Some(PlatformLimit { provider: "Cloudflare Workers" })'
+
+[adapters.report.dispatch_facts.ceiling.value]
+primary_bytes = 128000000
+scope = "PerInstance"
+
+[adapters.report.dispatch_facts.inbound_population]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.dispatch_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.raw_limits]
+isolate_total_bytes = 128000000
+baseline_bytes = 27328512
+inbound_request_bytes = 262144
+inbound_parse_factor = 36
+max_outbound_request_bytes = 262144
+max_outbound_raw_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 25165824
+egress_permits = 6
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 4
+aux_route_peak_bytes = 805306368
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 50
+max_outbound_requests = 32
+max_concurrent_auctions = 6
+max_active_body_streams = 32
+max_runtime_config_bytes = 1048576
+max_runtime_config_blob_bytes = 1048576
+max_parsed_nodes = 65536
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 100
+max_config_json_nodes = 8192
+terminal_response_permits = 10
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.effective_limits]
+isolate_total_bytes = 128000000
+baseline_bytes = 27328512
+inbound_request_bytes = 262144
+inbound_parse_factor = 36
+max_outbound_request_bytes = 262144
+max_outbound_raw_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 25165824
+egress_permits = 6
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 4
+aux_route_peak_bytes = 805306368
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 50
+max_outbound_requests = 32
+max_concurrent_auctions = 6
+max_active_body_streams = 32
+max_runtime_config_bytes = 1048576
+max_runtime_config_blob_bytes = 1048576
+max_parsed_nodes = 65536
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 100
+max_config_json_nodes = 8192
+terminal_response_permits = 10
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.target_constants]
+platform_concurrent_ceiling = 6
+header_entry_overhead_bytes = 64
+parser_header_ceiling_bytes = 55424
+parser_header_knob_bytes = 55425
+max_request_target_bytes = 33792
+h1_max_buf_size_bytes = 65536
+h1_max_headers = 128
+parser_max_header_entries = 1732
+pseudoheader_allowance_bytes = 34816
+parser_transient_bytes = 16384
+egress_handoff_factor = 3
+
+[adapters.report.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.catalog_costs]
+resident_bytes = 0
+initialization_bytes = 0
+schema_validation_per_auction_bytes = 0
+context_per_auction_bytes = 0
+
+[adapters.report.terms]
+auction_egress = 453009408
+auctions = 117533598864
+auxiliary = 19327385600
+baseline = 27328512
+body_streams = 698405888
+catalog_initialization = 0
+catalog_resident = 0
+gvl = 7168000
+pre_admission_parser = 1428480
+probe_output = 122880
+terminal_egress = 48640
+
+[adapters.report.auction_receipts]
+config = 274790400
+ingress = 323740772
+privacy = 44040992
+projection = 14890995188
+outbound = 17687552
+response = 4037678240
+
+[adapters.report.derived]
+catalog_resident_term = 0
+catalog_initialization_term = 0
+schema_validation_term = 0
+catalog_context_term = 0
+runtime_config_term = 274790400
+request_side_term = 15214735960
+call_side_term = 3943949312
+bookkeeping_term = 101711872
+debug_term = 9704608
+assembly_scratch_bytes = 25165824
+per_auction_peak = 19588933144
+per_stream_peak = 21825184
+decoder_chain_bytes = 21258240
+gvl_terms = 7168000
+egress_term = 453009408
+aux_term = 19327385600
+terminal_term = 48640
+probe_output_term = 122880
+h2_slot_peak = 238080
+h1_slot_peak = 90112
+pre_admission_parser_term = 1428480
+total_bytes = 138048496272
+margin_bytes = 0
+max_outbound_raw_bytes_usize = 262144
+
+[adapters.report.derived.isolate_terms]
+baseline = 27328512
+gvl = 7168000
+auctions = 117533598864
+auction_egress = 453009408
+auxiliary = 19327385600
+terminal_egress = 48640
+probe_output = 122880
+pre_admission_parser = 1428480
+body_streams = 698405888
+catalog_resident = 0
+catalog_initialization = 0
+
+[adapters.report.derived.auction_charges]
+config = 274790400
+ingress = 323740772
+privacy = 44040992
+projection = 14890995188
+outbound = 17687552
+response = 4037678240
+
+[adapters.report.derived.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.validation]
+sdk_result = "Exceeds { available_bytes: 128000000, required_bytes: 138056496272, resource: Primary }"
+external_blockers = [
+    "unknown_inbound_request_population",
+    "unknown_host_ingress_memory_accounting",
+]
+minimum_headroom_bytes = 8000000
+selected_headroom_bytes = 8000000
+effective_ceiling_bytes = 128000000
+gap_bytes = 137928496272
+configured_cap_exceeded = true
+population_covered = false
+platform_cap_exceeded = true
+profile_matches_dispatch = true
+required_fit = false
+
+[adapters.report.validation.sdk_verdict]
+status = "exceeds"
+available_bytes = 128000000
+required_bytes = 138056496272
+resource = "Primary"
+
+[adapters.auxiliary_receipts]
+config = 269686784
+body = 1212416
+query = 77824
+input_headers = 24576
+cookie = 49152
+signing = 530432
+nodes = 19259392
+privacy = 10616832
+chooser = 397312
+urls = 98304
+retained_urls = 262144
+output = 552960
+
+[[adapters.component_receipts]]
+component = "auction_config"
+bytes = 1648742400
+
+[[adapters.component_receipts]]
+component = "auction_ingress"
+bytes = 1942444632
+
+[[adapters.component_receipts]]
+component = "auction_privacy"
+bytes = 264245952
+
+[[adapters.component_receipts]]
+component = "auction_projection"
+bytes = 89345971128
+
+[[adapters.component_receipts]]
+component = "auction_outbound"
+bytes = 106125312
+
+[[adapters.component_receipts]]
+component = "auction_response"
+bytes = 24226069440
+
+[[adapters.component_receipts]]
+component = "runtime_config"
+bytes = 1648742400
+
+[[adapters.component_receipts]]
+component = "request_side"
+bytes = 91288415760
+
+[[adapters.component_receipts]]
+component = "call_side"
+bytes = 23663695872
+
+[[adapters.component_receipts]]
+component = "bookkeeping"
+bytes = 610271232
+
+[[adapters.component_receipts]]
+component = "debug"
+bytes = 58227648
+
+[[adapters.component_receipts]]
+component = "assembly"
+bytes = 150994944
+
+[[adapters.component_receipts]]
+component = "aux_config"
+bytes = 2157494272
+
+[[adapters.component_receipts]]
+component = "aux_body"
+bytes = 9699328
+
+[[adapters.component_receipts]]
+component = "aux_query"
+bytes = 622592
+
+[[adapters.component_receipts]]
+component = "aux_input_headers"
+bytes = 196608
+
+[[adapters.component_receipts]]
+component = "aux_cookie"
+bytes = 393216
+
+[[adapters.component_receipts]]
+component = "aux_signing"
+bytes = 4243456
+
+[[adapters.component_receipts]]
+component = "aux_nodes"
+bytes = 154075136
+
+[[adapters.component_receipts]]
+component = "aux_privacy"
+bytes = 84934656
+
+[[adapters.component_receipts]]
+component = "aux_chooser"
+bytes = 3178496
+
+[[adapters.component_receipts]]
+component = "aux_urls"
+bytes = 786432
+
+[[adapters.component_receipts]]
+component = "aux_retained_urls"
+bytes = 2097152
+
+[[adapters.component_receipts]]
+component = "aux_output"
+bytes = 4423680
+
+[[adapters.component_receipts]]
+component = "aux_declared_work"
+bytes = 6442450944
+
+[[adapters.component_receipts]]
+component = "aux_transmit"
+bytes = 32768
+
+[[adapters.component_receipts]]
+component = "aux_handoff"
+bytes = 12884901888
+
+[[adapters.component_receipts]]
+component = "aux_routes"
+bytes = 9663692800
+
+[[adapters.component_receipts]]
+component = "probe_config"
+bytes = 9663692800
+
+[[adapters.owners]]
+term_id = "baseline"
+allocation_owner = "Auctioneer target/core maintainers"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Cold initialization of defaults, registry and singleton state"
+release = "Instance or execution teardown"
+overlapping_copies = "Existing startup reserves remain additive with admitted work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "A declared baseline is not an allocator byte gate"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[[adapters.owners]]
+term_id = "gvl"
+allocation_owner = "Auctioneer privacy maintainer"
+source_path = "crates/auctioneer-privacy/src/gvl.rs"
+acquire = "GvlStore::get parses and caches a version; requests clone a handle"
+release = "Last cache or request handle, including requests pinning evicted versions"
+overlapping_copies = "Cache entries plus distinct auction-held and auxiliary-held versions; handles are not duplicate parsed lists"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 14
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "GVL_PARSE_CACHE_MAX_ENTRIES plus auction and auxiliary admission populations"
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer privacy maintainer"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[[adapters.owners]]
+term_id = "auctions"
+allocation_owner = "Auctioneer core/exchange maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Auction admission and all six phase receipts before config extraction"
+release = "Serialization completion or cancellation drops the work receipts"
+overlapping_copies = "Config, decoded ingress, privacy projections, outbound requests and completed results can coexist"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 6
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AdmissionGate and prepaid AuctionBudget phase receipts"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/exchange maintainers"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[[adapters.owners]]
+term_id = "auction_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Egress reservation before response serialization"
+release = "Terminal response completion or cancellation, not work completion"
+overlapping_copies = "Serialized body, provider handoff copies and transmit state can outlive auction work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 6
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "EgressGate lease bound to terminal completion"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[[adapters.owners]]
+term_id = "auxiliary"
+allocation_owner = "Auctioneer core auxiliary-route maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Auxiliary route admission/work reservation or independent probe-config work"
+release = "Route completion versus probe config resolution/render/publication; counters are independent"
+overlapping_copies = "Auxiliary work and max(auxiliary, probe minimum) config work coexist with output handoff"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 8
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AuxGate, AuxWorkBudget and independent probe-config permits"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core auxiliary-route maintainer"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[[adapters.owners]]
+term_id = "terminal_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Terminal/static output reservation, including detached head refusals"
+release = "Response completion or cancellation"
+overlapping_copies = "Refusal output and transmit state are independent of auction and auxiliary work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 10
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StaticEgressGate terminal lease"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[[adapters.owners]]
+term_id = "probe_output"
+allocation_owner = "Auctioneer core health maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Independent probe-output reservation, including preboot responses"
+release = "Output completion; the cached verdict remains resident independently"
+overlapping_copies = "Live probe output population plus one cached verdict, not probe-config work count"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 5
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "Probe egress permits and bounded cached response"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core health maintainer"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[[adapters.owners]]
+term_id = "pre_admission_parser"
+allocation_owner = "EdgeZero adapter maintainer/provider"
+source_path = "crates/auctioneer-runtime/src/budget.rs"
+acquire = "Host/framing/head parsing before Auctioneer route admission"
+release = "Host/parser cleanup, including rejected and cancelled input"
+overlapping_copies = "No Auctioneer admission counter bounds the pre-admission population; outbound connections are not inbound requests"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "pending"
+reason = "The declared parser population has no published inbound bound"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and enforce an ingress population at the selected memory scope"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Host ingress/framing accounting is unpublished at the pinned SDK"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[[adapters.owners]]
+term_id = "body_streams"
+allocation_owner = "Auctioneer outbound/target maintainers"
+source_path = "crates/auctioneer-core/src/outbound/wave.rs"
+acquire = "Global wave stream lease before dispatch and decode"
+release = "Wave settlement, EOF or cancellation"
+overlapping_copies = "Completed response slots survive stream release across waves and remain in auction response funding"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 32
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StreamGate wave leases and bounded decoder chain"
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer outbound/target maintainers"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[[adapters.owners]]
+term_id = "catalog_resident"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental generated catalog/validator residency at initialization"
+release = "Instance or execution teardown"
+overlapping_copies = "Zero incremental descriptor does not remove existing registry residency funded by baseline"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Catalog descriptor is an allocation bound, not an independent allocator gate"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[[adapters.owners]]
+term_id = "catalog_initialization"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental catalog initialization scratch, including validation failure"
+release = "Initialization completion or error cleanup"
+overlapping_copies = "Initialization remains an additive term even when no auction is currently executing"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerInstance"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "No incremental scratch is claimed by the current zero descriptor"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer target/core maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "baseline"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer privacy maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "gvl"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auctions"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auction_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auxiliary"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "terminal_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core health maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "probe_output"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "EdgeZero adapter maintainer/provider"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "pre_admission_parser"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer outbound/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "body_streams"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_resident"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_initialization"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_projection"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_response"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "request_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "call_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_handoff"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_routes"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "probe_config"
+
+[adapters.artifact]
+status = "pending"
+reason = "This capture inspects source declarations, not a deployed or guest artifact"
+owner = "Auctioneer target maintainer"
+next_action = "Build the selected target and record the artifact digest, ABI, compiler and covered paths"
+
+[adapters.abi]
+status = "pending"
+reason = "Native layout substitutions do not prove target heap, host copies or separate stack"
+owner = "Auctioneer target maintainer"
+next_action = "Execute an artifact-bound guest/host ownership measurement and prove each funded upper bound"
+
+[[adapters.pending_facts]]
+fact = "unknown_inbound_request_population"
+reason = "The current source report remains blocked by unknown_inbound_request_population"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish or enforce a scope-bound inbound population; do not reuse the outbound connection limit"
+
+[[adapters.pending_facts]]
+fact = "unknown_host_ingress_memory_accounting"
+reason = "The current source report remains blocked by unknown_host_ingress_memory_accounting"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and test host ingress/framing allocation ownership and bounds including cancelled and refused requests"
+
+[adapters.gap_bytes]
+status = "known"
+value = 137928496272
+source = "Runtime additive total plus selected headroom against the effective ceiling"
+
+[[adapters]]
+
+[adapters.report]
+adapter = "fastly"
+effective_profile_sha256 = "b945d13b76d08fb3f208e48786bdce2588576c9d211403e9e7015238cdefd485"
+platform_profile = "fastly"
+dispatch_profile = "fastly"
+memory_scope = "PerExecution"
+outbound_meta_bytes = 4384
+baked_config_bytes = 1584
+baked_config_sha256 = "a73ce0324113f975751cfa7b8d31b3cde8e4b773cc976cfff353d7816afc0842"
+actual_gvl_cache_entries = 4
+required_fit = false
+
+[adapters.report.identity]
+code_base_commit = "e71e40aba611215bb9305f82e2449e13fb0f41ed"
+dirty = false
+source_tree_matches_commit = true
+sdk_revision = "bc300ace5ca1ffe7060594a7bdb01c1da80de305"
+lock_sha256 = "f20a05604c912c0d9946e7c86020f1e12549abbf6007bfe8d56883dda1a7a1c1"
+declared_toolchain = """
+fastly 16.0.0
+nodejs 24.20.0
+rust 1.98.1
+spin 4.1.0
+viceroy 0.21.0
+wasmtime 48.0.2
+"""
+features = ["application"]
+source_sha256 = "560df50ceecc1bc6e5d335d624097c7d002333cca85435175539150e82563b1b"
+source_file_count = 1322
+compiler_verbose = """
+rustc 1.98.1 (48a229cea 2026-09-01)
+binary: rustc
+commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+commit-date: 2026-09-01
+host: aarch64-apple-darwin
+release: 1.98.1
+LLVM version: 22.1.8"""
+compiled_target = "aarch64-apple-darwin"
+reporter_abi = "aarch64-macos-64bit"
+target_abi = "wasm32-wasip1"
+layout_evidence = "host_native_substitute"
+artifact_proof = "pending_not_a_deployment_observation"
+
+[adapters.report.platform_facts.ceiling]
+status = "known"
+source = 'Some(PlatformLimit { provider: "Fastly Compute" })'
+
+[adapters.report.platform_facts.ceiling.value]
+primary_bytes = 128000000
+scope = "PerExecution"
+separate_stack_bytes = 1000000
+
+[adapters.report.platform_facts.inbound_population]
+status = "known"
+value = 1
+source = 'Some(PlatformLimit { provider: "Fastly Compute" })'
+
+[adapters.report.platform_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.dispatch_facts.ceiling]
+status = "known"
+source = 'Some(PlatformLimit { provider: "Fastly Compute" })'
+
+[adapters.report.dispatch_facts.ceiling.value]
+primary_bytes = 128000000
+scope = "PerExecution"
+separate_stack_bytes = 1000000
+
+[adapters.report.dispatch_facts.inbound_population]
+status = "known"
+value = 1
+source = 'Some(PlatformLimit { provider: "Fastly Compute" })'
+
+[adapters.report.dispatch_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.raw_limits]
+isolate_total_bytes = 128000000
+baseline_bytes = 27328512
+inbound_request_bytes = 262144
+inbound_parse_factor = 36
+max_outbound_request_bytes = 262144
+max_outbound_raw_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 25165824
+egress_permits = 1
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 1
+aux_route_peak_bytes = 805306368
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 50
+max_outbound_requests = 32
+max_concurrent_auctions = 1
+max_active_body_streams = 32
+max_runtime_config_bytes = 1048576
+max_runtime_config_blob_bytes = 1048576
+max_parsed_nodes = 65536
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 100
+max_config_json_nodes = 8192
+terminal_response_permits = 2
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.effective_limits]
+isolate_total_bytes = 128000000
+baseline_bytes = 27328512
+inbound_request_bytes = 262144
+inbound_parse_factor = 36
+max_outbound_request_bytes = 262144
+max_outbound_raw_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 25165824
+egress_permits = 1
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 1
+aux_route_peak_bytes = 805306368
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 50
+max_outbound_requests = 32
+max_concurrent_auctions = 1
+max_active_body_streams = 32
+max_runtime_config_bytes = 1048576
+max_runtime_config_blob_bytes = 1048576
+max_parsed_nodes = 65536
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 100
+max_config_json_nodes = 8192
+terminal_response_permits = 2
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.target_constants]
+platform_concurrent_ceiling = 1
+header_entry_overhead_bytes = 64
+parser_header_ceiling_bytes = 55424
+parser_header_knob_bytes = 55425
+max_request_target_bytes = 33792
+h1_max_buf_size_bytes = 65536
+h1_max_headers = 128
+parser_max_header_entries = 1732
+pseudoheader_allowance_bytes = 34816
+parser_transient_bytes = 16384
+egress_handoff_factor = 2
+
+[adapters.report.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.catalog_costs]
+resident_bytes = 0
+initialization_bytes = 0
+schema_validation_per_auction_bytes = 0
+context_per_auction_bytes = 0
+
+[adapters.report.terms]
+auction_egress = 50335744
+auctions = 19588933144
+auxiliary = 3221233664
+baseline = 27328512
+body_streams = 698405888
+catalog_initialization = 0
+catalog_resident = 0
+gvl = 3072000
+pre_admission_parser = 238080
+probe_output = 90112
+terminal_egress = 9216
+
+[adapters.report.auction_receipts]
+config = 274790400
+ingress = 323740772
+privacy = 44040992
+projection = 14890995188
+outbound = 17687552
+response = 4037678240
+
+[adapters.report.derived]
+catalog_resident_term = 0
+catalog_initialization_term = 0
+schema_validation_term = 0
+catalog_context_term = 0
+runtime_config_term = 274790400
+request_side_term = 15214735960
+call_side_term = 3943949312
+bookkeeping_term = 101711872
+debug_term = 9704608
+assembly_scratch_bytes = 25165824
+per_auction_peak = 19588933144
+per_stream_peak = 21825184
+decoder_chain_bytes = 21258240
+gvl_terms = 3072000
+egress_term = 50335744
+aux_term = 3221233664
+terminal_term = 9216
+probe_output_term = 90112
+h2_slot_peak = 238080
+h1_slot_peak = 90112
+pre_admission_parser_term = 238080
+total_bytes = 23589646360
+margin_bytes = 0
+max_outbound_raw_bytes_usize = 262144
+
+[adapters.report.derived.isolate_terms]
+baseline = 27328512
+gvl = 3072000
+auctions = 19588933144
+auction_egress = 50335744
+auxiliary = 3221233664
+terminal_egress = 9216
+probe_output = 90112
+pre_admission_parser = 238080
+body_streams = 698405888
+catalog_resident = 0
+catalog_initialization = 0
+
+[adapters.report.derived.auction_charges]
+config = 274790400
+ingress = 323740772
+privacy = 44040992
+projection = 14890995188
+outbound = 17687552
+response = 4037678240
+
+[adapters.report.derived.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.validation]
+sdk_result = "Exceeds { available_bytes: 128000000, required_bytes: 23597646360, resource: Primary }"
+external_blockers = [
+    "unknown_host_ingress_memory_accounting",
+    "missing_proved_nonzero_separate_stack_requirement",
+]
+minimum_headroom_bytes = 8000000
+selected_headroom_bytes = 8000000
+effective_ceiling_bytes = 128000000
+gap_bytes = 23469646360
+configured_cap_exceeded = true
+population_covered = true
+platform_cap_exceeded = true
+profile_matches_dispatch = true
+required_fit = false
+separate_stack_allowance_bytes = 1000000
+
+[adapters.report.validation.sdk_verdict]
+status = "exceeds"
+available_bytes = 128000000
+required_bytes = 23597646360
+resource = "Primary"
+
+[adapters.auxiliary_receipts]
+config = 269686784
+body = 1212416
+query = 77824
+input_headers = 24576
+cookie = 49152
+signing = 530432
+nodes = 19259392
+privacy = 10616832
+chooser = 397312
+urls = 98304
+retained_urls = 262144
+output = 552960
+
+[[adapters.component_receipts]]
+component = "auction_config"
+bytes = 274790400
+
+[[adapters.component_receipts]]
+component = "auction_ingress"
+bytes = 323740772
+
+[[adapters.component_receipts]]
+component = "auction_privacy"
+bytes = 44040992
+
+[[adapters.component_receipts]]
+component = "auction_projection"
+bytes = 14890995188
+
+[[adapters.component_receipts]]
+component = "auction_outbound"
+bytes = 17687552
+
+[[adapters.component_receipts]]
+component = "auction_response"
+bytes = 4037678240
+
+[[adapters.component_receipts]]
+component = "runtime_config"
+bytes = 274790400
+
+[[adapters.component_receipts]]
+component = "request_side"
+bytes = 15214735960
+
+[[adapters.component_receipts]]
+component = "call_side"
+bytes = 3943949312
+
+[[adapters.component_receipts]]
+component = "bookkeeping"
+bytes = 101711872
+
+[[adapters.component_receipts]]
+component = "debug"
+bytes = 9704608
+
+[[adapters.component_receipts]]
+component = "assembly"
+bytes = 25165824
+
+[[adapters.component_receipts]]
+component = "aux_config"
+bytes = 539373568
+
+[[adapters.component_receipts]]
+component = "aux_body"
+bytes = 2424832
+
+[[adapters.component_receipts]]
+component = "aux_query"
+bytes = 155648
+
+[[adapters.component_receipts]]
+component = "aux_input_headers"
+bytes = 49152
+
+[[adapters.component_receipts]]
+component = "aux_cookie"
+bytes = 98304
+
+[[adapters.component_receipts]]
+component = "aux_signing"
+bytes = 1060864
+
+[[adapters.component_receipts]]
+component = "aux_nodes"
+bytes = 38518784
+
+[[adapters.component_receipts]]
+component = "aux_privacy"
+bytes = 21233664
+
+[[adapters.component_receipts]]
+component = "aux_chooser"
+bytes = 794624
+
+[[adapters.component_receipts]]
+component = "aux_urls"
+bytes = 196608
+
+[[adapters.component_receipts]]
+component = "aux_retained_urls"
+bytes = 524288
+
+[[adapters.component_receipts]]
+component = "aux_output"
+bytes = 1105920
+
+[[adapters.component_receipts]]
+component = "aux_declared_work"
+bytes = 1610612736
+
+[[adapters.component_receipts]]
+component = "aux_transmit"
+bytes = 8192
+
+[[adapters.component_receipts]]
+component = "aux_handoff"
+bytes = 1610612736
+
+[[adapters.component_receipts]]
+component = "aux_routes"
+bytes = 1610616832
+
+[[adapters.component_receipts]]
+component = "probe_config"
+bytes = 1610616832
+
+[[adapters.owners]]
+term_id = "baseline"
+allocation_owner = "Auctioneer target/core maintainers"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Cold initialization of defaults, registry and singleton state"
+release = "Instance or execution teardown"
+overlapping_copies = "Existing startup reserves remain additive with admitted work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "A declared baseline is not an allocator byte gate"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[[adapters.owners]]
+term_id = "gvl"
+allocation_owner = "Auctioneer privacy maintainer"
+source_path = "crates/auctioneer-privacy/src/gvl.rs"
+acquire = "GvlStore::get parses and caches a version; requests clone a handle"
+release = "Last cache or request handle, including requests pinning evicted versions"
+overlapping_copies = "Cache entries plus distinct auction-held and auxiliary-held versions; handles are not duplicate parsed lists"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 6
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "GVL_PARSE_CACHE_MAX_ENTRIES plus auction and auxiliary admission populations"
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer privacy maintainer"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[[adapters.owners]]
+term_id = "auctions"
+allocation_owner = "Auctioneer core/exchange maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Auction admission and all six phase receipts before config extraction"
+release = "Serialization completion or cancellation drops the work receipts"
+overlapping_copies = "Config, decoded ingress, privacy projections, outbound requests and completed results can coexist"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AdmissionGate and prepaid AuctionBudget phase receipts"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/exchange maintainers"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[[adapters.owners]]
+term_id = "auction_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Egress reservation before response serialization"
+release = "Terminal response completion or cancellation, not work completion"
+overlapping_copies = "Serialized body, provider handoff copies and transmit state can outlive auction work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "EgressGate lease bound to terminal completion"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[[adapters.owners]]
+term_id = "auxiliary"
+allocation_owner = "Auctioneer core auxiliary-route maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Auxiliary route admission/work reservation or independent probe-config work"
+release = "Route completion versus probe config resolution/render/publication; counters are independent"
+overlapping_copies = "Auxiliary work and max(auxiliary, probe minimum) config work coexist with output handoff"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AuxGate, AuxWorkBudget and independent probe-config permits"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core auxiliary-route maintainer"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[[adapters.owners]]
+term_id = "terminal_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Terminal/static output reservation, including detached head refusals"
+release = "Response completion or cancellation"
+overlapping_copies = "Refusal output and transmit state are independent of auction and auxiliary work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StaticEgressGate terminal lease"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[[adapters.owners]]
+term_id = "probe_output"
+allocation_owner = "Auctioneer core health maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Independent probe-output reservation, including preboot responses"
+release = "Output completion; the cached verdict remains resident independently"
+overlapping_copies = "Live probe output population plus one cached verdict, not probe-config work count"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 5
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "Probe egress permits and bounded cached response"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core health maintainer"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[[adapters.owners]]
+term_id = "pre_admission_parser"
+allocation_owner = "EdgeZero adapter maintainer/provider"
+source_path = "crates/auctioneer-runtime/src/budget.rs"
+acquire = "Host/framing/head parsing before Auctioneer route admission"
+release = "Host/parser cleanup, including rejected and cancelled input"
+overlapping_copies = "No Auctioneer admission counter bounds the pre-admission population; outbound connections are not inbound requests"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-runtime/src/budget.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Host ingress/framing accounting is unpublished at the pinned SDK"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[[adapters.owners]]
+term_id = "body_streams"
+allocation_owner = "Auctioneer outbound/target maintainers"
+source_path = "crates/auctioneer-core/src/outbound/wave.rs"
+acquire = "Global wave stream lease before dispatch and decode"
+release = "Wave settlement, EOF or cancellation"
+overlapping_copies = "Completed response slots survive stream release across waves and remain in auction response funding"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 32
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StreamGate wave leases and bounded decoder chain"
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer outbound/target maintainers"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[[adapters.owners]]
+term_id = "catalog_resident"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental generated catalog/validator residency at initialization"
+release = "Instance or execution teardown"
+overlapping_copies = "Zero incremental descriptor does not remove existing registry residency funded by baseline"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Catalog descriptor is an allocation bound, not an independent allocator gate"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[[adapters.owners]]
+term_id = "catalog_initialization"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental catalog initialization scratch, including validation failure"
+release = "Initialization completion or error cleanup"
+overlapping_copies = "Initialization remains an additive term even when no auction is currently executing"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "No incremental scratch is claimed by the current zero descriptor"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer target/core maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "baseline"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer privacy maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "gvl"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auctions"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auction_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auxiliary"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "terminal_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core health maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "probe_output"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "EdgeZero adapter maintainer/provider"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "pre_admission_parser"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer outbound/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "body_streams"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_resident"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_initialization"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_projection"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_response"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "request_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "call_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_declared_work"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_handoff"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_routes"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "probe_config"
+
+[adapters.artifact]
+status = "pending"
+reason = "This capture inspects source declarations, not a deployed or guest artifact"
+owner = "Auctioneer target maintainer"
+next_action = "Build the selected target and record the artifact digest, ABI, compiler and covered paths"
+
+[adapters.abi]
+status = "pending"
+reason = "Native layout substitutions do not prove target heap, host copies or separate stack"
+owner = "Auctioneer target maintainer"
+next_action = "Execute an artifact-bound guest/host ownership measurement and prove each funded upper bound"
+
+[[adapters.pending_facts]]
+fact = "unknown_host_ingress_memory_accounting"
+reason = "The current source report remains blocked by unknown_host_ingress_memory_accounting"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and test host ingress/framing allocation ownership and bounds including cancelled and refused requests"
+
+[[adapters.pending_facts]]
+fact = "missing_proved_nonzero_separate_stack_requirement"
+reason = "The current source report remains blocked by missing_proved_nonzero_separate_stack_requirement"
+owner = "Auctioneer Fastly maintainer"
+next_action = "Prove a nonzero artifact/ABI/compiler-bound stack upper bound covering initialization, admitted depth, errors and cancellation"
+
+[adapters.gap_bytes]
+status = "known"
+value = 23469646360
+source = "Runtime additive total plus selected headroom against the effective ceiling"
+
+[[adapters]]
+
+[adapters.report]
+adapter = "spin"
+effective_profile_sha256 = "be110efd1c90bdee32f390bcfd7a7ca2c60f5d030a7477c63044129aaca241a6"
+platform_profile = "spin_hosted"
+dispatch_profile = "spin_hosted"
+memory_scope = "PerExecution"
+outbound_meta_bytes = 4384
+baked_config_bytes = 1584
+baked_config_sha256 = "a73ce0324113f975751cfa7b8d31b3cde8e4b773cc976cfff353d7816afc0842"
+actual_gvl_cache_entries = 4
+required_fit = false
+
+[adapters.report.identity]
+code_base_commit = "e71e40aba611215bb9305f82e2449e13fb0f41ed"
+dirty = false
+source_tree_matches_commit = true
+sdk_revision = "bc300ace5ca1ffe7060594a7bdb01c1da80de305"
+lock_sha256 = "f20a05604c912c0d9946e7c86020f1e12549abbf6007bfe8d56883dda1a7a1c1"
+declared_toolchain = """
+fastly 16.0.0
+nodejs 24.20.0
+rust 1.98.1
+spin 4.1.0
+viceroy 0.21.0
+wasmtime 48.0.2
+"""
+features = ["application"]
+source_sha256 = "560df50ceecc1bc6e5d335d624097c7d002333cca85435175539150e82563b1b"
+source_file_count = 1322
+compiler_verbose = """
+rustc 1.98.1 (48a229cea 2026-09-01)
+binary: rustc
+commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+commit-date: 2026-09-01
+host: aarch64-apple-darwin
+release: 1.98.1
+LLVM version: 22.1.8"""
+compiled_target = "aarch64-apple-darwin"
+reporter_abi = "aarch64-macos-64bit"
+target_abi = "wasm32-wasip2"
+layout_evidence = "host_native_substitute"
+artifact_proof = "pending_not_a_deployment_observation"
+
+[adapters.report.platform_facts.ceiling]
+status = "known"
+source = 'Some(HostedDefault { provider: "Akamai Functions" })'
+
+[adapters.report.platform_facts.ceiling.value]
+primary_bytes = 134217728
+scope = "PerExecution"
+
+[adapters.report.platform_facts.inbound_population]
+status = "known"
+value = 1
+source = 'Some(HostedDefault { provider: "Akamai Functions" })'
+
+[adapters.report.platform_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.dispatch_facts.ceiling]
+status = "known"
+source = 'Some(HostedDefault { provider: "Akamai Functions" })'
+
+[adapters.report.dispatch_facts.ceiling.value]
+primary_bytes = 134217728
+scope = "PerExecution"
+
+[adapters.report.dispatch_facts.inbound_population]
+status = "known"
+value = 1
+source = 'Some(HostedDefault { provider: "Akamai Functions" })'
+
+[adapters.report.dispatch_facts.host_ingress_accounting]
+status = "pending"
+reason = "Some(ProviderUnpublished)"
+
+[adapters.report.raw_limits]
+isolate_total_bytes = 134217728
+baseline_bytes = 27328512
+inbound_request_bytes = 262144
+inbound_parse_factor = 36
+max_outbound_request_bytes = 262144
+max_outbound_raw_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 25165824
+egress_permits = 1
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 1
+aux_route_peak_bytes = 805306368
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 50
+max_outbound_requests = 32
+max_concurrent_auctions = 1
+max_active_body_streams = 32
+max_runtime_config_bytes = 1048576
+max_runtime_config_blob_bytes = 1048576
+max_parsed_nodes = 65536
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 100
+max_config_json_nodes = 8192
+terminal_response_permits = 2
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.effective_limits]
+isolate_total_bytes = 134217728
+baseline_bytes = 27328512
+inbound_request_bytes = 262144
+inbound_parse_factor = 36
+max_outbound_request_bytes = 262144
+max_outbound_raw_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+response_parse_factor = 256
+response_node_peak_bytes = 320
+final_response_bytes = 25165824
+egress_permits = 1
+response_write_deadline_ms = 30000
+guest_decoder_bound_bytes = 0
+aux_route_permits = 1
+aux_route_peak_bytes = 805306368
+max_brotli_wbits = 22
+max_brotli_layers = 1
+gvl_cache_entries = 4
+gvl_parsed_bytes = 512000
+max_bidders_per_auction = 50
+max_outbound_requests = 32
+max_concurrent_auctions = 1
+max_active_body_streams = 32
+max_runtime_config_bytes = 1048576
+max_runtime_config_blob_bytes = 1048576
+max_parsed_nodes = 65536
+max_copied_header_bytes = 4096
+max_admitted_header_bytes = 16384
+max_admitted_header_count = 128
+max_impressions_per_auction = 100
+max_config_json_nodes = 8192
+terminal_response_permits = 2
+refusal_body_bytes = 256
+transmit_state_bytes = 4096
+
+[adapters.report.target_constants]
+platform_concurrent_ceiling = 1
+header_entry_overhead_bytes = 64
+parser_header_ceiling_bytes = 55424
+parser_header_knob_bytes = 55425
+max_request_target_bytes = 33792
+h1_max_buf_size_bytes = 65536
+h1_max_headers = 128
+parser_max_header_entries = 1732
+pseudoheader_allowance_bytes = 34816
+parser_transient_bytes = 16384
+egress_handoff_factor = 2
+
+[adapters.report.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.catalog_costs]
+resident_bytes = 0
+initialization_bytes = 0
+schema_validation_per_auction_bytes = 0
+context_per_auction_bytes = 0
+
+[adapters.report.terms]
+auction_egress = 50335744
+auctions = 19588933144
+auxiliary = 3221233664
+baseline = 27328512
+body_streams = 698405888
+catalog_initialization = 0
+catalog_resident = 0
+gvl = 3072000
+pre_admission_parser = 238080
+probe_output = 90112
+terminal_egress = 9216
+
+[adapters.report.auction_receipts]
+config = 274790400
+ingress = 323740772
+privacy = 44040992
+projection = 14890995188
+outbound = 17687552
+response = 4037678240
+
+[adapters.report.derived]
+catalog_resident_term = 0
+catalog_initialization_term = 0
+schema_validation_term = 0
+catalog_context_term = 0
+runtime_config_term = 274790400
+request_side_term = 15214735960
+call_side_term = 3943949312
+bookkeeping_term = 101711872
+debug_term = 9704608
+assembly_scratch_bytes = 25165824
+per_auction_peak = 19588933144
+per_stream_peak = 21825184
+decoder_chain_bytes = 21258240
+gvl_terms = 3072000
+egress_term = 50335744
+aux_term = 3221233664
+terminal_term = 9216
+probe_output_term = 90112
+h2_slot_peak = 238080
+h1_slot_peak = 90112
+pre_admission_parser_term = 238080
+total_bytes = 23589646360
+margin_bytes = 0
+max_outbound_raw_bytes_usize = 262144
+
+[adapters.report.derived.isolate_terms]
+baseline = 27328512
+gvl = 3072000
+auctions = 19588933144
+auction_egress = 50335744
+auxiliary = 3221233664
+terminal_egress = 9216
+probe_output = 90112
+pre_admission_parser = 238080
+body_streams = 698405888
+catalog_resident = 0
+catalog_initialization = 0
+
+[adapters.report.derived.auction_charges]
+config = 274790400
+ingress = 323740772
+privacy = 44040992
+projection = 14890995188
+outbound = 17687552
+response = 4037678240
+
+[adapters.report.derived.construction_costs]
+fixed_per_auction_bytes = 800
+reusable_scratch_bytes = 2488
+retained_per_scope_bytes = 78
+
+[adapters.report.validation]
+sdk_result = "Exceeds { available_bytes: 134217728, required_bytes: 23598034968, resource: Primary }"
+external_blockers = ["unknown_host_ingress_memory_accounting"]
+minimum_headroom_bytes = 8388608
+selected_headroom_bytes = 8388608
+effective_ceiling_bytes = 134217728
+gap_bytes = 23463817240
+configured_cap_exceeded = true
+population_covered = true
+platform_cap_exceeded = true
+profile_matches_dispatch = true
+required_fit = false
+
+[adapters.report.validation.sdk_verdict]
+status = "exceeds"
+available_bytes = 134217728
+required_bytes = 23598034968
+resource = "Primary"
+
+[adapters.auxiliary_receipts]
+config = 269686784
+body = 1212416
+query = 77824
+input_headers = 24576
+cookie = 49152
+signing = 530432
+nodes = 19259392
+privacy = 10616832
+chooser = 397312
+urls = 98304
+retained_urls = 262144
+output = 552960
+
+[[adapters.component_receipts]]
+component = "auction_config"
+bytes = 274790400
+
+[[adapters.component_receipts]]
+component = "auction_ingress"
+bytes = 323740772
+
+[[adapters.component_receipts]]
+component = "auction_privacy"
+bytes = 44040992
+
+[[adapters.component_receipts]]
+component = "auction_projection"
+bytes = 14890995188
+
+[[adapters.component_receipts]]
+component = "auction_outbound"
+bytes = 17687552
+
+[[adapters.component_receipts]]
+component = "auction_response"
+bytes = 4037678240
+
+[[adapters.component_receipts]]
+component = "runtime_config"
+bytes = 274790400
+
+[[adapters.component_receipts]]
+component = "request_side"
+bytes = 15214735960
+
+[[adapters.component_receipts]]
+component = "call_side"
+bytes = 3943949312
+
+[[adapters.component_receipts]]
+component = "bookkeeping"
+bytes = 101711872
+
+[[adapters.component_receipts]]
+component = "debug"
+bytes = 9704608
+
+[[adapters.component_receipts]]
+component = "assembly"
+bytes = 25165824
+
+[[adapters.component_receipts]]
+component = "aux_config"
+bytes = 539373568
+
+[[adapters.component_receipts]]
+component = "aux_body"
+bytes = 2424832
+
+[[adapters.component_receipts]]
+component = "aux_query"
+bytes = 155648
+
+[[adapters.component_receipts]]
+component = "aux_input_headers"
+bytes = 49152
+
+[[adapters.component_receipts]]
+component = "aux_cookie"
+bytes = 98304
+
+[[adapters.component_receipts]]
+component = "aux_signing"
+bytes = 1060864
+
+[[adapters.component_receipts]]
+component = "aux_nodes"
+bytes = 38518784
+
+[[adapters.component_receipts]]
+component = "aux_privacy"
+bytes = 21233664
+
+[[adapters.component_receipts]]
+component = "aux_chooser"
+bytes = 794624
+
+[[adapters.component_receipts]]
+component = "aux_urls"
+bytes = 196608
+
+[[adapters.component_receipts]]
+component = "aux_retained_urls"
+bytes = 524288
+
+[[adapters.component_receipts]]
+component = "aux_output"
+bytes = 1105920
+
+[[adapters.component_receipts]]
+component = "aux_declared_work"
+bytes = 1610612736
+
+[[adapters.component_receipts]]
+component = "aux_transmit"
+bytes = 8192
+
+[[adapters.component_receipts]]
+component = "aux_handoff"
+bytes = 1610612736
+
+[[adapters.component_receipts]]
+component = "aux_routes"
+bytes = 1610616832
+
+[[adapters.component_receipts]]
+component = "probe_config"
+bytes = 1610616832
+
+[[adapters.owners]]
+term_id = "baseline"
+allocation_owner = "Auctioneer target/core maintainers"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Cold initialization of defaults, registry and singleton state"
+release = "Instance or execution teardown"
+overlapping_copies = "Existing startup reserves remain additive with admitted work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "A declared baseline is not an allocator byte gate"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer target/core maintainers"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[[adapters.owners]]
+term_id = "gvl"
+allocation_owner = "Auctioneer privacy maintainer"
+source_path = "crates/auctioneer-privacy/src/gvl.rs"
+acquire = "GvlStore::get parses and caches a version; requests clone a handle"
+release = "Last cache or request handle, including requests pinning evicted versions"
+overlapping_copies = "Cache entries plus distinct auction-held and auxiliary-held versions; handles are not duplicate parsed lists"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 6
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "GVL_PARSE_CACHE_MAX_ENTRIES plus auction and auxiliary admission populations"
+source = "crates/auctioneer-privacy/src/gvl.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer privacy maintainer"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[[adapters.owners]]
+term_id = "auctions"
+allocation_owner = "Auctioneer core/exchange maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Auction admission and all six phase receipts before config extraction"
+release = "Serialization completion or cancellation drops the work receipts"
+overlapping_copies = "Config, decoded ingress, privacy projections, outbound requests and completed results can coexist"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AdmissionGate and prepaid AuctionBudget phase receipts"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/exchange maintainers"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[[adapters.owners]]
+term_id = "auction_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/handlers/auction.rs"
+acquire = "Egress reservation before response serialization"
+release = "Terminal response completion or cancellation, not work completion"
+overlapping_copies = "Serialized body, provider handoff copies and transmit state can outlive auction work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "EgressGate lease bound to terminal completion"
+source = "crates/auctioneer-core/src/handlers/auction.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[[adapters.owners]]
+term_id = "auxiliary"
+allocation_owner = "Auctioneer core auxiliary-route maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Auxiliary route admission/work reservation or independent probe-config work"
+release = "Route completion versus probe config resolution/render/publication; counters are independent"
+overlapping_copies = "Auxiliary work and max(auxiliary, probe minimum) config work coexist with output handoff"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "AuxGate, AuxWorkBudget and independent probe-config permits"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core auxiliary-route maintainer"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[[adapters.owners]]
+term_id = "terminal_egress"
+allocation_owner = "Auctioneer core/target maintainers"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Terminal/static output reservation, including detached head refusals"
+release = "Response completion or cancellation"
+overlapping_copies = "Refusal output and transmit state are independent of auction and auxiliary work"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 2
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StaticEgressGate terminal lease"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core/target maintainers"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[[adapters.owners]]
+term_id = "probe_output"
+allocation_owner = "Auctioneer core health maintainer"
+source_path = "crates/auctioneer-core/src/ingress.rs"
+acquire = "Independent probe-output reservation, including preboot responses"
+release = "Output completion; the cached verdict remains resident independently"
+overlapping_copies = "Live probe output population plus one cached verdict, not probe-config work count"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 5
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "Probe egress permits and bounded cached response"
+source = "crates/auctioneer-core/src/ingress.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer core health maintainer"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[[adapters.owners]]
+term_id = "pre_admission_parser"
+allocation_owner = "EdgeZero adapter maintainer/provider"
+source_path = "crates/auctioneer-runtime/src/budget.rs"
+acquire = "Host/framing/head parsing before Auctioneer route admission"
+release = "Host/parser cleanup, including rejected and cancelled input"
+overlapping_copies = "No Auctioneer admission counter bounds the pre-admission population; outbound connections are not inbound requests"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-runtime/src/budget.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Host ingress/framing accounting is unpublished at the pinned SDK"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[[adapters.owners]]
+term_id = "body_streams"
+allocation_owner = "Auctioneer outbound/target maintainers"
+source_path = "crates/auctioneer-core/src/outbound/wave.rs"
+acquire = "Global wave stream lease before dispatch and decode"
+release = "Wave settlement, EOF or cancellation"
+overlapping_copies = "Completed response slots survive stream release across waves and remain in auction response funding"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 32
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "known"
+value = "StreamGate wave leases and bounded decoder chain"
+source = "crates/auctioneer-core/src/outbound/wave.rs"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer outbound/target maintainers"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[[adapters.owners]]
+term_id = "catalog_resident"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental generated catalog/validator residency at initialization"
+release = "Instance or execution teardown"
+overlapping_copies = "Zero incremental descriptor does not remove existing registry residency funded by baseline"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "Catalog descriptor is an allocation bound, not an independent allocator gate"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[[adapters.owners]]
+term_id = "catalog_initialization"
+allocation_owner = "Auctioneer catalog maintainer"
+source_path = "crates/auctioneer-core/src/bidder_registry.rs"
+acquire = "Incremental catalog initialization scratch, including validation failure"
+release = "Initialization completion or error cleanup"
+overlapping_copies = "Initialization remains an additive term even when no auction is currently executing"
+disposition = "unchanged"
+
+[adapters.owners.population]
+status = "known"
+value = 1
+source = "crates/auctioneer-core/src/bidder_registry.rs"
+
+[adapters.owners.scope]
+status = "known"
+value = "PerExecution"
+source = "Selected SDK platform metadata; dispatch alignment remains a separate blocker"
+
+[adapters.owners.enforcement]
+status = "pending"
+reason = "No incremental scratch is claimed by the current zero descriptor"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.owners.abi_bound]
+status = "pending"
+reason = "No artifact-bound physical allocation upper bound is supplied by this source audit"
+owner = "Auctioneer catalog maintainer"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer target/core maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cold and warm target residency, with initialization and failure paths identified separately"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "baseline"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer privacy maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove target parsed-list bounds and eviction with multiple distinct request-pinned versions"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "gvl"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auctions"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise a slow terminal handoff and cancellation while new auctions are admitted"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auction_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "auxiliary"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Exercise preboot and saturated-class refusal output through actual target handoff"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "terminal_egress"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core health maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure cached verdict plus live preboot/boot probe bodies at concurrent terminal completion"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "probe_output"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "EdgeZero adapter maintainer/provider"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Publish and negatively test provider ingress population, framing, parser and host-storage bounds at the memory scope"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "pre_admission_parser"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer outbound/target maintainers"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Drive multiple waves with retained completed results, decoder windows and cancellation on the guest ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "body_streams"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure real generated descriptors against the matched pre-catalog baseline without installation in the pure profile test"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_resident"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer catalog maintainer"
+rationale = "Retain the complete charged term; source inspection alone authorizes no smaller coefficient or population"
+next_action = "Measure successful and failing catalog initialization separately from retained descriptors on the target ABI"
+
+[adapters.decisions.subject]
+kind = "term"
+term_id = "catalog_initialization"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_projection"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "auction_response"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "request_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core/exchange maintainers"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Bound each phase on the target ABI at two sizes and unequal populations, including late failure and cancellation"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "call_side"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_declared_work"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_handoff"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "aux_routes"
+
+[[adapters.decisions]]
+class = "unchanged"
+owner = "Auctioneer core auxiliary-route maintainer"
+rationale = "This scaled component exceeds 5% of total demand; keep it funded until its owning bound is independently replaced"
+next_action = "Prove preboot/App-retained config defaults first, then cookie, signing, privacy, chooser, output and host-copy overlap on every auxiliary route"
+
+[adapters.decisions.subject]
+kind = "component"
+component = "probe_config"
+
+[adapters.artifact]
+status = "pending"
+reason = "This capture inspects source declarations, not a deployed or guest artifact"
+owner = "Auctioneer target maintainer"
+next_action = "Build the selected target and record the artifact digest, ABI, compiler and covered paths"
+
+[adapters.abi]
+status = "pending"
+reason = "Native layout substitutions do not prove target heap, host copies or separate stack"
+owner = "Auctioneer target maintainer"
+next_action = "Execute an artifact-bound guest/host ownership measurement and prove each funded upper bound"
+
+[[adapters.pending_facts]]
+fact = "unknown_host_ingress_memory_accounting"
+reason = "The current source report remains blocked by unknown_host_ingress_memory_accounting"
+owner = "EdgeZero adapter maintainer/provider"
+next_action = "Publish and test host ingress/framing allocation ownership and bounds including cancelled and refused requests"
+
+[adapters.gap_bytes]
+status = "known"
+value = 23463817240
+source = "Runtime additive total plus selected headroom against the effective ceiling"

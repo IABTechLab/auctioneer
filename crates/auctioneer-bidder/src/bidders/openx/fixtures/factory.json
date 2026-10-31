@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "implementation": "openx",
+  "manifest_sha256": "2b6ef83a4952220deb88bd6e8f7536bdcfa07181f8845f0b850f6777f912b62d",
+  "cases": [
+    {
+      "name": "grouped_banner_native_and_rewarded_video",
+      "request": {
+        "id": "fake_request",
+        "imp": [
+          {
+            "id": "fake_banner",
+            "banner": {"format": [{"w": 300, "h": 250}]},
+            "ext": {
+              "bidder": {"unit": "123", "delDomain": "foo.bar"},
+              "fake_keep": {"number": 7}
+            }
+          },
+          {
+            "id": "fake_native",
+            "native": {"request": "fake_native_payload", "ver": "1.2"},
+            "ext": {"bidder": {"unit": "456", "delDomain": "foo.bar"}}
+          },
+          {
+            "id": "fake_video",
+            "video": {
+              "mimes": ["video/mp4"], "w": 640, "h": 360,
+              "ext": {"fake_remove": true}
+            },
+            "rwdd": 1,
+            "ext": {"bidder": {"unit": "789", "platform": "123e4567-e89b-12d3-a456-426614174000"}}
+          }
+        ],
+        "ext": {"fake_remove": true},
+        "fake_keep": {"number": 9}
+      },
+      "context": {
+        "account_id": "fake_account",
+        "endpoint_template": "https://bidder.example.test/prebid",
+        "endpoint_macros": [],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/prebid",
+          "required_headers": [
+            ["Content-Type", "application/json;charset=utf-8"],
+            ["Accept", "application/json"]
+          ],
+          "absent_headers": ["Host", "Content-Length", "Authorization", "User-Agent"],
+          "imp_ids": ["fake_banner", "fake_native"],
+          "body": {
+            "id": "fake_request",
+            "imp": [
+              {
+                "id": "fake_banner",
+                "banner": {"format": [{"w": 300, "h": 250}]},
+                "tagid": "123",
+                "ext": {"fake_keep": {"number": 7}}
+              },
+              {
+                "id": "fake_native",
+                "native": {"request": "fake_native_payload", "ver": "1.2"},
+                "tagid": "456"
+              }
+            ],
+            "ext": {"bc": "hb_pbs_1.0.0", "delDomain": "foo.bar"},
+            "fake_keep": {"number": 9}
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/prebid",
+          "required_headers": [
+            ["Content-Type", "application/json;charset=utf-8"],
+            ["Accept", "application/json"]
+          ],
+          "absent_headers": ["Host", "Content-Length", "Authorization", "User-Agent"],
+          "imp_ids": ["fake_video"],
+          "body": {
+            "id": "fake_request",
+            "imp": [
+              {
+                "id": "fake_video",
+                "video": {
+                  "mimes": ["video/mp4"], "w": 640, "h": 360,
+                  "ext": {"rewarded": 1}
+                },
+                "rwdd": 1,
+                "tagid": "789"
+              }
+            ],
+            "ext": {"bc": "hb_pbs_1.0.0", "platform": "123e4567-e89b-12d3-a456-426614174000"},
+            "fake_keep": {"number": 9}
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "banner_missing_mtype_uses_recorded_fallback",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "fake_response",
+            "seatbid": [{"bid": [{"id": "fake_bid", "impid": "fake_banner", "price": 1.25}]}]
+          },
+          "expected": {
+            "kind": "ok", "currency": "USD", "errors": [],
+            "bids": [{"id": "fake_bid", "impid": "fake_banner", "media_type": "banner"}]
+          }
+        },
+        {
+          "name": "native_explicit_mtype",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "fake_response", "cur": "USD",
+            "seatbid": [{"bid": [{"id": "fake_bid", "impid": "fake_native", "price": 1.25, "mtype": 4}]}]
+          },
+          "expected": {
+            "kind": "ok", "currency": "USD", "errors": [],
+            "bids": [{"id": "fake_bid", "impid": "fake_native", "media_type": "native"}]
+          }
+        },
+        {
+          "name": "explicit_standard_video_type",
+          "call": 1,
+          "status": 200,
+          "body": {
+            "id": "fake_response", "cur": "USD",
+            "seatbid": [{"bid": [{"id": "fake_bid", "impid": "fake_video", "price": 1.25, "mtype": 2}]}]
+          },
+          "expected": {
+            "kind": "ok", "currency": "USD", "errors": [],
+            "bids": [{"id": "fake_bid", "impid": "fake_video", "media_type": "video"}]
+          }
+        },
+        {
+          "name": "unsupported_audio_code_is_not_video_fallback",
+          "call": 1,
+          "status": 200,
+          "body": {
+            "id": "fake_response", "cur": "USD",
+            "seatbid": [{"bid": [{"id": "fake_bid", "impid": "fake_video", "price": 1.25, "mtype": 3}]}]
+          },
+          "expected": {"kind": "error", "errors": [4]}
+        },
+        {
+          "name": "valid_sent_config_only_is_currency_independent",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "fake_response", "cur": "EUR",
+            "ext": {"fledge_auction_configs": {"fake_banner": {"seller": "fake_seller"}}}
+          },
+          "expected": {
+            "kind": "ok", "currency": "EUR", "errors": [], "bids": [],
+            "auction_configs": [{"impid": "fake_banner", "config": {"seller": "fake_seller"}}]
+          }
+        },
+        {
+          "name": "all_bad_bids_preserve_valid_optional_config",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "fake_response",
+            "seatbid": [{"bid": [{"id": "fake_bad", "impid": "fake_banner", "price": 1.25, "mtype": 2}]}],
+            "ext": {"fledge_auction_configs": {"fake_banner": {"fake_keep": true}}}
+          },
+          "expected": {
+            "kind": "ok", "currency": "USD", "errors": [4], "bids": [],
+            "auction_configs": [{"impid": "fake_banner", "config": {"fake_keep": true}}]
+          }
+        },
+        {
+          "name": "unsent_adapter_config_key_is_preserved_not_authorized",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "fake_response",
+            "ext": {"fledge_auction_configs": {"fake_request": {"fake_keep": true}}}
+          },
+          "expected": {
+            "kind": "ok", "currency": "USD", "errors": [], "bids": [],
+            "auction_configs": [{"impid": "fake_request", "config": {"fake_keep": true}}]
+          }
+        },
+        {
+          "name": "no_content_skips_body",
+          "call": 1,
+          "status": 204,
+          "body": false,
+          "expected": {"kind": "ok", "currency": "USD", "errors": [], "bids": []}
+        },
+        {
+          "name": "bad_request",
+          "call": 0,
+          "status": 400,
+          "body": {},
+          "expected": {"kind": "error", "errors": [2]}
+        },
+        {
+          "name": "bad_server_response",
+          "call": 0,
+          "status": 500,
+          "body": {},
+          "expected": {"kind": "error", "errors": [4]}
+        }
+      ]
+    }
+  ]
+}

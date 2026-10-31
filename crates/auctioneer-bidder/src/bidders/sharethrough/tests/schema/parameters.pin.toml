@@ -1,0 +1,14 @@
+schema = "sharethrough"
+path = "adapters/sharethrough/params_test.go"
+blob = "03c60cec38bcba527a20c387d9e1d850bfc8d160"
+sha256 = "cc8def6b40eb989680584a8f08c35b8c4f1d0835b2b639b04311a3bedbdbd43f"
+bytes = 1588
+valid_cases = 7
+invalid_cases = 14
+valid_span = {start = 925, end = 1229}
+invalid_span = {start = 1261, end = 1586}
+verdict_counts = [7, 13, 1]
+previous = true
+original = false
+duplicates = []
+lexical = []

@@ -1,0 +1,38 @@
+authors = [""]
+description = ""
+language = "rust"
+manifest_version = 3
+name = "auctioneer-adapter-fastly"
+service_id = ""
+
+[local_server]
+
+[local_server.config_stores]
+
+[local_server.config_stores.auctioneer_runtime]
+format = "inline-toml"
+
+[local_server.config_stores.auctioneer_runtime.contents]
+auctioneer_runtime = '{"data":{"accounts":{},"aliases":null,"auction":{"default_tmax_ms":null,"max_bidder_response_bytes":null,"max_bidders_per_auction":null,"max_decoded_bytes":null,"max_outbound_raw_bytes":null,"max_outbound_request_bytes":null,"max_outbound_requests":null,"max_parsed_nodes":null,"max_tmax_ms":null,"max_transport_bytes":null},"bidders":{},"features":{"gzip_outbound":null,"returnallbidstatus_default":null},"gdpr":null,"status":{"banner":null},"targeting":{"prefix":null,"truncate_target_attribute":null}},"generated_at":"2026-10-07T04:35:15Z","sha256":"37c0072bfbc2fc66625579242a043d5a5704885e2dd9ffe431817b63995bffa6","version":1}'
+
+# Health remains closed unless a local development token is supplied.
+allow_unauthenticated_health = "false"
+
+[local_server.secret_stores]
+
+[[local_server.secret_stores.default]]
+key = "health_gvl_token"
+# Viceroy uses an empty value when this host environment variable is unset.
+# Supply a development-only token when running `fastly compute serve`.
+env = "AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN"
+
+[[local_server.secret_stores.default]]
+key = "usersync_cookie_keyring"
+# Local Viceroy provisioning only: this example host env name is not a
+# runtime config knob or a production secret lookup name. Unset means empty.
+# Production uses the usersync_cookie_keyring item in the linked default store.
+env = "AUCTIONEER__USERSYNC__COOKIE_KEYRING"
+# Provisioning and rotation: docs/deployment/usersync-cookie-keys.md.
+
+[scripts]
+  build = "cargo build --profile release --target wasm32-wasip1"

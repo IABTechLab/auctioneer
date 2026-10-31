@@ -1,0 +1,39 @@
+[package]
+name = "auctioneer-runtime"
+description = "Runtime primitives (Clock, Rng, Timer) shared across auctioneer crates."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+# `Timer` is an object-safe async trait; native `async fn in trait` is
+# not object-safe, so the seam is `#[async_trait(?Send)]`.
+async-trait = { workspace = true }
+base64 = { workspace = true }
+# `PermitBody` is a `Stream` adapter: the permit it carries releases at
+# stream EOF, so the type has to speak the same `Stream` trait the host
+# body type does.
+futures = { workspace = true }
+http = { workspace = true }
+# `bounded_json` wraps a `serde::de::Deserializer` to charge syntactic
+# nodes against a budget while `serde_json` parses.
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+web-time = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+# The `bounded_json` boundary tests derive `Deserialize` targets.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# The route-table parity test parses the workspace `edgezero.toml`.
+toml = { workspace = true }

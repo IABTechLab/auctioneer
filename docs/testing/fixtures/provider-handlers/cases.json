@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "kind": "hosted_handler_case_template",
+  "live_execution": "unexecuted",
+  "cases": [
+    {
+      "id": 1,
+      "kind": "banner",
+      "fixture": "bid",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 2,
+      "kind": "bidder_failure",
+      "fixture": "failure",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 3,
+      "kind": "bidder_timeout",
+      "fixture": "stall",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 4,
+      "kind": "malformed_request",
+      "fixture": "bid",
+      "dispatches": 0,
+      "status": 400,
+      "observation": "pending"
+    },
+    {
+      "id": 5,
+      "kind": "malformed_config",
+      "fixture": "bid",
+      "dispatches": 0,
+      "status": 500,
+      "observation": "pending"
+    },
+    {
+      "id": 6,
+      "kind": "digest_mismatch",
+      "fixture": "bid",
+      "dispatches": 0,
+      "status": 500,
+      "observation": "pending"
+    },
+    {
+      "id": 7,
+      "kind": "debug_denied",
+      "fixture": "canary",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 8,
+      "kind": "debug_redacted",
+      "fixture": "canary",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 9,
+      "kind": "input_cap",
+      "fixture": "bid",
+      "dispatches": 0,
+      "status": 400,
+      "observation": "pending"
+    },
+    {
+      "id": 10,
+      "kind": "output_cap",
+      "fixture": "bid",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 11,
+      "kind": "headers",
+      "fixture": "bid",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 12,
+      "kind": "cancellation",
+      "fixture": "stall",
+      "dispatches": 1,
+      "status": null,
+      "observation": "pending"
+    },
+    {
+      "id": 13,
+      "kind": "completion",
+      "fixture": "bid",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    },
+    {
+      "id": 14,
+      "kind": "config_replacement",
+      "fixture": "bid",
+      "dispatches": 1,
+      "status": 200,
+      "observation": "pending"
+    }
+  ]
+}

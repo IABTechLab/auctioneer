@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["route"],
+  "properties": {
+    "route": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

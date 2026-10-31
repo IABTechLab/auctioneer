@@ -1,0 +1,14 @@
+schema = "criteo"
+path = "adapters/criteo/params_test.go"
+blob = "98f5f77f384cd88d6cb86e48c9f4254c1580c1d2"
+sha256 = "d6c601edb51e3d6694bbb014febead5b6dff846a347cbd24998a680bfff90a2f"
+bytes = 2502
+valid_cases = 16
+invalid_cases = 19
+valid_span = {start = 1355, end = 2026}
+invalid_span = {start = 2058, end = 2500}
+verdict_counts = [16, 18, 1]
+previous = true
+original = false
+duplicates = []
+lexical = []

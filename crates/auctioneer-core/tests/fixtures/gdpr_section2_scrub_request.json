@@ -1,0 +1,46 @@
+{
+  "id": "auc-gdpr-section2-scrub",
+  "tmax": 1000,
+  "cur": ["USD"],
+  "site": {
+    "page": "https://publisher.example/story",
+    "publisher": { "id": "acct-1" }
+  },
+  "device": {
+    "ua": "Mozilla/5.0",
+    "ip": "93.184.216.34",
+    "ipv6": "2606:2800:220:abcd:1234:5678:9abc:def0",
+    "ifa": "8f2d1c6e-0000-4a1b-9c3d-5e7f9a1b2c3d",
+    "geo": { "country": "DEU", "lat": 52.526789, "lon": 13.412345 },
+    "dpidsha1": "dpid-sha1-value",
+    "dpidmd5": "dpid-md5-value",
+    "didsha1": "did-sha1-value",
+    "didmd5": "did-md5-value",
+    "macsha1": "mac-sha1-value",
+    "macmd5": "mac-md5-value"
+  },
+  "user": {
+    "id": "user-abc",
+    "buyeruid": "buyer-xyz",
+    "yob": 1985,
+    "gender": "M",
+    "consent": "CP5TLYAP5TLYAEsACBENCuFgAPAAAEAAAAYgAQAAAAAEAIAAAAACAAA.IAAo",
+    "eids": [
+      { "source": "id5-sync.com", "uids": [{ "id": "ID5-native-1" }] }
+    ],
+    "geo": { "lat": -33.868821, "lon": 151.209295 },
+    "ext": {
+      "eids": [
+        { "source": "adserver.org", "uids": [{ "id": "TDID-legacy-1" }] }
+      ]
+    }
+  },
+  "regs": { "gpp_sid": [2] },
+  "imp": [
+    {
+      "id": "imp-1",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_bidder": {} } } }
+    }
+  ]
+}

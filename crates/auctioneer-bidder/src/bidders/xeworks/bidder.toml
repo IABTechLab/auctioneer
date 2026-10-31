@@ -1,0 +1,113 @@
+key = "xeworks"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/xeworks"
+tree = "818e2ea4b550b36379563c4b0595232abbdfe0ab"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adipolo.yaml"
+source_blob = "0cf1ac3430d4ed9d2d5ae3fe74422783cf5ca009"
+source_bytes = 562
+source_sha256 = "26eca78f384c4963191dd6419d472a40ea226226c680e28958c4387b107fc345"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://rtb.adipolo.live?pid={{.SourceId}}&host={{.Host}}&pbs=1"
+selected_url = "https://rtb.adipolo.live?pid={{.SourceId}}&host={{.Host}}&pbs=1"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/connektai.yaml"
+source_blob = "c623e54ef085dbf30c54afe0790cc124b5b7a9f9"
+source_bytes = 351
+source_sha256 = "254de07c23ddbb6687de8955e6695c5a67877cb5a931184a05f540f92f33475b"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://rtb.connektai.live/?pid={{.SourceId}}&host={{.Host}}&s=pbs"
+selected_url = "https://rtb.connektai.live/?pid={{.SourceId}}&host={{.Host}}&s=pbs"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/robustApps.yaml"
+source_blob = "fc0aeada8670f7a6e662b748611c3e7eca0f31c2"
+source_bytes = 368
+source_sha256 = "6f37a1b612ba35eb787cdc5391668d624c1b098fe2a1581a46a623a93f1d76bf"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://rtb.rbstsystems.live?pid={{.SourceId}}&host={{.Host}}&pbs=1"
+selected_url = "https://rtb.rbstsystems.live?pid={{.SourceId}}&host={{.Host}}&pbs=1"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/xeworks.yaml"
+source_blob = "ba3420896aeec39365efefc8a108ad97c5865e1a"
+source_bytes = 471
+source_sha256 = "8a9d34a993de13696a26b0203cdf90d9227796e2468a52dbe4f3f77202533633"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://prebid-srv.xe.works/?pid={{.SourceId}}&host={{.Host}}"
+selected_url = "https://prebid-srv.xe.works/?pid={{.SourceId}}&host={{.Host}}"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/xeworks.json"
+source_blob = "48ab4ab2a52fd94fdcbcd6e1b69dd7b6be28eef0"
+source_bytes = 483
+source_sha256 = "1a684815dfe3b9230bdef4d6877b55ac8b4d6dfbff5ca485f0e769025eae45df"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 483
+source_sha256 = "1a684815dfe3b9230bdef4d6877b55ac8b4d6dfbff5ca485f0e769025eae45df"

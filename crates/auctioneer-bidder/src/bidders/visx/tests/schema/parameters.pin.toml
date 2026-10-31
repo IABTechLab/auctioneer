@@ -1,0 +1,14 @@
+schema = "visx"
+path = "adapters/visx/params_test.go"
+blob = "de8925866e786afc6bf8153e11d994cf9096c428"
+sha256 = "883ad7bd04b83931ab01b2b8465c483b3ad93f33dd2d6719f4b5cf58e844e593"
+bytes = 1330
+valid_cases = 4
+invalid_cases = 14
+valid_span = {start = 965, end = 1080}
+invalid_span = {start = 1112, end = 1328}
+verdict_counts = [4, 12, 2]
+previous = false
+original = false
+duplicates = []
+lexical = [[1, "nil", "syntax"], [2, "", "eof"]]

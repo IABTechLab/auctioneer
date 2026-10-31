@@ -1,0 +1,184 @@
+# Enforced by test.yml with both the gate and its negative fixtures.
+# Re-run `scripts/check-raw-json-fixtures.sh` after adding, moving or
+# renaming tests so the counts below stay exact.
+#
+# Files allowed to hold raw-string JSON fixtures, and HOW MANY each may
+# hold. Read by `scripts/check-raw-json-fixtures.sh`.
+#
+# Format: `<path> <count>`. A file absent from this list may hold none.
+# The count, not just the path, is the budget: a new raw fixture added
+# to an already-listed file still fails the gate. That is the point —
+# an allowlist of paths alone would let the next raw fixture in through
+# the door the exemptions opened.
+#
+# Every site counted here carries a comment at its own site naming which
+# exemption applies. The categories, from the `serde_json::json!` sweep:
+#
+#   1. Deliberately malformed input, which `json!` cannot express.
+#   2. Byte-string and `&'static str` constants: `json!` yields a
+#      `Value`, which no `const` can hold.
+#   3. Fixtures whose exact text is the measurement — a byte count, a
+#      node count, a serialized-form comparison, or a parse whose
+#      source ordering is the claim. These are the dangerous ones:
+#      converting one leaves the guard green while it measures
+#      something else.
+#   4. `format!` templates splicing JSON TEXT rather than `Value`s,
+#      often with callers that rewrite the rendered output by its
+#      literal spelling.
+#
+# Plus one reason the sweep found that the issue did not list:
+#
+#   5. `auctioneer-privacy` has no `serde_json` dependency on purpose — the
+#      GVL/GCL parse path is delegated to `auctioneer-gvl-schema` as the one
+#      parse path, and its Cargo.toml says so. Converting its fixtures
+#      would add that dependency back for a formatting change.
+#
+# To RAISE a count, the new site needs its own exemption comment and the
+# reason belongs in the commit message. To LOWER one, convert the
+# fixture and drop the number — that direction never needs review.
+
+# Deliberately malformed input, `const &[u8]`, and node-count probes
+# whose charge is hand-counted against the literal bytes. See the
+# module-level note in the file. M4 also probes duplicate object keys
+# and an opaque numeric token outside Value's floating-point range;
+# json! cannot represent either wire shape faithfully. Three proprietary-source
+# probes additionally require duplicate unknown keys, an escaped recognized key,
+# and competing recognized spellings; Value would erase these distinctions.
+crates/auctioneer-runtime/src/bounded_json.rs 26
+
+# Projector syntax-precedence failures (3), original out-of-range numeric
+# tokens (4), escaped key/currency spellings (1), and a price-token template
+# preserving negative underflow and signed zero (1) cannot use json!.
+crates/auctioneer-bidder/src/debug_projection.rs 9
+
+# Memory-charge and parse-factor guards. The body's own `len()` is the
+# denominator of every ratio, and the observed bytes-per-bid figures are
+# derived from the result.
+crates/auctioneer-exchange/tests/response_factors.rs 11
+# Manifest templates splicing JSON-text fragments, with callers that
+# `replacen` on the rendered spelling; plus a raw-byte-cap row.
+crates/auctioneer-gvl-schema/tests/schema.rs 5
+
+# Wire bodies (`&[u8]` / `Vec<u8>`) and `const` request fixtures. Three
+# read the fixture's own `len()` for a Content-Length or a gzip size.
+crates/auctioneer-adapter-axum/tests/cancellation.rs 3
+crates/auctioneer-adapter-axum/tests/wave_transport.rs 2
+crates/auctioneer-core/src/conformance/mod.rs 2
+crates/auctioneer-core/src/host_primitives/fanout.rs 1
+crates/auctioneer-core/src/outbound/wave.rs 4
+crates/auctioneer-core/tests/admission_holds_through_auction.rs 2
+crates/auctioneer-core/tests/axum_production_strategy.rs 1
+crates/auctioneer-core/tests/bounded_path_in_the_real_handler.rs 2
+crates/auctioneer-core/tests/clock_domain.rs 1
+crates/auctioneer-core/tests/edgezero_fanout.rs 1
+crates/auctioneer-core/tests/handler_resolution.rs 1
+crates/auctioneer-core/tests/auction_reuse.rs 2
+crates/auctioneer-core/tests/response_account_resolution.rs 1
+crates/auctioneer-core/tests/response_oversize_response.rs 1
+crates/auctioneer-core/tests/write_budget_anchors.rs 1
+crates/auctioneer-exchange/tests/config_overlay.rs 3
+crates/auctioneer-exchange/tests/determinism.rs 1
+crates/auctioneer-exchange/tests/privacy_enforcement.rs 1
+crates/auctioneer-exchange/tests/run_auction/main.rs 1
+crates/auctioneer-exchange/tests/targeting_prefix/main.rs 1
+
+# A probe whose claim is that PARSING this source key order yields
+# sorted keys, which is what proves the map is BTreeMap-backed.
+# `json!` would construct the map directly and observe nothing.
+crates/auctioneer-exchange/tests/node_charge.rs 1
+
+# Compact exponent spellings are the ingress byte measurement. Constructing
+# these numeric tokens with json! would canonicalize away the growth witness.
+crates/auctioneer-core/tests/normalized_numeric_source.rs 1
+
+# Snapshots compared with `assert_eq!` against `to_string`: the exact
+# serialized bytes are the contract this file exists to pin.
+crates/auctioneer-config/tests/baked_defaults_snapshot.rs 2
+
+# `auctioneer-privacy` carries no `serde_json` dependency (reason 5 above).
+crates/auctioneer-privacy/src/gvl.rs 1
+crates/auctioneer-privacy/src/purposes.rs 1
+crates/auctioneer-privacy/src/resolve.rs 1
+crates/auctioneer-privacy/src/testkit.rs 1
+
+# 2. Byte-string constants (continued). Each of these is a `br#"..."#`
+# wire body fed to an API that takes `&[u8]` — `.to_vec()` into a
+# response fixture, or `write_all` into the sink. `json!` yields a
+# `Value`, so converting means `.to_string().into_bytes()` at every call
+# site for no gain. The two `sink.rs` sites are also category 3: the
+# assertion compares the accepted body against the exact bytes written.
+crates/auctioneer-bidder/src/sink.rs 2
+
+# 4. `format!` templates that SPLICE JSON text, and deliberately
+# hostile structure. These build a nested chain of configurable depth
+# and a configurable bid count to drive the node budget past its limit;
+# `json!` cannot express a chain whose depth is a variable, and the
+# over-limit cases are not valid input by design.
+crates/auctioneer-bidder/tests/response_node_budget.rs 4
+crates/auctioneer-exchange/tests/bidder_response_node_budget.rs 1
+
+# Deliberately incomplete JSON verifies syntax-failure receipt consumption.
+# All valid and typed-invalid response-envelope fixtures use json! serialization.
+crates/auctioneer-bidder/tests/response_envelopes.rs 1
+
+# M5 transport configuration envelopes are const &str fixtures with pinned
+# digests. The surrounding store document and ordinary requests use json!.
+crates/auctioneer-adapter-axum/tests/usersync_transport.rs 2
+
+# Opaque 1e400 tokens in deferred GDPR/filter fields (2), and duplicate keys
+# inside RawValue fields whose discarded nested values must be counted (1).
+crates/auctioneer-core/src/usersync/wire.rs 3
+
+# Duplicate family keys: the replaced entry's unknown values must still
+# consume the decoder's node budget; json! would collapse them first.
+# Duplicate and case-aliased cookie fields, null update ordering, and exact
+# syntactic-node witnesses cannot be represented by a Value map.
+crates/auctioneer-core/src/usersync/cookie.rs 27
+crates/auctioneer-core/tests/usersync_cookie.rs 3
+
+# Exact response bytes pin field order, unescaped HTML characters and newline.
+crates/auctioneer-core/src/handlers/sync_http.rs 1
+
+# JSON escape decoding needs the original wire spelling; shared synthetic
+# secret input is const &str, which json! cannot construct.
+# Three additional duplicate-key rejection inputs cannot use json!:
+# it would erase the duplicate fields before the keyring parser sees them.
+crates/auctioneer-core/src/usersync/signed.rs 4
+crates/auctioneer-core/src/test_support/usersync_keys.rs 1
+
+# Account discovery: out-of-range 1e400 tokens (7), two of which also pin
+# duplicate/escaped publisher keys, plus an incomplete root object (1).
+crates/auctioneer-core/src/config/resolve.rs 8
+
+# Exact opaque 1e400 token must survive generated-App identity discovery.
+crates/auctioneer-core/tests/auction_config_lifecycle.rs 1
+
+# Incomplete imp arrays (2) and the exact opaque 1e400 numeric token (1).
+# Ordinary valid request bodies use json! followed by serde_json serialization.
+crates/auctioneer-core/tests/config_error_precedence.rs 3
+
+# Duplicate private-protocol readiness keys must reach serde unchanged.
+crates/auctioneer-cli/src/qualification/harness/fixture/client.rs 1
+# Duplicate Cargo target-directory and package-version keys cannot use json!.
+crates/auctioneer-cli/src/qualification/harness/native/system.rs 2
+
+# Duplicate object keys, including equivalent escaped/Unicode spellings, must
+# reach the file reader unchanged; json! would collapse them before the guard.
+# The gate counts 12 object-leading source lines here. The thirteenth br# literal
+# starts with an array, so it is intentionally outside this object-fixture rule.
+crates/auctioneer-cli/src/native_control/io.rs 12
+
+# Duplicate and escaped-equivalent currency keys require original wire spelling.
+crates/auctioneer-config/src/currency.rs 2
+crates/auctioneer-core/src/config/floor_currency.rs 2
+
+# Credential duplicate/escaped keys, malformed structure and UTF-8 are lexical
+# controls. Ordinary credential and boundary documents are built with json!.
+crates/auctioneer-runtime/src/bidder_credentials.rs 7
+
+# Decoder error-scope probes require extension/standard failures in both orders,
+# nested unread tails, or ext last so structural exhaustion occurs inside it.
+# json! sorts object keys and cannot preserve these error-order controls.
+crates/auctioneer-bidder/src/response_decode/session.rs 6
+# Owner DTO validation must precede candidate removal in both field orders.
+crates/auctioneer-bidder/src/bidders/msft/response.rs 2

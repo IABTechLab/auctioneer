@@ -1,0 +1,17 @@
+schema_version = 1
+schema = "unruly"
+schema_sha256 = "d7d7f468b70819c5e2454bb35e6a7dd845d4a172c43daea5a739286c3b880c2e"
+origin = "authored_schema_derived"
+rows = [
+  { id = "snake_only", schema = "unruly", valid = true, input_json = '{"siteid":1}' },
+  { id = "camel_only", schema = "unruly", valid = true, input_json = '{"siteId":1}' },
+  { id = "both", schema = "unruly", valid = false, input_json = '{"siteid":1,"siteId":1}' },
+  { id = "neither", schema = "unruly", valid = false, input_json = '{}' },
+  { id = "fractional_id", schema = "unruly", valid = false, input_json = '{"siteid":1.5}' },
+  { id = "string_id", schema = "unruly", valid = false, input_json = '{"siteid":"1"}' },
+]
+[expected]
+authored = 6
+imported = 0
+accepts = 2
+rejects = 4

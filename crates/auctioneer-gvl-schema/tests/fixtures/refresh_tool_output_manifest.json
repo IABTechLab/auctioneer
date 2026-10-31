@@ -1,0 +1,203 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-08-29T00:41:33.391569Z",
+  "retention": {
+    "max_age_days": 180
+  },
+  "oversize_bundle_ack": false,
+  "gcl": {
+    "path": "gcl.json",
+    "sha256": "34bc84e2bae67da526c1a9e59a03c8ad0dad29b93fc82e90736f71fa99c78f31",
+    "last_updated": "2026-08-27T16:00:21Z",
+    "fetched_at": "2026-08-29T00:40:56.733493Z",
+    "cache_max_age_secs": 487217
+  },
+  "entries": [
+    {
+      "spec": 2,
+      "vendor_list_version": 224,
+      "tcf_policy_version": 2,
+      "last_updated": "2023-11-16T16:05:29Z",
+      "path": "spec2/vendor-list-v224.json",
+      "sha256": "9b401967207a7bb02ae5e39bf84929ae1d537cb0e35b08149b3b698a72870177"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 174,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-08-27T16:00:19Z",
+      "path": "spec3/vendor-list-v174.json",
+      "sha256": "ca31544854446a3a1e17880a12b8b1e101103d1545ff17711e01c6a3f8578c90",
+      "fetched_at": "2026-08-29T00:40:56.49367Z",
+      "cache_max_age_secs": 487199
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 173,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-08-20T16:00:18Z",
+      "path": "spec3/vendor-list-v173.json",
+      "sha256": "4946e7a3184cc7dfed197bf272659edfba29450da7e007e14e66bab433fbfd7c"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 172,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-08-13T16:00:19Z",
+      "path": "spec3/vendor-list-v172.json",
+      "sha256": "eddc111be228ef5ea8eb20309dd2a28c06f50e7ea8b712851cd2e731700dbe20"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 171,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-08-06T16:00:19Z",
+      "path": "spec3/vendor-list-v171.json",
+      "sha256": "90d7c64650c4f57abd8c2400a5b4f9de87e167aceb4122d8fbb9b2a1c5437527"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 170,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-07-30T16:00:18Z",
+      "path": "spec3/vendor-list-v170.json",
+      "sha256": "6ca572efc94aa98721f1b376dbc50524528f8d44a1b2111a35fc85deb47ed853"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 169,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-07-23T16:00:22Z",
+      "path": "spec3/vendor-list-v169.json",
+      "sha256": "426928c7145179c3efd539bf204a81b2db6398ac95207bead0422a84f4935222"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 168,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-07-16T16:00:18Z",
+      "path": "spec3/vendor-list-v168.json",
+      "sha256": "10aaeebbf99f0cf405b3b536196ccb679ef1e8cf7d812d7ee5f9d6ced87c699b"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 167,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-07-09T16:00:18Z",
+      "path": "spec3/vendor-list-v167.json",
+      "sha256": "0fc5da2a15393441bcf7785c5bdddf659ee1478a59dd242d5ab8601824d87d6e"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 166,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-07-02T16:00:18Z",
+      "path": "spec3/vendor-list-v166.json",
+      "sha256": "c950f41f5f35fcf42592df4edca4079f6462b14e82d7dc48addf2b05d58fe566"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 165,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-06-25T16:00:18Z",
+      "path": "spec3/vendor-list-v165.json",
+      "sha256": "06ddb5d70f59e9f53f545181aec833f344042c75bfffd8433255e31493ff60b2"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 164,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-06-18T16:00:19Z",
+      "path": "spec3/vendor-list-v164.json",
+      "sha256": "25ea5d5e6c224596fbf0d40d7308ff7e1a4125453e8e0e9ab347eca66b2825c6"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 163,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-06-11T16:00:18Z",
+      "path": "spec3/vendor-list-v163.json",
+      "sha256": "576aac579b17f1cdcac5a2f58378019259e911406778f9cfe09673463d60c8e0"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 162,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-06-04T16:00:18Z",
+      "path": "spec3/vendor-list-v162.json",
+      "sha256": "0f8b942bdf5d0c13f997fe5448cb5654cb39a36f865632e672a2119114929e5a"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 161,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-05-28T16:00:19Z",
+      "path": "spec3/vendor-list-v161.json",
+      "sha256": "d2b7fb9b995f10d55157b546e11ca7b48ccaa9123648a31d46d34641a3b03d4a"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 160,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-05-21T16:00:19Z",
+      "path": "spec3/vendor-list-v160.json",
+      "sha256": "c4778d136f2b4d24336a71f37d2a97f7f3f43dd425ae6d7bf1222d3e8293d8a7"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 159,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-05-14T16:00:19Z",
+      "path": "spec3/vendor-list-v159.json",
+      "sha256": "9ccf581abfbf02cdc11e1245d4bbc0cefa4133637ddf7cf69e6750a14c5dd4b9"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 158,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-05-07T16:00:19Z",
+      "path": "spec3/vendor-list-v158.json",
+      "sha256": "2a278b9638a6386d9a6aed9efa0c8c0ee230755af725bfd27564b77d105e8c57"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 157,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-04-30T16:00:19Z",
+      "path": "spec3/vendor-list-v157.json",
+      "sha256": "11744011a93eddbdf65bd1bcaf0c188d848dc02ac1bd836759bfef11b4f82218"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 156,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-04-23T16:00:19Z",
+      "path": "spec3/vendor-list-v156.json",
+      "sha256": "999f51768e85b390dcf8642b1c19898a86fd92ee753cf13cb70edf21b8debaf1"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 155,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-04-16T16:00:18Z",
+      "path": "spec3/vendor-list-v155.json",
+      "sha256": "d2a2f4e30e0dfc471b96be769a867673261bc12e96f79b117d04f6b17448279c"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 154,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-04-09T16:00:19Z",
+      "path": "spec3/vendor-list-v154.json",
+      "sha256": "b38ced4ef340895c098faa7c3dc2b4205a058ba5afa98b767cda90405da6ccd1"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 153,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-04-02T16:00:25Z",
+      "path": "spec3/vendor-list-v153.json",
+      "sha256": "3f1283a700490d12851695fac0fd3852547f26c5e992bb15eed6f2dac4e4c5a4"
+    }
+  ]
+}

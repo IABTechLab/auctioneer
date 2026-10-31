@@ -1,0 +1,14 @@
+schema = "kargo"
+path = "adapters/kargo/params_test.go"
+blob = "2bd805d0a3e99c8ee17f07a48d87fa3151c4270c"
+sha256 = "12f5fd46584b9cf9817e8a527491637848b57fd937aa638e7a8bf63d218f5aa5"
+bytes = 1273
+valid_cases = 4
+invalid_cases = 9
+valid_span = {start = 904, end = 1005}
+invalid_span = {start = 1037, end = 1271}
+verdict_counts = [4, 6, 3]
+previous = true
+original = false
+duplicates = []
+lexical = []

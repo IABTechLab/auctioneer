@@ -1,0 +1,30 @@
+# The source inventory witnesses are byte-pinned evidence.
+crates/auctioneer-bidder/tests/conformance/fixtures/reference/catalog/*.toml -text
+# Wave design digests retain their identity across checkout line endings.
+crates/auctioneer-bidder/tests/conformance/fixtures/waves/*.toml -text
+# Parameter-test captures also retain their reviewed raw-byte identity.
+crates/auctioneer-bidder/tests/conformance/fixtures/reference/schema-reference/*.json -text
+# Moved external captures retain their complete byte identity.
+crates/auctioneer-bidder/tests/conformance/fixtures/usersync/** -text
+crates/auctioneer-bidder/tests/conformance/fixtures/openrtb/*.json -text
+# Supplemental reference captures retain their original byte identity too.
+crates/auctioneer-bidder/src/bidders/*/fixtures/** -text
+# Protocol conformance also freezes each adjacent manifest's complete bytes.
+crates/auctioneer-bidder/src/bidders/*/bidder.toml -text
+# Bidder-owned original parameter schemas are byte-pinned source artifacts.
+crates/auctioneer-bidder/src/bidders/*/parameters.json -text
+crates/auctioneer-bidder/src/bidders/*/schemas/*.schema.json -text
+crates/auctioneer-bidder/src/bidders/LICENSE.reference -text
+# Raw source schemas also preserve their original whitespace.
+crates/auctioneer-bidder/src/bidders/*/parameters.json -whitespace
+crates/auctioneer-bidder/src/bidders/*/schemas/*.schema.json -whitespace
+# Verbatim protocol captures preserve source trailing whitespace and final lines.
+crates/auctioneer-bidder/src/bidders/*/fixtures/protocol/** -whitespace
+# The pre-catalog accounting snapshot retains its captured raw-byte identity.
+crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline.toml -text
+crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline-patched-lock.toml -text
+# The vendored compiler is compared byte-for-byte with its pinned package.
+vendor/jsonschema-macros-core/** -text
+vendor/jsonschema-macros-core-0.58.6.crate -text
+# Unified-diff context lines intentionally contain a single space.
+vendor/patches/*.patch -whitespace

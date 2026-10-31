@@ -1,0 +1,17 @@
+schema_version = 1
+schema = "thetradedesk"
+schema_sha256 = "769d92e699416dc3e30f16c8383f9c21dfb568adb323b9f9d953fe6968818845"
+origin = "authored_schema_derived"
+rows = [
+  { id = "publisher_only", schema = "thetradedesk", valid = true, input_json = '{"publisherId":"p"}' },
+  { id = "supply_present", schema = "thetradedesk", valid = true, input_json = '{"publisherId":"p","supplySourceId":"s"}' },
+  { id = "publisher_empty", schema = "thetradedesk", valid = false, input_json = '{"publisherId":""}' },
+  { id = "supply_empty", schema = "thetradedesk", valid = false, input_json = '{"publisherId":"p","supplySourceId":""}' },
+  { id = "publisher_wrong_type", schema = "thetradedesk", valid = false, input_json = '{"publisherId":1}' },
+  { id = "supply_wrong_type", schema = "thetradedesk", valid = false, input_json = '{"publisherId":"p","supplySourceId":1}' },
+]
+[expected]
+authored = 6
+imported = 0
+accepts = 2
+rejects = 4

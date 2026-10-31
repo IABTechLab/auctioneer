@@ -1,0 +1,14 @@
+schema = "appnexus"
+path = "adapters/appnexus/params_test.go"
+blob = "6ac1ddc426465336172ca95912187f1ec744571f"
+sha256 = "3297c52860053dfb3979867a40c41de53bccf991e5e8395c2a00cb1ec65473ff"
+bytes = 3121
+valid_cases = 16
+invalid_cases = 26
+valid_span = {start = 1371, end = 2158}
+invalid_span = {start = 2190, end = 3119}
+verdict_counts = [16, 25, 1]
+previous = true
+original = true
+duplicates = []
+lexical = []

@@ -1,0 +1,43 @@
+[package]
+name = "auctioneer-exchange"
+description = "Auction pipeline: request split, bidder dispatch, response assembly."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+insecure-bidders = ["auctioneer-bidder/insecure-bidders"]
+test-support = []
+
+[dependencies]
+async-trait    = { workspace = true }
+# Host-declared aliases fail permissively (drop, no warning code), so the
+# only operator-visible trace of a bad `[aliases]` row is a WARN line.
+log            = { workspace = true }
+auctioneer-bidder  = { workspace = true }
+auctioneer-config  = { workspace = true }
+auctioneer-openrtb = { workspace = true }
+auctioneer-privacy = { workspace = true }
+auctioneer-runtime = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+thiserror      = { workspace = true }
+time           = { workspace = true }
+url            = { workspace = true }
+
+[dev-dependencies]
+auctioneer-bidder = { workspace = true, features = ["test-support"] }
+auctioneer-exchange = { workspace = true, features = ["test-support"] }
+auctioneer-runtime = { workspace = true, features = ["test-support"] }
+# Every async test driver in this crate uses futures::executor::block_on.
+# auctioneer-exchange itself never spins up an executor in production code;
+# `block_on` is test-only.
+futures        = { workspace = true }
+# Captures the permissive host-alias drop's WARN line so the "no warning
+# code" contract does not also mean "no operator-visible trace".
+testing_logger = { workspace = true }

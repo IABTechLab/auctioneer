@@ -1,0 +1,446 @@
+key = "yahoo_ads"
+factory = true
+native_only = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.yahooAds]
+defaultEnabled = false
+endpoint = "https://s2shb.ssp.yahoo.com/admax/bid/partners/PBS"
+gvlVendorID = 25
+
+[definitions.yahooAds.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.yahooAds.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.yahooAds.maintainer]
+email = "prebid-tech-team@yahooinc.com"
+
+[definitions.yahooAds.userSync]
+supports = ["redirect"]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/yahooAds"
+tree = "f086943f012516f6b223e237366085e4386c9205"
+port_differences = [
+    """\
+    Rust protocol candidate with an automatically discovered stateless factory and opt-in \
+    native-only publication. Complete resource/schema qualification, completed migration \
+    and live acceptance are not claimed.""",
+    """\
+    One POST per surviving impression, preserving all original video/native/audio beside any \
+    normalized banner. A mixed banner/video impression remains one call. The bounded \
+    correlation row records Banner-first response selection, not deletion of other offered \
+    media. The earlier two-calls-per-medium draft was withdrawn and is not approved policy.""",
+    """\
+    The direct adapter decodes parameter types without imposing schema required/minLength \
+    rules. Missing/null string members and null parameter structs have source empty values; \
+    empty tagid and replacement inventory IDs are omitted. Canonical parameter schema remains \
+    verbatim and is independently qualified.""",
+    """\
+    AG-approved single ASCII-equivalent parameter/container spellings are accepted; competing \
+    spellings fail at impression scope even when equal/null. There is no new legacy-language \
+    parser, decoder, schema engine or dependency.""",
+    """\
+    Borrowed serializers write through the existing capped sink; only caller-scoped data is \
+    used and no request tree or serialized body is cloned. Invalid banner rejects its entire \
+    impression, including any video, while later impressions survive. Source first-format \
+    dimensions are not revalidated.""",
+    """\
+    Fixed construction diagnostics use existing code 2 instead of source raw messages/plain \
+    banner error code 999. Nonempty GPP relocates exact map keys and clears top-level fields; \
+    absent SID preserves old extension SID, explicit empty SID overwrites it. Shared typed \
+    null/absent regs.ext safely becomes an object rather than reproducing the source nil-map \
+    panic.""",
+    """\
+    Unsupported-only impressions retain an explicitly named safe local refusal rather than the \
+    source unsupported HTTP call followed by silently ignored bids. The original unsupported \
+    capture is kept unchanged and asserts this boundary without claiming provider delivery.""",
+    """\
+    Yahoo response status remains 204 no-bid and 200 decode; every other status including 400 \
+    is fixed BadServerResponse code 4. Currency stays USD without price conversion. Shared \
+    sealed decode retains code 14/ResponseParse and node refusal 4/ResponseParse instead of \
+    exposing source parser messages.""",
+    """\
+    Source dur signed-int64 and mtype signed-int8 fields are preflighted response-wide and \
+    canonicalized with existing wire_fields. Duration never adds Unruly-style video metadata. \
+    Exact sent media uses shared sent_media_type; media conflicts and unsent/unknown bids fail \
+    locally while valid siblings survive, unlike the source unknown-ID whole-response abort.""",
+    """\
+    All thirteen protocol captures are retained byte-identically, totaling 25589 bytes. All \
+    nine source URIs remain empty. Conformance supplies one fixed test-only HTTPS endpoint and \
+    explicitly compares it separately from the unchanged source empty URI; no production \
+    default or scheme substitution is introduced.""",
+    """\
+    Source captures with schema-incomplete parameters are direct-adapter dimension cases, not \
+    schema acceptance evidence. Implementation/helper source is Git-object provenance only; no \
+    Go programs are retained as repository assets or included by conformance. The CLI \
+    source-object checker owns source verification. Metadata/schema captures already owned by \
+    the worktree remain unchanged.""",
+    """\
+    Shared typed ingress required/null/case/shape distinctions and dimension/SID widths remain \
+    explicit OpenRTB model boundaries. Unrelated legacy ae/prebid helper quirks are not \
+    reimplemented. Privacy, resource qualification, source integrity gates and hosted media \
+    delivery remain coordinator-owned requirements.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/yahooAds.yaml"
+source_blob = "c53d1b14e0c03769db607d6a5ea80bedced65712"
+source_bytes = 463
+source_sha256 = "1aae0e1228e281d4bedfcd82d92cd3cc6e75db854b5a30ad4335db2c0088ca87"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication retains public spelling yahooAds on \
+    implementation yahoo_ads, its source HTTPS endpoint, banner/video capabilities, vendor \
+    and maintainer. Runtime defaultEnabled=false. Sync advertises redirect support without \
+    a configured URL; none is invented. Other source aliases remain unpublished. \
+    Publication is not selected-flow acceptance, resource qualification or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/yahooAdvertising.yaml"
+source_blob = "68037fb68f08a67da0cc5e112626efea3471f5a2"
+source_bytes = 254
+source_sha256 = "54cc9498ad5a196ef29976f2cdcf14478569efeac32a231815e1b561e5a5e55f"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/yahoossp.yaml"
+source_blob = "132bef5a837bb1935c8396fe0237a5b6b87de512"
+source_bytes = 289
+source_sha256 = "6e2eb72727c35442e7204baccb73854523a78ba3cdb2fdbf42b566125df3a44f"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/yahooAds.json"
+source_blob = "77e7107350c6fe6f2f8f29a46aa7762525ccfc3e"
+source_bytes = 443
+source_sha256 = "7dd88adecf6cd48889d3a155aac7399271218030a98928958a6bfc42bb1aee57"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 443
+source_sha256 = "7dd88adecf6cd48889d3a155aac7399271218030a98928958a6bfc42bb1aee57"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/exemplary"
+tree = "3b447c5fd35b531c1f5c1c8ac264adec391a71f1"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental"
+tree = "3b924dd2b0bd583c0229dbc8bdc0ba3f98c0301b"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAds.go"
+source_blob = "1be27dc3c52434df4bf51df118bd107697dee10d"
+source_bytes = 6111
+source_sha256 = "c5cc760a0e87f7f92e2f0fbdd584593531ff50e11c275b6dffc8f4b5a5200ede"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAds_test.go"
+source_blob = "6b07ef32c1d2aee949cf28cf82d86114236211ac"
+source_bytes = 1008
+source_sha256 = "de9f3524e40890f003e87a6ccfa3cefdff3eec470ba76f1ef7685db94150f66b"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/yahooAds/params_test.go"
+source_blob = "9da14a18b0780c77c7e0655b87e3450bb5a10c0f"
+source_bytes = 1546
+source_sha256 = "7e504361a6efcc4ea62a55e91eb900af63b245b9cc005b5d54b268581e1f178d"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp_yahooAds.go"
+source_blob = "36a4a0f618b070c8c8464d1fbdbb1d6b95667138"
+source_bytes = 190
+source_sha256 = "0340fa1996d68ea6dc0e84d63ebf882cd971793b0fe93d2abe97d0ff8b30af0a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp.go"
+source_blob = "85be31245489ddfaa7eb61f6b24f745de9fdc988"
+source_bytes = 3337
+source_sha256 = "74906c9f9d9842956179f551b3e7868af871e5c11c7076bffa1f964395b0dd47"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/ptrutil/ptrutil.go"
+source_blob = "c700e6de826f76564175012544e143b7b242c1ce"
+source_bytes = 404
+source_sha256 = "f86892d9c19235009fabe37daf82a3a70197a6281907f6196be64f0794388095"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "errortypes/code.go"
+source_blob = "07b4727727e78400039fe1b162c4dea2c659e184"
+source_bytes = 1510
+source_sha256 = "6697a3f4df221451fbb953f5936eac5e53ad0f464f9ff52ed5c426b7196ef99c"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "errortypes/errortypes.go"
+source_blob = "fe833adb8e7487aec3183dd1d14c33416648c76b"
+source_bytes = 7874
+source_sha256 = "d7d0b71705273162ba6428b7b03544c923906432725a8395fbc79370af147398"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.mod"
+source_blob = "998750a0ab0830ae6a24f6d2f2abbddf2ba85855"
+source_bytes = 3548
+source_sha256 = "00d82a3d3a03e1dc411876b858a857a832bfc7a6dc4b5ace95a3d52b37e4e549"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.sum"
+source_blob = "2d03cb08c4350a7beb75e8529d8d66c0720e3366"
+source_bytes = 100645
+source_sha256 = "8f3c2e47aa0cc516a7440a30c5d376dd1b4bf49a26ca79bd92905738d06ccd9b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/exemplary/simple-app-banner.json"
+source_blob = "6b61861d9b7957c6a75e5276282fd39623404e8e"
+source_bytes = 2780
+source_sha256 = "83c918db577604f33c386bed4c9fb71688481cb048914d5a235d6db28e059e9d"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-app-banner.json"
+source_bytes = 2780
+source_sha256 = "83c918db577604f33c386bed4c9fb71688481cb048914d5a235d6db28e059e9d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/exemplary/simple-banner.json"
+source_blob = "3d0b4a37b0ddcea137d2b45334c1be6b2558266c"
+source_bytes = 2783
+source_sha256 = "163070dbe9efe446e816434bd28dbda54e470c3ff7d68f2b0684eef54390620b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner.json"
+source_bytes = 2783
+source_sha256 = "163070dbe9efe446e816434bd28dbda54e470c3ff7d68f2b0684eef54390620b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/exemplary/simple-video.json"
+source_blob = "9f9d188d001f202c410bc32cbccc8217bf5b70c6"
+source_bytes = 3158
+source_sha256 = "37b467b260a8b8ebd11989c94ce225b902a474192ff88343d4cbaafc0a79b520"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-video.json"
+source_bytes = 3158
+source_sha256 = "37b467b260a8b8ebd11989c94ce225b902a474192ff88343d4cbaafc0a79b520"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/empty-banner-format.json"
+source_blob = "6c4641d15dc6e110b9569eabe9c853f369c2b9bf"
+source_bytes = 413
+source_sha256 = "929a4bc5a13e97bc43a4a1b332fc5460b4369015075127c3956cba48ef5f7417"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/empty-banner-format.json"
+source_bytes = 413
+source_sha256 = "929a4bc5a13e97bc43a4a1b332fc5460b4369015075127c3956cba48ef5f7417"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/invalid-banner-height.json"
+source_blob = "da4f7918862ce1a676aed977bf418eab689ef380"
+source_bytes = 408
+source_sha256 = "d3a5db895484bf5542635aceeb50be5d2bfe57076e095082dff1478e65414280"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalid-banner-height.json"
+source_bytes = 408
+source_sha256 = "d3a5db895484bf5542635aceeb50be5d2bfe57076e095082dff1478e65414280"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/invalid-banner-width.json"
+source_blob = "8d2f2504d07c10278c02fcdcf242c8bb16af1e60"
+source_bytes = 406
+source_sha256 = "f8ae32026e31075193c08ae00eba65228bacec4984f84f6c9f90648c090ffe97"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalid-banner-width.json"
+source_bytes = 406
+source_sha256 = "f8ae32026e31075193c08ae00eba65228bacec4984f84f6c9f90648c090ffe97"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/non-supported-requests-bids-ignored.json"
+source_blob = "5e0820761d63734b34a71d191df0e834c59f9a74"
+source_bytes = 2368
+source_sha256 = "d76d24ef9a4538e737621cde1025f161aa3beda09df447771674e83f46909fd5"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/non-supported-requests-bids-ignored.json"
+source_bytes = 2368
+source_sha256 = "d76d24ef9a4538e737621cde1025f161aa3beda09df447771674e83f46909fd5"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/required-nobidder-info.json"
+source_blob = "fde9c83a4600a87b3d001d7b72655ecc6b298bb0"
+source_bytes = 327
+source_sha256 = "79ae4e65197a281def0244d16d3286b8ce6bb43272c2d797d396f355b604f130"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/required-nobidder-info.json"
+source_bytes = 327
+source_sha256 = "79ae4e65197a281def0244d16d3286b8ce6bb43272c2d797d396f355b604f130"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/server-error.json"
+source_blob = "15da2afe3b006b6229b67381a87b9cd35dfb56a0"
+source_bytes = 1596
+source_sha256 = "d71c750ceaa89d1e7c84b98cd0f72ed6930aa478820d12e53a85e3e12bf30453"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/server-error.json"
+source_bytes = 1596
+source_sha256 = "d71c750ceaa89d1e7c84b98cd0f72ed6930aa478820d12e53a85e3e12bf30453"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/server-response-wrong-impid.json"
+source_blob = "a831dba64b2f6c517bf33298ae325c108193393a"
+source_bytes = 2464
+source_sha256 = "d0a2f2f90aef37a83c0b10eb83312442a744c333e053ea4ca3fb2b7c6e146f81"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/server-response-wrong-impid.json"
+source_bytes = 2464
+source_sha256 = "d0a2f2f90aef37a83c0b10eb83312442a744c333e053ea4ca3fb2b7c6e146f81"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/simple-banner-gpp-overwrite.json"
+source_blob = "950796692a4c35d56061710135be5b7d831475cf"
+source_bytes = 3097
+source_sha256 = "5d69c736546de06440baa81bbc7f4f73b1d95a02d47cfde30edcf268fd72ff0c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/simple-banner-gpp-overwrite.json"
+source_bytes = 3097
+source_sha256 = "5d69c736546de06440baa81bbc7f4f73b1d95a02d47cfde30edcf268fd72ff0c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/simple-banner-gpp.json"
+source_blob = "73012144fb2afbefe31e234e2502f90a9ed35c5b"
+source_bytes = 2986
+source_sha256 = "866ea23b0a6c89194bc8bc5063be757fd3ab5bcabbe80ae8a55027aabf5c1d8a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/simple-banner-gpp.json"
+source_bytes = 2986
+source_sha256 = "866ea23b0a6c89194bc8bc5063be757fd3ab5bcabbe80ae8a55027aabf5c1d8a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/yahooAds/yahooAdstest/supplemental/simple-banner-ignore-width-when-height-missing.json"
+source_blob = "513e37f9f14e7f9511e0bd67da21454c12e5a66c"
+source_bytes = 2803
+source_sha256 = "7b2a87a5b0e1279e384ddf2e44b8dbea185ebb0f5b2b97ac1ede8f1b263b16ae"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/simple-banner-ignore-width-when-height-missing.json"
+source_bytes = 2803
+source_sha256 = "7b2a87a5b0e1279e384ddf2e44b8dbea185ebb0f5b2b97ac1ede8f1b263b16ae"

@@ -1,0 +1,25 @@
+error: expected one of `>`, a const expression, lifetime, or type, found `}`
+  --> tests/conformance/fail/malformed_source.rs:8:9
+   |
+ 6 |         struct Root {
+   |                ---- while parsing this struct
+ 7 |             pub payload: Option<
+   |                                 - expected one of `>`, a const expression, lifetime, or type
+ 8 |         }
+   |         ^ unexpected token
+...
+12 | malformed_model!();
+   | ------------------ in this macro invocation
+   |
+   = note: this error originates in the macro `malformed_model` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: unexpected end of input, expected one of: `for`, parentheses, `fn`, `unsafe`, `extern`, identifier, `::`, `<`, `dyn`, square brackets, `*`, `&`, `!`, `impl`, `_`, lifetime
+  --> tests/conformance/fail/malformed_source.rs:8:9
+   |
+ 8 |         }
+   |         ^
+...
+12 | malformed_model!();
+   | ------------------ in this macro invocation
+   |
+   = note: this error originates in the macro `malformed_model` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,84 @@
+[package]
+name = "auctioneer-core"
+description = "HTTP handlers, host primitives, and runtime wiring for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+insecure-bidders = [
+    "auctioneer-bidder/insecure-bidders",
+    "auctioneer-exchange/insecure-bidders",
+]
+# Compiles the shared BidderFanout harness and explicit handler conformance
+# API into the library. `required-features` makes cargo SKIP these targets
+# silently when the feature is off, so every command that means to run
+# the suite passes `--features conformance-suite` explicitly.
+conformance-suite = ["test-support"]
+# Reusable fixtures for core's unit/integration tests and opt-in harnesses.
+test-support = ["auctioneer-bidder/test-support"]
+
+[dependencies]
+anyhow          = { workspace = true }
+async-trait     = { workspace = true }
+base64          = { workspace = true }
+cookie          = { workspace = true }
+edgezero-core   = { workspace = true }
+flate2          = { workspace = true }
+futures         = { workspace = true }
+http            = { workspace = true }
+hmac            = { workspace = true }
+log             = { workspace = true }
+auctioneer-bidder   = { workspace = true }
+auctioneer-config   = { workspace = true }
+auctioneer-exchange = { workspace = true }
+auctioneer-openrtb  = { workspace = true }
+auctioneer-privacy  = { workspace = true }
+auctioneer-runtime  = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
+sha2            = { workspace = true }
+subtle          = { workspace = true }
+thiserror       = { workspace = true }
+time            = { workspace = true }
+url             = { workspace = true }
+validator       = { workspace = true }
+zeroize         = { workspace = true }
+
+[[test]]
+name = "fanout_conformance"
+path = "tests/fanout_conformance.rs"
+required-features = ["conformance-suite"]
+
+[[test]]
+name = "bidder_handler_conformance"
+path = "tests/bidder_handler_conformance.rs"
+required-features = ["conformance-suite"]
+
+# Owns an installed native schema envelope and generated-App registry state;
+# it cannot share a process with the unfunded/custom-registry handler controls.
+[[test]]
+name = "native_bidder_onboarding"
+path = "tests/native_bidder_onboarding.rs"
+required-features = ["conformance-suite"]
+
+[dev-dependencies]
+auctioneer-core     = { workspace = true, features = ["test-support"] }
+auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-exchange = { workspace = true, features = ["test-support"] }
+auctioneer-bidder   = { workspace = true, features = ["test-support"] }
+auctioneer-runtime  = { workspace = true, features = ["test-support"] }
+auctioneer-privacy  = { workspace = true, features = ["test-support"] }
+bytes           = { workspace = true }
+edgezero-adapter-axum = { workspace = true, features = ["axum"] }
+futures         = { workspace = true }
+png             = { workspace = true }
+# Captures log output for the fanout transport-detail redaction
+# regressions.
+testing_logger  = { workspace = true }
+toml            = { workspace = true }

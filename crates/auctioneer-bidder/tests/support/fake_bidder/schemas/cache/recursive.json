@@ -1,0 +1,10 @@
+{
+  "$recursiveAnchor": true,
+  "type": "object",
+  "properties": {
+    "value": {"type": "string", "pattern": "^[a-z]+$"},
+    "children": {"type": "array", "items": {"$recursiveRef": "#"}}
+  },
+  "required": ["value"],
+  "unevaluatedProperties": false
+}

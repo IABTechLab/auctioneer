@@ -1,0 +1,74 @@
+[package]
+name = "auctioneer-adapter-axum"
+description = "Axum runtime adapter for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+insecure-bidders = ["auctioneer-core/insecure-bidders"]
+
+[[bin]]
+name = "auctioneer-adapter-axum"
+path = "src/main.rs"
+
+# The run-A baseline probe: boots through the same production bootstrap
+# as the server above, makes the embedded archive resident, then parks so
+# `scripts/measure-baseline.sh` can read this process's RSS from outside.
+# A separate bin rather than a flag on the server so no measurement code
+# is reachable on a serving path.
+[[bin]]
+name = "auctioneer-baseline-probe"
+path = "src/baseline_probe.rs"
+# The probe uses the library's envelope and timer. It carries no tests:
+# its behavior is only meaningful as a whole process, exercised by
+# `measure-baseline.sh`.
+test = false
+
+[[test]]
+name = "privacy_wire"
+path = "tests/privacy_wire.rs"
+
+[dependencies]
+auctioneer-core = { path = "../auctioneer-core" }
+# Named directly by the baseline probe's touch pass, which walks the
+# embedded GVL archive and the baked GCL blob page by page.
+auctioneer-config = { path = "../auctioneer-config" }
+auctioneer-bidder = { workspace = true }
+auctioneer-exchange = { workspace = true }
+auctioneer-privacy = { workspace = true }
+anyhow = { workspace = true }
+# `TokioTimer` implements the object-safe `#[async_trait(?Send)] Timer`.
+async-trait = { workspace = true }
+axum = { workspace = true }
+edgezero-adapter-axum = { workspace = true, features = ["axum"] }
+edgezero-core = { workspace = true }
+log = { workspace = true }
+# Direct dep so the adapter can name `auctioneer_runtime::Timer` for the
+# `TokioTimer` impl.
+auctioneer-runtime = { workspace = true }
+simple_logger = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+# The "time" feature is what provides `tokio::time::sleep`; the base
+# workspace entry enables only macros + rt-multi-thread.
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+auctioneer-bidder = { workspace = true, features = ["test-support"] }
+edgezero-cli = { workspace = true, features = ["cli", "edgezero-adapter-axum"] }
+toml = { workspace = true }
+# Resolver 2 keeps the loopback bidder out of normal production builds.
+# Default test runs still execute the real handler-to-socket privacy probe.
+auctioneer-core = { path = "../auctioneer-core", features = ["insecure-bidders", "test-support"] }
+# Real-socket fanout fixtures belong to this native adapter, not portable crates.
+futures = { workspace = true }
+url = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util", "sync"] }

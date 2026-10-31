@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic integer foreign-keyword compiler control",
+  "description": "Independent fake-bidder scalar rejects foreign types without applying string, array or object constraints to integers.",
+  "type": "integer",
+  "minLength": 2,
+  "maxLength": 3,
+  "pattern": "^zz$",
+  "minItems": 2,
+  "maxItems": 3,
+  "items": { "type": "null" },
+  "minProperties": 2,
+  "maxProperties": 3,
+  "required": ["sentinel"]
+}

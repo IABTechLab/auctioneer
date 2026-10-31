@@ -1,0 +1,9 @@
+key = "fake_registry_optional"
+factory = true
+required_feature = "insecure-bidders"
+
+[provenance]
+origin = "local"
+
+[definitions.fake_registry_optional]
+endpoint = "https://optional.registry.invalid/openrtb2"

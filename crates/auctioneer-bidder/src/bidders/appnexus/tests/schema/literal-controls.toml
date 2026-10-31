@@ -1,0 +1,57 @@
+schema = "appnexus"
+
+[[cases]]
+input_json = '{}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":17}'
+valid = true
+
+[[cases]]
+input_json = '{"placement_id":"17"}'
+valid = true
+
+[[cases]]
+input_json = '{"placement_id":null}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":true}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":17.5}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":17}'
+valid = true
+
+[[cases]]
+input_json = '{"placement_id":17,"placementId":17}'
+valid = false
+
+[[cases]]
+input_json = '{"inv_code":"slot","member":5}'
+valid = true
+
+[[cases]]
+input_json = '{"inv_code":"slot"}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":17,"inv_code":"slot","member":5}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":17,"keywords":[{"key":"news"}]}'
+valid = true
+
+[[cases]]
+input_json = '{"placement_id":17,"keywords":[{}]}'
+valid = false
+
+[[cases]]
+input_json = '{"placement_id":17,"keywords":""}'
+valid = false

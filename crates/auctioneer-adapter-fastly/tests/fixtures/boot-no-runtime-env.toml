@@ -1,0 +1,2 @@
+# No stores: baked logging must work and health must fail closed.
+[local_server]

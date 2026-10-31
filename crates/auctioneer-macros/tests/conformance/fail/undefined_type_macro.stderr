@@ -1,0 +1,5 @@
+error: cannot find macro `opaque` in this scope
+ --> tests/conformance/fail/undefined_type_macro.rs:3:15
+  |
+3 | type Opaque = opaque!();
+  |               ^^^^^^

@@ -1,0 +1,64 @@
+[package]
+name = "auctioneer-adapter-spin"
+description = "Fermyon Spin adapter for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[features]
+default = ["spin"]
+spin = ["edgezero-adapter-spin/spin"]
+insecure-bidders = ["auctioneer-core/insecure-bidders"]
+# Forwards to auctioneer-core so this crate's conformance binary can see the
+# shared harness. Without the forward the feature would be on here and
+# off in the library that actually defines the seam.
+conformance-suite = ["auctioneer-core/conformance-suite"]
+
+# `required-features` makes cargo SKIP this target silently when the
+# feature is off, so the conformance commands must pass
+# `--features conformance-suite` explicitly.
+[[test]]
+name = "fanout_conformance"
+path = "tests/fanout_conformance.rs"
+required-features = ["conformance-suite"]
+
+# Base dependency provides types and context on all targets (including native
+# `cargo check`).  The wasm32-only section below adds the `spin` feature and
+# `spin-sdk` so that WASM-gated modules compile only on the real target.
+[dependencies]
+auctioneer-core = { path = "../auctioneer-core" }
+edgezero-adapter-spin = { workspace = true }
+edgezero-core = { workspace = true }
+anyhow = { workspace = true }
+# Host-visible, not wasm-gated: the timer, the decode cooperator and the
+# outbound profile are built on these two and are exercised by host
+# tests through the `DelaySource` seam. Only the `spin_sdk::time::sleep`
+# binding itself stays under the wasm target below.
+async-trait = { workspace = true }
+auctioneer-runtime = { workspace = true }
+# Health resolution faults must be diagnosed on the production request path.
+log = { workspace = true }
+
+[dev-dependencies]
+auctioneer-core = { workspace = true, features = ["test-support"] }
+futures = { workspace = true }
+auctioneer-bidder = { workspace = true }
+auctioneer-config = { workspace = true }
+auctioneer-exchange = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+edgezero-adapter-spin = { workspace = true, features = ["spin"] }
+edgezero-core = { workspace = true }
+spin-sdk = { workspace = true }

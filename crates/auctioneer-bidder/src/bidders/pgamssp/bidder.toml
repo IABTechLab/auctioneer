@@ -1,0 +1,62 @@
+key = "pgamssp"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/pgamssp"
+tree = "1a38068c838cfbc40428980b7a9b7b7ec8bef79e"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/pgamssp.yaml"
+source_blob = "75cec680c138774891fdcc48ed4c24d755a18814"
+source_bytes = 467
+source_sha256 = "2da72a19e53afabeb19df6e693ca82e233808195b83ed2afbbb317559de27698"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://us-east.pgammedia.com/pserver"
+selected_url = "https://us-east.pgammedia.com/pserver"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/pgamssp.json"
+source_blob = "9d0602419082f2a518b5b8ba64577f43e8d6adff"
+source_bytes = 574
+source_sha256 = "923d2789780ebb12accd53f2e6d2a1e1dc3981b66505b8b31c3ace4d2a84e232"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 574
+source_sha256 = "923d2789780ebb12accd53f2e6d2a1e1dc3981b66505b8b31c3ace4d2a84e232"

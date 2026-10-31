@@ -1,0 +1,116 @@
+key = "adkernel"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/adkernel"
+tree = "7a8fb00b2814b8dd517803965b371a23c772521e"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/152media.yaml"
+source_blob = "dd258ce47c50326317a4ad719c50c2cb6cc5aea3"
+source_bytes = 36
+source_sha256 = "a1d4df19b241a4e95a6f1a7865d89bda21c83948dd0d717f573cc9dad2026b35"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+selected_url = "https://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+inherited_from = "adkernel"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adkernel.yaml"
+source_blob = "22be7bee809e454b4ea7de96e3306cd66246a1bd"
+source_bytes = 545
+source_sha256 = "359d147937821ee345cff40b5bd3aeaf8b00c47cc67bc2de426b25e04560b10c"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+selected_url = "https://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/rxnetwork.yaml"
+source_blob = "bf01d7e8660991abe58b12f06ffdb22e055175a3"
+source_bytes = 18
+source_sha256 = "11e82443e42b76bc6521552c5875dd807820e3643eb0c7e21a962fab595385cd"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+selected_url = "https://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+inherited_from = "adkernel"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/xapads.yaml"
+source_blob = "87b551f17d5094647e6acd0e054a2f84587524eb"
+source_bytes = 495
+source_sha256 = "f78374230d951ec9cf2728d91d75ad6888f7403dfcff5f3530270e0386e2010a"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+selected_url = "https://pbs.adksrv.com/hb?zone={{.ZoneID}}"
+inherited_from = "adkernel"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/adkernel.json"
+source_blob = "7304609d3fe58a3fe56643f095ee11ff18aaf06d"
+source_bytes = 373
+source_sha256 = "388942de93197dd52ce21151cf3f7fddbe499d594f89a5d88ef47a296130f4ed"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 373
+source_sha256 = "388942de93197dd52ce21151cf3f7fddbe499d594f89a5d88ef47a296130f4ed"

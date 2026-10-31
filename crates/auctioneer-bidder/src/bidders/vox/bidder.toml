@@ -1,0 +1,54 @@
+key = "vox"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/vox"
+tree = "d0a8d9309d2f3ebabf52ec50aecdc66a489e4940"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/vox.yaml"
+source_blob = "e2b5c902be64e6dafa4275c45f0dbbb869d8d272"
+source_bytes = 440
+source_sha256 = "1f5798b6b9090f1a37012e83f3bf166314945135da8b56af8b99518dce9aeaee"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/vox.json"
+source_blob = "2ae65e99fc7ddfcb3b868fdd954629c7ea2662cf"
+source_bytes = 726
+source_sha256 = "e300e64da4d4391d9a7915df2523c4fb424f558e692a9e989530ff8daf45258a"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 726
+source_sha256 = "e300e64da4d4391d9a7915df2523c4fb424f558e692a9e989530ff8daf45258a"

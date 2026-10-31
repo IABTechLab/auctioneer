@@ -1,0 +1,516 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "generator_version": 1,
+    "go": "go1.23.12",
+    "license": "Apache-2.0",
+    "now": "2026-09-30T12:00:00Z",
+    "revision": "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+  },
+  "cases": [
+    {
+      "id": "cookie_sentinel_cannot_override_json_string_default_0",
+      "operation": "cookie_privacy",
+      "reason": "invalid_legacy_json_overridden_by_sid",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "M5 section 5.2 and master Appendix B: defer malformed legacy JSON GDPR until SID precedence. Standalone -1 sets No and preserves the raw sentinel; the captured typed upstream JSON decoder rejects the string before extraction."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_sentinel_cannot_override_json_string_default_0"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "",
+        "usp": "",
+        "gpp": "",
+        "sid": "-1"
+      }
+    },
+    {
+      "id": "cookie_sentinel_cannot_override_json_string_default_1",
+      "operation": "cookie_privacy",
+      "reason": "invalid_legacy_json_overridden_by_sid",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "M5 section 5.2 and master Appendix B: defer malformed legacy JSON GDPR until SID precedence. Standalone -1 sets No and preserves the raw sentinel; the captured typed upstream JSON decoder rejects the string before extraction."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_sentinel_cannot_override_json_string_default_1"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "",
+        "usp": "",
+        "gpp": "",
+        "sid": "-1"
+      }
+    },
+    {
+      "id": "cookie_inactive_tcf_in_envelope_default_0",
+      "operation": "cookie_privacy",
+      "reason": "inactive_section_two",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: envelope TCF is selected only when SID 2 is active. SID 6 supplies No and legacy consent remains selected. GPP design section 2 delegates applicability and fallback to the caller, unlike the captured upstream helper."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_inactive_tcf_in_envelope_default_0"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "legacyConsent",
+        "usp": "",
+        "gpp": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+        "sid": "6"
+      }
+    },
+    {
+      "id": "cookie_inactive_tcf_in_envelope_default_1",
+      "operation": "cookie_privacy",
+      "reason": "inactive_section_two",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: envelope TCF is selected only when SID 2 is active. SID 6 supplies No and legacy consent remains selected. GPP design section 2 delegates applicability and fallback to the caller, unlike the captured upstream helper."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_inactive_tcf_in_envelope_default_1"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "legacyConsent",
+        "usp": "",
+        "gpp": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+        "sid": "6"
+      }
+    },
+    {
+      "id": "cookie_envelope_without_sid_default_0",
+      "operation": "cookie_privacy",
+      "reason": "inactive_section_two",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: a present section 2 without active SID 2 cannot replace legacy consent; the parsed signal stays Ambiguous independently of the normalized host default. GPP design section 2 owns borrowed section lookup, not active-section policy."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_envelope_without_sid_default_0"
+      },
+      "expected": {
+        "signal": -1,
+        "consent": "legacyConsent",
+        "usp": "",
+        "gpp": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+        "sid": ""
+      }
+    },
+    {
+      "id": "cookie_envelope_without_sid_default_1",
+      "operation": "cookie_privacy",
+      "reason": "inactive_section_two",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: a present section 2 without active SID 2 cannot replace legacy consent; the parsed signal stays Ambiguous independently of the normalized host default. GPP design section 2 owns borrowed section lookup, not active-section policy."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_envelope_without_sid_default_1"
+      },
+      "expected": {
+        "signal": -1,
+        "consent": "legacyConsent",
+        "usp": "",
+        "gpp": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+        "sid": ""
+      }
+    },
+    {
+      "id": "cookie_usp_invalid_default_0",
+      "operation": "cookie_privacy",
+      "reason": "invalid_usp_cleared",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "M5 section 5.2: validate the selected legacy USP and clear an invalid value without a hard error or reselecting another source. Master Appendix D.2 defines source selection; GPP design section 2 leaves USP validation to the caller. The captured extraction helper retains bad before its later endpoint validation, so this is not a claim of endpoint parity."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_usp_invalid_default_0"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "",
+        "usp": "",
+        "gpp": "",
+        "sid": ""
+      }
+    },
+    {
+      "id": "cookie_usp_invalid_default_1",
+      "operation": "cookie_privacy",
+      "reason": "invalid_usp_cleared",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "M5 section 5.2: validate the selected legacy USP and clear an invalid value without a hard error or reselecting another source. Master Appendix D.2 defines source selection; GPP design section 2 leaves USP validation to the caller. The captured extraction helper retains bad before its later endpoint validation, so this is not a claim of endpoint parity."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_usp_invalid_default_1"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "",
+        "usp": "",
+        "gpp": "",
+        "sid": ""
+      }
+    },
+    {
+      "id": "cookie_usp_conflict_default_0",
+      "operation": "cookie_privacy",
+      "reason": "active_gpp_usp_wins_conflict",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: nonempty active section 6 wins a conflicting legacy USP, rather than the captured upstream extraction conflict error. Validate only the selected value; invalid selected USP clears without legacy fallback. GPP design section 2 delegates this policy to the caller; no CCPA sync-denial stage is added."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_usp_conflict_default_0"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "",
+        "usp": "1YYN",
+        "gpp": "DBABTA~1YYN",
+        "sid": "6"
+      }
+    },
+    {
+      "id": "cookie_usp_conflict_default_1",
+      "operation": "cookie_privacy",
+      "reason": "active_gpp_usp_wins_conflict",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: nonempty active section 6 wins a conflicting legacy USP, rather than the captured upstream extraction conflict error. Validate only the selected value; invalid selected USP clears without legacy fallback. GPP design section 2 delegates this policy to the caller; no CCPA sync-denial stage is added."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "cookie_usp_conflict_default_1"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "",
+        "usp": "1YYN",
+        "gpp": "DBABTA~1YYN",
+        "sid": "6"
+      }
+    },
+    {
+      "id": "setuid_sid_missing_tcf_no_fallback",
+      "operation": "setuid_privacy",
+      "reason": "setuid_missing_section_fallback",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: active SID 2 sets Yes, but an absent envelope section 2 retains legacy consent instead of the captured setuid missing-consent error. GPP design section 2 distinguishes a missing section from a present empty section; opaque legacyConsent here is extraction data, not an authorization grant."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "setuid_sid_missing_tcf_no_fallback"
+      },
+      "expected": {
+        "signal": 1,
+        "consent": "legacyConsent"
+      }
+    },
+    {
+      "id": "setuid_inactive_tcf_in_envelope",
+      "operation": "setuid_privacy",
+      "reason": "inactive_section_two",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: SID 6 sets No, so inactive envelope section 2 cannot replace legacy consent. GPP design section 2 delegates applicability to the caller; the captured setuid helper selects present TCF regardless of applicability."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "setuid_inactive_tcf_in_envelope"
+      },
+      "expected": {
+        "signal": 0,
+        "consent": "legacyConsent"
+      }
+    },
+    {
+      "id": "setuid_envelope_without_sid",
+      "operation": "setuid_privacy",
+      "reason": "inactive_section_two",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix D.2 and M5 section 5.2: absent SID leaves Ambiguous and inactive envelope section 2 cannot replace the absent legacy consent. GPP design section 2 separates payload lookup from caller selection; the captured helper selects the envelope value."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "setuid_envelope_without_sid"
+      },
+      "expected": {
+        "signal": -1,
+        "consent": ""
+      }
+    },
+    {
+      "id": "setuid_mixed_sentinel",
+      "operation": "setuid_privacy",
+      "reason": "mixed_sentinel_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: -1 is valid only as the exact standalone no-applicable-section sentinel. Reject -1,2 at extraction instead of accepting the captured upstream signed-int8 list and deriving a GDPR signal."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "setuid_mixed_sentinel"
+      },
+      "expected": {
+        "error": "MalformedGppSid"
+      }
+    },
+    {
+      "id": "sid_07",
+      "operation": "parse_sid",
+      "reason": "nonpositive_sid_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: reject zero, other negative IDs, noncanonical -01, plus-prefixed IDs and repeated -1. The captured signed-int8 helper accepts these spellings; Auctioneer accepts only positive ASCII decimal IDs or standalone exact -1."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_07"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "sid_09",
+      "operation": "parse_sid",
+      "reason": "nonpositive_sid_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: reject zero, other negative IDs, noncanonical -01, plus-prefixed IDs and repeated -1. The captured signed-int8 helper accepts these spellings; Auctioneer accepts only positive ASCII decimal IDs or standalone exact -1."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_09"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "sid_10",
+      "operation": "parse_sid",
+      "reason": "nonpositive_sid_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: reject zero, other negative IDs, noncanonical -01, plus-prefixed IDs and repeated -1. The captured signed-int8 helper accepts these spellings; Auctioneer accepts only positive ASCII decimal IDs or standalone exact -1."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_10"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "sid_11",
+      "operation": "parse_sid",
+      "reason": "nonpositive_sid_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: reject zero, other negative IDs, noncanonical -01, plus-prefixed IDs and repeated -1. The captured signed-int8 helper accepts these spellings; Auctioneer accepts only positive ASCII decimal IDs or standalone exact -1."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_11"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "sid_12",
+      "operation": "parse_sid",
+      "reason": "nonpositive_sid_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: reject zero, other negative IDs, noncanonical -01, plus-prefixed IDs and repeated -1. The captured signed-int8 helper accepts these spellings; Auctioneer accepts only positive ASCII decimal IDs or standalone exact -1."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_12"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "sid_08",
+      "operation": "parse_sid",
+      "reason": "mixed_sentinel_rejected",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: reject mixed -1,2; no-applicable-section -1 cannot coexist with positive section IDs. The captured signed-int8 helper accepts the list."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_08"
+      },
+      "expected": {
+        "valid": false
+      }
+    },
+    {
+      "id": "sid_15",
+      "operation": "parse_sid",
+      "reason": "wide_positive_sid",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: accept positive applicability IDs through 65535, including 128 beyond the captured signed-int8 helper's upper bound. GPP design section 4 uses the same positive numeric width for envelope IDs, but the applicability sentinel remains outside the envelope."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_15"
+      },
+      "expected": {
+        "valid": true,
+        "ids": [
+          128
+        ],
+        "sentinel": false
+      }
+    },
+    {
+      "id": "sid_17",
+      "operation": "parse_sid",
+      "reason": "wide_positive_sid",
+      "provenance": {
+        "kind": "auctioneer_design",
+        "paths": [
+          "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
+          "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+          "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md"
+        ],
+        "notes": "Master Appendix B and M5 section 5.2: accept the inclusive positive applicability endpoint 65535 beyond the captured signed-int8 helper's upper bound. GPP design section 4 also bounds positive envelope IDs at 65535; accepting this SID does not claim payload enforcement."
+      },
+      "input": {
+        "reference_file": "reference.json",
+        "reference_case": "sid_17"
+      },
+      "expected": {
+        "valid": true,
+        "ids": [
+          65535
+        ],
+        "sentinel": false
+      }
+    }
+  ]
+}

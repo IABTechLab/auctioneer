@@ -1,0 +1,2 @@
+schema = "consumable"
+cases = [{input_json = "{\"networkId\":1,\"siteId\":1,\"unitId\":1}", valid = true}, {input_json = "{\"networkId\":\"123\",\"siteId\":1,\"unitId\":1}", valid = false}]

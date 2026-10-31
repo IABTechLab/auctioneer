@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "captures": [
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/cookies.json",
+      "sha256": "f1a2a0a1749a0befe425b572b6c968ab6211aba5fb0733b83e9dcd94357f7736",
+      "bytes": 41786
+    },
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/wire.json",
+      "sha256": "b746a7a69e3b029549b7df9843e71ad87910daa3c60574580470ae9e89e9cc8a",
+      "bytes": 53073
+    },
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/chooser.json",
+      "sha256": "207b9a50834bf0fedd0bbcb0cd107782d0c426012f097ffa8054aa13b7e731b7",
+      "bytes": 38514
+    },
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/templates.json",
+      "sha256": "a4d3ea7c8c3d31586bd4e96bac9fe54e0f35422a321bba8aaa01f2dd824867dc",
+      "bytes": 29759
+    },
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/sources.json",
+      "sha256": "64cae05206b0fa9401c6eb196fb25a10a164ad51ba7121ec4bef55b0a05329f1",
+      "bytes": 3481
+    },
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/pixel.png",
+      "sha256": "c2ecff291918a3caf0b7e470323e89f2a1f05b92e12a10649e598cacebe62acf",
+      "bytes": 86
+    },
+    {
+      "path": "crates/auctioneer-bidder/tests/conformance/fixtures/usersync/LICENSE.prebid",
+      "sha256": "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58",
+      "bytes": 10760
+    },
+    {
+      "path": "crates/auctioneer-privacy/tests/data/privacy/reference.json",
+      "sha256": "da9414231de7ad7e71abfb3f79e2fa84a5353bb19b40ae391ca1121c20bc9d8f",
+      "bytes": 501307
+    },
+    {
+      "path": "crates/auctioneer-privacy/tests/data/sync/reference.json",
+      "sha256": "413d0767f33635b716e8031640ac081257e408aeae786c08454f044201d36620",
+      "bytes": 54923
+    },
+    {
+      "path": "crates/auctioneer-privacy/src/gpp/tests/headers.rs",
+      "sha256": "275e4135bd95ce6d7631cb256f1c519802da32df6418fe7c5af041e4599762f6",
+      "bytes": 1259
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+key = "e_volution"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/e_volution"
+tree = "e6c0342138fc8f1414d200dd80b8cc214af69228"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/e_volution.yaml"
+source_blob = "aa33e4660d117d662d76e5ec28de8088de170e02"
+source_bytes = 622
+source_sha256 = "11059d43fc3e52e7c1df0a42da7125f3d6c528122b06ebfde9f67f14bf9f2abf"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://service.e-volution.ai/pbserver"
+selected_url = "https://service.e-volution.ai/pbserver"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/e_volution.json"
+source_blob = "18de2a6062ddb4719cbab324827bc712296d60fb"
+source_bytes = 366
+source_sha256 = "5b87e92645dac37b918890ee9693fa36d16b113f8983840eb1b053f18df81492"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 366
+source_sha256 = "5b87e92645dac37b918890ee9693fa36d16b113f8983840eb1b053f18df81492"

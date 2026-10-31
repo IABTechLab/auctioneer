@@ -1,0 +1,2 @@
+schema = "feedad"
+helpers = [{index = 0, prefixes = 2, onepass = false, alternative = false}]

@@ -1,0 +1,11 @@
+package fake
+valid = {
+`{"letters":"a","digits":"1"}`,
+`{"letters":"abc","digits":"123"}`,
+`{"letters":"abc","digits":"123"}`,
+}
+invalid = {
+`{}`,
+`nil`,
+``,
+}

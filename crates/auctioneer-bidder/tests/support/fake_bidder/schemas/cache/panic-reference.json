@@ -1,0 +1,7 @@
+{
+  "$defs": {
+    "first": {"allOf": [{"$ref": "#/$defs/second"}, {"type": "object", "properties": {"value": {"type": "string", "format": "test-panic"}}, "required": ["value"]}]},
+    "second": {"$ref": "#/$defs/first"}
+  },
+  "$ref": "#/$defs/first"
+}

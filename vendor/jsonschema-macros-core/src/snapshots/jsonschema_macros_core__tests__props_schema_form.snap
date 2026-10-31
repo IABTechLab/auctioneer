@@ -1,0 +1,22 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"properties\":{\"a\":{}},\"type\":\"object\",\"unevaluatedProperties\":{\"type\":\"integer\"}}"
+expression: is_valid_body(schema)
+---
+match instance {
+            __Value::Object(obj) => {
+                obj.iter()
+                    .all(|(__key, __value)| {
+                        let key_str = __key.as_str();
+                        if matches!(key_str, "a") {
+                            true
+                        } else {
+                            (|instance: &__Value| match instance {
+                                __Value::Number(n) => __types::is_integer(n),
+                                _ => false,
+                            })(__value)
+                        }
+                    })
+            }
+            _ => false,
+        }

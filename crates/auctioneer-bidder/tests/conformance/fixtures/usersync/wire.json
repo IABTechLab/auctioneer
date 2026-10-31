@@ -1,0 +1,1584 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "body_base64": "e30K",
+        "body_utf8": "{}\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "getuids_empty",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/getuids",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/getuids.go",
+          "endpoints/getuids_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJidXllcnVpZHMiOnsiYWRueHMiOiJsaXZlIn19Cg==",
+        "body_utf8": "{\"buyeruids\":{\"adnxs\":\"live\"}}\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "getuids_live",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsaXZlIiwiZXhwaXJlcyI6IjIwMjYtMTAtMTRUMTI6MDA6MDBaIn19fQ=="
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/getuids",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/getuids.go",
+          "endpoints/getuids_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJidXllcnVpZHMiOnsiYWRueHMiOiJleHBpcmVkIn19Cg==",
+        "body_utf8": "{\"buyeruids\":{\"adnxs\":\"expired\"}}\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "getuids_expired_retained",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJleHBpcmVkIiwiZXhwaXJlcyI6IjIwMjYtMDktMjlUMTI6MDA6MDBaIn19fQ=="
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/getuids",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/getuids.go",
+          "endpoints/getuids_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "e30K",
+        "body_utf8": "{}\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "getuids_optout",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=eyJvcHRvdXQiOnRydWV9"
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/getuids",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/getuids.go",
+          "endpoints/getuids_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "e30K",
+        "body_utf8": "{}\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "getuids_invalid",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=%%%"
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/getuids",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/getuids.go",
+          "endpoints/getuids_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJidXllcnVpZHMiOnsiYWRueHMiOiJcdTAwM2NcdTAwM2VcdTAwMjYifX0K",
+        "body_utf8": "{\"buyeruids\":{\"adnxs\":\"\\u003c\\u003e\\u0026\"}}\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "getuids_html_escaping",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiI8PiYiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19"
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/getuids",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/getuids.go",
+          "endpoints/getuids_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABHNCSVQICAgIfAhkiAAAAA1JREFUCJljYGBgYAAAAAUAAYehTtQAAAAASUVORK5CYII=",
+        "body_utf8": null,
+        "headers": {
+          "Content-Length": [
+            "86"
+          ],
+          "Content-Type": [
+            "image/png"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_appnexus_image",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=appnexus&uid=123",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_pubmatic_blank",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABHNCSVQICAgIfAhkiAAAAA1JREFUCJljYGBgYAAAAAUAAYehTtQAAAAASUVORK5CYII=",
+        "body_utf8": null,
+        "headers": {
+          "Content-Length": [
+            "86"
+          ],
+          "Content-Type": [
+            "image/png"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_pubmatic_forced_image",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123&f=i",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_uppercase_format",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=PUBMATIC&uid=123&f=B",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_empty_format_defaults",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123&f=",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_duplicate_query_first_wins",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&bidder=unknown&uid=first&uid=second&f=b&f=i",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_clear",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsaXZlIiwiZXhwaXJlcyI6IjIwMjYtMTAtMTRUMTI6MDA6MDBaIn19fQ=="
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=appnexus&uid=&f=b",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "ImJpZGRlciIgcXVlcnkgcGFyYW0gaXMgcmVxdWlyZWQ=",
+        "body_utf8": "\"bidder\" query param is required",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_missing_bidder",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?uid=123",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "VGhlIGJpZGRlciBuYW1lIHByb3ZpZGVkIGlzIG5vdCBzdXBwb3J0ZWQgYnkgUHJlYmlkIFNlcnZlcg==",
+        "body_utf8": "The bidder name provided is not supported by Prebid Server",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_unknown_bidder",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=unsupported-bidder&uid=123",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "ImYiIHF1ZXJ5IHBhcmFtIGlzIGludmFsaWQuIG11c3QgYmUgImIiIG9yICJpIg==",
+        "body_utf8": "\"f\" query param is invalid. must be \"b\" or \"i\"",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_invalid_format",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&f=x",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 401
+      },
+      "id": "setuid_optout",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [
+          "uids=eyJvcHRvdXQiOnRydWV9"
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "dGhlIGdkcHIgcXVlcnkgcGFyYW0gbXVzdCBiZSBlaXRoZXIgMCBvciAxLiBZb3UgZ2F2ZSAy",
+        "body_utf8": "the gdpr query param must be either 0 or 1. You gave 2",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_gdpr_invalid",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gdpr=2",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_gdpr_empty",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gdpr=",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "R0RQUiBjb25zZW50IGlzIHJlcXVpcmVkIHdoZW4gZ2RwciBzaWduYWwgZXF1YWxzIDE=",
+        "body_utf8": "GDPR consent is required when gdpr signal equals 1",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_gdpr_missing_consent",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gdpr=1",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "Z2Rwcl9jb25zZW50IHdhcyBpbnZhbGlkLiBtYWxmb3JtZWQgY29uc2VudCBzdHJpbmcgbWFsZm9ybWVkOiBzb21lIGVycm9y",
+        "body_utf8": "gdpr_consent was invalid. malformed consent string malformed: some error",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_malformed_consent",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "malformed",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=malformed",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "VGhlIGdkcHJfY29uc2VudCBzdHJpbmcgcHJldmVudHMgY29va2llcyBmcm9tIGJlaW5nIHNhdmVk",
+        "body_utf8": "The gdpr_consent string prevents cookies from being saved",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 451
+      },
+      "id": "setuid_host_denial",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "deny",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=denied",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "Tm8gZ2xvYmFsIHZlbmRvciBsaXN0IHdhcyBhdmFpbGFibGUgdG8gaW50ZXJwcmV0IHRoaXMgY29uc2VudCBzdHJpbmcuIElmIHRoaXMgaXMgYSBuZXcsIHZhbGlkIHZlcnNpb24sIGl0IHNob3VsZCBiZWNvbWUgYXZhaWxhYmxlIHNvb24u",
+        "body_utf8": "No global vendor list was available to interpret this consent string. If this is a new, valid version, it should become available soon.",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_gvl_unavailable",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "unavailable",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gdpr=1&gdpr_consent=consent",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 451
+      },
+      "id": "setuid_activity_denial",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&account=activity-deny",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 451
+      },
+      "id": "setuid_activity_before_invalid_gdpr",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&account=activity-deny&gdpr=2",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "YWNjb3VudCBpcyBkaXNhYmxlZCwgcGxlYXNlIHJlYWNoIG91dCB0byB0aGUgcHJlYmlkIHNlcnZlciBob3N0",
+        "body_utf8": "account is disabled, please reach out to the prebid server host",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_disabled_account",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&account=disabled",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "aW52YWxpZCBncHBfc2lkIGVuY29kaW5nLCBtdXN0IGJlIGEgY3N2IGxpc3Qgb2YgaW50ZWdlcnM=",
+        "body_utf8": "invalid gpp_sid encoding, must be a csv list of integers",
+        "headers": {},
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "setuid_invalid_sid",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&gpp_sid=bad",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_chrome_66",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123",
+        "user_agent": "Chrome/66.0"
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT; Secure; SameSite=None"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_chrome_67",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123",
+        "user_agent": "Chrome/67.0"
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT; Secure; SameSite=None"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_crios_67",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123",
+        "user_agent": "CriOS/67.0"
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "",
+        "body_utf8": "",
+        "headers": {
+          "Content-Length": [
+            "0"
+          ],
+          "Content-Type": [
+            "text/html"
+          ],
+          "Set-Cookie": [
+            "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiIxMjMiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+          ]
+        },
+        "set_cookie_present": true,
+        "status": 200
+      },
+      "id": "setuid_chrome_invalid",
+      "input": {
+        "body_utf8": "",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "GET",
+        "target": "/setuid?bidder=pubmatic&uid=123",
+        "user_agent": "Chrome/nope"
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJzdGF0dXMiOiJub19jb29raWUiLCJiaWRkZXJfc3RhdHVzIjpbXX0K",
+        "body_utf8": "{\"status\":\"no_cookie\",\"bidder_status\":[]}\n",
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "cookie_sync_empty",
+      "input": {
+        "body_utf8": "{\"bidders\":[\"unknown\"]}",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJzdGF0dXMiOiJub19jb29raWUiLCJiaWRkZXJfc3RhdHVzIjpbeyJiaWRkZXIiOiJwdWJtYXRpYyIsIm5vX2Nvb2tpZSI6dHJ1ZSwidXNlcnN5bmMiOnsidXJsIjoiaHR0cHM6Ly9hZHMucHVibWF0aWMuY29tL0FkU2VydmVyL2pzL3VzZXJfc3luYy5odG1sP2dkcHI9MCZnZHByX2NvbnNlbnQ9JnVzX3ByaXZhY3k9JnByZWRpcmVjdD1odHRwcyUzQSUyRiUyRnN5bmMuZXhhbXBsZS5jb20lMkZzZXR1aWQlM0ZiaWRkZXIlM0RwdWJtYXRpYyUyNmdkcHIlM0QwJTI2Z2Rwcl9jb25zZW50JTNEJTI2Z3BwJTNEJTI2Z3BwX3NpZCUzRCUyNmYlM0RiJTI2dWlkJTNEIiwidHlwZSI6ImlmcmFtZSJ9fV19Cg==",
+        "body_utf8": "{\"status\":\"no_cookie\",\"bidder_status\":[{\"bidder\":\"pubmatic\",\"no_cookie\":true,\"usersync\":{\"url\":\"https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr=0&gdpr_consent=&us_privacy=&predirect=https%3A%2F%2Fsync.example.com%2Fsetuid%3Fbidder%3Dpubmatic%26gdpr%3D0%26gdpr_consent%3D%26gpp%3D%26gpp_sid%3D%26f%3Db%26uid%3D\",\"type\":\"iframe\"}}]}\n",
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "cookie_sync_selected",
+      "input": {
+        "body_utf8": "{\"bidders\":[\"pubmatic\"],\"gdpr\":0}",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJzdGF0dXMiOiJvayIsImJpZGRlcl9zdGF0dXMiOltdfQo=",
+        "body_utf8": "{\"status\":\"ok\",\"bidder_status\":[]}\n",
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "cookie_sync_live",
+      "input": {
+        "body_utf8": "{\"bidders\":[\"appnexus\"]}",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsaXZlIiwiZXhwaXJlcyI6IjIwMjYtMTAtMTRUMTI6MDA6MDBaIn19fQ=="
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJzdGF0dXMiOiJub19jb29raWUiLCJiaWRkZXJfc3RhdHVzIjpbeyJiaWRkZXIiOiJhcHBuZXh1cyIsIm5vX2Nvb2tpZSI6dHJ1ZSwidXNlcnN5bmMiOnsidXJsIjoiaHR0cHM6Ly9pYi5hZG54cy5jb20vZ2V0dWlkP2h0dHBzJTNBJTJGJTJGc3luYy5leGFtcGxlLmNvbSUyRnNldHVpZCUzRmJpZGRlciUzRGFwcG5leHVzJTI2Z2RwciUzRCUyNmdkcHJfY29uc2VudCUzRCUyNmdwcCUzRCUyNmdwcF9zaWQlM0QlMjZmJTNEaSUyNnVpZCUzRCUyNFVJRCIsInR5cGUiOiJyZWRpcmVjdCJ9fV19Cg==",
+        "body_utf8": "{\"status\":\"no_cookie\",\"bidder_status\":[{\"bidder\":\"appnexus\",\"no_cookie\":true,\"usersync\":{\"url\":\"https://ib.adnxs.com/getuid?https%3A%2F%2Fsync.example.com%2Fsetuid%3Fbidder%3Dappnexus%26gdpr%3D%26gdpr_consent%3D%26gpp%3D%26gpp_sid%3D%26f%3Di%26uid%3D%24UID\",\"type\":\"redirect\"}}]}\n",
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "cookie_sync_expired",
+      "input": {
+        "body_utf8": "{\"bidders\":[\"appnexus\"]}",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJleHBpcmVkIiwiZXhwaXJlcyI6IjIwMjYtMDktMjlUMTI6MDA6MDBaIn19fQ=="
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "VXNlciBoYXMgb3B0ZWQgb3V0Cg==",
+        "body_utf8": "User has opted out\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ],
+          "X-Content-Type-Options": [
+            "nosniff"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 401
+      },
+      "id": "cookie_sync_optout",
+      "input": {
+        "body_utf8": "{}",
+        "cookie_headers": [
+          "uids=eyJvcHRvdXQiOnRydWV9"
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "eyJzdGF0dXMiOiJvayIsImJpZGRlcl9zdGF0dXMiOltdfQo=",
+        "body_utf8": "{\"status\":\"ok\",\"bidder_status\":[]}\n",
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 200
+      },
+      "id": "cookie_sync_host_denied_live",
+      "input": {
+        "body_utf8": "{}",
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsaXZlIiwiZXhwaXJlcyI6IjIwMjYtMTAtMTRUMTI6MDA6MDBaIn19fQ=="
+        ],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "deny",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "SlNPTiBwYXJzaW5nIGZhaWxlZDogZXhwZWN0IHsgb3IgbiwgYnV0IGZvdW5kIG0K",
+        "body_utf8": "JSON parsing failed: expect { or n, but found m\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ],
+          "X-Content-Type-Options": [
+            "nosniff"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "cookie_sync_malformed",
+      "input": {
+        "body_utf8": "malformed",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "Z2Rwcl9jb25zZW50IGlzIHJlcXVpcmVkIGlmIGdkcHI9MQo=",
+        "body_utf8": "gdpr_consent is required if gdpr=1\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ],
+          "X-Content-Type-Options": [
+            "nosniff"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "cookie_sync_required_consent",
+      "input": {
+        "body_utf8": "{\"gdpr\":1}",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "Z2Rwcl9jb25zZW50IGlzIHJlcXVpcmVkLiBnZHByIGlzIG5vdCBzcGVjaWZpZWQgYW5kIGlzIGFzc3VtZWQgdG8gYmUgMSBieSB0aGUgc2VydmVyLiBzZXQgZ2Rwcj0wIHRvIGV4ZW1wdCB0aGlzIHJlcXVlc3QK",
+        "body_utf8": "gdpr_consent is required. gdpr is not specified and is assumed to be 1 by the server. set gdpr=0 to exempt this request\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ],
+          "X-Content-Type-Options": [
+            "nosniff"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "cookie_sync_default_requires_consent",
+      "input": {
+        "body_utf8": "{}",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "1",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "YWNjb3VudCBpcyBkaXNhYmxlZCwgcGxlYXNlIHJlYWNoIG91dCB0byB0aGUgcHJlYmlkIHNlcnZlciBob3N0Cg==",
+        "body_utf8": "account is disabled, please reach out to the prebid server host\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ],
+          "X-Content-Type-Options": [
+            "nosniff"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "cookie_sync_disabled_account",
+      "input": {
+        "body_utf8": "{\"account\":\"disabled\"}",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "body_base64": "ZXJyb3IgcGFyc2luZyBmaWx0ZXJzZXR0aW5ncy5pbWFnZTogaW52YWxpZCBmaWx0ZXIgdmFsdWUgJ2JhZCcuIG11c3QgYmUgZWl0aGVyICdpbmNsdWRlJyBvciAnZXhjbHVkZScK",
+        "body_utf8": "error parsing filtersettings.image: invalid filter value 'bad'. must be either 'include' or 'exclude'\n",
+        "headers": {
+          "Content-Type": [
+            "text/plain; charset=utf-8"
+          ],
+          "X-Content-Type-Options": [
+            "nosniff"
+          ]
+        },
+        "set_cookie_present": false,
+        "status": 400
+      },
+      "id": "cookie_sync_invalid_filter",
+      "input": {
+        "body_utf8": "{\"filterSettings\":{\"image\":{\"filter\":\"bad\",\"bidders\":\"*\"}}}",
+        "cookie_headers": [],
+        "host_cookie": {
+          "ttl_days": 90
+        },
+        "host_default_gdpr": "0",
+        "host_permission_stub": "",
+        "method": "POST",
+        "target": "/cookie_sync",
+        "user_agent": ""
+      },
+      "operation": "http_response",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual endpoint with fixed permission outcomes and local account fetcher, matching upstream test strategy; not TCF/GVL authorization evidence. Handler headers from httptest.ResponseRecorder.Result().",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go",
+          "usersync/cookie.go"
+        ]
+      }
+    }
+  ],
+  "reference": {
+    "generator_version": 1,
+    "go": "go1.23.12",
+    "license": "Apache-2.0",
+    "now": "2026-09-30T12:00:00Z",
+    "revision": "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+  },
+  "schema_version": 1
+}

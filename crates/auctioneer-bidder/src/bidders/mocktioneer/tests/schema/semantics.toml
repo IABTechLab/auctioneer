@@ -1,0 +1,19 @@
+schema_version = 1
+schema = "mocktioneer"
+schema_sha256 = "bff17431f5fe1932250b15a58f8f8eb531d93f600095e5e5b8b1be7851c73a9d"
+origin = "authored_schema_derived"
+rows = [
+  { id = "empty_object_allowed", schema = "mocktioneer", valid = true, input_json = '{}' },
+  { id = "endpoint_nonempty", schema = "mocktioneer", valid = true, input_json = '{"endpoint":"x"}' },
+  { id = "endpoint_empty", schema = "mocktioneer", valid = false, input_json = '{"endpoint":""}' },
+  { id = "endpoint_wrong_type", schema = "mocktioneer", valid = false, input_json = '{"endpoint":1}' },
+  { id = "negative_bid_allowed", schema = "mocktioneer", valid = true, input_json = '{"bid":-0.1}' },
+  { id = "bid_wrong_type", schema = "mocktioneer", valid = false, input_json = '{"bid":"1"}' },
+  { id = "additional_allowed", schema = "mocktioneer", valid = true, input_json = '{"fake_extra":{"nested":[]}}' },
+  { id = "root_array_refused", schema = "mocktioneer", valid = false, input_json = '[]' },
+]
+[expected]
+authored = 8
+imported = 0
+accepts = 4
+rejects = 4

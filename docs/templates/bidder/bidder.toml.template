@@ -1,0 +1,16 @@
+# Inert by default. Replace markers with reviewed facts; never overlay an owner.
+key = "REPLACE_WITH_IMPLEMENTATION_KEY"
+factory = false
+
+# No endpoint, aliases, public definitions or synthetic parameter schema.
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "REPLACE_WITH_ACTUAL_SOURCE_REPOSITORY"
+revision = "REPLACE_WITH_IMMUTABLE_SOURCE_REVISION"
+
+# Add only genuine, separately reviewed source trees and artifact witnesses.
+# Never invent source blobs, lengths, SHA-256 values or metadata enablement.

@@ -1,0 +1,334 @@
+use crate::codegen::emit::ValueEmitter;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
+use serde_json::{Map, Value};
+
+use crate::context::CompileContext;
+
+use super::{
+    draft::DraftExt,
+    expr::{CollectBlock, IsValidExpr, ValidateBlock},
+    keywords,
+    keywords::format::format_emits_assertion,
+    CompiledExpr,
+};
+
+enum SoleType {
+    Array(TokenStream, TokenStream, TokenStream),
+    Object(TokenStream, TokenStream, TokenStream),
+}
+
+fn type_keyword_includes(type_value: &Value, name: &str) -> bool {
+    match type_value {
+        Value::String(s) => s == name,
+        Value::Array(arr) => arr.iter().any(|v| v.as_str() == Some(name)),
+        _ => false,
+    }
+}
+
+pub(super) fn compile_typed<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    schema: &Map<String, Value>,
+    has_type_constraint: bool,
+) -> Option<CompiledExpr> {
+    let validation_vocab_enabled = ctx.supports_validation_vocabulary();
+    let applicator_vocab_enabled = ctx.supports_applicator_vocabulary();
+    let unevaluated_items_enabled = ctx.supports_unevaluated_items();
+    let unevaluated_properties_enabled = ctx.supports_unevaluated_properties();
+
+    let has_string = (validation_vocab_enabled
+        && (schema.contains_key("minLength")
+            || schema.contains_key("maxLength")
+            || schema.contains_key("pattern")))
+        || schema
+            .get("format")
+            .is_some_and(|value| format_emits_assertion(ctx, value))
+        || (ctx.draft.supports_content_validation_keywords()
+            && (schema.contains_key("contentEncoding") || schema.contains_key("contentMediaType")));
+
+    let has_number = validation_vocab_enabled
+        && (schema.contains_key("minimum")
+            || schema.contains_key("maximum")
+            || schema.contains_key("exclusiveMinimum")
+            || schema.contains_key("exclusiveMaximum")
+            || schema.contains_key("multipleOf"));
+
+    let has_array = (validation_vocab_enabled
+        && (schema.contains_key("minItems")
+            || schema.contains_key("maxItems")
+            || schema.contains_key("uniqueItems")))
+        || (applicator_vocab_enabled
+            && (schema.contains_key("items")
+                || schema.contains_key("additionalItems")
+                || (ctx.draft.supports_contains_keyword() && schema.contains_key("contains"))
+                || (ctx.draft.supports_prefix_items_keyword()
+                    && schema.contains_key("prefixItems"))))
+        || (unevaluated_items_enabled && schema.contains_key("unevaluatedItems"));
+
+    let has_object = (validation_vocab_enabled
+        && (schema.contains_key("required")
+            || schema.contains_key("minProperties")
+            || schema.contains_key("maxProperties")
+            || (ctx.draft.supports_dependent_required_keyword()
+                && schema.contains_key("dependentRequired"))))
+        || (applicator_vocab_enabled
+            && (schema.contains_key("properties")
+                || schema.contains_key("patternProperties")
+                || schema.contains_key("additionalProperties")
+                || schema.contains_key("dependencies")
+                || (ctx.draft.supports_dependent_schemas_keyword()
+                    && schema.contains_key("dependentSchemas"))
+                || (ctx.draft.supports_property_names_keyword()
+                    && schema.contains_key("propertyNames"))))
+        || (unevaluated_properties_enabled && schema.contains_key("unevaluatedProperties"));
+
+    if !has_string && !has_number && !has_array && !has_object {
+        return None;
+    }
+
+    let mut is_valid_fallback = quote! { true };
+    let mut validate_fallback = quote! { {} };
+    let mut collect_fallback = quote! { {} };
+    let mut typed_arms = 0usize;
+    let mut sole: Option<SoleType> = None;
+    let mut is_valid_arms = Vec::new();
+    let mut validate_arms = Vec::new();
+    let mut collect_arms = Vec::new();
+    let integer_guard = E::integer_number_guard(ctx.draft);
+
+    if has_string {
+        let for_string = keywords::string::compile(ctx, schema);
+        if has_type_constraint || !for_string.is_trivially_true() {
+            typed_arms += 1;
+            is_valid_arms.push(E::match_string_arm(for_string.is_valid_token_stream()));
+            if has_type_constraint || matches!(&for_string.validate, ValidateBlock::Expr(_)) {
+                validate_arms.push(E::match_string_arm(for_string.validate.as_token_stream()));
+                collect_arms.push(E::match_string_arm(for_string.collect.as_token_stream()));
+            }
+        }
+    }
+
+    if has_number {
+        let for_number = keywords::number::compile(ctx, schema);
+        if has_type_constraint {
+            let type_val = schema
+                .get("type")
+                .expect("has_type_constraint implies a `type` keyword");
+            let allows_number = type_keyword_includes(type_val, "number");
+            let allows_integer = type_keyword_includes(type_val, "integer");
+            if allows_number {
+                typed_arms += 1;
+                is_valid_arms.push(E::match_number_arm(for_number.is_valid_token_stream()));
+                validate_arms.push(E::match_number_arm(for_number.validate.as_token_stream()));
+                collect_arms.push(E::match_number_arm(for_number.collect.as_token_stream()));
+            } else if allows_integer {
+                typed_arms += 1;
+                is_valid_arms.push(E::match_integer_arm(
+                    integer_guard.clone(),
+                    for_number.is_valid_token_stream(),
+                ));
+                validate_arms.push(E::match_integer_arm(
+                    integer_guard.clone(),
+                    for_number.validate.as_token_stream(),
+                ));
+                // Runtime reports both the type error and the numeric errors for a non-integer number
+                // under `type: integer`, so collect runs the numeric checks for every number and pushes
+                // the type error inline when it is not an integer.
+                let type_schema_path = ctx.schema_path_for_keyword("type");
+                let type_error_expr = build_type_error_expr::<E>(type_val, &type_schema_path);
+                let guard = integer_guard.clone();
+                let numeric_collect = for_number.collect.as_token_stream();
+                collect_arms.push(E::match_number_arm(quote! {
+                    if !(#guard) {
+                        __errors.push(#type_error_expr);
+                    }
+                    #numeric_collect
+                }));
+            } else if for_number.is_compile_error() {
+                typed_arms += 1;
+                is_valid_arms.push(E::match_number_arm(for_number.is_valid_token_stream()));
+                validate_arms.push(E::match_number_arm(for_number.validate.as_token_stream()));
+                collect_arms.push(E::match_number_arm(for_number.collect.as_token_stream()));
+            }
+        } else if !for_number.is_trivially_true() {
+            typed_arms += 1;
+            is_valid_arms.push(E::match_number_arm(for_number.is_valid_token_stream()));
+            if matches!(&for_number.validate, ValidateBlock::Expr(_)) {
+                validate_arms.push(E::match_number_arm(for_number.validate.as_token_stream()));
+                collect_arms.push(E::match_number_arm(for_number.collect.as_token_stream()));
+            }
+        }
+    }
+
+    if has_array {
+        let for_array = keywords::array::compile(ctx, schema);
+        if has_type_constraint || !for_array.is_trivially_true() {
+            typed_arms += 1;
+            sole = Some(SoleType::Array(
+                for_array.is_valid_token_stream(),
+                for_array.validate.as_token_stream(),
+                for_array.collect.as_token_stream(),
+            ));
+            is_valid_arms.push(E::match_array_arm(for_array.is_valid_token_stream()));
+            if has_type_constraint || matches!(&for_array.validate, ValidateBlock::Expr(_)) {
+                validate_arms.push(E::match_array_arm(for_array.validate.as_token_stream()));
+                collect_arms.push(E::match_array_arm(for_array.collect.as_token_stream()));
+            }
+        }
+    }
+
+    if has_object {
+        let for_object = keywords::object::compile(ctx, schema);
+        if has_type_constraint || !for_object.is_trivially_true() {
+            typed_arms += 1;
+            sole = Some(SoleType::Object(
+                for_object.is_valid_token_stream(),
+                for_object.validate.as_token_stream(),
+                for_object.collect.as_token_stream(),
+            ));
+            is_valid_arms.push(E::match_object_arm(for_object.is_valid_token_stream()));
+            if has_type_constraint || matches!(&for_object.validate, ValidateBlock::Expr(_)) {
+                validate_arms.push(E::match_object_arm(for_object.validate.as_token_stream()));
+                collect_arms.push(E::match_object_arm(for_object.collect.as_token_stream()));
+            }
+        }
+    }
+
+    if has_type_constraint {
+        let type_val = schema
+            .get("type")
+            .expect("has_type_constraint implies a `type` keyword");
+        let mut additional_types = Vec::new();
+
+        let has_string_fallback = type_keyword_includes(type_val, "string") && !has_string;
+        let has_number_fallback = type_keyword_includes(type_val, "number") && !has_number;
+        let has_integer_fallback =
+            type_keyword_includes(type_val, "integer") && !has_number && !has_number_fallback;
+        let has_array_fallback = type_keyword_includes(type_val, "array") && !has_array;
+        let has_object_fallback = type_keyword_includes(type_val, "object") && !has_object;
+        let has_boolean_fallback = type_keyword_includes(type_val, "boolean");
+        let has_null_fallback = type_keyword_includes(type_val, "null");
+
+        if has_string_fallback {
+            additional_types.push(E::pattern_string());
+        }
+        if has_number_fallback {
+            additional_types.push(E::pattern_number());
+        }
+        if has_integer_fallback {
+            additional_types.push(E::pattern_integer(integer_guard.clone()));
+        }
+        if has_array_fallback {
+            additional_types.push(E::pattern_array());
+        }
+        if has_object_fallback {
+            additional_types.push(E::pattern_object());
+        }
+        if has_boolean_fallback {
+            additional_types.push(E::pattern_boolean());
+        }
+        if has_null_fallback {
+            additional_types.push(E::pattern_null());
+        }
+
+        if !additional_types.is_empty() {
+            typed_arms += 1;
+            // Bare (non-block) arm, so it carries its own trailing comma: `type_match`
+            // concatenates arms with no separator, and `_ => false` always follows it.
+            is_valid_arms.push(quote! { #(#additional_types)|* => true, });
+            for pattern in &additional_types {
+                validate_arms.push(quote! { #pattern => {} });
+                collect_arms.push(quote! { #pattern => {} });
+            }
+        }
+        is_valid_fallback = quote! { false };
+
+        let type_schema_path = ctx.schema_path_for_keyword("type");
+        let type_value = schema
+            .get("type")
+            .expect("has_type_constraint implies a `type` keyword");
+        let type_error_expr = build_type_error_expr::<E>(type_value, &type_schema_path);
+        validate_fallback = quote! { { return Some(#type_error_expr); } };
+        collect_fallback = quote! { { __errors.push(#type_error_expr); } };
+    } else if is_valid_arms.is_empty() {
+        return None;
+    }
+    is_valid_arms.push(quote! { _ => #is_valid_fallback });
+    validate_arms.push(quote! { _ => #validate_fallback });
+    collect_arms.push(quote! { _ => #collect_fallback });
+
+    let (is_valid_ts, validate_ts, collect_ts) = match sole.filter(|_| typed_arms == 1) {
+        Some(SoleType::Array(is_valid, validate, collect)) => (
+            E::sole_array_match(is_valid, is_valid_fallback),
+            E::sole_array_match(validate, validate_fallback),
+            E::sole_array_match(collect, collect_fallback),
+        ),
+        Some(SoleType::Object(is_valid, validate, collect)) => (
+            E::sole_object_match(is_valid, is_valid_fallback),
+            E::sole_object_match(validate, validate_fallback),
+            E::sole_object_match(collect, collect_fallback),
+        ),
+        _ => (
+            E::type_match(format_ident!("instance"), is_valid_arms),
+            E::type_match(format_ident!("instance"), validate_arms),
+            E::type_match(format_ident!("instance"), collect_arms),
+        ),
+    };
+    Some(CompiledExpr {
+        is_valid: IsValidExpr::Expr(is_valid_ts),
+        validate: ValidateBlock::Expr(validate_ts),
+        collect: CollectBlock::Expr(collect_ts),
+        compile_error: false,
+    })
+}
+
+pub(super) fn build_type_error_expr<E: ValueEmitter>(
+    type_val: &Value,
+    type_schema_path: &str,
+) -> TokenStream {
+    let err_instance = E::err_instance(format_ident!("instance"));
+    match type_val {
+        Value::String(ty) => {
+            let json_type = type_name_to_json_type_token(ty.as_str());
+            quote! {
+                __err::single_type(
+                    #type_schema_path, __path.into(), #err_instance, #json_type,
+                )
+            }
+        }
+        Value::Array(types) => {
+            // Build the set as a const chain: JsonTypeSet::empty().insert(A).insert(B)...
+            let chain = types.iter().filter_map(|v| v.as_str()).fold(
+                quote! { __JTS::empty() },
+                |acc, ty| {
+                    let json_type = type_name_to_json_type_token(ty);
+                    quote! { #acc.insert(#json_type) }
+                },
+            );
+            quote! {
+                __err::multiple_types(
+                    #type_schema_path, __path.into(), #err_instance, #chain,
+                )
+            }
+        }
+        _ => {
+            quote! {
+                __err::false_schema(
+                    #type_schema_path, __path.into(), #err_instance,
+                )
+            }
+        }
+    }
+}
+
+fn type_name_to_json_type_token(name: &str) -> TokenStream {
+    match name {
+        "number" => quote! { __JT::Number },
+        "integer" => quote! { __JT::Integer },
+        "boolean" => quote! { __JT::Boolean },
+        "null" => quote! { __JT::Null },
+        "array" => quote! { __JT::Array },
+        "object" => quote! { __JT::Object },
+        _ => quote! { __JT::String },
+    }
+}
