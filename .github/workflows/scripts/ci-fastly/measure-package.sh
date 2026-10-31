@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-package=crates/auctioneer-adapter-fastly/pkg/auctioneer.tar.gz
+package=pkg/auctioneer.tar.gz
 if [ ! -f "$package" ]; then
   echo "::error::fastly compute build did not produce $package"
   exit 1

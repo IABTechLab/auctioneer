@@ -200,7 +200,7 @@ level = "info"
 
 [adapters.fastly.adapter]
 crate = "crates/auctioneer-adapter-fastly"
-manifest = "crates/auctioneer-adapter-fastly/fastly.toml"
+manifest = "fastly.toml"
 
 [adapters.fastly.build]
 target = "wasm32-wasip1"
@@ -208,9 +208,9 @@ profile = "release"
 features = ["fastly"]
 
 [adapters.fastly.commands]
-build = "fastly compute build -C crates/auctioneer-adapter-fastly"
-deploy = "fastly compute deploy -C crates/auctioneer-adapter-fastly"
-serve = "fastly compute serve -C crates/auctioneer-adapter-fastly"
+build = "fastly compute build"
+deploy = "fastly compute deploy"
+serve = "fastly compute serve"
 
 
 [adapters.fastly.logging]

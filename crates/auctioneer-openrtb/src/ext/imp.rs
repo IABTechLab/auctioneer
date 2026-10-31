@@ -112,6 +112,7 @@ const _: () = {
 mod tests {
     use super::*;
     use crate::test_support::round_trip;
+    use serde_json::error::Category;
 
     #[test]
     fn imp_ext_prebid_imp_fpd_round_trips() {
@@ -185,7 +186,9 @@ mod tests {
             serde_json::json!([]),
         ] {
             let input = serde_json::json!({"prebid": value});
-            assert!(serde_json::from_value::<ImpExt>(input).is_err());
+            let error = serde_json::from_value::<ImpExt>(input)
+                .expect_err("a non-object prebid extension must be rejected");
+            assert_eq!(error.classify(), Category::Data);
         }
     }
 

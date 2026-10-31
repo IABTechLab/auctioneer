@@ -9,7 +9,7 @@ mod tests {
     #[test]
     fn cookie_keyring_is_env_backed_in_the_existing_default_secret_store() {
         let manifest: Value =
-            from_str(include_str!("../fastly.toml")).expect("the Fastly manifest parses");
+            from_str(include_str!("../../../fastly.toml")).expect("the Fastly manifest parses");
         let stores = <App as Hooks>::stores()
             .secrets
             .expect("the default secret store exists");

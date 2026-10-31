@@ -139,7 +139,7 @@ exit 71
     }
 
     fn manifest() -> Value {
-        from_str(include_str!("../fastly.toml")).expect("the local Fastly manifest parses")
+        from_str(include_str!("../../../fastly.toml")).expect("the local Fastly manifest parses")
     }
 
     fn local_policy(token: Option<&str>) -> HealthAccessPolicy {
@@ -292,7 +292,7 @@ exit 71
 
         let wasm =
             env::var_os("AUCTIONEER__TEST__FASTLY_LOGGING_WASM").expect("WASM test artifact path");
-        let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fastly.toml");
+        let manifest_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fastly.toml");
         for (case_index, (test, token, raw_flag)) in [
             (
                 "health_setup_tests::unset_local_token_resolves_closed",

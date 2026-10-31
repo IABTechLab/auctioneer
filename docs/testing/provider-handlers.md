@@ -113,11 +113,11 @@ the complete typed preparation. The safe preparation summary on stdout is not
 a replacement for that plan in later requests.
 
 | Command After `auctioneer-cli qualify providers` | Request Fields                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `capture-build --input PATH`                 | `preparation` (full plan object), `cargo_json_lines` (string), `started_ms` (integer) |
-| `stage-spin --input PATH`                    | `preparation` (full plan object), `build` (full build-receipt object)                 |
-| `stage-fastly --input PATH`                  | `preparation`, `build`, `bundle_root`, `attestation`                                  |
-| `verify-fastly-archive --input PATH`         | `sdk_root`, `archive`, `archive_sha256`, `source_revision`, `destination`             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `capture-build --input PATH`                     | `preparation` (full plan object), `cargo_json_lines` (string), `started_ms` (integer) |
+| `stage-spin --input PATH`                        | `preparation` (full plan object), `build` (full build-receipt object)                 |
+| `stage-fastly --input PATH`                      | `preparation`, `build`, `bundle_root`, `attestation`                                  |
+| `verify-fastly-archive --input PATH`             | `sdk_root`, `archive`, `archive_sha256`, `source_revision`, `destination`             |
 
 `preparation` and `build` are embedded objects, not filenames. Use structured
 JSON APIs to compose them from the retained plan/receipt. Build receipts contain
@@ -182,8 +182,8 @@ especially defaults, insecure bidder-info and disclosure directories. Do not
 inherit `RUSTFLAGS`, alternate Cargo profiles/configs or runtime endpoint overlays.
 Use only the approved toolchain/cache environment. Do not enable `insecure-bidders`.
 
-| Provider   | Actual WASM Target       | Profile   | Required Features                                   |
-| ---------- | ------------------------ | --------- | --------------------------------------------------- |
+| Provider   | Actual WASM Target       | Profile   | Required Features                                       |
+| ---------- | ------------------------ | --------- | ------------------------------------------------------- |
 | Cloudflare | `wasm32-unknown-unknown` | `release` | `cloudflare`, `auctioneer-config/test-harness-override` |
 | Fastly     | `wasm32-wasip1`          | `release` | `fastly`, `auctioneer-config/test-harness-override`     |
 | Spin       | `wasm32-wasip2`          | `release` | `spin`, `auctioneer-config/test-harness-override`       |
@@ -390,8 +390,8 @@ Spin's static manifest source. Cloudflare's build chain also needs its Worker
 shim/package tooling in the isolated adapter tree; a Rust WASM check alone is
 not a deployable Worker. Its committed commands are `wrangler build/deploy --cwd
 crates/auctioneer-adapter-cloudflare`; Spin's are `spin deploy --from
-crates/auctioneer-adapter-spin`; Fastly's manifest has `fastly compute build/deploy -C
-crates/auctioneer-adapter-fastly`. These original paths must resolve to the isolated
+crates/auctioneer-adapter-spin`; Fastly's root manifest has `fastly compute build/deploy`
+from the workspace root. These paths must resolve to the isolated
 staging tree through the selected manifest, never to committed runtime endpoints
 or a stale target. Managed SDK dispatch, not direct Fastly upload, owns deployment.
 

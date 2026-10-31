@@ -20,16 +20,16 @@ see the [vision](vision.md) for the distinction from the existing library.
 
 ## Workspace
 
-| Crate                                                                   | Purpose                                                                                                                                                                    |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`crates/auctioneer-core`](crates/auctioneer-core/)                             | EdgeZero app entry point; routes and handlers land in M2                                                                                                                   |
-| [`crates/auctioneer-runtime`](crates/auctioneer-runtime/)                       | Host-environment seams: `Clock` + `Rng` traits with deterministic test impls (`FakeClock`, `SeededRng`), Fisher-Yates `shuffle`, Lemire `gen_range`                        |
-| [`crates/auctioneer-openrtb`](crates/auctioneer-openrtb/)                       | OpenRTB 2.6 typed model + `prepare(req, headers)` — the sole construction gate for a `NormalizedBidRequest`                                                                |
+| Crate                                                                           | Purpose                                                                                                                                                                        |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`crates/auctioneer-core`](crates/auctioneer-core/)                             | EdgeZero app entry point; routes and handlers land in M2                                                                                                                       |
+| [`crates/auctioneer-runtime`](crates/auctioneer-runtime/)                       | Host-environment seams: `Clock` + `Rng` traits with deterministic test impls (`FakeClock`, `SeededRng`), Fisher-Yates `shuffle`, Lemire `gen_range`                            |
+| [`crates/auctioneer-openrtb`](crates/auctioneer-openrtb/)                       | OpenRTB 2.6 typed model + `prepare(req, headers)` — the sole construction gate for a `NormalizedBidRequest`                                                                    |
 | [`crates/auctioneer-config`](crates/auctioneer-config/)                         | Host / account / bidder configuration. Build-time codegen reads bidder-owned `bidder.toml` manifests, `auctioneer.toml`, and shared reference data, then emits typed accessors |
-| [`crates/auctioneer-adapter-axum`](crates/auctioneer-adapter-axum/)             | Axum (native) entry point                                                                                                                                                  |
-| [`crates/auctioneer-adapter-cloudflare`](crates/auctioneer-adapter-cloudflare/) | Cloudflare Workers (wasm32-unknown-unknown) entry point                                                                                                                    |
-| [`crates/auctioneer-adapter-fastly`](crates/auctioneer-adapter-fastly/)         | Fastly Compute@Edge (wasm32-wasip1) entry point                                                                                                                            |
-| [`crates/auctioneer-adapter-spin`](crates/auctioneer-adapter-spin/)             | Spin / Fermyon (wasm32-wasip2) entry point                                                                                                                                 |
+| [`crates/auctioneer-adapter-axum`](crates/auctioneer-adapter-axum/)             | Axum (native) entry point                                                                                                                                                      |
+| [`crates/auctioneer-adapter-cloudflare`](crates/auctioneer-adapter-cloudflare/) | Cloudflare Workers (wasm32-unknown-unknown) entry point                                                                                                                        |
+| [`crates/auctioneer-adapter-fastly`](crates/auctioneer-adapter-fastly/)         | Fastly Compute@Edge (wasm32-wasip1) entry point                                                                                                                                |
+| [`crates/auctioneer-adapter-spin`](crates/auctioneer-adapter-spin/)             | Spin / Fermyon (wasm32-wasip2) entry point                                                                                                                                     |
 
 ## Status
 
@@ -205,13 +205,14 @@ for endpoint ordering and intentional reference differences.
 
 Routes are wired in M2; the commands below are the cargo / framework
 entry points the adapter shells use when handlers exist.
+Run them from the workspace root.
 
-| Adapter             | Local dev                                              |
-| ------------------- | ------------------------------------------------------ |
-| Axum                | `cargo run -p auctioneer-adapter-axum`                     |
-| Cloudflare Workers  | `wrangler dev --cwd crates/auctioneer-adapter-cloudflare`  |
-| Fastly Compute@Edge | `fastly compute serve -C crates/auctioneer-adapter-fastly` |
-| Spin                | `spin up --from crates/auctioneer-adapter-spin`            |
+| Adapter             | Local dev                                                 |
+| ------------------- | --------------------------------------------------------- |
+| Axum                | `cargo run -p auctioneer-adapter-axum`                    |
+| Cloudflare Workers  | `wrangler dev --cwd crates/auctioneer-adapter-cloudflare` |
+| Fastly Compute@Edge | `fastly compute serve`                                    |
+| Spin                | `spin up --from crates/auctioneer-adapter-spin`           |
 
 ## Operational endpoints (`/_auctioneer/*`)
 

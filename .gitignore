@@ -20,7 +20,7 @@ target/
 crates/auctioneer-config/data/.gvl_refresh.*/
 
 # Fastly's local CLI synchronization lock, not deployment configuration.
-crates/auctioneer-adapter-fastly/.fastly.toml.edgezero-lock
+/.fastly.toml.edgezero-lock
 
 # env
 .env

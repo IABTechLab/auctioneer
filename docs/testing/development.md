@@ -16,10 +16,15 @@ bootstrap an empty Cargo cache. Install `.tool-versions`, then acquire the
 locked sources online before running offline verification:
 
 ```sh
+rustup component add rust-src
 rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
 cargo fetch --locked
 cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
 ```
+
+The field-metadata compiler tests require `rust-src` with the pinned toolchain:
+their diagnostics include standard-library source excerpts. CI installs the same
+component; do not regenerate snapshots to compensate for missing Rust sources.
 
 The current EdgeZero dependency is the immutable PR #275 integration revision
 `9fe6c56c648f0a601b1c6c051ce71c09d3733ea9`, not a moving branch selector.
@@ -102,6 +107,18 @@ targets as well as core units. Preserve individual binaries where boot gates
 or other process state would interfere. Grant loopback/process access only
 for tests that require it; permission failures are not correctness results.
 
+Run Fastly's vendor tooling from the workspace root, where `fastly.toml` selects
+the adapter binary explicitly:
+
+```sh
+fastly compute build --package-name auctioneer
+fastly compute serve
+```
+
+The package is `pkg/auctioneer.tar.gz`. Fastly CLI 16.0.0 fails to read inherited
+package metadata when invoked in the adapter directory; root invocation retains
+Cargo workspace inheritance without bypassing the vendor packager.
+
 Read `required-features` before selecting conformance: Cargo can silently
 skip a target without them. Core's full conformance checkpoint includes:
 
@@ -165,14 +182,14 @@ local tests, including whether a runner executed any steps.
 
 ## Where Tests Belong
 
-| Test | Owner And Layout |
-| --- | --- |
-| Private/pure behavior | Inline `#[cfg(test)] mod tests` in its implementation module |
-| Public cross-module contract | Owning crate's `tests/<domain>/main.rs` with ordinary submodules; a small existing single-file domain target is also valid |
-| Real bidder protocol | Bidder-owned `request.rs`/`response.rs` inline units; bidder-local `tests/` conformance and `fixtures/` data |
-| Shared bidder infrastructure | Capable fake and synthetic metadata, never a real bidder name used as a generic stand-in |
-| Published registry/catalog path | Real discovery/metadata integration; do not replace the subject of the test with a fake |
-| Allocation/cold boot/process-global state | Separate binary when required by the measurement or incompatible setup; document why near the root |
+| Test                                      | Owner And Layout                                                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Private/pure behavior                     | Inline `#[cfg(test)] mod tests` in its implementation module                                                               |
+| Public cross-module contract              | Owning crate's `tests/<domain>/main.rs` with ordinary submodules; a small existing single-file domain target is also valid |
+| Real bidder protocol                      | Bidder-owned `request.rs`/`response.rs` inline units; bidder-local `tests/` conformance and `fixtures/` data               |
+| Shared bidder infrastructure              | Capable fake and synthetic metadata, never a real bidder name used as a generic stand-in                                   |
+| Published registry/catalog path           | Real discovery/metadata integration; do not replace the subject of the test with a fake                                    |
+| Allocation/cold boot/process-global state | Separate binary when required by the measurement or incompatible setup; document why near the root                         |
 
 Before adding a test target, name the production owner and check whether an
 existing compatible domain target already owns that contract. Move a pure

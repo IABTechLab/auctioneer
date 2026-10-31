@@ -21,6 +21,7 @@ const SOURCE_ROOTS: &[&str] = &[
     "Cargo.toml",
     "Cargo.lock",
     "edgezero.toml",
+    "fastly.toml",
     "auctioneer.toml",
     "crates",
     ".cargo",
@@ -1810,7 +1811,7 @@ pub(super) mod tests {
             "crates/auctioneer-core/Cargo.toml",
             "crates/auctioneer-core/src/lib.rs",
             "crates/auctioneer-adapter-spin/spin.toml",
-            "crates/auctioneer-adapter-fastly/fastly.toml",
+            "fastly.toml",
         ] {
             let destination = root.path().join(relative);
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
@@ -1864,6 +1865,7 @@ pub(super) mod tests {
         .unwrap();
         let initial = source_inventory(root.path()).unwrap();
         for relative in [
+            "fastly.toml",
             "crates/auctioneer-core/src/hidden.rs",
             "crates/auctioneer-core/src/untracked.rs",
             "crates/auctioneer-core/src/target.rs",

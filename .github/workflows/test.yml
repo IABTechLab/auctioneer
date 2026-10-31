@@ -77,7 +77,8 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
-          components: "clippy, rustfmt"
+          # Compile-fail snapshots include standard-library panic locations.
+          components: "clippy, rustfmt, rust-src"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
       - name: Install WASM targets for native schema build controls

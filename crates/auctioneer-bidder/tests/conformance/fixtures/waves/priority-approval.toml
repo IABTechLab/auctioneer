@@ -13,7 +13,7 @@ onboarding_acceptance_granted = false
 # Input changes require renewed review, not an automatic digest update.
 [[contracts]]
 source_path = "priority.toml"
-source_bytes = 55362
+source_bytes = 55838
 source_sha256 = "aa9d38e3e6221c13d13b28ba18684e041f48e3c15608aa60ee11db86924a0c24"
 
 [[contracts]]

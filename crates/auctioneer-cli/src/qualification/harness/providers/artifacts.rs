@@ -1244,11 +1244,7 @@ pub(super) mod tests {
         let package = tempfile::tempdir().unwrap();
         fs::create_dir_all(package.path().join("bin")).unwrap();
         fs::copy(&build.artifact, package.path().join("bin/main.wasm")).unwrap();
-        let adapter_bytes = fs::read(
-            plan.repo_root
-                .join("crates/auctioneer-adapter-fastly/fastly.toml"),
-        )
-        .unwrap();
+        let adapter_bytes = fs::read(plan.repo_root.join("fastly.toml")).unwrap();
         fs::write(package.path().join("fastly.toml"), &adapter_bytes).unwrap();
         let archive = bundle.path().join("package.tar.gz");
         let mut tar_spec = process::ProcessSpec::new("/usr/bin/tar");

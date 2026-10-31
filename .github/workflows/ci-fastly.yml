@@ -6,29 +6,11 @@
 # or that the package it emits fits the platform ceiling. This workflow
 # runs the vendor tool.
 #
-# This gate was red until the adapter's manifest stopped inheriting its
-# [package] keys. The CLI's TOML reader fails with
-#
-#   ERROR: error reading Cargo.toml manifest: (0, 0):
-#   Can't convert workspace = true (*toml.Tree) to a tree.
-#
-# at FOUR OR MORE inherited [package] fields. Bisected against CLI
-# v16.0.0: three inherited fields parse, four do not, and no single
-# field is at fault -- it is the count, not the key. Dependency
-# inheritance ([dependencies] foo = { workspace = true }) is unaffected
-# and the crate still uses it throughout.
-#
-# crates/auctioneer-adapter-fastly/Cargo.toml therefore spells `version`,
-# `edition`, `authors`, `license` and `publish` out literally, with a
-# comment there requiring they track [workspace.package] by hand. The
-# vendor build now succeeds: 7_589_469 bytes against the 100 MB
-# ceiling.
-#
-# If this ever goes red again on the same error, check whether a new
-# inherited [package] key was added rather than assuming a CLI
-# regression. Do not "fix" a failure here by swapping the vendor build
-# for `cargo build`: a green check running a weaker command than its
-# name implies is the exact failure mode this gate exists to prevent.
+# Run from the workspace root: CLI 16.0.0 cannot parse the adapter's
+# inherited [package] keys when invoked in the member directory. The root
+# fastly.toml explicitly selects the adapter binary, so package metadata
+# stays inherited and unrelated workspace crates are not built for WASI.
+# Keep the vendor packager here; a Cargo-only build is not equivalent.
 #
 # Local logging regressions run in fresh Viceroy processes using the
 # library-test guest, test-only baked-level hooks, and fixture stores. No credentials or
@@ -117,7 +99,6 @@ jobs:
       # The vendor packager. No credentials needed: `compute build` is
       # entirely local, it neither authenticates nor deploys.
       - name: fastly compute build
-        working-directory: crates/auctioneer-adapter-fastly
         run: fastly compute build --package-name auctioneer
 
       - name: Measure the built package
@@ -128,5 +109,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fastly-package
-          path: crates/auctioneer-adapter-fastly/pkg/auctioneer.tar.gz
+          path: pkg/auctioneer.tar.gz
           if-no-files-found: error

@@ -35,4 +35,4 @@ env = "AUCTIONEER__USERSYNC__COOKIE_KEYRING"
 # Provisioning and rotation: docs/deployment/usersync-cookie-keys.md.
 
 [scripts]
-  build = "cargo build --profile release --target wasm32-wasip1"
+build = "cargo build --locked --package auctioneer-adapter-fastly --bin auctioneer-adapter-fastly --profile release --target wasm32-wasip1"
