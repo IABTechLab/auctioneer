@@ -67,6 +67,22 @@ schema generation without changing real discovery functions; unavailable schema
 hooks and a child staging-feature refusal prevent it claiming schema acceptance.
 Actual source and application-artifact tests keep the real schema path.
 
+**Standalone dependency follow-up:** the
+[partitioned Linux run](https://github.com/IABTechLab/auctioneer/actions/runs/41276006971)
+at `e0d72aa` passed 12 of 13 test jobs, including every separated compiler,
+application-artifact and config-rejection owner. The native job stopped at
+three feature-export fixture failures, not a compiler-lease timeout. Those
+standalone Cargo roots omitted the workspace patches and reviewed lock, so
+they fetched the stock schema compiler, which rejects `cache = explicit`.
+The sealed-response compiler fixtures had the same setup defect. Both now
+inherit the root patches and lock, resolve offline, verify every resulting
+dependency identity against the reviewed closure, and build locked. Original
+runtime API checks, positive controls and exact compiler-refusal assertions
+remain. An adjacent check also exposed one overlong Triplelift prose line;
+only its wrapping changes. See the
+[follow-up verification](docs/testing/ci-prerequisite-repairs-20261031.md#standalone-dependency-follow-up).
+Complete Linux acceptance and a whole-CI performance comparison remain open.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

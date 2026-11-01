@@ -5,8 +5,11 @@
 //! feature. Distinct child packages and artifact checks establish compilation,
 //! and executing each child verifies its selected dependency's registry.
 
+mod dependency_fixture;
+
 #[cfg(test)]
 mod tests {
+    use super::dependency_fixture;
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -46,6 +49,7 @@ mod tests {
     struct Fixture {
         dir: PathBuf,
         package: String,
+        reviewed_lock: String,
     }
 
     impl Fixture {
@@ -74,30 +78,32 @@ mod tests {
             let src = dir.join("src");
             fs::create_dir_all(&src).expect("create the fixture source dir");
             let bidder = crate_dir();
-            let features = if insecure {
-                ", features = [\"insecure-bidders\"]"
-            } else {
-                ""
-            };
-            fs::write(
-                dir.join("Cargo.toml"),
-                format!(
-                    "[package]\n\
-                     name = \"{package}\"\n\
-                     edition = \"2024\"\n\
-                     version = \"0.0.0\"\n\
-                     publish = false\n\
-                     \n\
-                     [workspace]\n\
-                     \n\
-                     [dependencies]\n\
-                     auctioneer-bidder = {{ path = {:?}{features} }}\n",
-                    bidder.display().to_string(),
-                ),
-            )
-            .expect("write the fixture manifest");
+            let root = workspace_root();
+            let mut manifest = toml::Value::Table(toml::toml! {
+                [package]
+                name = ""
+                edition = "2024"
+                version = "0.0.0"
+                publish = false
+                [workspace]
+                [dependencies.auctioneer-bidder]
+                path = ""
+            });
+            manifest["package"]["name"] = package.clone().into();
+            manifest["dependencies"]["auctioneer-bidder"]["path"] = bidder.to_str().unwrap().into();
+            if insecure {
+                manifest["dependencies"]["auctioneer-bidder"]
+                    .as_table_mut()
+                    .unwrap()
+                    .insert("features".into(), vec!["insecure-bidders"].into());
+            }
+            let reviewed_lock = dependency_fixture::prepare(&dir, &root, &mut manifest);
             fs::write(src.join("main.rs"), body).expect("write the fixture main");
-            Self { dir, package }
+            Self {
+                dir,
+                package,
+                reviewed_lock,
+            }
         }
 
         fn binary_path(&self) -> PathBuf {
@@ -121,18 +127,26 @@ mod tests {
             let target_dir = workspace_root().join("target").join("insecure-gate-probe");
             let binary = self.binary_path();
             drop(fs::remove_file(&binary));
-            let output = Command::new(env!("CARGO"))
-                .args(["build", "--manifest-path"])
-                .arg(self.dir.join("Cargo.toml"))
+            // Materialize only the standalone root; dependency identities must
+            // remain in the reviewed closure before a locked build can start.
+            let resolution = dependency_fixture::command(&self.dir, "update")
+                .arg("--workspace")
+                .output()
+                .expect("materialize the offline fixture lock");
+            assert!(
+                resolution.status.success(),
+                "{}",
+                String::from_utf8_lossy(&resolution.stderr)
+            );
+            let lock = fs::read_to_string(self.dir.join("Cargo.lock")).unwrap();
+            assert_eq!(
+                dependency_fixture::verify_lock(&lock, &self.reviewed_lock, &self.package),
+                Ok(())
+            );
+            let output = dependency_fixture::command(&self.dir, "build")
+                .arg("--locked")
                 .arg("--target-dir")
                 .arg(&target_dir)
-                // The child must resolve auctioneer-bidder's features from the
-                // fixture manifest alone. An inherited target or flag set
-                // from the OUTER run would let the two cases compile the
-                // same crate, and the membership check would then assert nothing.
-                .env_remove("CARGO_BUILD_TARGET")
-                .env_remove("RUSTFLAGS")
-                .current_dir(&self.dir)
                 .output()
                 .expect("spawn the child cargo build");
             let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -225,6 +239,44 @@ fn main() {
     }
 }
 "#;
+
+    #[test]
+    fn standalone_feature_fixture_inherits_all_workspace_patch_paths() {
+        let fixture = Fixture::new("patch-contract", CONTROL_BODY);
+        let actual: toml::Value =
+            toml::from_str(&fs::read_to_string(fixture.dir.join("Cargo.toml")).unwrap()).unwrap();
+        let root = workspace_root();
+        let reviewed: toml::Value =
+            toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
+        let expected = reviewed["patch"]["crates-io"].as_table().unwrap();
+        assert!(!expected.is_empty(), "before-state patched dependencies");
+        let patches = actual
+            .get("patch")
+            .expect("standalone root must retain patches");
+        let actual_patches = patches["crates-io"].as_table().unwrap();
+        assert_eq!(actual_patches.len(), expected.len());
+        for (name, declaration) in expected {
+            let relative = declaration["path"].as_str().unwrap();
+            assert_eq!(
+                actual_patches[name]["path"].as_str().unwrap(),
+                root.join(relative)
+                    .canonicalize()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "patch owner {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn standalone_feature_fixture_seeds_the_reviewed_workspace_lock() {
+        let fixture = Fixture::new("lock-contract", CONTROL_BODY);
+        assert_eq!(
+            fs::read(fixture.dir.join("Cargo.lock")).expect("standalone lock must be seeded"),
+            fs::read(workspace_root().join("Cargo.lock")).unwrap()
+        );
+    }
 
     #[test]
     fn feature_predicate_controls_all_declared_factories_and_metadata() {

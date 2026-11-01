@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "implementation": "triplelift",
-  "manifest_sha256": "7fe2519b7c60ed8932dbac5c984eb6360571e3344fb81f6cddb395ea115e43cf",
+  "manifest_sha256": "c2a45d4b3cc28b728efaf2fec766bd4cd860adba168de4397e949d2fb3e7831c",
   "cases": [
     {
       "name": "banner-and-unsent-sibling",

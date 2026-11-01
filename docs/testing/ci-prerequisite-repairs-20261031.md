@@ -1,8 +1,9 @@
 # CI Prerequisite Repairs
 
-Date: 2026-10-31. Status: prerequisite repairs verified locally; no complete
-passing CI baseline or performance improvement is claimed. Workflow partitioning
-and artifact caching are unchanged.
+Initial record: 2026-10-31. Status: prerequisite repairs and the subsequently
+approved once-owned workflow partition are implemented. No complete passing CI
+baseline or whole-CI performance improvement is claimed; artifact caching remains
+deferred. Follow-up sections distinguish local checks from Linux acceptance.
 
 ## Failed CI Baseline
 
@@ -289,3 +290,66 @@ harness were not re-executed locally in this scheduling change; the config
 harness's full 105-case list and explicit strict lint remain checked. Their
 mandatory Linux jobs, the staged combinations and complete workspace acceptance
 remain required. Local success does not close those CI or hosted/readiness gates.
+
+## Standalone Dependency Follow-Up
+
+The first partitioned run, revision `e0d72aa`
+([41276006971](https://github.com/IABTechLab/auctioneer/actions/runs/41276006971)),
+completed with 12 of 13 test jobs passing. All separated compiler, application
+artifact and config-rejection owners passed. The native job stopped in
+`Verify factory and metadata feature ownership`: the feature-export target
+reported one pass and three failures. Unlike the preceding run, these were not
+compiler-lease timeouts. Its standalone Cargo roots fetched the stock schema
+compiler, which rejects the patched `cache = explicit` option. Cargo does not
+inherit a path dependency's root workspace patches or lockfile.
+
+The feature-export and sealed-response targets now share explicitly test-only
+dependency setup. Each standalone root receives the workspace patch table with
+absolute path rebasing and the original reviewed lock. Offline resolution adds
+the fixture root; its resulting name/version/source/checksum identities must be
+in the reviewed closure, apart from exactly one expected fixture package. Child
+builds then run locked and offline. Inherited target and Rust flags are removed
+so the fixture manifest still owns its feature selection. No dependency,
+production code, schema option, workload, assertion, timeout or workflow changes.
+
+Two feature-input controls failed before repair, then passed after repair. The
+module-qualified sealed-response input control also failed before repair and
+passed after it; an earlier incorrectly qualified command dispatched zero tests
+and is not counted as evidence. Shared lock controls independently reject name,
+version, source and checksum changes, an added dependency, and missing, duplicate
+or mistyped fixture roots. Existing positive compiler controls, exact compiler
+refusals and executable API membership checks remain unchanged.
+
+An adjacent registry check found a Triplelift provenance prose line exceeding
+the existing 100-column bound. Rewrapping that line also requires refreshing
+its bidder-owned `manifest_sha256`; that derived checksum is the only factory
+fixture value changed. Protocol cases and external captured expectations remain
+unchanged.
+
+Final local secure/default invocation, all complete targets, no filters or ignores:
+
+```sh
+cargo test --locked --offline -j2 -p auctioneer-bidder \
+  --test feature_exports_source_conformance --test response_body_is_sealed \
+  --test registry_join --test catalog_alloc --test registry_source_conformance \
+  --test test_isolation -- --test-threads=1
+```
+
+| Target                               | Passed | Failed |
+| ------------------------------------ | -----: | -----: |
+| `feature_exports_source_conformance` |      9 |      0 |
+| `response_body_is_sealed`            |      7 |      0 |
+| `registry_join`                     |     21 |      0 |
+| `catalog_alloc`                     |      5 |      0 |
+| `registry_source_conformance`       |     30 |      0 |
+| `test_isolation`                    |     16 |      0 |
+
+This is 88 local test executions, not a complete workspace or Linux CI run.
+The same complete compiler targets also passed with `--features insecure-bidders`:
+nine feature-export and seven sealed-response cases, no filters or ignores.
+Strict Clippy for both targets passed in both parent feature configurations;
+workspace Rust formatting and `git diff --check` passed. Existing GVL deletion
+warnings and the `proc-macro-error2` future-incompatibility notice remain.
+Local timings use warm caches and are not a matched whole-CI speedup measurement.
+The Linux native job's later steps were skipped; a new complete CI run remains
+required.

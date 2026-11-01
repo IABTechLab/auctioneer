@@ -45,16 +45,18 @@
 //! sharing a name in one `--target-dir` are one unit, and a successful
 //! case's binary would then satisfy a failing case's build.
 //!
-//! Helpers live INSIDE `mod tests` so they may use `expect` on setup
-//! with no lint attribute: clippy.toml's `allow-expect-in-tests` reaches
-//! items in a test module but not file-scope functions beside it.
+//! Fixture helpers are explicitly test-only so the test setup follows
+//! clippy.toml's existing test policy without production lint allowances.
+
+mod dependency_fixture;
 
 #[cfg(test)]
 mod tests {
+    use super::dependency_fixture;
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::process::{self, Command};
+    use std::process;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     /// Per-invocation nonce, so repeat runs of this binary cannot
@@ -82,6 +84,7 @@ mod tests {
     struct Probe {
         dir: PathBuf,
         package: String,
+        reviewed_lock: String,
     }
 
     impl Probe {
@@ -109,25 +112,29 @@ mod tests {
             let dir = env::temp_dir().join(format!("{package}.{nonce}"));
             let src = dir.join("src");
             fs::create_dir_all(&src).expect("create the probe source dir");
-            fs::write(
-                dir.join("Cargo.toml"),
-                format!(
-                    "[package]\n\
-                     name = \"{package}\"\n\
-                     edition = \"2024\"\n\
-                     version = \"0.0.0\"\n\
-                     publish = false\n\
-                     \n\
-                     [workspace]\n\
-                     \n\
-                     [dependencies]\n\
-                     {dependency_name} = {{ path = {:?} }}\n",
-                    dependency.display().to_string(),
-                ),
-            )
-            .expect("write the probe manifest");
+            let mut manifest = toml::Value::Table(toml::toml! {
+                [package]
+                name = ""
+                edition = "2024"
+                version = "0.0.0"
+                publish = false
+                [workspace]
+                [dependencies]
+            });
+            manifest["package"]["name"] = package.clone().into();
+            let mut dependency_fields = toml::Table::new();
+            dependency_fields.insert("path".into(), dependency.to_str().unwrap().into());
+            manifest["dependencies"].as_table_mut().unwrap().insert(
+                dependency_name.into(),
+                toml::Value::Table(dependency_fields),
+            );
+            let reviewed_lock = dependency_fixture::prepare(&dir, &workspace_root(), &mut manifest);
             fs::write(src.join("main.rs"), body).expect("write the probe main");
-            Self { dir, package }
+            Self {
+                dir,
+                package,
+                reviewed_lock,
+            }
         }
 
         /// Build the probe and return (success, combined output).
@@ -140,17 +147,24 @@ mod tests {
             let target_dir = workspace_root().join("target").join("seal-probe");
             let binary = target_dir.join("debug").join(&self.package);
             drop(fs::remove_file(&binary));
-            let output = Command::new(env!("CARGO"))
-                .args(["build", "--offline", "-j", "2", "--manifest-path"])
-                .arg(self.dir.join("Cargo.toml"))
+            let resolution = dependency_fixture::command(&self.dir, "update")
+                .arg("--workspace")
+                .output()
+                .expect("materialize offline probe lock");
+            assert!(
+                resolution.status.success(),
+                "{}",
+                String::from_utf8_lossy(&resolution.stderr)
+            );
+            let lock = fs::read_to_string(self.dir.join("Cargo.lock")).unwrap();
+            assert_eq!(
+                dependency_fixture::verify_lock(&lock, &self.reviewed_lock, &self.package),
+                Ok(())
+            );
+            let output = dependency_fixture::command(&self.dir, "build")
+                .arg("--locked")
                 .arg("--target-dir")
                 .arg(&target_dir)
-                // The child must resolve everything from its own
-                // manifest. An inherited target or flag set from the
-                // OUTER run would let cases share a compilation.
-                .env_remove("CARGO_BUILD_TARGET")
-                .env_remove("RUSTFLAGS")
-                .current_dir(&self.dir)
                 .output()
                 .expect("spawn the child cargo build");
             let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -462,6 +476,41 @@ fn main() {
         ];
         routes.extend(projection_routes());
         routes
+    }
+
+    #[test]
+    fn standalone_response_probes_inherit_reviewed_patches_and_lock() {
+        let root = workspace_root();
+        let reviewed: toml::Value =
+            toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
+        let expected = reviewed["patch"]["crates-io"].as_table().unwrap();
+        assert!(!expected.is_empty(), "before-state patched dependencies");
+        for probe in [
+            Probe::new("patch-bidder", CONTROL_BODY),
+            Probe::new_core("patch-core", "fn main() {}"),
+        ] {
+            let actual: toml::Value =
+                toml::from_str(&fs::read_to_string(probe.dir.join("Cargo.toml")).unwrap()).unwrap();
+            let patches = actual
+                .get("patch")
+                .expect("standalone root must retain patches");
+            let declarations = patches["crates-io"].as_table().unwrap();
+            assert_eq!(declarations.len(), expected.len());
+            for (name, declaration) in expected {
+                assert_eq!(
+                    declarations[name]["path"].as_str().unwrap(),
+                    root.join(declaration["path"].as_str().unwrap())
+                        .canonicalize()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                );
+            }
+            assert_eq!(
+                fs::read(probe.dir.join("Cargo.lock")).unwrap(),
+                fs::read(root.join("Cargo.lock")).unwrap()
+            );
+        }
     }
 
     /// The harness can build a probe at all.
