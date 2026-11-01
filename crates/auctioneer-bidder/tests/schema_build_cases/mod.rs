@@ -70,16 +70,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn compiled_explicit_cache_layouts_have_complete_typed_owner_membership() {
+    fn assert_compiled_explicit_cache_layouts(catalog: &schema_build::Catalog) {
         use regex_automata::meta::Cache;
         use std::mem::{align_of, size_of};
 
-        let catalog = schema_build::linked_explicit_native_catalog().unwrap();
         assert_eq!(
             catalog
                 .reports()
                 .iter()
+                .filter(|row| row.target == "native")
                 .map(|row| row.target.as_str())
                 .collect::<Vec<_>>(),
             ["native"]
@@ -1512,13 +1511,12 @@ mod tests {
         initialized
     }
 
-    #[test]
-    fn native_generated_callbacks_have_isolated_cold_and_repeat_allocation_reports() {
-        let catalog = schema_build::linked_native_catalog().unwrap();
+    fn assert_native_generated_callback_allocations(catalog: &schema_build::Catalog) {
         assert_eq!(
             catalog
                 .reports()
                 .iter()
+                .filter(|row| row.target == "native")
                 .map(|row| row.target.as_str())
                 .collect::<Vec<_>>(),
             ["native"]
@@ -1538,9 +1536,9 @@ mod tests {
             )
         );
         assert_allocator_controls(&serde_json::from_slice(&controls.stdout).unwrap());
-        let initialized = assert_initialized_catalog_observations(&catalog);
-        assert_dispatch_observations(&catalog);
-        assert_sampled_catalog_observations(&catalog);
+        let initialized = assert_initialized_catalog_observations(catalog);
+        assert_dispatch_observations(catalog);
+        assert_sampled_catalog_observations(catalog);
         for name in schema_profile::workloads().keys() {
             // Each invocation starts a new process, including each hostname user.
             let report = catalog.native_allocations(name).unwrap();
@@ -1579,13 +1577,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn explicit_cache_measurements_separate_construction_growth_reuse_and_release() {
-        let catalog = schema_build::linked_explicit_native_catalog().unwrap();
+    fn assert_explicit_cache_measurements(catalog: &schema_build::Catalog) {
         assert_eq!(
             catalog
                 .reports()
                 .iter()
+                .filter(|row| row.target == "native")
                 .map(|row| row.target.as_str())
                 .collect::<Vec<_>>(),
             ["native"]
@@ -1640,7 +1637,10 @@ mod tests {
                 2
             }
         );
-        assert_eq!(searches, schema_profile::sampled_count() * 14);
+        assert_eq!(
+            searches,
+            schema_profile::sampled_count().checked_mul(14).unwrap()
+        );
         assert!(growth > 0, "first-search allocation positive control");
         assert_hostname_observations(&report);
         writeln!(stderr(), "explicit allocations: constructors={} inline-owner-bytes={} schemas={} populations=1,2,4 searches={searches} search-allocated-bytes={growth} hostname={}",
@@ -1831,6 +1831,8 @@ mod tests {
         assert_raw_schema_controls(&catalog);
         assert_source_parameter_cases(&catalog);
         assert_literal_schema_controls(&catalog);
+        // Share the build, while every native observation still starts a fresh child.
+        assert_native_generated_callback_allocations(&catalog);
         catalog.check_reference_refusals().unwrap();
     }
 
@@ -1974,7 +1976,8 @@ mod tests {
 
     #[test]
     fn all_schema_explicit_dispatch_links_on_native_and_three_wasm_targets() {
-        let catalog = schema_build::linked_explicit_catalog().unwrap();
+        let catalog =
+            schema_build::linked_explicit_catalog(schema_build::LinkTargets::All).unwrap();
         let by_target: BTreeMap<_, _> = catalog
             .reports()
             .iter()
@@ -2034,8 +2037,10 @@ mod tests {
         )
         .unwrap();
         assert_source_parameter_sequences(&catalog);
+        // Finish native observations before refusal probes mutate this workspace.
+        assert_compiled_explicit_cache_layouts(&catalog);
+        assert_explicit_cache_measurements(&catalog);
         catalog.check_explicit_refusals().unwrap();
-        catalog.check_reference_refusals().unwrap();
     }
 
     fn assert_guest_observations(row: &schema_build::LinkReport) {

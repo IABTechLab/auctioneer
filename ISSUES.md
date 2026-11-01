@@ -47,9 +47,25 @@ compiler lock. The repair reduces unnecessary work while preserving the lock
 lifetime and timeout; it does not prove a worst-case admission bound. Re-run
 the full Linux acceptance matrix. If acquisition failures persist, profile
 holder/waiter intervals before proposing scheduling or lease-boundary changes;
-do not merely raise the timeout. Workflow partitioning and artifact caching
-remain separately gated. See the
+do not merely raise the timeout. See the
 [verification record](docs/testing/ci-prerequisite-repairs-20261031.md#native-only-setup-follow-up).
+
+**Once-owned revision implemented and locally verified (2026-10-31); new Linux
+acceptance pending.** The subsequent Linux run at `34e4ff9` again failed only the two
+lease-acquisition cases (333 synthetic passed; 688 source passed / 2 failed).
+Mandatory per-PR owners now isolate the four adapter artifact experiments,
+compiler layouts and selected native/guest probe. Remaining hermetic compiler
+checks run serially, and five explicit Cargo targets no longer rerun in broad
+scopes. Source feature-view checks still execute in secure-package and both
+workspace feature scopes. Sharing default/explicit catalogs reduces build
+requests from 23 to 17; allocation/cold/reuse/release subprocesses stay fresh.
+The duplicate default-mode reference-refusal batch and secure disclosure-codegen
+invocation are removed, not their unique assertions. Artifact caching remains
+unapproved. Linux acceptance and a measured whole-CI speedup remain open.
+The synthetic factory/rebuild workspace also now isolates unrelated native
+schema generation without changing real discovery functions; unavailable schema
+hooks and a child staging-feature refusal prevent it claiming schema acceptance.
+Actual source and application-artifact tests keep the real schema path.
 
 ## Environment Section Separators
 

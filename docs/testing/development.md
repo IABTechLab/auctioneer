@@ -166,6 +166,30 @@ that target must be installed before selecting the case locally.
 
 ### Acceptance
 
+Five hermetic child-build targets have explicit owners rather than running
+again in every broad `--all-targets` scope. Their `[[test]] test = false` Cargo
+setting changes default selection, not availability. Run the relevant owner
+explicitly when changing the compiler, discovery or config rejection behavior:
+
+```sh
+cargo test --locked -p auctioneer-bidder --test schema_build_controls -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test schema_source_conformance -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test factory_binding_build
+cargo test --locked -p auctioneer-bidder --test registry_build -- --test-threads=1
+cargo test --locked -p auctioneer-config --test build_failure_harness
+```
+
+These remain mandatory on every PR. The source suite's independent adapter,
+private-layout and selected-probe experiments have parallel CI owners; a local
+full target still runs all of them. Source `schema_selection` feature-view tests
+also run explicitly in secure-package and both workspace scopes. The existing
+four normal/staged metadata/core checks retain their distinct feature graphs.
+An ordinary broad Cargo pass alone is therefore not full acceptance. The local
+full-source command is deliberately serial because its compiler experiments
+share a build lease; CI parallelizes those experiments on separate runners.
+Broad Clippy selection also omits these targets. Their mandatory owner jobs run
+strict explicit `cargo clippy --test NAME -- -D warnings` checks.
+
 The workflows in `.github/workflows/` remain the authoritative full matrix:
 secure-default package controls, workspace/features, conformance, all adapter
 guest builds/execution and resource/evidence gates. In particular, workspace

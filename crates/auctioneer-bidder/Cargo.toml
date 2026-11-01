@@ -10,6 +10,24 @@ version = { workspace = true }
 [lints]
 workspace = true
 
+# Mandatory explicit CI owners run these hermetic child-build suites once.
+# `cargo test --test <name>` still executes them; broad all-target runs do not.
+[[test]]
+name = "schema_build_controls"
+test = false
+
+[[test]]
+name = "schema_source_conformance"
+test = false
+
+[[test]]
+name = "factory_binding_build"
+test = false
+
+[[test]]
+name = "registry_build"
+test = false
+
 [features]
 # Canonical home of the insecure-bidders feature.
 # Forwards into auctioneer-config so build.rs's syncer-URL template-validation

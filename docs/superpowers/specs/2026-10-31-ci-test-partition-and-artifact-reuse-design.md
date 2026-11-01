@@ -1,9 +1,69 @@
 # CI Test Partition And Artifact Reuse
 
-Status: Phase 1 start approved on 2026-10-31. Baseline repair and profiling
-precede any workflow partitioning. In-process artifact caching remains deferred
-and unapproved. This revision replaces the earlier cache-first proposal with a
-measurement gate and two separately approved phases.
+Status: On 2026-10-31 the user approved mandatory once-per-PR owners for hermetic
+checks, preservation of feature-sensitive checks in normal scopes, and parallel
+adapter artifact checks. The approved revision below supersedes the earlier
+full-source-rerun and passing-baseline-before-partition policies. In-process
+artifact caching remains deferred and unapproved.
+
+## Approved Once-Owned Revision
+
+The prerequisite repairs and native-only setup fix are committed. Both complete
+schema targets pass locally, but Linux CI still spends excessive time in the
+schema step; an earlier run also exhausted the existing lease-acquisition
+deadline. Do not claim a passing Linux baseline or a measured full-CI speedup.
+The user approved implementing the ownership change without waiting for those
+redundant executions to finish. This is not permission to ignore a new failure.
+
+Use Cargo's declarative `[[test]] test = false` for `schema_build_controls`,
+`schema_source_conformance`, `factory_binding_build`, `registry_build` and
+config's `build_failure_harness`. An explicit `cargo test --test NAME` remains
+available locally and mandatory in CI. No required-feature gate, `#[ignore]`,
+custom executable dispatcher or test-result/artifact cache is introduced.
+The same setting excludes those targets from broad Clippy selection, so their
+mandatory owners also invoke strict Clippy explicitly.
+
+Hermetic checks execute once per PR with their existing explicit child feature
+matrices. Normal B/S/W0/W1 feature graphs are not assumed interchangeable:
+source tests matching `schema_selection` execute explicitly in S, W0 and W1,
+and all four existing secure/development normal/staged metadata and core probes
+remain. These observe the actual parent process's generated publication view.
+Other ordinary targets, including feature-sensitive registry tests, retain their
+current package and feature selections. CLI CA/CM coverage remains intact.
+
+The compiler owner executes full synthetic controls and source conformance,
+except the source experiments assigned their own unconditional jobs: compiler
+private-layout facts, the selected source-bound native/guest probe, and actual
+application artifact inspection. The latter becomes four owner-local tests, one
+per adapter; each still checks both secure and development artifacts. Matrix
+jobs run independently, with no `needs`, path filters or optional acceptance.
+All owners preserve their required tools, source inputs and exact checks.
+Cache prefixes are owner-specific; a restored cache is never a passing result.
+
+Within each schema cohort, default and explicit full-target owners share their
+already-built catalogs with the corresponding native assertion groups. This
+reduces catalog build requests from 23 to 17 across synthetic and source suites.
+It is not a speedup estimate or permission to reuse observation processes.
+Every allocation/cold/reuse/release observation still starts its own child.
+The source-only sibling/callback storage proof keeps its own native catalog.
+Exact full-target membership remains checked. Native helpers require one native
+report inside that set. Manifest-mutating refusal batches run last; the identical
+default-mode reference-refusal batch runs once per cohort, while explicit-mode
+API refusals remain separate. No independent oracle is removed.
+
+Config rejection and the ignored disclosure-model mutation test get their own
+mandatory owner. Remove the duplicate secure `disclosure_codegen` invocation,
+not the secure-default test itself. Preserve workflow triggers, feature lanes,
+resource/workload limits, source watches and guest acceptance.
+
+Verify real Cargo default-versus-explicit dispatch using a tiny disposable
+workspace and actual repository target lists. Compare case ownership before and
+after, then execute all changed owners, meaningful source feature scopes,
+strict Clippy, formatting and actionlint. Counts may decrease only where
+assertion groups were moved into an existing owner, not where assertions were
+lost. Keep the original baseline observations below as history. Performance
+claims still require matched successful CI runs. Publication to draft PR #1 was
+separately approved after local verification on 2026-10-31.
 
 ## Goal And Evidence
 
@@ -39,7 +99,7 @@ The reported libtest duration includes that work, lease waits and fresh native
 and guest observations. Neither "5.7% is all compilation" nor "the remaining
 778 seconds is all guest execution" follows from the first run.
 
-### Measurement Gate
+### Original Baseline Gate (Superseded For Ownership)
 
 Before changing execution ownership:
 
@@ -63,18 +123,17 @@ Before changing execution ownership:
    actual test-name/dispatch lists and effective Cargo feature graphs for each
    invocation below, including required-feature and explicitly ignored targets.
 
-No full passing baseline or per-operation profile has been established by this
-document. Do not invent either result, a speedup estimate or a maximum saving
-from the failed-run totals.
+The approved once-owned revision supersedes this before-partition gate. These
+observations remain prerequisites for a measured performance claim, not a reason
+to keep redundant execution. Do not invent a passing baseline or speedup.
 
 ## Alternatives And Scope
 
 ### Approved Native-Only Probe Setup
 
-On 2026-10-31 the user approved a narrow test-harness change before workflow
-partitioning: native-only assertions must request only a native probe. This
-does not authorize Phase 2 caching or waive the baseline/profiling gates for
-workflow changes.
+On 2026-10-31 the user first approved native-only probe setup. That fix is
+committed. The later once-owned revision above supersedes its separate-caller
+arrangement without authorizing Phase 2 caching.
 
 Use an explicit native-only/all-target selection in the existing catalog
 builder. Keep the existing default/explicit all-target entrypoints unchanged
@@ -119,13 +178,15 @@ profile without changing measurement isolation.
 
 ## Phase 1: Execution Ownership
 
-The existing YAML job ID is `test`, displayed as `cargo test`. Replace only
-that job, if the measurement gate supports the split, with these proposed IDs:
+The existing YAML job ID is `test`, displayed as `cargo test`. Preserve that
+ordinary acceptance owner and add unconditional independent owners:
 
 - `test`: native/workspace acceptance, retaining its `cargo test` display name.
 - `compiler-conformance`: compiler/schema/guest acceptance.
 - `config-build-failures`: hermetic configuration rejection and the explicit
   ignored disclosure-model check.
+- Matrix owners for the source compiler-layout experiment, selected linked
+  probe and each of four real application artifacts (two feature lanes each).
 
 Existing `conformance-suite` and matrix `cross-target-check` jobs remain
 independent and unchanged. Preserve push-to-`main` and unrestricted
@@ -167,11 +228,11 @@ to skip all tests in the named packages.
 
 | Owner                   | Target / Filter                                                                 | Required Execution                                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `compiler-conformance`  | `auctioneer-macros / conformance`                                               | Once with the existing standalone macro `--all-targets` command; keep library tests there and in ordinary scopes                   |
+| `test`                  | `auctioneer-macros / conformance`                                               | Keep the existing standalone macro `--all-targets` command and ordinary scopes                                                     |
 | `compiler-conformance`  | `auctioneer-bidder / schema_build_controls`                                     | Once in B; synthetic hermetic controls retain all native/three-WASM links and fresh observations                                   |
 | `compiler-conformance`  | `auctioneer-bidder / factory_binding_build`                                     | Once in B; its child workspaces retain their own explicit feature controls                                                         |
 | `compiler-conformance`  | `auctioneer-bidder / registry_build`                                            | Once in B with `--test-threads=1`; retain its feature-toggle/rebuild sequence                                                      |
-| `compiler-conformance`  | `auctioneer-bidder / schema_source_conformance`                                 | Keep the full existing B, S, W0 and W1 executions; source conformance is not the synthetic hermetic row                            |
+| `compiler-conformance`  | `auctioneer-bidder / schema_source_conformance`                                 | Once in B, except experiments with independent mandatory owners; retain `schema_selection` in S, W0 and W1                         |
 | `compiler-conformance`  | Core library `schema_artifact_` filter                                          | Keep all four existing secure/development by normal/staged invocations; four dispatched tests each                                 |
 | `compiler-conformance`  | Source-conformance `tests::staged_` filter                                      | Keep all four existing secure/development by normal/staged invocations; two dispatched tests each, in addition to full-target runs |
 | `compiler-conformance`  | `auctioneer-bidder / catalog_publication`, `auctioneer-config / bidder_storage` | Keep actual WASI secure and development invocations; 2 and 1 dispatched tests respectively per feature selection                   |
@@ -184,7 +245,7 @@ full normal source runs do not replace the staged combinations. Native
 `catalog_publication` and `bidder_storage` executions remain ordinary tests;
 WASI execution does not replace them.
 
-Only full integration-target rows are exclusions from broad invocations.
+Only the five explicit manifest targets are removed from broad invocations.
 Library-filter rows are additional observations, not permission to exclude a
 library or suppress those cases within its ordinary complete test run.
 
@@ -207,46 +268,30 @@ once-only classification to siblings by name.
 
 ### Target Selection And Its Cost
 
-Cargo has package exclusions but no integration-target exclusion switch. Do not
-exclude whole packages or add required-feature/ignore gates to hide slow tests
-from normal local Cargo commands.
+Use Cargo's `test = false` plus explicit `--test` owners. The real disposable
+workspace confirms ordinary unit/integration tests still run in `--all-targets`,
+the once-owned target does not, and naming it explicitly executes it. Verify
+the repository's emitted target lists as well. There is no custom complement
+selector to implement or qualify. New ordinary targets stay in broad execution;
+do not exclude whole packages, add required features or add ignores.
 
-If Phase 1 needs target-level partitioning, use a workflow-local Bash/jq wrapper
-under `.github/workflows/scripts/test/`. First run the original package/feature
-selection with `--all-targets --no-run --message-format=json`. Derive runnable
-integration targets from emitted executable artifacts, not guessed feature
-rules. The explicit exception table assigns their owner. Execute each
-complement through Cargo with the same package/feature selection, together with
-libraries, binaries, examples and benches; do not execute artifact paths by
-hand or change the dev-dependency graph.
+Filters apply only to the explicitly named source target, never to a whole
+workspace invocation that also contains custom harnesses. The full source owner
+skips exactly the experiments executed by mandatory matrix jobs. Feature-view
+invocations retain their original package/feature scope. Check their actual
+dispatch, and keep the CLI's two exact source-test names and evidence contracts
+unchanged. Do not restore `ci_workflows.rs` or snapshot workflow YAML/shell text.
 
-This still compiles every selected target, including those executed elsewhere.
-Across isolated jobs it can duplicate compilation. It saves selected repeated
-test execution, not necessarily build time. Measure its enumeration cost and
-the additional runner setup/cache/build cost before retaining the split. A
-wrapper is not justified merely because its selector is correct.
-
-Ownership is not a snapshot of workflow YAML. New ordinary targets stay in the
-normal complement. Reject missing/duplicate ownership entries, invalid build
-output, or target-name collisions crossing owners that Cargo's selection
-syntax cannot express safely. Required-feature targets are included only when
-Cargo emitted them; preserve their existing explicit feature jobs. Validate
-ownership against an enabling scope, not a disabled scope that correctly emits
-no artifact.
-
-Before replacement, exercise tiny real Cargo workspaces covering dev-dependency
-feature unification, duplicate ordinary target names, enabled/disabled required
-features, exclusions, custom harnesses and library/bin/example/bench execution.
-Selection tests validate behavior; do not restore `ci_workflows.rs` or snapshot
-workflow YAML/shell text in Rust.
+Separate jobs can duplicate dependency compilation, checkout and setup work.
+Report that cost and matched successful wall time before claiming a speedup.
 
 ## Phase 2: Deferred Verified Build Reuse
 
 This section records safety requirements, not an approved implementation task.
 If profiling does not justify reuse, omit this phase rather than building a
 general cache. Reuse only generated build products, never returned measurement
-JSON, initialized validators, search caches or guest processes. Keep all five
-existing compiler acceptance callers and the additional source-target caller.
+JSON, initialized validators, search caches or guest processes. Keep all current
+compiler owners and every independent native observation group.
 
 Use bounded process-local successful-generation state keyed by schema mode,
 synthetic/production inputs and requested build-target scope. A native-only
@@ -291,9 +336,10 @@ coalesce measured processes or reuse observations to make timings smaller.
 
 ## Acceptance And Decision Gates
 
-1. Phase 1 start was approved on 2026-10-31. This authorizes prerequisite repair,
-   profiling and gated ownership work, not Phase 2 or remote publication.
-2. Satisfy the measurement gate. Freeze the scope/target/feature/ignored-test
+1. Phase 1 start and the once-owned revision were approved on 2026-10-31.
+   They do not authorize Phase 2. Publication of locally verified ownership
+   changes to draft PR #1 was separately approved.
+2. Freeze the scope/target/feature/ignored-test
    execution census before any removal. A later newly discovered target is
    assigned explicitly or retained in its original scope, never silently lost.
 3. Evaluate Phase 1 independently. Compare at least three successful matched
@@ -315,4 +361,4 @@ coalesce measured processes or reuse observations to make timings smaller.
 
 No runtime bidder behavior, dependency, resource equation, ceiling, workload,
 warning policy, source watch, original evidence byte or readiness deferral
-changes. No performance improvement is established by this draft.
+changes. No whole-CI performance improvement is claimed before matched runs.

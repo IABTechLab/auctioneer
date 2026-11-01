@@ -471,6 +471,20 @@ mediaTypes = ["banner"]
             require_success(&harness.check(), "restored source in the same target cache");
         }
         harness.executable(false);
+        let staging = harness.workspace.cargo(
+            "check",
+            &["--lib", "--features", "schema-artifact-staging"],
+            true,
+        );
+        assert!(
+            !staging.status.success(),
+            "discovery fixtures cannot qualify schemas"
+        );
+        assert!(
+            logs(&staging).contains("synthetic discovery cannot qualify schema artifacts"),
+            "{}",
+            logs(&staging)
+        );
         harness.workspace.report();
         assert!(
             failures.is_empty(),

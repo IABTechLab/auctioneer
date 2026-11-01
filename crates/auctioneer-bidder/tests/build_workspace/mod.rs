@@ -292,6 +292,65 @@ pub(crate) fn prepare_synthetic_catalog(bidder: &Path) {
         let source = fs::read_to_string(&path).unwrap();
         fs::write(path, synthetic_source(&source, bidder_module)).unwrap();
     }
+    let build = bidder.join("build.rs");
+    if build.is_file() {
+        let source = fs::read_to_string(&build).unwrap();
+        let (build_source, staging_source) = synthetic_schema_boundary(&source);
+        fs::write(build, build_source).unwrap();
+        fs::write(bidder.join("src/schema/staging.rs"), staging_source).unwrap();
+    }
+}
+
+// Discovery fixtures have no production schema inventory. Keep the actual
+// discovery/codegen gate, but make native schema admission unavailable here.
+fn synthetic_schema_boundary(source: &str) -> (String, String) {
+    use quote::ToTokens as _;
+
+    let mut build = syn::parse_file(source).unwrap();
+    let mut replaced = 0_usize;
+    let mut imports = 0_usize;
+    build.items.retain_mut(|item| {
+        if let syn::Item::Use(import) = item
+            && let syn::UseTree::Path(root) = &import.tree
+            && root.ident == "auctioneer_config_schema"
+            && let syn::UseTree::Path(module) = &*root.tree
+            && matches!(
+                module.ident.to_string().as_str(),
+                "schema_staging" | "schema_staging_build"
+            )
+        {
+            imports = imports.checked_add(1).unwrap();
+            return false;
+        }
+        if let syn::Item::Fn(function) = item
+            && function.sig.ident == "stage_schemas"
+        {
+            replaced = replaced.checked_add(1).unwrap();
+            *function.block = syn::parse_quote!({
+                let _ = (manifest_dir, out_dir, discovery, compiler);
+                if env::var_os("CARGO_FEATURE_SCHEMA_ARTIFACT_STAGING").is_some() {
+                    return Err("synthetic discovery cannot qualify schema artifacts".into());
+                }
+                Ok(())
+            });
+        }
+        true
+    });
+    assert_eq!((replaced, imports), (1, 2), "known schema-stage boundary");
+    let staging = quote::quote! {
+        pub(crate) fn has_unqualified_artifact() -> bool { false }
+        #[cfg(any(test, feature = "test-support"))]
+        pub(crate) fn inspection_manifest() -> Option<&'static str> { None }
+        #[cfg(not(target_arch = "wasm32"))]
+        pub(super) fn initialize_native() -> bool { false }
+        #[cfg(not(target_arch = "wasm32"))]
+        pub(super) fn native_owner(_: &str) -> Option<&'static str> { None }
+        #[cfg(not(target_arch = "wasm32"))]
+        pub(super) fn native_required(_: &str) -> bool { false }
+        #[cfg(not(target_arch = "wasm32"))]
+        pub(super) fn validate_native(_: &str, _: &serde_json::Value) -> Option<bool> { None }
+    };
+    (build.into_token_stream().to_string(), staging.to_string())
 }
 
 pub(crate) fn install_synthetic_fake(bidder: &Path) {
@@ -339,6 +398,17 @@ pub(crate) fn prepare_workspace(
             &to.join("Cargo.toml"),
             &mut copied_bytes,
         );
+        // Scratch builds copy production sources, not integration test owners.
+        let manifest_path = to.join("Cargo.toml");
+        let mut manifest: Value =
+            toml::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        if manifest.as_table_mut().unwrap().remove("test").is_some() {
+            fs::write(&manifest_path, toml::to_string(&manifest).unwrap()).unwrap();
+        }
+        // Build scripts may watch this root, but no test sources belong here.
+        if from.join("tests").is_dir() {
+            fs::create_dir_all(to.join("tests")).unwrap();
+        }
         if from.join("benches").is_dir() {
             copy_source_tree(
                 &from.join("benches"),
@@ -608,6 +678,93 @@ pub(crate) fn require_success(output: &Output, label: &str) {
 mod tests {
     use super::*;
     use std::os::unix::fs::symlink;
+
+    #[test]
+    fn synthetic_schema_boundary_preserves_discovery_and_refuses_schema_admission() {
+        use quote::ToTokens as _;
+
+        let source = include_str!("../../build.rs");
+        let (build, staging) = synthetic_schema_boundary(source);
+        let original = syn::parse_file(source).unwrap();
+        let rewritten = syn::parse_file(&build).unwrap();
+        for item in original.items {
+            if let syn::Item::Fn(function) = &item
+                && function.sig.ident != "stage_schemas"
+            {
+                assert!(
+                    rewritten.items.iter().any(|candidate| {
+                        candidate.to_token_stream().to_string()
+                            == item.to_token_stream().to_string()
+                    }),
+                    "unchanged build function {}",
+                    function.sig.ident
+                );
+            }
+        }
+        assert!(build.contains("synthetic discovery cannot qualify schema artifacts"));
+        let parsed_staging = syn::parse_file(&staging).unwrap();
+        assert_eq!(parsed_staging.items.len(), 6);
+        for item in parsed_staging.items {
+            let syn::Item::Fn(function) = item else {
+                panic!("only unavailable schema hooks");
+            };
+            let expected = match function.sig.ident.to_string().as_str() {
+                "has_unqualified_artifact" | "initialize_native" | "native_required" => {
+                    quote::quote!({ false })
+                }
+                "inspection_manifest" | "native_owner" | "validate_native" => {
+                    quote::quote!({ None })
+                }
+                _ => panic!("unexpected synthetic schema hook"),
+            };
+            assert_eq!(
+                function.block.to_token_stream().to_string(),
+                expected.to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn owned_workspace_omits_test_targets_but_keeps_features_and_build_metadata() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        let original: Value =
+            toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        let (bidder, config) = prepare_workspace(&root, temporary.path(), &original, &[]);
+        for (name, copied) in [("auctioneer-bidder", bidder), ("auctioneer-config", config)] {
+            let source: Value = toml::from_str(
+                &fs::read_to_string(root.join("crates").join(name).join("Cargo.toml")).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                source.get("test").is_some(),
+                "before-state explicit targets"
+            );
+            assert!(
+                fs::read_dir(copied.join("tests")).unwrap().next().is_none(),
+                "test sources are outside the source closure"
+            );
+            let actual: Value =
+                toml::from_str(&fs::read_to_string(copied.join("Cargo.toml")).unwrap()).unwrap();
+            assert!(
+                actual.get("test").is_none(),
+                "uncopied targets must not be declared"
+            );
+            for field in [
+                "package",
+                "features",
+                "dependencies",
+                "build-dependencies",
+                "target",
+            ] {
+                assert_eq!(actual.get(field), source.get(field), "{name}: {field}");
+            }
+        }
+    }
+
     const REVIEWED_LOCK: &str = r#"
 version = 4
 

@@ -194,4 +194,98 @@ Publication of these verified repairs to draft PR #1 was authorized on
 2026-10-31. This note records local verification only, not a successful full CI
 acceptance run. The approved
 [implementation plan](../superpowers/plans/2026-10-31-ci-test-partition-phase-one.md)
-requires a full passing acceptance baseline and profiling before partitioning.
+originally required a full passing acceptance baseline before partitioning.
+The later user-approved once-owned revision supersedes that execution gate;
+matched successful runs remain necessary before claiming a whole-CI speedup.
+
+## Once-Owned Parallel Revision
+
+The user approved mandatory once-per-PR hermetic owners and parallel independent
+experiments on 2026-10-31, and separately approved publication after verification.
+No artifact/measurement cache or automatic merge is authorized.
+
+The preceding unsplit run at `34e4ff9`
+([41268339684](https://github.com/IABTechLab/auctioneer/actions/runs/41268339684))
+completed with 333 synthetic passes in 469.29 s and 688 source passes / two
+failures in 2,193.86 s. Both failures were the unchanged 20-minute compiler-lease
+acquisition limit. This is not a successful performance baseline.
+
+The revised dispatch contract has one full compiler owner, six independently
+owned source experiments (four adapters, private layouts and the selected
+probe), and a config rejection owner. All run on every PR. Each application
+test retains both feature lanes. Source selection still runs in the original
+secure-package, default-workspace and insecure-workspace selections; the four
+normal/staged metadata and core combinations remain separate.
+
+Real Cargo behavior controls establish that `test = false` excludes an explicit
+owner from `--all-targets` but naming it with `--test` executes it. A second tiny
+workspace proves that retaining the original workspace/package selection also
+retains dev-dependency feature unification when only the subject's integration
+target is selected. Repository lists confirm 27 ordinary bidder integration
+targets plus its library and 13 ordinary config targets plus its library stay
+in broad execution. The config explicit owner still lists 105 cases, and the
+source feature filter lists 34.
+
+The scratch-source copier deliberately omits integration tests. Its new
+manifest regression failed once before the fix, then passed after removing
+only uncopied `[[test]]` declarations; package, feature, dependency and build
+metadata remain equal. The first attempted command selected the wrong owning
+binary and dispatched zero cases; it is not counted as red/green verification.
+The corrected exact command dispatches one case in `registry_source_conformance`.
+The full factory owner then exposed its outdated assumption that native discovery
+builds need no production schema planning inputs. Its source-only workspace now
+keeps an empty test-directory anchor and uses an explicitly unavailable schema
+boundary only in the synthetic copy. The actual discovery, metadata validation
+and registry generation functions remain unchanged as parsed Rust. The native
+schema initializer refuses, owner/validation hooks return no result, and an
+actual child build rejects the staging feature. This fixture cannot qualify
+schemas; actual compiler, native resource and application artifact owners retain
+the real unchanged schema path. No original factory assertion was removed.
+
+The catalog request census becomes 17 rather than 23 per complete execution of
+both schema cohorts. Three native assertion groups now share their respective
+all-target owner's build, but every observation still starts a new process.
+Refusal probes run last. The identical default-mode reference batch runs once
+per cohort; explicit API refusals remain. This is a structural reduction, not
+an elapsed-time claim. Actual passing verification is recorded below only after
+the corresponding command completes.
+
+The real source-selection runs passed 34 cases in each S/W0/W1 scope, reporting
+`actual_cargo_insecure_bidders` as false/true/true respectively. Cargo tree
+inspection records the same `regex-automata` feature vector in B/S/W0/W1, so the
+parent cache layout comparison is not discarded across a different engine
+feature build. This is not a claim that the complete graphs are identical.
+
+A separate Cargo behavior fixture proves broad Clippy skips `test = false`:
+an explicit-target-only `cfg(clippy)` compilation sentinel is not compiled by
+`--all-targets` but fails the explicit `--test` command. The mandatory compiler
+and config owners therefore also run strict Clippy explicitly. This control is
+diagnostic, not a workflow snapshot or a new ignored project test.
+
+### Local Results
+
+All results are Apple Silicon local verification with Rust 1.98.1, the pinned
+Wasmtime and the existing external Cargo cache, not a matched CI benchmark.
+
+| Executed Group                    |  Passed | Failed | Notes                                                                                     |
+| --------------------------------- | ------: | -----: | ----------------------------------------------------------------------------------------- |
+| Synthetic compiler owner          |     330 |      0 | Complete target; all native/three-WASM and native observation assertions retained         |
+| Source compiler owner             |     684 |      0 | Six independently owned experiments filtered as declared                                  |
+| Application artifact tests        |       4 |      0 | All four adapters, each with secure and development artifacts; 460.53 s locally           |
+| Source feature views              | 34 each |      0 | S, W0 and W1; actual feature bit false/true/true                                          |
+| Factory binding owner             |      17 |      0 | Includes all original negative mutations, same-cache restoration and staging refusal      |
+| Incremental registry owner        |      17 |      0 | Includes additions, edits, rename/removal and feature off/on/off through real executables |
+| Scratch-workspace helper controls |      16 |      0 | Includes unchanged discovery AST and unavailable synthetic schemas                        |
+| Source-import isolation           |      16 |      0 | Whole workspace; no handwritten path/include exemption                                    |
+
+The real source wrapper also rejects a nonexistent exact test (zero dispatched).
+Strict explicit-owner Clippy (all four bidder owners plus the registry source
+target, and the config harness), workspace Rust formatting, actionlint,
+shellcheck, raw-fixture budgeting (200 fixtures / 57 files) and the 139-member
+roster check pass. The known GVL deletion warnings and the Cargo
+`proc-macro-error2` future-incompatibility notice remain unchanged. The two
+unchanged compiler-layout/selected-probe experiments and full config rejection
+harness were not re-executed locally in this scheduling change; the config
+harness's full 105-case list and explicit strict lint remain checked. Their
+mandatory Linux jobs, the staged combinations and complete workspace acceptance
+remain required. Local success does not close those CI or hosted/readiness gates.

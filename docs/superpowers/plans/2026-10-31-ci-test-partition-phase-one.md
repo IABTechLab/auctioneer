@@ -2,18 +2,51 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` task by task.
 
-**Goal:** Establish a passing, profiled baseline and then evaluate the approved
-test-ownership split without reducing coverage or changing serving behavior.
+**Goal:** Remove repeated hermetic execution with explicit parallel CI owners,
+without reducing unique coverage or changing serving behavior.
 
-**Architecture:** Repair existing harness failures first. Profile nested Cargo,
-lease and observation costs in a disposable copy. Gate workflow partitioning on
-the complete passing baseline required by the design. Artifact reuse remains a
-separate, unapproved phase.
+**Architecture:** Keep ordinary feature-sensitive scopes intact. Use Cargo's
+explicit target selection for mandatory hermetic owners, consolidate redundant
+catalog setup and parallelize independent artifact checks. Artifact reuse remains
+a separate, unapproved phase; baseline timing is not a claim of performance.
 
 **Tech Stack:** Existing Rust/Cargo tests, Bash/jq workflow scripts, GitHub
 Actions, the pinned Wasmtime, Prettier and actionlint. No new dependency.
 
 **Design:** [CI test partition and artifact reuse](../specs/2026-10-31-ci-test-partition-and-artifact-reuse-design.md).
+
+## Approved Ownership Revision
+
+On 2026-10-31 the user approved once-owned parallel checks. This section
+supersedes Task 3's passing-baseline prerequisite and Task 4's original selector
+and full-source-rerun policy. Their historical incomplete boxes are not claims
+of verification. Artifact reuse and publication remain separately gated.
+
+1. [x] Audit actual repeated work and prove Cargo default/explicit ownership
+       in a tiny real workspace: `test = false` excludes broad `--all-targets`
+       execution but an explicit `--test` still dispatches the test.
+2. [x] Add manifest ownership for bidder's schema controls, source conformance,
+       factory binding and registry rebuild targets, plus config's build-failure
+       harness. No ignore, required-feature switch or custom dispatcher.
+3. [x] Consolidate the three native catalog assertion groups into their
+       existing default/explicit cross-target owners. Keep every observation
+       subprocess fresh; assert exact membership and run mutating refusals last.
+       Keep the source-only extra storage proof separate (23 to 17 builds).
+4. [x] Give compiler/source checks, config refusals, compiler layouts, selected
+       probe and each adapter artifact inspection unconditional CI owners.
+       Preserve both feature lanes per artifact and all prerequisites. Keep
+       heavy commands sequential per runner and use owner-specific cache keys.
+5. [x] Retain actual source feature-view checks explicitly in S/W0/W1; retain
+       all four metadata/core normal/staged commands, ordinary registry checks,
+       CLI CA/CM, guests, privacy and sockets. Remove only the confirmed duplicate
+       `disclosure_codegen` execution.
+6. [x] Compare before/after names and assertion owners, run changed owner groups,
+       actual Cargo selection controls, strict Clippy, formatting and actionlint.
+       Report local versus CI results and any unexecuted owner separately.
+7. [x] Update development ownership documentation and the verification note.
+       Do not claim a whole-CI speedup without successful matched runs. Obtain
+       publication approval before a new commit/push to PR #1: explicitly granted
+       after local verification on 2026-10-31.
 
 ## Working Boundaries
 
@@ -21,9 +54,9 @@ Actions, the pinned Wasmtime, Prettier and actionlint. No new dependency.
   Keep diagnostic mutations and profiling instrumentation in a disposable copy.
 - Serialize heavy Cargo commands and reuse the existing build cache. Preserve
   workload sizes, limits, source/identity checks and measurement isolation.
-- Publication of the verified prerequisite repairs and native-only setup
-  follow-up to draft PR #1 was approved on 2026-10-31. Do not publish further
-  scope or manually rerun remote workflows without approval.
+- Publication of the verified repairs, native-only setup and once-owned
+  follow-up to draft PR #1 was approved on 2026-10-31 after local verification.
+  Do not publish additional scope or manually rerun workflows without approval.
 - Update this plan incrementally. Do not mark a filtered or local pass as the
   complete CI baseline. Do not implement the deferred in-process cache.
 
@@ -136,7 +169,7 @@ below and a passing CI baseline remain prerequisites for workflow partitioning.
 - [ ] Save a concise diagnosis under `docs/testing/` with reproducible commands
       and actual outcomes; do not claim a full PR speedup.
 
-## Task 3: Establish The Full Acceptance Baseline
+## Original Task 3: Full Acceptance Baseline (Superseded Gate)
 
 **Files:** `docs/testing/` evidence and this plan; no workflow edits yet.
 
@@ -151,7 +184,7 @@ below and a passing CI baseline remain prerequisites for workflow partitioning.
 - [ ] Select the smallest justified Phase 1 change from the measured result.
       If the split is not justified, revise it instead of implementing by inertia.
 
-## Task 4: Implement And Evaluate Approved Ownership Partitioning
+## Original Task 4: Initial Partition Proposal (Superseded)
 
 **Only after Tasks 1-3 pass. Potential files:**
 
@@ -179,8 +212,9 @@ below and a passing CI baseline remain prerequisites for workflow partitioning.
 
 ## Completion
 
-- [x] Implemented prerequisite changes verified, with full-current-revision CI,
-      profiling and workflow partitioning still pending. See
+- [x] Prerequisites and once-owned parallel execution implemented and reviewed.
+      Scoped local verification is recorded below; new Linux acceptance and
+      matched whole-CI performance measurements remain pending. See
       [local verification](../../testing/ci-prerequisite-repairs-20261031.md).
 - [x] Phase 2 remains deferred unless separately approved from measured need.
-- [ ] Report changed files and actual verification; do not merge automatically.
+- [x] Record changed ownership and actual local verification; do not merge automatically.

@@ -10,6 +10,11 @@ version = { workspace = true }
 [lints]
 workspace = true
 
+# This hermetic child-build suite has one mandatory explicit CI owner.
+[[test]]
+name = "build_failure_harness"
+test = false
+
 [features]
 # The insecure-bidders feature gates the local loopback fixture endpoint
 # through build.rs syncer-URL template validation. Forwarded from

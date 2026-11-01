@@ -56,7 +56,7 @@ enum SourceMode {
 }
 
 #[derive(Clone, Copy)]
-enum LinkTargets {
+pub enum LinkTargets {
     NativeOnly,
     All,
 }
@@ -1090,27 +1090,11 @@ pub fn linked_catalog() -> Result<Catalog, String> {
     )
 }
 
-pub fn linked_explicit_catalog() -> Result<Catalog, String> {
+pub fn linked_explicit_catalog(targets: LinkTargets) -> Result<Catalog, String> {
     linked_catalog_for(
         SourceMode::Explicit,
         crate::SCHEMA_SOURCE_CONFORMANCE,
-        LinkTargets::All,
-    )
-}
-
-pub fn linked_native_catalog() -> Result<Catalog, String> {
-    linked_catalog_for(
-        SourceMode::Default,
-        crate::SCHEMA_SOURCE_CONFORMANCE,
-        LinkTargets::NativeOnly,
-    )
-}
-
-pub fn linked_explicit_native_catalog() -> Result<Catalog, String> {
-    linked_catalog_for(
-        SourceMode::Explicit,
-        crate::SCHEMA_SOURCE_CONFORMANCE,
-        LinkTargets::NativeOnly,
+        targets,
     )
 }
 

@@ -123,6 +123,8 @@ fn reject_compiler_errors(syntax: &mut syn::File) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::schema_build::application::Adapter;
+
     #[test]
     fn priority_contract_approval_pins_reviewed_inputs_without_acceptance_grants() {
         let review: toml::Value = toml::from_str(include_str!(
@@ -585,27 +587,58 @@ mod tests {
     }
 
     #[test]
-    fn actual_application_artifacts_retain_every_selected_validator_in_both_feature_lanes() {
+    fn actual_application_artifacts_axum_retain_every_selected_validator_in_both_feature_lanes() {
+        assert_actual_application_artifacts(Adapter::Axum, "auctioneer-adapter-axum");
+    }
+
+    #[test]
+    fn actual_application_artifacts_cloudflare_retain_every_selected_validator_in_both_feature_lanes()
+     {
+        assert_actual_application_artifacts(Adapter::Cloudflare, "auctioneer-adapter-cloudflare");
+    }
+
+    #[test]
+    fn actual_application_artifacts_fastly_retain_every_selected_validator_in_both_feature_lanes() {
+        assert_actual_application_artifacts(Adapter::Fastly, "auctioneer-adapter-fastly");
+    }
+
+    #[test]
+    fn actual_application_artifacts_spin_retain_every_selected_validator_in_both_feature_lanes() {
+        assert_actual_application_artifacts(Adapter::Spin, "auctioneer-adapter-spin");
+    }
+
+    fn assert_actual_application_artifacts(adapter: Adapter, package: &str) {
         use super::schema_build::application::inspect;
         use super::schema_selection_source::{Lane, selected_cohort};
         use std::io::{Write as _, stderr};
 
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
-            let report = inspect(&cohort.root, &cohort.schemas, &cohort.manifest, development)
-                .expect("actual linked application schema membership");
+            let report = inspect(
+                adapter,
+                &cohort.root,
+                &cohort.schemas,
+                &cohort.manifest,
+                development,
+            )
+            .expect("actual linked application schema membership");
+            assert_eq!(
+                report["lane"],
+                if development { "development" } else { "secure" }
+            );
             assert_eq!(report["qualification"], "Unqualified");
             assert_eq!(report["resource_qualification"], false);
             assert_eq!(report["linked_or_serving_qualification"], false);
             assert_eq!(report["final_admitted_artifact_recheck_required"], true);
             let applications = report["applications"].as_array().unwrap();
-            assert_eq!(applications.len(), 4);
+            assert_eq!(applications.len(), 1);
             let expected = cohort
                 .schemas
                 .iter()
                 .map(|row| row.witness.name.as_str())
                 .collect::<BTreeSet<_>>();
             for application in applications {
+                assert_eq!(application["package"], package);
                 assert_eq!(application["qualification"], "Unqualified");
                 let rows = application["linked_records"].as_array().unwrap();
                 assert_eq!(rows.len(), expected.len());
@@ -3626,7 +3659,10 @@ mod tests {
         use std::collections::BTreeMap;
         use std::io::{Write as _, stderr};
 
-        let catalog = super::schema_build::linked_explicit_native_catalog().unwrap();
+        let catalog = super::schema_build::linked_explicit_catalog(
+            super::schema_build::LinkTargets::NativeOnly,
+        )
+        .unwrap();
         assert_eq!(
             catalog
                 .reports()

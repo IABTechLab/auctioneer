@@ -29,36 +29,48 @@ struct Application {
     profile: &'static str,
 }
 
-const APPLICATIONS: [Application; 4] = [
-    Application {
-        package: "auctioneer-adapter-axum",
-        target_name: "auctioneer-adapter-axum",
-        kind: "bin",
-        target: None,
-        profile: "release",
-    },
-    Application {
-        package: "auctioneer-adapter-cloudflare",
-        target_name: "auctioneer_adapter_cloudflare",
-        kind: "cdylib",
-        target: Some("wasm32-unknown-unknown"),
-        profile: "wasm-release",
-    },
-    Application {
-        package: "auctioneer-adapter-fastly",
-        target_name: "auctioneer-adapter-fastly",
-        kind: "bin",
-        target: Some("wasm32-wasip1"),
-        profile: "wasm-release",
-    },
-    Application {
-        package: "auctioneer-adapter-spin",
-        target_name: "auctioneer_adapter_spin",
-        kind: "cdylib",
-        target: Some("wasm32-wasip2"),
-        profile: "wasm-release",
-    },
-];
+#[derive(Clone, Copy)]
+pub enum Adapter {
+    Axum,
+    Cloudflare,
+    Fastly,
+    Spin,
+}
+
+impl Adapter {
+    const fn application(self) -> Application {
+        match self {
+            Self::Axum => Application {
+                package: "auctioneer-adapter-axum",
+                target_name: "auctioneer-adapter-axum",
+                kind: "bin",
+                target: None,
+                profile: "release",
+            },
+            Self::Cloudflare => Application {
+                package: "auctioneer-adapter-cloudflare",
+                target_name: "auctioneer_adapter_cloudflare",
+                kind: "cdylib",
+                target: Some("wasm32-unknown-unknown"),
+                profile: "wasm-release",
+            },
+            Self::Fastly => Application {
+                package: "auctioneer-adapter-fastly",
+                target_name: "auctioneer-adapter-fastly",
+                kind: "bin",
+                target: Some("wasm32-wasip1"),
+                profile: "wasm-release",
+            },
+            Self::Spin => Application {
+                package: "auctioneer-adapter-spin",
+                target_name: "auctioneer_adapter_spin",
+                kind: "cdylib",
+                target: Some("wasm32-wasip2"),
+                profile: "wasm-release",
+            },
+        }
+    }
+}
 
 struct ExpectedBuild<'a> {
     target: &'a str,
@@ -1180,9 +1192,10 @@ fn verify_one(
     )
 }
 
-/// Inspect all four actual linked adapters in one requested feature lane.
+/// Inspect one actual linked adapter in one requested feature lane.
 /// `root` may be the workspace or the source cohort's `src/bidders` directory.
 pub fn inspect(
+    adapter: Adapter,
     root: &Path,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
@@ -1190,28 +1203,24 @@ pub fn inspect(
 ) -> Result<Value, String> {
     let prepared = prepare(root, cohort_manifest, development)?;
     let _lease = super::acquire_lease(&prepared.target_dir)?;
-    let mut reports = Vec::new();
-    for application in APPLICATIONS {
-        let products = build_one(&prepared, application)?;
-        reports.push(
-            verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(
-                |error| {
-                    format!(
-                        "{} ({}, {}): {error}",
-                        application.package,
-                        application.target.unwrap_or(&prepared.host),
-                        application.profile
-                    )
-                },
-            )?,
-        );
-    }
+    let application = adapter.application();
+    let products = build_one(&prepared, application)?;
+    let report = verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(
+        |error| {
+            format!(
+                "{} ({}, {}): {error}",
+                application.package,
+                application.target.unwrap_or(&prepared.host),
+                application.profile
+            )
+        },
+    )?;
     Ok(
         json!({"schema_version":1_u32,"kind":"actual_application_schema_staging_inspection",
         "qualification":"Unqualified","linked_or_serving_qualification":false,"resource_qualification":false,
         "final_admitted_artifact":false,"final_admitted_artifact_recheck_required":true,
         "lane":if development {"development"} else {"secure"},"binding":cohort_manifest,
-        "applications":reports,"child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
+        "applications":[report],"child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
         "pending_gaps":["resource_bounds","serving_integration","final_admitted_artifact_recheck","hosted_execution"]}),
     )
 }
@@ -1219,8 +1228,8 @@ pub fn inspect(
 #[cfg(test)]
 mod tests {
     use super::{
-        BuildProducts, ExpectedBuild, check_build, check_cohort, compare_generated, digest,
-        enabled_features, products, refusal_controls,
+        Adapter, BuildProducts, ExpectedBuild, check_build, check_cohort, compare_generated,
+        digest, enabled_features, products, refusal_controls,
     };
     use crate::schema_qualification::{SchemaInventory, SchemaWitness, audit_schema};
     use serde_json::{Value, json};
@@ -1611,7 +1620,13 @@ mod tests {
 
     #[test]
     fn fake_build_arguments_select_application_and_bidder_with_unqualified_features() {
-        for application in super::APPLICATIONS {
+        for adapter in [
+            Adapter::Axum,
+            Adapter::Cloudflare,
+            Adapter::Fastly,
+            Adapter::Spin,
+        ] {
+            let application = adapter.application();
             for development in [false, true] {
                 let arguments = super::build_arguments(application, development);
                 let packages: Vec<_> = arguments
@@ -1957,10 +1972,17 @@ mod tests {
     #[test]
     fn application_inspection_refuses_stale_cohort_before_compiler_or_cargo() {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        assert_eq!(
-            super::inspect(&workspace, &[], &json!({}), false).unwrap_err(),
-            "stale application source cohort"
-        );
+        for adapter in [
+            Adapter::Axum,
+            Adapter::Cloudflare,
+            Adapter::Fastly,
+            Adapter::Spin,
+        ] {
+            assert_eq!(
+                super::inspect(adapter, &workspace, &[], &json!({}), false).unwrap_err(),
+                "stale application source cohort"
+            );
+        }
     }
 
     #[test]
