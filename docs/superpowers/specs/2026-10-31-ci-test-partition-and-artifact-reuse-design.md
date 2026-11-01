@@ -69,6 +69,39 @@ from the failed-run totals.
 
 ## Alternatives And Scope
 
+### Approved Native-Only Probe Setup
+
+On 2026-10-31 the user approved a narrow test-harness change before workflow
+partitioning: native-only assertions must request only a native probe. This
+does not authorize Phase 2 caching or waive the baseline/profiling gates for
+workflow changes.
+
+Use an explicit native-only/all-target selection in the existing catalog
+builder. Keep the existing default/explicit all-target entrypoints unchanged
+for both `all_schema_*_dispatch_links_on_native_and_three_wasm_targets` tests.
+The native-only callers are:
+
+- `compiled_explicit_cache_layouts_have_complete_typed_owner_membership`
+- `native_generated_callbacks_have_isolated_cold_and_repeat_allocation_reports`
+- `explicit_cache_measurements_separate_construction_growth_reuse_and_release`
+- Source-only `every_compiled_schema_cache_layout_funds_sibling_and_callback_storage`
+
+Preserve all their existing assertions and add an exact `native`-only report
+membership check to guard against reintroducing unrelated builds. Preserve
+the shared lease lifetime, fresh measurement subprocesses, private refusal
+workspaces, workload sizes, source/artifact verification and all resource
+limits. Keep the full real-application and compiler-layout experiments intact.
+No generated products or observations are cached by this change.
+
+The structural catalog-build census becomes 11 instead of 20 requests in the
+synthetic binary, and 12 instead of 24 in the source binary: 23 instead of 44
+for one execution of both targets. This is not a count of clean compilations
+and not a speedup estimate. Compare the same native-only test with unchanged
+assertions under temporary parent instrumentation before/after; label outer
+compilation separately, preserve cache conditions, and make no full-CI timing
+claim from this local microprofile. Full scope/feature/guest acceptance remains
+required.
+
 - Keep the current workflow and fix its failures: least complexity and the
   required baseline, but no deliberate reduction in repeated execution.
 - Phase 1: separate proven independent workloads and remove only demonstrated
@@ -215,8 +248,9 @@ general cache. Reuse only generated build products, never returned measurement
 JSON, initialized validators, search caches or guest processes. Keep all five
 existing compiler acceptance callers and the additional source-target caller.
 
-Use bounded process-local successful-generation state keyed by schema mode and
-synthetic/production inputs. A shared entry owns no file lease or leaked
+Use bounded process-local successful-generation state keyed by schema mode,
+synthetic/production inputs and requested build-target scope. A native-only
+generation cannot satisfy an all-target request. A shared entry owns no file lease or leaked
 `TempDir`. Each returned catalog reacquires and holds the existing global
 compiler lease for its whole use; do not retain a cache mutex while waiting for
 that lease. Preserve safe default/explicit access and release after failures.
@@ -237,8 +271,10 @@ cache hit: doing so would erase evidence of changed child inputs.
 Under the compiler lease, compare existing generated sources, schema contents
 and witnesses, root and resolved child locks, profile/feature declarations,
 compiler/vendor identities and toolchain inputs against the process-local
-receipt **without writing or running lock-mutating Cargo commands**. Verify all
-four stored artifact sizes and digests; membership names alone are insufficient.
+receipt **without writing or running lock-mutating Cargo commands**. Verify the
+exact requested artifact set and every stored size/digest: one native artifact
+for native-only state or all four artifacts for all-target state. Membership
+names alone are insufficient.
 Artifact deletion, truncation, same-length corruption or unexpected cached-child
 changes refuse reuse, not a repair followed by new trusted hashes.
 
@@ -269,8 +305,9 @@ coalesce measured processes or reuse observations to make timings smaller.
    revise or abandon it; do not weaken acceptance to preserve the design.
 4. Request separate approval for Phase 2 only with measured residual repeated
    build cost. Require hit/miss and independent-key controls, failed/partial
-   builds, every input category, all four artifacts' deletion/truncation/
-   same-length corruption, read-only lock validation before rewrite, lease
+   builds, every input category, independent target-scope keys, refusal to widen
+   native-only state into all-target state, all requested artifacts' deletion/
+   truncation/same-length corruption, read-only lock validation before rewrite, lease
    release, private refusal workspaces and distinct observation children.
 5. For implemented phases, preserve test assertions and independent oracles;
    run affected native/compiler/guest tests, strict Clippy, formatting, shell

@@ -21,9 +21,9 @@ Actions, the pinned Wasmtime, Prettier and actionlint. No new dependency.
   Keep diagnostic mutations and profiling instrumentation in a disposable copy.
 - Serialize heavy Cargo commands and reuse the existing build cache. Preserve
   workload sizes, limits, source/identity checks and measurement isolation.
-- Publication of the verified prerequisite repairs to draft PR #1 was approved
-  on 2026-10-31. Do not publish further scope or manually rerun remote workflows
-  without approval.
+- Publication of the verified prerequisite repairs and native-only setup
+  follow-up to draft PR #1 was approved on 2026-10-31. Do not publish further
+  scope or manually rerun remote workflows without approval.
 - Update this plan incrementally. Do not mark a filtered or local pass as the
   complete CI baseline. Do not implement the deferred in-process cache.
 
@@ -82,6 +82,38 @@ These filtered runs diagnose; they do not satisfy the full baseline gate.
 
 ## Task 2: Profile The Unchanged Workload
 
+### Approved Native-Only Setup Repair
+
+The user explicitly approved this narrow repair on 2026-10-31. It is separate
+from workflow partitioning and does not authorize artifact caching.
+
+**Files:** `tests/schema_build/mod.rs`, `tests/schema_build_cases/mod.rs`,
+and `tests/schema_source_conformance.rs` within `auctioneer-bidder`.
+
+- [x] Audit every catalog caller and its transitive observations. Four callers
+      use only native outputs; retain both full native/three-WASM link tests.
+- [x] Profile a representative unchanged native-only case in a disposable copy;
+      record child build targets/outcomes and separate outer compilation.
+- [x] Add a failing target-selection control against the old all-target setup:
+      one control failed and the all-target control passed before repair.
+- [x] Add explicit native-only entrypoints, route only the four audited callers,
+      and assert their report membership is exactly `native`.
+- [x] Keep every original assertion, workload, measurement process, lease,
+      target/feature gate, refusal workspace and source/artifact check unchanged.
+- [x] Verify both full targets: 333 synthetic and 690 source cases passed with
+      no failures, ignores or filters. Strict Clippy, formatting and all 16
+      source-isolation controls passed.
+- [x] Repeat the microprofile with the same instrumentation and input/cache
+      conditions. Report measured local results and the 44-to-23 request census;
+      the exact case passed in 138.91 s before / 48.23 s after. This is not an
+      end-to-end CI speedup or full-suite profile.
+- [x] Obtain separate publication approval for this new scope before pushing:
+      explicitly approved for draft PR #1 on 2026-10-31. Workflow partitioning
+      and artifact caching remain unchanged.
+
+The microprofile above is diagnostic only. The complete per-operation profiling
+below and a passing CI baseline remain prerequisites for workflow partitioning.
+
 **Disposable files only:**
 
 - Copy the recorded source revision and local repairs into a temporary source
@@ -91,7 +123,7 @@ These filtered runs diagnose; they do not satisfy the full baseline gate.
 - Keep generated validators, allocator-instrumented children and all test
   assertions unchanged.
 
-- [ ] Establish a complete passing local run of each schema target, with the
+- [x] Establish a complete passing local run of each schema target, with the
       pinned prerequisites and no filtered-out cases.
 - [ ] Profile each target separately using its existing libtest concurrency.
       Preserve fresh native/guest processes and existing workloads.

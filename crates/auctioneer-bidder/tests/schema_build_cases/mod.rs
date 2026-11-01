@@ -75,7 +75,15 @@ mod tests {
         use regex_automata::meta::Cache;
         use std::mem::{align_of, size_of};
 
-        let catalog = schema_build::linked_explicit_catalog().unwrap();
+        let catalog = schema_build::linked_explicit_native_catalog().unwrap();
+        assert_eq!(
+            catalog
+                .reports()
+                .iter()
+                .map(|row| row.target.as_str())
+                .collect::<Vec<_>>(),
+            ["native"]
+        );
         let layouts = catalog.native_cache_layouts().unwrap();
         assert_eq!(layouts.schema_version, 2);
         assert_eq!(layouts.word_bytes, size_of::<usize>());
@@ -1506,7 +1514,15 @@ mod tests {
 
     #[test]
     fn native_generated_callbacks_have_isolated_cold_and_repeat_allocation_reports() {
-        let catalog = schema_build::linked_catalog().unwrap();
+        let catalog = schema_build::linked_native_catalog().unwrap();
+        assert_eq!(
+            catalog
+                .reports()
+                .iter()
+                .map(|row| row.target.as_str())
+                .collect::<Vec<_>>(),
+            ["native"]
+        );
         let controls = catalog.native_allocation_output("controls").unwrap();
         assert_eq!(
             String::from_utf8(controls.stderr).unwrap(),
@@ -1565,7 +1581,15 @@ mod tests {
 
     #[test]
     fn explicit_cache_measurements_separate_construction_growth_reuse_and_release() {
-        let catalog = schema_build::linked_explicit_catalog().unwrap();
+        let catalog = schema_build::linked_explicit_native_catalog().unwrap();
+        assert_eq!(
+            catalog
+                .reports()
+                .iter()
+                .map(|row| row.target.as_str())
+                .collect::<Vec<_>>(),
+            ["native"]
+        );
         assert_allocator_controls(&catalog.native_allocations("controls").unwrap());
         let report = catalog.native_allocations("explicit-caches").unwrap();
         assert_eq!(

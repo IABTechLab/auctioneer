@@ -32,6 +32,25 @@ The [verification record](docs/testing/evidence/local-development-test-ownership
 records 1,929 passing scoped tests, nine existing ignores, strict affected-target
 Clippy, formatting and source/fixture guards.
 
+## Schema Probe Setup And CI Contention
+
+**Native-only setup repair implemented (2026-10-31); Linux acceptance remains
+open.** Four native-only test callers now request only native probes. Both
+complete native/three-WASM link tests and all original observations remain.
+The catalog request census falls from 44 to 23 across the two target binaries;
+this is not a clean-build count or whole-CI speedup claim. One matched local
+case passed in 138.91 s before and 48.23 s after, removing 89.25 s of unused
+guest builds with native compilation unchanged.
+
+The preceding Linux run failed two cases after 20-minute waits for the shared
+compiler lock. The repair reduces unnecessary work while preserving the lock
+lifetime and timeout; it does not prove a worst-case admission bound. Re-run
+the full Linux acceptance matrix. If acquisition failures persist, profile
+holder/waiter intervals before proposing scheduling or lease-boundary changes;
+do not merely raise the timeout. Workflow partitioning and artifact caching
+remain separately gated. See the
+[verification record](docs/testing/ci-prerequisite-repairs-20261031.md#native-only-setup-follow-up).
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

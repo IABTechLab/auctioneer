@@ -3626,7 +3626,15 @@ mod tests {
         use std::collections::BTreeMap;
         use std::io::{Write as _, stderr};
 
-        let catalog = super::schema_build::linked_explicit_catalog().unwrap();
+        let catalog = super::schema_build::linked_explicit_native_catalog().unwrap();
+        assert_eq!(
+            catalog
+                .reports()
+                .iter()
+                .map(|row| row.target.as_str())
+                .collect::<Vec<_>>(),
+            ["native"]
+        );
         let layouts = catalog.native_cache_layouts().unwrap();
         assert_eq!(layouts.schema_version, 2);
         assert_eq!(layouts.word_bytes, size_of::<usize>());

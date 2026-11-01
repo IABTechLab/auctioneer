@@ -87,6 +87,70 @@ deleted-vendor build warnings and the existing `proc-macro-error2`
 future-incompatibility notice remain; warning policy and dependencies were not
 changed.
 
+## Native-Only Setup Follow-Up
+
+The [9809d00 CI run](https://github.com/IABTechLab/auctioneer/actions/runs/41255500058)
+subsequently completed its schema step with 331 synthetic
+passes and 686 source passes / 2 failures. Both failures were 20-minute global
+build-lock acquisition timeouts: the explicit cross-target catalog test and
+the native engine-layout request. Other cases continued completing, so this
+is evidence of contention, not a proven deadlock. The source target took
+2,503.90 seconds. It is not a passing baseline.
+
+The user approved building only native probes for the four audited native-only
+callers. Existing default/explicit cross-target entrypoints remain all-target;
+both complete native/three-WASM link tests, actual-application inspections,
+compiler-layout requests, every original assertion and all fresh observations
+remain. Exact native-only report checks and two selector controls guard the
+new scopes. No cache, lock lifetime, timeout, measurement workload or workflow changes.
+
+One instrumented before/after pair ran the exact source
+`compiled_explicit_cache_layouts_have_complete_typed_owner_membership` case:
+
+| Measurement               |       Before |       After |
+| ------------------------- | -----------: | ----------: |
+| Test wall time            |     138.91 s |     48.23 s |
+| Native child build        |  45.865859 s | 46.028249 s |
+| Three unused WASM builds  |  89.249309 s |        None |
+| Lease hold                | 138.909585 s | 48.221504 s |
+| Outer harness compilation |      12.74 s |     24.29 s |
+| Whole local invocation    |     152.43 s |     73.23 s |
+
+Both cases passed. Native inventory and cache-layout observations still used
+fresh processes. The same child target cache was APFS-cloned from the unchanged
+workspace cache before each sample, at the same disposable target path. Parent
+compilation is reported separately. Neither sample executes Wasmtime because
+this caller never consumed guest results. The selector regression first failed
+against all-target selection, then both selection controls passed in both
+integration contexts.
+
+This is one local Apple Silicon pair, not an end-to-end CI improvement or a
+complete per-operation suite profile. Its observed test reduction is 90.68
+seconds; removed guest-build intervals explain 89.249309 seconds. Retaining
+the unchanged shared lease leaves admission-timeout risk to check in Linux CI.
+
+The current repair then passed both complete affected targets, with the pinned
+Wasmtime available and no filters, ignores or failed cases:
+
+| Target                      | Passed | Duration |
+| --------------------------- | -----: | -------: |
+| `schema_build_controls`     |    333 |  96.99 s |
+| `schema_source_conformance` |    690 | 567.21 s |
+
+Outer compilation took 25.41 seconds. These complete local results retain the
+cross-target and real-application checks. They are not a matched full-suite
+before/after comparison and do not close the failed Linux baseline.
+
+Diagnostic artifacts remain under
+`/private/tmp/auctioneer-ci-profile-9809d00/`: baseline source archive, parent
+instrumentation, input/scope patches, before/after logs and `events.jsonl`.
+The original revision is `9809d007a57a755c5d81fa42efff9439698036bc`. The temporary
+instrumentation was not added to the repository or linked into measured child
+programs. Its helper SHA-256 is
+`8cc2988a1262c820707edabc2e49f07e46e232c0d9f8e733024a27bc246590c1`;
+the event-log SHA-256 is
+`86c6a485bfd99459191992b93a311c4f8fe594bd069d7f153d93da8f3f53f545`.
+
 ## Platform Distinction
 
 Before the platform-specific repairs, the unchanged real-artifact probes passed

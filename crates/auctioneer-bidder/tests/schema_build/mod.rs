@@ -55,6 +55,21 @@ enum SourceMode {
     Explicit,
 }
 
+#[derive(Clone, Copy)]
+enum LinkTargets {
+    NativeOnly,
+    All,
+}
+
+impl LinkTargets {
+    fn names(self) -> &'static [&'static str] {
+        match self {
+            Self::NativeOnly => &["native"],
+            Self::All => &TARGETS,
+        }
+    }
+}
+
 impl SourceMode {
     fn cache_option(self) -> TokenStream {
         match self {
@@ -1068,11 +1083,35 @@ fn acquire_lease(target_dir: &Path) -> Result<File, String> {
 }
 
 pub fn linked_catalog() -> Result<Catalog, String> {
-    linked_catalog_for(SourceMode::Default, crate::SCHEMA_SOURCE_CONFORMANCE)
+    linked_catalog_for(
+        SourceMode::Default,
+        crate::SCHEMA_SOURCE_CONFORMANCE,
+        LinkTargets::All,
+    )
 }
 
 pub fn linked_explicit_catalog() -> Result<Catalog, String> {
-    linked_catalog_for(SourceMode::Explicit, crate::SCHEMA_SOURCE_CONFORMANCE)
+    linked_catalog_for(
+        SourceMode::Explicit,
+        crate::SCHEMA_SOURCE_CONFORMANCE,
+        LinkTargets::All,
+    )
+}
+
+pub fn linked_native_catalog() -> Result<Catalog, String> {
+    linked_catalog_for(
+        SourceMode::Default,
+        crate::SCHEMA_SOURCE_CONFORMANCE,
+        LinkTargets::NativeOnly,
+    )
+}
+
+pub fn linked_explicit_native_catalog() -> Result<Catalog, String> {
+    linked_catalog_for(
+        SourceMode::Explicit,
+        crate::SCHEMA_SOURCE_CONFORMANCE,
+        LinkTargets::NativeOnly,
+    )
 }
 
 pub fn workload_data(snapshot: &Inventory) -> Result<BTreeMap<String, Json>, String> {
@@ -1200,7 +1239,11 @@ fn prepare_workspace() -> Result<TempDir, String> {
     Ok(directory)
 }
 
-fn linked_catalog_for(mode: SourceMode, production: bool) -> Result<Catalog, String> {
+fn linked_catalog_for(
+    mode: SourceMode,
+    production: bool,
+    targets: LinkTargets,
+) -> Result<Catalog, String> {
     let target_dir = match mode {
         SourceMode::Default => root().join("target/schema-compiler-probe"),
         SourceMode::Explicit => root().join("target/schema-compiler-probe/explicit"),
@@ -1225,7 +1268,7 @@ fn linked_catalog_for(mode: SourceMode, production: bool) -> Result<Catalog, Str
     let (directory, membership) = prepare_probe_workspace(&snapshot, mode)?;
     verify_probe_workspace(directory.path())?;
     let mut reports = Vec::new();
-    for target in TARGETS {
+    for &target in targets.names() {
         let mut command = cargo(directory.path());
         command
             .args([
@@ -1600,13 +1643,31 @@ impl Catalog {
 
 #[cfg(test)]
 mod tests {
-    use super::{RunError, SourceMode, fixture, run, source, source_for, verify_wasm};
+    use super::{LinkTargets, RunError, SourceMode, fixture, run, source, source_for, verify_wasm};
     use crate::schema_vendor;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::time::Duration;
     use syn::parse::ParseStream;
+
+    #[test]
+    fn catalog_native_target_scope_does_not_request_guest_builds() {
+        assert_eq!(LinkTargets::NativeOnly.names(), ["native"]);
+    }
+
+    #[test]
+    fn catalog_full_target_scope_keeps_native_and_every_guest() {
+        assert_eq!(
+            LinkTargets::All.names(),
+            [
+                "native",
+                "wasm32-unknown-unknown",
+                "wasm32-wasip1",
+                "wasm32-wasip2"
+            ]
+        );
+    }
 
     fn fake_cache_layouts() -> serde_json::Value {
         serde_json::json!({"schema_version": 2_u8, "word_bytes": 4_usize,
