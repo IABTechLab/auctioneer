@@ -16,7 +16,7 @@ mod tests {
 
     const MANIFEST: &str = include_str!("../bidder.toml");
     const MANIFEST_SHA256: &str =
-        "7fe2519b7c60ed8932dbac5c984eb6360571e3344fb81f6cddb395ea115e43cf";
+        "c2a45d4b3cc28b728efaf2fec766bd4cd860adba168de4397e949d2fb3e7831c";
 
     fn info(endpoint: &str) -> BidderRequestInfo<'_> {
         BidderRequestInfo::new(

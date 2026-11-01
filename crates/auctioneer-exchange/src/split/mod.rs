@@ -376,7 +376,7 @@ fn group_one_imp(
         imp_landed_with_any_bidder = true;
         per_bidder_imps
             .entry(bidder_name)
-            .or_default()
+            .or_insert_with(|| Vec::with_capacity(1))
             .push(imp_idx);
     }
 

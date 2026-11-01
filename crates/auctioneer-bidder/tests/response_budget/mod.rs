@@ -105,9 +105,35 @@ pub(crate) fn flattened_flood(bidder: &dyn Bidder, endpoint: &str) {
 }
 
 pub(crate) fn nesting_chain(bidder: &dyn Bidder, endpoint: &str) {
+    nesting_chain_at_depth(bidder, endpoint, 100);
+}
+
+pub(crate) fn candidate_nesting_chain(bidder: &dyn Bidder, endpoint: &str) {
+    // Five envelope containers plus 59 chain objects reach the source limit exactly.
+    let admitted = deeply_nested(59);
+    assert_eq!(
+        auctioneer_runtime::count_json_nodes(&admitted, WIDE_BUDGET).unwrap(),
+        141
+    );
+    nesting_chain_at_depth(bidder, endpoint, 59);
+    for depth in [60_usize, 100] {
+        let body = deeply_nested(depth);
+        assert!(body.len() < 1_024);
+        let errors = bidder
+            .make_bids(
+                &request(),
+                &sent(endpoint),
+                &response(200, body, WIDE_BUDGET),
+            )
+            .unwrap_err();
+        assert_eq!(codes(&errors), [BAD_SERVER_RESPONSE], "depth {depth}");
+    }
+}
+
+fn nesting_chain_at_depth(bidder: &dyn Bidder, endpoint: &str, depth: usize) {
     let request = request();
     let sent = sent(endpoint);
-    let body = deeply_nested(100);
+    let body = deeply_nested(depth);
     assert!(
         body.len() < 1_024,
         "a byte cap must admit this nesting fixture; got {} bytes",
@@ -120,7 +146,7 @@ pub(crate) fn nesting_chain(bidder: &dyn Bidder, endpoint: &str) {
     assert_eq!(wide.bids[0].bid.id, "b");
     assert_eq!(wide.bids[0].bid.impid, "i");
     let mut chain = &wide.bids[0].bid.other["deep"];
-    for _ in 0_usize..100 {
+    for _ in 0..depth {
         chain = &chain["a"];
     }
     assert_eq!(chain, &json!(1_i32));

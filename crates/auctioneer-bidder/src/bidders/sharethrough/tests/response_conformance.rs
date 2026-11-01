@@ -71,6 +71,14 @@ fn document(extra_fields: Value) -> Value {
     json!({"id":"r", "cur":"EUR", "seatbid":[{"bid":[bid]}]})
 }
 
+fn deeply_nested_document(depth: usize) -> Value {
+    let mut chain = json!(true);
+    for _ in 0..depth {
+        chain = json!({"next":chain});
+    }
+    document(json!({"chain":chain}))
+}
+
 fn response(document: &Value, nodes: u32) -> BidderHttpResponse {
     BidderHttpResponse::new(200, vec![], serde_json::to_vec(document).unwrap())
         .within_node_budget(nodes)
@@ -115,15 +123,17 @@ fn flattened_unknown_field_flood_has_an_independent_admitted_positive_control() 
 }
 
 #[test]
-fn deep_unknown_extension_chain_cannot_bypass_the_node_budget() {
+fn unknown_extension_chain_respects_independent_node_and_source_depth_limits() {
     let bidder = bidder();
     let (request, calls) = context(bidder.as_ref());
-    let mut chain = json!(true);
-    for _ in 0_usize..100 {
-        chain = json!({"next":chain});
-    }
-    let document = document(json!({"chain":chain}));
+    // Five enclosing containers plus 59 chain objects reach the fixed depth of 64.
+    let document = deeply_nested_document(59);
     assert!(serde_json::to_vec(&document).unwrap().len() < 2048);
+    assert_eq!(
+        auctioneer_runtime::count_json_nodes(&serde_json::to_vec(&document).unwrap(), 8192)
+            .unwrap(),
+        139
+    );
     let wide = bidder
         .make_bids(&request, calls[0].meta(), &response(&document, 8192))
         .unwrap();
@@ -132,6 +142,14 @@ fn deep_unknown_extension_chain_cannot_bypass_the_node_budget() {
         .make_bids(&request, calls[0].meta(), &response(&document, 64))
         .unwrap_err();
     assert_parse_error(&errors, 4);
+    for depth in [60_usize, 100] {
+        let over_depth = deeply_nested_document(depth);
+        assert!(serde_json::to_vec(&over_depth).unwrap().len() < 2048);
+        let depth_errors = bidder
+            .make_bids(&request, calls[0].meta(), &response(&over_depth, 8192))
+            .unwrap_err();
+        assert_parse_error(&depth_errors, 4);
+    }
 }
 
 #[test]
@@ -250,16 +268,48 @@ fn status_handling_precedes_sealed_parsing_but_success_still_requires_it() {
 }
 
 #[test]
-fn eager_typed_extension_decode_remains_a_named_whole_response_boundary() {
+fn typed_bid_errors_preserve_siblings_but_envelope_type_errors_are_terminal() {
     let bidder = bidder();
     let (request, calls) = context(bidder.as_ref());
-    let document = json!({"id":"r", "seatbid":[{"bid":[
+    let mut document = json!({"id":"r", "seatbid":[{"bid":[
         {"id":"good","impid":"i","price":1.25_f64,"mtype":1_i32},
         {"id":"bad-type-shape","impid":"i","price":1.0_f64,"mtype":1_i32,
-            "ext":{"prebid":{"type":7_i32}}}
+            "ext":{"prebid":{"type":"banner"}}}
     ]}]});
-    let errors = bidder
+    let admitted = bidder
         .make_bids(&request, calls[0].meta(), &response(&document, 512))
+        .unwrap();
+    assert_eq!(admitted.bids.len(), 2);
+    assert!(admitted.errors.is_empty());
+    assert_eq!(
+        document["seatbid"][0]["bid"][1]["ext"]["prebid"]["type"],
+        json!("banner")
+    );
+    document["seatbid"][0]["bid"][1]["ext"]["prebid"]["type"] = json!(7_i32);
+    let partial = bidder
+        .make_bids(&request, calls[0].meta(), &response(&document, 512))
+        .unwrap();
+    assert_eq!(partial.bids.len(), 1);
+    assert_eq!(partial.bids[0].bid.id, "good");
+    assert_eq!(partial.bids[0].media_type, MediaType::Banner);
+    assert_eq!(partial.bids[0].bid.price.to_bits(), 1.25_f64.to_bits());
+    assert_eq!(partial.currency, "USD");
+    assert_parse_error(&partial.errors, 14);
+
+    let mut only_bad = document.clone();
+    let removed = only_bad["seatbid"][0]["bid"]
+        .as_array_mut()
+        .unwrap()
+        .remove(0);
+    assert_eq!(removed["id"], json!("good"));
+    let errors = bidder
+        .make_bids(&request, calls[0].meta(), &response(&only_bad, 512))
         .unwrap_err();
     assert_parse_error(&errors, 14);
+
+    document["seatbid"] = json!(7_i32);
+    let envelope_errors = bidder
+        .make_bids(&request, calls[0].meta(), &response(&document, 512))
+        .unwrap_err();
+    assert_parse_error(&envelope_errors, 14);
 }

@@ -407,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn candidate_is_pinned_without_retrieval_and_is_only_a_native_test_dependency() {
+    fn compiler_is_pinned_without_retrieval_for_native_serving_and_explicit_guest_staging() {
         let root: Value = toml::from_str(include_str!("../../../Cargo.toml")).unwrap();
         let candidate = &root["workspace"]["dependencies"]["jsonschema"];
         assert_eq!(candidate["version"].as_str(), Some("=0.58.6"));
@@ -417,7 +417,31 @@ mod tests {
             &[Value::String("macros".to_owned())]
         );
         let bidder: Value = toml::from_str(include_str!("../Cargo.toml")).unwrap();
-        assert!(bidder["dependencies"].get("jsonschema").is_none());
+        assert_eq!(
+            bidder["dependencies"]["jsonschema"]["workspace"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(
+            bidder["dependencies"]["jsonschema"]["optional"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(
+            bidder["target"]["cfg(not(target_arch = \"wasm32\"))"]["dependencies"]
+                ["jsonschema"]["workspace"]
+                .as_bool(),
+            Some(true)
+        );
+        assert!(bidder["features"].get("default").is_none());
+        assert_eq!(
+            bidder["features"]["schema-artifact-staging"]
+                .as_array()
+                .unwrap(),
+            &[
+                Value::String("dep:jsonschema".to_owned()),
+                Value::String("dep:regex-automata".to_owned()),
+                Value::String("dep:uuid-simd".to_owned()),
+            ]
+        );
         assert_eq!(
             bidder["target"]["cfg(not(target_arch = \"wasm32\"))"]["dev-dependencies"]
                 ["jsonschema"]["workspace"]

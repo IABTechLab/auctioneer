@@ -414,3 +414,72 @@ Workspace Rust formatting, `git diff --check` and the raw-JSON fixture gate
 `proc-macro-error2` future-incompatibility notice remain unchanged. These are
 local native results, not complete Linux workspace acceptance or a whole-CI
 performance measurement. A fresh full CI run remains required.
+
+## Bidder Conformance And Grouping Follow-Up
+
+At `14a5fff`, [run 41349649200](https://github.com/IABTechLab/auctioneer/actions/runs/41349649200)
+passed the repaired importer step, then failed 13 Triplelift protocol cases.
+The earlier metadata wrap updated the factory fixture's manifest checksum but
+missed the companion Rust literal. The original conformance subset reproduced
+locally with one pass and 13 failures. Only that stale literal changes; the
+manifest, protocol cases and external captures remain unchanged.
+
+A complete local secure-default failure-collection run then reached every
+target in the bidder, exchange and core package group: 3,763 passed, five
+failed and 11 existing ignored cases. Cargo reported three failed targets.
+That invocation is not a green result. It exposed these additional repairs:
+
+- Two candidate-decoder depth controls expected admission at 105 containers,
+  beyond the existing source limit of 64. Admission now exercises depth 64
+  with literal source-node counts (141 and 139); depths 65 and 105 refuse with
+  the original wide node budget. The independent tight-node refusals remain.
+  Generic and AppNexus retain their original depth-100 chain admission controls.
+- Sharethrough's typed-bid test expected an obsolete whole-response failure.
+  It now requires a valid sibling to survive the malformed bid, checks the
+  exact surviving bid and error, and independently requires all-bad and invalid
+  envelope refusal. Production decoding does not change.
+- A compiler-manifest test still forbade the runtime dependency already
+  approved for controlled-native serving. It now pins native serving and
+  optional, nondefault guest staging while retaining the exact compiler
+  version, feature list and disabled retrieval. No dependency changes.
+- The deployed-registry maximum-cardinality test measured 2,189,096 bytes of
+  grouping bookkeeping against its unchanged 2,097,152-byte allowance. Empty
+  impression-index vectors grew to four slots on their first insertion.
+  Starting them at one slot reduces the measured peak to 1,854,248 bytes with
+  the same 262,144-byte input and 13,952 participants. The original 8x factor,
+  cardinality, selection caps and clone allowances remain. Existing tests
+  retain 1/8/100-impression sweeps and ordered multi-impression materialization.
+
+Complete follow-up targets, without test-name filters:
+
+| Selection                     | Passed | Failed | Existing Ignored |
+| ----------------------------- | -----: | -----: | ---------------: |
+| `bidder_response_conformance` |     32 |      0 |                0 |
+| `schema_compiler_controls`    |    193 |      0 |                0 |
+| Exchange `--all-targets`      |    648 |      0 |                1 |
+| Three-package secure group   |  3,768 |      0 |               11 |
+
+The final three-package invocation finished with exit 0 after all repairs,
+including the Clippy naming corrections. Its total includes the 14 fresh
+generated-settings child-test executions, as did the original failing sweep;
+it is not a count of unique test functions or of the full CI matrix.
+
+The earlier complete `auctioneer-bidder --lib` run passed 1,177 cases with nine
+existing ignores after the checksum repair; the Triplelift conformance subset
+contains 14 cases. No ignore, target selector, timeout, workflow, input limit,
+resource charge or historical artifact was changed.
+
+```sh
+cargo test --locked --offline -j2 -p auctioneer-bidder \
+  -p auctioneer-exchange -p auctioneer-core --all-targets --no-fail-fast
+cargo test --locked --offline -j2 -p auctioneer-bidder \
+  --test bidder_response_conformance --test schema_compiler_controls --no-fail-fast
+cargo test --locked --offline -j2 -p auctioneer-exchange --all-targets --no-fail-fast
+```
+
+These are local native results, not a complete passing Linux CI matrix or a
+whole-CI performance measurement. Strict Clippy on both affected libraries and
+the three repaired integration targets passes under `-D warnings`; workspace
+and bidder-owned Rust formatting, `git diff --check` and the raw-JSON fixture
+gate (200 fixtures across 57 files) pass. Existing GVL deletion warnings and the
+`proc-macro-error2` future-incompatibility notice remain unchanged.

@@ -26,7 +26,7 @@ fn flattened_catch_all_flood_is_refused() {
 
 #[test]
 fn nesting_chain_under_the_catch_all_is_refused() {
-    response_budget::nesting_chain(bidder().as_ref(), ENDPOINT);
+    response_budget::candidate_nesting_chain(bidder().as_ref(), ENDPOINT);
 }
 
 #[test]

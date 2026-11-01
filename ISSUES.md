@@ -102,6 +102,25 @@ independently for the Auctioneer path; no historical bundle was rewritten.
 See the [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#importer-evidence-follow-up).
 Complete Linux acceptance remains open.
 
+**Bidder conformance and grouping follow-up (2026-11-01):** the
+[`14a5fff` run](https://github.com/IABTechLab/auctioneer/actions/runs/41349649200)
+passed the importer step, then failed 13 Triplelift protocol cases. The earlier
+metadata wrap refreshed the factory fixture but missed its companion Rust
+manifest checksum. That checksum now matches; no manifest or capture changes.
+A complete three-package secure-default sweep then exposed four stale test
+expectations and one real grouping-memory overrun. Candidate-decoder controls
+now distinguish the unchanged 64-container limit from the independent node
+limit and preserve valid sibling bids. The compiler guard matches the already
+approved native runtime dependency and explicit guest staging. Grouping starts
+each impression-index vector at one slot rather than four: the unchanged
+256-KiB, 13,952-identity fixture falls from 2,189,096 to 1,854,248 bytes against
+the original 2,097,152-byte allowance. No cardinality, workload or charge changes.
+The repaired bidder targets pass 32 and 193 cases; the complete exchange suite
+passes 648 with one existing ignore. The final complete three-package rerun
+passes 3,768 test executions with zero failures and 11 existing ignores. See the
+[verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#bidder-conformance-and-grouping-follow-up).
+Full Linux acceptance remains pending.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser
