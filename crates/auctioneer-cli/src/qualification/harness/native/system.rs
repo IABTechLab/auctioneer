@@ -2429,11 +2429,11 @@ mod tests {
         }
         let executable = first.path().join("frozen-cli");
         let baseline = harness_digest(first.path(), &executable).unwrap();
-        // Independent golden for {harness_sources, executable_sha256, fixture_protocol_version: 1}.
+        // Independent golden for the Auctioneer paths, executable and protocol version.
         assert_eq!(
             baseline,
             Digest::try_from(
-                "9560ce5f3543f28ad9e37d447730e863e07ab493e256b144f26aee993ad7b2a4".to_owned()
+                "db58af025b3a069ac54e58c37a704e511ed383a9ac1557acf102b81cb3025e46".to_owned()
             )
             .unwrap()
         );

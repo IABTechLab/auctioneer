@@ -83,6 +83,25 @@ only its wrapping changes. See the
 [follow-up verification](docs/testing/ci-prerequisite-repairs-20261031.md#standalone-dependency-follow-up).
 Complete Linux acceptance and a whole-CI performance comparison remain open.
 
+**Importer evidence follow-up (implemented locally):** in the
+[`1b13dc3` run](https://github.com/IABTechLab/auctioneer/actions/runs/41347146065),
+the repaired factory/API step passed. The next source-inventory step reached
+`bidders_import`, which reported seven passes and one failure: its committed
+catalog check did not recognize the newer `tests/schema/semantics.toml` files.
+The read-only checker now recognizes that exact evidence format through strict
+Serde DTOs, retaining schema-owner matching, path/size limits and unknown-field
+refusal at every document level. Authored and source-backed fixtures have
+positive controls; wrong owners, misplaced files, missing fields, wrong types
+and unknown nested fields have independent negative controls. No serving path,
+captured expectation, provenance pin or import-publication rule changes.
+Broader CLI verification also exposed a historical patched-lock baseline being
+checked as current evidence and a harness golden retaining the pre-rename path
+digest. The exact byte-pinned baseline now uses the existing frozen lane while
+current-audit validation still refuses it. The test-only golden was recomputed
+independently for the Auctioneer path; no historical bundle was rewritten.
+See the [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#importer-evidence-follow-up).
+Complete Linux acceptance remains open.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

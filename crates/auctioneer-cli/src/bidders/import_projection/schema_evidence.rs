@@ -204,6 +204,69 @@ struct Exclusion {
     _revision: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Semantics {
+    schema: String,
+    #[serde(rename = "schema_version")]
+    _schema_version: u16,
+    #[serde(rename = "schema_sha256")]
+    _schema_sha256: String,
+    #[serde(rename = "origin")]
+    _origin: String,
+    #[serde(rename = "rows")]
+    _rows: Vec<SemanticCase>,
+    #[serde(rename = "expected")]
+    _expected: SemanticCounts,
+    #[serde(default, rename = "source_cases")]
+    _source_cases: Option<SemanticSource>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SemanticCase {
+    #[serde(rename = "id")]
+    _id: String,
+    #[serde(rename = "schema")]
+    _schema: String,
+    #[serde(rename = "input_json")]
+    _input_json: String,
+    #[serde(rename = "valid")]
+    _valid: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SemanticCounts {
+    #[serde(rename = "authored")]
+    _authored: usize,
+    #[serde(rename = "imported")]
+    _imported: usize,
+    #[serde(rename = "accepts")]
+    _accepts: usize,
+    #[serde(rename = "rejects")]
+    _rejects: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SemanticSource {
+    #[serde(rename = "path")]
+    _path: String,
+    #[serde(rename = "sha256")]
+    _sha256: String,
+    #[serde(rename = "revision")]
+    _revision: String,
+    #[serde(rename = "source_path")]
+    _source_path: String,
+    #[serde(rename = "source_blob")]
+    _source_blob: String,
+    #[serde(rename = "accepts")]
+    _accepts: usize,
+    #[serde(rename = "rejects")]
+    _rejects: usize,
+}
+
 // Each DTO is deliberately consumed by Serde: every field is a checked part of
 // the local data contract even when this projection only needs its owner.
 fn declared_schema(filename: &str, text: &str) -> Option<String> {
@@ -225,6 +288,9 @@ fn declared_schema(filename: &str, text: &str) -> Option<String> {
         "inventory-exclusion.toml" => toml::from_str::<Exclusion>(text)
             .ok()
             .map(|value| value.name),
+        "semantics.toml" => toml::from_str::<Semantics>(text)
+            .ok()
+            .map(|value| value.schema),
         _ => None,
     }
 }
@@ -240,4 +306,128 @@ pub(super) fn owned(path: &Path, bytes: &[u8], schema_names: &[String]) -> bool 
         return false;
     };
     declared_schema(filename, text).is_some_and(|name| schema_names.contains(&name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::owned;
+    use serde_json::{Value, json};
+    use std::path::Path;
+
+    fn semantics() -> Value {
+        json!({
+            "schema_version": 1_u16,
+            "schema": "fake_example",
+            "schema_sha256": "1".repeat(64),
+            "origin": "authored_schema_derived",
+            "rows": [{
+                "id": "fake_valid", "schema": "fake_example",
+                "input_json": "{}", "valid": true
+            }],
+            "expected": {"authored": 1_u8, "imported": 1_u8, "accepts": 1_u8, "rejects": 1_u8},
+            "source_cases": {
+                "path": "fixtures/parameters.json",
+                "sha256": "2".repeat(64), "revision": "3".repeat(40),
+                "source_path": "tests/fake_parameters.txt", "source_blob": "4".repeat(40),
+                "accepts": 0_u8, "rejects": 1_u8
+            }
+        })
+    }
+
+    fn bytes(value: &Value) -> Vec<u8> {
+        toml::to_string(&toml::Value::try_from(value).unwrap())
+            .unwrap()
+            .into_bytes()
+    }
+
+    #[test]
+    fn semantic_evidence_accepts_authored_and_source_backed_declared_owners() {
+        let path = Path::new("tests/schema/semantics.toml");
+        let mut fixture = semantics();
+        for source_backed in [true, false] {
+            if !source_backed {
+                assert!(
+                    fixture
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("source_cases")
+                        .is_some()
+                );
+                fixture["expected"]["imported"] = 0_u8.into();
+                fixture["expected"]["rejects"] = 0_u8.into();
+            }
+            let input = bytes(&fixture);
+            assert!(owned(path, &input, &["fake_example".into()]));
+            assert!(!owned(path, &input, &["fake_other".into()]));
+            assert!(!owned(path, &input, &[]));
+            for misplaced in [
+                "tests/schema/unknown.toml",
+                "nested/tests/schema/semantics.toml",
+                "tests/semantics.toml",
+            ] {
+                assert!(!owned(
+                    Path::new(misplaced),
+                    &input,
+                    &["fake_example".into()]
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn semantic_evidence_rejects_unknown_missing_and_mistyped_nested_fields() {
+        let path = Path::new("tests/schema/semantics.toml");
+        let fixture = semantics();
+        assert!(owned(path, &bytes(&fixture), &["fake_example".into()]));
+        for pointer in ["", "/rows/0", "/expected", "/source_cases"] {
+            let mut changed = fixture.clone();
+            assert!(
+                changed
+                    .pointer_mut(pointer)
+                    .unwrap()
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("unowned".into(), true.into())
+                    .is_none()
+            );
+            assert!(
+                !owned(path, &bytes(&changed), &["fake_example".into()]),
+                "{pointer}"
+            );
+        }
+        for (pointer, field) in [
+            ("", "schema_sha256"),
+            ("/rows/0", "input_json"),
+            ("/expected", "authored"),
+            ("/source_cases", "revision"),
+        ] {
+            let mut changed = fixture.clone();
+            assert!(
+                changed
+                    .pointer_mut(pointer)
+                    .unwrap()
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(field)
+                    .is_some()
+            );
+            assert!(
+                !owned(path, &bytes(&changed), &["fake_example".into()]),
+                "missing {pointer}/{field}"
+            );
+        }
+        for (pointer, value) in [
+            ("/schema_version", json!("1")),
+            ("/rows/0/valid", json!("true")),
+            ("/expected/accepts", json!(true)),
+            ("/source_cases/rejects", json!(-1_i8)),
+        ] {
+            let mut changed = fixture.clone();
+            *changed.pointer_mut(pointer).unwrap() = value;
+            assert!(
+                !owned(path, &bytes(&changed), &["fake_example".into()]),
+                "mistyped {pointer}"
+            );
+        }
+    }
 }

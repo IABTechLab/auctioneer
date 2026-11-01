@@ -353,3 +353,64 @@ warnings and the `proc-macro-error2` future-incompatibility notice remain.
 Local timings use warm caches and are not a matched whole-CI speedup measurement.
 The Linux native job's later steps were skipped; a new complete CI run remains
 required.
+
+## Importer Evidence Follow-Up
+
+At `1b13dc3`, [run 41347146065](https://github.com/IABTechLab/auctioneer/actions/runs/41347146065)
+passed the previously failing factory/API step. The native job then stopped at
+`Verify immutable bidder source inventory`: `bidders_import` reported seven
+passes and one failure. The original exact test reproduced locally against the
+same pinned source revision (one failure, seven filtered). Importing twice was
+deterministic; checking the committed catalog failed because the read-only
+projection did not recognize its existing `tests/schema/semantics.toml` files.
+
+Recognition now uses strict typed declarations for the document, rows, expected
+counts and optional source-case metadata. The exact filename, directory,
+64-KiB file limit and declared schema-owner match remain required. This is
+ownership/shape validation, not schema qualification or permission to route.
+Source witnesses, retained-byte checks, publication refusal and the evidence
+consumers' behavioral assertions remain unchanged. No capture or pin changes.
+
+Two new unit controls failed on positive recognition before repair. All 12
+import-projection controls then passed, including the existing drift refusals
+and new wrong-owner, misplaced-file, unknown-field, missing-field and type
+controls. The full failed CI step then passed locally with the required pinned
+source bindings: `bidders_import` 8/0, `bidders_source` 24/0 and `bidders_wave`
+9/0, all complete targets with no filters or ignores.
+
+The broader CLI unit run exposed two further real issues and one setup error
+(742 passed, three failed, two existing ignores). That initial command omitted
+the required source-checkout environment variable, causing the source-pin case
+to fail at setup. The other failures were independently traced:
+
+- The patched-lock comparison baseline was sent through current-snapshot
+  validation even though both allowed baseline digests identify historical
+  records. It now uses the existing frozen validation lane, just like the
+  original baseline. Exact raw pins, continuity verification, arithmetic,
+  receipts and current runtime-fact checks remain; the test additionally asserts
+  that current-audit validation still rejects this historical record.
+- The harness identity golden encoded the source path before the Auctioneer
+  rename. An independent Python standard-library calculation over the literal
+  three-row source inventory (directory markers included), fixed source bytes,
+  executable `abc` and protocol version 1 yields
+  `db58af025b3a069ac54e58c37a704e511ed383a9ac1557acf102b81cb3025e46`.
+  The prior-path control reproduces the previous golden exactly. Only the test
+  golden changes; the production checksum algorithm does not.
+
+Strict Clippy on the CLI binary and all three affected integration targets
+passed under `-D warnings`. No current source identity, archived capture,
+threshold, workload, feature selection, workflow or serving behavior changes.
+The final complete CLI unit run, with both required source bindings supplied,
+passed 745 cases, failed none and retained two existing ignored child-probe
+entrypoints. The latter belong to the process-isolated config-overlay tests;
+no ignore or filter was added. The complete command was:
+
+```sh
+cargo test --locked --offline -j2 -p auctioneer-cli --bin auctioneer-cli
+```
+
+Workspace Rust formatting, `git diff --check` and the raw-JSON fixture gate
+(200 fixtures across 57 files) pass. The existing GVL deletion warnings and
+`proc-macro-error2` future-incompatibility notice remain unchanged. These are
+local native results, not complete Linux workspace acceptance or a whole-CI
+performance measurement. A fresh full CI run remains required.

@@ -386,7 +386,8 @@ pub(super) fn catalog_baseline(bytes: &[u8]) -> Result<CatalogBaseline, Error> {
                     == "6da360d57f08267018035cedce6157ada2e955ab08913517a5d6020dee0b9e39",
             )?;
             let original = validate_audit_mode(original_bytes, Mode::Frozen)?;
-            let audit = validate_audit(bytes)?;
+            // Both byte-pinned comparison records are historical, not current-fit evidence.
+            let audit = validate_audit_mode(bytes, Mode::Frozen)?;
             let continuity = catalog_continuity::verify(original, &audit)?;
             let mut baseline = catalog_baseline_projection(audit, sha256)?;
             baseline.continuity = Some(continuity);
@@ -1418,6 +1419,10 @@ mod tests {
             hex::encode(Sha256::digest(bytes)),
             "1d20dfa95f09a32a45f106f5503094efd71a718d794814fac353f83f357219d0"
         );
+        assert!(matches!(
+            super::validate_audit(bytes),
+            Err(super::Error::ResourceInput)
+        ));
         let baseline = super::catalog_baseline(bytes).unwrap();
         assert_eq!(
             baseline.code_base_commit,
