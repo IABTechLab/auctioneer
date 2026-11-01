@@ -627,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn normal_application_dependency_graphs_exclude_unqualified_schema_runtime() {
+    fn normal_application_dependency_graphs_keep_schema_runtime_native_only() {
         use super::schema_build::successful;
         use std::{path::Path, process::Command, str::from_utf8, time::Duration};
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -667,11 +667,14 @@ mod tests {
                     .any(|line| line.split_whitespace().next() == Some(package)),
                 "{package}: graph must include the selected root"
             );
-            assert!(
-                !dependencies
+            // Controlled-native serving deliberately links the schema runtime.
+            // Guests must still exclude it outside artifact inspection.
+            assert_eq!(
+                dependencies
                     .lines()
                     .any(|line| line.split_whitespace().next() == Some("jsonschema")),
-                "{package}: unqualified runtime must not change normal dependency features"
+                target.is_none(),
+                "{package}: normal schema runtime must be native-only"
             );
         }
     }

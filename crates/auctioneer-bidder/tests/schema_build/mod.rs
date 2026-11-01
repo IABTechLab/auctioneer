@@ -30,6 +30,7 @@ pub mod compiler_layout;
 pub mod guest;
 pub mod inspection;
 mod layout_api;
+pub(crate) mod native_dwarf;
 mod schema_artifact;
 pub mod schema_regex_vendor;
 pub mod selected;

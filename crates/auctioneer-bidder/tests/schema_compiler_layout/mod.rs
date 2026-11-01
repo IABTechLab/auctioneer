@@ -6,13 +6,15 @@
 //! must have no remaining `reloc.*` sections; no Wasm relocation is interpreted.
 //! Missing size/alignment is a refusal, never an inferred layout or zero cost.
 
+use crate::schema_build::native_dwarf::{Reader as NativeReader, Relocations};
 use crate::schema_heap_layout::NativeField;
 use gimli::{
-    AttributeValue, DebuggingInformationEntry, Dwarf, DwarfSections, EndianSlice, Reader, Relocate,
-    RelocateReader, RunTimeEndian, Section as _, Unit,
+    AttributeValue, DebuggingInformationEntry, Dwarf, DwarfSections, EndianSlice, Reader,
+    RunTimeEndian, Section as _, Unit,
 };
 use object::{Object as _, ObjectSection as _};
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 use wasmparser::{Encoding, Parser, Payload};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -185,23 +187,7 @@ fn spend(used: &mut usize, amount: usize, maximum: usize, kind: Limit) -> Result
 
 struct NativeSection<'a> {
     data: &'a [u8],
-    relocations: object::RelocationMap,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct LibraryRelocations<'a>(&'a object::RelocationMap);
-
-impl Relocate for LibraryRelocations<'_> {
-    fn relocate_address(&self, offset: usize, value: u64) -> gimli::Result<u64> {
-        let offset_u64 = u64::try_from(offset).map_err(|_error| gimli::Error::UnsupportedOffset)?;
-        Ok(self.0.relocate(offset_u64, value))
-    }
-
-    fn relocate_offset(&self, offset: usize, value: usize) -> gimli::Result<usize> {
-        let value_u64 = u64::try_from(value).map_err(|_error| gimli::Error::UnsupportedOffset)?;
-        let relocated = self.relocate_address(offset, value_u64)?;
-        usize::try_from(relocated).map_err(|_error| gimli::Error::UnsupportedOffset)
-    }
+    relocations: Rc<Relocations>,
 }
 
 fn native_layouts(
@@ -217,12 +203,8 @@ fn native_layouts(
     };
     let mut debug_bytes = 0;
     let sections = DwarfSections::load(|id| native_section(&object, id, limits, &mut debug_bytes))?;
-    let dwarf = sections.borrow(|section| {
-        RelocateReader::new(
-            EndianSlice::new(section.data, endian),
-            LibraryRelocations(&section.relocations),
-        )
-    });
+    let dwarf = sections
+        .borrow(|section| NativeReader::new(section.data, endian, Rc::clone(&section.relocations)));
     dwarf_layouts(&dwarf, requested, limits)
 }
 
@@ -236,7 +218,7 @@ fn native_section<'a>(
     let Some(section) = object.section_by_name(id.name()) else {
         return Ok(NativeSection {
             data: &[],
-            relocations: object::RelocationMap::default(),
+            relocations: Rc::default(),
         });
     };
     let data = section
@@ -250,9 +232,8 @@ fn native_section<'a>(
     if data.format != object::CompressionFormat::None || size != data.data.len() {
         return Err(Error::MalformedDwarf);
     }
-    let relocations = section
-        .relocation_map()
-        .map_err(|_error| Error::Relocation)?;
+    let relocations =
+        Rc::new(Relocations::load(object, &section).map_err(|_error| Error::Relocation)?);
     Ok(NativeSection {
         data: data.data,
         relocations,
@@ -743,6 +724,44 @@ mod tests {
             );
             assert_eq!(layouts(&bytes, &[AST_FRAME, HIR_FRAME]), Ok(expected()));
         }
+    }
+
+    #[test]
+    fn compiler_layout_elf_tls_locations_do_not_fund_type_facts() {
+        use crate::schema_build::native_dwarf::tests::{Site, elf_fixture};
+
+        for site in [Site::TlsExpression, Site::Tls32Expression] {
+            let bytes = elf_fixture(site);
+            assert_eq!(
+                layouts(&bytes, &["fake::Frame"]),
+                Ok(BTreeMap::from([(
+                    "fake::Frame".to_owned(),
+                    NativeField {
+                        bytes: 24,
+                        alignment: 8,
+                    },
+                )]))
+            );
+        }
+    }
+
+    #[test]
+    fn compiler_layout_elf_tls_in_an_actual_dwarf_offset_refuses() {
+        use crate::schema_build::native_dwarf::tests::{Site, elf_fixture};
+
+        let bytes = elf_fixture(Site::TlsProducer);
+        assert_eq!(
+            layouts(&bytes, &["fake::Frame"]),
+            Err(Error::MalformedDwarf)
+        );
+    }
+
+    #[test]
+    fn compiler_layout_elf_other_unsupported_dwarf_relocations_still_refuse() {
+        use crate::schema_build::native_dwarf::tests::{Site, elf_fixture};
+
+        let bytes = elf_fixture(Site::RelativeExpression);
+        assert_eq!(layouts(&bytes, &["fake::Frame"]), Err(Error::Relocation));
     }
 
     #[test]

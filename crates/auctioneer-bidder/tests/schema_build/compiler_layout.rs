@@ -1,5 +1,6 @@
 //! Compiler-emitted static layout evidence, never execution or resource qualification.
 
+use super::native_dwarf::{Reader as NativeReader, Relocations};
 use flate2::read::GzDecoder;
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
@@ -125,6 +126,7 @@ pub fn inspect(
             "payload_kind":if link.is_null() {"native_relocatable_object"} else {"linked_core_wasm"},
             "abi_and_producers":abi, "link":link,
             "driver_source_sha256":digest(include_bytes!("compiler_layout.rs")),
+            "native_dwarf_source_sha256":digest(include_bytes!("native_dwarf.rs")),
             "application_artifact_correspondence":"not_established"
         }),
         &layouts,
@@ -1219,22 +1221,7 @@ fn link_wasm(
     ))
 }
 
-#[derive(Clone, Debug, Default)]
-struct Relocations(Rc<object::RelocationMap>);
-
-impl gimli::Relocate for Relocations {
-    fn relocate_address(&self, offset: usize, value: u64) -> gimli::Result<u64> {
-        let position = u64::try_from(offset).map_err(|_error| gimli::Error::UnsupportedOffset)?;
-        Ok(self.0.relocate(position, value))
-    }
-    fn relocate_offset(&self, offset: usize, value: usize) -> gimli::Result<usize> {
-        let original = u64::try_from(value).map_err(|_error| gimli::Error::UnsupportedOffset)?;
-        usize::try_from(self.relocate_address(offset, original)?)
-            .map_err(|_error| gimli::Error::UnsupportedOffset)
-    }
-}
-
-type DebugSections<'a> = BTreeMap<String, (&'a [u8], Relocations)>;
+type DebugSections<'a> = BTreeMap<String, (&'a [u8], Rc<Relocations>)>;
 
 fn payload_identity(bytes: &[u8], target: &str, compiler: &str) -> Result<Value, String> {
     let (sections, abi) = if target.starts_with("wasm32-") {
@@ -1268,10 +1255,7 @@ fn wasm_debug_sections(bytes: &[u8]) -> Result<DebugSections<'_>, String> {
                 }
                 if section.name().starts_with(".debug_")
                     && sections
-                        .insert(
-                            section.name().into(),
-                            (section.data(), Relocations::default()),
-                        )
+                        .insert(section.name().into(), (section.data(), Rc::default()))
                         .is_some()
                 {
                     return Err("compiler layout duplicate debug section".into());
@@ -1351,11 +1335,7 @@ fn native_debug_sections<'a>(
                 id.name().into(),
                 (
                     section.data().map_err(|error| error.to_string())?,
-                    Relocations(Rc::new(
-                        section
-                            .relocation_map()
-                            .map_err(|error| error.to_string())?,
-                    )),
+                    Rc::new(Relocations::load(&file, &section)?),
                 ),
             );
         }
@@ -1371,8 +1351,9 @@ fn debug_producers(
     use gimli::Reader as _;
     let dwarf = gimli::Dwarf::load(|id| -> Result<_, String> {
         let (data, relocations) = sections.get(id.name()).cloned().unwrap_or_default();
-        Ok(gimli::RelocateReader::new(
-            gimli::EndianSlice::new(data, gimli::LittleEndian),
+        Ok(NativeReader::new(
+            data,
+            gimli::RunTimeEndian::Little,
             relocations,
         ))
     })?;
@@ -2046,6 +2027,33 @@ mod tests {
                 "compiler layout DWARF producer mismatch"
             );
         }
+    }
+
+    #[test]
+    fn compiler_layout_review_elf_tls_locations_do_not_hide_the_producer() {
+        use super::super::native_dwarf::tests::{Site, elf_fixture};
+
+        let compiler = "rustc 1.98.1 (fakehash 2026-10-12)\nrelease: 1.98.1\n";
+        for site in [Site::TlsExpression, Site::Tls32Expression] {
+            let bytes = elf_fixture(site);
+            let observed = payload_identity(&bytes, "x86_64-unknown-linux-gnu", compiler).unwrap();
+            assert_eq!(
+                observed["dwarf_producers"],
+                json!(["clang LLVM (rustc version 1.98.1 (fakehash 2026-10-12))"])
+            );
+        }
+    }
+
+    #[test]
+    fn compiler_layout_review_elf_tls_cannot_supply_a_producer_offset() {
+        use super::super::native_dwarf::tests::{Site, elf_fixture};
+
+        let compiler = "rustc 1.98.1 (fakehash 2026-10-12)\nrelease: 1.98.1\n";
+        let bytes = elf_fixture(Site::TlsProducer);
+        assert_eq!(
+            payload_identity(&bytes, "x86_64-unknown-linux-gnu", compiler).unwrap_err(),
+            gimli::Error::UnsupportedOffset.to_string()
+        );
     }
 
     #[test]

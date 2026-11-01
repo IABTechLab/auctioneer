@@ -1,5 +1,6 @@
 //! Decoder for our compiler-checked private inspection records, not Rust layouts.
 
+use object::{File as ObjectFile, elf};
 use std::collections::BTreeMap;
 use std::str::from_utf8;
 
@@ -27,13 +28,30 @@ pub fn native_records(
         return Err("inspection requires a linked native executable");
     }
     let word = if file.is_64() { 8 } else { 4 };
+    check_native_relocation_encodings(&file)?;
+    let relocations = native_relocations(&file)?;
     let mut rows = Vec::new();
     for section in file.sections() {
         if super::schema_artifact::native_program_data(&file, &section)? {
             let data = section
                 .data()
                 .map_err(|_error| "invalid native inspection data")?;
-            let found = records(data, word, file.is_little_endian(), identity)?;
+            let found = records_with(
+                data,
+                word,
+                file.is_little_endian(),
+                identity,
+                |row_offset, functions| {
+                    let row_address = section
+                        .address()
+                        .checked_add(
+                            u64::try_from(row_offset)
+                                .map_err(|_error| "native inspection address overflow")?,
+                        )
+                        .ok_or("native inspection address overflow")?;
+                    relocations.apply(row_address, word, functions)
+                },
+            )?;
             if rows
                 .len()
                 .checked_add(found.len())
@@ -61,6 +79,219 @@ pub fn native_records(
         native_functions(row, &definitions)?;
     }
     Ok(rows)
+}
+
+#[derive(Default)]
+struct NativeRelocations {
+    entries: BTreeMap<u64, NativeRelocation>,
+    max_write_bytes: u64,
+}
+
+struct NativeRelocation {
+    end: u64,
+    value: Result<u64, &'static str>,
+}
+
+impl NativeRelocations {
+    fn apply(
+        &self,
+        row_address: u64,
+        word: usize,
+        functions: &mut [u64; 3],
+    ) -> Result<(), &'static str> {
+        let pointers = row_address
+            .checked_add(if word == 8 { 152 } else { 148 })
+            .ok_or("native inspection address overflow")?;
+        let word_bytes =
+            u64::try_from(word).map_err(|_error| "unsupported inspection pointer width")?;
+        let span_bytes = word_bytes
+            .checked_mul(3)
+            .ok_or("native inspection address overflow")?;
+        let end = pointers
+            .checked_add(span_bytes)
+            .ok_or("native inspection address overflow")?;
+        let offsets = [
+            0,
+            word_bytes,
+            word_bytes
+                .checked_mul(2)
+                .ok_or("native inspection address overflow")?,
+        ];
+        for (offset, relocated) in self
+            .entries
+            .range(row_address.saturating_sub(self.max_write_bytes.saturating_sub(1))..end)
+        {
+            if relocated.end <= row_address {
+                continue;
+            }
+            let relative = offset
+                .checked_sub(pointers)
+                .ok_or("inspection relocation outside function slot")?;
+            let slot = offsets
+                .iter()
+                .position(|candidate| *candidate == relative)
+                .ok_or("inspection relocation outside function slot")?;
+            *functions
+                .get_mut(slot)
+                .ok_or("inspection relocation outside function slot")? = relocated.value?;
+        }
+        Ok(())
+    }
+}
+
+fn check_native_relocation_encodings(file: &ObjectFile<'_>) -> Result<(), &'static str> {
+    use object::read::elf::SectionHeader as _;
+    let unsupported = |kind: u32, flags: u64| {
+        flags & u64::from(elf::SHF_ALLOC) != 0
+            && matches!(kind, elf::SHT_REL | elf::SHT_RELR | elf::SHT_CREL)
+    };
+    let unaccounted = if let ObjectFile::Elf32(elf_file) = file {
+        elf_file.elf_section_table().iter().any(|header| {
+            unsupported(
+                header.sh_type(elf_file.endian()),
+                u64::from(header.sh_flags(elf_file.endian())),
+            )
+        })
+    } else if let ObjectFile::Elf64(elf_file) = file {
+        elf_file.elf_section_table().iter().any(|header| {
+            unsupported(
+                header.sh_type(elf_file.endian()),
+                header.sh_flags(elf_file.endian()),
+            )
+        })
+    } else {
+        false
+    };
+    if unaccounted {
+        Err("unsupported inspection relocation encoding")
+    } else {
+        Ok(())
+    }
+}
+
+fn native_relocations(file: &ObjectFile<'_>) -> Result<NativeRelocations, &'static str> {
+    use object::{Architecture, Object as _, RelocationFlags, RelocationTarget};
+    use std::collections::btree_map::Entry;
+
+    let mut result = NativeRelocations::default();
+    if let Some(relocations) = file.dynamic_relocations() {
+        for (address, relocation) in relocations {
+            let width = native_loader_write_bytes(file, &relocation)?;
+            if width == 0 {
+                continue;
+            }
+            let end = address
+                .checked_add(width)
+                .ok_or("inspection relocation address overflow")?;
+            result.max_write_bytes = result.max_write_bytes.max(width);
+            // PIE function slots carry virtual addresses in explicit RELA addends,
+            // not necessarily in their on-disk data bytes. Never resolve symbols
+            // or treat an unsupported loader operation as a code pointer.
+            let relative = matches!(
+                (file.architecture(), relocation.flags()),
+                (
+                    Architecture::X86_64,
+                    RelocationFlags::Elf {
+                        r_type: elf::R_X86_64_RELATIVE
+                    }
+                ) | (
+                    Architecture::Aarch64,
+                    RelocationFlags::Elf {
+                        r_type: elf::R_AARCH64_RELATIVE
+                    }
+                )
+            ) && file.is_64()
+                && relocation.target() == RelocationTarget::Absolute
+                && !relocation.has_implicit_addend();
+            let value = if relative {
+                u64::try_from(relocation.addend())
+                    .map_err(|_error| "invalid inspection relocation addend")
+            } else {
+                Err("unsupported inspection relocation")
+            };
+            match result.entries.entry(address) {
+                Entry::Vacant(entry) => {
+                    entry.insert(NativeRelocation { end, value });
+                }
+                Entry::Occupied(mut entry) => {
+                    let duplicate = entry.get_mut();
+                    duplicate.end = duplicate.end.max(end);
+                    duplicate.value = Err("duplicate inspection relocation");
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn native_loader_write_bytes(
+    file: &ObjectFile<'_>,
+    relocation: &object::Relocation,
+) -> Result<u64, &'static str> {
+    use object::{Architecture, Object as _, RelocationFlags};
+
+    if !file.is_64() {
+        return Err("unsupported inspection relocation");
+    }
+    // A TLSDESC writes two pointers, not one. COPY and unknown operations
+    // have no proven extent here and cannot be assumed disjoint from a row.
+    match (file.architecture(), relocation.flags()) {
+        (
+            Architecture::X86_64,
+            RelocationFlags::Elf {
+                r_type: elf::R_X86_64_NONE,
+            },
+        )
+        | (
+            Architecture::Aarch64,
+            RelocationFlags::Elf {
+                r_type: elf::R_AARCH64_NONE,
+            },
+        ) => Ok(0),
+        (
+            Architecture::X86_64,
+            RelocationFlags::Elf {
+                r_type: elf::R_X86_64_TLSDESC,
+            },
+        )
+        | (
+            Architecture::Aarch64,
+            RelocationFlags::Elf {
+                r_type: elf::R_AARCH64_TLSDESC,
+            },
+        ) => Ok(16),
+        (
+            Architecture::X86_64,
+            RelocationFlags::Elf {
+                r_type:
+                    elf::R_X86_64_64
+                    | elf::R_X86_64_RELATIVE
+                    | elf::R_X86_64_RELATIVE64
+                    | elf::R_X86_64_GLOB_DAT
+                    | elf::R_X86_64_JUMP_SLOT
+                    | elf::R_X86_64_IRELATIVE
+                    | elf::R_X86_64_DTPMOD64
+                    | elf::R_X86_64_DTPOFF64
+                    | elf::R_X86_64_TPOFF64
+                    | elf::R_X86_64_SIZE64,
+            },
+        )
+        | (
+            Architecture::Aarch64,
+            RelocationFlags::Elf {
+                r_type:
+                    elf::R_AARCH64_ABS64
+                    | elf::R_AARCH64_RELATIVE
+                    | elf::R_AARCH64_GLOB_DAT
+                    | elf::R_AARCH64_JUMP_SLOT
+                    | elf::R_AARCH64_IRELATIVE
+                    | elf::R_AARCH64_TLS_DTPMOD
+                    | elf::R_AARCH64_TLS_DTPREL
+                    | elf::R_AARCH64_TLS_TPREL,
+            },
+        ) => Ok(8),
+        _ => Err("unsupported inspection relocation"),
+    }
 }
 
 pub fn wasm_records(
@@ -323,6 +554,16 @@ pub fn records(
     little_endian: bool,
     identity: &str,
 ) -> Result<Vec<Record>, &'static str> {
+    records_with(data, word, little_endian, identity, |_, _| Ok(()))
+}
+
+fn records_with(
+    data: &[u8],
+    word: usize,
+    little_endian: bool,
+    identity: &str,
+    mut relocate: impl FnMut(usize, &mut [u64; 3]) -> Result<(), &'static str>,
+) -> Result<Vec<Record>, &'static str> {
     const MAGIC: &[u8; 16] = b"AUCTIONEERSCHEMA";
     let (length, pointers) = match word {
         4 => (160, 148),
@@ -379,9 +620,10 @@ pub fn records(
             .zip(encoded_functions.chunks_exact(word))
         {
             *pointer = integer(encoded, little_endian)?;
-            if *pointer == 0 {
-                return Err("null inspection function");
-            }
+        }
+        relocate(start, &mut functions)?;
+        if functions.contains(&0) {
+            return Err("null inspection function");
         }
         if result.len() >= 512 {
             return Err("too many inspection records");
@@ -432,8 +674,12 @@ mod tests {
     use super::{
         Record, native_functions, native_records, reconcile, records, wasm_functions, wasm_records,
     };
+    use object::elf;
+    use object::write::elf::Rel;
+    use std::array;
     use std::borrow::Cow;
     use std::collections::BTreeMap;
+    use std::mem::size_of;
     use wasm_encoder::{
         CodeSection, ConstExpr, DataSection, ElementSection, Elements, EntityType, Function,
         FunctionSection, ImportSection, Instruction, MemorySection, MemoryType, Module, RefType,
@@ -772,6 +1018,739 @@ mod tests {
             ),
             Err("inspection owner membership mismatch")
         );
+    }
+
+    // The synthetic ELF is parsed, never executed.
+
+    fn fake_relative_relocations() -> [Rel; 3] {
+        let addresses = [0x1010, 0x1020, 0x1030];
+        array::from_fn(|index| Rel {
+            // The record starts 16 bytes into .data.rel.ro at VA 0x2000.
+            r_offset: [0x20a8, 0x20b0, 0x20b8][index],
+            r_sym: 0,
+            r_type: elf::R_X86_64_RELATIVE,
+            r_addend: addresses[index],
+        })
+    }
+
+    // None omits .rela.dyn; Some(&[]) retains an empty relocation section.
+    // Callers may remove, replace, negate or duplicate individual typed Rel rows.
+    fn fake_linked_elf(relocations: Option<&[Rel]>) -> Vec<u8> {
+        fake_linked_elf_for_machine(relocations, elf::EM_X86_64)
+    }
+
+    fn fake_linked_elf_for_machine(relocations: Option<&[Rel]>, machine: u16) -> Vec<u8> {
+        fake_linked_elf_with_extra_encoding(relocations, machine, None)
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "typed ELF writing reserves then emits one matching segment, section and symbol layout"
+    )]
+    fn fake_linked_elf_with_extra_encoding(
+        relocations: Option<&[Rel]>,
+        machine: u16,
+        extra_encoding: Option<u32>,
+    ) -> Vec<u8> {
+        use object::write::elf::{FileHeader, ProgramHeader, SectionHeader, Sym, Writer};
+        use object::{Endianness, elf};
+
+        let mut row = fake_record(8, true);
+        row[152..176].fill(0);
+        let mut data = vec![0; 16];
+        data.extend_from_slice(&row);
+        let text = [0xc3_u8; 64];
+        let mut bytes = Vec::new();
+        let mut writer = Writer::new(Endianness::Little, true, &mut bytes);
+
+        writer.reserve_file_header();
+        writer.reserve_program_headers(2);
+        let text_section = writer.reserve_section_index();
+        let text_name = writer.add_section_name(b".text");
+        writer.reserve_section_index();
+        let data_name = writer.add_section_name(b".data.rel.ro");
+        writer.require_dynstr();
+        writer.reserve_dynstr_section_index();
+        let dynsym_section = writer.reserve_dynsym_section_index();
+        let rela_name = relocations.map(|_| {
+            writer.reserve_section_index();
+            writer.add_section_name(b".rela.dyn")
+        });
+        let extra_name = extra_encoding.map(|_| {
+            writer.reserve_section_index();
+            writer.add_section_name(b".fake.unsupported")
+        });
+        writer.reserve_symtab_section_index();
+        writer.reserve_strtab_section_index();
+        writer.reserve_shstrtab_section_index();
+
+        let function_names: [&[u8]; 3] = [b"fake_first", b"fake_second", b"fake_third"];
+        let function_symbols = function_names.map(|name| writer.add_string(name));
+        writer.reserve_null_symbol_index();
+        for _ in &function_symbols {
+            writer.reserve_symbol_index(Some(text_section));
+        }
+        writer.reserve_null_dynamic_symbol_index();
+
+        let text_offset = writer.reserve(text.len(), 16);
+        let data_offset = writer.reserve(data.len(), 8);
+        let dynstr_offset = writer.reserve_dynstr();
+        let dynsym_offset = writer.reserve_dynsym();
+        let rela_offset = relocations.map(|rows| writer.reserve_relocations(rows.len(), true));
+        let extra_offset = extra_encoding.map(|_| writer.reserve(0, 8));
+        let allocated_end = writer.reserved_len();
+        writer.reserve_symtab();
+        writer.reserve_strtab();
+        writer.reserve_shstrtab();
+        writer.reserve_section_headers();
+        let reserved_end = writer.reserved_len();
+        let data_address = |offset: usize| {
+            0x2000_u64
+                .checked_add(u64::try_from(offset.checked_sub(data_offset).unwrap()).unwrap())
+                .unwrap()
+        };
+        let data_size = u64::try_from(allocated_end.checked_sub(data_offset).unwrap()).unwrap();
+
+        writer
+            .write_file_header(&FileHeader {
+                os_abi: elf::ELFOSABI_SYSV,
+                abi_version: 0,
+                e_type: elf::ET_DYN,
+                e_machine: machine,
+                e_entry: 0x1010,
+                e_flags: 0,
+            })
+            .unwrap();
+        writer.write_align_program_headers();
+        writer.write_program_header(&ProgramHeader {
+            p_type: elf::PT_LOAD,
+            p_flags: elf::PF_R | elf::PF_X,
+            p_offset: u64::try_from(text_offset).unwrap(),
+            p_vaddr: 0x1000,
+            p_paddr: 0x1000,
+            p_filesz: u64::try_from(text.len()).unwrap(),
+            p_memsz: u64::try_from(text.len()).unwrap(),
+            p_align: 16,
+        });
+        writer.write_program_header(&ProgramHeader {
+            p_type: elf::PT_LOAD,
+            p_flags: elf::PF_R | elf::PF_W,
+            p_offset: u64::try_from(data_offset).unwrap(),
+            p_vaddr: 0x2000,
+            p_paddr: 0x2000,
+            p_filesz: data_size,
+            p_memsz: data_size,
+            p_align: 8,
+        });
+
+        writer.pad_until(text_offset);
+        writer.write(&text);
+        writer.pad_until(data_offset);
+        writer.write(&data);
+        writer.write_dynstr();
+        writer.write_null_dynamic_symbol();
+        if let Some(rows) = relocations {
+            writer.write_align_relocation();
+            for relocation in rows {
+                writer.write_relocation(true, relocation);
+            }
+        }
+        writer.write_null_symbol();
+        for (name, address) in function_symbols.into_iter().zip([0x1010, 0x1020, 0x1030]) {
+            writer.write_symbol(&Sym {
+                name: Some(name),
+                section: Some(text_section),
+                st_info: (elf::STB_GLOBAL << 4) | elf::STT_FUNC,
+                st_other: elf::STV_DEFAULT,
+                st_shndx: 0,
+                st_value: address,
+                st_size: 1,
+            });
+        }
+        writer.write_strtab();
+        writer.write_shstrtab();
+
+        writer.write_null_section_header();
+        writer.write_section_header(&SectionHeader {
+            name: Some(text_name),
+            sh_type: elf::SHT_PROGBITS,
+            sh_flags: u64::from(elf::SHF_ALLOC | elf::SHF_EXECINSTR),
+            sh_addr: 0x1000,
+            sh_offset: u64::try_from(text_offset).unwrap(),
+            sh_size: u64::try_from(text.len()).unwrap(),
+            sh_link: 0,
+            sh_info: 0,
+            sh_addralign: 16,
+            sh_entsize: 0,
+        });
+        writer.write_section_header(&SectionHeader {
+            name: Some(data_name),
+            sh_type: elf::SHT_PROGBITS,
+            sh_flags: u64::from(elf::SHF_ALLOC | elf::SHF_WRITE),
+            sh_addr: 0x2000,
+            sh_offset: u64::try_from(data_offset).unwrap(),
+            sh_size: u64::try_from(data.len()).unwrap(),
+            sh_link: 0,
+            sh_info: 0,
+            sh_addralign: 8,
+            sh_entsize: 0,
+        });
+        writer.write_dynstr_section_header(data_address(dynstr_offset));
+        writer.write_dynsym_section_header(data_address(dynsym_offset), 1);
+        if let (Some(name), Some(offset), Some(rows)) = (rela_name, rela_offset, relocations) {
+            let entry_size = size_of::<elf::Rela64<Endianness>>();
+            writer.write_section_header(&SectionHeader {
+                name: Some(name),
+                sh_type: elf::SHT_RELA,
+                sh_flags: u64::from(elf::SHF_ALLOC),
+                sh_addr: data_address(offset),
+                sh_offset: u64::try_from(offset).unwrap(),
+                sh_size: u64::try_from(rows.len().checked_mul(entry_size).unwrap()).unwrap(),
+                // object discovers dynamic relocations through this .dynsym link.
+                sh_link: dynsym_section.0,
+                sh_info: 0,
+                sh_addralign: 8,
+                sh_entsize: u64::try_from(entry_size).unwrap(),
+            });
+        }
+        if let (Some(kind), Some(name), Some(offset)) = (extra_encoding, extra_name, extra_offset) {
+            writer.write_section_header(&SectionHeader {
+                name: Some(name),
+                sh_type: kind,
+                sh_flags: u64::from(elf::SHF_ALLOC),
+                sh_addr: data_address(offset),
+                sh_offset: u64::try_from(offset).unwrap(),
+                sh_size: 0,
+                sh_link: dynsym_section.0,
+                sh_info: 0,
+                sh_addralign: 8,
+                sh_entsize: 0,
+            });
+        }
+        writer.write_symtab_section_header(1);
+        writer.write_strtab_section_header();
+        writer.write_shstrtab_section_header();
+        assert_eq!(writer.len(), reserved_end);
+        bytes
+    }
+
+    #[test]
+    fn native_inspection_resolves_pie_function_slots_from_dynamic_relocations() {
+        use object::{Object as _, ObjectSection as _};
+
+        let bytes = fake_linked_elf(Some(&fake_relative_relocations()));
+        let artifact = object::File::parse(bytes.as_slice()).unwrap();
+        let data = artifact
+            .section_by_name(".data.rel.ro")
+            .unwrap()
+            .data()
+            .unwrap();
+        assert!(data[16 + 152..16 + 176].iter().all(|byte| *byte == 0));
+        assert_eq!(
+            records(data, 8, true, &"a".repeat(64)),
+            Err("null inspection function")
+        );
+        assert_eq!(
+            native_records(&bytes, &"a".repeat(64), &["fake_owner"]),
+            Ok(vec![Record {
+                owner: "fake_owner".into(),
+                functions: [0x1010, 0x1020, 0x1030],
+            }])
+        );
+    }
+
+    #[test]
+    fn native_inspection_requires_every_dynamic_function_relocation() {
+        for relocations in [None, Some(&[][..])] {
+            assert_eq!(
+                native_records(
+                    &fake_linked_elf(relocations),
+                    &"a".repeat(64),
+                    &["fake_owner"]
+                ),
+                Err("null inspection function")
+            );
+        }
+        for missing in 0..3 {
+            let mut relocations = fake_relative_relocations().to_vec();
+            relocations.remove(missing);
+            assert_eq!(
+                native_records(
+                    &fake_linked_elf(Some(&relocations)),
+                    &"a".repeat(64),
+                    &["fake_owner"]
+                ),
+                Err("null inspection function")
+            );
+        }
+    }
+
+    #[test]
+    fn native_inspection_resolves_aarch64_relative_function_slots() {
+        let mut relocations = fake_relative_relocations();
+        for relocation in &mut relocations {
+            relocation.r_type = elf::R_AARCH64_RELATIVE;
+        }
+        let bytes = fake_linked_elf_for_machine(Some(&relocations), elf::EM_AARCH64);
+        assert_eq!(
+            native_records(&bytes, &"a".repeat(64), &["fake_owner"]),
+            Ok(vec![Record {
+                owner: "fake_owner".into(),
+                functions: [0x1010, 0x1020, 0x1030],
+            }])
+        );
+    }
+
+    #[test]
+    fn native_inspection_refuses_unresolved_or_invalid_dynamic_function_relocations() {
+        for index in 0..3 {
+            for (kind, addend, expected) in [
+                (
+                    elf::R_X86_64_64,
+                    0x1010,
+                    "unsupported inspection relocation",
+                ),
+                (
+                    elf::R_X86_64_RELATIVE,
+                    -1,
+                    "invalid inspection relocation addend",
+                ),
+                (elf::R_X86_64_RELATIVE, 0, "null inspection function"),
+                (
+                    elf::R_X86_64_RELATIVE,
+                    0x2000,
+                    "inspection function is not defined native code",
+                ),
+            ] {
+                let mut relocations = fake_relative_relocations();
+                relocations[index].r_type = kind;
+                relocations[index].r_addend = addend;
+                assert_eq!(
+                    native_records(
+                        &fake_linked_elf(Some(&relocations)),
+                        &"a".repeat(64),
+                        &["fake_owner"]
+                    ),
+                    Err(expected),
+                    "slot {index}, kind {kind}, addend {addend}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_inspection_refuses_duplicate_or_misplaced_dynamic_relocations() {
+        for index in 0..3 {
+            for conflicting in [false, true] {
+                let mut relocations = fake_relative_relocations().to_vec();
+                let duplicate = relocations[index].clone();
+                let changed_addend = [0x1020, 0x1030, 0x1010][index];
+                assert_ne!(changed_addend, duplicate.r_addend);
+                relocations.push(Rel {
+                    r_addend: if conflicting {
+                        changed_addend
+                    } else {
+                        duplicate.r_addend
+                    },
+                    ..duplicate
+                });
+                assert_eq!(
+                    native_records(
+                        &fake_linked_elf(Some(&relocations)),
+                        &"a".repeat(64),
+                        &["fake_owner"]
+                    ),
+                    Err("duplicate inspection relocation")
+                );
+            }
+        }
+        for offset in [0x2000 + 16, 0x2000 + 16 + 152 + 1] {
+            let mut relocations = fake_relative_relocations().to_vec();
+            relocations.push(Rel {
+                r_offset: offset,
+                r_sym: 0,
+                r_type: elf::R_X86_64_RELATIVE,
+                r_addend: 0x1010,
+            });
+            assert_eq!(
+                native_records(
+                    &fake_linked_elf(Some(&relocations)),
+                    &"a".repeat(64),
+                    &["fake_owner"]
+                ),
+                Err("inspection relocation outside function slot")
+            );
+        }
+    }
+
+    #[test]
+    fn native_inspection_x86_64_tlsdesc_respects_sixteen_byte_write_boundaries() {
+        let identity = "a".repeat(64);
+        let expected = vec![Record {
+            owner: "fake_owner".into(),
+            functions: [0x1010, 0x1020, 0x1030],
+        }];
+        let mut relocations = fake_relative_relocations().to_vec();
+        let baseline = fake_linked_elf_for_machine(Some(&relocations), elf::EM_X86_64);
+        assert_eq!(
+            native_records(&baseline, &identity, &["fake_owner"]).as_ref(),
+            Ok(&expected)
+        );
+        // [0x2000, 0x2010) ends exactly where the retained record starts.
+        relocations.push(Rel {
+            r_offset: 0x2000,
+            r_sym: 0,
+            r_type: elf::R_X86_64_TLSDESC,
+            r_addend: 0,
+        });
+        let disjoint = fake_linked_elf_for_machine(Some(&relocations), elf::EM_X86_64);
+        assert_eq!(
+            native_records(&disjoint, &identity, &["fake_owner"]).as_ref(),
+            Ok(&expected)
+        );
+        for offset in [0x2001, 0x2008] {
+            let mut overlapping = relocations.clone();
+            let descriptor = overlapping.last_mut().unwrap();
+            assert_eq!(descriptor.r_offset, 0x2000);
+            descriptor.r_offset = offset;
+            let bytes = fake_linked_elf_for_machine(Some(&overlapping), elf::EM_X86_64);
+            assert_eq!(
+                native_records(&bytes, &identity, &["fake_owner"]),
+                Err("inspection relocation outside function slot"),
+                "x86_64 TLSDESC at {offset:#x} overlaps the record at 0x2010"
+            );
+        }
+    }
+
+    #[test]
+    fn native_inspection_aarch64_tlsdesc_respects_sixteen_byte_write_boundaries() {
+        let identity = "a".repeat(64);
+        let expected = vec![Record {
+            owner: "fake_owner".into(),
+            functions: [0x1010, 0x1020, 0x1030],
+        }];
+        let mut relocations = fake_relative_relocations().to_vec();
+        for relocation in &mut relocations {
+            relocation.r_type = elf::R_AARCH64_RELATIVE;
+        }
+        let baseline = fake_linked_elf_for_machine(Some(&relocations), elf::EM_AARCH64);
+        assert_eq!(
+            native_records(&baseline, &identity, &["fake_owner"]).as_ref(),
+            Ok(&expected)
+        );
+        relocations.push(Rel {
+            r_offset: 0x2000,
+            r_sym: 0,
+            r_type: elf::R_AARCH64_TLSDESC,
+            r_addend: 0,
+        });
+        let disjoint = fake_linked_elf_for_machine(Some(&relocations), elf::EM_AARCH64);
+        assert_eq!(
+            native_records(&disjoint, &identity, &["fake_owner"]).as_ref(),
+            Ok(&expected)
+        );
+        for offset in [0x2001, 0x2008] {
+            let mut overlapping = relocations.clone();
+            let descriptor = overlapping.last_mut().unwrap();
+            assert_eq!(descriptor.r_offset, 0x2000);
+            descriptor.r_offset = offset;
+            let bytes = fake_linked_elf_for_machine(Some(&overlapping), elf::EM_AARCH64);
+            assert_eq!(
+                native_records(&bytes, &identity, &["fake_owner"]),
+                Err("inspection relocation outside function slot"),
+                "AArch64 TLSDESC at {offset:#x} overlaps the record at 0x2010"
+            );
+        }
+    }
+
+    #[test]
+    fn native_inspection_copy_before_record_requires_a_proven_write_extent() {
+        let identity = "a".repeat(64);
+        for (machine, relative, copy) in [
+            (elf::EM_X86_64, elf::R_X86_64_RELATIVE, elf::R_X86_64_COPY),
+            (
+                elf::EM_AARCH64,
+                elf::R_AARCH64_RELATIVE,
+                elf::R_AARCH64_COPY,
+            ),
+        ] {
+            let mut relocations = fake_relative_relocations().to_vec();
+            for relocation in &mut relocations {
+                relocation.r_type = relative;
+            }
+            let baseline = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&baseline, &identity, &["fake_owner"]),
+                Ok(vec![Record {
+                    owner: "fake_owner".into(),
+                    functions: [0x1010, 0x1020, 0x1030],
+                }])
+            );
+            for offset in [0x2000, 0x2001, 0x2008] {
+                assert!(offset < 0x2010);
+                let mut unbounded = relocations.clone();
+                unbounded.push(Rel {
+                    r_offset: offset,
+                    r_sym: 0,
+                    r_type: copy,
+                    r_addend: 0,
+                });
+                let bytes = fake_linked_elf_for_machine(Some(&unbounded), machine);
+                assert_eq!(
+                    native_records(&bytes, &identity, &["fake_owner"]),
+                    Err("unsupported inspection relocation"),
+                    "machine {machine}, COPY at {offset:#x} has no proven disjoint extent"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_inspection_unknown_operation_before_record_is_not_assumed_disjoint() {
+        let identity = "a".repeat(64);
+        for (machine, relative) in [
+            (elf::EM_X86_64, elf::R_X86_64_RELATIVE),
+            (elf::EM_AARCH64, elf::R_AARCH64_RELATIVE),
+        ] {
+            let mut relocations = fake_relative_relocations().to_vec();
+            for relocation in &mut relocations {
+                relocation.r_type = relative;
+            }
+            let baseline = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&baseline, &identity, &["fake_owner"]),
+                Ok(vec![Record {
+                    owner: "fake_owner".into(),
+                    functions: [0x1010, 0x1020, 0x1030],
+                }])
+            );
+            for offset in [0x2000, 0x2001, 0x2008] {
+                assert!(offset < 0x2010);
+                let mut unbounded = relocations.clone();
+                unbounded.push(Rel {
+                    r_offset: offset,
+                    r_sym: 0,
+                    r_type: u32::MAX,
+                    r_addend: 0,
+                });
+                let bytes = fake_linked_elf_for_machine(Some(&unbounded), machine);
+                assert_eq!(
+                    native_records(&bytes, &identity, &["fake_owner"]),
+                    Err("unsupported inspection relocation"),
+                    "machine {machine}, unknown op at {offset:#x} has no proven disjoint extent"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_inspection_relative_predecessor_respects_eight_byte_write_boundaries() {
+        let identity = "a".repeat(64);
+        for (machine, relative) in [
+            (elf::EM_X86_64, elf::R_X86_64_RELATIVE),
+            (elf::EM_AARCH64, elf::R_AARCH64_RELATIVE),
+        ] {
+            let expected = vec![Record {
+                owner: "fake_owner".into(),
+                functions: [0x1010, 0x1020, 0x1030],
+            }];
+            let mut relocations = fake_relative_relocations().to_vec();
+            for relocation in &mut relocations {
+                relocation.r_type = relative;
+            }
+            let baseline = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&baseline, &identity, &["fake_owner"]).as_ref(),
+                Ok(&expected)
+            );
+            // This eight-byte write ends at, but does not enter, the record.
+            relocations.push(Rel {
+                r_offset: 0x2008,
+                r_sym: 0,
+                r_type: relative,
+                r_addend: 0x1010,
+            });
+            let disjoint = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&disjoint, &identity, &["fake_owner"]).as_ref(),
+                Ok(&expected)
+            );
+            let predecessor = relocations.last_mut().unwrap();
+            assert_eq!(predecessor.r_offset, 0x2008);
+            predecessor.r_offset = 0x2009;
+            let overlapping = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&overlapping, &identity, &["fake_owner"]),
+                Err("inspection relocation outside function slot"),
+                "machine {machine}, eight-byte write at 0x2009 overlaps the record by one byte"
+            );
+        }
+    }
+
+    #[test]
+    fn native_inspection_relative_write_address_overflow_refuses_globally() {
+        let identity = "a".repeat(64);
+        for (machine, relative) in [
+            (elf::EM_X86_64, elf::R_X86_64_RELATIVE),
+            (elf::EM_AARCH64, elf::R_AARCH64_RELATIVE),
+        ] {
+            let mut relocations = fake_relative_relocations().to_vec();
+            for relocation in &mut relocations {
+                relocation.r_type = relative;
+            }
+            let at_limit = u64::MAX.checked_sub(8).unwrap();
+            assert_eq!(at_limit.checked_add(8), Some(u64::MAX));
+            relocations.push(Rel {
+                r_offset: at_limit,
+                r_sym: 0,
+                r_type: relative,
+                r_addend: 0x1010,
+            });
+            let disjoint = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&disjoint, &identity, &["fake_owner"]),
+                Ok(vec![Record {
+                    owner: "fake_owner".into(),
+                    functions: [0x1010, 0x1020, 0x1030],
+                }])
+            );
+            let overflowing = at_limit.checked_add(1).unwrap();
+            assert_eq!(overflowing, u64::MAX.checked_sub(7).unwrap());
+            assert_eq!(overflowing.checked_add(8), None);
+            let distant = relocations.last_mut().unwrap();
+            assert_eq!(distant.r_offset, at_limit);
+            distant.r_offset = overflowing;
+            let bytes = fake_linked_elf_for_machine(Some(&relocations), machine);
+            assert_eq!(
+                native_records(&bytes, &identity, &["fake_owner"]),
+                Err("inspection relocation address overflow"),
+                "machine {machine}, extent arithmetic must refuse even far beyond the record"
+            );
+        }
+    }
+
+    #[test]
+    fn native_inspection_none_operations_do_not_poison_relative_function_slots() {
+        let identity = "a".repeat(64);
+        for (machine, relative, none) in [
+            (elf::EM_X86_64, elf::R_X86_64_RELATIVE, elf::R_X86_64_NONE),
+            (
+                elf::EM_AARCH64,
+                elf::R_AARCH64_RELATIVE,
+                elf::R_AARCH64_NONE,
+            ),
+        ] {
+            let expected = vec![Record {
+                owner: "fake_owner".into(),
+                functions: [0x1010, 0x1020, 0x1030],
+            }];
+            let mut baseline_relocations = fake_relative_relocations().to_vec();
+            for relocation in &mut baseline_relocations {
+                relocation.r_type = relative;
+            }
+            let baseline = fake_linked_elf_for_machine(Some(&baseline_relocations), machine);
+            assert_eq!(
+                native_records(&baseline, &identity, &["fake_owner"]).as_ref(),
+                Ok(&expected)
+            );
+            for offset in [0x2008, 0x20a8, 0x20b0, 0x20b8] {
+                for none_first in [false, true] {
+                    let mut relocations = baseline_relocations.clone();
+                    let noop = Rel {
+                        r_offset: offset,
+                        r_sym: 0,
+                        r_type: none,
+                        r_addend: 0,
+                    };
+                    if none_first {
+                        relocations.insert(0, noop);
+                    } else {
+                        relocations.push(noop);
+                    }
+                    let bytes = fake_linked_elf_for_machine(Some(&relocations), machine);
+                    assert_eq!(
+                        native_records(&bytes, &identity, &["fake_owner"]).as_ref(),
+                        Ok(&expected),
+                        "machine {machine}, NONE at {offset:#x}, none_first={none_first}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn native_inspection_duplicate_extents_retain_the_widest_write_in_both_orders() {
+        let identity = "a".repeat(64);
+        for (machine, relative, tlsdesc) in [
+            (
+                elf::EM_X86_64,
+                elf::R_X86_64_RELATIVE,
+                elf::R_X86_64_TLSDESC,
+            ),
+            (
+                elf::EM_AARCH64,
+                elf::R_AARCH64_RELATIVE,
+                elf::R_AARCH64_TLSDESC,
+            ),
+        ] {
+            let expected = vec![Record {
+                owner: "fake_owner".into(),
+                functions: [0x1010, 0x1020, 0x1030],
+            }];
+            let mut baseline_relocations = fake_relative_relocations().to_vec();
+            for relocation in &mut baseline_relocations {
+                relocation.r_type = relative;
+            }
+            let predecessor = Rel {
+                r_offset: 0x2008,
+                r_sym: 0,
+                r_type: relative,
+                r_addend: 0x1010,
+            };
+            assert_eq!(predecessor.r_offset.checked_add(8), Some(0x2010));
+            let mut disjoint_relocations = baseline_relocations.clone();
+            disjoint_relocations.push(predecessor.clone());
+            let disjoint = fake_linked_elf_for_machine(Some(&disjoint_relocations), machine);
+            assert_eq!(
+                native_records(&disjoint, &identity, &["fake_owner"]).as_ref(),
+                Ok(&expected)
+            );
+            let descriptor = Rel {
+                r_type: tlsdesc,
+                ..predecessor.clone()
+            };
+            assert_eq!(descriptor.r_offset.checked_add(16), Some(0x2018));
+            for descriptor_first in [false, true] {
+                let mut relocations = baseline_relocations.clone();
+                relocations.extend(if descriptor_first {
+                    [descriptor.clone(), predecessor.clone()]
+                } else {
+                    [predecessor.clone(), descriptor.clone()]
+                });
+                let bytes = fake_linked_elf_for_machine(Some(&relocations), machine);
+                assert_eq!(
+                    native_records(&bytes, &identity, &["fake_owner"]),
+                    Err("inspection relocation outside function slot"),
+                    "machine {machine}, descriptor_first={descriptor_first}: the 16-byte write must survive coalescing"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_inspection_refuses_unaccounted_loader_relocation_encodings() {
+        for kind in [elf::SHT_REL, elf::SHT_RELR, elf::SHT_CREL] {
+            let bytes = fake_linked_elf_with_extra_encoding(
+                Some(&fake_relative_relocations()),
+                elf::EM_X86_64,
+                Some(kind),
+            );
+            assert_eq!(
+                native_records(&bytes, &"a".repeat(64), &["fake_owner"]),
+                Err("unsupported inspection relocation encoding"),
+                "section kind {kind}"
+            );
+        }
     }
 
     #[test]
