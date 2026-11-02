@@ -121,6 +121,23 @@ passes 3,768 test executions with zero failures and 11 existing ignores. See the
 [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#bidder-conformance-and-grouping-follow-up).
 Full Linux acceptance remains pending.
 
+**Compiler warning-policy parity follow-up (2026-11-01):** in the
+[`7a90b87` run](https://github.com/IABTechLab/auctioneer/actions/runs/41354575403),
+12 of 13 test jobs passed. The native job stopped at a positive compiler
+control whose unused `inspect` function violates CI's
+`CARGO_BUILD_WARNINGS=deny` setting. The exact failure reproduced locally with
+that setting; the previous local sweep had not enabled it. The control now
+references its function, and the shared standalone-fixture runner explicitly
+enforces the same warning policy even outside CI. A regression test first
+failed on the missing explicit setting. Both complete fixture suites pass
+10 and eight cases under secure and development features, with no filters or
+ignores. Production code, compiler-refusal assertions and warning policy are
+unchanged. See the
+[verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#compiler-warning-policy-parity-follow-up).
+Strict Clippy passes in both lanes. A broader workspace attempt was interrupted
+during compilation to avoid exhausting local disk space; it ran no tests and
+does not count as acceptance. Full Linux acceptance remains pending.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

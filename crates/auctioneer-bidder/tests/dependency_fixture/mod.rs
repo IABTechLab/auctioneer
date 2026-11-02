@@ -16,6 +16,7 @@ pub fn command(directory: &Path, action: &str) -> Command {
         .env("CARGO_NET_OFFLINE", "true")
         .env("CARGO_TERM_COLOR", "never")
         .env("CARGO_BUILD_JOBS", "2")
+        .env("CARGO_BUILD_WARNINGS", "deny")
         .env_remove("CARGO_BUILD_TARGET")
         .env_remove("RUSTFLAGS")
         .env_remove("CARGO_ENCODED_RUSTFLAGS")
@@ -85,7 +86,20 @@ pub fn verify_lock(child: &str, reviewed: &str, own_name: &str) -> Result<(), &'
 
 #[cfg(test)]
 mod tests {
-    use super::verify_lock;
+    use super::{command, verify_lock};
+    use std::ffi::OsStr;
+    use std::path::Path;
+
+    #[test]
+    fn standalone_builds_explicitly_deny_warnings() {
+        let build = command(Path::new("."), "build");
+        assert_eq!(
+            build.get_envs().find_map(|(key, value)| {
+                (key == OsStr::new("CARGO_BUILD_WARNINGS")).then_some(value)
+            }),
+            Some(Some(OsStr::new("deny")))
+        );
+    }
 
     fn fixture() -> (toml::Value, toml::Value) {
         let reviewed = toml::Value::Table(toml::toml! {

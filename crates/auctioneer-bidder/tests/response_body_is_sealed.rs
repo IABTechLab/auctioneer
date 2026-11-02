@@ -578,12 +578,17 @@ fn main() {
     #[test]
     fn normalized_header_evidence_stays_paired_behind_read_only_access() {
         let prelude = "use auctioneer_core::outbound::BoundedProxyResponse;\n";
-        let control = Probe::new_core(
-            "core-control",
-            &format!(
-                "{prelude}fn inspect(response: &BoundedProxyResponse) {{ let _ = response.headers().len(); }}\nfn main() {{}}\n"
-            ),
-        );
+        let control_source = quote::quote! {
+            use auctioneer_core::outbound::BoundedProxyResponse;
+            fn inspect(response: &BoundedProxyResponse) {
+                let _ = response.headers().len();
+            }
+            fn main() {
+                let _ = inspect;
+            }
+        }
+        .to_string();
+        let control = Probe::new_core("core-control", &control_source);
         let (ok, output) = control.build();
         assert!(
             ok,

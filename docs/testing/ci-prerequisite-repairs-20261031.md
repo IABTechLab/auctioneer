@@ -483,3 +483,55 @@ the three repaired integration targets passes under `-D warnings`; workspace
 and bidder-owned Rust formatting, `git diff --check` and the raw-JSON fixture
 gate (200 fixtures across 57 files) pass. Existing GVL deletion warnings and the
 `proc-macro-error2` future-incompatibility notice remain unchanged.
+
+## Compiler Warning-Policy Parity Follow-Up
+
+At `7a90b87`, [run 41354575403](https://github.com/IABTechLab/auctioneer/actions/runs/41354575403)
+passed 12 of 13 test jobs. The native job stopped at
+`response_body_is_sealed`: six passed and one failed. Its positive core API
+control defined but never referenced `inspect`; the Rust setup action supplies
+`CARGO_BUILD_WARNINGS=deny`, so that warning rejects the child build. The earlier
+complete local package sweep did not set that variable and therefore did not
+reproduce CI's warning policy.
+
+The exact failing case reproduced locally before repair: one failure, six
+filtered. A separate new runner-policy regression also failed before repair,
+showing the child command lacked an explicit warning setting. The positive
+control now uses `quote!` and references `inspect` from `main`. The shared
+standalone runner always sets the existing CI policy to `deny`; the regression
+inspects explicit child overrides rather than relying on an inherited value.
+All public-accessor positives and private-field/read-only refusal checks remain.
+Production code, dependency pins, compiler diagnostics, thresholds and workflow
+selection are unchanged; no lint allowance is added.
+
+Both complete affected targets pass with `CARGO_BUILD_WARNINGS=deny`:
+
+| Target                               | Secure Defaults | Development Feature |
+| ------------------------------------ | --------------: | ------------------: |
+| `feature_exports_source_conformance` |       10 passed |           10 passed |
+| `response_body_is_sealed`            |        8 passed |            8 passed |
+
+There are no filters, failures or ignores in those four target executions.
+The development feature is `insecure-bidders`; it does not relax the standalone
+child manifests' own feature selection.
+
+```sh
+CARGO_BUILD_WARNINGS=deny cargo test --locked --offline -j2 \
+  -p auctioneer-bidder --test response_body_is_sealed \
+  --test feature_exports_source_conformance --no-fail-fast
+CARGO_BUILD_WARNINGS=deny cargo test --locked --offline -j2 \
+  -p auctioneer-bidder --features insecure-bidders \
+  --test response_body_is_sealed --test feature_exports_source_conformance --no-fail-fast
+```
+
+Strict Clippy on both targets passes in both feature lanes under `-D warnings`.
+Workspace Rust formatting, `git diff --check` and the raw-JSON fixture gate
+(200 fixtures across 57 files) pass. Existing GVL deletion warnings and the
+`proc-macro-error2` future-incompatibility notice remain unchanged.
+
+A broader `CARGO_BUILD_WARNINGS=deny cargo test --locked --offline -j2
+--workspace --all-targets --no-fail-fast` attempt used the required pinned source
+corpus and SDK bindings. It was interrupted during compilation (exit 130) when
+free disk space fell to 3.4 GiB; 2.5 GiB remained after shutdown. No tests ran in
+that invocation. It is not a passing workspace result. Full Linux acceptance
+requires the subsequent CI run.
