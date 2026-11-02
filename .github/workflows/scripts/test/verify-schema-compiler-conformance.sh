@@ -1,14 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Full targets execute every case except the six independently owned source cases.
+# Count both reports when a full target forwards its child contract's output.
 check_complete() {
   local log="$1"
   local filtered="$2"
-  test "$(grep -Ec '^running [0-9]+ tests?$' "$log")" -eq 1
-  test "$(grep -c '^test result:' "$log")" -eq 1
-  grep -Eq "^test result: ok\\. [1-9][0-9]* passed; 0 failed; 0 ignored; 0 measured; $filtered filtered out; finished in [0-9]+(\\.[0-9]+)?s$" "$log"
+  local reports="${3:-1}"
+  test "$reports" -ge 1
+  test "$(grep -Ec '^running [0-9]+ tests?$' "$log")" -eq "$reports"
+  test "$(grep -c '^test result:' "$log")" -eq "$reports"
+  test "$(grep -Ec "^test result: ok\\. [1-9][0-9]* passed; 0 failed; 0 ignored; 0 measured; $filtered filtered out; finished in [0-9]+(\\.[0-9]+)?s$" "$log")" -eq "$reports"
 }
+
+cargo test --locked -p auctioneer-bidder --test generated_settings -- \
+  --test-threads=1 2>&1 | tee "$RUNNER_TEMP/generated-settings.log"
+check_complete "$RUNNER_TEMP/generated-settings.log" 0 2
+
+cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- \
+  --test-threads=1 2>&1 | tee "$RUNNER_TEMP/insecure-bidders-snapshot.log"
+check_complete "$RUNNER_TEMP/insecure-bidders-snapshot.log" 0
 
 cargo test --locked -p auctioneer-bidder --test schema_build_controls -- \
   --test-threads=1 2>&1 | tee "$RUNNER_TEMP/schema-controls.log"
@@ -36,4 +46,5 @@ check_complete "$RUNNER_TEMP/registry-build.log" 0
 # `test = false` also removes these targets from broad Clippy selection.
 cargo clippy --locked -p auctioneer-bidder --test schema_build_controls \
   --test schema_source_conformance --test factory_binding_build --test registry_build \
+  --test generated_settings --test insecure_bidders_snapshot \
   -- -D warnings

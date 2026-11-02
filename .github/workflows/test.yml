@@ -207,7 +207,7 @@ jobs:
         run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-config/test-harness-override
 
       - name: Run workspace tests (default features)
-        run: cargo test --workspace --all-targets
+        run: cargo test --workspace --all-targets --no-fail-fast
 
       - name: Verify source selection (default workspace graph)
         run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace
@@ -215,7 +215,7 @@ jobs:
       # Hermetic compiler/config targets have explicit mandatory owners below.
       # Keep the existing config exclusion and its feature-sensitive named lane.
       - name: Run workspace tests (insecure-bidders feature)
-        run: cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config
+        run: cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config --no-fail-fast
 
       - name: Verify source selection (insecure workspace graph)
         run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace --features insecure-bidders --exclude auctioneer-config

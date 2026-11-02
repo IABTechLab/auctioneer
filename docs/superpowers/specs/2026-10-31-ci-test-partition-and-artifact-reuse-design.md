@@ -223,8 +223,14 @@ S with a workspace-unified invocation or infer equivalence from one feature.
 ### Ownership Matrix
 
 Rows are `(package, integration target)` unless explicitly identified as a
-library filter. This is the initial exhaustive exception set, not permission
+library filter. This is the current exhaustive exception set, not permission
 to skip all tests in the named packages.
+
+The 2026-11-01 approved follow-up adds `generated_settings` and
+`insecure_bidders_snapshot` after a source audit: their child commands clear
+inherited environment and select their own feature modes. Keep all 19 outer
+cases per suite, the settings child's 14 named cases, each separate workspace,
+and fresh child execution. Parent feature views remain ordinary tests.
 
 | Owner                   | Target / Filter                                                                 | Required Execution                                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -232,6 +238,8 @@ to skip all tests in the named packages.
 | `compiler-conformance`  | `auctioneer-bidder / schema_build_controls`                                     | Once in B; synthetic hermetic controls retain all native/three-WASM links and fresh observations                                   |
 | `compiler-conformance`  | `auctioneer-bidder / factory_binding_build`                                     | Once in B; its child workspaces retain their own explicit feature controls                                                         |
 | `compiler-conformance`  | `auctioneer-bidder / registry_build`                                            | Once in B with `--test-threads=1`; retain its feature-toggle/rebuild sequence                                                      |
+| `compiler-conformance`  | `auctioneer-bidder / generated_settings`                                        | Once in B; retain all outer cases, the complete 14-case child and allocation isolation; validate both success summaries          |
+| `compiler-conformance`  | `auctioneer-bidder / insecure_bidders_snapshot`                                 | Once in B; retain ungated success, disabled-symbol refusal and enabled-symbol success in their three separate fixtures           |
 | `compiler-conformance`  | `auctioneer-bidder / schema_source_conformance`                                 | Once in B, except experiments with independent mandatory owners; retain `schema_selection` in S, W0 and W1                         |
 | `compiler-conformance`  | Core library `schema_artifact_` filter                                          | Keep all four existing secure/development by normal/staged invocations; four dispatched tests each                                 |
 | `compiler-conformance`  | Source-conformance `tests::staged_` filter                                      | Keep all four existing secure/development by normal/staged invocations; two dispatched tests each, in addition to full-target runs |
@@ -245,7 +253,7 @@ full normal source runs do not replace the staged combinations. Native
 `catalog_publication` and `bidder_storage` executions remain ordinary tests;
 WASI execution does not replace them.
 
-Only the five explicit manifest targets are removed from broad invocations.
+Only the seven explicit manifest targets are removed from broad invocations.
 Library-filter rows are additional observations, not permission to exclude a
 library or suppress those cases within its ordinary complete test run.
 

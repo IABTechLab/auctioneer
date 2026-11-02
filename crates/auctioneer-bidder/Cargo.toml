@@ -28,6 +28,14 @@ test = false
 name = "registry_build"
 test = false
 
+[[test]]
+name = "generated_settings"
+test = false
+
+[[test]]
+name = "insecure_bidders_snapshot"
+test = false
+
 [features]
 # Canonical home of the insecure-bidders feature.
 # Forwards into auctioneer-config so build.rs's syncer-URL template-validation

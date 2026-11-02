@@ -582,3 +582,85 @@ the native host and all three guest targets. `Cargo.lock` is unchanged. Workspac
 Rust formatting and `git diff --check` pass. Existing GVL deletion warnings and
 the `proc-macro-error2` future-incompatibility notice remain. These results do
 not substitute for the subsequent complete Linux CI matrix.
+
+## Native Accounting And Remaining Compiler Owners
+
+At `b7b882d`, [run 41386614042](https://github.com/IABTechLab/auctioneer/actions/runs/41386614042)
+passed every separated compiler/artifact/config owner. All three guest lint
+jobs, vendor packaging and formatting also passed. The native workspace run
+stopped at three Axum accounting assertions: 20 passed, three failed. The
+preceding secure bidder/exchange/core scope passed.
+
+The rename lengthened the baked cookie name and family by four bytes each.
+The serialized host/account tuple is now 1,592 bytes, not 1,584. Existing
+accounting correctly charges the extra eight bytes at 128 bytes per input byte
+per admitted auction: 1,024 per auction and 2,048 across the two-auction row.
+Only stale test references change. A new inline control varies those strings
+against shorter synthetic names and pins both serialized sizes and
+all three accounting deltas. The original 4-GiB ceiling, 256-MiB headroom,
+128-MiB auxiliary allowance, workload and production equations remain unchanged.
+
+The same Linux log explains part of the repeated compilation. In the secure
+scope, `generated_settings` took 135.45 s and `insecure_bidders_snapshot` took
+154.63 s; their parent compilation took 1 min 44 s. The settings suite creates
+one fresh compiler tree and the export suite creates three. Its three roughly
+150-second fixture builds overlapped, so their durations must not be added as
+450 seconds of wall time. The workspace stopped before reaching either suite
+again; the repetitions discussed here are those in a complete planned matrix,
+not twelve fresh builds observed in this failed run.
+
+These two suites explicitly choose child features and clear inherited
+environment. Their input contract is independent of the three parent scopes.
+AG approved giving each one mandatory execution in the existing compiler job.
+Both now have `[[test]] test = false` and explicit test/strict-Clippy commands;
+all 19 outer cases per suite, the 14-case settings child and four fresh build
+trees remain. Feature-sensitive targets stay in their existing scopes. These
+ownership changes alter no cache/reuse mechanism, child fixture, assertion or
+limit.
+
+The owner's summary checker now requires every expected report to be a
+nonzero-test success with no failures, ignores or unexpected filters. Settings
+must provide both parent and child summaries. The existing exact child-name
+reconciliation and six independently owned source exclusions remain intact.
+Both broad workspace commands gain `--no-fail-fast`: later targets execute,
+but any failed target still fails the job. This does not make later workflow
+steps run after a failed command.
+
+Initial local verification reproduced the original three failures. Adding the
+byte-growth control first produced 21 passes and the same three failures;
+correcting the references then produced 24 passes with no failures or filters.
+The sibling isolated boot target independently reproduced the stale 1,584-byte
+assertion (two passed, one failed). Its three related references receive the
+same correction; the final complete Axum run passes all 24 unit and three boot
+integration cases. The adjacent auxiliary-floor comment now matches the actual
+58,647,552-byte floor and 75,570,176-byte reservation slack. Frozen historical
+snapshots remain unchanged.
+
+Both new explicit owner suites pass completely: settings 19 outer plus 14
+child cases, exports 19 outer cases; zero failures, ignores or filtered tests.
+All child compiler trees were fresh. The updated report checker accepts these
+actual logs and passes 13 synthetic success/refusal controls, including missing,
+extra, failed-child, zero-pass, ignored and incorrectly filtered reports.
+
+A dependency-free real Cargo workspace confirms that `test = false` omits its
+target from `--all-targets` while explicit `--test` executes it. Current-repo
+Cargo metadata independently reports exactly seven explicitly owned integration
+targets. A separate two-target failure probe exits 101 in both modes: without
+`--no-fail-fast` it stops at the first target; with the flag the second target
+executes successfully and the overall invocation still fails. These are Cargo
+selection/exit controls, not a complete local Auctioneer workspace run.
+
+Strict Clippy passes for Axum's library/boot targets and both newly explicit
+compiler owners under `-D warnings`. Workspace Rust formatting, Bash syntax,
+ShellCheck, actionlint and the raw-JSON fixture gate (200 fixtures in 57 files)
+pass. Source-import isolation passes all 16 cases with no filters or ignores.
+`Cargo.lock`, tool pins, the two relocated suites and their child-build
+helper are unchanged. Existing GVL deletion warnings and the
+`proc-macro-error2` future-incompatibility notice remain.
+
+Local checks use the existing native target cache with `--locked --offline
+-j2` and `CARGO_BUILD_WARNINGS=deny`; child workspaces keep their own fresh
+targets. The complete workspace and all existing compiler/artifact owners were
+not rerun locally because disk space is limited. The next Linux CI run remains
+the full acceptance owner. No matched complete CI before/after measurement is
+available, so no end-to-end speedup is claimed.

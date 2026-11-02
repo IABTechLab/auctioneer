@@ -166,7 +166,7 @@ that target must be installed before selecting the case locally.
 
 ### Acceptance
 
-Five hermetic child-build targets have explicit owners rather than running
+Seven hermetic child-build targets have explicit owners rather than running
 again in every broad `--all-targets` scope. Their `[[test]] test = false` Cargo
 setting changes default selection, not availability. Run the relevant owner
 explicitly when changing the compiler, discovery or config rejection behavior:
@@ -176,6 +176,8 @@ cargo test --locked -p auctioneer-bidder --test schema_build_controls -- --test-
 cargo test --locked -p auctioneer-bidder --test schema_source_conformance -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test factory_binding_build
 cargo test --locked -p auctioneer-bidder --test registry_build -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test generated_settings -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- --test-threads=1
 cargo test --locked -p auctioneer-config --test build_failure_harness
 ```
 
@@ -189,6 +191,13 @@ full-source command is deliberately serial because its compiler experiments
 share a build lease; CI parallelizes those experiments on separate runners.
 Broad Clippy selection also omits these targets. Their mandatory owner jobs run
 strict explicit `cargo clippy --test NAME -- -D warnings` checks.
+
+The settings and synthetic-export suites select their own child features and
+clear inherited environment. Running them under all three parent scopes would
+repeat four fresh temporary build trees without testing a different contract.
+Keep their separate fixtures, fresh processes and every original assertion;
+this ownership does not authorize artifact reuse. Both workspace scopes use
+`--no-fail-fast` to report later target failures while retaining a failed exit.
 
 The workflows in `.github/workflows/` remain the authoritative full matrix:
 secure-default package controls, workspace/features, conformance, all adapter

@@ -162,6 +162,25 @@ checks also pass. See the
 [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#wasm-compiler-fixture-dependency-follow-up).
 These are compilation and scoped native results, not whole-CI acceptance.
 
+**Native accounting and remaining compiler owners (2026-11-01):**
+[run 41386614042](https://github.com/IABTechLab/auctioneer/actions/runs/41386614042)
+passed every separated compiler/artifact/config owner, all three guest lint
+jobs and vendor packaging. Native workspace tests stopped at three Axum
+accounting references that still assumed 1,584 baked-config bytes. The renamed
+cookie identities produce 1,592 bytes; production accounting already funds the
+extra 1,024 bytes per admitted auction. Test references now reflect that growth,
+with an independent inline delta control and no changed ceiling or workload.
+
+The audited `generated_settings` and `insecure_bidders_snapshot` suites now
+have one mandatory explicit compiler-job owner instead of repeating four fresh
+child build trees in each parent feature scope. All assertions, child feature
+modes, workspaces and fresh measurement processes remain. Explicit strict
+Clippy and complete parent/child report checks remain mandatory. Both broad
+workspace invocations use `--no-fail-fast`; failures still fail the job while
+later targets report their results. Cache/reuse mechanisms are unchanged.
+See the [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#native-accounting-and-remaining-compiler-owners).
+Full Linux acceptance and a matched end-to-end speedup remain unverified.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

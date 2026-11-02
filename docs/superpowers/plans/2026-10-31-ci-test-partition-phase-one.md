@@ -48,6 +48,32 @@ of verification. Artifact reuse and publication remain separately gated.
        publication approval before a new commit/push to PR #1: explicitly granted
        after local verification on 2026-10-31.
 
+## Approved Native Accounting And Remaining Compiler Owners
+
+On 2026-11-01 AG approved correcting the native baked-config accounting
+references, moving two individually audited hermetic suites to the existing
+compiler owner, and collecting every target failure within each workspace run.
+No cache/reuse change, assertion removal, workload reduction or platform change.
+
+- [x] Reproduce the three Axum failures; verify the renamed cookie identities
+      add eight serialized bytes, 1,024 bytes per auction and 2,048 total bytes.
+      Correct independent references and retain the 4-GiB/256-MiB constraints.
+- [x] Audit `generated_settings` and `insecure_bidders_snapshot`: child sources,
+      features and environment are independent of the parent feature lane.
+      Preserve 19 cases per suite, the 14-case settings child and all fixtures.
+- [x] Add both target declarations in `auctioneer-bidder/Cargo.toml` with
+      `test = false`; add full executions and explicit strict Clippy to
+      `verify-schema-compiler-conformance.sh`. Validate both settings reports.
+- [x] Add `--no-fail-fast` to both workspace commands in `test.yml`; a failed
+      target must still produce a failed job, while later targets execute.
+- [x] Verify real broad/explicit Cargo selection, full target execution,
+      nested-result refusal controls, native accounting, strict lint and syntax.
+- [x] Update development guidance, the exhaustive exception matrix and measured
+      evidence. Full Linux acceptance and end-to-end timing remain pending CI.
+
+Publication of these verified repairs to PR #1 is approved. Push after the final
+diff check; do not claim the subsequent CI result before it completes.
+
 ## Working Boundaries
 
 - Work in the existing `import/auctioneer` branch in the Auctioneer checkout.
