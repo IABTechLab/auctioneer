@@ -1,0 +1,62 @@
+key = "logan"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/logan"
+tree = "52542dcaf3c1dceab393ecad50360ed117187849"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/logan.yaml"
+source_blob = "e62458c51f8b4c0f6de92a6a77c56c528b7f6ddf"
+source_bytes = 412
+source_sha256 = "ff51a3bb0fb63bada01ea4c486a54d0af7963077e774282050bc1711f7f32d3e"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://USeast2.logan.ai/pserver"
+selected_url = "https://USeast2.logan.ai/pserver"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/logan.json"
+source_blob = "5f6119185bc0f52e806cb3d428d9b7023cd6bf60"
+source_bytes = 367
+source_sha256 = "18727ef17bb58f51826d026753b4f9279c29f692f9f9308e673d9bd57d197c7f"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 367
+source_sha256 = "18727ef17bb58f51826d026753b4f9279c29f692f9f9308e673d9bd57d197c7f"

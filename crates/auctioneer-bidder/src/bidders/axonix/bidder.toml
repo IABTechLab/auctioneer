@@ -1,0 +1,54 @@
+key = "axonix"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/axonix"
+tree = "5be4f0a9299284f1cc8394a0ad26d4f1900ba4e1"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/axonix.yaml"
+source_blob = "9744e064ec8876c62152b4ea69c7e69c20464802"
+source_bytes = 458
+source_sha256 = "38a180c3176ab420a885095a90dd8cc31e9984edca7aa4fb9da78f4691789047"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/axonix.json"
+source_blob = "7a3762ce5e2a238f743cbbd8eebdc60f8c614d76"
+source_bytes = 367
+source_sha256 = "2d165b7bc5daea505fafd2e32788a84e2acbd44e8e285abdba227340202b2906"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 367
+source_sha256 = "2d165b7bc5daea505fafd2e32788a84e2acbd44e8e285abdba227340202b2906"

@@ -1,0 +1,91 @@
+{
+  "id": "auc-gdpr-applies",
+  "seatbid": [
+    {
+      "seat": "fake_alias",
+      "bid": [
+        {
+          "id": "bid-imp-3",
+          "impid": "imp-3",
+          "mtype": 1,
+          "price": 1.5,
+          "crid": "creative-imp-3",
+          "w": 300,
+          "h": 250,
+          "ext": {
+            "prebid": {
+              "type": "banner",
+              "targeting": {
+                "hb_bidder": "fake_alias",
+                "hb_bidder_fake_alias": "fake_alias",
+                "hb_pb": "1.50",
+                "hb_pb_fake_alias": "1.50",
+                "hb_size": "300x250",
+                "hb_size_fake_alias": "300x250"
+              },
+              "meta": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "seat": "fake_consented_bidder",
+      "bid": [
+        {
+          "id": "bid-imp-1",
+          "impid": "imp-1",
+          "mtype": 1,
+          "price": 1.5,
+          "crid": "creative-imp-1",
+          "w": 300,
+          "h": 250,
+          "ext": {
+            "prebid": {
+              "type": "banner",
+              "targeting": {
+                "hb_bidder": "fake_consented_bidder",
+                "hb_bidder_fake_conse": "fake_consented_bidder",
+                "hb_pb": "1.50",
+                "hb_pb_fake_consented": "1.50",
+                "hb_size": "300x250",
+                "hb_size_fake_consent": "300x250"
+              },
+              "meta": {}
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "cur": "USD",
+  "ext": {
+    "warnings": {
+      "fake_bidder": [
+        {
+          "code": 10017,
+          "message": "bidder blocked by privacy settings: fake_bidder"
+        }
+      ]
+    },
+    "responsetimemillis": {
+      "fake_consented_bidder": 10,
+      "fake_alias": 10
+    },
+    "tmaxrequest": 1000,
+    "prebid": {
+      "auctiontimestamp": 0,
+      "seatnonbid": [
+        {
+          "seat": "fake_bidder",
+          "nonbid": [
+            {
+              "impid": "imp-2",
+              "statuscode": 300
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

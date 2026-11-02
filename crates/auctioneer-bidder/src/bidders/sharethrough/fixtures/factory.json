@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "implementation": "sharethrough",
+  "manifest_sha256": "89d2b9fcdedb691b384f9078832431f80f1952a82fbfd0155fbc036638332aea",
+  "cases": [
+    {
+      "name": "banner-source-version-and-legacy-response",
+      "request": {
+        "id": "r",
+        "imp": [{"id": "i", "banner": {"w": 300, "h": 250}, "ext": {"bidder": {"pkey": "placement"}}}]
+      },
+      "context": {
+        "account_id": "account",
+        "endpoint_template": "https://bidder.example.test/sharethrough",
+        "endpoint_macros": [],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/sharethrough",
+          "required_headers": [["Content-Type", "application/json;charset=utf-8"], ["Accept", "application/json"]],
+          "absent_headers": ["Cookie", "Authorization"],
+          "imp_ids": ["i"],
+          "body": {
+            "id": "r",
+            "imp": [{"id": "i", "tagid": "placement", "banner": {"w": 300, "h": 250}, "ext": {"bidder": {"pkey": "placement"}}}],
+            "source": {"ext": {"str": "10.0", "version": "$CARGO_PKG_VERSION"}}
+          },
+          "package_version_paths": ["/source/ext/version"]
+        }
+      ],
+      "responses": [
+        {
+          "name": "legacy-banner-response",
+          "call": 0,
+          "status": 200,
+          "body": {"id": "r", "cur": "EUR", "seatbid": [{"bid": [{"id": "good", "impid": "i", "price": 1.25, "ext": {"prebid": {"type": "banner"}}}]}]},
+          "expected": {"kind": "ok", "currency": "USD", "bids": [{"id": "good", "impid": "i", "media_type": "banner"}], "errors": []}
+        }
+      ]
+    }
+  ]
+}

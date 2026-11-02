@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "implementation": "rubicon",
+  "manifest_sha256": "4c6c0181cfd81c0ed16d3ba439ba1b6e414d7b098853bf40539231f6d779a61e",
+  "cases": [
+    {
+      "name": "credentialed-banner-and-source-response-metadata",
+      "request": {
+        "id": "r",
+        "site": {},
+        "cur": [
+          "USD"
+        ],
+        "device": {},
+        "ext": {
+          "fake_drop": true
+        },
+        "imp": [
+          {
+            "id": "i",
+            "banner": {
+              "format": [
+                {
+                  "w": 300,
+                  "h": 250
+                }
+              ]
+            },
+            "ext": {
+              "bidder": {
+                "accountId": 1001,
+                "siteId": 113932,
+                "zoneId": 535510
+              }
+            }
+          }
+        ]
+      },
+      "context": {
+        "account_id": "fake_account",
+        "endpoint_template": "https://bidder.example.test/a/api/exchange",
+        "endpoint_macros": [],
+        "host_allowlist": null,
+        "settings": {
+          "implementation": "rubicon",
+          "values": {
+            "credentials_secret": "fake_credential_bundle",
+            "external_url": "http://hosturl.com",
+            "region": "us-east"
+          }
+        },
+        "credentials": {
+          "schema_version": 1,
+          "username": "xuser",
+          "password": "xpass",
+          "tracker": "pbs-test-tracker"
+        }
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/a/api/exchange?tk_xint=pbs-test-tracker",
+          "required_headers": [
+            [
+              "Content-Type",
+              "application/json;charset=utf-8"
+            ],
+            [
+              "Accept",
+              "application/json"
+            ],
+            [
+              "User-Agent",
+              "prebid-server/1.0"
+            ],
+            [
+              "Authorization",
+              "Basic eHVzZXI6eHBhc3M="
+            ]
+          ],
+          "absent_headers": [
+            "Cookie"
+          ],
+          "imp_ids": [
+            "i"
+          ],
+          "body": {
+            "id": "r",
+            "device": {
+              "ext": {
+                "rp": {
+                  "pixelratio": 0.0
+                }
+              }
+            },
+            "site": {
+              "ext": {
+                "rp": {
+                  "site_id": 113932
+                }
+              },
+              "publisher": {
+                "ext": {
+                  "rp": {
+                    "account_id": 1001
+                  }
+                }
+              }
+            },
+            "imp": [
+              {
+                "id": "i",
+                "banner": {
+                  "format": [
+                    {
+                      "w": 300,
+                      "h": 250
+                    }
+                  ],
+                  "ext": {
+                    "rp": {
+                      "mime": "text/html"
+                    }
+                  }
+                },
+                "secure": 1,
+                "ext": {
+                  "rp": {
+                    "zone_id": 535510,
+                    "target": {
+                      "pbs_login": "xuser",
+                      "pbs_url": "http://hosturl.com",
+                      "pbs_version": "$CARGO_PKG_VERSION"
+                    },
+                    "track": {
+                      "mint": "",
+                      "mint_version": ""
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "package_version_paths": [
+            "/imp/0/ext/rp/target/pbs_version"
+          ]
+        }
+      ],
+      "responses": [
+        {
+          "name": "root-bidid-and-buyer-metadata",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "r",
+            "bidid": "root-bid-id",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "buyer": "123",
+                "seat": "rubicon",
+                "bid": [
+                  {
+                    "id": "0",
+                    "impid": "i",
+                    "price": 1.25,
+                    "adm": "creative"
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "root-bid-id",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": []
+          }
+        },
+        {
+          "name": "no-content",
+          "call": 0,
+          "status": 204,
+          "body": {},
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [],
+            "errors": []
+          }
+        },
+        {
+          "name": "invalid-input-status",
+          "call": 0,
+          "status": 400,
+          "body": {},
+          "expected": {
+            "kind": "error",
+            "errors": [
+              2
+            ]
+          }
+        },
+        {
+          "name": "provider-failure-status",
+          "call": 0,
+          "status": 500,
+          "body": {},
+          "expected": {
+            "kind": "error",
+            "errors": [
+              4
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

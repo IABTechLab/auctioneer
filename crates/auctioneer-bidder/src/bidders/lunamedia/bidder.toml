@@ -1,0 +1,62 @@
+key = "lunamedia"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/lunamedia"
+tree = "dd0a0e4c8a1db80cee8067b871d9440430cdafa0"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/lunamedia.yaml"
+source_blob = "6f450382c0ed3df95253f6242d32b8492195b233"
+source_bytes = 348
+source_sha256 = "3195a4d01e950fc6eb08936409107d35c96b0ae0fef546563b8854c53ff0d02c"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://rtb.lunamedia.live/?pid={{.PublisherID}}"
+selected_url = "https://rtb.lunamedia.live/?pid={{.PublisherID}}"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/lunamedia.json"
+source_blob = "1aa18cee6b9f4f254e6635e5e6828b48a9424c89"
+source_bytes = 492
+source_sha256 = "f37728458c2a90417792b80ac1bb91d86dd566d662615dc0fa07bdafbb580429"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 492
+source_sha256 = "f37728458c2a90417792b80ac1bb91d86dd566d662615dc0fa07bdafbb580429"

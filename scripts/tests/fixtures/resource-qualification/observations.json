@@ -1,0 +1,2032 @@
+{
+  "backend": "startup_snapshot",
+  "capabilities": [
+    {
+      "capability": "ingress_admission",
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "verified"
+    },
+    {
+      "capability": "config_pre_extraction",
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "verified"
+    },
+    {
+      "capability": "transport_lifecycle",
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "verified"
+    },
+    {
+      "capability": "delivery_lifetime",
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "verified"
+    },
+    {
+      "capability": "deadline",
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "verified"
+    },
+    {
+      "capability": "cancellation",
+      "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "verified"
+    }
+  ],
+  "hardware": {
+    "architecture": "aarch64",
+    "cpu": "apple_m_series",
+    "logical_cores": 8,
+    "machine_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "memory_bytes": 1000000000000,
+    "meter": "process_rss",
+    "meter_version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "os": "macos",
+    "os_version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "page_bytes": 16384
+  },
+  "identity": {
+    "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "baked_config_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "build_features": [],
+    "edgezero_pin": "cccccccccccccccccccccccccccccccccccccccc",
+    "fixtures_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "harness_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "auctioneer_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "reference_data_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "runtime_version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    },
+    "target": "axum"
+  },
+  "platform": {
+    "concurrent_requests": 384,
+    "cpu_time_ms": 30000,
+    "memory_bytes": 1000000000000,
+    "wall_time_ms": 30000
+  },
+  "profile_sha256": "d7d1dc376750d1e1381bc6e0be9824f9e3109647b48fe72fcddb7560d9f7250e",
+  "resources": {
+    "actual_gvl_cache_entries": 4,
+    "baked_config_bytes": 4096,
+    "construction_costs": {
+      "fixed_per_auction_bytes": 100,
+      "retained_per_scope_bytes": 78,
+      "reusable_scratch_bytes": 200
+    },
+    "limits": {
+      "aux_route_peak_bytes": 800000000,
+      "aux_route_permits": 1,
+      "baseline_bytes": 160000000,
+      "egress_permits": 1,
+      "final_response_bytes": 3072,
+      "guest_decoder_bound_bytes": 0,
+      "gvl_cache_entries": 4,
+      "gvl_parsed_bytes": 512000,
+      "inbound_parse_factor": 36,
+      "inbound_request_bytes": 1024,
+      "isolate_total_bytes": 1000000000000,
+      "max_active_body_streams": 1,
+      "max_admitted_header_bytes": 16384,
+      "max_admitted_header_count": 128,
+      "max_bidders_per_auction": 1,
+      "max_brotli_layers": 1,
+      "max_brotli_wbits": 10,
+      "max_concurrent_auctions": 1,
+      "max_config_json_nodes": 8192,
+      "max_copied_header_bytes": 4096,
+      "max_decoded_bytes": 1024,
+      "max_impressions_per_auction": 1,
+      "max_outbound_raw_bytes": 1024,
+      "max_outbound_request_bytes": 1024,
+      "max_outbound_requests": 1,
+      "max_parsed_nodes": 32,
+      "max_runtime_config_blob_bytes": 1048576,
+      "max_runtime_config_bytes": 1048576,
+      "max_transport_bytes": 1024,
+      "refusal_body_bytes": 256,
+      "response_node_peak_bytes": 320,
+      "response_parse_factor": 256,
+      "response_write_deadline_ms": 30000,
+      "terminal_response_permits": 384,
+      "transmit_state_bytes": 4096
+    },
+    "outbound_meta_bytes": 4384,
+    "sdk": {
+      "config_store": {
+        "max_entries": 1024,
+        "max_file_bytes": 16777216,
+        "max_key_bytes": 1024,
+        "max_resident_bytes": 33554432,
+        "max_startup_bytes": 117440512,
+        "max_value_bytes": 8388608
+      },
+      "http2_enabled": false,
+      "ingress": {
+        "head_read_timeout_ms": 10000,
+        "max_connections": 256,
+        "max_header_count": 100,
+        "max_raw_head_bytes": 16384
+      }
+    },
+    "target_constants": {
+      "egress_handoff_factor": 2,
+      "h1_max_buf_size_bytes": 24576,
+      "h1_max_headers": 128,
+      "header_entry_overhead_bytes": 64,
+      "max_request_target_bytes": 768,
+      "parser_header_ceiling_bytes": 21632,
+      "parser_header_knob_bytes": 21633,
+      "parser_max_header_entries": 676,
+      "parser_transient_bytes": 16384,
+      "platform_concurrent_ceiling": 384,
+      "pseudoheader_allowance_bytes": 1024
+    }
+  },
+  "scenarios": [
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 1,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "cold_startup",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 1,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "warm_baseline",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 1,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "gvl_cold_parse",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "maximum_shape",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 1,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "fpd_expansion",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 1,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "encoded_decoded",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 1,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "slow_reader",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 1,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 1,
+        "offered": 10,
+        "rejected": 0,
+        "success": 8,
+        "timeouts": 1
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "mixed_outcomes",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "unrequested",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 1,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "denied",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": {
+        "reference_sha256": "f35ef5e82355581f6d35f98f4ba517e6ea60f20a0569a8b20d71419d0368540b",
+        "auctions": 10,
+        "simultaneous_auctions": 1,
+        "simultaneous_finalized_calls": 1,
+        "min_call_rows": 1,
+        "max_call_rows": 1,
+        "capture_bytes": {
+          "min": 512,
+          "max": 512
+        },
+        "output_bytes": {
+          "min": 1024,
+          "max": 1024
+        }
+      },
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 10,
+        "debug_denials": 0,
+        "debug_output_bytes": 10240,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "permitted",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": {
+        "reference_sha256": "f35ef5e82355581f6d35f98f4ba517e6ea60f20a0569a8b20d71419d0368540b",
+        "auctions": 10,
+        "simultaneous_auctions": 1,
+        "simultaneous_finalized_calls": 1,
+        "min_call_rows": 1,
+        "max_call_rows": 1,
+        "capture_bytes": {
+          "min": 512,
+          "max": 512
+        },
+        "output_bytes": {
+          "min": 1024,
+          "max": 1024
+        }
+      },
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 10,
+        "debug_denials": 0,
+        "debug_output_bytes": 10240,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "concurrent_capture",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": {
+        "reference_sha256": "f35ef5e82355581f6d35f98f4ba517e6ea60f20a0569a8b20d71419d0368540b",
+        "auctions": 10,
+        "simultaneous_auctions": 1,
+        "simultaneous_finalized_calls": 1,
+        "min_call_rows": 1,
+        "max_call_rows": 1,
+        "capture_bytes": {
+          "min": 512,
+          "max": 512
+        },
+        "output_bytes": {
+          "min": 1024,
+          "max": 1024
+        }
+      },
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 10,
+        "debug_denials": 0,
+        "debug_output_bytes": 10240,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 1,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "capture_release",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 1,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "auxiliary_overlap",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 1,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "config_snapshot",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 5,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "gvl_miss_overlap",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 1,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "config_variant",
+      "variant_id": 2,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 1,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "config_restoration",
+      "variant_id": 3,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 11,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 11,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 11,
+        "rejected": 1,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "excess_admission",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 1,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "outbound_queue",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 1
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "stalled_io",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 1,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 1,
+        "offered": 10,
+        "rejected": 0,
+        "success": 9,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "cancellation",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 0,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 9,
+        "timeouts": 1
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "timeout",
+      "variant_id": 1,
+      "warmup_ms": 10
+    },
+    {
+      "achieved": {
+        "calls": 1,
+        "concurrency": 1,
+        "decoded_bytes": 1024,
+        "encoded_bytes": 1024,
+        "impressions": 1,
+        "nodes": 32,
+        "request_bytes": 1024
+      },
+      "debug": null,
+      "duration_ms": 100,
+      "effects": {
+        "auxiliary_requests": 0,
+        "cancellations": 0,
+        "config_extractions": 0,
+        "debug_captures": 0,
+        "debug_denials": 0,
+        "debug_output_bytes": 0,
+        "decoded_responses": 0,
+        "fpd_expansions": 0,
+        "gvl_parses": 0,
+        "queued_calls": 0,
+        "recovery_successes": 1,
+        "slow_reads": 0,
+        "stalled_reads": 0
+      },
+      "fixture": {
+        "id": 1,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "latency": {
+        "end": "terminal_outcome",
+        "histogram": [
+          {
+            "count": 10,
+            "upper_us": 1000
+          }
+        ],
+        "percentile": 99,
+        "population": "all_offered",
+        "samples": 10,
+        "start": "client_dispatch",
+        "value_us": 1000
+      },
+      "load_window_ms": 100,
+      "memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "outcomes": {
+        "admitted": 10,
+        "errors": 0,
+        "offered": 10,
+        "rejected": 0,
+        "success": 10,
+        "timeouts": 0
+      },
+      "recovered": true,
+      "repetition": 1,
+      "seed": 7,
+      "simultaneous": true,
+      "subcase": "healthy_recovery",
+      "variant_id": 1,
+      "warmup_ms": 10
+    }
+  ],
+  "schema_version": 1,
+  "variants": [
+    {
+      "cold_memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "cold_window_ms": 100,
+      "config_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effective_settings_observed": true,
+      "id": 1,
+      "input_immutable": true,
+      "process_id": 1,
+      "restarted": true,
+      "settings_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "startup_sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+      "startup_snapshot_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "warm_memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "warm_window_ms": 100
+    },
+    {
+      "cold_memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "cold_window_ms": 100,
+      "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "effective_settings_observed": true,
+      "id": 2,
+      "input_immutable": true,
+      "process_id": 2,
+      "restarted": true,
+      "settings_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "startup_sha256": "0000000000000000000000000000000000000000000000000000000000000002",
+      "startup_snapshot_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "warm_memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "warm_window_ms": 100
+    },
+    {
+      "cold_memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "cold_window_ms": 100,
+      "config_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effective_settings_observed": true,
+      "id": 3,
+      "input_immutable": true,
+      "process_id": 3,
+      "restarted": true,
+      "settings_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "startup_sha256": "0000000000000000000000000000000000000000000000000000000000000003",
+      "startup_snapshot_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "warm_memory": {
+        "limitation": "process_lifetime_high_water",
+        "method": "high_water",
+        "peak_bytes": 1000000,
+        "retained_growth_bytes": 0,
+        "service_only": true,
+        "source": "process_rss",
+        "units": "bytes",
+        "window_ms": 100
+      },
+      "warm_window_ms": 100
+    }
+  ]
+}

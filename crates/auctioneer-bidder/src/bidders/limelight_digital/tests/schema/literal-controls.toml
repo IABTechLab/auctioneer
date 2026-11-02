@@ -1,0 +1,70 @@
+schema = "limelightDigital"
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","publisherId":1}'
+valid = true
+
+[[cases]]
+input_json = '{"host":"a_b.example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"example.com","publisherId":1}'
+valid = true
+
+[[cases]]
+input_json = '{"host":"1.example","publisherId":1}'
+valid = true
+
+[[cases]]
+input_json = '{"host":"example.com.","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"a..example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"a_b.example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"-a.example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"a-.example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"\u00e9.example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","publisherId":1}'
+valid = true
+string_bytes = {pointer = "/host", bytes = 253}
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","publisherId":1}'
+valid = true
+string_bytes = {pointer = "/host", bytes = 254}
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","publisherId":1}'
+valid = true
+string_bytes = {pointer = "/host", bytes = 255}
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","publisherId":1}'
+valid = false
+string_bytes = {pointer = "/host", bytes = 256}
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example","publisherId":1}'
+valid = false
+
+[[cases]]
+input_json = '{"host":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.a","publisherId":1}'
+valid = false
+string_bytes = {pointer = "/host", bytes = 256}

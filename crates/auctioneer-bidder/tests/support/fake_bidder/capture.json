@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "revision": "1111111111111111111111111111111111111111",
+  "sources": [
+    {
+      "schema": "fake_base",
+      "path": "adapters/fake_base/params_test.go",
+      "blob": "1111111111111111111111111111111111111111",
+      "sha256": "28ad97440522d9e45651102fa646a0bb68657209ae20fa737a55e0df41fb041a",
+      "bytes": 160,
+      "valid_cases": 3,
+      "invalid_cases": 3
+    }
+  ],
+  "cases": [
+    {
+      "schema": "fake_base",
+      "group": "valid",
+      "index": 0,
+      "input": "{\"letters\":\"a\",\"digits\":\"1\"}",
+      "valid": true,
+      "source_offset": 24
+    },
+    {
+      "schema": "fake_base",
+      "group": "valid",
+      "index": 1,
+      "input": "{\"letters\":\"abc\",\"digits\":\"123\"}",
+      "valid": true,
+      "source_offset": 56
+    },
+    {
+      "schema": "fake_base",
+      "group": "valid",
+      "index": 2,
+      "input": "{\"letters\":\"abc\",\"digits\":\"123\"}",
+      "valid": true,
+      "source_offset": 92
+    },
+    {
+      "schema": "fake_base",
+      "group": "invalid",
+      "index": 0,
+      "input": "{}",
+      "valid": false,
+      "source_offset": 142
+    },
+    {
+      "schema": "fake_base",
+      "group": "invalid",
+      "index": 1,
+      "input": "nil",
+      "valid": false,
+      "source_offset": 148
+    },
+    {
+      "schema": "fake_base",
+      "group": "invalid",
+      "index": 2,
+      "input": "",
+      "valid": false,
+      "source_offset": 155
+    }
+  ]
+}

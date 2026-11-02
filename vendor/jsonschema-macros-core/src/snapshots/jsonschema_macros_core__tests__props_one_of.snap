@@ -1,0 +1,50 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"oneOf\":[{\"properties\":{\"a\":{}},\"required\":[\"a\"]},{\"properties\":{\"b\":{}},\"required\":[\"b\"]}],\"type\":\"object\",\"unevaluatedProperties\":false}"
+expression: is_valid_body(schema)
+---
+(match instance {
+            __Value::Object(obj) => {
+                obj.iter()
+                    .all(|(__key, __value)| {
+                        let key_str = __key.as_str();
+                        if {
+                            let mut __one_of_matches = 0usize;
+                            let mut __one_of_evaluates = false;
+                            if (|instance: &__Value| validate_ref_0(
+                                instance,
+                            ))(instance) {
+                                __one_of_matches += 1;
+                                __one_of_evaluates = __one_of_evaluates
+                                    || (matches!(key_str, "a"));
+                            }
+                            if (|instance: &__Value| validate_ref_1(
+                                instance,
+                            ))(instance) {
+                                __one_of_matches += 1;
+                                __one_of_evaluates = __one_of_evaluates
+                                    || (matches!(key_str, "b"));
+                            }
+                            __one_of_matches == 1 && __one_of_evaluates
+                        } {
+                            true
+                        } else {
+                            false
+                        }
+                    })
+            }
+            _ => false,
+        })
+            && ({
+                let mut matched = is_branch_valid_0(instance);
+                (if is_branch_valid_1(instance) {
+                    if matched {
+                        false
+                    } else {
+                        matched = true;
+                        true
+                    }
+                } else {
+                    true
+                }) && matched
+            })

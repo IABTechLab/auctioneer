@@ -1,0 +1,127 @@
+# Restricting the `/_auctioneer/*` prefix at the ingress
+
+auctioneer serves operational endpoints under the `/_auctioneer/*` prefix
+(`/_auctioneer/health/gvl` today). The handler itself is fail-closed — it
+answers 401 unless the adapter boot installed an explicit
+`HealthAccessPolicy` — so ingress restriction is the SECOND layer.
+It is required for any deployment that installs the
+`UnauthenticatedAcknowledged` policy (`allow_unauthenticated_health =
+true`), and recommended defence-in-depth everywhere else.
+
+Path restriction is an **L7 concern**: the rule must match the HTTP
+path. An L3/L4 mechanism (IP + port), such as a Kubernetes
+`NetworkPolicy`, cannot see the path and does NOT satisfy this
+requirement.
+
+## Cloudflare Workers
+
+Create a [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
+application over the internal prefix so requests authenticate at
+Cloudflare's edge before reaching the Worker:
+
+```
+Application domain: <your-worker-domain>
+Path:               /_auctioneer/*
+Policy:             Allow — require your operator identity group
+```
+
+Terraform sketch:
+
+```hcl
+resource "cloudflare_zero_trust_access_application" "auctioneer_internal" {
+  zone_id = var.zone_id
+  name    = "auctioneer internal endpoints"
+  domain  = "${var.auctioneer_host}/_auctioneer/*"
+}
+```
+
+## Fastly Compute@Edge
+
+Attach VCL (or the equivalent Compute request guard) that rejects
+unauthorised requests to the prefix before they reach the service:
+
+A presence check is **not** authentication: `Authorization: junk`
+satisfies `if (!req.http.Authorization)` and nothing downstream
+re-checks it when `allow_unauthenticated_health = true`. The value has
+to be VALIDATED, and the comparison has to be constant-time so the
+token cannot be recovered byte by byte from response timing.
+
+Store the expected credential in an edge dictionary rather than
+inlining it in VCL, and compare with `digest.secure_is_equal`:
+
+```vcl
+# Edge dictionary `auctioneer_ingress` holds key `health_token`.
+# Create it with:
+#   fastly dictionary create --name auctioneer_ingress --version latest
+#   fastly dictionary-item create --dictionary-id <id> \
+#     --key health_token --value "<a long random secret>"
+table auctioneer_ingress {}
+
+if (req.url.path ~ "^/_auctioneer/") {
+  declare local var.expected STRING;
+  declare local var.presented STRING;
+  set var.expected = table.lookup(auctioneer_ingress, "health_token", "");
+  set var.presented = req.http.Authorization;
+
+  # An unset dictionary key must FAIL CLOSED: an empty expected value
+  # would otherwise match a request that presented "Bearer ".
+  if (var.expected == "") {
+    error 401 "unauthorized";
+  }
+  # `digest.secure_is_equal` is constant-time; `==` on a secret is not.
+  if (!digest.secure_is_equal(var.presented, "Bearer " var.expected)) {
+    error 401 "unauthorized";
+  }
+}
+```
+
+The token this validates is the SAME credential the handler's
+`HealthAccessPolicy` checks — `health_gvl_token` in the Fastly secret
+store. Keeping the two in step means a rotation that misses one layer
+fails closed rather than open.
+
+Alternatively, and preferably where it is available, scope the service
+behind a signed-request policy or Fastly's own edge authentication for
+the prefix, so no credential is compared in VCL at all.
+
+## Kubernetes (any ingress-fronted deployment)
+
+Use an L7 proxy — nginx-ingress or istio — with a route matching the
+prefix and an authorization policy. A `NetworkPolicy` alone is NOT
+sufficient (L3/L4 only).
+
+istio example (`HTTPRoute` match + `AuthorizationPolicy`):
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: auctioneer-deny-internal
+spec:
+  selector:
+    matchLabels:
+      app: auctioneer
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            paths: ["/_auctioneer/*"]
+      from:
+        - source:
+            notNamespaces: ["ops"]
+```
+
+nginx-ingress equivalent: a dedicated `Ingress` for `/_auctioneer/` with
+`nginx.ingress.kubernetes.io/auth-url` pointing at your auth service.
+
+## Standalone Axum
+
+Run behind an ingress that terminates auth for the prefix — nginx
+`auth_request` (or envoy `ext_authz`):
+
+```nginx
+location /_auctioneer/ {
+  auth_request /_oauth2/auth;
+  proxy_pass   http://auctioneer;
+}
+```

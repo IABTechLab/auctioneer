@@ -1,0 +1,62 @@
+key = "startio"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/startio"
+tree = "08aab290f6c1ead60ab8a27edce7d51256173dc5"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/startio.yaml"
+source_blob = "3a4d0282d3a884505747cf0f588375ce53bb44b8"
+source_bytes = 278
+source_sha256 = "19138df396021d8ad0a82ce84ca968a3c090d34a4997e5e9f3197de31d0091f5"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs-rtb.startappnetwork.com/1.3/2.5/getbid?account=pbs"
+selected_url = "https://pbs-rtb.startappnetwork.com/1.3/2.5/getbid?account=pbs"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/startio.json"
+source_blob = "bae19ac4e81ef75e7c03bbf21a912ee7948244ff"
+source_bytes = 240
+source_sha256 = "90e71a1ceb8bf2c3c2041ce47ffae76eba5ee08d81e09c2bdb4a411ae30461d7"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 240
+source_sha256 = "90e71a1ceb8bf2c3c2041ce47ffae76eba5ee08d81e09c2bdb4a411ae30461d7"

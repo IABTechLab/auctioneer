@@ -1,0 +1,31 @@
+{
+  "id": "auc-mid-flight-timeout",
+  "tmax": 1000,
+  "cur": ["USD"],
+  "site": {
+    "page": "https://publisher.example/story",
+    "publisher": { "id": "acct-mid-flight" }
+  },
+  "imp": [
+    {
+      "id": "imp-ontime",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_on_time": {} } } }
+    },
+    {
+      "id": "imp-bidder-timeout",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_bidder_timeout": {} } } }
+    },
+    {
+      "id": "imp-auction-deadline",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_auction_deadline": {} } } }
+    }
+  ],
+  "ext": {
+    "prebid": {
+      "returnallbidstatus": true
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "$dynamicAnchor": "node",
+  "type": "object",
+  "properties": {
+    "value": {"type": "string", "pattern": "^[a-z]+$"},
+    "children": {"type": "array", "items": {"$dynamicRef": "#node"}}
+  },
+  "required": ["value"],
+  "unevaluatedProperties": false
+}

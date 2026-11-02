@@ -1,0 +1,5 @@
+error: OpenRtbFieldMetadata does not support generics or where clauses
+ --> tests/conformance/fail/generic.rs:3:12
+  |
+3 | struct Root<T> {
+  |            ^^^

@@ -1,0 +1,27 @@
+{
+  "valid": [
+    "{\"pkey\": \"123\"}",
+    "{\"pkey\": \"123\", \"bcat\": []}",
+    "{\"pkey\": \"123\", \"bcat\": [\"IAB-1\"]}",
+    "{\"pkey\": \"abc\", \"badv\": []}",
+    "{\"pkey\": \"abc\", \"badv\": [\"advertiser.com\"]}",
+    "{\"pkey\": \"abc123\", \"bcat\": [], \"badv\": []}",
+    "{\"pkey\": \"abc123\", \"bcat\": [\"IAB-1\", \"IAB-2\"], \"badv\": [\"other.advertiser.com\"]}"
+  ],
+  "invalid": [
+    "",
+    "null",
+    "true",
+    "5",
+    "4.2",
+    "[]",
+    "{}",
+    "{\"pkey\": 123}",
+    "{\"bcat\": 123}",
+    "{\"badv\": 123}",
+    "{\"bcat\": [\"IAB-1\", \"IAB-2\"]}",
+    "{\"badv\": [\"other.advertiser.com\"]}",
+    "{\"bcat\": [\"IAB-1\", \"IAB-2\"], \"badv\": [\"other.advertiser.com\"]}",
+    "{\"pkey\": 123, \"bcat\": [\"IAB-1\", \"IAB-2\"], \"badv\": [\"other.advertiser.com\"]}"
+  ]
+}

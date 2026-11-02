@@ -1,0 +1,526 @@
+key = "pubmatic"
+factory = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.pubmatic]
+endpoint = "https://hbopenbid.pubmatic.com/translator?source=prebid-server"
+endpointCompression = "gzip"
+gvlVendorID = 76
+
+[definitions.pubmatic.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.pubmatic.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.pubmatic.maintainer]
+email = "header-bidding@pubmatic.com"
+
+[definitions.pubmatic.openrtb]
+gpp-supported = true
+version = 2.6
+
+[definitions.pubmatic.userSync.iframe]
+url = "https://ads.pubmatic.com/AdServer/js/user_sync.html?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&predirect={{.RedirectURL}}"
+userMacro = ""
+
+[definitions.pubmatic.userSync.redirect]
+url = "https://image8.pubmatic.com/AdServer/ImgSync?p=159706&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&pu={{.RedirectURL}}"
+userMacro = "#PMUID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/pubmatic"
+tree = "a08e5d62adbf240cb6c7f53980798911402409da"
+port_differences = [
+    """\
+    Protocol work retains the existing active factory and independently maintained public \
+    definitions. No metadata endpoint promotion, routing approval, serving readiness, schema \
+    qualification or resource qualification follows from these captures or registration.""",
+    """\
+    Request contract: one aggregate POST contains surviving banner, video and native \
+    impressions; audio is removed, and audio-only or malformed impressions refuse locally. \
+    The source's unused thirty-impression constant does not introduce chunking. Publisher \
+    and wrapper selection follow surviving impression order; a complete root wrapper wins. \
+    SDK source/version, adSlot sizes, kadfloor maximum, keywords, direct dctr/pmzoneid, FPD, \
+    ae, gpid and skadn follow source transformations without restoring scrubbed inputs.""",
+    """\
+    Intentional identity boundary: wrapper.biddercode uses the resolved requested identity, \
+    never an arbitrary first request.ext.prebid.aliases key. The captured alias case replays \
+    with its requested pubmatic-alias; a separate canonical-identity control proves that \
+    unrelated aliases cannot rewrite it. Marketplace seat data remains provider payload and \
+    cannot override the exchange's authoritative requested bidder and adapter identities.""",
+    """\
+    Intentional determinism and input-safety boundaries: FPD targeting is emitted in stable \
+    key order rather than Go map iteration order. Unsupported targeting shapes are ignored \
+    without source panics. Finite decimal kadfloor parsing does not emulate nonfinite or \
+    source-language numeric quirks. FPD numeric scalars use finite f64 display, removing an \
+    integral .0 suffix; legacy scientific-exponent spelling is not reproduced. Competing \
+    case-equivalent parameter spellings refuse \
+    their owning scope; redacted diagnostics do not reproduce source parameter text. \
+    All-invalid input returns one terminal unknown error plus bounded per-impression \
+    construction diagnostics instead of the source's input-echoing error vector.""",
+    """\
+    Response contract: 204 is always no-bid without parsing, including nonempty bodies; 400 \
+    is bad input and other non-200 statuses are server errors. Standard integer mtype is \
+    required; missing, null, zero, unknown and malformed values have no legacy fallback. \
+    Exact sent-call coverage and offered media are independently required. Valid siblings \
+    survive bid-local failures. Audio is outside the declared capabilities and is rejected \
+    even when the original pre-filter request carried audio. Absent or empty currency \
+    defaults to USD.""",
+    """\
+    Response source metadata maps into existing bid.ext.prebid.meta, video and dealpriority \
+    owners, not a new TypedBid channel. Provider priority replaces an existing destination \
+    priority, clearing it for absent, null or nonpositive values. Only the first category \
+    survives; source duration \
+    defaults to zero and primary_category remains empty. ibv changes reported metadata to \
+    video without changing the banner bid's actual media type. Native ADM unwraps the native \
+    object while preserving its lexical bytes. Malformed native ADM refuses the affected bid \
+    instead of returning the source's invalid creative alongside an error. Browser auction \
+    configurations move through the sealed response channel without authoritative identities.""",
+    """\
+    Malformed or ambiguous recognized provider-extension values refuse only the affected bid, \
+    rather than publishing partially interpreted metadata. The shared OpenRTB response ID \
+    requirement remains strict: an ID-less empty object is a decode failure, not the reference's \
+    defaulted no-bid. No bidder-local second envelope decoder is introduced.""",
+    """\
+    Twenty-three original protocol captures total 104454 unchanged bytes: four exemplary \
+    and nineteen supplemental. bid_ext_ibv_true returns banner mtype for a video-only offer; \
+    Auctioneer refuses this unoffered media rather than rewriting the capture. native_invalid_adm \
+    also references an unsent impression, so derived controls separately isolate malformed \
+    ADM refusal and sibling survival with a covered ID. app records a legacy error for absent \
+    Bid.ext; Rust safely accepts that bid without inventing optional source metadata.""",
+    """\
+    Parameter capture contains exactly six validParams and twenty invalidParams raw-string \
+    literals extracted from pinned params_test.go without execution. The empty invalid \
+    literal remains empty and fails JSON parsing. Only container syntax and escaping are \
+    locally authored. No Go, JavaScript or metadata YAML is retained or executed. The factory \
+    fixture remains local evidence owned separately from immutable upstream captures.""",
+    """\
+    Inherited sealed DTO limits remain explicit: required bid IDs/price and eager nested \
+    extension decoding may reject a response before bid-local filtering. Original duplicate \
+    JSON keys and generic envelope case matching are not reconstructed by these tests. \
+    Captures do not establish exhaustive source parity or live provider acceptance.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/pubmatic.json"
+source_blob = "2b90360824bbbb3a24862eee541f820fa4fdf201"
+source_bytes = 1879
+source_sha256 = "ae12ee273b68efb9a97552159a24d6a00ef69891c82a2a71fb298aa73f619393"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 1879
+source_sha256 = "ae12ee273b68efb9a97552159a24d6a00ef69891c82a2a71fb298aa73f619393"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/pubmatic.yaml"
+source_blob = "c55272251a389ca9f59174ef0ea25ae48c5d1af8"
+source_bytes = 845
+source_sha256 = "f5af1a4905ade14fd0ac592ae89a464f67fecffb8a8989449e8869d5eeec51e1"
+transformation = """\
+    Source metadata is identified by the immutable witness. Existing effective definitions are \
+    independently maintained local configuration, not a conversion of this source."""
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/exemplary"
+tree = "6cb71f1f351e411939597d0c1c54728ce14ba05e"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental"
+tree = "a5f621288499a7152c6901f793b47192694560ea"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatic.go"
+source_blob = "ebc6634090ddb94c1823d4535a79fe08ac487ce8"
+source_bytes = 20639
+source_sha256 = "2f40a00bc7248cc6cec8ecaff33ec405d56d96fd954de552db5871bf69a5885d"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatic_test.go"
+source_blob = "de7afcd4d4310998898919bfbb02a0e78dcdd8b0"
+source_bytes = 28813
+source_sha256 = "726c38f5fd5037ad8ecfcdcb7cb8b33935739fd211fadc224bd453516b6136f9"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp_pubmatic.go"
+source_blob = "2a45b491d0aba77038b0844d89788c4144aeb127"
+source_bytes = 1021
+source_sha256 = "0d72f27a35add4f16f0c9b8d4166ec4b8b2fcd07e2a01b8c1d04113567cf8cb7"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "adapters/pubmatic/params_test.go"
+source_blob = "5ca06fdaf922d4e3e73df8aad5bb05e2b3f7f44f"
+source_bytes = 2915
+source_sha256 = "4964187f28b2dd2b3c5f231b2d160826419dc73db5bd27dd1545c44b980b37d2"
+transformation = """\
+Extract six validParams and twenty invalidParams raw-string literals verbatim into JSON \
+string arrays, including the empty invalid literal; only container and escaping are local. \
+No source execution."""
+
+[provenance.artifacts.retained]
+source_path = "fixtures/parameters.json"
+source_bytes = 1837
+source_sha256 = "949e5fca64921c4fd3662d7d0011c4a1822618713aa9170df5bcc79175632010"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/exemplary/banner.json"
+source_blob = "f371349dc04d719f1e981336ee847c610b112b91"
+source_bytes = 4434
+source_sha256 = "33720e79e3ac1f1c4baf444c6dcd3d0f7ca5d07aedce351e056a1c542caa2d53"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner.json"
+source_bytes = 4434
+source_sha256 = "33720e79e3ac1f1c4baf444c6dcd3d0f7ca5d07aedce351e056a1c542caa2d53"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/exemplary/fledge.json"
+source_blob = "4dd434b53a10318b3bcde71b0ad56eb6d835fc41"
+source_bytes = 4374
+source_sha256 = "62bab839e9df59fbd9e3d43b4cb463c3ed710fcacdda968dfc445845a95d9175"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/fledge.json"
+source_bytes = 4374
+source_sha256 = "62bab839e9df59fbd9e3d43b4cb463c3ed710fcacdda968dfc445845a95d9175"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/exemplary/native.json"
+source_blob = "e054a10a4effb2c4eabe27a8eaff49ecf9e4eaf0"
+source_bytes = 5648
+source_sha256 = "78dd8616dad464ee6b887233bbaf2c5fbe952a6be2588b0c754d4853ced00fa9"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/native.json"
+source_bytes = 5648
+source_sha256 = "78dd8616dad464ee6b887233bbaf2c5fbe952a6be2588b0c754d4853ced00fa9"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/exemplary/video.json"
+source_blob = "a3e4ec22f0bfc3869f69690991f755c89ad37b47"
+source_bytes = 5287
+source_sha256 = "f38fc941845fab3f382177cf1f768706a283cd514eb5e7b175aa03a8f1042264"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/video.json"
+source_bytes = 5287
+source_sha256 = "f38fc941845fab3f382177cf1f768706a283cd514eb5e7b175aa03a8f1042264"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/app.json"
+source_blob = "e3db8f33a432f58a306ae641a756084693d6e91e"
+source_bytes = 4341
+source_sha256 = "82172e164bc7a18978fd6c47a75f96709bdba2772363c62a14d2e024bc24bdb9"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/app.json"
+source_bytes = 4341
+source_sha256 = "82172e164bc7a18978fd6c47a75f96709bdba2772363c62a14d2e024bc24bdb9"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/audio.json"
+source_blob = "4142e334ff996f8360ad6cbe498d1fd43384e952"
+source_bytes = 582
+source_sha256 = "bf002e1662af78de3a8aa9743120d42cb7c0f18bc165db27d1e2c66e73784e41"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/audio.json"
+source_bytes = 582
+source_sha256 = "bf002e1662af78de3a8aa9743120d42cb7c0f18bc165db27d1e2c66e73784e41"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/bid_ext_ibv_true.json"
+source_blob = "f4d3cc7b768cb55694893f9ced7fef7eb789132d"
+source_bytes = 5986
+source_sha256 = "ddb401435b6c2f1d81f15528fc42c2644e4aef33671ef5cae4e7f9751e621d1f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/bid_ext_ibv_true.json"
+source_bytes = 5986
+source_sha256 = "ddb401435b6c2f1d81f15528fc42c2644e4aef33671ef5cae4e7f9751e621d1f"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/dctrAndPmZoneID.json"
+source_blob = "2484a78a10e9634037ef81254eec5e76bffebdb6"
+source_bytes = 4494
+source_sha256 = "b7a5ab63808c3656ffc179ce05ca448245c4877a2e611d105ff3f80d52d07ff3"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/dctrAndPmZoneID.json"
+source_bytes = 4494
+source_sha256 = "b7a5ab63808c3656ffc179ce05ca448245c4877a2e611d105ff3f80d52d07ff3"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/displayManagerInAppExt.json"
+source_blob = "ade3d88db879e3d578464bbfe82f3468252aa91d"
+source_bytes = 6818
+source_sha256 = "abbc808c221557ecd5f50024806b079510de3745a1487232f43ae7d01213572a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/displayManagerInAppExt.json"
+source_bytes = 6818
+source_sha256 = "abbc808c221557ecd5f50024806b079510de3745a1487232f43ae7d01213572a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/displayManagerInAppExtPrebid.json"
+source_blob = "b52f1fe70fe6fbea9e2f7197b92b60cdfab9d2f4"
+source_bytes = 7131
+source_sha256 = "500cf94f4a5936968b9aa6d90be20e6654e4094e95b75e54c4f46ebf5cd3e7df"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/displayManagerInAppExtPrebid.json"
+source_bytes = 7131
+source_sha256 = "500cf94f4a5936968b9aa6d90be20e6654e4094e95b75e54c4f46ebf5cd3e7df"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/extra-bid.json"
+source_blob = "3cdb3b7f0c9048399fd09cdf18ef2e2c1c372053"
+source_bytes = 6076
+source_sha256 = "cb2dc77fa5b1bd5e5b80f1d3addae9adb6a850fce0861e8f7ff3fc5cb586d061"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/extra-bid.json"
+source_bytes = 6076
+source_sha256 = "cb2dc77fa5b1bd5e5b80f1d3addae9adb6a850fce0861e8f7ff3fc5cb586d061"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/gptSlotNameInImpExt.json"
+source_blob = "03fdcc6ab467529282dfb1ea5cf703e2d86dc8d2"
+source_bytes = 4087
+source_sha256 = "75073e87ce36767fccab500d96cda095e248d77394a78693bbd6a80e66fb91af"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/gptSlotNameInImpExt.json"
+source_bytes = 4087
+source_sha256 = "75073e87ce36767fccab500d96cda095e248d77394a78693bbd6a80e66fb91af"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/gptSlotNameInImpExtPbAdslot.json"
+source_blob = "6dfffaf2d9245dad42c577374b7e8767eab68dd4"
+source_bytes = 3980
+source_sha256 = "cb0a18c112f7fbb91fc029857a02715b1f26a9394382a85428c592db8a0f603c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/gptSlotNameInImpExtPbAdslot.json"
+source_bytes = 3980
+source_sha256 = "cb0a18c112f7fbb91fc029857a02715b1f26a9394382a85428c592db8a0f603c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/impExt.json"
+source_blob = "86c7447382c30891eae0a62b5c2ba1bc2e9053d2"
+source_bytes = 6597
+source_sha256 = "404f6fbc490fdb7e3a874fcd256c12ae37db0ae786c6d5922b6805cca116c091"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/impExt.json"
+source_bytes = 6597
+source_sha256 = "404f6fbc490fdb7e3a874fcd256c12ae37db0ae786c6d5922b6805cca116c091"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/invalidparam.json"
+source_blob = "cb226534851974f0eb0fecdb3f81e60f75c2c11b"
+source_bytes = 3170
+source_sha256 = "6c0f707cde92bbd981f6672eadab81d7a684e9099950e38c589932208a5a454c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalidparam.json"
+source_bytes = 3170
+source_sha256 = "6c0f707cde92bbd981f6672eadab81d7a684e9099950e38c589932208a5a454c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/multiplemedia.json"
+source_blob = "4e456dd58cfee9132cee8987ce459ab522e80ebc"
+source_bytes = 3169
+source_sha256 = "bf910d9ec11daea8c9ceac4e159650e675eec0b76043e6c934092e08db7c32d7"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/multiplemedia.json"
+source_bytes = 3169
+source_sha256 = "bf910d9ec11daea8c9ceac4e159650e675eec0b76043e6c934092e08db7c32d7"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/native_invalid_adm.json"
+source_blob = "a28a470970c78a19effaf787b2b3dfc4e53f3ede"
+source_bytes = 4150
+source_sha256 = "491f62f5608ad9977c4c2fbba3c4713b0acba6963baa05283923bdf146345821"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/native_invalid_adm.json"
+source_bytes = 4150
+source_sha256 = "491f62f5608ad9977c4c2fbba3c4713b0acba6963baa05283923bdf146345821"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/nilReqExt.json"
+source_blob = "ea7a62b79f62de1088e462103c36af2f173a0509"
+source_bytes = 3919
+source_sha256 = "82b97b16a64b38af9bf04f961c894da8cb3298ca24fe02bf0becb9fc819507ca"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/nilReqExt.json"
+source_bytes = 3919
+source_sha256 = "82b97b16a64b38af9bf04f961c894da8cb3298ca24fe02bf0becb9fc819507ca"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/noAdSlot.json"
+source_blob = "ff0af3a766c23a69d5f3f74277488dccf38994fc"
+source_bytes = 4133
+source_sha256 = "d8baeeff90e0152af97d0874ad0a62a4f2f0b9f544dc16ebabeb3d657a0bee05"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/noAdSlot.json"
+source_bytes = 4133
+source_sha256 = "d8baeeff90e0152af97d0874ad0a62a4f2f0b9f544dc16ebabeb3d657a0bee05"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/pmZoneIDInKeywords.json"
+source_blob = "e3a5ccf19f21990c7da1683c157dd188ff872e9b"
+source_bytes = 3984
+source_sha256 = "01e9c5201acc788acda42706d5fad3c6e6ea6866d1a63cea5745a4d28ce40df0"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/pmZoneIDInKeywords.json"
+source_bytes = 3984
+source_sha256 = "01e9c5201acc788acda42706d5fad3c6e6ea6866d1a63cea5745a4d28ce40df0"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/reqBidderParams.json"
+source_blob = "dbc0ae5cff52da7babf8f04a594e4c1530333b65"
+source_bytes = 4075
+source_sha256 = "61ab8a165ae5cec5bedb1be72175a476fed1b209a49306e14f4c073655b5d750"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/reqBidderParams.json"
+source_bytes = 4075
+source_sha256 = "61ab8a165ae5cec5bedb1be72175a476fed1b209a49306e14f4c073655b5d750"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/reqExtPrebidAliases.json"
+source_blob = "96787f0d39ba6360c10518030e9160f5053f11b2"
+source_bytes = 4154
+source_sha256 = "6b2f1223b559659ab2a0c840fe954e15c1059dfad59f8533dbab1854a28edc25"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/reqExtPrebidAliases.json"
+source_bytes = 4154
+source_sha256 = "6b2f1223b559659ab2a0c840fe954e15c1059dfad59f8533dbab1854a28edc25"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/pubmatic/pubmatictest/supplemental/trimPublisherID.json"
+source_blob = "3d6887986bd70c3f5ec7f85523875d8ca6f4f3d5"
+source_bytes = 3865
+source_sha256 = "790dd203fada8efc8419d701cec5f215b3cf180a17342d6f6aab948174b0033f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/trimPublisherID.json"
+source_bytes = 3865
+source_sha256 = "790dd203fada8efc8419d701cec5f215b3cf180a17342d6f6aab948174b0033f"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/bid.go"
+source_blob = "e8afbae3bda9df3f6b95b7b8e4fcd9e56832d317"
+source_bytes = 7575
+source_sha256 = "db65e4e96eae77ea0a9012525ccd55770eb09b8d68bc0b4829e100800529d978"

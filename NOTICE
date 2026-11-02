@@ -1,0 +1,42 @@
+Auctioneer
+Copyright 2026 IAB Technology Laboratory, Inc.
+Licensed under the Apache License, Version 2.0.
+
+Third-party attributions
+
+Prebid Server
+https://github.com/prebid/prebid-server
+Copyright 2017 PREBID.ORG, INC
+Licensed under the Apache License, Version 2.0.
+
+Auctioneer includes selected bidder implementations ported and adapted to Rust,
+bidder metadata, parameter schemas, and reference-derived material from
+Prebid Server. Its auction, privacy and user-sync behavior and captured
+reference fixtures also draw on that project. Credit belongs to Prebid.org
+and the Prebid Server contributors.
+
+Additional bidder reference material comes from the Stackpop fork:
+https://github.com/stackpop/prebid-server
+The original Prebid Server copyright and license notices remain applicable
+to material derived from that project.
+
+go-gpp
+https://github.com/prebid/go-gpp/tree/v0.2.0
+Licensed under the Apache License, Version 2.0.
+
+Historical GPP and privacy reference fixtures used go-gpp v0.2.0.
+Auctioneer's production GPP envelope parser is separately implemented against
+the IAB specification; go-gpp is not a production runtime dependency.
+
+The Apache License 2.0 text is included in LICENSE. Existing source-license
+captures and component notices are retained unchanged. Bidder manifests
+and reference-fixture README files record applicable source revisions,
+provenance and intentional differences; those records remain authoritative
+for the particular material they describe.
+
+Auctioneer's ports and adaptations are modified work, not an unchanged distribution
+of Prebid Server. These acknowledgements do not imply upstream certification,
+affiliation or endorsement, and do not grant trademark rights.
+
+Other third-party components and data retain their own licenses and notices.
+This attribution record is not a complete dependency or data-license inventory.

@@ -1,0 +1,62 @@
+key = "oms"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/oms"
+tree = "f985c9a8ce7c70ca66e4f4432f318681158ff79e"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/oms.yaml"
+source_blob = "c6d388e4e1fa2e02b925604aa2d497c9f356b7f6"
+source_bytes = 214
+source_sha256 = "9d33b9d8940a2908b4fdd43e774905d77262595040c24311555514ce27fea4e3"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://rt.marphezis.com/pbs"
+selected_url = "https://rt.marphezis.com/pbs"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/oms.json"
+source_blob = "c53980698afecaaa9689b65ab14fe1d35dcac140"
+source_bytes = 645
+source_sha256 = "7767a3363a0ccdd4a327b2d6e3ede82b030df97c7866c320b4888548123c43f5"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 645
+source_sha256 = "7767a3363a0ccdd4a327b2d6e3ede82b030df97c7866c320b4888548123c43f5"

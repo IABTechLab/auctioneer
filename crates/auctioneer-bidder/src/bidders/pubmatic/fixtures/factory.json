@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "implementation": "pubmatic",
+  "manifest_sha256": "6160e5eeab24243fff7cb2edebeddde719a15621abf8778d8b9f89e2e7efb9ba",
+  "cases": [
+    {
+      "name": "banner-and-unsent-sibling",
+      "request": {
+        "id": "catalog-request",
+        "imp": [
+          {
+            "id": "i",
+            "banner": {
+              "w": 300,
+              "h": 250
+            },
+            "ext": {
+              "bidder": {
+                "publisherId": "fake_publisher",
+                "adSlot": "fake_slot@300x250"
+              }
+            }
+          }
+        ],
+        "ext": {
+          "fake_unrelated": {
+            "preserve": false
+          }
+        }
+      },
+      "context": {
+        "account_id": "catalog-account",
+        "endpoint_template": "https://bidder.example.test/openrtb?account={{.AccountID}}",
+        "endpoint_macros": [
+          "AccountID"
+        ],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/openrtb?account=catalog-account",
+          "required_headers": [
+            [
+              "Content-Type",
+              "application/json;charset=utf-8"
+            ],
+            [
+              "Accept",
+              "application/json"
+            ]
+          ],
+          "absent_headers": [],
+          "imp_ids": [
+            "i"
+          ],
+          "body": {
+            "id": "catalog-request",
+            "imp": [
+              {
+                "id": "i",
+                "banner": {
+                  "w": 300,
+                  "h": 250
+                },
+                "tagid": "fake_slot"
+              }
+            ],
+            "ext": {
+              "wrapper": {
+                "biddercode": "pubmatic"
+              }
+            }
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "valid",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "factory-bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "mtype": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "factory-bid",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": []
+          }
+        },
+        {
+          "name": "valid-with-unsent",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "factory-bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "mtype": 1
+                  },
+                  {
+                    "id": "rejected-bid",
+                    "impid": "not-sent",
+                    "price": 1.25,
+                    "mtype": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "factory-bid",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": [
+              4
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "nonempty-204",
+      "request": {
+        "id": "catalog-request",
+        "imp": [
+          {
+            "id": "i",
+            "banner": {
+              "w": 300,
+              "h": 250
+            },
+            "ext": {
+              "bidder": {
+                "publisherId": "fake_publisher",
+                "adSlot": "fake_slot@300x250"
+              }
+            }
+          }
+        ],
+        "ext": {
+          "fake_unrelated": {
+            "preserve": false
+          }
+        }
+      },
+      "context": {
+        "account_id": "catalog-account",
+        "endpoint_template": "https://bidder.example.test/openrtb?account={{.AccountID}}",
+        "endpoint_macros": [
+          "AccountID"
+        ],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/openrtb?account=catalog-account",
+          "required_headers": [
+            [
+              "Content-Type",
+              "application/json;charset=utf-8"
+            ],
+            [
+              "Accept",
+              "application/json"
+            ]
+          ],
+          "absent_headers": [],
+          "imp_ids": [
+            "i"
+          ],
+          "body": {
+            "id": "catalog-request",
+            "imp": [
+              {
+                "id": "i",
+                "banner": {
+                  "w": 300,
+                  "h": 250
+                },
+                "tagid": "fake_slot"
+              }
+            ],
+            "ext": {
+              "wrapper": {
+                "biddercode": "pubmatic"
+              }
+            }
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "nonempty-204",
+          "call": 0,
+          "status": 204,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "status-bid",
+                    "impid": "i",
+                    "price": 1.25
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [],
+            "errors": []
+          }
+        }
+      ]
+    }
+  ]
+}

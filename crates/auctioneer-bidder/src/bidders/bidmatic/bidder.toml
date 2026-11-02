@@ -1,0 +1,62 @@
+key = "bidmatic"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/bidmatic"
+tree = "6959ed00591b7b2c5f7cbceb6a508bfa3aa0b050"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/bidmatic.yaml"
+source_blob = "19211190033fbad160dba06b28f68d21c7d4f893"
+source_bytes = 443
+source_sha256 = "919279b87bdc73e0e5228425b9bdb20256c35dc7729c3087368ff876c12cb5b1"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://adapter.bidmatic.io/pbs/ortb"
+selected_url = "https://adapter.bidmatic.io/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/bidmatic.json"
+source_blob = "b3002a55ac595135a4cdbbef3dd0f0fb92047a9f"
+source_bytes = 744
+source_sha256 = "a98be06f4478d0e2e607a5dd47185307cd23a7d8abc1093db60e8fba311882c8"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 744
+source_sha256 = "a98be06f4478d0e2e607a5dd47185307cd23a7d8abc1093db60e8fba311882c8"

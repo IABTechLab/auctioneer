@@ -1,0 +1,116 @@
+# Runs Cloudflare's own packager over the Workers adapter and gates
+# both size figures the platform enforces.
+#
+# `cargo check --target wasm32-unknown-unknown` (in test.yml) proves
+# the crate compiles. It does NOT prove `worker-build` produces a
+# loadable shim, that wrangler accepts the worker, or that the upload
+# fits Cloudflare's ceilings. This workflow runs the vendor tools.
+#
+# `wrangler deploy --dry-run` needs no account, no API token and
+# uploads nothing; it stops before authenticating.
+#
+# WHAT THIS GATE DOES NOT COVER, stated so its green is not read as
+# more than it is: there is no local runtime here, so nothing in this
+# workflow probes per-call cancellation, the per-call deadline or the
+# response body cap. Those are proven over a real socket on the axum
+# target, in `crates/auctioneer-adapter-axum/tests`, and that is the only
+# target whose local runtime completes boot. `src/envelope.rs` records
+# why this one cannot: the baseline needs the JS-heap half over the
+# DevTools protocol against `wrangler dev`, and no local tool here
+# yields it. This stays a build-and-size gate until that changes.
+name: "CI: Cloudflare"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # DECIMAL bytes. Cloudflare documents its Worker size limits in
+  # decimal MB: 10 MB after compression and 64 MB before it. The
+  # binary-MiB spellings (10 * 1024 * 1024 = 10485760) are LARGER than
+  # the real 10,000,000-byte limit, so a gate built on them would pass
+  # CI and then fail the deploy. The values below are the project
+  # budgets, set under the real ceilings to leave headroom.
+  CF_GZIP_MAX_BYTES: 9000000
+  CF_UNCOMPRESSED_MAX_BYTES: 60000000
+
+jobs:
+  cloudflare-build:
+    name: wrangler dry-run + upload size
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Add the wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wrangler.toml's [build] command is `worker-build --release`,
+      # which wrangler shells out to. It has to be on PATH before
+      # wrangler runs. worker-build drives wasm-pack, which fetches
+      # wasm-opt on first use.
+      # Cached binaries can outlive Cargo's installation records.
+      - name: Install worker-build
+        run: |
+          version="$(awk '$1 == "worker-build" { print $2 }' .tool-versions)"
+          cargo install worker-build --version "${version:?worker-build version is missing from .tool-versions}" --locked --force
+
+      # The vendor packager. Runs worker-build via wrangler.toml's
+      # [build] hook, bundles the shim and reports the upload size.
+      # `set -o pipefail` matters: without it the tee pipeline would
+      # report the exit status of tee and mask a wrangler failure.
+      - name: wrangler deploy --dry-run
+        working-directory: crates/auctioneer-adapter-cloudflare
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --dry-run --outdir out/cf 2>&1 | tee /tmp/wrangler.log
+
+      # Parse wrangler's own report rather than measuring the outdir.
+      # `du -sb out/cf` was explicitly retired: it measures an
+      # uncompressed directory that can include files wrangler never
+      # uploads, and it cannot see the gzip figure the 10 MB limit
+      # actually applies to.
+      - name: Gate the reported upload size
+        id: size
+        run: bash .github/workflows/scripts/ci-cloudflare/measure-upload.sh
+
+      - name: Upload the built worker
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-worker
+          path: crates/auctioneer-adapter-cloudflare/out/cf
+          if-no-files-found: error

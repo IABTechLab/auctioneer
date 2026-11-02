@@ -1,0 +1,805 @@
+//! Closed lowering of the serde boolean helper ABI. Default output never enters this pass.
+
+use std::collections::HashMap;
+
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote};
+use syn::{
+    parse_quote,
+    visit_mut::{self, VisitMut},
+    Expr, Item, Pat, ReturnType, Type,
+};
+
+use crate::context::{CompileContext, PatternEngineConfig};
+
+use super::emit::ValueEmitter;
+
+#[derive(Clone, Copy)]
+enum Binding {
+    Other,
+    Callable(usize),
+    Dispatch(usize),
+}
+
+struct State {
+    item: syn::ItemStatic,
+    arity: Option<usize>,
+}
+
+fn failure(node: impl quote::ToTokens, message: &str) -> syn::Error {
+    syn::Error::new_spanned(node, format!("explicit cache lowering: {message}"))
+}
+
+fn simple_path(expr: &Expr) -> Option<&Ident> {
+    let Expr::Path(path) = expr else { return None };
+    if path.qself.is_none() && path.path.leading_colon.is_none() {
+        path.path.get_ident()
+    } else {
+        None
+    }
+}
+
+fn is_bool(output: &ReturnType) -> bool {
+    matches!(output, ReturnType::Type(_, ty) if matches!(ty.as_ref(), Type::Path(path) if path.qself.is_none() && path.path.is_ident("bool")))
+}
+
+fn state_arity(name: &str) -> Option<Option<usize>> {
+    Some(match name {
+        "__JSONSCHEMA_RECURSIVE_STACK" | "__JSONSCHEMA_DYNAMIC_STACK" => Some(1),
+        "__JSONSCHEMA_RECURSIVE_KEY_EVAL_STACK" | "__JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK" => Some(3),
+        "__JSONSCHEMA_RECURSIVE_ITEM_EVAL_STACK" | "__JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK" => {
+            Some(4)
+        }
+        "__JSONSCHEMA_VALIDATE_MARK" | "__JSONSCHEMA_EVAL_MARK" => None,
+        _ => return None,
+    })
+}
+
+fn unused_error_stack(name: &str) -> bool {
+    matches!(
+        name,
+        "__JSONSCHEMA_RECURSIVE_VALIDATE_STACK"
+            | "__JSONSCHEMA_RECURSIVE_COLLECT_STACK"
+            | "__JSONSCHEMA_DYNAMIC_VALIDATE_STACK"
+            | "__JSONSCHEMA_DYNAMIC_COLLECT_STACK"
+    )
+}
+
+struct PointerAbi {
+    arity: usize,
+    found: usize,
+    error: Option<syn::Error>,
+}
+
+impl VisitMut for PointerAbi {
+    fn visit_type_bare_fn_mut(&mut self, ty: &mut syn::TypeBareFn) {
+        if !is_bool(&ty.output) || ty.inputs.len() != self.arity || ty.variadic.is_some() {
+            self.error = Some(failure(
+                &*ty,
+                "unexpected boolean function-pointer signature",
+            ));
+            return;
+        }
+        ty.inputs.push(parse_quote! { &mut __SearchCache });
+        self.found += 1;
+    }
+}
+
+fn lower_pointer(ty: &mut Type, arity: usize) -> syn::Result<()> {
+    let mut abi = PointerAbi {
+        arity,
+        found: 0,
+        error: None,
+    };
+    abi.visit_type_mut(ty);
+    if let Some(error) = abi.error {
+        return Err(error);
+    }
+    if abi.found != 1 {
+        return Err(failure(
+            ty,
+            "expected exactly one boolean function-pointer type",
+        ));
+    }
+    Ok(())
+}
+
+fn remove_root_uri_clears(block: &mut syn::Block, uri_names: &[String]) -> syn::Result<()> {
+    let mut removed = 0;
+    let mut statements = Vec::new();
+    for statement in std::mem::take(&mut block.stmts) {
+        if let syn::Stmt::Expr(Expr::MethodCall(call), _) = &statement {
+            if simple_path(&call.receiver).is_some_and(|name| uri_names.contains(&name.to_string()))
+            {
+                let valid = if let Some(Expr::Closure(closure)) = call.args.first() {
+                    matches!(closure.body.as_ref(), Expr::MethodCall(clear)
+                        if clear.method == "clear" && clear.args.is_empty()
+                        && matches!(closure.inputs.first(), Some(Pat::Ident(pat))
+                            if simple_path(&clear.receiver) == Some(&pat.ident)))
+                        && closure.inputs.len() == 1
+                } else {
+                    false
+                };
+                if call.method != "with_borrow_mut" || call.args.len() != 1 || !valid {
+                    return Err(failure(call, "unexpected root URI cache clear"));
+                }
+                removed += 1;
+                continue;
+            }
+        }
+        statements.push(statement);
+    }
+    block.stmts = statements;
+    if removed != uri_names.len() {
+        return Err(failure(block, "missing root URI cache clears"));
+    }
+    Ok(())
+}
+
+pub(super) fn lower<E: ValueEmitter>(
+    ctx: &CompileContext<'_, E>,
+    tokens: TokenStream,
+    name: &Ident,
+    module_name: &Ident,
+    automata: &TokenStream,
+) -> syn::Result<TokenStream> {
+    let mut file: syn::File = syn::parse2(tokens)?;
+    let module = file
+        .items
+        .iter_mut()
+        .find_map(|item| match item {
+            Item::Mod(module) if module.ident == *module_name => Some(module),
+            _ => None,
+        })
+        .ok_or_else(|| failure(module_name, "missing private module"))?;
+    let (_, items) = module
+        .content
+        .as_mut()
+        .ok_or_else(|| failure(module_name, "expected inline private module"))?;
+    let uri_names: Vec<_> = ctx
+        .uri_format_caches
+        .iter()
+        .map(|cache| format!("__JSONSCHEMA_{}_FORMAT_CACHE", cache.base().to_uppercase()))
+        .collect();
+    let mut states = Vec::new();
+    let mut retained = Vec::new();
+    for item in std::mem::take(items) {
+        if let Item::Macro(mac) = &item {
+            if mac
+                .mac
+                .path
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == "thread_local")
+            {
+                if mac.mac.path.leading_colon.is_some()
+                    || mac.mac.path.segments.len() != 2
+                    || mac.mac.path.segments[0].ident != "std"
+                {
+                    return Err(failure(mac, "unexpected thread-local macro"));
+                }
+                let declarations: syn::File = syn::parse2(mac.mac.tokens.clone())?;
+                for declaration in declarations.items {
+                    let Item::Static(mut declaration) = declaration else {
+                        return Err(failure(declaration, "unexpected thread-local declaration"));
+                    };
+                    let state_name = declaration.ident.to_string();
+                    if unused_error_stack(&state_name) {
+                        continue;
+                    }
+                    let arity = if let Some(arity) = state_arity(&state_name) {
+                        arity
+                    } else if uri_names.contains(&state_name) {
+                        None
+                    } else {
+                        return Err(failure(declaration, "unknown generated thread-local state"));
+                    };
+                    if states
+                        .iter()
+                        .any(|state: &State| state.item.ident == declaration.ident)
+                    {
+                        return Err(failure(declaration, "duplicate generated state"));
+                    }
+                    if let Some(arity) = arity {
+                        lower_pointer(&mut declaration.ty, arity)?;
+                    }
+                    states.push(State {
+                        item: declaration,
+                        arity,
+                    });
+                }
+                continue;
+            }
+        }
+        retained.push(item);
+    }
+    *items = retained;
+
+    let PatternEngineConfig::Regex {
+        size_limit,
+        dfa_size_limit,
+    } = ctx.config.pattern_options
+    else {
+        return Err(failure(name, "explicit matching requires the regex engine"));
+    };
+    // These are regex::RegexBuilder's string defaults, not just meta::Regex's defaults.
+    let nfa_limit = size_limit.unwrap_or(10 * (1 << 20));
+    let hybrid_capacity = dfa_size_limit.unwrap_or(2 * (1 << 20));
+    let mut regex_fields = Vec::new();
+    for (helper_name, pattern) in &ctx.regex_helpers {
+        let helper = format_ident!("{helper_name}");
+        let storage = format_ident!("{}_REGEX", helper_name.to_uppercase());
+        let field = format_ident!("{helper_name}_cache");
+        let mut found_static = false;
+        let mut found_helper = false;
+        for item in items.iter_mut() {
+            match item {
+                Item::Static(item) if item.ident == storage => {
+                    *item = parse_quote! {
+                        static #storage: __Lazy<Option<__ra::meta::Regex>> = __Lazy::new(|| {
+                            __ra::meta::Regex::builder()
+                                .configure(__ra::meta::Regex::config()
+                                    .match_kind(__ra::MatchKind::LeftmostFirst)
+                                    .utf8_empty(true)
+                                    .nfa_size_limit(Some(#nfa_limit))
+                                    .hybrid_cache_capacity(#hybrid_capacity)
+                                    .pool_capacity(1))
+                                .syntax(__ra::util::syntax::Config::default().utf8(true))
+                                .build(#pattern).ok()
+                        });
+                    };
+                    found_static = true;
+                }
+                Item::Fn(item) if item.sig.ident == helper => {
+                    item.block = Box::new(parse_quote! {
+                        {
+                            #storage.as_ref().is_some_and(|regex| {
+                                regex.search_half_with(
+                                    &mut __cache.#field,
+                                    &__ra::Input::new(subject).earliest(true),
+                                ).is_some()
+                            })
+                        }
+                    });
+                    found_helper = true;
+                }
+                _ => {}
+            }
+        }
+        if !found_static || !found_helper {
+            return Err(failure(
+                helper,
+                "missing regex helper or shared constructor",
+            ));
+        }
+        regex_fields.push((field, storage));
+    }
+
+    let helpers: HashMap<_, _> = items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Fn(item)
+                if is_bool(&item.sig.output) && item.sig.ident != "initialize_regexes" =>
+            {
+                Some((item.sig.ident.to_string(), item.sig.inputs.len()))
+            }
+            _ => None,
+        })
+        .collect();
+    if !helpers.contains_key("is_valid") || !helpers.contains_key("entry_is_valid") {
+        return Err(failure(module_name, "missing boolean entry points"));
+    }
+    let state_names = states
+        .iter()
+        .map(|state| (state.item.ident.to_string(), state.arity))
+        .collect();
+    let mut lowering = Lowering {
+        helpers,
+        states: state_names,
+        scopes: Vec::new(),
+        error: None,
+    };
+    for item in items.iter_mut() {
+        if let Item::Fn(function) = item {
+            if lowering
+                .helpers
+                .contains_key(&function.sig.ident.to_string())
+            {
+                if function.sig.ident == "is_valid" {
+                    remove_root_uri_clears(&mut function.block, &uri_names)?;
+                }
+                function
+                    .sig
+                    .inputs
+                    .push(parse_quote! { __cache: &mut __SearchCache });
+                lowering.visit_block_mut(&mut function.block);
+                if function.sig.ident == "entry_is_valid" {
+                    function
+                        .block
+                        .stmts
+                        .insert(0, parse_quote! { __cache.reset(); });
+                }
+            }
+        }
+    }
+    if let Some(error) = lowering.error {
+        return Err(error);
+    }
+
+    let fields = states.iter().map(|state| {
+        let ident = &state.item.ident;
+        let ty = &state.item.ty;
+        quote! { #ident: #ty }
+    });
+    let initializers = states.iter().map(|state| {
+        let ident = &state.item.ident;
+        let value = &state.item.expr;
+        quote! { #ident: #value }
+    });
+    let resets = states.iter().map(|state| {
+        let ident = &state.item.ident;
+        quote! { self.#ident.get_mut().clear(); }
+    });
+    let cache_fields = regex_fields
+        .iter()
+        .map(|(field, _)| quote! { #field: __ra::meta::Cache });
+    let cache_initializers = regex_fields
+        .iter()
+        .map(|(field, storage)| quote! { #field: #storage.as_ref()?.create_cache() });
+    let support: syn::File = syn::parse2(quote! {
+        use #automata as __ra;
+
+        pub(super) struct __SearchCache {
+            #(#cache_fields,)*
+            #(#fields,)*
+        }
+
+        impl __SearchCache {
+            fn reset(&mut self) { #(#resets)* }
+        }
+
+        pub(super) fn new_search_cache() -> Option<__SearchCache> {
+            if !initialize_regexes() { return None; }
+            Some(__SearchCache { #(#cache_initializers,)* #(#initializers,)* })
+        }
+
+        fn __with_state<T, R>(state: &std::cell::RefCell<T>, op: impl FnOnce(&std::cell::RefCell<T>) -> R) -> R {
+            op(state)
+        }
+
+        fn __with_state_mut<T, R>(state: &std::cell::RefCell<T>, op: impl FnOnce(&mut T) -> R) -> R {
+            op(&mut *state.borrow_mut())
+        }
+    })?;
+    items.extend(support.items);
+
+    let cache_name = format_ident!("{}SearchCache", name);
+    let mut found_public = false;
+    for item in &mut file.items {
+        if let Item::Impl(item) = item {
+            if matches!(item.self_ty.as_ref(), Type::Path(path) if path.path.is_ident(name)) {
+                for member in &mut item.items {
+                    if let syn::ImplItem::Fn(method) = member {
+                        if method.sig.ident == "is_valid" {
+                            method
+                                .sig
+                                .inputs
+                                .push(parse_quote! { __cache: &mut #cache_name });
+                            method.block = parse_quote! {
+                                { #module_name::entry_is_valid(instance, &mut __cache.__inner) }
+                            };
+                            found_public = true;
+                        }
+                    }
+                }
+                item.items.push(parse_quote! {
+                    pub fn new_search_cache() -> Option<#cache_name> {
+                        #module_name::new_search_cache().map(|__inner| #cache_name { __inner })
+                    }
+                });
+            }
+        }
+    }
+    if !found_public {
+        return Err(failure(name, "missing public boolean wrapper"));
+    }
+    Ok(quote! { #file })
+}
+
+struct Lowering {
+    helpers: HashMap<String, usize>,
+    states: HashMap<String, Option<usize>>,
+    scopes: Vec<HashMap<String, Binding>>,
+    error: Option<syn::Error>,
+}
+
+impl Lowering {
+    fn reject(&mut self, node: impl quote::ToTokens, message: &str) {
+        if self.error.is_none() {
+            self.error = Some(failure(node, message));
+        }
+    }
+
+    fn binding(&self, ident: &Ident) -> Option<Binding> {
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&ident.to_string()).copied())
+    }
+
+    fn bind(&mut self, ident: &Ident, binding: Binding) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(ident.to_string(), binding);
+        }
+    }
+
+    fn bind_pattern(&mut self, pat: &Pat) {
+        match pat {
+            Pat::Ident(pat) => {
+                self.bind(&pat.ident, Binding::Other);
+                if let Some((_, pat)) = &pat.subpat {
+                    self.bind_pattern(pat);
+                }
+            }
+            Pat::Type(pat) => self.bind_pattern(&pat.pat),
+            Pat::Reference(pat) => self.bind_pattern(&pat.pat),
+            Pat::Paren(pat) => self.bind_pattern(&pat.pat),
+            Pat::Tuple(pat) => {
+                for pat in &pat.elems {
+                    self.bind_pattern(pat);
+                }
+            }
+            Pat::TupleStruct(pat) => {
+                for pat in &pat.elems {
+                    self.bind_pattern(pat);
+                }
+            }
+            Pat::Struct(pat) => {
+                for field in &pat.fields {
+                    self.bind_pattern(&field.pat);
+                }
+            }
+            Pat::Slice(pat) => {
+                for pat in &pat.elems {
+                    self.bind_pattern(pat);
+                }
+            }
+            Pat::Or(pat) => {
+                for pat in &pat.cases {
+                    self.bind_pattern(pat);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn callable_arity(&self, ident: &Ident) -> Option<usize> {
+        match self.binding(ident) {
+            Some(Binding::Callable(arity)) => Some(arity),
+            Some(_) => None,
+            None => self.helpers.get(&ident.to_string()).copied(),
+        }
+    }
+
+    fn dispatch_arity(&self, expr: &Expr) -> Option<usize> {
+        let Expr::MethodCall(call) = expr else {
+            return None;
+        };
+        if call.method != "with" {
+            return None;
+        }
+        let ident = simple_path(&call.receiver)?;
+        self.states.get(&ident.to_string()).copied().flatten()
+    }
+}
+
+impl VisitMut for Lowering {
+    fn visit_block_mut(&mut self, block: &mut syn::Block) {
+        self.scopes.push(HashMap::new());
+        visit_mut::visit_block_mut(self, block);
+        self.scopes.pop();
+    }
+
+    fn visit_expr_call_mut(&mut self, call: &mut syn::ExprCall) {
+        visit_mut::visit_expr_call_mut(self, call);
+        if let Some(arity) = simple_path(&call.func).and_then(|ident| self.callable_arity(ident)) {
+            if call.args.len() != arity {
+                self.reject(&*call, "unexpected helper call arity");
+            } else {
+                call.args.push(parse_quote! { __cache });
+            }
+        }
+    }
+
+    fn visit_local_mut(&mut self, local: &mut syn::Local) {
+        let dispatch = local
+            .init
+            .as_ref()
+            .and_then(|init| self.dispatch_arity(&init.expr));
+        let local_fn = if let Pat::Type(pat) = &mut local.pat {
+            if let Pat::Ident(ident) = pat.pat.as_ref() {
+                match ident.ident.to_string().as_str() {
+                    "__root_key_eval" => Some((ident.ident.clone(), 3)),
+                    "__root_item_eval" => Some((ident.ident.clone(), 4)),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some((_, arity)) = &local_fn {
+            let Pat::Type(pat) = &mut local.pat else {
+                unreachable!()
+            };
+            if let Err(error) = lower_pointer(&mut pat.ty, *arity) {
+                self.error = Some(error);
+            }
+            if let Some(init) = &mut local.init {
+                if let Expr::Closure(closure) = init.expr.as_mut() {
+                    if closure.inputs.len() != *arity || closure.capture.is_some() {
+                        self.reject(&*closure, "unexpected local evaluator closure");
+                    } else {
+                        closure.inputs.push(Pat::Type(syn::PatType {
+                            attrs: Vec::new(),
+                            pat: Box::new(parse_quote! { __cache }),
+                            colon_token: Default::default(),
+                            ty: Box::new(parse_quote! { &mut __SearchCache }),
+                        }));
+                    }
+                } else {
+                    self.reject(&init.expr, "expected a noncapturing local evaluator");
+                }
+            } else {
+                self.reject(&local.pat, "local evaluator has no initializer");
+            }
+        }
+        if let Some(init) = &mut local.init {
+            self.visit_expr_mut(&mut init.expr);
+            if let Some((_, diverge)) = &mut init.diverge {
+                self.visit_expr_mut(diverge);
+            }
+        }
+        self.bind_pattern(&local.pat);
+        if let Some((ident, arity)) = local_fn {
+            self.bind(&ident, Binding::Callable(arity));
+        } else if let Some(arity) = dispatch {
+            if let Pat::Ident(pat) = &local.pat {
+                self.bind(&pat.ident, Binding::Dispatch(arity));
+            }
+        }
+    }
+
+    fn visit_expr_closure_mut(&mut self, closure: &mut syn::ExprClosure) {
+        self.scopes.push(HashMap::new());
+        for input in &closure.inputs {
+            self.bind_pattern(input);
+        }
+        self.visit_expr_mut(&mut closure.body);
+        self.scopes.pop();
+    }
+
+    fn visit_expr_if_mut(&mut self, expr: &mut syn::ExprIf) {
+        let dispatch = if let Expr::Let(condition) = expr.cond.as_ref() {
+            if let (Pat::TupleStruct(pat), Some(source)) =
+                (condition.pat.as_ref(), simple_path(&condition.expr))
+            {
+                if pat.path.is_ident("Some") && pat.elems.len() == 1 {
+                    if let (Some(Binding::Dispatch(arity)), Some(Pat::Ident(target))) =
+                        (self.binding(source), pat.elems.first())
+                    {
+                        Some((target.ident.clone(), arity))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        self.visit_expr_mut(&mut expr.cond);
+        self.scopes.push(HashMap::new());
+        if let Expr::Let(condition) = expr.cond.as_ref() {
+            self.bind_pattern(&condition.pat);
+        }
+        if let Some((target, arity)) = dispatch {
+            self.bind(&target, Binding::Callable(arity));
+        }
+        self.visit_block_mut(&mut expr.then_branch);
+        self.scopes.pop();
+        if let Some((_, branch)) = &mut expr.else_branch {
+            self.visit_expr_mut(branch);
+        }
+    }
+
+    fn visit_arm_mut(&mut self, arm: &mut syn::Arm) {
+        self.scopes.push(HashMap::new());
+        self.bind_pattern(&arm.pat);
+        if let Some((_, guard)) = &mut arm.guard {
+            self.visit_expr_mut(guard);
+        }
+        self.visit_expr_mut(&mut arm.body);
+        self.scopes.pop();
+    }
+
+    fn visit_expr_for_loop_mut(&mut self, expr: &mut syn::ExprForLoop) {
+        self.visit_expr_mut(&mut expr.expr);
+        self.scopes.push(HashMap::new());
+        self.bind_pattern(&expr.pat);
+        self.visit_block_mut(&mut expr.body);
+        self.scopes.pop();
+    }
+
+    fn visit_expr_cast_mut(&mut self, expr: &mut syn::ExprCast) {
+        visit_mut::visit_expr_cast_mut(self, expr);
+        if matches!(expr.ty.as_ref(), Type::BareFn(ty) if is_bool(&ty.output)) {
+            if let Some(arity) =
+                simple_path(&expr.expr).and_then(|ident| self.callable_arity(ident))
+            {
+                if let Err(error) = lower_pointer(&mut expr.ty, arity) {
+                    self.error = Some(error);
+                }
+            } else {
+                self.reject(&*expr, "unknown boolean function-pointer cast");
+            }
+        }
+    }
+
+    fn visit_expr_mut(&mut self, expr: &mut Expr) {
+        if let Expr::MethodCall(call) = expr {
+            let state = simple_path(&call.receiver)
+                .filter(|ident| self.states.contains_key(&ident.to_string()))
+                .cloned();
+            if let Some(state) = state {
+                let helper = match call.method.to_string().as_str() {
+                    "with" => format_ident!("__with_state"),
+                    "with_borrow_mut" => format_ident!("__with_state_mut"),
+                    _ => {
+                        self.reject(&*call, "unknown local-key operation");
+                        return;
+                    }
+                };
+                if call.args.len() != 1 {
+                    self.reject(&*call, "expected one local-key closure");
+                    return;
+                }
+                let Some(Expr::Closure(closure)) = call.args.first_mut() else {
+                    self.reject(&*call, "expected one local-key closure");
+                    return;
+                };
+                self.visit_expr_closure_mut(closure);
+                *expr = parse_quote! { #helper(&__cache.#state, #closure) };
+                return;
+            }
+        }
+        if let Some(ident) = simple_path(expr) {
+            if self.states.contains_key(&ident.to_string())
+                || unused_error_stack(&ident.to_string())
+            {
+                self.reject(&*expr, "unlowered local-key reference");
+                return;
+            }
+        }
+        visit_mut::visit_expr_mut(self, expr);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lowering() -> Lowering {
+        Lowering {
+            helpers: HashMap::from([("is_valid".into(), 1)]),
+            states: HashMap::from([("__JSONSCHEMA_DYNAMIC_STACK".into(), Some(1))]),
+            scopes: Vec::new(),
+            error: None,
+        }
+    }
+
+    fn call_arity(stmt: &syn::Stmt) -> usize {
+        let syn::Stmt::Expr(Expr::Call(call), _) = stmt else {
+            panic!("expected direct call");
+        };
+        call.args.len()
+    }
+
+    #[test]
+    fn indirect_dispatch_does_not_rewrite_external_target_names() {
+        let mut body = parse_quote! {
+            {
+                target(subject);
+                let selected = __JSONSCHEMA_DYNAMIC_STACK.with(|stack| {
+                    stack.borrow().first().map(|(_, function)| *function)
+                });
+                if let Some(target) = selected {
+                    target(instance);
+                } else {
+                    target(subject);
+                }
+                target(subject);
+            }
+        };
+        let mut pass = lowering();
+        pass.visit_block_mut(&mut body);
+        assert!(pass.error.is_none());
+        assert_eq!(call_arity(&body.stmts[0]), 1);
+        let syn::Stmt::Expr(Expr::If(branch), _) = &body.stmts[2] else {
+            panic!("expected dispatch branch");
+        };
+        assert_eq!(call_arity(&branch.then_branch.stmts[0]), 2);
+        let Expr::Block(otherwise) = branch.else_branch.as_ref().unwrap().1.as_ref() else {
+            panic!("expected fallback block");
+        };
+        assert_eq!(call_arity(&otherwise.block.stmts[0]), 1);
+        assert_eq!(call_arity(&body.stmts[3]), 1);
+    }
+
+    #[test]
+    fn typed_local_evaluators_remain_noncapturing_function_pointers() {
+        let mut body = parse_quote! {
+            {
+                let __root_key_eval: fn(&__Value, &__Map, &str) -> bool =
+                    |instance, obj, key_str| is_valid(instance);
+                __root_key_eval(instance, obj, key_str)
+            }
+        };
+        let mut pass = lowering();
+        pass.visit_block_mut(&mut body);
+        assert!(pass.error.is_none());
+        let syn::Stmt::Local(local) = &body.stmts[0] else {
+            panic!("expected local")
+        };
+        let Pat::Type(pat) = &local.pat else {
+            panic!("expected typed local")
+        };
+        let Type::BareFn(ty) = pat.ty.as_ref() else {
+            panic!("expected function pointer")
+        };
+        assert_eq!(ty.inputs.len(), 4);
+        let Expr::Closure(closure) = local.init.as_ref().unwrap().expr.as_ref() else {
+            panic!("expected evaluator closure");
+        };
+        assert_eq!(closure.inputs.len(), 4);
+        assert!(closure.capture.is_none());
+        let Expr::Call(child) = closure.body.as_ref() else {
+            panic!("expected child call")
+        };
+        assert_eq!(child.args.len(), 2);
+        assert_eq!(call_arity(&body.stmts[1]), 4);
+    }
+
+    #[test]
+    fn unexpected_local_key_operations_refuse_lowering() {
+        let mut body = parse_quote! {
+            { __JSONSCHEMA_DYNAMIC_STACK.with_borrow(|stack| stack.len()); }
+        };
+        let mut pass = lowering();
+        pass.visit_block_mut(&mut body);
+        assert!(pass
+            .error
+            .unwrap()
+            .to_string()
+            .contains("unknown local-key operation"));
+    }
+
+    #[test]
+    fn plain_reference_cycle_cast_receives_the_same_boolean_abi() {
+        let mut expr: Expr = parse_quote! { is_valid as fn(&__Value) -> bool };
+        let mut pass = lowering();
+        pass.visit_expr_mut(&mut expr);
+        assert!(pass.error.is_none());
+        let Expr::Cast(cast) = expr else {
+            panic!("expected cast")
+        };
+        let Type::BareFn(ty) = cast.ty.as_ref() else {
+            panic!("expected function pointer")
+        };
+        assert_eq!(ty.inputs.len(), 2);
+    }
+}

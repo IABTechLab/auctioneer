@@ -1,0 +1,63 @@
+key = "imds"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/imds"
+tree = "614e84695819f3f2f27c142f41fd8249ed54695f"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/imds.yaml"
+source_blob = "73f209954801f7bcff4d0e3ff516a0865052ea78"
+source_bytes = 884
+source_sha256 = "d37fdd25d7d7e27dcdf4660827283342b64f03cedba5c768e82e3a8500626da8"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/synacormedia.yaml"
+source_blob = "ccbba0700a475dc0b794ddab2c239720db38261c"
+source_bytes = 163
+source_sha256 = "067549cd144dcab9a8bfff8c760c5b94d1b554f2942abdd3a1602e853a9b5370"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/imds.json"
+source_blob = "e5b05bcb1c09da7ad24ff4ba3159ed6b34609b95"
+source_bytes = 460
+source_sha256 = "4f31771cafb1cbd1c74ace05fa62a4edc78f52d8ae0379d953ee803ff12e648e"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 460
+source_sha256 = "4f31771cafb1cbd1c74ace05fa62a4edc78f52d8ae0379d953ee803ff12e648e"

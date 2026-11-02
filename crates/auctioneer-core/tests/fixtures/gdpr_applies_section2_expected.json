@@ -1,0 +1,66 @@
+{
+  "id": "auc-gdpr-section2",
+  "nbr": 7,
+  "cur": "",
+  "ext": {
+    "warnings": {
+      "fake_consented_bidder": [
+        {
+          "code": 10017,
+          "message": "bidder blocked by privacy settings: fake_consented_bidder"
+        }
+      ],
+      "fake_bidder": [
+        {
+          "code": 10017,
+          "message": "bidder blocked by privacy settings: fake_bidder"
+        }
+      ],
+      "prebid": [
+        {
+          "code": 10001,
+          "message": "regs.gdpr set together with regs.gpp_sid; gpp_sid presence disambiguates when non-empty, else regs.gdpr wins"
+        }
+      ],
+      "fake_alias": [
+        {
+          "code": 10017,
+          "message": "bidder blocked by privacy settings: fake_alias"
+        }
+      ]
+    },
+    "tmaxrequest": 1000,
+    "prebid": {
+      "auctiontimestamp": 0,
+      "seatnonbid": [
+        {
+          "seat": "fake_alias",
+          "nonbid": [
+            {
+              "impid": "imp-3",
+              "statuscode": 300
+            }
+          ]
+        },
+        {
+          "seat": "fake_bidder",
+          "nonbid": [
+            {
+              "impid": "imp-2",
+              "statuscode": 300
+            }
+          ]
+        },
+        {
+          "seat": "fake_consented_bidder",
+          "nonbid": [
+            {
+              "impid": "imp-1",
+              "statuscode": 300
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

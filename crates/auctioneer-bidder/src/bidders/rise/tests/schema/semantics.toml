@@ -1,0 +1,19 @@
+schema_version = 1
+schema = "rise"
+schema_sha256 = "5337120610c68c1d2467cf56b569932187f87fab778964227395264be3f65a6f"
+origin = "authored_schema_derived"
+rows = [
+  { id = "org_only", schema = "rise", valid = true, input_json = '{"org":"o"}' },
+  { id = "publisher_only", schema = "rise", valid = true, input_json = '{"publisher_id":"p"}' },
+  { id = "org_empty_allowed", schema = "rise", valid = true, input_json = '{"org":""}' },
+  { id = "neither", schema = "rise", valid = false, input_json = '{}' },
+  { id = "both", schema = "rise", valid = false, input_json = '{"org":"o","publisher_id":"p"}' },
+  { id = "org_wrong_type", schema = "rise", valid = false, input_json = '{"org":1}' },
+  { id = "publisher_null", schema = "rise", valid = false, input_json = '{"publisher_id":null}' },
+  { id = "placement_wrong_type", schema = "rise", valid = false, input_json = '{"org":"o","placementId":1}' },
+]
+[expected]
+authored = 8
+imported = 0
+accepts = 3
+rejects = 5

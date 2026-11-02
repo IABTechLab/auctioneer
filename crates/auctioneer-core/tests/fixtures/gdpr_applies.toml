@@ -1,0 +1,41 @@
+# One `AuctioneerAppConfig` blob per deployment: the host GDPR overlay, the
+# host-declared aliases, and the per-account overlay all ride in this
+# single TOML.
+
+# Symbolic roles are bound to actual serving metadata by the test driver.
+# `fake_alias` resolves to the independently selected `fake_base`.
+#
+# The request fixture also carries an `ext.prebid.aliasgvlids` entry for
+# this name, but these rows do NOT bind it: the account lists `fake_base`
+# in `basic_enforcement_vendors`, and the basic algorithm grants on the
+# consent/LI bits without ever reading a vendor id. Changing that entry,
+# or deleting it outright, leaves every row here green. The
+# aliasgvlids-over-alias behaviour is covered where it is actually
+# reachable -- `auctioneer-privacy` `auction_context` (the permission walk)
+# and `auctioneer-exchange` `config_overlay` (the resolver).
+[aliases]
+"fake_alias" = "fake_base"
+"fake_consented_bidder" = "fake_consented_base"
+"fake_bidder" = "fake_no_vendor_base"
+
+# Host GDPR overlay. Without it the baked default leaves
+# `gdpr.tcf2.enabled = false` and nothing is ever enforced.
+[gdpr]
+enabled = true
+
+[gdpr.tcf2]
+enabled = true
+
+# Purpose 2 (Basic Ads) is the `AllowBidRequest` gate (spec §7.3).
+[gdpr.tcf2.purposes.2]
+enforce_algo    = "full"
+enforce_purpose = "enabled"
+enforce_vendors = "enabled"
+
+# Per-account overlay for the publisher id the request fixture names.
+[accounts."acct-1".gdpr]
+enabled         = "enabled"
+channel_enabled = { web = "enabled" }
+# The basic base never consults the GVL for vendor consent. The consenting
+# and no-vendor bases stay on the default full algorithm.
+basic_enforcement_vendors = ["fake_base"]

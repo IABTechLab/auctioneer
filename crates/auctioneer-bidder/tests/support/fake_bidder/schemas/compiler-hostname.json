@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic hostname format compiler control",
+  "description": "Independent fake-bidder hostname; label and total-length boundaries are enforced by the custom format callback.",
+  "type": "object",
+  "properties": { "hostname": { "type": "string", "format": "hostname" } },
+  "required": ["hostname"],
+  "additionalProperties": false
+}

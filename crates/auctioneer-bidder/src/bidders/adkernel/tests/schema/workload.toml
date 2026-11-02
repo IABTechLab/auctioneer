@@ -1,0 +1,4 @@
+order = 10
+rows = [{id = "integer", valid = true, transforms = [], input_json = "{\"zoneId\":1}"}, {id = "fractional", valid = false, transforms = [], input_json = "{\"zoneId\":1.5}"}, {id = "negative", valid = false, transforms = [], input_json = "{\"zoneId\":-1}"}, {id = "null", valid = false, transforms = [], input_json = "{\"zoneId\":null}"}]
+fractional_allocation = true
+schema = "adkernel"

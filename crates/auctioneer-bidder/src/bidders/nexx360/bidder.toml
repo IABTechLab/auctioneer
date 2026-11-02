@@ -1,0 +1,116 @@
+key = "nexx360"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/nexx360"
+tree = "28e90ca635287d4bce1a1ce7c5368c2ad68cda75"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/1accord.yaml"
+source_blob = "4a6b8199be95d747502e892407d57672a0e74ec1"
+source_bytes = 19
+source_sha256 = "2dea403f47870ede7bbb3ab9384fdfd2c42242d1bcf5f64db91d27d093567fa1"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://fast.nexx360.io/prebid-server"
+selected_url = "https://fast.nexx360.io/prebid-server"
+inherited_from = "nexx360"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/easybid.yaml"
+source_blob = "4a6b8199be95d747502e892407d57672a0e74ec1"
+source_bytes = 19
+source_sha256 = "2dea403f47870ede7bbb3ab9384fdfd2c42242d1bcf5f64db91d27d093567fa1"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://fast.nexx360.io/prebid-server"
+selected_url = "https://fast.nexx360.io/prebid-server"
+inherited_from = "nexx360"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/nexx360.yaml"
+source_blob = "c96b088fecad27f0fa69131c6a976b9578f136c1"
+source_bytes = 773
+source_sha256 = "806f214e163cb7e2cdc4e6ef104e1b91c3efeb52ea5e934612ee5f4cd0b5b0b8"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://fast.nexx360.io/prebid-server"
+selected_url = "https://fast.nexx360.io/prebid-server"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/prismassp.yaml"
+source_blob = "4a6b8199be95d747502e892407d57672a0e74ec1"
+source_bytes = 19
+source_sha256 = "2dea403f47870ede7bbb3ab9384fdfd2c42242d1bcf5f64db91d27d093567fa1"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://fast.nexx360.io/prebid-server"
+selected_url = "https://fast.nexx360.io/prebid-server"
+inherited_from = "nexx360"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/nexx360.json"
+source_blob = "a2f35276acecc1c4334b832299e85d6236c25365"
+source_bytes = 619
+source_sha256 = "2c5a687e6b801ce9ce637ca627e098fe1e09ef57b09bef82fdd54c2d9a5482dd"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 619
+source_sha256 = "2c5a687e6b801ce9ce637ca627e098fe1e09ef57b09bef82fdd54c2d9a5482dd"

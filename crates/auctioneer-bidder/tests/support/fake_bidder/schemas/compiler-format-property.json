@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic ordinary format property compiler control",
+  "description": "Independent fake-bidder object whose required format property is data, not a format keyword.",
+  "type": "object",
+  "properties": {
+    "format": { "type": "string" },
+    "note": { "type": "string" }
+  },
+  "required": ["format"],
+  "additionalProperties": false
+}

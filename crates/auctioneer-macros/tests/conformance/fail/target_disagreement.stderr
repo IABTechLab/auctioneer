@@ -1,0 +1,96 @@
+error[E0080]: evaluation panicked: missing target graph
+  --> tests/conformance/fail/target_disagreement.rs:59:15
+   |
+59 | const _: () = assert!(graph_matches(ROOT, &[]), "missing target graph");
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: raw storage disagreement
+  --> tests/conformance/fail/target_disagreement.rs:60:15
+   |
+60 |   const _: () = assert!(
+   |  _______________^
+61 | |     graph_matches(
+62 | |         ROOT,
+63 | |         &[
+...  |
+78 | |     "raw storage disagreement"
+79 | | );
+   | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: field name disagreement
+  --> tests/conformance/fail/target_disagreement.rs:80:15
+   |
+80 |   const _: () = assert!(
+   |  _______________^
+81 | |     graph_matches(
+82 | |         ROOT,
+83 | |         &[
+...  |
+98 | |     "field name disagreement"
+99 | | );
+   | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: catch all disagreement
+   --> tests/conformance/fail/target_disagreement.rs:100:15
+    |
+100 |   const _: () = assert!(
+    |  _______________^
+101 | |     graph_matches(
+102 | |         ROOT,
+103 | |         &[
+...   |
+118 | |     "catch all disagreement"
+119 | | );
+    | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: child edge disagreement
+   --> tests/conformance/fail/target_disagreement.rs:120:15
+    |
+120 |   const _: () = assert!(
+    |  _______________^
+121 | |     graph_matches(
+122 | |         ROOT,
+123 | |         &[
+...   |
+138 | |     "child edge disagreement"
+139 | | );
+    | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: declaration label disagreement
+   --> tests/conformance/fail/target_disagreement.rs:140:15
+    |
+140 |   const _: () = assert!(
+    |  _______________^
+141 | |     graph_matches(
+142 | |         ROOT,
+143 | |         &[
+...   |
+151 | |     "declaration label disagreement"
+152 | | );
+    | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: wire object disagreement
+   --> tests/conformance/fail/target_disagreement.rs:153:15
+    |
+153 |   const _: () = assert!(
+    |  _______________^
+154 | |     graph_matches(
+155 | |         ROOT,
+156 | |         &[
+...   |
+164 | |     "wire object disagreement"
+165 | | );
+    | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: unreachable target record
+   --> tests/conformance/fail/target_disagreement.rs:166:15
+    |
+166 |   const _: () = assert!(
+    |  _______________^
+167 | |     graph_matches(
+168 | |         ROOT,
+169 | |         &[
+...   |
+179 | |     "unreachable target record"
+180 | | );
+    | |_^ evaluation of `_` failed here

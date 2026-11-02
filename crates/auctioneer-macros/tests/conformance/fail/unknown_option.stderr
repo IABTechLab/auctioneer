@@ -1,0 +1,5 @@
+error: unknown openrtb_metadata option `guess`
+ --> tests/conformance/fail/unknown_option.rs:3:20
+  |
+3 | #[openrtb_metadata(guess = true)]
+  |                    ^^^^^

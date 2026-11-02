@@ -1,0 +1,14 @@
+schema = "openx"
+path = "adapters/openx/params_test.go"
+blob = "1fc71fce7e95989c372e948722b3b0b55aaa0403"
+sha256 = "828576dd1d1baef383b825195fd2755c2c5c12011ac5896990bf711ef51c0b04"
+bytes = 2542
+valid_cases = 7
+invalid_cases = 15
+valid_span = {start = 1347, end = 1767}
+invalid_span = {start = 1799, end = 2540}
+verdict_counts = [7, 15, 0]
+previous = true
+original = true
+duplicates = []
+lexical = []

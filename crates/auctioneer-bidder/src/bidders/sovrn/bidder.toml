@@ -1,0 +1,660 @@
+key = "sovrn"
+factory = true
+native_only = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.sovrn]
+defaultEnabled = false
+endpoint = "https://pbs.lijit.com/rtb/bid?src=prebid_server"
+endpointCompression = "gzip"
+gvlVendorID = 13
+
+[definitions.sovrn.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.sovrn.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.sovrn.maintainer]
+email = "sovrnoss@sovrn.com"
+
+[definitions.sovrn.userSync.iframe]
+url = "https://ap.lijit.com/beacon/prebid-server/?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&url={{.RedirectURL}}"
+userMacro = "$UID"
+
+[definitions.sovrn.userSync.redirect]
+url = "https://ap.lijit.com/pixel?redir={{.RedirectURL}}"
+userMacro = "$UID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/sovrn"
+tree = "b4c6e76a41fb2ea3427512a6d5660a88937051a0"
+port_differences = [
+    """\
+    Implemented protocol candidate with a discovered stateless factory and opt-in native-only \
+    publication. The coordinator observed compiled semantic red before implementation. Worker \
+    verification is restricted to formatting, scoped diff and immutable capture checks; Cargo \
+    evidence is coordinator-owned. Serving activation, endpoint approval, full source parity, \
+    qualification and migration are not claimed.""",
+    """\
+    Borrowed capped root/impression/video serialization, ordered survivor-only metadata, fixed \
+    bounded diagnostics and no caller mutation replace source request mutation and uncapped \
+    json.Marshal. Source bad impressions are local BadInput; all-invalid means no call. Empty \
+    input has no source error. Production builds no request-tree clone, survivor vector or \
+    uncapped body.""",
+    """\
+    Source tagId and tagid are distinct exact-name fields; a nonempty tagid wins, otherwise \
+    tagId. AG approved general single-equivalent-spelling matching and affected-impression \
+    rejection of competing spellings on 2026-10-23, not collapsing the two declared fields. \
+    jsonutil pins json-iterator v1.1.12; tag field hash collision selects its general \
+    exact-name-then-strings.ToLower decoder, including dotted capital I. Fallback tag spellings \
+    bind tagid, not tagId. Exact duplicate-key order is already lost at shared ingress.""",
+    """\
+    OpenRTB imp.bidfloor remains numeric. The bidder extension also accepts positive \
+    numeric/decimal-string values only when the original is zero; nonzero original wins and \
+    currency is unchanged. Malformed/nonpositive values and decimal overflow are ignored; a \
+    surviving positive infinity is request-fatal before allocation. AG's 2026-10-24 \
+    OpenRTB-first direction excludes emulating legacy hexadecimal/underscore float-string \
+    syntax: those optional overrides are ignored using the existing standard parser, with no \
+    new dependency. Null strings default empty; malformed tag/adunitcode types reject their \
+    impression even when unused.""",
+    """\
+    Video uses presence-aware mimes.as_ref(), a nonnull signed-int8 protocols array and nonzero \
+    maxduration; empty slices and negative duration pass source adapter checks. Protocol values \
+    are checked without allocation, source null elements serialize as zero, and the borrowed \
+    array view omits an empty slice. The borrowed video view also omits source scalar \
+    maxextended=0 while preserving nonzero values. Invalid protocol elements remove the \
+    affected impression through fixed code-2 diagnostics; the source's earlier typed \
+    request-ingress boundary remains separately qualified. Original ext, adunitcode, FPD, \
+    privacy fields and other root fields remain intact.""",
+    """\
+    Headers derive only from already-scoped device UA/IP/language, present DNT including zero, \
+    and whitespace-trimmed buyeruid as ljt_reader cookie. No inbound transport headers or \
+    alternate user IDs are read. Header injection/cookie grammar disposition is not invented \
+    here; shared metadata currently bounds but does not validate header values.""",
+    """\
+    HTTP 204 ignores even malformed bodies, HTTP 400 is BadInput code 2, and other non-200 \
+    statuses are BadServerResponse code 4. Valid wire currency is ignored for source USD. \
+    Shared sealed parse/schema/node-budget errors retain their existing provenance. Before any \
+    ADM filtering, every parsed bid's mtype passes the shared borrowed signed_byte check: \
+    missing/null becomes zero, one ASCII-equivalent spelling is accepted, and \
+    malformed/out-of-range or competing spellings fail the whole response with fixed \
+    BadServerResponse code 4 as in Sovrn's source wrapper. Well-typed mtype remains ignored for \
+    media selection.""",
+    """\
+    ADM query-unescaping reuses the sealed parser's String allocation in place, including \
+    plus-to-space; malformed percent escapes silently drop only that bid before impression \
+    lookup. Unknown impressions are redacted bid-local BadInput. Matching video takes \
+    precedence over banner; generic media-hint restrictions are not inherited. Shared response \
+    partitioning and actual sent-call coverage preserve eligible siblings. All-invalid errored \
+    responses use Auctioneer Err. AG approved rejecting decoded invalid UTF-8 with a fixed \
+    bid-local code-4 error and preserving valid siblings on 2026-10-24; arbitrary \
+    invalid-string compatibility is intentionally out of scope.""",
+    """\
+    31 untouched captures total 96993 bytes: 3 exemplary, 19 supplemental, 5 video and 4 \
+    videosupplemental; 26 expected calls, 5 request refusals, 2 empty bid responses, 23 \
+    positive bid responses and 1 unknown-imp response. The shared optional-seat decoder now \
+    accepts the 24 bid-bearing responses without synthesis or exemptions. All captures use \
+    literal source expectations, including full-video maxextended omission. Capture \
+    verification precedes every filtered dispatch; these checks do not establish hosted \
+    delivery or full migration.""",
+    """\
+    Outer ExtImpBidder lookup preserves the optimized source decoder's ASCII-only matching: a \
+    single bidder/Bidder/BIDDER-equivalent spelling is borrowed, while competing spellings \
+    reject only their impression even with equal/null values or no canonical key. Canonical \
+    JsonField null presence participates in ambiguity checks. This lookup neither clones source \
+    maps nor infers sorted precedence. The coordinator observed six intended semantic \
+    regression failures before these repairs. Typed/schema request-ingress validation, \
+    unrelated ae/prebid and general envelope case/null/shape gaps remain separate shared audit \
+    work.""",
+    """\
+    Protocol captures retain the source HTTP URI verbatim; bidder code does not rewrite its \
+    scheme. Native provenance separately records AG's HTTPS default without endpoint \
+    promotion. Parameter schema remains verbatim and intentionally requires exactly \
+    one canonical tag field; direct adapter coexistence/fallback tests do not imply \
+    schema-level acceptance. Shared envelope case/null/shape, privacy, resource, decode and \
+    hosted-delivery gates remain open.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/sovrn.yaml"
+source_blob = "fad1850d4b3d31752e994413a162891efdf54ac5"
+source_bytes = 608
+source_sha256 = "ce2561aaf91b4f05327d6d86d1ce4386dc94bfdb563f9214d76c005c461f1d4e"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication binds the scheme-only HTTPS default \
+    with defaultEnabled=false, preserving gzip, vendor, capabilities and sync templates. \
+    modifyingVastXmlAllowed remains source provenance rather than a new Auctioneer permission. \
+    Publication is not selected-flow acceptance, resource qualification or live authorization.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://pbs.lijit.com/rtb/bid?src=prebid_server"
+selected_url = "https://pbs.lijit.com/rtb/bid?src=prebid_server"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/sovrn.json"
+source_blob = "7f81604a9ffb5819446ce6f634476f9868ef22a6"
+source_bytes = 989
+source_sha256 = "fd44c8813141d814028e0fa7cb0244c15f4e1c939ecebb6c556d16594dd01b2d"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 989
+source_sha256 = "fd44c8813141d814028e0fa7cb0244c15f4e1c939ecebb6c556d16594dd01b2d"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/sovrn/sovrn.go"
+source_blob = "25bbced73f9bf4898e380125c3aebd3016bd2819"
+source_bytes = 5721
+source_sha256 = "7dd7a097e2d95a7bbc08b8a0624f14a964c0074d116fbd238f2cf1df6d65e0eb"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/sovrn/sovrn_test.go"
+source_blob = "12545b3f6f596d3aa010eec227e7b577582a1685"
+source_bytes = 571
+source_sha256 = "d77041a097828d4d6d9c70a70964885225b2a7428a16eda1483093cafc612ea4"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "adapters/sovrn/params_test.go"
+source_blob = "873ec63a1eb27d5ac4703fc03b0e7989a3b6b3bb"
+source_bytes = 1160
+source_sha256 = "46c7689b852880b293fb985beb9afc4a89320cd316bb431501579a608694e5f0"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "openrtb_ext/imp_sovrn.go"
+source_blob = "86d0d745428984fd56822b3f116bd19363cac873"
+source_bytes = 253
+source_sha256 = "f2428e0c8728f2db79c1f1bf7c6d3540f38fb8326d549d63e4fc04bac6e236ca"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp.go"
+source_blob = "85be31245489ddfaa7eb61f6b24f745de9fdc988"
+source_bytes = 3337
+source_sha256 = "74906c9f9d9842956179f551b3e7868af871e5c11c7076bffa1f964395b0dd47"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.mod"
+source_blob = "998750a0ab0830ae6a24f6d2f2abbddf2ba85855"
+source_bytes = 3548
+source_sha256 = "00d82a3d3a03e1dc411876b858a857a832bfc7a6dc4b5ace95a3d52b37e4e549"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.sum"
+source_blob = "2d03cb08c4350a7beb75e8529d8d66c0720e3366"
+source_bytes = 100645
+source_sha256 = "8f3c2e47aa0cc516a7440a30c5d376dd1b4bf49a26ca79bd92905738d06ccd9b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/exemplary/multi-banner.json"
+source_blob = "b6978a082a0242c8a42dcf516aca61c10be977a9"
+source_bytes = 4206
+source_sha256 = "b025e43ad983ac11d571aa40db5f03713ff0ba04c6ac896c6169662e50455407"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/multi-banner.json"
+source_bytes = 4206
+source_sha256 = "b025e43ad983ac11d571aa40db5f03713ff0ba04c6ac896c6169662e50455407"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/exemplary/no-bid.json"
+source_blob = "9edacbbaa055778b7f50319024c2647fb1110c08"
+source_bytes = 2416
+source_sha256 = "c351cc19a20770191ce3cae909e8e73a9a594121e4c538ff72241f3cefe5df5d"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/no-bid.json"
+source_bytes = 2416
+source_sha256 = "c351cc19a20770191ce3cae909e8e73a9a594121e4c538ff72241f3cefe5df5d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/exemplary/simple-banner.json"
+source_blob = "e8d6a9832d74a6000535ded226891516fb12320a"
+source_bytes = 3327
+source_sha256 = "680f6d53f5265f9926fe5f735f6e9f0d460c1d0aa7fa5b46125b305df83e7c32"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner.json"
+source_bytes = 3327
+source_sha256 = "680f6d53f5265f9926fe5f735f6e9f0d460c1d0aa7fa5b46125b305df83e7c32"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/adunitcode.json"
+source_blob = "f075cbd3930ddf873162213fd4aa3b0b2dd7c784"
+source_bytes = 3176
+source_sha256 = "96e9d6db14ca1a15c958de7476ee233e2b457b97889ad985c189e106c84ee625"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/adunitcode.json"
+source_bytes = 3176
+source_sha256 = "96e9d6db14ca1a15c958de7476ee233e2b457b97889ad985c189e106c84ee625"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/blank-device.json"
+source_blob = "5cda47dfa0697790e8f87d576b03644e03bd4c2c"
+source_bytes = 2931
+source_sha256 = "58a4fe6329cf7f129e6525d9a57f9ea4c817a6bddc5043c1c7aec2a4e8d4781b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/blank-device.json"
+source_bytes = 2931
+source_sha256 = "58a4fe6329cf7f129e6525d9a57f9ea4c817a6bddc5043c1c7aec2a4e8d4781b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/both-custom-default-bidfloor.json"
+source_blob = "0621450b11292590c4227704c3ac92f406b372f3"
+source_bytes = 3055
+source_sha256 = "5062ffc58cadd7e1c4abc99d874ce9b97495d0390fd4fe342bf9864b17694113"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/both-custom-default-bidfloor.json"
+source_bytes = 3055
+source_sha256 = "5062ffc58cadd7e1c4abc99d874ce9b97495d0390fd4fe342bf9864b17694113"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/camel-case-tagId.json"
+source_blob = "d195dddc528250be56a96fe7e07bc478545e95b8"
+source_bytes = 3327
+source_sha256 = "7190eb752dd359bf2c1075afb66ae5fbbfae2eba454f7f8d32c22e78f0c8ed6a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/camel-case-tagId.json"
+source_bytes = 3327
+source_sha256 = "7190eb752dd359bf2c1075afb66ae5fbbfae2eba454f7f8d32c22e78f0c8ed6a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/custom-overrides-default-bidfloor.json"
+source_blob = "a74367be61f36fe00607ac748d5676fb4f587b92"
+source_bytes = 3055
+source_sha256 = "7de348bbc37646b2ed4b702e462a482a215dd1efbf0c33a7597b119ca93e779c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/custom-overrides-default-bidfloor.json"
+source_bytes = 3055
+source_sha256 = "7de348bbc37646b2ed4b702e462a482a215dd1efbf0c33a7597b119ca93e779c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/fpd.json"
+source_blob = "4ec5a4f4cb903b1f20a571a8c5598b52c3881c14"
+source_bytes = 4227
+source_sha256 = "98a2b3c31e7d15fa3ae0099979336e856a58f67af2b44f21e19ed5219727c069"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/fpd.json"
+source_bytes = 4227
+source_sha256 = "98a2b3c31e7d15fa3ae0099979336e856a58f67af2b44f21e19ed5219727c069"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/gdpr.json"
+source_blob = "242db2627bb057c284d829430fe898cb463e7542"
+source_bytes = 3619
+source_sha256 = "d7b90b0ddfb338574b25d35724e92adb98ab7f32ea4e013b9a02f39003b4b654"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/gdpr.json"
+source_bytes = 3619
+source_sha256 = "d7b90b0ddfb338574b25d35724e92adb98ab7f32ea4e013b9a02f39003b4b654"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/invalid-imp-id.json"
+source_blob = "4cfe70d08e4b92813b0e383950902dbac02b8491"
+source_bytes = 3025
+source_sha256 = "6770b65133707d6aecf844516549c38a056cf8cd59af3871e9e666cfdecf0fb3"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalid-imp-id.json"
+source_bytes = 3025
+source_sha256 = "6770b65133707d6aecf844516549c38a056cf8cd59af3871e9e666cfdecf0fb3"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/missing-tagid.json"
+source_blob = "3e79d11f99fa4b48ff56d5cdc02b4f0909709918"
+source_bytes = 845
+source_sha256 = "7358ebc1e3ad231dfa6d34946a3e0a09e794dbd0a7e1d7e223372f8fbc665e6d"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/missing-tagid.json"
+source_bytes = 845
+source_sha256 = "7358ebc1e3ad231dfa6d34946a3e0a09e794dbd0a7e1d7e223372f8fbc665e6d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/no-bidfloor.json"
+source_blob = "5cda47dfa0697790e8f87d576b03644e03bd4c2c"
+source_bytes = 2931
+source_sha256 = "58a4fe6329cf7f129e6525d9a57f9ea4c817a6bddc5043c1c7aec2a4e8d4781b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/no-bidfloor.json"
+source_bytes = 2931
+source_sha256 = "58a4fe6329cf7f129e6525d9a57f9ea4c817a6bddc5043c1c7aec2a4e8d4781b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/no-user.json"
+source_blob = "f03eb6b36043e4d28e6e714d89e60d9cd90101c6"
+source_bytes = 3146
+source_sha256 = "93d06b096df0282b717bbef093fba414ab6aeaa7fe6a8c5d2d484d8698b99872"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/no-user.json"
+source_bytes = 3146
+source_sha256 = "93d06b096df0282b717bbef093fba414ab6aeaa7fe6a8c5d2d484d8698b99872"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/only-custom-bidfloor-as-string.json"
+source_blob = "6e9d87b0ce76faa91dd59c8c77c7b83865e9b7b6"
+source_bytes = 3030
+source_sha256 = "fbc6783866d62b9663a9b32a80837d90e9542d1e1baa095b1f46780f53cbe620"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/only-custom-bidfloor-as-string.json"
+source_bytes = 3030
+source_sha256 = "fbc6783866d62b9663a9b32a80837d90e9542d1e1baa095b1f46780f53cbe620"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/only-custom-bidfloor-erroneus.json"
+source_blob = "5f651eb6157d6eeb1ad2e73c118abfada2307e79"
+source_bytes = 2999
+source_sha256 = "6d5e50f351683cf5c585314e11385d421592310bace42763fbcbea58f7206466"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/only-custom-bidfloor-erroneus.json"
+source_bytes = 2999
+source_sha256 = "6d5e50f351683cf5c585314e11385d421592310bace42763fbcbea58f7206466"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/only-custom-bidfloor.json"
+source_blob = "cf3edbfe34afb558ce48da5286d34833d94cb68f"
+source_bytes = 3026
+source_sha256 = "95ba54c939d755277c5bc707e0753e1cb969cb90291fc6b17f09a64933d679c0"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/only-custom-bidfloor.json"
+source_bytes = 3026
+source_sha256 = "95ba54c939d755277c5bc707e0753e1cb969cb90291fc6b17f09a64933d679c0"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/only-default-bidfloor.json"
+source_blob = "87470ee06bc617c651d63468b37d45bded153673"
+source_bytes = 2989
+source_sha256 = "3f9c445867f1dd5eb512aa497b7fbe2f993e04d8a357bcaa51912b5c11c6acd1"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/only-default-bidfloor.json"
+source_bytes = 2989
+source_sha256 = "3f9c445867f1dd5eb512aa497b7fbe2f993e04d8a357bcaa51912b5c11c6acd1"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/with-both-custom-default-bidfloor-as-string.json"
+source_blob = "f68e0432cca90cfe569dcb7a71736ba5d3289f80"
+source_bytes = 3059
+source_sha256 = "b08ccf4ac92984b2c32d33fcb12499d652bebae8d12e077e24ff456c46d313f2"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/with-both-custom-default-bidfloor-as-string.json"
+source_bytes = 3059
+source_sha256 = "b08ccf4ac92984b2c32d33fcb12499d652bebae8d12e077e24ff456c46d313f2"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/with-both-custom-default-bidfloor.json"
+source_blob = "0621450b11292590c4227704c3ac92f406b372f3"
+source_bytes = 3055
+source_sha256 = "5062ffc58cadd7e1c4abc99d874ce9b97495d0390fd4fe342bf9864b17694113"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/with-both-custom-default-bidfloor.json"
+source_bytes = 3055
+source_sha256 = "5062ffc58cadd7e1c4abc99d874ce9b97495d0390fd4fe342bf9864b17694113"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/with-only-custom-bidfloor.json"
+source_blob = "0b986e7de7d474e2fa7f05cd3cb42c3280b1a083"
+source_bytes = 3027
+source_sha256 = "9ed06e5873b3b192f522c689c8a7a4e870b859cafb6b70769b5d5fe37371fddf"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/with-only-custom-bidfloor.json"
+source_bytes = 3027
+source_sha256 = "9ed06e5873b3b192f522c689c8a7a4e870b859cafb6b70769b5d5fe37371fddf"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/supplemental/with-only-default-bidfloor.json"
+source_blob = "87470ee06bc617c651d63468b37d45bded153673"
+source_bytes = 2989
+source_sha256 = "3f9c445867f1dd5eb512aa497b7fbe2f993e04d8a357bcaa51912b5c11c6acd1"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/with-only-default-bidfloor.json"
+source_bytes = 2989
+source_sha256 = "3f9c445867f1dd5eb512aa497b7fbe2f993e04d8a357bcaa51912b5c11c6acd1"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/video/full-video.json"
+source_blob = "13e1d3dadd724d41c9428152b0b727a99fa13444"
+source_bytes = 6008
+source_sha256 = "578a77edd7c08d0f0364d9ac813b6bf85bab89515c13aac0f722e0358a8071f3"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/video/full-video.json"
+source_bytes = 6008
+source_sha256 = "578a77edd7c08d0f0364d9ac813b6bf85bab89515c13aac0f722e0358a8071f3"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/video/multi-banner-video.json"
+source_blob = "0462ad159447228afcef82e85f4d65c5d0224f9d"
+source_bytes = 6647
+source_sha256 = "7881ea923c2e5db85527bf9bc03114a99d330eb5b3efb71c09e0255fffb6a6f5"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/video/multi-banner-video.json"
+source_bytes = 6647
+source_sha256 = "7881ea923c2e5db85527bf9bc03114a99d330eb5b3efb71c09e0255fffb6a6f5"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/video/multi-video.json"
+source_blob = "b1db51859ca6f0e7883a642d2e2ec5a8c1d74a1e"
+source_bytes = 6097
+source_sha256 = "6b8f257e12480e08915d15409f450e4b2e9a1d615f6deff05622014d68d59293"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/video/multi-video.json"
+source_bytes = 6097
+source_sha256 = "6b8f257e12480e08915d15409f450e4b2e9a1d615f6deff05622014d68d59293"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/video/no-bid.json"
+source_blob = "0cdb299263c4b9dce8c5f171b8a9db368512522d"
+source_bytes = 2590
+source_sha256 = "0ff766b592f747ac9e3d110a037bcaf152273fc7a4cf1c7be0b5042270e88115"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/video/no-bid.json"
+source_bytes = 2590
+source_sha256 = "0ff766b592f747ac9e3d110a037bcaf152273fc7a4cf1c7be0b5042270e88115"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/video/simple-video.json"
+source_blob = "08343909319042e0e71df0b37fc3ee5c34b0e95c"
+source_bytes = 4891
+source_sha256 = "20b92aa0e7a92b6b3105eac6b3088c57babaa76a732b741326cb718321ced6d7"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/video/simple-video.json"
+source_bytes = 4891
+source_sha256 = "20b92aa0e7a92b6b3105eac6b3088c57babaa76a732b741326cb718321ced6d7"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/videosupplemental/missing-all-required-params.json"
+source_blob = "97fa779c4676499974d1c41a652d17d572146337"
+source_bytes = 678
+source_sha256 = "6ded3b639bb8b4e176780d4477276fc765f5c96e5504296b6d1ed3b25a4771e4"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/videosupplemental/missing-all-required-params.json"
+source_bytes = 678
+source_sha256 = "6ded3b639bb8b4e176780d4477276fc765f5c96e5504296b6d1ed3b25a4771e4"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/videosupplemental/no-maxduration.json"
+source_blob = "c333be9a327246eb6ca762c3b7f59c34a8735ab8"
+source_bytes = 925
+source_sha256 = "7689239762cdac3967354fef43769b0edc6d5dcbbff8b76e5022511a3fa45d7d"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/videosupplemental/no-maxduration.json"
+source_bytes = 925
+source_sha256 = "7689239762cdac3967354fef43769b0edc6d5dcbbff8b76e5022511a3fa45d7d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/videosupplemental/no-mimes.json"
+source_blob = "f2e3124cac06660dc5cb540cec0896f86e4c2259"
+source_bytes = 840
+source_sha256 = "696d96ac932f1ccd94ccb9312f72023d989a43544b0111c840bc3eda7c860f52"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/videosupplemental/no-mimes.json"
+source_bytes = 840
+source_sha256 = "696d96ac932f1ccd94ccb9312f72023d989a43544b0111c840bc3eda7c860f52"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/sovrn/sovrntest/videosupplemental/no-protocols.json"
+source_blob = "9fb563753eef2eea613b99df47e7c407cbdebc2f"
+source_bytes = 857
+source_sha256 = "31f8f9081ef0b22a3a47616e2deb4086358b567fd76ae6932d330f9ea4838f10"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/videosupplemental/no-protocols.json"
+source_bytes = 857
+source_sha256 = "31f8f9081ef0b22a3a47616e2deb4086358b567fd76ae6932d330f9ea4838f10"

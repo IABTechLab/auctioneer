@@ -1,0 +1,16 @@
+{
+  "id": "handler-case-1",
+  "tmax": 500,
+  "site": {
+    "page": "https://publisher.example",
+    "publisher": { "id": "handler_fixture_allowed" }
+  },
+  "imp": [
+    {
+      "id": "fixture-imp",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "bidder": { "fake_provider": {} } }
+    }
+  ],
+  "ext": { "prebid": { "returnallbidstatus": true } }
+}

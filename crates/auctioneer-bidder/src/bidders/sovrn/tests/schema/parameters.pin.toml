@@ -1,0 +1,14 @@
+schema = "sovrn"
+path = "adapters/sovrn/params_test.go"
+blob = "873ec63a1eb27d5ac4703fc03b0e7989a3b6b3bb"
+sha256 = "46c7689b852880b293fb985beb9afc4a89320cd316bb431501579a608694e5f0"
+bytes = 1160
+valid_cases = 5
+invalid_cases = 6
+valid_span = {start = 922, end = 1082}
+invalid_span = {start = 1114, end = 1158}
+verdict_counts = [5, 5, 1]
+previous = true
+original = false
+duplicates = []
+lexical = []

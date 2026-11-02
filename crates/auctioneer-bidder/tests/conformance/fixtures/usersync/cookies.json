@@ -1,0 +1,1219 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "empty_object",
+      "input": {
+        "decoded_json_utf8": "{}",
+        "encoded": "e30="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "json_null",
+      "input": {
+        "decoded_json_utf8": "null",
+        "encoded": "bnVsbA=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "missing_uids",
+      "input": {
+        "decoded_json_utf8": "{\"optout\":false}",
+        "encoded": "eyJvcHRvdXQiOmZhbHNlfQ=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "null_uids",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":null}",
+        "encoded": "eyJ0ZW1wVUlEcyI6bnVsbH0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "null_optout",
+      "input": {
+        "decoded_json_utf8": "{\"optout\":null}",
+        "encoded": "eyJvcHRvdXQiOm51bGx9"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "first"
+        }
+      },
+      "id": "live",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJvbGQiLCJleHBpcmVzIjoiMjAyNi0wOS0yOVQxMjowMDowMFoifX19",
+        "has_live_syncs": false,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"old\",\"expires\":\"2026-09-29T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "old"
+        }
+      },
+      "id": "expired",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"old\",\"expires\":\"2026-09-29T12:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJvbGQiLCJleHBpcmVzIjoiMjAyNi0wOS0yOVQxMjowMDowMFoifX19"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJlcXVhbCIsImV4cGlyZXMiOiIyMDI2LTA5LTMwVDEyOjAwOjAwWiJ9fX0=",
+        "has_live_syncs": false,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"equal\",\"expires\":\"2026-09-30T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "equal"
+        }
+      },
+      "id": "expiry_equality",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"equal\",\"expires\":\"2026-09-30T12:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJlcXVhbCIsImV4cGlyZXMiOiIyMDI2LTA5LTMwVDEyOjAwOjAwWiJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsaXZlIiwiZXhwaXJlcyI6IjIwMjYtMDktMzBUMTI6MDA6MDAuMDAwMDAwMDAxWiJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"live\",\"expires\":\"2026-09-30T12:00:00.000000001Z\"}}}",
+        "uids": {
+          "adnxs": "live"
+        }
+      },
+      "id": "expiry_one_ns_later",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"live\",\"expires\":\"2026-09-30T12:00:00.000000001Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsaXZlIiwiZXhwaXJlcyI6IjIwMjYtMDktMzBUMTI6MDA6MDAuMDAwMDAwMDAxWiJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJvZmZzZXQiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQwNTowMDowMC0wNzowMCJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"offset\",\"expires\":\"2026-10-14T05:00:00-07:00\"}}}",
+        "uids": {
+          "adnxs": "offset"
+        }
+      },
+      "id": "offset_expiry",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"offset\",\"expires\":\"2026-10-14T05:00:00-07:00\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJvZmZzZXQiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQwNTowMDowMC0wNzowMCJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiIiLCJleHBpcmVzIjoiMDAwMS0wMS0wMVQwMDowMDowMFoifX19",
+        "has_live_syncs": false,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"\",\"expires\":\"0001-01-01T00:00:00Z\"}}}",
+        "uids": {
+          "adnxs": ""
+        }
+      },
+      "id": "missing_entry_fields",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6e319fQ=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiIiLCJleHBpcmVzIjoiMDAwMS0wMS0wMVQwMDowMDowMFoifX19",
+        "has_live_syncs": false,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"\",\"expires\":\"0001-01-01T00:00:00Z\"}}}",
+        "uids": {
+          "adnxs": ""
+        }
+      },
+      "id": "null_entry",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":null}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6bnVsbH19"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiIiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": ""
+        }
+      },
+      "id": "null_uid",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":null,\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOm51bGwsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJ4IiwiZXhwaXJlcyI6IjAwMDEtMDEtMDFUMDA6MDA6MDBaIn19fQ==",
+        "has_live_syncs": false,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"x\",\"expires\":\"0001-01-01T00:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "x"
+        }
+      },
+      "id": "null_expiry",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"x\",\"expires\":null}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJ4IiwiZXhwaXJlcyI6bnVsbH19fQ=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJsYXN0IiwiZXhwaXJlcyI6IjIwMjYtMTAtMDJUMDA6MDA6MDBaIn19fQ==",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"last\",\"expires\":\"2026-10-02T00:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "last"
+        }
+      },
+      "id": "duplicate_family",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-01T00:00:00Z\"},\"adnxs\":{\"uid\":\"last\",\"expires\":\"2026-10-02T00:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTAxVDAwOjAwOjAwWiJ9LCJhZG54cyI6eyJ1aWQiOiJsYXN0IiwiZXhwaXJlcyI6IjIwMjYtMTAtMDJUMDA6MDA6MDBaIn19fQ=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "duplicate_optout",
+      "input": {
+        "decoded_json_utf8": "{\"optout\":true,\"optout\":false}",
+        "encoded": "eyJvcHRvdXQiOnRydWUsIm9wdG91dCI6ZmFsc2V9"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIwMDAxLTAxLTAxVDAwOjAwOjAwWiJ9LCJwdWJtYXRpYyI6eyJ1aWQiOiJsYXN0IiwiZXhwaXJlcyI6IjAwMDEtMDEtMDFUMDA6MDA6MDBaIn19fQ==",
+        "has_live_syncs": false,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"0001-01-01T00:00:00Z\"},\"pubmatic\":{\"uid\":\"last\",\"expires\":\"0001-01-01T00:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "first",
+          "pubmatic": "last"
+        }
+      },
+      "id": "duplicate_top_level",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\"}},\"tempUIDs\":{\"pubmatic\":{\"uid\":\"last\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCJ9fSwidGVtcFVJRHMiOnsicHVibWF0aWMiOnsidWlkIjoibGFzdCJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": false,
+        "encoded": "eyJvcHRvdXQiOnRydWV9",
+        "has_live_syncs": false,
+        "json_utf8": "{\"optout\":true}",
+        "uids": {}
+      },
+      "id": "optout_drops_ids",
+      "input": {
+        "decoded_json_utf8": "{\"optout\":true,\"tempUIDs\":{\"adnxs\":{\"uid\":\"ignored\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "encoded": "eyJvcHRvdXQiOnRydWUsInRlbXBVSURzIjp7ImFkbnhzIjp7InVpZCI6Imlnbm9yZWQiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "audience_network_zero",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"audienceNetwork\":{\"uid\":\"0\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhdWRpZW5jZU5ldHdvcmsiOnsidWlkIjoiMCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJmdXR1cmUtZmFtaWx5Ijp7InVpZCI6ImtlZXAiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"future-family\":{\"uid\":\"keep\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "future-family": "keep"
+        }
+      },
+      "id": "unknown_family",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"future-family\":{\"uid\":\"keep\",\"expires\":\"2026-10-14T12:00:00Z\"}},\"unknown\":42}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJmdXR1cmUtZmFtaWx5Ijp7InVpZCI6ImtlZXAiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX0sInVua25vd24iOjQyfQ=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJcdTAwM2NcdTAwM2VcdTAwMjZcIlxcXG5cdTIwMjhcdTIwMjnpm6oiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"\\u003c\\u003e\\u0026\\\"\\\\\\n\\u2028\\u2029雪\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "<>&\"\\\n\u2028\u2029雪"
+        }
+      },
+      "id": "escaping",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"<>&\\\"\\\\\\n\\u2028\\u2029\\u96ea\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiI8PiZcIlxcXG5cdTIwMjhcdTIwMjlcdTk2ZWEiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "bad_timestamp",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"x\",\"expires\":\"yesterday\"}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJ4IiwiZXhwaXJlcyI6Inllc3RlcmRheSJ9fX0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "invalid_uid_type",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":42}}}",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOjQyfX19"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "invalid_optout_type",
+      "input": {
+        "decoded_json_utf8": "{\"optout\":\"true\"}",
+        "encoded": "eyJvcHRvdXQiOiJ0cnVlIn0="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "invalid_map_type",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":[]}",
+        "encoded": "eyJ0ZW1wVUlEcyI6W119"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "array_root",
+      "input": {
+        "decoded_json_utf8": "[]",
+        "encoded": "W10="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "trailing_json",
+      "input": {
+        "decoded_json_utf8": "{\"optout\":true} {}",
+        "encoded": "eyJvcHRvdXQiOnRydWV9IHt9"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "broken_json",
+      "input": {
+        "decoded_json_utf8": "{\"tempUIDs\":",
+        "encoded": "eyJ0ZW1wVUlEcyI6"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Base64Decoder.Decode then Base64Encoder.Encode/GetUIDs/AllowSyncs/HasAnyLiveSyncs; frozen clock",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "empty_base64",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": ""
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "missing_padding",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJvcHRvdXQiOnRydWV9IA"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "extra_padding",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJvcHRvdXQiOnRydWV9IA==="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "invalid_alphabet",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJvcHRvdXQiOnRydWUsIm1hcmtlciI6In5+fn5+fiJ9IA=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "invalid_base64",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJvcHRvdXQiOnRydWV9IA==%"
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": false,
+        "encoded": "eyJvcHRvdXQiOnRydWV9",
+        "has_live_syncs": false,
+        "json_utf8": "{\"optout\":true}",
+        "uids": {}
+      },
+      "id": "base64_crlf",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJv\r\ncHRvdXQiOnRydWV9IA=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": false,
+        "encoded": "eyJvcHRvdXQiOnRydWV9",
+        "has_live_syncs": false,
+        "json_utf8": "{\"optout\":true}",
+        "uids": {}
+      },
+      "id": "padding_nonzero_bits",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJvcHRvdXQiOnRydWV9IB=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "base64_space",
+      "input": {
+        "decoded_json_utf8": null,
+        "encoded": "eyJv cHRvdXQiOnRydWV9IA=="
+      },
+      "operation": "decode_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual Base64Decoder.Decode with no prevalidation or repair. Except empty input, variants derive from padded opt-out JSON so accepted decoding differs from fresh-cookie error fallback. CR/LF and nonzero unused bits retain opt-out; malformed padding, space, alphabet and suffix reset. Alternate-alphabet input standard-decodes to valid opt-out JSON with an ignored marker field.",
+        "paths": [
+          "usersync/decoder.go",
+          "usersync/cookie.go",
+          "usersync/encoder.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "cookie_absent",
+      "input": {
+        "cookie_headers": [],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "",
+          "optout_value": ""
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "first"
+        }
+      },
+      "id": "duplicate_name_first_wins",
+      "input": {
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=; uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiJzZWNvbmQiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19"
+        ],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "",
+          "optout_value": ""
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "first"
+        }
+      },
+      "id": "duplicate_header_first_wins",
+      "input": {
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+          "uids=eyJ0ZW1wVUlEcyI6eyJwdWJtYXRpYyI6eyJ1aWQiOiJzZWNvbmQiLCJleHBpcmVzIjoiMjAyNi0xMC0xNFQxMjowMDowMFoifX19"
+        ],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "",
+          "optout_value": ""
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "e30=",
+        "has_live_syncs": false,
+        "json_utf8": "{}",
+        "uids": {}
+      },
+      "id": "invalid_first_cookie_wins",
+      "input": {
+        "cookie_headers": [
+          "uids=%%%",
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0="
+        ],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "",
+          "optout_value": ""
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "first"
+        }
+      },
+      "id": "quoted_cookie_value",
+      "input": {
+        "cookie_headers": [
+          "uids=\"eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=\""
+        ],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "",
+          "optout_value": ""
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": false,
+        "encoded": "eyJvcHRvdXQiOnRydWV9",
+        "has_live_syncs": false,
+        "json_utf8": "{\"optout\":true}",
+        "uids": {}
+      },
+      "id": "host_optout_wins",
+      "input": {
+        "cookie_headers": [
+          "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=; stop=yes"
+        ],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "stop",
+          "optout_value": "yes"
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "allow_syncs": true,
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "has_live_syncs": true,
+        "json_utf8": "{\"tempUIDs\":{\"adnxs\":{\"uid\":\"first\",\"expires\":\"2026-10-14T12:00:00Z\"}}}",
+        "uids": {
+          "adnxs": "first"
+        }
+      },
+      "id": "host_optout_first_name_wins",
+      "input": {
+        "cookie_headers": [
+          "stop=no; stop=yes; uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0="
+        ],
+        "host_cookie": {
+          "cookie_name": "",
+          "family": "",
+          "optout_name": "stop",
+          "optout_value": "yes"
+        }
+      },
+      "operation": "read_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "ReadCookie uses net/http.Request.Cookie; input headers retain wire order",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "set_cookie": "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+      },
+      "id": "set_cookie_plain",
+      "input": {
+        "domain": "",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "now": "2026-09-30T12:00:00Z",
+        "secure_same_site_none": false,
+        "ttl_days": 90
+      },
+      "operation": "write_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "WriteCookie, clock-only overlay; exact Go net/http.Cookie.String output",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "set_cookie": "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=; Path=/; Domain=example.com; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+      },
+      "id": "set_cookie_domain",
+      "input": {
+        "domain": ".example.com",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "now": "2026-09-30T12:00:00Z",
+        "secure_same_site_none": false,
+        "ttl_days": 90
+      },
+      "operation": "write_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "WriteCookie, clock-only overlay; exact Go net/http.Cookie.String output",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "set_cookie": "uids=eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=; Path=/; Domain=sync.example.com; Expires=Tue, 29 Dec 2026 12:00:00 GMT; Secure; SameSite=None"
+      },
+      "id": "set_cookie_same_site_none",
+      "input": {
+        "domain": "sync.example.com",
+        "encoded": "eyJ0ZW1wVUlEcyI6eyJhZG54cyI6eyJ1aWQiOiJmaXJzdCIsImV4cGlyZXMiOiIyMDI2LTEwLTE0VDEyOjAwOjAwWiJ9fX0=",
+        "now": "2026-09-30T12:00:00Z",
+        "secure_same_site_none": true,
+        "ttl_days": 90
+      },
+      "operation": "write_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "WriteCookie, clock-only overlay; exact Go net/http.Cookie.String output",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "set_cookie": "uids=; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+      },
+      "id": "set_cookie_clear",
+      "input": {
+        "domain": "",
+        "encoded": "",
+        "now": "2026-09-30T12:00:00Z",
+        "secure_same_site_none": false,
+        "ttl_days": 90
+      },
+      "operation": "write_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "WriteCookie, clock-only overlay; exact Go net/http.Cookie.String output",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "set_cookie": "uids=e30=; Path=/; Expires=Tue, 29 Dec 2026 12:00:00 GMT"
+      },
+      "id": "set_cookie_empty_object",
+      "input": {
+        "domain": "",
+        "encoded": "e30=",
+        "now": "2026-09-30T12:00:00Z",
+        "secure_same_site_none": false,
+        "ttl_days": 90
+      },
+      "operation": "write_cookie",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "WriteCookie, clock-only overlay; exact Go net/http.Cookie.String output",
+        "paths": [
+          "usersync/cookie.go"
+        ]
+      }
+    }
+  ],
+  "reference": {
+    "generator_version": 1,
+    "go": "go1.23.12",
+    "license": "Apache-2.0",
+    "now": "2026-09-30T12:00:00Z",
+    "revision": "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+  },
+  "schema_version": 1
+}

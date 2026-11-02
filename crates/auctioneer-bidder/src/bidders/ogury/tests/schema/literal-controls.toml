@@ -1,0 +1,23 @@
+schema = "ogury"
+
+[[cases]]
+input_json = '{}'
+valid = true
+
+[[cases]]
+input_json = '{"assetKey":"site","adUnitId":"slot"}'
+valid = true
+
+[[cases]]
+input_json = '{"assetKey":"site"}'
+valid = false
+draft4_valid = true
+
+[[cases]]
+input_json = '{"adUnitId":"slot"}'
+valid = false
+draft4_valid = true
+
+[[cases]]
+input_json = '{"assetKey":"","adUnitId":"slot"}'
+valid = false

@@ -1,0 +1,153 @@
+key = "smarthub"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/smarthub"
+tree = "c658de8fbc061457dcfca95a43ae294207ccf341"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adastra.yaml"
+source_blob = "2e06294181591ddee381da218b2db94875d25f5c"
+source_bytes = 152
+source_sha256 = "9c3ab25db7419e0333944612f27cf69494692254b126f89bfec341d3ca63f573"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/addigi.yaml"
+source_blob = "8514d5c5500f4e1333aad99d972bacdb9f4409f0"
+source_bytes = 116
+source_sha256 = "10005ab3794f95ad362d208820402f316e50f55b6172726abd8f98a98c553c14"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adinify.yaml"
+source_blob = "501b54df3f14f2b06f202d53c7c802f6996e3a01"
+source_bytes = 117
+source_sha256 = "b0a74b18b76fb1ef37d0a17ee9dfd02eee020cbbb7be11de3567c3f7d183c172"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/amcom.yaml"
+source_blob = "2144fe6b2e6aa891df520a3b34cdf456ff7ce862"
+source_bytes = 114
+source_sha256 = "0efd361919cfa311f5f1670749773475b5d393131d51d7900c9d42d77bad01d4"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/artechnology.yaml"
+source_blob = "078123533634ecef0ce223769579b06504300f36"
+source_bytes = 122
+source_sha256 = "c18ce84327b3493de90989275123a86283aec7198030c2d265d4768dd00e5b5e"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/felixads.yaml"
+source_blob = "baa2268f4da8819c78351389e88bf537e377da18"
+source_bytes = 118
+source_sha256 = "0ba61a969749d1be0dff966561e564eb923cb3f2ec4d451a1deba35a0e7fb07b"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/jambojar.yaml"
+source_blob = "5ab15a47d4b2dfd81e910b338f3c3c004785233f"
+source_bytes = 118
+source_sha256 = "1fc2bc3b8dc95b30f1afe0d432be2afcfe9d4de2ee4d7790f1b1c2268433d230"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/jdpmedia.yaml"
+source_blob = "f558955a2f20dca5edfc12fe2a6d96ee5aa94751"
+source_bytes = 154
+source_sha256 = "6233c4574755ce2726236e58dfeff65ec2d8cf11e98cceba883062ea1bd1f1d1"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/markapp.yaml"
+source_blob = "b0e710624246e6baf8a79b03b1804b8e2570c461"
+source_bytes = 153
+source_sha256 = "ec60c80c3442ac630995d3a478ff64782fbaf02a6a881309a63bd035d57e83d3"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/radiantfusion.yaml"
+source_blob = "583fa8762a0b70155fdd1b96fb08bacf2f836150"
+source_bytes = 122
+source_sha256 = "54a25758a38d7bcf0c528a2669db5cd2af2887fb2e8862146d71abcf048782d0"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/smarthub.yaml"
+source_blob = "43e12ae25706f4004a4ba1a9c0472c1460bbb2e0"
+source_bytes = 513
+source_sha256 = "ca9a11506a0b7701c53d4fd43ae239ce621c026ec8060fa409157c6c878ee451"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/tredio.yaml"
+source_blob = "fd8ac68689be7ba247739b1366b14ee10478c63d"
+source_bytes = 152
+source_sha256 = "bd2c7b5f5d3903e5020b578466396ba2182efe96e407c485e628521dc35e4642"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/smarthub.json"
+source_blob = "aba567b560e6c9eb9b6bade7318ade6f929e381e"
+source_bytes = 621
+source_sha256 = "6d0d79e63f17e65beac23cb9dab6a7ad90e3eb729f333b725a106cc14415b000"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 621
+source_sha256 = "6d0d79e63f17e65beac23cb9dab6a7ad90e3eb729f333b725a106cc14415b000"

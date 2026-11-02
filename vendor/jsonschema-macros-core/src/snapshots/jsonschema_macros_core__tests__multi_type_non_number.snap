@@ -1,0 +1,9 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"type\":[\"boolean\",\"null\",\"array\",\"object\"]}"
+expression: is_valid_body(schema)
+---
+matches!(
+            instance, __Value::Bool(_) | __Value::Null | __Value::Array(_) |
+            __Value::Object(_)
+        )

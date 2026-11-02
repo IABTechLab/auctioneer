@@ -1,0 +1,43 @@
+{
+  "schema": "fake_base",
+  "path": "adapters/fake_base/params_test.go",
+  "blob": "1111111111111111111111111111111111111111",
+  "sha256": "28ad97440522d9e45651102fa646a0bb68657209ae20fa737a55e0df41fb041a",
+  "bytes": 160,
+  "valid_cases": 3,
+  "invalid_cases": 3,
+  "valid_span": {
+    "start": 23,
+    "end": 127
+  },
+  "invalid_span": {
+    "start": 141,
+    "end": 158
+  },
+  "verdict_counts": [
+    3,
+    1,
+    2
+  ],
+  "previous": true,
+  "original": true,
+  "duplicates": [
+    [
+      "valid",
+      1,
+      2
+    ]
+  ],
+  "lexical": [
+    [
+      1,
+      "nil",
+      "syntax"
+    ],
+    [
+      2,
+      "",
+      "eof"
+    ]
+  ]
+}

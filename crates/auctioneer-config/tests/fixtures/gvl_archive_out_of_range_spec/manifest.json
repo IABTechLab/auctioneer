@@ -1,0 +1,17 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-01-02T00:00:00Z",
+  "retention": {
+    "max_age_days": 36500
+  },
+  "entries": [
+    {
+      "spec": 1,
+      "vendor_list_version": 5,
+      "tcf_policy_version": 2,
+      "last_updated": "2026-01-01T00:00:00Z",
+      "path": "spec1/vendor-list-v5.json",
+      "sha256": "abababababababababababababababababababababababababababababababab"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic numeric pattern applicability compiler control",
+  "description": "Independent fake-bidder integer and number fields ignore string keywords, but strings satisfying those keywords still fail their declared numeric types.",
+  "type": "object",
+  "properties": {
+    "count": { "type": "integer", "pattern": "^x$", "minLength": 1 },
+    "ratio": { "type": "number", "pattern": "^x$", "maxLength": 1 }
+  },
+  "required": ["count", "ratio"],
+  "additionalProperties": false
+}

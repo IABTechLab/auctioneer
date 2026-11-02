@@ -1,0 +1,115 @@
+# Runs Fastly's own packager over the Compute adapter and gates the
+# package size.
+#
+# `cargo check --target wasm32-wasip1` (in test.yml) proves the crate
+# compiles. It does NOT prove `fastly compute build` accepts the crate
+# or that the package it emits fits the platform ceiling. This workflow
+# runs the vendor tool.
+#
+# Run from the workspace root: CLI 16.0.0 cannot parse the adapter's
+# inherited [package] keys when invoked in the member directory. The root
+# fastly.toml explicitly selects the adapter binary, so package metadata
+# stays inherited and unrelated workspace crates are not built for WASI.
+# Keep the vendor packager here; a Cargo-only build is not equivalent.
+#
+# Local logging regressions run in fresh Viceroy processes using the
+# library-test guest, test-only baked-level hooks, and fixture stores. No credentials or
+# deployment are needed. They prove logger/filter behavior, not
+# per-call cancellation, deadlines or response body caps.
+# Those are proven over a real socket on the axum target, in
+# `crates/auctioneer-adapter-axum/tests`. The guest rows below prove logging,
+# logical-alias SDK reads, and fail-closed health through response dispatch;
+# they do not claim Fastly outbound deadline or cancellation conformance.
+name: "CI: Fastly"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_BUILD_JOBS: 2
+  # Decimal bytes: Fastly documents a 100 MB ceiling on the compiled
+  # package. Not 100 * 1024 * 1024.
+  FASTLY_PACKAGE_MAX_BYTES: 100000000
+
+jobs:
+  fastly-build:
+    name: fastly compute build + package size
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      # fastly.toml's build script targets wasm32-wasip1.
+      - name: Add the wasm32-wasip1 target
+        run: rustup target add wasm32-wasip1
+
+      - name: Install Viceroy
+        run: bash .github/workflows/scripts/ci-fastly/install-viceroy.sh
+
+      - name: Build the Fastly logging test guest
+        id: logging-guest
+        run: bash .github/workflows/scripts/ci-fastly/build-test-guest.sh
+
+      # Two host tests drive fourteen isolated guest cases: baked logging
+      # without runtime env and with conflicting legacy settings; endpoint
+      # boot warnings plus endpoint, stderr, and rejected-endpoint dispatch
+      # filters at ERROR/OFF/DEBUG.
+      - name: Run local Fastly boot logging regressions
+        env:
+          AUCTIONEER__TEST__FASTLY_LOGGING_WASM: ${{ steps.logging-guest.outputs.wasm }}
+        run: cargo test -p auctioneer-adapter-fastly --test boot_logging -- --ignored
+
+      - name: Run local Fastly health-store regressions
+        env:
+          AUCTIONEER__TEST__FASTLY_LOGGING_WASM: ${{ steps.logging-guest.outputs.wasm }}
+        run: cargo test -p auctioneer-adapter-fastly --test manifest_health_stores -- --ignored
+
+      - name: Install the fastly CLI
+        run: bash .github/workflows/scripts/ci-fastly/install-fastly.sh
+
+      # The vendor packager. No credentials needed: `compute build` is
+      # entirely local, it neither authenticates nor deploys.
+      - name: fastly compute build
+        run: fastly compute build --package-name auctioneer
+
+      - name: Measure the built package
+        id: size
+        run: bash .github/workflows/scripts/ci-fastly/measure-package.sh
+
+      - name: Upload the built package
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastly-package
+          path: pkg/auctioneer.tar.gz
+          if-no-files-found: error

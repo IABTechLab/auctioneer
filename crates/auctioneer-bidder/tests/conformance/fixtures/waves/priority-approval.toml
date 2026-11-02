@@ -1,0 +1,22 @@
+schema_version = 1
+kind = "priority_wave_contract_review"
+review_status = "approved"
+reviewer = "AG"
+approved_on = 2026-10-30
+scope = "contract_requirements_only"
+promotion_allowed = false
+resource_qualification_granted = false
+onboarding_acceptance_granted = false
+
+# Preserve the exact reviewed inputs, including their original planning metadata.
+# Approval does not make a protocol, resource bound or publisher flow complete.
+# Input changes require renewed review, not an automatic digest update.
+[[contracts]]
+source_path = "priority.toml"
+source_bytes = 55838
+source_sha256 = "aa9d38e3e6221c13d13b28ba18684e041f48e3c15608aa60ee11db86924a0c24"
+
+[[contracts]]
+source_path = "priority-supplemental.toml"
+source_bytes = 289
+source_sha256 = "ee94f5753f6244fa2980670a3fdf65ea69df2a157532a8776d061d9b2e1f66aa"

@@ -1,0 +1,29 @@
+schema_version = 1
+schema = "openx"
+schema_sha256 = "7d624d7bea9b31df510c288b9ee0c7088c5943cecc12b66ab16167b90197dccc"
+origin = "authored_schema_derived"
+rows = [
+  { id = "domain_base", schema = "openx", valid = true, input_json = '{"unit":"1","delDomain":"a.co"}' },
+  { id = "unit_numeric_zero", schema = "openx", valid = true, input_json = '{"unit":0,"delDomain":"a.co"}' },
+  { id = "unit_negative", schema = "openx", valid = false, input_json = '{"unit":-1,"delDomain":"a.co"}' },
+  { id = "unit_string_zero", schema = "openx", valid = true, input_json = '{"unit":"0","delDomain":"a.co"}' },
+  { id = "unit_unicode_digit", schema = "openx", valid = false, input_json = '{"unit":"\u0661","delDomain":"a.co"}' },
+  { id = "floor_numeric_zero", schema = "openx", valid = true, input_json = '{"unit":"1","delDomain":"a.co","customFloor":0}' },
+  { id = "floor_string_decimal", schema = "openx", valid = true, input_json = '{"unit":"1","delDomain":"a.co","customFloor":"0.5"}' },
+  { id = "floor_negative", schema = "openx", valid = false, input_json = '{"unit":"1","delDomain":"a.co","customFloor":-0.1}' },
+  { id = "floor_bad_decimal", schema = "openx", valid = false, input_json = '{"unit":"1","delDomain":"a.co","customFloor":"1."}' },
+  { id = "floor_unicode_digits", schema = "openx", valid = false, input_json = '{"unit":"1","delDomain":"a.co","customFloor":"\u0661.\u0665"}' },
+  { id = "suffix_short", schema = "openx", valid = false, input_json = '{"unit":"1","delDomain":"a.c"}' },
+  { id = "suffix_long", schema = "openx", valid = false, input_json = '{"unit":"1","delDomain":"a.comm"}' },
+  { id = "hostname_bad_label", schema = "openx", valid = false, input_json = '{"unit":"1","delDomain":"-a.co"}' },
+  { id = "uuid_only", schema = "openx", valid = true, input_json = '{"unit":"1","platform":"123e4567-e89b-12d3-a456-426614174000"}' },
+  { id = "uuid_invalid", schema = "openx", valid = false, input_json = '{"unit":"1","platform":"not-a-uuid"}' },
+  { id = "uuid_wrong_type", schema = "openx", valid = false, input_json = '{"unit":"1","platform":1}' },
+  { id = "both_anyof", schema = "openx", valid = true, input_json = '{"unit":"1","delDomain":"a.co","platform":"123e4567-e89b-12d3-a456-426614174000"}' },
+  { id = "neither_anyof", schema = "openx", valid = false, input_json = '{"unit":1}' },
+]
+[expected]
+authored = 18
+imported = 0
+accepts = 7
+rejects = 11

@@ -1,0 +1,62 @@
+key = "kidoz"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/kidoz"
+tree = "7158e65de370139ba21c3d761e18c50c38dc5565"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/kidoz.yaml"
+source_blob = "dd9eb3c668bc5e99360dfd0b8300c8b030ecc5c6"
+source_bytes = 244
+source_sha256 = "6eced3c2cdfb84c49a6a94e2db9435955516eb5bf069a5cecd88a24fecda7824"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://prebid-adapter.kidoz.net/openrtb2/auction?src=prebid-server"
+selected_url = "https://prebid-adapter.kidoz.net/openrtb2/auction?src=prebid-server"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/kidoz.json"
+source_blob = "16511a15ca71880f6cc7370eba870dbc9b7430da"
+source_bytes = 588
+source_sha256 = "e0f365b7ee8f2dab0ecb103fa38039e8cde3b57c5d12bedf1ea5e473bca41f96"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 588
+source_sha256 = "e0f365b7ee8f2dab0ecb103fa38039e8cde3b57c5d12bedf1ea5e473bca41f96"

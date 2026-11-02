@@ -1,0 +1,131 @@
+name: "Refresh GVL Archive"
+
+on:
+  schedule:
+    # DAILY, and deliberately not weekly. The build gate that bakes the
+    # archive FAILS the moment the Global CMP List's RFC 9111 cache
+    # lifetime runs out, and that expiry is `fetched_at +
+    # cache_max_age_secs` — it moves with the wall-clock instant of
+    # whichever run last fetched, and with whatever `max-age` upstream
+    # served that day. It is therefore NOT anchored to a weekday. A
+    # weekly cron chases a target that drifts away from it: any run that
+    # lands even slightly early renews nothing (the tool reuses a GCL
+    # that is still fresh), and the next attempt is a whole week later —
+    # so the archive stays expired for days, during which the build gate
+    # is red and enforced traffic takes the stale-GCL fail-closed path.
+    # A daily run cannot drift more than a day behind the expiry, and a
+    # run made before the expiry is nearly free: the tool reuses every
+    # blob it already has, this job notices the expiry did not advance,
+    # and it exits without opening anything.
+    - cron: "31 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: refresh and open a pull request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-refresh-gvl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-refresh-gvl-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Fetch dependencies (locked)
+        run: cargo fetch --locked
+
+      # The expiry the refresh is trying to replace, read BEFORE the
+      # archive is rewritten — afterwards the old value is gone from the
+      # tree, and it is the figure the whole job is compared against.
+      - name: Read the outgoing expiry
+        id: before
+        run: bash .github/workflows/scripts/refresh-gvl/read-outgoing-expiry.sh
+        shell: bash
+
+      # Archive repair must compile even when stale embedded data rejects the app.
+      - name: Refresh the archive
+        run: cargo run --locked -p auctioneer-cli --no-default-features -- gvl refresh
+
+      # The tool restamps `manifest.json`'s `generated_at` on EVERY run,
+      # including one that reused every blob it already had. So "the
+      # working tree changed" does not mean "the archive was renewed",
+      # and opening a pull request on that signal alone produces a
+      # regular no-op PR that renews nothing.
+      #
+      # The GCL expiry is the honest signal: it is the instant the build
+      # gate starts failing, and it only moves when the tool actually
+      # fetched a new list. A refresh that advanced it is worth a pull
+      # request; one that did not is a pre-expiry day doing its job
+      # cheaply. Vendor-list and archive changes are not tested for
+      # separately — they ride along inside whichever PR the expiry
+      # opens, which is also how they reach a human.
+      - name: Read the incoming expiry
+        id: after
+        run: bash .github/workflows/scripts/refresh-gvl/read-incoming-expiry.sh
+        shell: bash
+
+      - name: Decide whether the refresh is worth a pull request
+        id: verdict
+        env:
+          BEFORE_EPOCH: ${{ steps.before.outputs.expiry_epoch }}
+          AFTER_EPOCH: ${{ steps.after.outputs.expiry_epoch }}
+        run: bash .github/workflows/scripts/refresh-gvl/refresh-verdict.sh
+        shell: bash
+
+      # Everything else the refresh changed, listed for the pull request
+      # body. Read after the verdict, so a no-op run has already reverted
+      # and this reports on the tree the PR will actually carry.
+      - name: Summarise the archive changes
+        id: changes
+        if: steps.verdict.outputs.advanced == 'true'
+        run: bash .github/workflows/scripts/refresh-gvl/summarize-changes.sh
+        shell: bash
+
+      - name: Open a pull request
+        if: steps.verdict.outputs.advanced == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE_EXPIRY: ${{ steps.before.outputs.expiry }}
+          BEFORE_LIST: ${{ steps.before.outputs.list_version }}
+          AFTER_EXPIRY: ${{ steps.after.outputs.expiry }}
+          AFTER_FETCHED: ${{ steps.after.outputs.fetched_at }}
+          AFTER_MAX_AGE: ${{ steps.after.outputs.max_age }}
+          AFTER_LIST: ${{ steps.after.outputs.list_version }}
+          CHANGED_FILES: ${{ steps.changes.outputs.files }}
+        run: bash .github/workflows/scripts/refresh-gvl/open-pull-request.sh
+        shell: bash
+
+      - name: Report a refresh that renewed nothing
+        if: steps.verdict.outputs.advanced == 'false'
+        env:
+          BEFORE_EXPIRY: ${{ steps.before.outputs.expiry }}
+        run: |
+          set -euo pipefail
+          echo "The Global CMP List is still fresh: the refresh reused it and the expiry stayed at ${BEFORE_EXPIRY}. No pull request opened." >> "$GITHUB_STEP_SUMMARY"
+        shell: bash

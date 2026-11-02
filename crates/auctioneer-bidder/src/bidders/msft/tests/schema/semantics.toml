@@ -1,0 +1,19 @@
+schema_version = 1
+schema = "msft"
+schema_sha256 = "f0f5e273bbe4598198aca62942e81de1290d3d111d9a22a9e059a08c1ee20999"
+origin = "authored_schema_derived"
+rows = [
+  { id = "placement_only", schema = "msft", valid = true, input_json = '{"placement_id":1}' },
+  { id = "inventory_only", schema = "msft", valid = true, input_json = '{"inv_code":"i","member":1}' },
+  { id = "both", schema = "msft", valid = false, input_json = '{"placement_id":1,"inv_code":"i","member":1}' },
+  { id = "neither", schema = "msft", valid = false, input_json = '{}' },
+  { id = "framework_items", schema = "msft", valid = true, input_json = '{"placement_id":1,"banner_frameworks":[1,2]}' },
+  { id = "framework_empty_allowed", schema = "msft", valid = true, input_json = '{"placement_id":1,"banner_frameworks":[]}' },
+  { id = "framework_wrong_item", schema = "msft", valid = false, input_json = '{"placement_id":1,"banner_frameworks":["1"]}' },
+  { id = "fractional_placement", schema = "msft", valid = false, input_json = '{"placement_id":1.5}' },
+]
+[expected]
+authored = 8
+imported = 0
+accepts = 4
+rejects = 4

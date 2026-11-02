@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic nested numeric length applicability compiler control",
+  "description": "Independent fake-bidder sample tick ignores string lengths; a three-character string still fails its integer type.",
+  "type": "object",
+  "properties": {
+    "sample": {
+      "type": "object",
+      "properties": {
+        "tick": { "type": "integer", "minLength": 3, "maxLength": 3 }
+      },
+      "required": ["tick"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["sample"],
+  "additionalProperties": false
+}

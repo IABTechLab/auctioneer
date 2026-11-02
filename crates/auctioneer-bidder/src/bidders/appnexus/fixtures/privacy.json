@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "implementation": "appnexus",
+  "fixture": "full-privacy-context-v1",
+  "banner_response_prebid": {},
+  "publisher": {"mode": "preserve"},
+  "impression_extension": {"mode": "preserve"},
+  "request_extension": {
+    "preserve_input": true,
+    "absent_input": {"mode": "object", "fields": {"appnexus": {"placement_ids": [42]}}},
+    "present_input": {"appnexus": {"placement_ids": [42]}},
+    "requested_bidder_path": null
+  }
+}

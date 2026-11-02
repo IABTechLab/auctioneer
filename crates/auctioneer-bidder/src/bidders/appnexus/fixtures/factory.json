@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "implementation": "appnexus",
+  "manifest_sha256": "770fdc7a3663f64c640a26aa330892aee174a32df17194c95a85184b12514dfc",
+  "cases": [
+    {
+      "name": "banner-and-unsent-sibling",
+      "request": {
+        "id": "catalog-request",
+        "imp": [
+          {
+            "id": "i",
+            "banner": {
+              "w": 300,
+              "h": 250
+            },
+            "ext": {
+              "bidder": {
+                "placementId": 42,
+                "placement_id": 42,
+                "accountID": "account",
+                "org": "publisher",
+                "tagid": "sovrn-tag",
+                "siteid": 123,
+                "dcn": "yahoo-site",
+                "pos": "yahoo-slot",
+                "publisherId": "ttd-publisher",
+                "supplySourceId": "ttd-route"
+              }
+            }
+          }
+        ],
+        "ext": {
+          "appnexus": {
+            "member_id": 7,
+            "placement_ids": [
+              99
+            ]
+          },
+          "catalog_test": {
+            "preserve": true
+          }
+        }
+      },
+      "context": {
+        "account_id": "catalog-account",
+        "endpoint_template": "https://bidder.example.test/openrtb?account={{.AccountID}}",
+        "endpoint_macros": [
+          "AccountID"
+        ],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/openrtb?account=catalog-account",
+          "required_headers": [
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Accept",
+              "application/json"
+            ]
+          ],
+          "absent_headers": [],
+          "imp_ids": [
+            "i"
+          ],
+          "body": {
+            "id": "catalog-request",
+            "imp": [
+              {
+                "id": "i",
+                "banner": {
+                  "w": 300,
+                  "h": 250
+                },
+                "ext": {
+                  "bidder": {
+                    "placementId": 42,
+                    "placement_id": 42,
+                    "accountID": "account",
+                    "org": "publisher",
+                    "tagid": "sovrn-tag",
+                    "siteid": 123,
+                    "dcn": "yahoo-site",
+                    "pos": "yahoo-slot",
+                    "publisherId": "ttd-publisher",
+                    "supplySourceId": "ttd-route"
+                  }
+                }
+              }
+            ],
+            "ext": {
+              "appnexus": {
+                "member_id": 7,
+                "placement_ids": [
+                  42
+                ]
+              },
+              "catalog_test": {
+                "preserve": true
+              }
+            }
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "valid",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "factory-bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "mtype": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "factory-bid",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": []
+          }
+        },
+        {
+          "name": "valid-with-unsent",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "factory-bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "mtype": 1
+                  },
+                  {
+                    "id": "rejected-bid",
+                    "impid": "not-sent",
+                    "price": 1.25,
+                    "mtype": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "factory-bid",
+                "impid": "i",
+                "media_type": "banner"
+              }
+            ],
+            "errors": [
+              4
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "provider-video-hint",
+      "request": {
+        "id": "catalog-request",
+        "imp": [
+          {
+            "id": "i",
+            "banner": {},
+            "ext": {
+              "bidder": {
+                "placementId": 42,
+                "placement_id": 42,
+                "accountID": "account",
+                "org": "publisher",
+                "tagid": "sovrn-tag",
+                "siteid": 123,
+                "dcn": "yahoo-site",
+                "pos": "yahoo-slot",
+                "publisherId": "ttd-publisher",
+                "supplySourceId": "ttd-route"
+              }
+            },
+            "video": {}
+          }
+        ],
+        "ext": {
+          "appnexus": {
+            "member_id": 7,
+            "placement_ids": [
+              99
+            ]
+          },
+          "catalog_test": {
+            "preserve": true
+          }
+        }
+      },
+      "context": {
+        "account_id": "catalog-account",
+        "endpoint_template": "https://bidder.example.test/openrtb?account={{.AccountID}}",
+        "endpoint_macros": [
+          "AccountID"
+        ],
+        "host_allowlist": null
+      },
+      "outbound": [
+        {
+          "method": "POST",
+          "url": "https://bidder.example.test/openrtb?account=catalog-account",
+          "required_headers": [
+            [
+              "Content-Type",
+              "application/json"
+            ],
+            [
+              "Accept",
+              "application/json"
+            ]
+          ],
+          "absent_headers": [],
+          "imp_ids": [
+            "i"
+          ],
+          "body": {
+            "id": "catalog-request",
+            "imp": [
+              {
+                "id": "i",
+                "banner": {},
+                "ext": {
+                  "bidder": {
+                    "placementId": 42,
+                    "placement_id": 42,
+                    "accountID": "account",
+                    "org": "publisher",
+                    "tagid": "sovrn-tag",
+                    "siteid": 123,
+                    "dcn": "yahoo-site",
+                    "pos": "yahoo-slot",
+                    "publisherId": "ttd-publisher",
+                    "supplySourceId": "ttd-route"
+                  }
+                },
+                "video": {}
+              }
+            ],
+            "ext": {
+              "appnexus": {
+                "member_id": 7,
+                "placement_ids": [
+                  42
+                ]
+              },
+              "catalog_test": {
+                "preserve": true
+              }
+            }
+          }
+        }
+      ],
+      "responses": [
+        {
+          "name": "multiformat",
+          "call": 0,
+          "status": 200,
+          "body": {
+            "id": "response",
+            "cur": "USD",
+            "seatbid": [
+              {
+                "seat": "bidder",
+                "bid": [
+                  {
+                    "id": "bid",
+                    "impid": "i",
+                    "price": 1.25,
+                    "ext": {
+                      "appnexus": {
+                        "bid_ad_type": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "kind": "ok",
+            "currency": "USD",
+            "bids": [
+              {
+                "id": "bid",
+                "impid": "i",
+                "media_type": "video"
+              }
+            ],
+            "errors": []
+          }
+        }
+      ]
+    }
+  ]
+}

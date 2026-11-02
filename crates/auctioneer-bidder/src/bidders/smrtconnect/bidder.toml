@@ -1,0 +1,54 @@
+key = "smrtconnect"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/smrtconnect"
+tree = "409a02a2d15c9c09321a6e49a09eb5f0595643e3"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/smrtconnect.yaml"
+source_blob = "7078248d3e9a6d9209c13a5222d815e343a9fc7d"
+source_bytes = 457
+source_sha256 = "48b41156749250d12e07692d4052069e762338a7dbbc878954e75c406a55711e"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/smrtconnect.json"
+source_blob = "6916d4567b074bc2a6bf688f07acfd64de50b15c"
+source_bytes = 386
+source_sha256 = "b0240e07e79479e790c1e3d76576e2e7e4dc8117e930dd8c65827a16ee66ed74"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 386
+source_sha256 = "b0240e07e79479e790c1e3d76576e2e7e4dc8117e930dd8c65827a16ee66ed74"

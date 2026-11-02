@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "revision": "f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a",
+  "origin": "source-test-expectations-not-executed",
+  "source_path": "adapters/aps/params_test.go",
+  "source_blob": "74e0358851e73cad3744f600271a68abb52ba62f",
+  "offset_unit": "zero-based-raw-byte",
+  "cases": [
+    {
+      "group": "valid",
+      "index": 0,
+      "input": "{\"accountID\":\"test-account\"}",
+      "valid": true,
+      "source_offset": 919
+    },
+    {
+      "group": "valid",
+      "index": 1,
+      "input": "{\"accountID\":\"3703\"}",
+      "valid": true,
+      "source_offset": 952
+    },
+    {
+      "group": "valid",
+      "index": 2,
+      "input": "{\"accountID\":\"test-account\",\"region\":\"na\"}",
+      "valid": true,
+      "source_offset": 977
+    },
+    {
+      "group": "valid",
+      "index": 3,
+      "input": "{\"accountID\":\"test-account\",\"region\":\"eu\"}",
+      "valid": true,
+      "source_offset": 1024
+    },
+    {
+      "group": "valid",
+      "index": 4,
+      "input": "{\"accountID\":\"test-account\",\"region\":\"fe\"}",
+      "valid": true,
+      "source_offset": 1071
+    },
+    {
+      "group": "invalid",
+      "index": 0,
+      "input": "{}",
+      "valid": false,
+      "source_offset": 1151
+    },
+    {
+      "group": "invalid",
+      "index": 1,
+      "input": "{\"accountID\":123}",
+      "valid": false,
+      "source_offset": 1158
+    },
+    {
+      "group": "invalid",
+      "index": 2,
+      "input": "{\"accountID\":\"test-account\",\"region\":\"xx\"}",
+      "valid": false,
+      "source_offset": 1180
+    },
+    {
+      "group": "invalid",
+      "index": 3,
+      "input": "{\"accountID\":\"test-account\",\"region\":\"\"}",
+      "valid": false,
+      "source_offset": 1227
+    },
+    {
+      "group": "invalid",
+      "index": 4,
+      "input": "[]",
+      "valid": false,
+      "source_offset": 1272
+    },
+    {
+      "group": "invalid",
+      "index": 5,
+      "input": "\"aps\"",
+      "valid": false,
+      "source_offset": 1279
+    },
+    {
+      "group": "invalid",
+      "index": 6,
+      "input": "1",
+      "valid": false,
+      "source_offset": 1289
+    },
+    {
+      "group": "invalid",
+      "index": 7,
+      "input": "true",
+      "valid": false,
+      "source_offset": 1295
+    },
+    {
+      "group": "invalid",
+      "index": 8,
+      "input": "null",
+      "valid": false,
+      "source_offset": 1304
+    }
+  ]
+}

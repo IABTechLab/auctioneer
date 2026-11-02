@@ -1,0 +1,21 @@
+schema_version = 1
+schema = "pubmatic"
+schema_sha256 = "ae12ee273b68efb9a97552159a24d6a00ef69891c82a2a71fb298aa73f619393"
+origin = "authored_schema_derived"
+rows = [
+  { id = "publisher_only", schema = "pubmatic", valid = true, input_json = '{"publisherId":"p"}' },
+  { id = "keywords_valid", schema = "pubmatic", valid = true, input_json = '{"publisherId":"p","keywords":[{"key":"k","value":["v"]}]}' },
+  { id = "acat_valid", schema = "pubmatic", valid = true, input_json = '{"publisherId":"p","acat":["IAB-1"]}' },
+  { id = "acat_wrong_item", schema = "pubmatic", valid = false, input_json = '{"publisherId":"p","acat":[1]}' },
+  { id = "keyword_key_wrong_type", schema = "pubmatic", valid = false, input_json = '{"publisherId":"p","keywords":[{"key":1,"value":["v"]}]}' },
+  { id = "keyword_value_wrong_item", schema = "pubmatic", valid = false, input_json = '{"publisherId":"p","keywords":[{"key":"k","value":[1]}]}' },
+  { id = "keyword_value_empty", schema = "pubmatic", valid = false, input_json = '{"publisherId":"p","keywords":[{"key":"k","value":[]}]}' },
+  { id = "keywords_empty", schema = "pubmatic", valid = false, input_json = '{"publisherId":"p","keywords":[]}' },
+  { id = "wrapper_valid", schema = "pubmatic", valid = true, input_json = '{"publisherId":"p","wrapper":{"profile":1,"version":2}}' },
+  { id = "wrapper_missing_profile", schema = "pubmatic", valid = false, input_json = '{"publisherId":"p","wrapper":{"version":1}}' },
+]
+[expected]
+authored = 10
+imported = 0
+accepts = 4
+rejects = 6

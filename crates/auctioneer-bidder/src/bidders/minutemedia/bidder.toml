@@ -1,0 +1,54 @@
+key = "minutemedia"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/minutemedia"
+tree = "752bf5482850798b8afa3980c7f6db625adf7949"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/minutemedia.yaml"
+source_blob = "55f5a2b7cd377cd086aa7f38ef80efeb666b9950"
+source_bytes = 495
+source_sha256 = "da46be3ec9091e531f89a087d112bfbb715092fd1ab99aac05fe97335bff19fa"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/minutemedia.json"
+source_blob = "c4c475b132ff893292e32a3de44f108a5f46c214"
+source_bytes = 362
+source_sha256 = "ed2afb35b7919362bbeb4e16056ed1e28ffc72c97303d05ad7585d0d30157bcc"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 362
+source_sha256 = "ed2afb35b7919362bbeb4e16056ed1e28ffc72c97303d05ad7585d0d30157bcc"

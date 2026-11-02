@@ -1,0 +1,670 @@
+# Reviewed classifications. Disclosure domains are compiler-derived, never authored here.
+version = 1
+reviewer = "AG"
+review_date = "2026-10-11"
+
+[[schemas]]
+object = "BrandVersion"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "Device"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "DeviceExt"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "DeviceExtPrebid"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "DeviceInterstitial"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "EID"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "Geo"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "UID"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "User"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "UserAgent"
+unknown = "remove_restricted"
+
+[[schemas]]
+object = "UserExt"
+unknown = "remove_restricted"
+
+[[fields]]
+object = "BrandVersion"
+field = "brand"
+shape = "string"
+action = "context"
+rationale = "Reviewed brand context; malformed values and unknown descendants are not context."
+
+[[fields]]
+object = "BrandVersion"
+field = "ext"
+shape = "object"
+action = "opaque"
+rationale = "No supported raw extension schema; close under ID or geo restriction."
+
+[[fields]]
+object = "BrandVersion"
+field = "version"
+shape = "string_array"
+action = "context"
+rationale = "Reviewed primitive version array; object elements cannot hide identifiers."
+
+[[fields]]
+object = "Device"
+field = "carrier"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "connectiontype"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "Device"
+field = "devicetype"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "Device"
+field = "didmd5"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "didsha1"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "dnt"
+shape = "integer"
+action = "control"
+rationale = "Preserve admitted privacy opt-out signals without reinterpreting them."
+
+[[fields]]
+object = "Device"
+field = "dpidmd5"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "dpidsha1"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "ext"
+shape = "object"
+action = "child"
+rationale = "Only independently sourced device extension descendants can survive restrictions."
+child = "DeviceExt"
+
+[[fields]]
+object = "Device"
+field = "flashver"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "geo"
+shape = "object"
+action = "child"
+rationale = "Every existing device Geo uses the same reviewed child policy."
+child = "Geo"
+
+[[fields]]
+object = "Device"
+field = "geofetch"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "Device"
+field = "h"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "Device"
+field = "hwv"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "ifa"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "ip"
+shape = "string"
+action = "transform"
+rationale = "Geo denial masks the explicit IPv4 family; malformed masking input is removed."
+transform = "ipv4"
+
+[[fields]]
+object = "Device"
+field = "ipv6"
+shape = "string"
+action = "transform"
+rationale = "Geo denial masks the explicit IPv6 family; malformed masking input is removed."
+transform = "ipv6"
+
+[[fields]]
+object = "Device"
+field = "js"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "Device"
+field = "langb"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "language"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "lmt"
+shape = "integer"
+action = "control"
+rationale = "Preserve admitted privacy opt-out signals without reinterpreting them."
+
+[[fields]]
+object = "Device"
+field = "macmd5"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "macsha1"
+shape = "string"
+action = "id"
+rationale = "Standard device identifiers, including deprecated hashes, require ID permission."
+
+[[fields]]
+object = "Device"
+field = "make"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "mccmnc"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "model"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "os"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "osv"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "ppi"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "Device"
+field = "pxratio"
+shape = "number"
+action = "context"
+rationale = "Preserve numeric screen context and its integer or float representation."
+
+[[fields]]
+object = "Device"
+field = "sua"
+shape = "object"
+action = "child"
+rationale = "Structured UA context requires recursive known-child shape checks."
+child = "UserAgent"
+
+[[fields]]
+object = "Device"
+field = "ua"
+shape = "string"
+action = "context"
+rationale = "Reviewed device context preserved under ID and geo denial; shape is mandatory."
+
+[[fields]]
+object = "Device"
+field = "w"
+shape = "integer"
+action = "context"
+rationale = "Reviewed integer device context, not an identifier permission."
+
+[[fields]]
+object = "DeviceExt"
+field = "atts"
+shape = "integer"
+action = "control"
+rationale = "Preserve admitted tracking authorization status; resolution already consumed this control."
+
+[[fields]]
+object = "DeviceExt"
+field = "prebid"
+shape = "object"
+action = "child"
+rationale = "Preserve only the supported device extension child schema."
+child = "DeviceExtPrebid"
+
+[[fields]]
+object = "DeviceExtPrebid"
+field = "interstitial"
+shape = "object"
+action = "child"
+rationale = "Interstitial rendering constraints require recursive descendant shape checks."
+child = "DeviceInterstitial"
+
+[[fields]]
+object = "DeviceInterstitial"
+field = "minheightperc"
+shape = "integer"
+action = "context"
+rationale = "Preserve reviewed integer rendering constraints; unknown siblings remain closed."
+
+[[fields]]
+object = "DeviceInterstitial"
+field = "minwidthperc"
+shape = "integer"
+action = "context"
+rationale = "Preserve reviewed integer rendering constraints; unknown siblings remain closed."
+
+[[fields]]
+object = "EID"
+field = "ext"
+shape = "object"
+action = "opaque"
+rationale = "No supported EID extension schema; close under ID or geo restriction."
+
+[[fields]]
+object = "EID"
+field = "inserter"
+shape = "string"
+action = "context"
+rationale = "Reviewed EID provenance when the owning ID collection is permitted."
+
+[[fields]]
+object = "EID"
+field = "matcher"
+shape = "string"
+action = "context"
+rationale = "Reviewed EID provenance when the owning ID collection is permitted."
+
+[[fields]]
+object = "EID"
+field = "mm"
+shape = "integer"
+action = "context"
+rationale = "Reviewed matching-method context when the owning ID collection is permitted."
+
+[[fields]]
+object = "EID"
+field = "source"
+shape = "string"
+action = "context"
+rationale = "Reviewed EID provenance when the owning ID collection is permitted."
+
+[[fields]]
+object = "EID"
+field = "uids"
+shape = "object_array"
+action = "id"
+rationale = "UID collection requires ID permission and recursive UID classification."
+child = "UID"
+
+[[fields]]
+object = "Geo"
+field = "accuracy"
+shape = "integer"
+action = "precise_geo"
+rationale = "Original fine-location accuracy is not retained after coarsening."
+
+[[fields]]
+object = "Geo"
+field = "city"
+shape = "string"
+action = "context"
+rationale = "Reviewed coarse Geo context; object-valued impostors are not context."
+
+[[fields]]
+object = "Geo"
+field = "country"
+shape = "string"
+action = "context"
+rationale = "Reviewed coarse Geo context; object-valued impostors are not context."
+
+[[fields]]
+object = "Geo"
+field = "ext"
+shape = "object"
+action = "opaque"
+rationale = "No reviewed Geo extension schema; close under ID or geo restriction."
+
+[[fields]]
+object = "Geo"
+field = "ipservice"
+shape = "integer"
+action = "context"
+rationale = "Reviewed coarse Geo metadata with integer shape."
+
+[[fields]]
+object = "Geo"
+field = "lastfix"
+shape = "integer"
+action = "context"
+rationale = "Reviewed coarse Geo metadata with integer shape."
+
+[[fields]]
+object = "Geo"
+field = "lat"
+shape = "number"
+action = "transform"
+rationale = "Coarsen under geo denial; invalid, non-finite or overflowing transform removes the value."
+transform = "coordinate"
+
+[[fields]]
+object = "Geo"
+field = "lon"
+shape = "number"
+action = "transform"
+rationale = "Coarsen under geo denial; invalid, non-finite or overflowing transform removes the value."
+transform = "coordinate"
+
+[[fields]]
+object = "Geo"
+field = "metro"
+shape = "string"
+action = "context"
+rationale = "Reviewed coarse Geo context; object-valued impostors are not context."
+
+[[fields]]
+object = "Geo"
+field = "region"
+shape = "string"
+action = "context"
+rationale = "Reviewed coarse Geo context; object-valued impostors are not context."
+
+[[fields]]
+object = "Geo"
+field = "regionfips104"
+shape = "string"
+action = "context"
+rationale = "Reviewed coarse Geo context; object-valued impostors are not context."
+
+[[fields]]
+object = "Geo"
+field = "type"
+shape = "integer"
+action = "context"
+rationale = "Reviewed coarse Geo metadata with integer shape."
+
+[[fields]]
+object = "Geo"
+field = "utcoffset"
+shape = "integer"
+action = "context"
+rationale = "Reviewed coarse Geo metadata with integer shape."
+
+[[fields]]
+object = "Geo"
+field = "zip"
+shape = "string"
+action = "precise_geo"
+rationale = "Postcode is removed under geo denial."
+
+[[fields]]
+object = "UID"
+field = "atype"
+shape = "integer"
+action = "context"
+rationale = "Reviewed UID agent type while the owning identifier collection is permitted."
+
+[[fields]]
+object = "UID"
+field = "ext"
+shape = "object"
+action = "opaque"
+rationale = "No supported UID extension schema; close under ID or geo restriction."
+
+[[fields]]
+object = "UID"
+field = "id"
+shape = "string"
+action = "id"
+rationale = "UID identifier requires ID permission."
+
+[[fields]]
+object = "User"
+field = "buyeruid"
+shape = "string"
+action = "id"
+rationale = "User identifier or demographic field requires ID permission."
+
+[[fields]]
+object = "User"
+field = "consent"
+shape = "string"
+action = "control"
+rationale = "Preserve admitted top-level consent; this mutator never reparses it."
+
+[[fields]]
+object = "User"
+field = "customdata"
+shape = "string"
+action = "id"
+rationale = "User identifier or demographic field requires ID permission."
+
+[[fields]]
+object = "User"
+field = "data"
+shape = "object_array"
+action = "delegate"
+rationale = "Opaque user FPD belongs only to the named user-FPD permission."
+delegate = "user_fpd"
+
+[[fields]]
+object = "User"
+field = "eids"
+shape = "object_array"
+action = "id"
+rationale = "Standard EIDs are removed once as one denied collection; otherwise visit descendants."
+child = "EID"
+
+[[fields]]
+object = "User"
+field = "ext"
+shape = "object"
+action = "child"
+rationale = "Sourced extension EIDs and FPD remain distinct from standard membership."
+child = "UserExt"
+
+[[fields]]
+object = "User"
+field = "gender"
+shape = "string"
+action = "id"
+rationale = "User identifier or demographic field requires ID permission."
+
+[[fields]]
+object = "User"
+field = "geo"
+shape = "object"
+action = "child"
+rationale = "Every existing user Geo uses the same reviewed child policy."
+child = "Geo"
+
+[[fields]]
+object = "User"
+field = "id"
+shape = "string"
+action = "id"
+rationale = "User identifier or demographic field requires ID permission."
+
+[[fields]]
+object = "User"
+field = "keywords"
+shape = "string"
+action = "delegate"
+rationale = "User keywords belong to user FPD, not ID-only permission."
+delegate = "user_fpd"
+
+[[fields]]
+object = "User"
+field = "kwarray"
+shape = "string_array"
+action = "delegate"
+rationale = "Keyword arrays belong to user FPD, not ID-only permission."
+delegate = "user_fpd"
+
+[[fields]]
+object = "User"
+field = "yob"
+shape = "integer"
+action = "id"
+rationale = "Year-of-birth demographic field requires ID permission."
+
+[[fields]]
+object = "UserAgent"
+field = "architecture"
+shape = "string"
+action = "context"
+rationale = "Reviewed structured-UA string context; malformed values cannot survive restriction."
+
+[[fields]]
+object = "UserAgent"
+field = "bitness"
+shape = "string"
+action = "context"
+rationale = "Reviewed structured-UA string context; malformed values cannot survive restriction."
+
+[[fields]]
+object = "UserAgent"
+field = "browsers"
+shape = "object_array"
+action = "child"
+rationale = "Every browser entry follows BrandVersion, including sparse empty entries."
+child = "BrandVersion"
+
+[[fields]]
+object = "UserAgent"
+field = "ext"
+shape = "object"
+action = "opaque"
+rationale = "Unsupported raw structured-UA extensions are removed without disclosure parsing."
+
+[[fields]]
+object = "UserAgent"
+field = "mobile"
+shape = "integer"
+action = "context"
+rationale = "Reviewed structured-UA integer context."
+
+[[fields]]
+object = "UserAgent"
+field = "model"
+shape = "string"
+action = "context"
+rationale = "Reviewed structured-UA string context; malformed values cannot survive restriction."
+
+[[fields]]
+object = "UserAgent"
+field = "platform"
+shape = "object"
+action = "child"
+rationale = "Platform context follows BrandVersion rather than opaque preservation."
+child = "BrandVersion"
+
+[[fields]]
+object = "UserAgent"
+field = "source"
+shape = "integer"
+action = "context"
+rationale = "Reviewed structured-UA integer context."
+
+[[fields]]
+object = "UserExt"
+field = "data"
+shape = "json"
+action = "delegate"
+rationale = "Explicit opaque user-FPD branch; it is not a generic context exception."
+delegate = "user_fpd"
+
+[[fields]]
+object = "UserExt"
+field = "eids"
+shape = "object_array"
+action = "id"
+rationale = "Sourced extension EIDs share ID permission and descendant policy with standard EIDs."
+child = "EID"

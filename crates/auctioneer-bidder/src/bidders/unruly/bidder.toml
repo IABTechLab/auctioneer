@@ -1,0 +1,417 @@
+key = "unruly"
+factory = true
+native_only = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.unruly]
+defaultEnabled = false
+endpoint = "https://targeting.unrulymedia.com/unruly_prebid_server"
+gvlVendorID = 36
+
+[definitions.unruly.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.unruly.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.unruly.maintainer]
+email = "prebidsupport@unrulygroup.com"
+
+[definitions.unruly.openrtb]
+gpp-supported = true
+version = 2.6
+
+[definitions.unruly.userSync.redirect]
+url = "https://sync.1rx.io/usersync2/rmphb?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&redir={{.RedirectURL}}"
+userMacro = "[RX_UUID]"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/unruly"
+tree = "8c36519f90f9ac19a1f795bb6f4fc4dd4c579907"
+port_differences = [
+    """\
+    Stateless Rust protocol candidate, promoted by the coordinator after observed semantic red. \
+    Factory is true for qualification; native-only publication remains opt-in. No serving \
+    acceptance, \
+    completed port, parity, migration or resource qualification is claimed.""",
+    """\
+    Source rewrites each imp.ext to bidder:{siteid,siteId}, dropping all other extension \
+    members and unknown parameter members while preserving other request and impression \
+    subtrees. Rust prevalidates all impressions before reservation and streams this borrowed \
+    transform through the capped sink without request clones or uncapped body materialization.""",
+    """\
+    Malformed outer extension or parameters are bidder-fatal BadInput (2), not impression \
+    filtering. Source accepts empty and null parameter structs as zero fields although its \
+    canonical schema requires exactly one of siteid/siteId. Tests exercise protocol behavior \
+    separately from schema qualification.""",
+    """\
+    Source jsoniter v1.1.12 general decoder preserves distinct exact siteid and siteId fields; \
+    all other strings.ToLower matches bind to old siteid, including dotted capital I. No merge \
+    or preference eliminates either canonical field. AG approved rejecting competing spellings \
+    only when they bind to the same source field, including equal/null and noncanonical-only \
+    competitors. Exact duplicate key order is unavailable after shared parsing.""",
+    """\
+    Source ExtImpBidder uses an optimized ASCII-only decoder for bidder/prebid/ae. Recognized \
+    prebid and signed-int8 ae values are decoded before being discarded; malformed values and \
+    ambiguities must remain bidder-fatal. Shared typed ingress cannot represent every source \
+    raw extension shape.""",
+    """\
+    Source accepts all impression media in construction, then chooses banner before video on \
+    the matching impression in response decoding. Audio/native-only or missing impressions fail \
+    locally; valid siblings survive. Shared sent-call correlation and standard media conflict \
+    checks are additional existing boundaries, not source parity.""",
+    """\
+    HTTP 204 ignores the body; 400 is BadInput (2); every other non-200 is BadServerResponse \
+    (4). Source's helper fixes currency to USD regardless of valid response.cur and does not \
+    convert price. Shared sealed parse errors retain ResponseParse provenance/code 14 and \
+    node-limit code 4 rather than exposing source parser details.""",
+    """\
+    Source decodes dur as signed int64 and mtype as signed int8 across the entire response DTO \
+    before candidate filtering. Rust preflights all parsed bids with the shared wire_fields \
+    helpers before canonical projection or classification. Malformed values and competing ASCII \
+    spellings, including equal/null competitors without a canonical name, fail the whole \
+    response with fixed BadServerResponse code 4 and Kind Other. Shared canonical_integer \
+    normalizes a sole dur spelling and omits source zero/null/default values without copying \
+    any tree.""",
+    """\
+    Source sets separate TypedBid.BidVideo metadata only for video with positive signed \
+    duration; both duration and primary_category serialize without omitempty. After \
+    coordinator-observed semantic red, Rust materializes the approved outgoing ext.prebid.video \
+    using the existing extension representation only on accepted positive-duration video bids. \
+    Duration is replaced, primary_category defaults to the empty string only when missing, and \
+    all other existing video/prebid/bid fields are preserved. Serialized-wire units cover \
+    absent/present extensions, negative/zero/banner controls, default/existing category values \
+    and duration case projection. Composed response allocation verification remains \
+    coordinator-owned.""",
+    """\
+    Shared JsonField distinguishes canonical missing/null/value for ImpExt.bidder and \
+    ImpExt.prebid. Null struct parameters write both zero fields without guessing through \
+    as_ref. Canonical prebid:null remains present for competing ASCII-spelling rejection, \
+    while absent prebid and a sole null spelling remain accepted. Bidder units cover both \
+    impression orders and unspent call permits. Nested canonical bidder/imp empty-map \
+    presence and storedrequest:null are still lost; ambiguity involving those discarded \
+    canonical names cannot be reconstructed. Full migration remains open.""",
+    """\
+    All eleven original JSON protocol captures are retained byte-identically, including \
+    missing-extension.json without a final newline. Source runner compares JSON structurally \
+    and omits video metadata checks when the capture has no video expectation. For simple-video \
+    only, conformance proves both source bids lack ext, asserts the sole added root field is \
+    exactly prebid.video={duration:30,primary_category:empty string}, then compares every \
+    original source bid field without deleting any field or deriving expectations from actual \
+    output. Capture failure checks require exact fixed BidderError values with Kind Other, not \
+    only numeric codes that could accidentally accept node-gate failures. Source tests and Go \
+    programs were not executed. HTTP capture endpoints are test data, not production endpoint \
+    approval.""",
+    """\
+    Source missing-extension and unknown-imp diagnostics echo caller IDs. Rust uses fixed \
+    redacted errors instead; all-invalid bid-local failures use shared Err rather than a source \
+    empty response plus errors. Empty configured endpoint emits no call only after source \
+    parameter validation. Representable nested prebid helper values and case matching are \
+    validated without copying source maps; lost nested canonical null/empty presence remains \
+    a shared provenance requirement.""",
+]
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary"
+tree = "893b45204afa9d9b9280fe8216a96a238ce1c29c"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/supplemental"
+tree = "db4766aacdf0976911e91b464471c7a51e31e910"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/unruly/unruly.go"
+source_blob = "4acf708f2588c9c31b937d99d2452f16712a0920"
+source_bytes = 4925
+source_sha256 = "f41b1a93045dbbaeb1538c8aa17a0b12e0380d04165ee725a4241c069e6c94b3"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/unruly/unruly_test.go"
+source_blob = "dc86bb3e68b7f60dccd3a554814fff82197b368b"
+source_bytes = 597
+source_sha256 = "7ff9b0ced48714335328ae86af9ceb83f89b3aa5343fc5f1400e5f943616050d"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/unruly/params_test.go"
+source_blob = "cbda2463108d1a0e489702f8770dd8e140b77395"
+source_bytes = 1492
+source_sha256 = "b49bd934faeb16c3893fbb1eb7d0d83ff59be737512a958049969b63eb660c23"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp_unruly.go"
+source_blob = "9e87bd7a384ef44b95d1778f96953062cfe7d215"
+source_bytes = 112
+source_sha256 = "9a7de827ea7d14260608eb73ff28cabe4060846bf3ba02396fc5667bfa9e647b"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp.go"
+source_blob = "85be31245489ddfaa7eb61f6b24f745de9fdc988"
+source_bytes = 3337
+source_sha256 = "74906c9f9d9842956179f551b3e7868af871e5c11c7076bffa1f964395b0dd47"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/bid.go"
+source_blob = "e8afbae3bda9df3f6b95b7b8e4fcd9e56832d317"
+source_bytes = 7575
+source_sha256 = "db65e4e96eae77ea0a9012525ccd55770eb09b8d68bc0b4829e100800529d978"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.mod"
+source_blob = "998750a0ab0830ae6a24f6d2f2abbddf2ba85855"
+source_bytes = 3548
+source_sha256 = "00d82a3d3a03e1dc411876b858a857a832bfc7a6dc4b5ace95a3d52b37e4e549"
+port_differences = [
+    """\
+    Pins github.com/json-iterator/go v1.1.12. The two siteid/siteId fields collide under folded \
+    hashing, selecting the general exact-name-then-strings.ToLower decoder, not an arbitrary \
+    alias preference.""",
+]
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.sum"
+source_blob = "2d03cb08c4350a7beb75e8529d8d66c0720e3366"
+source_bytes = 100645
+source_sha256 = "8f3c2e47aa0cc516a7440a30c5d376dd1b4bf49a26ca79bd92905738d06ccd9b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary/banner-and-video-app.json"
+source_blob = "4267e08bb7c2d30f83efbeed6fbc362a11ab8a8a"
+source_bytes = 5286
+source_sha256 = "9bdc05570d4304039c968f1b5a4e162253d12da16b741991cc83811edcc8f22a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video-app.json"
+source_bytes = 5286
+source_sha256 = "9bdc05570d4304039c968f1b5a4e162253d12da16b741991cc83811edcc8f22a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary/banner-and-video-gdpr.json"
+source_blob = "6b8b305e155763dfb1aabb5ff19033c390a9bbac"
+source_bytes = 4623
+source_sha256 = "1cccad8f5eb0caf90550e31a5b376de56fb695f6835e107483afd0a94e42c89e"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video-gdpr.json"
+source_bytes = 4623
+source_sha256 = "1cccad8f5eb0caf90550e31a5b376de56fb695f6835e107483afd0a94e42c89e"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary/banner-and-video-site.json"
+source_blob = "f786fc6a5026e89c1d507202f77cf5cfab829df9"
+source_bytes = 4587
+source_sha256 = "59b215bc7de2f4069aba3ce2c53982cb94ec3fae6bb10200faaed61a1b0752a5"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video-site.json"
+source_bytes = 4587
+source_sha256 = "59b215bc7de2f4069aba3ce2c53982cb94ec3fae6bb10200faaed61a1b0752a5"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary/banner-and-video.json"
+source_blob = "72108a16b91d391801a971d7bb5be8a5f1b497a8"
+source_bytes = 4049
+source_sha256 = "69a5320a8fecc40a88977c67f264fdc403bc7e850c891c748cac104bb68ba1a4"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video.json"
+source_bytes = 4049
+source_sha256 = "69a5320a8fecc40a88977c67f264fdc403bc7e850c891c748cac104bb68ba1a4"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary/simple-banner.json"
+source_blob = "e483fe4a15803cda7f4291af3c99b9cfcce6ab82"
+source_bytes = 2404
+source_sha256 = "43186a24602aebd347cb6022ab5b7bec5c262f3b0c215751254277214b87fc8a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner.json"
+source_bytes = 2404
+source_sha256 = "43186a24602aebd347cb6022ab5b7bec5c262f3b0c215751254277214b87fc8a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/exemplary/simple-video.json"
+source_blob = "857a1c5cb3cfb91cf338d3db1a36298e7b9af3fd"
+source_bytes = 2479
+source_sha256 = "5735e8eaee95e1ea6e6c40729207be11a37f15a7ba768c357b5fc996d02e6514"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-video.json"
+source_bytes = 2479
+source_sha256 = "5735e8eaee95e1ea6e6c40729207be11a37f15a7ba768c357b5fc996d02e6514"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/supplemental/missing-extension.json"
+source_blob = "d313a1759d4f52b60258c666bb9c74005677aa3c"
+source_bytes = 744
+source_sha256 = "3cc9f4a0070c697905c46c30eedc382d0d41a958595d058aa02fc704870d008c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/missing-extension.json"
+source_bytes = 744
+source_sha256 = "3cc9f4a0070c697905c46c30eedc382d0d41a958595d058aa02fc704870d008c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/supplemental/no-matching-impid.json"
+source_blob = "6be41b833c2316552fba25b988ebf04e97503c90"
+source_bytes = 2339
+source_sha256 = "9b47100be4159971b781493ce41ec1c8da89b6ac6fe2be7f75589dd254937ab9"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/no-matching-impid.json"
+source_bytes = 2339
+source_sha256 = "9b47100be4159971b781493ce41ec1c8da89b6ac6fe2be7f75589dd254937ab9"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/supplemental/status-code-204.json"
+source_blob = "ba48fc955a6ad329caa87081f0c9e26453771215"
+source_bytes = 1608
+source_sha256 = "5327c3ea072a6ccaa19175255426057f11e8db108464a94943c7ff60b4d88b28"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/status-code-204.json"
+source_bytes = 1608
+source_sha256 = "5327c3ea072a6ccaa19175255426057f11e8db108464a94943c7ff60b4d88b28"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/supplemental/status-code-400.json"
+source_blob = "9a0fd693c7dfe2c49cab11677bfb6597931e202d"
+source_bytes = 1904
+source_sha256 = "cab4b4b632627af7b2b1dc163e56e6ce8b01da5c88448204cf6e366bc7f03999"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/status-code-400.json"
+source_bytes = 1904
+source_sha256 = "cab4b4b632627af7b2b1dc163e56e6ce8b01da5c88448204cf6e366bc7f03999"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/unruly/unrulytest/supplemental/status-code-401.json"
+source_blob = "52fe38d2155d6996acecdfa92a4f2d94fdc3037a"
+source_bytes = 1743
+source_sha256 = "6ccf81d8faf64a6d9a6e712e3338debe15c3b4be96d8bc799ec07f9c9dd44b08"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/status-code-401.json"
+source_bytes = 1743
+source_sha256 = "6ccf81d8faf64a6d9a6e712e3338debe15c3b4be96d8bc799ec07f9c9dd44b08"
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/unruly.yaml"
+source_blob = "1f00d816d73daf5151ff4652b9e5fab9ac8cdb71"
+source_bytes = 512
+source_sha256 = "70bc6a4337b4d254e15df71f3cd07e255047ad2e3f94af9c150e3b811c8a5de3"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication preserves the source HTTPS endpoint, \
+    banner/video capabilities, vendor, maintainer, OpenRTB and redirect sync template. \
+    Runtime defaultEnabled=false; source geoscope is not a routing fallback. Publication \
+    is not selected-flow acceptance, resource qualification or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/unruly.json"
+source_blob = "f5bfcb13edbb516941cd139e70b349a51bfd1946"
+source_bytes = 497
+source_sha256 = "d7d7f468b70819c5e2454bb35e6a7dd845d4a172c43daea5a739286c3b880c2e"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 497
+source_sha256 = "d7d7f468b70819c5e2454bb35e6a7dd845d4a172c43daea5a739286c3b880c2e"

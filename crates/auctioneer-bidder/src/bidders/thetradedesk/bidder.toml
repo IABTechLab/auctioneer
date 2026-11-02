@@ -1,0 +1,625 @@
+key = "thetradedesk"
+factory = true
+native_only = true
+
+[endpoint.fields]
+supply_id = "SupplyId"
+
+[settings.fields]
+supply_id = "optional_string"
+
+[definitions.thetradedesk]
+defaultEnabled = false
+endpoint = "https://direct.adsrvr.org/bid/bidder/{{.SupplyId}}"
+gvlVendorID = 21
+
+[definitions.thetradedesk.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.thetradedesk.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.thetradedesk.maintainer]
+email = "Prebid-Maintainers@thetradedesk.com"
+
+[definitions.thetradedesk.openrtb]
+gpp-supported = true
+
+[definitions.thetradedesk.userSync]
+supports = [
+    "redirect",
+    "iframe",
+]
+
+[definitions.ttd]
+aliasOf = "thetradedesk"
+defaultEnabled = false
+endpoint = "https://direct.adsrvr.org/bid/bidder/{{.SupplyId}}"
+gvlVendorID = 21
+
+[definitions.ttd.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.ttd.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.ttd.maintainer]
+email = "Prebid-Maintainers@thetradedesk.com"
+
+[definitions.ttd.openrtb]
+gpp-supported = true
+
+[definitions.ttd.userSync]
+supports = [
+    "redirect",
+    "iframe",
+]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesk.go"
+source_blob = "f567b43d9e75f59a9f41647fea03be2313f3f9e4"
+source_bytes = 6532
+source_sha256 = "576a11d82889325ff0365941976ba8689ca2e24f6363fe4e336c4d59abe5e7a8"
+port_differences = [
+    """\
+    Select first nonempty publisherId and supplySourceId independently and stop scanning \
+    once both are found. Preserve all impressions, media and format entries; first banner \
+    format replaces dimensions. Site precedes app; an empty selected publisher preserves \
+    its existing ID. Borrowed serializers stream into the sink after reservation and \
+    endpoint validation; no request clone or second config decode.""",
+    """\
+    Source Builder maps config.ExtraAdapterInfo into macros.EndpointTemplateParams.SupplyId. \
+    Reviewed optionalSupplyId is represented by supply_id: Option<String>; optionalSupplyId \
+    is not a literal field name in this Go blob. Generated thetradedesk::resolve applies \
+    checked requested/base precedence, including an explicit requested empty string. \
+    Impression supplySourceId wins; only absent selection uses supply_id. No host default \
+    is invented, and the source trailing-lowercase regexp normalization is not reproduced. \
+    The endpoint.fields supply_id = SupplyId declaration binds the generated endpoint field. \
+    Empty resolved values are fixed code 5; shared EndpointBuilder percent-encodes path data \
+    and rejects traversal with fixed bidder-local code 5. Definitions remain empty; \
+    production destination approval is separate.""",
+    """\
+    Sealed parsing only; require canonical numeric mtype 1/2/4. Invalid mtype is fixed code 4 \
+    and bid-local, unlike the source generic error and whole-response abort. Reuse shared \
+    classifier for offered media and conflicting hints, and require exact sent-call identity. \
+    Source uses only mtype and does not impose those shared constraints. Preserve response \
+    currency including empty/absent; 204 retains source USD default. Status 400 is code 2, \
+    other non-200/non-204 statuses code 4; sealed syntax errors are fixed code 14.""",
+    """\
+    Replace every exact uppercase AUCTION_PRICE macro in adm and Bid.other nurl/burl strings \
+    only; no network notifications. Null notification fields are preserved; invalid shapes \
+    are fixed bid-local code 4 instead of source typed-decoder whole-response failure. Root \
+    response id is required by the shared sealed model: 12 original captures reach \
+    that named boundary unchanged, not repaired source success. One further capture returns \
+    an unsent impid and is a shared identity refusal. No handwritten response decoder.""",
+    """\
+    Canonical OpenRTB/schema spellings only; do not emulate source case-insensitive or duplicate \
+    key decoding. Parameter nulls/missing string fields are empty during direct adapter use; \
+    missing ext/bidder or wrong shapes before selection are fixed code 14. Schema admission \
+    remains shared and distinct, including the original empty-publisher capture. Typed Serde \
+    omission/presence behavior is retained; full source-language malformed/null compatibility \
+    is not claimed. Resource, native/video/browser delivery and live acceptance remain open.""",
+    """\
+    OpenRTB-first contract: retain explicit input test = 0 and imp.instl = 0, \
+    imp.video.content, and video.minduration = 0 even when the source omits them. Conformance \
+    asserts each narrowly named value is present and equal to the original input before \
+    removing it only from an actual-body comparison copy. Original capture bytes and the \
+    production serializer remain unchanged; no byte coercion, new runtime decoder or \
+    dependency. Response checks still use the actual sealed make_bids result.""",
+]
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/thetradedesk"
+tree = "0d9ad12bcb5cc5293a1f99471e46d9c0ce15b8fa"
+port_differences = [
+    """\
+    Retain 20 verbatim JSON captures and explicit shared parse/identity boundaries. Opt-in \
+    native-only definitions do not establish resource qualification; selected-flow delivery \
+    and production \
+    destination acceptance remain open. Full source-language protocol parity is not claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/thetradedesk.yaml"
+source_blob = "e1354c86ddc7f08a499fb31e6fbaae70b54f068a"
+source_bytes = 579
+source_sha256 = "7397df5819acfa79c5e54159bf3bd0529f450deb0bafa2a3f55264f163965ddf"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication preserves the HTTPS SupplyId template, \
+    capabilities, vendor, maintainer and OpenRTB declaration. Canonical public base and ttd \
+    both have defaultEnabled=false; required nonempty supply_id host settings remain \
+    independently resolved. Sync advertises redirect/iframe without configured URLs; none \
+    are invented. Publication is not selected-flow acceptance or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/ttd.yaml"
+source_blob = "78ed8c79b51c41a464c90c20dad1ee0a08268b43"
+source_bytes = 38
+source_sha256 = "2a085abee0a9b0fffbfe030ad33776b5a91ef4a72fb332e9adae6c933480ddb3"
+port_differences = [
+    """\
+    Preserve immutable aliasOf=thetradedesk ancestry and requested identity ttd. Effective \
+    endpoint, capabilities, maintainer, OpenRTB and sync support inherit from the pinned \
+    canonical base; ttd retains its source vendor 21. Both definitions are native-only and \
+    default inactive. Enabling the alias cannot bypass canonical-base eligibility.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/thetradedesk.json"
+source_blob = "63dae6d978564714c1425eb197c74d9fb0654541"
+source_bytes = 538
+source_sha256 = "769d92e699416dc3e30f16c8383f9c21dfb568adb323b9f9d953fe6968818845"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 538
+source_sha256 = "769d92e699416dc3e30f16c8383f9c21dfb568adb323b9f9d953fe6968818845"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesk_test.go"
+source_blob = "050d64498ac9cf93aacad57032263fe838591f3f"
+source_bytes = 17975
+source_sha256 = "5514c7283312c18fd9fb5db87390733794e53e423170b4dadb92b60114d7556c"
+port_differences = [
+    """\
+    Source TestJsonSamples supplies ttd only as test configuration. Local tests use that \
+    captured setting with a test-only HTTPS destination, not a production default. Inline \
+    price, selection and routing expectations inform local tests without copying Go programs.""",
+]
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "adapters/thetradedesk/params_test.go"
+source_blob = "1cf105857c858a7892eb05e9c5bb682e6ac8d5bd"
+source_bytes = 1489
+source_sha256 = "6532459d4167ed93676bef0684045ad13c26672416bdea83d61644651ac69fb3"
+transformation = """\
+Extract the three validParams and nine invalidParams raw string contents in source order \
+into JSON string arrays named valid and invalid. Preserve each input string verbatim, \
+including the empty invalid input. The source tests were not executed."""
+port_differences = [
+    "Parameter expectations are source-derived; their JSON container is locally authored.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/parameters.json"
+source_bytes = 453
+source_sha256 = "7bce98afab7fadc784862c66f61ebabe8563a3317820d2dfee3810f6ba094285"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "openrtb_ext/imp_thetradedesk.go"
+source_blob = "bb2b628d77313f6e23bf0f6bfb2c6a9d58ab1edd"
+source_bytes = 243
+source_sha256 = "41fb6f3bdd4ff6549fac4ba96852f62f4692881daf6185af5e621268c59b47c7"
+port_differences = ["Borrow canonical string parameters; no additional schema engine."]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/response.go"
+source_blob = "6c3c6a82370da0f8aae88ea273ef03c7fc441a87"
+source_bytes = 721
+source_sha256 = "b13407cbea94e6ef82fa188b5d0a95a30009e1e00f1d8300e8fd6435e022c0dc"
+port_differences = ["Retain source status classes; status messages contain only the status number."]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+port_differences = ["Source response constructor defaults USD; TTD then copies wire cur on 200."]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "macros/macros.go"
+source_blob = "0c6e08cae0e38b4ae9781484b35b6efa6d28c92c"
+source_bytes = 1066
+source_sha256 = "b4fbc3b979566334f9f02571f5837f9e6b927068535afa99f867588323b87bfb"
+port_differences = [
+    """\
+    Source template substitution is raw and permits an empty SupplyId. Local routing \
+    requires nonempty data, generated field bindings, shared percent-encoding and traversal \
+    rejection. Production destination approval is separate.""",
+]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+port_differences = [
+    """\
+    Reuse shared sealed node-budgeted Serde, fixed errors and typed presence. Do not copy \
+    jsoniter, its case/null behavior, parser diagnostics or unbounded decoding.""",
+]
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/ortb_response_video_parsing.json"
+source_blob = "d0683a2d0512284cd4055e9d3cb2043fcf6587a2"
+source_bytes = 7285
+source_sha256 = "4af77d8b80ae6da7430998ef45302d6e38affe08fae25aec44d346a5cc9acebf"
+port_differences = [
+    """\
+    Source request/response bytes retained, including video metadata. Auctioneer preserves input \
+    test = 0, imp[0].instl = 0 and imp[0].video.content omitted by the source request. \
+    Conformance asserts presence and exact input equality before excluding only those \
+    fields from its actual-body comparison copy. The actual sealed response Bid is compared \
+    in full with the untouched source expectation, without typed-value normalization. \
+    Bid.price uses f64, w/h use i32, and cid/dur/cat/cattax/adomain/mtype remain flattened \
+    values.""",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/ortb_response_video_parsing.json"
+source_bytes = 7285
+source_sha256 = "4af77d8b80ae6da7430998ef45302d6e38affe08fae25aec44d346a5cc9acebf"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/prebidjs_response_video_parsing.json"
+source_blob = "24a532d4368a1a620a190bfa1ac065b941e3a151"
+source_bytes = 8553
+source_sha256 = "ac5e861577f7b973afa3bda8698767ca58ca09d01ebc43ededefabddf1d06b96"
+port_differences = [
+    "Source bid impid was not sent; shared identity refusal, not repaired source success.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/prebidjs_response_video_parsing.json"
+source_bytes = 8553
+source_sha256 = "ac5e861577f7b973afa3bda8698767ca58ca09d01ebc43ededefabddf1d06b96"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-banner-inapp.json"
+source_blob = "d5f0880c62e7339409c77d20b904d65e5ad5e6bb"
+source_bytes = 3271
+source_sha256 = "c68a1c007233e6437b994c2bf7234569b6edbc8d38114490d9ee56127d245d7a"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-inapp.json"
+source_bytes = 3271
+source_sha256 = "c68a1c007233e6437b994c2bf7234569b6edbc8d38114490d9ee56127d245d7a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-banner-multiple-bids-and-formats.json"
+source_blob = "ccd6ff3ed1dfd61d9a7a221ee455235ff85f1f27"
+source_bytes = 5350
+source_sha256 = "897b9b60597446df276c8aba76df3318188f06b519107d527deb0b41ffeb877e"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-multiple-bids-and-formats.json"
+source_bytes = 5350
+source_sha256 = "897b9b60597446df276c8aba76df3318188f06b519107d527deb0b41ffeb877e"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-banner-multiple-bids.json"
+source_blob = "61113c82993ebd9573926c8b71565ed1c7cba3e9"
+source_bytes = 5002
+source_sha256 = "178ac7d231fa18029988ebddeb26464f02a11e1fa3b37964f4e5ae1b0160989c"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-multiple-bids.json"
+source_bytes = 5002
+source_sha256 = "178ac7d231fa18029988ebddeb26464f02a11e1fa3b37964f4e5ae1b0160989c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-banner.json"
+source_blob = "86f33d35dcb789be0bc8b9339a18f3b4423ec2f4"
+source_bytes = 3117
+source_sha256 = "15726eb0762eb2376b8c4507780f4f094ee909b91cc61721a0429298275821eb"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner.json"
+source_bytes = 3117
+source_sha256 = "15726eb0762eb2376b8c4507780f4f094ee909b91cc61721a0429298275821eb"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-empty-publisherId.json"
+source_blob = "9398e5f7f69d2628ccbc9e08a631038506cf3175"
+source_bytes = 3125
+source_sha256 = "7a3acb589c43a85c7ed56a443f163089259726c3c48bdb8b91377d04b2f0381b"
+port_differences = [
+    "Direct adapter schema-boundary capture: publisherId is empty. Response id is absent.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-empty-publisherId.json"
+source_bytes = 3125
+source_sha256 = "7a3acb589c43a85c7ed56a443f163089259726c3c48bdb8b91377d04b2f0381b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-multi-type-banner.json"
+source_blob = "6e80e11396adda6c978c28cbc9eeb56a8cf19080"
+source_bytes = 3368
+source_sha256 = "c716a25cf5b6d18121aaa4dbe4e031f4271052a9d1e4d28c94e0029959e10e20"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-multi-type-banner.json"
+source_bytes = 3368
+source_sha256 = "c716a25cf5b6d18121aaa4dbe4e031f4271052a9d1e4d28c94e0029959e10e20"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-multi-type-video.json"
+source_blob = "64e0e591fd4b404a2752237fb1b8c8f92f1b83b2"
+source_bytes = 3245
+source_sha256 = "bcf404f5b87509a7ee7314c27446f1dc140dbd6065e9f9480067545afb549d55"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-multi-type-video.json"
+source_bytes = 3245
+source_sha256 = "bcf404f5b87509a7ee7314c27446f1dc140dbd6065e9f9480067545afb549d55"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-native.json"
+source_blob = "3b1b7d57ab314ca7c797d6aec7f7f633200a34b6"
+source_bytes = 2526
+source_sha256 = "afde52d2211afbda90b7f8ba200444ed146bb601bc46332bd447d701a89ffe43"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-native.json"
+source_bytes = 2526
+source_sha256 = "afde52d2211afbda90b7f8ba200444ed146bb601bc46332bd447d701a89ffe43"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/simple-video.json"
+source_blob = "b280dd96e9d62cd2abfd4282eaaaeaa8fe8ffec1"
+source_bytes = 3511
+source_sha256 = "920dcd698c0ff6ea5fcf0c8f98d792633df7c2f8b2d3b627bbbb93dad2844914"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+    """\
+    Auctioneer preserves input imp[0].video.minduration = 0 omitted by the source request. \
+    Assert presence and exact input equality before excluding only that value from the \
+    actual-body comparison copy, then check the actual sealed missing-id response refusal.""",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-video.json"
+source_bytes = 3511
+source_sha256 = "920dcd698c0ff6ea5fcf0c8f98d792633df7c2f8b2d3b627bbbb93dad2844914"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/exemplary/use-supply-source-id-param.json"
+source_blob = "2a766ab5b1b7c43b5b3a3a15116514692ba26649"
+source_bytes = 5066
+source_sha256 = "e4bd3ec7025574796aafb442656a5246f08b0222db909bf65ab37f1637dde5d9"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+    """\
+    Auctioneer preserves input video.minduration = 0 on both impressions, omitted by the source \
+    request. Assert both values are present and equal to input before excluding only those \
+    values from the actual-body comparison copy, then check the actual sealed missing-id \
+    response refusal.""",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/use-supply-source-id-param.json"
+source_bytes = 5066
+source_sha256 = "e4bd3ec7025574796aafb442656a5246f08b0222db909bf65ab37f1637dde5d9"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/200-response-from-target.json"
+source_blob = "fa92fd45e49c062cdab5096efb238d623cc77c40"
+source_bytes = 2342
+source_sha256 = "0548d5d76f21cb7ffda5d7f1bbea451133cdd12ac8cb22c5695fdff437b281db"
+port_differences = [
+    "Empty HTTP body is a fixed sealed parse error, not source parser text.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/200-response-from-target.json"
+source_bytes = 2342
+source_sha256 = "0548d5d76f21cb7ffda5d7f1bbea451133cdd12ac8cb22c5695fdff437b281db"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/204-response-from-target.json"
+source_blob = "06407e7cb83a814723587760b44808f5aaa3f684"
+source_bytes = 2306
+source_sha256 = "f5a659cbd2b056b600098bfe62aabeaf028f49315b885438d7675421081155b0"
+port_differences = [
+    "Source 204 no-bid with USD currency, without parsing the body.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/204-response-from-target.json"
+source_bytes = 2306
+source_sha256 = "f5a659cbd2b056b600098bfe62aabeaf028f49315b885438d7675421081155b0"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/400-response-from-target.json"
+source_blob = "a177c5835fe792d74419a13add11ff8e2f3b445d"
+source_bytes = 2384
+source_sha256 = "1c71ad4cb515f9d982afbd1f009bef96e3c2b44032a0eaa1eaf89d0a940a2a7e"
+port_differences = [
+    "Source 400 maps to code 2 before parsing.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/400-response-from-target.json"
+source_bytes = 2384
+source_sha256 = "1c71ad4cb515f9d982afbd1f009bef96e3c2b44032a0eaa1eaf89d0a940a2a7e"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/500-response-from-target.json"
+source_blob = "b6526b6fd205042dc7175293db3a673f76c38026"
+source_bytes = 2384
+source_sha256 = "c1a487449eaa5af9807dc3cfb4deeff27a886280bedada9c9bc3b1d7d7b78ddd"
+port_differences = [
+    "Source 500 maps to code 4 before parsing.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/500-response-from-target.json"
+source_bytes = 2384
+source_sha256 = "c1a487449eaa5af9807dc3cfb4deeff27a886280bedada9c9bc3b1d7d7b78ddd"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/auction-price-macro-replacement.json"
+source_blob = "2406716e8615bfd479849120d4fe90a378e16657"
+source_bytes = 3277
+source_sha256 = "ec854500a3658ef99316910d2cc0f4d29c1ed17f9381b92745178d5c2f8aee31"
+port_differences = [
+    "Missing response id reaches shared sealed boundary; source bytes remain unchanged.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/auction-price-macro-replacement.json"
+source_bytes = 3277
+source_sha256 = "ec854500a3658ef99316910d2cc0f4d29c1ed17f9381b92745178d5c2f8aee31"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/invalid-mtype.json"
+source_blob = "432701a111f7e5f78387c04637182a27333334c1"
+source_bytes = 1860
+source_sha256 = "4bd638cd1895dfa907f210d97d3f525e880030ab55812287203304c21967de40"
+port_differences = [
+    "Missing response id reaches shared parse boundary before bid-local mtype refusal.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalid-mtype.json"
+source_bytes = 1860
+source_sha256 = "4bd638cd1895dfa907f210d97d3f525e880030ab55812287203304c21967de40"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/invalid-publisher.json"
+source_blob = "9e2426d79b2d2afc86d1fae039e3afdf8ef2d6b6"
+source_bytes = 872
+source_sha256 = "8bc3f9964f047a901ed8ba842118a2a32ea6b3786da0fe636b9e6f6a5c309693"
+port_differences = [
+    "Source parameter failure uses fixed code 14 instead of parser text.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalid-publisher.json"
+source_bytes = 872
+source_sha256 = "8bc3f9964f047a901ed8ba842118a2a32ea6b3786da0fe636b9e6f6a5c309693"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/thetradedesk/thetradedesktest/supplemental/invalid-supplySourceId.json"
+source_blob = "69f7898ccff071a076188e7a5abe4dcf940070a3"
+source_bytes = 877
+source_sha256 = "eb7a1eebb86dbf8d9af2ebceed9f09488eb124df3ca8a60c14241903841b7f8c"
+port_differences = [
+    "Source parameter failure uses fixed code 14 instead of parser text.",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/invalid-supplySourceId.json"
+source_bytes = 877
+source_sha256 = "eb7a1eebb86dbf8d9af2ebceed9f09488eb124df3ca8a60c14241903841b7f8c"

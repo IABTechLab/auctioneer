@@ -1,0 +1,40 @@
+# Runtime bootstrap — deploy-immutable policy baked into the binary by
+# `auctioneer-config/build.rs`. It stays a separate file on purpose: its
+# one key decides what to do when the store holds NO blob, so folding
+# it into the pushed source would be circular.
+#
+# SOURCE-CONTROLLED POLICY ONLY: the value changes by editing this file
+# in the repository and rebuilding. No environment variable, no
+# config-store value, and no deploy-time override can change it (the
+# only override path is the build-failure harness, under the
+# `test-harness-override` feature). The build fails on a missing key, a
+# non-boolean, or an unknown key, so a shipped binary carries exactly
+# one validated value.
+[runtime]
+# Governs BOTH "no config" states — a manifest with no [stores.config]
+# binding, and a bound store with no blob pushed yet:
+# `true`  → an intentionally unconfigured deploy: the handler logs a WARN
+#           and continues from `AuctioneerAppConfig::default()`, which leaves
+#           GDPR enforcement OFF.
+# `false` → a misconfigured deploy (a deleted production key or a
+#           manifest missing its store looks identical): the request
+#           fails closed with 500 `Malformed host configuration`. The
+#           safer default.
+allow_missing_config = false
+
+# The absolute bound on ONE typed-config extraction — the root blob plus
+# every secret the extractor walks — installed as
+# `ConfigExtractionLimits.timeout` so the shared extraction budget
+# enforces it rather than a auctioneer-local timer. Baked here rather than
+# read from the pushed config because it BOUNDS the read that resolves
+# that config: reading it from the store would be circular.
+#
+# It bounds the EXTRACTION, not the whole request. The budget anchors at
+# extraction entry, so upload and parse time fall outside it. That is
+# the value's purpose: stop a hung store from hanging a request while it
+# holds its admission lease. It is not a request-latency target.
+#
+# Expiry is reported by the store as a deadline error and answered with
+# 503 + `Retry-After`, never a fallback to the baked default: a slow
+# store is not an absent key, so `allow_missing_config` does not apply.
+max_config_fetch_ms = 2000

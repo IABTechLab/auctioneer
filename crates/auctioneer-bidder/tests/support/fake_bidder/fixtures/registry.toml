@@ -1,0 +1,49 @@
+key = "fake_registry_fake"
+factory = true
+
+[provenance]
+origin = "reference"
+
+# These witnesses describe only the locally authored synthetic fixture universe.
+[provenance.sources.fixture]
+repository = "https://registry-fixture.invalid/source.git"
+revision = "1111111111111111111111111111111111111111"
+
+[[provenance.trees]]
+category = "implementation"
+source = "fixture"
+source_path = "adapters/fake_registry_fake"
+tree = "2222222222222222222222222222222222222222"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "fixture"
+source_path = "static/bidder-params/fake_registry_fake.json"
+source_blob = "3333333333333333333333333333333333333333"
+source_bytes = 203
+source_sha256 = "5c857124071883c9776cce630f6d5e4569a8596faee7636d753b28d4628ee9d7"
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 203
+source_sha256 = "5c857124071883c9776cce630f6d5e4569a8596faee7636d753b28d4628ee9d7"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "fixture"
+source_path = "static/bidder-params/fake_registry_alias.json"
+source_blob = "4444444444444444444444444444444444444444"
+source_bytes = 147
+source_sha256 = "a315d337718b411c52dfa27266df2aed0671061e611bde8b4f2745116b251dc5"
+[provenance.artifacts.retained]
+source_path = "schemas/fake_registry_alias.schema.json"
+source_bytes = 147
+source_sha256 = "a315d337718b411c52dfa27266df2aed0671061e611bde8b4f2745116b251dc5"
+
+[definitions.fake_registry_alias]
+endpoint = "https://alias.registry.invalid/openrtb2"
+
+[definitions.fake_registry_base]
+endpoint = "https://base.registry.invalid/openrtb2"
+
+[definitions.fake_registry_shared]
+endpoint = "https://shared.registry.invalid/openrtb2"

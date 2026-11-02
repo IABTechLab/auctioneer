@@ -1,0 +1,218 @@
+key = "teqblaze"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/teqblaze"
+tree = "f0bab2609599a51ac11e7b01a795f051a3ffccea"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/360playvid.yaml"
+source_blob = "7eaacda9d28f28854f705b2d54b6f46ce9c2bfc6"
+source_bytes = 544
+source_sha256 = "aa88e62a7e8447ad980e9cb591fc9bfc69476391f27fac1eb24b8bee090578a9"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/ads_interactive.yaml"
+source_blob = "df45a6869eaa505007bd233da40584210375e436"
+source_bytes = 571
+source_sha256 = "0c529185a95d844d4af7d9dbc3bd5dc8e31b5755c4f5138e0c54ae40c1c87021"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adsinteractive.yaml"
+source_blob = "0940039929df9c2074021f7e8907d7e9bd04e134"
+source_bytes = 570
+source_sha256 = "767f4fb656760f4da1c8ca6ce669faf7f4a88d611d00c54b54968cd801526ec4"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adsmovil.yaml"
+source_blob = "2e919de4c6562d2d8a0f7040863a04c2dbc827c1"
+source_bytes = 253
+source_sha256 = "66b1b3fd55d782b6554c35e35e8127b173cbef5344e2f487163f95f95587e2d2"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/appMonstaMedia.yaml"
+source_blob = "705140a525e534f7ccaffc64b53ce9d6b637e4db"
+source_bytes = 136
+source_sha256 = "04e9774ceb5ca86276aba11c8846f2c21807f1668c6943c24db49ecaf2ecc598"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/appStockSSP.yaml"
+source_blob = "a0fbbfb644f10105b1d9a744feac60b1f7654215"
+source_bytes = 911
+source_sha256 = "27922cdc6d8c9b7038d04aa4ed94efa12f13a75319e487b3b4700a3827fe4b22"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/bidfuse.yaml"
+source_blob = "c993e2f184f3422b314141b2a9465bcd1570f8b9"
+source_bytes = 531
+source_sha256 = "273483136687271444adf45ff21c9c2cb2ac1b2b071ae60b61e759445b31542f"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/dpai.yaml"
+source_blob = "f679d66d776e85953318dd5dbcef5b0b53f42d9e"
+source_bytes = 699
+source_sha256 = "bb8ba86c7c7a5ed429571c368a29f065ee6cb8ed523b2edc28df37bd216d0be8"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/gravite.yaml"
+source_blob = "2ff9bcf371208966ec777805bf1db9f65e6745ca"
+source_bytes = 131
+source_sha256 = "858823fb34fdc37a7805e4c6fa72394b63cdd3f0d60dbe8e5ad46607cda7658a"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/harion.yaml"
+source_blob = "450afd86446aeb6abe1b782808cf4aec76c87783"
+source_bytes = 276
+source_sha256 = "e37594ccbb342f02f7004ba4945032b6861de8ed253101e532c978903d09be0b"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/mediayo.yaml"
+source_blob = "0730b834a975e66205daefd523a9438f51f09ee0"
+source_bytes = 108
+source_sha256 = "8edec6bc7b9a3add65a658afd1a53016fbbc08f64b66faeff4808d215cbc8e66"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/mycodemedia.yaml"
+source_blob = "88b054777352735bfbff63bffc9a68c89ead47ad"
+source_bytes = 732
+source_sha256 = "cb66348a5959d20c64628ad0790c9ccef83e25d1caea961f8691173eaa832a65"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/nuba.yaml"
+source_blob = "803402c68a152e2149812c9c2f83e2b4a88549e9"
+source_bytes = 96
+source_sha256 = "57ad330c142ba42910f20c952b496112e0e74af7f5d730ccb0d8dfc11bd6ca53"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/pinkLion.yaml"
+source_blob = "52e9e0f1babcaeb24bf3fe159047d35140849c72"
+source_bytes = 112
+source_sha256 = "0a0b18d00d75cacfaaeb9884a71772f05fefd2c26ac336c00c1835434d693e63"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/progx.yaml"
+source_blob = "45a27ecfa6e662a219590585ca7820f6f8465fce"
+source_bytes = 555
+source_sha256 = "79cb7112afccefdad1ab76bb90f962ec1c19fb5585e11205a7a174f17dce3969"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/rocketlab.yaml"
+source_blob = "2efe3fd48c63636ad432bbcc83bef501759056f8"
+source_bytes = 333
+source_sha256 = "31687bda91e8d52915a40d377ece24cf7816e3a381e845195d9fc9337d953a08"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/screencore.yaml"
+source_blob = "4dd3a19f790d74eb7eaa9575f8c9375396869c3a"
+source_bytes = 765
+source_sha256 = "814d14544ba66060fbe5992e612d579ca27f228b0b502f91285f11343a8b5b4d"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/teqblaze.yaml"
+source_blob = "f282df3246757d73978e02e5497c5ce2bb1d376f"
+source_bytes = 201
+source_sha256 = "f2cde78e1f71c21c5762c732f74080e4c0821d49e60da772687eacfd2f47b52b"
+port_differences = [
+    "Source identity is white-label-only; it supplies no independently callable base.",
+]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/verben.yaml"
+source_blob = "a5b9cfed3db352541cdd27ea4c73335abb7fd4c9"
+source_bytes = 119
+source_sha256 = "e61d1aa846f3d97eb7080d0cbfd93b6d55afdf894af2e0c2758fd884e16410d1"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/teqblaze.json"
+source_blob = "2d0994c7865d3d7185e3a1f62c2eaa918e8f332f"
+source_bytes = 531
+source_sha256 = "ef396f97c184f14224d0006d6277c6982e7afea42f650e43f31af2c79e8b53bb"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 531
+source_sha256 = "ef396f97c184f14224d0006d6277c6982e7afea42f650e43f31af2c79e8b53bb"

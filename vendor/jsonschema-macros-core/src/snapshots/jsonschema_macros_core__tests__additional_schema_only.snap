@@ -1,0 +1,15 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"additionalProperties\":{\"type\":\"integer\"},\"type\":\"object\"}"
+expression: is_valid_body(schema)
+---
+match instance {
+            __Value::Object(obj) => {
+                obj.values()
+                    .all(|instance| match instance {
+                        __Value::Number(n) => __types::is_integer(n),
+                        _ => false,
+                    })
+            }
+            _ => false,
+        }

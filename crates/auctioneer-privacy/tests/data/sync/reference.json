@@ -1,0 +1,1843 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": -1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_absent_default_0",
+      "input": {
+        "body_utf8": "{}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "gdpr_consent is required. gdpr is not specified and is assumed to be 1 by the server. set gdpr=0 to exempt this request",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_absent_default_1",
+      "input": {
+        "body_utf8": "{}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": -1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_null_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":null}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "gdpr_consent is required. gdpr is not specified and is assumed to be 1 by the server. set gdpr=0 to exempt this request",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_null_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":null}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_zero_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_zero_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "gdpr_consent is required if gdpr=1",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_one_empty_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":1}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "gdpr_consent is required if gdpr=1",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_one_empty_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":1}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "1",
+          "GDPRConsent": "legacyConsent",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_one_consent_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":1,\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "1",
+          "GDPRConsent": "legacyConsent",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_one_consent_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":1,\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "GDPR signal should be integer 0 or 1",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_invalid_number_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":2}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "GDPR signal should be integer 0 or 1",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_invalid_number_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":2}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_invalid_string_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":\"1\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_invalid_string_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":\"1\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_invalid_empty_string_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":\"\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_invalid_empty_string_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":\"\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_invalid_boolean_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":true}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_invalid_boolean_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":true}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": "-1"
+        },
+        "sid": [
+          -1
+        ],
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_sentinel_overrides_invalid_number_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":2,\"gpp_sid\":\"-1\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": "-1"
+        },
+        "sid": [
+          -1
+        ],
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_sentinel_overrides_invalid_number_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":2,\"gpp_sid\":\"-1\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_sentinel_cannot_override_json_string_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":\"bad\",\"gpp_sid\":\"-1\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "cannot unmarshal endpoints.cookieSyncRequest.GDPR: unexpected character: \ufffd",
+        "error_kind": "error",
+        "stage": "json"
+      },
+      "id": "cookie_sentinel_cannot_override_json_string_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":\"bad\",\"gpp_sid\":\"-1\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "USPrivacy": "",
+          "GPP": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "GPPSID": "6"
+        },
+        "sid": [
+          6
+        ],
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_inactive_tcf_in_envelope_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA\",\"gpp_sid\":\"6\",\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "USPrivacy": "",
+          "GPP": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "GPPSID": "6"
+        },
+        "sid": [
+          6
+        ],
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_inactive_tcf_in_envelope_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA\",\"gpp_sid\":\"6\",\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "USPrivacy": "",
+          "GPP": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": -1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_envelope_without_sid_default_0",
+      "input": {
+        "body_utf8": "{\"gpp\":\"DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA\",\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "USPrivacy": "",
+          "GPP": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": -1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_envelope_without_sid_default_1",
+      "input": {
+        "body_utf8": "{\"gpp\":\"DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA\",\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "1",
+          "GDPRConsent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "USPrivacy": "",
+          "GPP": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "GPPSID": "2"
+        },
+        "sid": [
+          2
+        ],
+        "signal": 1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_active_tcf_default_0",
+      "input": {
+        "body_utf8": "{\"gpp\":\"DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA\",\"gpp_sid\":\"2\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "1",
+          "GDPRConsent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "USPrivacy": "",
+          "GPP": "DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+          "GPPSID": "2"
+        },
+        "sid": [
+          2
+        ],
+        "signal": 1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_active_tcf_default_1",
+      "input": {
+        "body_utf8": "{\"gpp\":\"DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA\",\"gpp_sid\":\"2\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "1",
+          "GDPRConsent": "legacyConsent",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": "2"
+        },
+        "sid": [
+          2
+        ],
+        "signal": 1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_active_missing_tcf_falls_back_default_0",
+      "input": {
+        "body_utf8": "{\"gpp_sid\":\"2\",\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "1",
+          "GDPRConsent": "legacyConsent",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": "2"
+        },
+        "sid": [
+          2
+        ],
+        "signal": 1,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_active_missing_tcf_falls_back_default_1",
+      "input": {
+        "body_utf8": "{\"gpp_sid\":\"2\",\"gdpr_consent\":\"legacyConsent\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "error parsing GPP header, header must have type=3",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_bad_envelope_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"malformed\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "error parsing GPP header, header must have type=3",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_bad_envelope_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"malformed\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_valid_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"us_privacy\":\"1NYN\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "1NYN",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_valid_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"us_privacy\":\"1NYN\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "bad",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_invalid_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"us_privacy\":\"bad\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "bad",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_invalid_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"us_privacy\":\"bad\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "request.us_privacy consent does not match uspv1",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_conflict_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"DBABTA~1YYN\",\"gpp_sid\":\"6\",\"us_privacy\":\"1NNN\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "request.us_privacy consent does not match uspv1",
+        "error_kind": "error",
+        "macros": {
+          "GDPR": "",
+          "GDPRConsent": "",
+          "USPrivacy": "",
+          "GPP": "",
+          "GPPSID": ""
+        },
+        "sid": null,
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_conflict_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"DBABTA~1YYN\",\"gpp_sid\":\"6\",\"us_privacy\":\"1NNN\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "1YYN",
+          "GPP": "DBABTA~1YYN",
+          "GPPSID": "6"
+        },
+        "sid": [
+          6
+        ],
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_selected_default_0",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"DBABTA~1YYN\",\"gpp_sid\":\"6\"}",
+        "host_default_gdpr": "0"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "error_kind": "none",
+        "macros": {
+          "GDPR": "0",
+          "GDPRConsent": "",
+          "USPrivacy": "1YYN",
+          "GPP": "DBABTA~1YYN",
+          "GPPSID": "6"
+        },
+        "sid": [
+          6
+        ],
+        "signal": 0,
+        "stage": "extractPrivacyPolicies"
+      },
+      "id": "cookie_usp_selected_default_1",
+      "input": {
+        "body_utf8": "{\"gdpr\":0,\"gpp\":\"DBABTA~1YYN\",\"gpp_sid\":\"6\"}",
+        "host_default_gdpr": "1"
+      },
+      "operation": "cookie_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractPrivacyPolicies after source JSON decoding. Helper scope only: parseRequest performs additional legacy USP validation and activity/permission setup.",
+        "paths": [
+          "endpoints/cookie_sync.go",
+          "endpoints/cookie_sync_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "",
+        "error_kind": "none",
+        "signal": -1
+      },
+      "id": "setuid_absent",
+      "input": {
+        "query_utf8": ""
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "",
+        "error_kind": "none",
+        "signal": -1
+      },
+      "id": "setuid_empty",
+      "input": {
+        "query_utf8": "gdpr="
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "",
+        "error_kind": "none",
+        "signal": 0
+      },
+      "id": "setuid_zero",
+      "input": {
+        "query_utf8": "gdpr=0"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "GDPR consent is required when gdpr signal equals 1",
+        "error_kind": "error",
+        "signal": -1
+      },
+      "id": "setuid_one_empty",
+      "input": {
+        "query_utf8": "gdpr=1"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "the gdpr query param must be either 0 or 1. You gave 2",
+        "error_kind": "error",
+        "signal": -1
+      },
+      "id": "setuid_invalid",
+      "input": {
+        "query_utf8": "gdpr=2"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "legacyConsent",
+        "error": "",
+        "error_kind": "none",
+        "signal": 1
+      },
+      "id": "setuid_one_consent",
+      "input": {
+        "query_utf8": "gdpr=1&gdpr_consent=legacyConsent"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "'gpp_sid' signal value will be used over the one found in the deprecated 'gdpr' field.",
+        "error_kind": "warning",
+        "signal": 0
+      },
+      "id": "setuid_sentinel_invalid_legacy",
+      "input": {
+        "query_utf8": "gdpr=invalid&gpp_sid=-1"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "GDPR consent is required when gdpr signal equals 1",
+        "error_kind": "error",
+        "signal": -1
+      },
+      "id": "setuid_sid_missing_tcf_no_fallback",
+      "input": {
+        "query_utf8": "gpp_sid=2&gdpr_consent=legacyConsent"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+        "error": "'gpp' value will be used over the one found in the deprecated 'gdpr_consent' field.",
+        "error_kind": "warning",
+        "signal": 0
+      },
+      "id": "setuid_inactive_tcf_in_envelope",
+      "input": {
+        "query_utf8": "gpp=DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA&gpp_sid=6&gdpr_consent=legacyConsent"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA",
+        "error": "",
+        "error_kind": "none",
+        "signal": -1
+      },
+      "id": "setuid_envelope_without_sid",
+      "input": {
+        "query_utf8": "gpp=DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "error parsing GPP header, header must have type=3",
+        "error_kind": "error",
+        "signal": -1
+      },
+      "id": "setuid_bad_envelope",
+      "input": {
+        "query_utf8": "gdpr=0&gpp=malformed"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "",
+        "error_kind": "none",
+        "signal": 0
+      },
+      "id": "setuid_duplicate_first_wins",
+      "input": {
+        "query_utf8": "gdpr=0&gdpr=1"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "consent": "",
+        "error": "GDPR consent is required when gdpr signal equals 1",
+        "error_kind": "error",
+        "signal": -1
+      },
+      "id": "setuid_mixed_sentinel",
+      "input": {
+        "query_utf8": "gpp_sid=-1,2&gdpr_consent=legacyConsent"
+      },
+      "operation": "setuid_privacy",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Actual extractGDPRInfo. Signal -1 is Ambiguous; error/warning string is exact upstream, not approved safe Auctioneer diagnostics.",
+        "paths": [
+          "endpoints/setuid.go",
+          "endpoints/setuid_test.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": null
+      },
+      "id": "sid_00",
+      "input": {
+        "raw": ""
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          2
+        ]
+      },
+      "id": "sid_01",
+      "input": {
+        "raw": "2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          2,
+          6
+        ]
+      },
+      "id": "sid_02",
+      "input": {
+        "raw": "2,6"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          6,
+          2
+        ]
+      },
+      "id": "sid_03",
+      "input": {
+        "raw": "6,2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          2,
+          6
+        ]
+      },
+      "id": "sid_04",
+      "input": {
+        "raw": "02,6"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          2,
+          2
+        ]
+      },
+      "id": "sid_05",
+      "input": {
+        "raw": "2,2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          -1
+        ]
+      },
+      "id": "sid_06",
+      "input": {
+        "raw": "-1"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          -1
+        ]
+      },
+      "id": "sid_07",
+      "input": {
+        "raw": "-01"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          -1,
+          2
+        ]
+      },
+      "id": "sid_08",
+      "input": {
+        "raw": "-1,2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          -1,
+          -1
+        ]
+      },
+      "id": "sid_09",
+      "input": {
+        "raw": "-1,-1"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          0
+        ]
+      },
+      "id": "sid_10",
+      "input": {
+        "raw": "0"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          -2
+        ]
+      },
+      "id": "sid_11",
+      "input": {
+        "raw": "-2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          2
+        ]
+      },
+      "id": "sid_12",
+      "input": {
+        "raw": "+2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "strconv.ParseInt: parsing \" 2\": invalid syntax",
+        "valid": false,
+        "values": null
+      },
+      "id": "sid_13",
+      "input": {
+        "raw": " 2"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "strconv.ParseInt: parsing \"\": invalid syntax",
+        "valid": false,
+        "values": null
+      },
+      "id": "sid_14",
+      "input": {
+        "raw": "2,"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "strconv.ParseInt: parsing \"128\": value out of range",
+        "valid": false,
+        "values": null
+      },
+      "id": "sid_15",
+      "input": {
+        "raw": "128"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "",
+        "valid": true,
+        "values": [
+          127
+        ]
+      },
+      "id": "sid_16",
+      "input": {
+        "raw": "127"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    },
+    {
+      "expected": {
+        "error": "strconv.ParseInt: parsing \"65535\": value out of range",
+        "valid": false,
+        "values": null
+      },
+      "id": "sid_17",
+      "input": {
+        "raw": "65535"
+      },
+      "operation": "parse_sid",
+      "provenance": {
+        "kind": "source_call",
+        "notes": "Signed int8 reference parser; permissive signs/zero/mixed sentinel and upper bound differ from Auctioneer.",
+        "paths": [
+          "util/stringutil/stringutil.go",
+          "endpoints/setuid.go",
+          "endpoints/cookie_sync.go"
+        ]
+      }
+    }
+  ],
+  "reference": {
+    "generator_version": 1,
+    "go": "go1.23.12",
+    "license": "Apache-2.0",
+    "now": "2026-09-30T12:00:00Z",
+    "revision": "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+  },
+  "schema_version": 1
+}

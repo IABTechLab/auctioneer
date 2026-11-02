@@ -1,0 +1,57 @@
+[package]
+name = "auctioneer-privacy"
+description = "GDPR / TCF v2 consent parsing and per-purpose enforcement for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+insecure-bidders = ["auctioneer-config/insecure-bidders"]
+# Canonical test encoders shared with privacy, core, and exchange tests.
+test-support = []
+# Optional wall-clock sanity ceiling (10 ms) layered onto the
+# hostile-input regressions. Not part of the default test gate —
+# wall-clock assertions are flaky on shared CI.
+timing-tests = []
+
+[dependencies]
+# The GVL cache-load error path logs; the runtime is otherwise silent
+# (deleted-vendor observability is a build-time aggregate).
+log = { workspace = true }
+# Entry-count-bounded LRU behind GvlStore's lazy parse cache.
+lru = { workspace = true }
+auctioneer-config = { workspace = true }
+# Runtime lowering delegates to the shared validator — the ONE GVL/GCL
+# parse path; no serde/serde_json dependency here.
+auctioneer-gvl-schema = { workspace = true }
+# Singleflight cell for concurrent cache misses.
+once_cell = { workspace = true }
+time = { workspace = true }
+auctioneer-openrtb = { workspace = true }
+auctioneer-runtime = { workspace = true }
+# `PrivacyError` derives `thiserror::Error`.
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Retain the shared allocation counter without compiling exchange test sources.
+auctioneer-runtime = { workspace = true, features = ["test-support"] }
+auctioneer-privacy = { workspace = true, features = ["test-support"] }
+proptest = { workspace = true }
+# Pinned Prebid policy fixtures; the extractable GPP parser uses Rust constants.
+serde_json = { workspace = true }
+# Captures log output for the no-per-vendor-deleted-warning inverse
+# regression.
+testing_logger = { workspace = true }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
+# Only browser/Worker property tests need the Web Crypto entropy backend.
+getrandom = { workspace = true, features = ["wasm_js"] }
+
+[[bench]]
+name = "gvl_cold_parse"
+harness = false

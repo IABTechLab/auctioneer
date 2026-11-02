@@ -1,0 +1,54 @@
+key = "goldbach"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/goldbach"
+tree = "69f670795e9bfaff92ee41dccadc552a4cb3d03c"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/goldbach.yaml"
+source_blob = "08d43ba216ed2601d4a9665a69a94f5e19cf30eb"
+source_bytes = 309
+source_sha256 = "04560507e364593e9071e0c41a97799608959468e7b608f910b8cf69a01a6da5"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/goldbach.json"
+source_blob = "8958db13cfc42adaeab6784f27f92f0efd0c7d23"
+source_bytes = 843
+source_sha256 = "3495254de7f5219b2e9959d31de1c3645a8ea966545f67b5914f816abecb1e49"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 843
+source_sha256 = "3495254de7f5219b2e9959d31de1c3645a8ea966545f67b5914f816abecb1e49"

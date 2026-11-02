@@ -1,0 +1,7 @@
+order = 4
+rows = [{id = "short", valid = true, transforms = [], input_json = "{\"mid\":\"1\",\"priceType\":\"gross\"}"}, {id = "max-string", valid = true, transforms = [{op = "max_string", pointer = "/mid", character = "1", invalid = false}], input_json = "{\"mid\":\"1\",\"priceType\":\"gross\"}"}, {id = "max-string-invalid-tail", valid = false, transforms = [{op = "max_string", pointer = "/mid", character = "1", invalid = true}], input_json = "{\"mid\":\"1\",\"priceType\":\"gross\"}"}, {id = "unicode", valid = false, transforms = [], input_json = "{\"mid\":\"١\",\"priceType\":\"gross\"}"}, {id = "unanchored-price", valid = true, transforms = [], input_json = "{\"mid\":\"1\",\"priceType\":\"prefix-net-suffix\"}"}, {id = "invalid-price", valid = false, transforms = [], input_json = "{\"mid\":\"1\",\"priceType\":\"bad\"}"}]
+maximum_string = true
+string_refusals = true
+pattern_initialization = true
+retained_constructor = true
+schema = "adf"

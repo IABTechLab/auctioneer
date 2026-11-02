@@ -1,0 +1,95 @@
+key = "mocktioneer"
+factory = true
+required_feature = "insecure-bidders"
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.fork]
+repository = "https://github.com/stackpop/prebid-server.git"
+revision = "c9ae35110d45f4dca35efc064d97f955a48445bf"
+
+[[provenance.trees]]
+category = "implementation"
+source = "fork"
+source_path = "adapters/mocktioneer"
+tree = "7a4a22b2b8bfd1711a923a55c6744326d0800249"
+port_differences = [
+    """\
+    The operator identified this fork as the adapter source. The verified adapter is on \
+    feature/mocktioneer, not the then-current master; this witness is not a full-port parity \
+    claim.""",
+    """\
+    The existing Rust implementation uses a configured, build-validated endpoint and does not \
+    implement the source's per-impression endpoint override.""",
+    """\
+    Requests stream the exchange-materialized JSON into a bounded writer. Source-specific \
+    bid-parameter rewriting and device-derived outbound headers are not implemented.""",
+    """\
+    Responses use bounded shared parsing, per-bid media classification and valid-sibling \
+    preservation across seats; status and empty-body handling retain Auctioneer behavior rather \
+    than source parity.""",
+]
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "fork"
+source_path = "adapters/mocktioneer/mocktioneer.go"
+source_blob = "2e9629e8430a49d209f8cc27eb7e1907fc47834e"
+source_bytes = 5046
+source_sha256 = "f0df0d2552c12031da18058c40a74e36580265a3a76e27dc0f01a542e3dddaad"
+transformation = """\
+    Existing Rust implementation retained with the differences recorded on the source tree; no \
+    foreign-language source is checked in."""
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "fork"
+source_path = "static/bidder-info/mocktioneer.yaml"
+source_blob = "693721b93363c430d97fa8d4bf7649dfdd56ddaa"
+source_bytes = 497
+source_sha256 = "86aef303c594f1a249f44cb0681a9cceec9c7887ef29ce4a228616f699e398c8"
+transformation = """\
+    Existing effective TOML metadata retained; no verbatim metadata capture is claimed."""
+port_differences = [
+    """\
+    The existing insecure-bidders-only loopback endpoint and Auctioneer maintainer address differ \
+    from the source's hosted HTTPS endpoint and maintainer. This is development configuration, \
+    not deployment or routing approval.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "fork"
+source_path = "static/bidder-params/mocktioneer.json"
+source_blob = "5e3060c1e61b2e0db25b80a76f37c35d082bfd8e"
+source_bytes = 521
+source_sha256 = "bff17431f5fe1932250b15a58f8f8eb531d93f600095e5e5b8b1be7851c73a9d"
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 521
+source_sha256 = "bff17431f5fe1932250b15a58f8f8eb531d93f600095e5e5b8b1be7851c73a9d"
+
+[[provenance.artifacts]]
+category = "license"
+source = "fork"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+
+[definitions.mocktioneer]
+endpoint = "http://127.0.0.1:8787/openrtb2/auction"
+
+[definitions.mocktioneer.maintainer]
+email = "maintainer@auctioneer.example"
+
+[definitions.mocktioneer.capabilities.app]
+mediaTypes = ["banner"]
+
+[definitions.mocktioneer.capabilities.site]
+mediaTypes = ["banner"]

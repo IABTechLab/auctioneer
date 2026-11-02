@@ -1,0 +1,42 @@
+# Disabled: this repository does not currently have GitHub Advanced
+# Security / CodeQL enabled, so the automated triggers below were
+# failing every PR and push. Kept as a manual-only workflow so it can
+# be re-enabled by restoring the `push` / `pull_request` / `schedule`
+# blocks once CodeQL access is available on the repo.
+name: "CodeQL Advanced"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: rust
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{matrix.language}}"

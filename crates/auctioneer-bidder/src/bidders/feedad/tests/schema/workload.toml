@@ -1,0 +1,7 @@
+order = 9
+rows = [{id = "short", valid = true, transforms = [], input_json = "{\"clientToken\":\"x\",\"placementId\":\"a\"}"}, {id = "max-string", valid = true, transforms = [{op = "max_string", pointer = "/placementId", character = "a", invalid = false}], input_json = "{\"clientToken\":\"x\",\"placementId\":\"a\"}"}, {id = "max-string-invalid-tail", valid = false, transforms = [{op = "max_string", pointer = "/placementId", character = "a", invalid = true}], input_json = "{\"clientToken\":\"x\",\"placementId\":\"a\"}"}, {id = "unicode", valid = false, transforms = [], input_json = "{\"clientToken\":\"x\",\"placementId\":\"١\"}"}]
+maximum_string = true
+string_refusals = true
+pattern_initialization = true
+retained_constructor = true
+schema = "feedad"

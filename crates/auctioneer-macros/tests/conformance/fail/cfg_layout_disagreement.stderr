@@ -1,0 +1,25 @@
+error[E0080]: evaluation panicked: cfg activated a field absent from the host signature
+  --> tests/conformance/fail/cfg_layout_disagreement.rs:23:15
+   |
+23 |   const _: () = assert!(
+   |  _______________^
+24 | |     graph_matches(
+25 | |         ROOT,
+26 | |         &[ExpectedModel {
+...  |
+32 | |     "cfg activated a field absent from the host signature"
+33 | | );
+   | |_^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: cfg removed a field present in the host signature
+  --> tests/conformance/fail/cfg_layout_disagreement.rs:34:15
+   |
+34 |   const _: () = assert!(
+   |  _______________^
+35 | |     graph_matches(
+36 | |         ROOT,
+37 | |         &[ExpectedModel {
+...  |
+57 | |     "cfg removed a field present in the host signature"
+58 | | );
+   | |_^ evaluation of `_` failed here

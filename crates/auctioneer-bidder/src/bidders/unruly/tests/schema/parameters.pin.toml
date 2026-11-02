@@ -1,0 +1,14 @@
+schema = "unruly"
+path = "adapters/unruly/params_test.go"
+blob = "cbda2463108d1a0e489702f8770dd8e140b77395"
+sha256 = "b49bd934faeb16c3893fbb1eb7d0d83ff59be737512a958049969b63eb660c23"
+bytes = 1492
+valid_cases = 2
+invalid_cases = 8
+valid_span = {start = 973, end = 1014}
+invalid_span = {start = 1046, end = 1490}
+verdict_counts = [2, 8, 0]
+previous = true
+original = false
+duplicates = []
+lexical = []

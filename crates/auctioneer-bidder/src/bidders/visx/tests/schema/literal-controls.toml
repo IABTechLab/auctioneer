@@ -1,0 +1,25 @@
+schema = "visx"
+
+[[cases]]
+input_json = '{"uid":"123"}'
+valid = true
+
+[[cases]]
+input_json = '{"uid":123}'
+valid = true
+
+[[cases]]
+input_json = '{"uid":""}'
+valid = false
+
+[[cases]]
+input_json = '{"uid":"a123"}'
+valid = false
+
+[[cases]]
+input_json = '{"uid":"\u0661"}'
+valid = false
+
+[[cases]]
+input_json = '{"uid":"\uff11"}'
+valid = false

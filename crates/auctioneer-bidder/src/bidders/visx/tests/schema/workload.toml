@@ -1,0 +1,7 @@
+order = 3
+rows = [{id = "short", valid = true, transforms = [], input_json = "{\"uid\":\"1\",\"size\":[300,250]}"}, {id = "max-string", valid = true, transforms = [{op = "max_string", pointer = "/uid", character = "1", invalid = false}], input_json = "{\"uid\":\"1\",\"size\":[300,250]}"}, {id = "max-string-invalid-tail", valid = false, transforms = [{op = "max_string", pointer = "/uid", character = "1", invalid = true}], input_json = "{\"uid\":\"1\",\"size\":[300,250]}"}, {id = "unicode", valid = false, transforms = [], input_json = "{\"uid\":\"١\",\"size\":[300,250]}"}, {id = "one-over-schema-items", valid = false, transforms = [], input_json = "{\"uid\":\"1\",\"size\":[1,2,3]}"}]
+maximum_string = true
+string_refusals = true
+pattern_initialization = true
+retained_constructor = true
+schema = "visx"

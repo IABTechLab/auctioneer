@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Synthetic overlapping sample branches compiler control",
+  "description": "Independent fake-bidder serial or nested range; both alternatives may hold, and phase matching is unanchored.",
+  "type": "object",
+  "properties": {
+    "serial": { "type": "integer" },
+    "range": {
+      "type": "object",
+      "properties": {
+        "lower": { "type": "integer" },
+        "upper": { "type": "integer" }
+      },
+      "required": ["lower", "upper"],
+      "additionalProperties": false
+    },
+    "phase": { "type": "string", "pattern": "raw|packed" }
+  },
+  "anyOf": [
+    { "required": ["serial"] },
+    { "required": ["range"] }
+  ],
+  "additionalProperties": false
+}

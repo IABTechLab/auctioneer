@@ -1,0 +1,69 @@
+[package]
+name = "auctioneer-adapter-cloudflare"
+description = "Cloudflare Workers adapter for auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "auctioneer-adapter-cloudflare"
+path = "src/main.rs"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[features]
+default = ["cloudflare"]
+cloudflare = ["edgezero-adapter-cloudflare/cloudflare"]
+insecure-bidders = ["auctioneer-core/insecure-bidders"]
+# Forwards to auctioneer-core so this crate's conformance binary can see the
+# shared harness. Without the forward the feature would be on here and
+# off in the library that actually defines the seam.
+conformance-suite = ["auctioneer-core/conformance-suite"]
+
+# `required-features` makes cargo SKIP this target silently when the
+# feature is off, so the conformance commands must pass
+# `--features conformance-suite` explicitly.
+[[test]]
+name = "fanout_conformance"
+path = "tests/fanout_conformance.rs"
+required-features = ["conformance-suite"]
+
+[dependencies]
+auctioneer-core = { path = "../auctioneer-core" }
+edgezero-adapter-cloudflare = { workspace = true }
+edgezero-core = { workspace = true }
+# Host-visible, not wasm-gated: the timer, the decode cooperator and the
+# outbound profile are built on these three and are exercised by host
+# tests through the `DelaySource` seam. Only the `worker::Delay` binding
+# itself stays under the wasm target below.
+async-trait = { workspace = true }
+# `boot_log` is host-visible for the same reason: `envelope.rs` names
+# the sink and is unit-tested off the deployment target, so the `log`
+# traits have to resolve on the host too. The CONSOLE body of that sink
+# is wasm-gated; the trait impl is not.
+log = { workspace = true }
+auctioneer-runtime = { workspace = true }
+
+[dev-dependencies]
+auctioneer-core = { workspace = true, features = ["test-support"] }
+auctioneer-config = { workspace = true }
+futures = { workspace = true }
+auctioneer-bidder = { workspace = true }
+auctioneer-exchange = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+edgezero-adapter-cloudflare = { workspace = true, features = ["cloudflare"] }
+edgezero-core = { workspace = true }
+time = { workspace = true }
+worker = { workspace = true }
+js-sys = "0.3"

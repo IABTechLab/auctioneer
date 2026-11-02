@@ -1,0 +1,77 @@
+key = "cadent_aperture_mx"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/cadent_aperture_mx"
+tree = "0a064afbe3d02e647881c628e19f6fe90aba80db"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/cadent_aperture_mx.yaml"
+source_blob = "b5c72bd9a9d4725b4543cfdb8a4f362cd0820024"
+source_bytes = 404
+source_sha256 = "8ee63ad8171be58806cd796650525fc0056669ee9111d879ab5b828da9803a5f"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/emx_digital.yaml"
+source_blob = "b5c72bd9a9d4725b4543cfdb8a4f362cd0820024"
+source_bytes = 404
+source_sha256 = "8ee63ad8171be58806cd796650525fc0056669ee9111d879ab5b828da9803a5f"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/cadent_aperture_mx.json"
+source_blob = "4e3ff51fc1b4b952e465f9d2497e834e443f872a"
+source_bytes = 513
+source_sha256 = "737b0ab2b135ac90a610212736bc1915e98b5a452d87cdebaee7c682e51957a6"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 513
+source_sha256 = "737b0ab2b135ac90a610212736bc1915e98b5a452d87cdebaee7c682e51957a6"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/emx_digital.json"
+source_blob = "42c243a9f4f34ff5a15923d2cc1ce80022280204"
+source_bytes = 506
+source_sha256 = "2b35602b68a78d9af8884a90b455939d8e4b9b07708f3a6627e51a9ddc3bd02c"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "schemas/emx_digital.schema.json"
+source_bytes = 506
+source_sha256 = "2b35602b68a78d9af8884a90b455939d8e4b9b07708f3a6627e51a9ddc3bd02c"

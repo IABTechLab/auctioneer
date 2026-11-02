@@ -1,0 +1,54 @@
+key = "cwire"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/cwire"
+tree = "007cfe200c40a9ff8030caa5c98dfb4be98fc7cd"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/cwire.yaml"
+source_blob = "b7a16e05c362f981c80cec610c9bbda4eb6975d2"
+source_bytes = 549
+source_sha256 = "75054620e230b7113d64030cc7ac27e4803ec94bb23bd69fdc257e5778ac21ab"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/cwire.json"
+source_blob = "681777e85a5501464fd4ea59c2524c4863d59b00"
+source_bytes = 1010
+source_sha256 = "44e46bd89d5122eee007860d783d898f74792c5c10a096c3813a66e0a5b7c035"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 1010
+source_sha256 = "44e46bd89d5122eee007860d783d898f74792c5c10a096c3813a66e0a5b7c035"

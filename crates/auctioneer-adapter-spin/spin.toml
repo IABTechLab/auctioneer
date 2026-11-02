@@ -1,0 +1,45 @@
+spin_manifest_version = 2
+
+[application]
+name = "auctioneer-adapter-spin"
+version = "0.1.0"
+
+# Spin resolves a component variable only when the APPLICATION
+# declares it and the component maps it. An undeclared variable cannot
+# be set by `spin up --variable` or by a runtime config provider, so
+# leaving these out made authenticated health checks unconfigurable:
+# `variables::get` always errored, the adapter read both as absent, and
+# the decision table fail-closed to 401 with no way to supply a token.
+#
+# `allow_unauthenticated_health` defaults to "false" so an operator who
+# sets nothing gets the fail-closed policy rather than a boot error.
+# Optional Spin variables require a default. Empty secret defaults are
+# unusable: health stays closed and UID processing refuses without keys.
+# Operators provision real credentials through a variable provider.
+[variables]
+allow_unauthenticated_health = { default = "false" }
+health_gvl_token = { required = false, default = "", secret = true }
+# One atomic JSON keyring, resolved only when user-sync needs UID state.
+# Provision through a variable provider; never bake a usable signing key.
+usersync_cookie_keyring = { required = false, default = "", secret = true }
+# Runtime-environment keys retain their underscores and are lowercase in Spin.
+edgezero_logging_level = { default = "INFO" }
+
+[[trigger.http]]
+route = "/..."
+component = "auctioneer-adapter-spin"
+
+[component.auctioneer-adapter-spin]
+source = "../../target/wasm32-wasip2/wasm-release/auctioneer_adapter_spin.wasm"
+allowed_outbound_hosts = ["https://*:*"]
+# Mapped into the component, which is what makes `variables::get`
+# resolve them. Declaring without mapping leaves the reads failing
+# exactly as if nothing were declared.
+[component.auctioneer-adapter-spin.variables]
+allow_unauthenticated_health = "{{ allow_unauthenticated_health }}"
+health_gvl_token = "{{ health_gvl_token }}"
+usersync_cookie_keyring = "{{ usersync_cookie_keyring }}"
+edgezero_logging_level = "{{ edgezero_logging_level }}"
+[component.auctioneer-adapter-spin.build]
+command = "cargo build --target wasm32-wasip2 --profile wasm-release"
+watch = ["src/**/*.rs", "Cargo.toml"]

@@ -1,0 +1,9 @@
+schema = "adhese"
+
+[[cases]]
+input_json = '{"account":"publisher","location":"news","format":"not-a-format-name"}'
+valid = true
+
+[[cases]]
+input_json = '{"account":"publisher","location":"news"}'
+valid = false

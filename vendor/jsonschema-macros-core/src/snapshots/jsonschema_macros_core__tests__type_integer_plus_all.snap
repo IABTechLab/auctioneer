@@ -1,0 +1,14 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"type\":[\"integer\",\"string\",\"boolean\",\"null\",\"array\",\"object\"]}"
+expression: is_valid_body(schema)
+---
+match instance {
+            __Value::Number(n) => __types::is_integer(n),
+            __Value::String(_) => true,
+            __Value::Bool(_) => true,
+            __Value::Null => true,
+            __Value::Array(_) => true,
+            __Value::Object(_) => true,
+            _ => false,
+        }

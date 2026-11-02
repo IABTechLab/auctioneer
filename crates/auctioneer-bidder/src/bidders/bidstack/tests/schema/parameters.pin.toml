@@ -1,0 +1,14 @@
+schema = "bidstack"
+path = "adapters/bidstack/params_test.go"
+blob = "cc240292807de5458775c2b9bce3dbc7f702055c"
+sha256 = "758aeca79079736f92ee43aee731e8eae84a278bb3c888c09e1025e1a0a1b286"
+bytes = 1368
+valid_cases = 4
+invalid_cases = 3
+valid_span = {start = 136, end = 476}
+invalid_span = {start = 508, end = 589}
+verdict_counts = [4, 3, 0]
+previous = false
+original = false
+duplicates = []
+lexical = []

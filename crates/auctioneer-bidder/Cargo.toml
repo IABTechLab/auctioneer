@@ -1,0 +1,124 @@
+[package]
+name = "auctioneer-bidder"
+description = "Bidder implementations, registration, and bounded protocol transformations for Auctioneer."
+authors = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[lints]
+workspace = true
+
+# Mandatory explicit CI owners run these hermetic child-build suites once per PR.
+# `cargo test --test <name>` still executes them; broad all-target runs do not.
+[[test]]
+name = "schema_build_controls"
+test = false
+
+[[test]]
+name = "schema_source_conformance"
+test = false
+
+[[test]]
+name = "factory_binding_build"
+test = false
+
+[[test]]
+name = "registry_build"
+test = false
+
+[[test]]
+name = "generated_settings"
+test = false
+
+[[test]]
+name = "insecure_bidders_snapshot"
+test = false
+
+[[test]]
+name = "response_body_is_sealed"
+test = false
+
+[[test]]
+name = "feature_exports_source_conformance"
+test = false
+
+[features]
+# Canonical home of the insecure-bidders feature.
+# Forwards into auctioneer-config so build.rs's syncer-URL template-validation
+# pass also relaxes its scheme rule under the feature.
+insecure-bidders = ["auctioneer-config/insecure-bidders"]
+test-support = ["dep:toml"]
+# Inspection only; enables the unqualified build, never serving admission.
+# Guest graphs include the candidate only in this inspection lane. Normal native
+# serving uses the approved tested-reservation contract, not bound qualification.
+schema-artifact-staging = ["dep:jsonschema", "dep:regex-automata", "dep:uuid-simd"]
+
+[dependencies]
+flate2 = { workspace = true }
+# These optional dependencies support guest inspection. Native serving selects
+# the same reviewed compiler/runtime through the target dependencies below.
+jsonschema = { workspace = true, optional = true }
+auctioneer-config  = { workspace = true }
+auctioneer-openrtb = { workspace = true }
+# `bounded_json` is the node-budgeted parse every bidder decodes its
+# bidder response through. The crate carries no async, no I/O and no
+# host types, so the bidder contract stays the pure boundary its trait
+# doc describes.
+auctioneer-runtime = { workspace = true }
+mime = { workspace = true }
+percent-encoding = { workspace = true }
+regex-automata = { workspace = true, optional = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+url         = { workspace = true }
+uuid-simd = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+jsonschema = { workspace = true }
+regex-automata = { workspace = true }
+uuid-simd = { workspace = true }
+toml = { workspace = true, optional = true }
+
+[dev-dependencies]
+auctioneer-bidder = { workspace = true, features = ["test-support"] }
+auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-runtime = { workspace = true, features = ["test-support"] }
+# Compiler-fixture source generation is linted on guest targets too.
+quote = { workspace = true }
+toml = { workspace = true }
+
+[build-dependencies]
+# Data-only declarations let discovery compare inactive feature ownership.
+# Configuration generation must never depend on bidder implementations.
+auctioneer-config = { workspace = true }
+auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+syn = { workspace = true }
+toml = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+aho-corasick = { workspace = true }
+gimli = { workspace = true }
+jsonschema = { workspace = true }
+jsonschema-macros-core = { workspace = true }
+object = { workspace = true }
+proc-macro2 = { workspace = true }
+regex = { workspace = true }
+regex-automata = { workspace = true }
+regex-syntax = { workspace = true }
+rustix = { workspace = true }
+serde_yaml_ng = { workspace = true }
+sha2 = { workspace = true }
+syn = { workspace = true, features = ["visit-mut"] }
+tar = { workspace = true }
+tempfile = { workspace = true }
+uuid-simd = { workspace = true }
+url = { workspace = true, features = ["std"] }
+wasmparser = { workspace = true }
+wasm-encoder = { workspace = true }

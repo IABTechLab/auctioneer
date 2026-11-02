@@ -1,0 +1,37 @@
+# compiled output
+bin/
+pkg/
+target/
+# Cloudflare's local packager outputs, not application source.
+/crates/auctioneer-adapter-cloudflare/build/
+/crates/auctioneer-adapter-cloudflare/out/
+/crates/auctioneer-adapter-cloudflare/.wrangler/
+
+# Nested reference checkouts used by CI, not application source inputs.
+/vendor/prebid-server/
+/vendor/bidder-reference/
+/vendor/bidder-supplemental-reference/
+
+# crashed GVL-refresh transaction dirs (own-tx-only cleanup: no run ever
+# removes another run's dir, so an orphan can linger). The archive
+# itself, gvl_archive.lock, refresh.lock, and any transient
+# gvl_archive.old are NOT ignored — the archive and lock sentinels are
+# checked in.
+crates/auctioneer-config/data/.gvl_refresh.*/
+
+# Fastly's local CLI synchronization lock, not deployment configuration.
+/.fastly.toml.edgezero-lock
+
+# env
+.env
+
+# OS
+.DS_Store
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.specstory

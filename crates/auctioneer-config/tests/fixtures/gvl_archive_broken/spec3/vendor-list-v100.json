@@ -1,0 +1,38 @@
+{
+  "gvlSpecificationVersion": 3,
+  "vendorListVersion": 100,
+  "lastUpdated": "2026-01-01T00:00:00Z",
+  "purposes": {
+    "1": {
+      "id": 1,
+      "name": "Store and/or access information on a device"
+    }
+  },
+  "specialPurposes": {
+    "1": {
+      "id": 1,
+      "name": "Ensure security"
+    }
+  },
+  "features": {
+    "1": {
+      "id": 1,
+      "name": "Match and combine data"
+    }
+  },
+  "specialFeatures": {
+    "1": {
+      "id": 1,
+      "name": "Use precise geolocation data"
+    }
+  },
+  "vendors": {
+    "1": {
+      "id": 1,
+      "name": "Fixture Vendor",
+      "purposes": [
+        1
+      ]
+    }
+  }
+}

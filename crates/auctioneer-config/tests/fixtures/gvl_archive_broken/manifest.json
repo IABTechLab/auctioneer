@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-01-02T00:00:00Z",
+  "retention": {
+    "max_age_days": 36500
+  },
+  "oversize_bundle_ack": false,
+  "gcl": {
+    "path": "gcl.json",
+    "sha256": "723821af2514fd9f12bbf2244a149f4cf82662798b3bb743cedb3cb9bc9fa0d0",
+    "last_updated": "2026-01-01T00:00:00Z",
+    "fetched_at": "2026-01-02T00:00:00Z",
+    "cache_max_age_secs": 3153600000
+  },
+  "entries": [
+    {
+      "spec": 2,
+      "vendor_list_version": 224,
+      "tcf_policy_version": 2,
+      "last_updated": "2023-11-16T16:05:29Z",
+      "path": "spec2/vendor-list-v224.json",
+      "sha256": "2c97bc79cc084440532c7f2802e257cb88b7c91d35a2c7a3a18093d3b76f4f4e"
+    },
+    {
+      "spec": 3,
+      "vendor_list_version": 100,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-01-01T00:00:00Z",
+      "path": "spec3/vendor-list-v100.json",
+      "sha256": "11dacdc47f4fbc7ddd09281e9a166ef6c3bbe1666f8042abd31c8b2e1f0abfd6"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+//! REPLACE_WITH_REVIEWED_RESPONSE_CONTRACT
+
+use crate::{BidderError, BidderHttpResponse, BidderResponse, OutboundRequestMeta};
+use auctioneer_openrtb::types::bid_request::BidRequest;
+
+pub(super) fn make_bids(
+    _request: &BidRequest,
+    _sent: &OutboundRequestMeta,
+    _response: &BidderHttpResponse,
+) -> Result<BidderResponse, Vec<BidderError>> {
+    todo!("Implement reviewed status handling, one sealed decode and sent-call correlation");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn each_reviewed_status_branch_preserves_exact_errors_and_no_bid_semantics() {
+        todo!("Pin actual status messages, punctuation, 400 classification and decode ordering");
+    }
+
+    #[test]
+    fn sealed_decode_and_candidate_failures_preserve_the_reviewed_isolation_contract() {
+        todo!("Use budgeted sealed responses, valid siblings and independent sent-call coverage");
+    }
+}

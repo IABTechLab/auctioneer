@@ -1,0 +1,3 @@
+order = 8
+rows = [{id = "short", valid = true, transforms = [], input_json = "{\"publisherId\":\"123e4567-e89b-12d3-a456-426614174000\"}"}, {id = "invalid-uuid", valid = false, transforms = [], input_json = "{\"publisherId\":\"not-a-uuid\"}"}, {id = "uppercase", valid = false, transforms = [], input_json = "{\"publisherId\":\"123E4567-e89b-12d3-a456-426614174000\"}"}, {id = "unicode", valid = false, transforms = [], input_json = "{\"publisherId\":\"١\"}"}]
+schema = "bidstack"

@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "required": ["letters", "digits"],
+  "properties": {
+    "letters": {"type": "string", "pattern": "^[a-z]{2,5}$"},
+    "digits": {"type": "string", "pattern": "^[0-9]{3,6}$"}
+  }
+}

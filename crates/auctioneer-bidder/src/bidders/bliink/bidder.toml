@@ -1,0 +1,54 @@
+key = "bliink"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/bliink"
+tree = "874c65bcb20c641b5c3d2ae5e7fcc1840abf17ae"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/bliink.yaml"
+source_blob = "4650e9f8441593e957cffb475a94f91e956ce4b5"
+source_bytes = 635
+source_sha256 = "f5b8a1bfc2b795a1ff350441bbfe45c17d169dc6e597ce6925d8e423192424e8"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/bliink.json"
+source_blob = "831f71d00200bac0140edbfaa68a2469d20d9f4c"
+source_bytes = 474
+source_sha256 = "5a20f5fc645f88cf2cc8fdd586ead3441d7848624b783d431d56855938a16134"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 474
+source_sha256 = "5a20f5fc645f88cf2cc8fdd586ead3441d7848624b783d431d56855938a16134"

@@ -1,0 +1,18 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"oneOf\":[{\"properties\":{\"k\":{\"const\":-9007199254740993}},\"required\":[\"k\"],\"type\":\"object\"},{\"properties\":{\"k\":{\"const\":2}},\"required\":[\"k\"],\"type\":\"object\"}]}"
+expression: is_valid_body(schema)
+---
+{
+            let mut matched = is_branch_valid_0(instance);
+            (if is_branch_valid_1(instance) {
+                if matched {
+                    false
+                } else {
+                    matched = true;
+                    true
+                }
+            } else {
+                true
+            }) && matched
+        }

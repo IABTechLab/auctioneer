@@ -1,0 +1,31 @@
+name = "auctioneer-adapter-cloudflare"
+main = "build/worker/shim.mjs"
+compatibility_date = "2023-05-01"
+compatibility_flags = ["enable_weak_ref"]
+
+# Worker Env bindings are not process environment variables. Keep every
+# non-secret key queried by auctioneer and the pinned EdgeZero reader explicit.
+[vars]
+EDGEZERO__LOGGING__LEVEL = "INFO"
+AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH = "false"
+EDGEZERO__STORES__CONFIG__AUCTIONEER_RUNTIME__NAME = "auctioneer_runtime"
+EDGEZERO__STORES__CONFIG__AUCTIONEER_RUNTIME__KEY = "auctioneer_runtime"
+EDGEZERO__STORES__SECRETS__DEFAULT__NAME = "default"
+# The generic reader queries these; Workers owns the listener, so neither
+# configures a socket on this target.
+EDGEZERO__ADAPTER__HOST = ""
+EDGEZERO__ADAPTER__PORT = ""
+
+# Optional credential, never a plaintext [vars] default:
+# wrangler secret put AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN
+# Set a token OR opt into unauthenticated health, not both. With neither
+# configured (or invalid health configuration), only health stays closed.
+
+# Cookie signing uses the existing default logical secret-store binding.
+# CloudflareSecretStore calls Env::secret(key) literally, without case conversion:
+# wrangler secret put usersync_cookie_keyring
+# Supply the entire JSON keyring as a Worker secret, never a plaintext [vars] value.
+# Provisioning and rotation: docs/deployment/usersync-cookie-keys.md.
+
+[build]
+command = "worker-build --release"

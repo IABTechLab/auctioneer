@@ -1,0 +1,131 @@
+key = "appnexus"
+factory = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.appnexus]
+endpoint = "https://ib.adnxs.com/openrtb2"
+gvlVendorID = 32
+
+[definitions.appnexus.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.appnexus.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.appnexus.maintainer]
+email = "prebid@microsoft.com"
+
+[definitions.appnexus.userSync]
+key = "adnxs"
+
+[definitions.appnexus.userSync.redirect]
+url = "https://ib.adnxs.com/getuid?{{.RedirectURL}}"
+userMacro = "$UID"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/appnexus"
+tree = "632727af676836a85b0e927642e8fd291bf8bbe0"
+port_differences = [
+    """\
+    The existing Rust implementation and its tests are retained. Source association and the \
+    original parameter schema do not establish complete protocol parity, serving schema \
+    validation, resource qualification or a new routing approval.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/appnexus.json"
+source_blob = "37909b12066ad9239b488b9751d070212e90d61a"
+source_bytes = 3778
+source_sha256 = "20a3f193c62b1b3d6d2a0daf5dfaa3935a045c52b83af236693ebe9c3459106d"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 3778
+source_sha256 = "20a3f193c62b1b3d6d2a0daf5dfaa3935a045c52b83af236693ebe9c3459106d"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/appnexus.yaml"
+source_blob = "6686e7acde00e8a9c997e92d4065b5ed5bba89e6"
+source_bytes = 382
+source_sha256 = "e806bcda198f16569cf6c492c691c832f07cfa9c4383632fd59c87e986371e42"
+transformation = """\
+    Source metadata is identified by the immutable witness. Existing effective definitions are \
+    independently maintained local configuration, not a conversion of this source."""
+port_differences = [
+    """\
+    The existing HTTPS auction endpoint matches AG's 2026-10-28 transport default and differs \
+    from the pinned HTTP source. Native provenance does not establish the serving binding, \
+    complete protocol parity or a new promotion.""",
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ib.adnxs.com/openrtb2"
+selected_url = "https://ib.adnxs.com/openrtb2"
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/mediafuse.yaml"
+source_blob = "be19cc6c68ac269b0b4267fa236965d53ebe1d8f"
+source_bytes = 264
+source_sha256 = "770e3bd0c7a1ea3ef3b59d94fe5917f13e638e23a09d519571934b9a2b60d815"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ib.adnxs.com/openrtb2"
+selected_url = "https://ib.adnxs.com/openrtb2"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/mediafuse.json"
+source_blob = "8d577240d9614423b76647c0482fd42f1d4e5194"
+source_bytes = 2894
+source_sha256 = "edb2514185ca71da90452bdf344fec7a31b824d254f988b1e614ce3f5367b88f"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "schemas/mediafuse.schema.json"
+source_bytes = 2894
+source_sha256 = "edb2514185ca71da90452bdf344fec7a31b824d254f988b1e614ce3f5367b88f"

@@ -1,0 +1,54 @@
+key = "trustedstack"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/trustedstack"
+tree = "094d53989702a208ecc0b76f5975e507d222ddc5"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/trustedstack.yaml"
+source_blob = "09bb33133274df6a89d497154e14c6de79f1a3fe"
+source_bytes = 950
+source_sha256 = "d2ecf92dca3b7c2364fb4d96453011de98df4b03dce9ed318f28522dfb36e7ea"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/trustedstack.json"
+source_blob = "b52e7bf3f7f9a1974a72306c45c0c0583ae635f2"
+source_bytes = 578
+source_sha256 = "ab226de864c205ba7937f109eee892ca51eb18a304d6816cdc29fae57aa0eea3"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 578
+source_sha256 = "ab226de864c205ba7937f109eee892ca51eb18a304d6816cdc29fae57aa0eea3"

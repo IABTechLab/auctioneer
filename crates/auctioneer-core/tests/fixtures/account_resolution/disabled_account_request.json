@@ -1,0 +1,16 @@
+{
+  "id": "auc-disabled-account",
+  "tmax": -1,
+  "cur": ["USD"],
+  "site": {
+    "page": "https://publisher.example/story",
+    "publisher": { "id": "acct-21" }
+  },
+  "imp": [
+    {
+      "id": "imp-1",
+      "banner": { "w": 300, "h": 250 },
+      "ext": { "prebid": { "bidder": { "fake_ac": {} } } }
+    }
+  ]
+}

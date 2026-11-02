@@ -1,0 +1,26 @@
+error[E0277]: the trait bound `Unknown: FieldMetadata` is not satisfied
+ --> tests/conformance/fail/unknown_type.rs:5:12
+  |
+5 |     value: Unknown,
+  |            ^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `FieldMetadata` is not implemented for `Unknown`
+ --> tests/conformance/fail/unknown_type.rs:2:1
+  |
+2 | struct Unknown;
+  | ^^^^^^^^^^^^^^
+  = help: the following other types implement trait `FieldMetadata`:
+            ()
+            App
+            Audio
+            BTreeMap<String, T>
+            Banner
+            BidRequest
+            BidRequestExt
+            Box<T>
+          and $N others
+note: required by a bound in `auctioneer_openrtb::field_metadata::Field::of`
+ --> $WORKSPACE/crates/auctioneer-openrtb/src/field_metadata.rs
+  |
+  |     pub const fn of<T: FieldMetadata + ?Sized>(name: &'static str, flattened: bool) -> Self {
+  |                        ^^^^^^^^^^^^^ required by this bound in `Field::of`

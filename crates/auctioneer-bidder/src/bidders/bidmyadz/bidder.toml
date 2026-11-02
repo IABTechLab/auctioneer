@@ -1,0 +1,62 @@
+key = "bidmyadz"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/bidmyadz"
+tree = "865f1a06fa99ca3ea5a41ffd29998cfbf3c5b1b0"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/bidmyadz.yaml"
+source_blob = "a83947c5127cb6611e8ab072d1efda8816b7d137"
+source_bytes = 475
+source_sha256 = "3d5ecd1e32e0b9706bbfbf0dc744636a0e2ca216b9290629bfe7580d889a25ed"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://endpoint.bidmyadz.com/c0f68227d14ed938c6c49f3967cbe9bc"
+selected_url = "https://endpoint.bidmyadz.com/c0f68227d14ed938c6c49f3967cbe9bc"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/bidmyadz.json"
+source_blob = "4e7b1119e081d501e960cd3e83b95ae5ca7e8126"
+source_bytes = 327
+source_sha256 = "3caf92d15dab0d19e76f994b0a4e19c50f16e1711889f16baea3923daa4894df"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 327
+source_sha256 = "3caf92d15dab0d19e76f994b0a4e19c50f16e1711889f16baea3923daa4894df"

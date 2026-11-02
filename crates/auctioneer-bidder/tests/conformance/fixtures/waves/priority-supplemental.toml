@@ -1,0 +1,9 @@
+schema_version = 1
+kind = "priority_supplemental_schema_membership"
+# Membership only; the schema is witnessed by the existing supplemental inventory.
+witness_inventory = "reference/catalog/supplemental-schemas.toml"
+
+[[bidders]]
+name = "aps"
+implementation = "aps"
+schema_witness = "aps"

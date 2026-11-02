@@ -1,0 +1,54 @@
+key = "consumable"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/consumable"
+tree = "ce782498a0968b196b6184a3b1a763e83cdf2127"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/consumable.yaml"
+source_blob = "1f348fc4435870baf498c4b21abd307c0583ab2b"
+source_bytes = 610
+source_sha256 = "0bfb8b37f628655deedb1c237c9c9e9153097250e47f4209b974a3d42fd96079"
+port_differences = ["Source endpoint policy is unreviewed; no runtime definition is generated."]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/consumable.json"
+source_blob = "7709ab09d3775c24357600a480ad4c64e19de710"
+source_bytes = 1087
+source_sha256 = "36d27e34716afe222a821c126127e4fe8c010b1ccec141da722080ebeaa5c276"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 1087
+source_sha256 = "36d27e34716afe222a821c126127e4fe8c010b1ccec141da722080ebeaa5c276"

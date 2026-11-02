@@ -1,0 +1,62 @@
+key = "between"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/between"
+tree = "7c0294988d4865eac032d93d51c7b5af5373031a"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/between.yaml"
+source_blob = "15ad9eaf06caa6b4cffa207ad8f679ca7c06ccd0"
+source_bytes = 443
+source_sha256 = "0be79c17cc840fc57ae5c9b4a9c2e136364310b3a56453287cbd3bd972eef80e"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://{{.Host}}.betweendigital.com/openrtb_bid?sspId={{.PublisherID}}"
+selected_url = "https://{{.Host}}.betweendigital.com/openrtb_bid?sspId={{.PublisherID}}"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/between.json"
+source_blob = "64863462697454ab61c15984d163bd6fc09d264c"
+source_bytes = 581
+source_sha256 = "9f636370cecf70dcbc9a1621e4ffa204f26198253ba8126d985e99426ed41ab1"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 581
+source_sha256 = "9f636370cecf70dcbc9a1621e4ffa204f26198253ba8126d985e99426ed41ab1"

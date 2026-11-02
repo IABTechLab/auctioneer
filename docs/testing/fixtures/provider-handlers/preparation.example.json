@@ -1,0 +1,7 @@
+{
+  "workspace": null,
+  "provider": "spin",
+  "origin": "https://fixture.example",
+  "approved_origin": null,
+  "build_features": ["spin", "auctioneer-config/test-harness-override"]
+}

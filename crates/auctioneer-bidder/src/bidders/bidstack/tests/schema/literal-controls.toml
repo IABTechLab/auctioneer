@@ -1,0 +1,38 @@
+schema = "bidstack"
+
+[[cases]]
+input_json = '{"publisherId":"123e4567-e89b-12d3-a456-426614174000"}'
+valid = true
+
+[[cases]]
+input_json = '{"publisherId":"not-a-uuid"}'
+valid = false
+formats_disabled_valid = true
+
+[[cases]]
+input_json = '{"publisherId":"123E4567-e89b-12d3-a456-426614174000"}'
+valid = false
+
+[[cases]]
+input_json = '{"publisherId":"123e4567e89b12d3a456426614174000"}'
+valid = false
+
+[[cases]]
+input_json = '{"publisherId":"{123e4567-e89b-12d3-a456-426614174000}"}'
+valid = false
+
+[[cases]]
+input_json = '{"publisherId":"urn:uuid:123e4567-e89b-12d3-a456-426614174000"}'
+valid = false
+
+[[cases]]
+input_json = '{"publisherId":"123e4567-e89b-12d3-a456-42661417400g"}'
+valid = false
+
+[[cases]]
+input_json = '{"publisherId":"123e4567_e89b_12d3_a456_426614174000"}'
+valid = false
+
+[[cases]]
+input_json = '{"publisherId":"00000000-0000-0000-0000-000000000000"}'
+valid = true

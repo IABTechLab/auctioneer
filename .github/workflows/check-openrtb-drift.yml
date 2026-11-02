@@ -1,0 +1,42 @@
+name: "Check OpenRTB Source Drift"
+
+on:
+  schedule:
+    - cron: "19 16 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Fetch current upstream source
+        run: curl --fail --location --retry 3 --max-time 30 --output "$RUNNER_TEMP/openrtb-2.6-upstream.md" https://raw.githubusercontent.com/InteractiveAdvertisingBureau/openrtb2.x/main/2.6.md
+
+      # Check is read-only and rejects digest drift before importing membership.
+      # Updating the source pin, catalogue and policy still requires human review.
+      - name: Compare upstream with the reviewed source pin
+        run: >
+          cargo run --locked -p auctioneer-cli --no-default-features -- openrtb catalogue check
+          --manifest crates/auctioneer-config/data/openrtb-2.6-source.toml
+          --source "$RUNNER_TEMP/openrtb-2.6-upstream.md"
+          --catalogue crates/auctioneer-config/data/openrtb-2.6-catalogue.toml

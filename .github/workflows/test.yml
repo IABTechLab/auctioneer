@@ -1,0 +1,885 @@
+name: "Run Tests"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.lane }})
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: secure
+            timeout_minutes: 35
+          - lane: workspace-default
+            timeout_minutes: 60
+          - lane: workspace-insecure
+            timeout_minutes: 60
+          - lane: cli
+            timeout_minutes: 75
+          - lane: evidence-producers
+            timeout_minutes: 45
+    env:
+      # Point the round-trip fixture test at the prebid-server clone
+      # checked out below so CI walks the full valid-whole corpus, not
+      # just the vendored subset.
+      PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
+      AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
+      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check raw JSON fixture budgets
+        if: matrix.lane == 'secure'
+        run: ./scripts/check-raw-json-fixtures.sh
+
+      - name: Check raw JSON fixture gate rejection cases
+        if: matrix.lane == 'secure'
+        run: ./scripts/check-raw-json-fixtures-fixtures.sh
+
+      - name: Check libtest summary rejection controls
+        if: matrix.lane == 'secure'
+        run: bash .github/workflows/scripts/test/check-libtest-result-fixtures.sh
+
+      - name: Check out prebid-server fixtures
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          # Pinned to a specific SHA so the fixture corpus stays
+          # reproducible. Bump deliberately when upstream adds
+          # fixtures we want to cover (and re-run the round-trip
+          # locally first to catch type-model gaps).
+          ref: 0ef82cbb44f00b15290d02883c315e0f5a109536
+          path: vendor/prebid-server
+
+      - name: Check out pinned bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
+          path: vendor/bidder-reference
+
+      - name: Check out pinned supplemental bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+          path: vendor/bidder-supplemental-reference
+
+      - name: Cache Cargo downloads
+        id: download-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      # Cargo rechecks source, features and fingerprints in every lane.
+      # One workspace owner saves the seed; consumers never cache test results.
+      - name: Restore native Cargo build products
+        if: matrix.lane != 'secure'
+        id: native-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: target/debug/
+          key: ${{ runner.os }}-cargo-native-build-v1-${{ hashFiles('.tool-versions', 'Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-native-build-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          # Compile-fail snapshots include standard-library panic locations.
+          components: "clippy, rustfmt, rust-src"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Install WASM targets for native schema build controls
+        run: rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+
+      - name: Install pinned Wasmtime for native schema guest execution
+        timeout-minutes: 5
+        shell: bash
+        run: bash .github/workflows/scripts/test/install-wasmtime.sh
+
+      - name: Fetch dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked
+
+      - name: Fetch schema build dependencies for all WASM targets (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
+
+      - name: Capture current source resource audit
+        if: matrix.lane == 'secure'
+        run: cargo run --locked -p auctioneer-cli -- bidders resources --check --all-adapters --capture-audit > "$RUNNER_TEMP/resource-audit.toml"
+
+      - name: Validate current source resource audit
+        if: matrix.lane == 'secure'
+        run: cargo run --locked -p auctioneer-cli -- bidders resources --check --all-adapters --audit "$RUNNER_TEMP/resource-audit.toml" > "$RUNNER_TEMP/resource-audit.md"
+
+      - name: Reconcile strict source resource fit
+        if: matrix.lane == 'secure'
+        shell: bash
+        run: bash .github/workflows/scripts/test/reconcile-resource-fit.sh
+
+      - name: Verify field metadata derive compiler cases
+        if: matrix.lane == 'secure'
+        timeout-minutes: 10
+        run: cargo test --locked -p auctioneer-macros --all-targets
+
+      - name: Verify factory and metadata feature ownership
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-bidder --test registry_join --test catalog_alloc --test registry_source_conformance
+
+      - name: Verify immutable bidder source inventory
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-cli --test bidders_source --test bidders_import --test bidders_wave
+
+      # Rust provider archive controls run in workspace and standalone CLI tests.
+      # yq is a prerequisite of the pinned SDK verifier, not our TOML parser.
+      - name: Install pinned yq for the SDK archive verifier
+        run: |
+          mkdir -p "$RUNNER_TEMP/provider-tools"
+          curl --fail --location --retry 3 --max-time 60 --output "$RUNNER_TEMP/provider-tools/yq" https://github.com/mikefarah/yq/releases/download/v4.53.3/yq_linux_amd64
+          chmod +x "$RUNNER_TEMP/provider-tools/yq"
+          echo "$RUNNER_TEMP/provider-tools" >> "$GITHUB_PATH"
+
+      - name: Locate the pinned SDK checkout for offline archive verification
+        run: bash .github/workflows/scripts/test/locate-pinned-sdk.sh
+
+      - name: Check the independently sourced OpenRTB field catalogue
+        if: matrix.lane == 'secure'
+        run: >
+          cargo run --locked -p auctioneer-cli --no-default-features -- openrtb catalogue check
+          --manifest crates/auctioneer-config/data/openrtb-2.6-source.toml
+          --source crates/auctioneer-config/data/openrtb-2.6-source.md
+          --catalogue crates/auctioneer-config/data/openrtb-2.6-catalogue.toml
+
+      - name: Verify disclosure wire differences and retained construction bounds
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-exchange --test source_preflight --test disclosure_policy_diff --test projection_scrub_bound --test privacy_policy_composition
+
+      - name: Verify bounded request disclosure observation
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-core --lib handlers::request_disclosure_audit::tests
+
+      # Documentation gates. Both are pure shell over the docs tree, so
+      # they run before the compile: a stale batch-API reference or a
+      # roster whose arithmetic does not close should fail in seconds
+      # rather than after a full workspace build.
+      - name: Check batch-API documentation rebase
+        if: matrix.lane == 'secure'
+        run: ./scripts/check-batch-rebase.sh
+
+      - name: Check test-roster enumeration and ownership
+        if: matrix.lane == 'secure'
+        run: ./scripts/check-roster.sh
+
+      # The gate's own negative cases. A roster gate that has only been
+      # run against a tree it passes cannot be distinguished from one
+      # that returns 0 unconditionally — and the arithmetic-only version
+      # of this gate did pass a planted missing member and a planted
+      # duplicate. These cases plant both and require the rejection.
+      - name: Check the roster gate rejects a missing or duplicated member
+        if: matrix.lane == 'secure'
+        run: ./scripts/check-roster-fixtures.sh
+
+      # Axum's test-only insecure-bidders feature unifies into shared crates
+      # during workspace tests. Run these packages separately for secure defaults;
+      # named config targets avoid another build-failure harness run.
+      - name: Run auctioneer-config non-harness tests (secure defaults)
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-config --lib --test codegen --test disclosure_codegen --test gvl_archive --test smoke --test url_safety --test activity --test baked_defaults_snapshot --test simple_fold --test usersync_config --test usersync_callback_validation --test bidder_bindings --test bidder_storage
+
+      - name: Run configuration schema tests (secure defaults)
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-config-schema --lib --features build-support
+
+      - name: Run bidder, exchange and core tests (secure defaults)
+        timeout-minutes: 25
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core --all-targets
+
+      - name: Verify source selection (secure package graph)
+        if: matrix.lane == 'secure'
+        run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --locked -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core
+
+      - name: Verify bidder captures against the pinned main source
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-bidder --lib source_objects_ -- --ignored
+
+      - name: Verify bidder captures against the pinned supplemental source
+        if: matrix.lane == 'secure'
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-supplemental-source.sh
+
+      - name: Probe secure production user-sync configuration
+        if: matrix.lane == 'secure'
+        run: ./scripts/check-secure-usersync.sh
+
+      # Each probe inspects the executable produced by its own feature set.
+      # Keep these as separate, sequential Cargo invocations in this job.
+      - name: Verify core build features (default features)
+        if: matrix.lane == 'secure'
+        env:
+          AUCTIONEER__TEST__EXPECT_CONFORMANCE_SUITE: disabled
+        run: cargo test --locked -p auctioneer-core --lib build_feature_tests
+
+      - name: Verify core build features (conformance suite)
+        if: matrix.lane == 'secure'
+        env:
+          AUCTIONEER__TEST__EXPECT_CONFORMANCE_SUITE: enabled
+        run: cargo test --locked -p auctioneer-core --lib build_feature_tests --features conformance-suite
+
+      - name: Verify native resource profile with core conformance enabled
+        if: matrix.lane == 'secure'
+        run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-core/conformance-suite
+
+      - name: Verify native resource profile with dependency-only config override
+        if: matrix.lane == 'secure'
+        env:
+          AUCTIONEER__TEST__EXPECT_CONFIG_OVERRIDE: enabled
+        run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-config/test-harness-override
+
+      - name: Run workspace tests (default features)
+        timeout-minutes: 45
+        if: matrix.lane == 'workspace-default'
+        run: >
+          cargo test --workspace --all-targets --no-fail-fast --
+          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
+          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
+
+      - name: Verify source selection (default workspace graph)
+        if: matrix.lane == 'workspace-default'
+        run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace
+
+      # Hermetic compiler/config targets have explicit mandatory owners below.
+      # Keep the existing config exclusion and its feature-sensitive named lane.
+      - name: Run workspace tests (insecure-bidders feature)
+        timeout-minutes: 45
+        if: matrix.lane == 'workspace-insecure'
+        run: >
+          cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config --no-fail-fast --
+          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
+          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
+
+      - name: Verify source selection (insecure workspace graph)
+        if: matrix.lane == 'workspace-insecure'
+        run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace --features insecure-bidders --exclude auctioneer-config
+
+      - name: Run auctioneer-config non-harness tests (insecure-bidders feature)
+        if: matrix.lane == 'workspace-insecure'
+        run: cargo test -p auctioneer-config --features "insecure-bidders test-harness-override" --lib --test codegen --test gvl_archive --test smoke --test url_safety --test bidder_bindings --test bidder_storage
+
+      # The real-transport probes, named as their own step.
+      #
+      # `--all-targets` above already runs these binaries, so this step
+      # re-runs rather than adds coverage. It exists because the probes
+      # are the only place the wave drive — the one a served request
+      # takes — meets a real socket, and a failure buried in a
+      # whole-workspace run reads as "tests failed" rather than
+      # "cancellation, a deadline or a body cap regressed on the wire".
+      #
+      # Axum is the only target where this runs: it is the only one
+      # whose local runtime completes boot. Each wasm adapter's
+      # envelope.rs records why its own local runtime cannot —
+      # `spin up` and `fastly compute serve` both abort on a missing
+      # config store, and no local tool yields Cloudflare's JS-heap
+      # half. The vendor workflows therefore stay build-and-size gates,
+      # and say so.
+      - name: Probe cancellation, deadlines and body caps over a real socket
+        if: matrix.lane == 'workspace-insecure'
+        run: cargo test --locked -p auctioneer-adapter-axum --test cancellation --test wave_transport
+
+      - name: Probe handler privacy over a real bidder socket
+        if: matrix.lane == 'workspace-insecure'
+        run: cargo test --locked -p auctioneer-adapter-axum --features insecure-bidders --test privacy_wire
+
+      # These use local fixtures and processes, not credentialed providers.
+      # All targets includes the actual qualification_harness CLI integration tests.
+      - name: Test Rust resource qualification and provider harnesses
+        timeout-minutes: 45
+        if: matrix.lane == 'cli'
+        run: >
+          cargo test --locked -p auctioneer-cli --all-targets --
+          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
+          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
+
+      # The scratch CLI and boot probe select and compare their own features.
+      # One explicit owner avoids repeating the same closed-graph experiment.
+      - name: Verify closed-graph resource boot parity
+        timeout-minutes: 15
+        if: matrix.lane == 'cli'
+        run: cargo test --locked -p auctioneer-cli --test resource_boot_parity
+
+      - name: Lint closed-graph resource boot parity
+        timeout-minutes: 10
+        if: matrix.lane == 'cli'
+        run: cargo clippy --locked -p auctioneer-cli --test resource_boot_parity -- -D warnings
+
+      # These closed plans build and dispatch secure/development child graphs.
+      # Only libtest selection changes above; all parent Cargo graphs stay intact.
+      - name: Verify fresh evidence producers and exact dispatch
+        timeout-minutes: 40
+        if: matrix.lane == 'evidence-producers'
+        run: bash .github/workflows/scripts/test/verify-evidence-producers.sh
+
+      # Keep repair/reference coverage independent of application/config builds.
+      # The job-level pinned bidder source also feeds these all-targets tests.
+      - name: Test maintenance-only CLI
+        timeout-minutes: 20
+        if: matrix.lane == 'cli'
+        run: cargo test --locked -p auctioneer-cli --no-default-features --all-targets
+
+      - name: Lint maintenance-only CLI
+        timeout-minutes: 10
+        if: matrix.lane == 'cli'
+        run: cargo clippy --locked -p auctioneer-cli --no-default-features --all-targets -- -D warnings
+
+      - name: Set up Node.js for browser process shutdown tests
+        if: matrix.lane == 'cli'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+
+      # This isolated lane cannot inherit the workspace job's Axum artifacts.
+      - name: Build user-sync browser shutdown prerequisites
+        timeout-minutes: 15
+        if: matrix.lane == 'cli'
+        run: cargo build --locked -p auctioneer-adapter-axum --bin auctioneer-adapter-axum --example usersync_browser_config --features insecure-bidders
+
+      - name: Test user-sync browser process shutdown
+        if: matrix.lane == 'cli'
+        run: node --test scripts/tests/usersync-browser-shutdown.test.mjs
+
+      - name: Save Cargo downloads
+        if: ${{ always() && !cancelled() && steps.download-cache.outputs.cache-primary-key != '' && steps.download-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ steps.download-cache.outputs.cache-primary-key }}
+
+      - name: Save native Cargo build products
+        if: ${{ always() && !cancelled() && matrix.lane == 'workspace-default' && steps.native-build-cache.outputs.cache-primary-key != '' && steps.native-build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: target/debug/
+          key: ${{ steps.native-build-cache.outputs.cache-primary-key }}
+
+  compiler-conformance:
+    name: cargo test (compiler conformance ${{ matrix.lane }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [schema, settings, exports, discovery]
+    env:
+      PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
+      AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
+      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out prebid-server fixtures
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: 0ef82cbb44f00b15290d02883c315e0f5a109536
+          path: vendor/prebid-server
+
+      - name: Check out pinned bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
+          path: vendor/bidder-reference
+
+      - name: Check out pinned supplemental bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+          path: vendor/bidder-supplemental-reference
+      - name: Cache Cargo downloads
+        id: download-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          components: "clippy, rustfmt, rust-src"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Install required WASM targets
+        run: rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+
+      - name: Install pinned Wasmtime for native schema guest execution
+        timeout-minutes: 5
+        shell: bash
+        run: bash .github/workflows/scripts/test/install-wasmtime.sh
+
+      - name: Fetch dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked
+
+      - name: Fetch required WASM dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
+
+      - name: Execute catalog publication in WASI (secure and development)
+        if: matrix.lane == 'schema'
+        shell: bash
+        run: bash .github/workflows/scripts/test/execute-catalog-publication.sh
+
+      - name: Verify bounded schema compiler controls and source conformance
+        timeout-minutes: 35
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh '${{ matrix.lane }}'
+
+      # Normal/staged and secure/development are distinct sequential builds.
+      - name: Verify core schema artifacts (secure normal and staged)
+        if: matrix.lane == 'schema'
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-schema-core-secure.sh
+
+      - name: Verify schema artifact metadata (secure normal and staged)
+        if: matrix.lane == 'schema'
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-schema-metadata-secure.sh
+
+      - name: Verify core schema artifacts (development normal and staged)
+        if: matrix.lane == 'schema'
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-schema-core-development.sh
+
+      - name: Verify schema artifact metadata (development normal and staged)
+        if: matrix.lane == 'schema'
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-schema-metadata-development.sh
+
+      - name: Save Cargo downloads
+        if: ${{ always() && !cancelled() && steps.download-cache.outputs.cache-primary-key != '' && steps.download-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ steps.download-cache.outputs.cache-primary-key }}
+
+  config-build-failures:
+    name: cargo test (config build failures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
+      AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
+      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out prebid-server fixtures
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: 0ef82cbb44f00b15290d02883c315e0f5a109536
+          path: vendor/prebid-server
+
+      - name: Check out pinned bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
+          path: vendor/bidder-reference
+
+      - name: Check out pinned supplemental bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+          path: vendor/bidder-supplemental-reference
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          components: "clippy, rustfmt, rust-src"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Install required WASM targets
+        run: rustup target add wasm32-wasip1
+
+      - name: Fetch dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked
+
+      - name: Fetch required WASM dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked --target wasm32-wasip1
+
+      - name: Verify rejected configuration builds and exhaustive disclosure coverage
+        timeout-minutes: 30
+        shell: bash
+        run: bash .github/workflows/scripts/test/verify-config-build-failures.sh
+
+  application-artifacts:
+    name: cargo test (application artifact ${{ matrix.adapter }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: [axum, cloudflare, fastly, spin]
+    env:
+      PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
+      AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
+      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out prebid-server fixtures
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: 0ef82cbb44f00b15290d02883c315e0f5a109536
+          path: vendor/prebid-server
+
+      - name: Check out pinned bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
+          path: vendor/bidder-reference
+
+      - name: Check out pinned supplemental bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+          path: vendor/bidder-supplemental-reference
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          components: "clippy, rustfmt, rust-src"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Install required WASM targets
+        run: rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+
+      - name: Fetch dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked
+
+      - name: Fetch required WASM dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
+
+      # Each exact case inspects secure and development artifacts sequentially.
+      - name: Inspect both feature lanes of the actual adapter artifact
+        timeout-minutes: 20
+        shell: bash
+        run: >
+          bash .github/workflows/scripts/test/verify-schema-source.sh 1
+          tests::actual_application_artifacts_${{ matrix.adapter }}_retain_every_selected_validator_in_both_feature_lanes
+          --locked -p auctioneer-bidder
+
+  schema-source-probes:
+    name: cargo test (schema source ${{ matrix.probe }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - probe: private-layout
+            case: tests::compiler_private_layout_facts_cover_native_and_every_guest_abi
+          - probe: selected-schema
+            case: tests::selected_schema_probe_links_and_executes_the_source_bound_cohort
+    env:
+      PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
+      AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
+      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out prebid-server fixtures
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: 0ef82cbb44f00b15290d02883c315e0f5a109536
+          path: vendor/prebid-server
+
+      - name: Check out pinned bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
+          path: vendor/bidder-reference
+
+      - name: Check out pinned supplemental bidder reference
+        uses: actions/checkout@v7
+        with:
+          repository: prebid/prebid-server
+          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+          path: vendor/bidder-supplemental-reference
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          components: "clippy, rustfmt, rust-src"
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Install required WASM targets
+        run: rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+
+      - name: Install pinned Wasmtime for native schema guest execution
+        timeout-minutes: 5
+        shell: bash
+        run: bash .github/workflows/scripts/test/install-wasmtime.sh
+
+      - name: Fetch dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked
+
+      - name: Fetch required WASM dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
+
+      - name: Verify the independently owned source probe
+        timeout-minutes: 25
+        shell: bash
+        run: >
+          bash .github/workflows/scripts/test/verify-schema-source.sh 1
+          '${{ matrix.case }}' --locked -p auctioneer-bidder
+
+  # The `BidderFanout` conformance rows live in `[[test]]` targets carrying
+  # `required-features = ["conformance-suite"]`. `--all-targets` does NOT
+  # satisfy `required-features` — cargo silently SKIPS such targets — so the
+  # job above compiles and runs none of them. This job passes the feature and
+  # is therefore the only place the rows execute.
+  #
+  # Keep this independent feature graph and its cache on a separate runner.
+  conformance-suite:
+    name: cargo test (fanout conformance suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Fetch dependencies (locked)
+        run: cargo fetch --locked
+
+      # Core owns the shared algorithm suite. Each provider binary links its
+      # adapter timer/cooperator and exercises them with a controlled client.
+      # Native delay doubles test adapter logic, not SDK transport/host limits.
+      # The cross-target jobs compile the actual provider bindings; no hosted
+      # qualification is implied by either form of local coverage.
+      - name: Run the BidderFanout conformance suite
+        run: >
+          cargo test
+          -p auctioneer-core -p auctioneer-adapter-cloudflare -p auctioneer-adapter-fastly
+          -p auctioneer-adapter-spin
+          --features conformance-suite --test fanout_conformance
+
+      - name: Run generic HTTP bidder handler conformance
+        run: cargo test --locked -p auctioneer-core --features conformance-suite --test bidder_handler_conformance
+
+      - name: Run controlled-native bidder onboarding (secure defaults)
+        run: cargo test --locked -p auctioneer-core --features conformance-suite --test native_bidder_onboarding
+
+      - name: Run controlled-native bidder onboarding (development feature)
+        run: cargo test --locked -p auctioneer-core --features conformance-suite,insecure-bidders --test native_bidder_onboarding
+
+  cross-target-check:
+    name: ${{ matrix.adapter }} ${{ matrix.target }} check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - adapter: cloudflare
+            target: wasm32-unknown-unknown
+            conformance: true
+          - adapter: fastly
+            target: wasm32-wasip1
+            conformance: true
+          - adapter: spin
+            target: wasm32-wasip2
+            conformance: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Cargo downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Add wasm target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Add Clippy
+        run: rustup component add clippy
+
+      - name: Fetch dependencies (locked)
+        run: cargo fetch --locked
+
+      # M1 foundation crates are pure-Rust and WASM-portable. The adapter
+      # itself is checked unconditionally alongside them: the conformance
+      # build below is gated on `matrix.conformance`, so a row without a
+      # conformance target would otherwise never compile its adapter and
+      # would let a compile regression merge green.
+      - name: Check foundation crates and the adapter on ${{ matrix.target }}
+        run: >
+          cargo check -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config
+          -p auctioneer-adapter-${{ matrix.adapter }} --target ${{ matrix.target }}
+
+      - name: Lint adapter and shared privacy code on ${{ matrix.target }}
+        run: >
+          cargo clippy --locked -p auctioneer-adapter-${{ matrix.adapter }}
+          -p auctioneer-exchange -p auctioneer-privacy --all-targets --features conformance-suite --target ${{ matrix.target }}
+          -- -D warnings
+
+      # Transitive builds do not compile the bidder crate's own test modules.
+      - name: Lint bidder unit and conformance targets on ${{ matrix.target }}
+        run: >
+          cargo clippy --locked -p auctioneer-bidder --all-targets
+          --target ${{ matrix.target }} -- -D warnings
+
+      # The rows themselves execute in the `conformance-suite` job, on the
+      # host. There is no wasm runner here, so this build is `--no-run`: it
+      # proves the suite still compiles for the adapter's real deployment
+      # target, which a host-only run cannot show.
+      - name: Build the conformance suite for ${{ matrix.target }}
+        if: matrix.conformance
+        run: >
+          cargo test --no-run -p auctioneer-adapter-${{ matrix.adapter }}
+          --features conformance-suite --test fanout_conformance
+          --target ${{ matrix.target }}

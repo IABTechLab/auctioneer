@@ -1,0 +1,25 @@
+//! REPLACE_WITH_REVIEWED_REQUEST_CONTRACT
+
+use crate::{BidderError, BidderRequestInfo, OutboundRequestSink};
+use auctioneer_openrtb::types::bid_request::BidRequest;
+
+pub(super) fn make_requests(
+    _request: &BidRequest,
+    _info: &BidderRequestInfo<'_>,
+    _sink: &mut OutboundRequestSink<'_>,
+) -> Result<(), Vec<BidderError>> {
+    todo!("Implement the reviewed borrowed transform through the real bounded sink");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn construction_preserves_scoped_input_and_matches_independent_wire_facts() {
+        todo!("Use bidders::harness with valid parameters and exact reviewed call expectations");
+    }
+
+    #[test]
+    fn independent_construction_refusals_preserve_funded_siblings_and_refund_calls() {
+        todo!("Exercise actual protocol failure isolation and existing sink limits independently");
+    }
+}

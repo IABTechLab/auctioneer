@@ -1,0 +1,3 @@
+name = "mocktioneer"
+repository = "https://github.com/stackpop/prebid-server.git"
+revision = "c9ae35110d45f4dca35efc064d97f955a48445bf"

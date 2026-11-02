@@ -1,0 +1,23 @@
+schema_version = 1
+schema = "aps"
+schema_sha256 = "64f033004924ed57417549f59b08df4f54f12b40e9562379d0276d187d406dc3"
+origin = "authored_schema_derived"
+rows = [
+  { id = "empty_account_allowed", schema = "aps", valid = true, input_json = '{"accountID":""}' },
+  { id = "region_wrong_type", schema = "aps", valid = false, input_json = '{"accountID":"a","region":1}' },
+  { id = "additional_allowed", schema = "aps", valid = true, input_json = '{"accountID":"a","fake_extra":[]}' },
+  { id = "region_null", schema = "aps", valid = false, input_json = '{"accountID":"a","region":null}' },
+]
+[expected]
+authored = 4
+imported = 14
+accepts = 7
+rejects = 11
+[source_cases]
+path = "fixtures/parameters.json"
+sha256 = "5adcf9808af402728cdce2a71a6e992b31f802bba4984139cb80437bd5f57c64"
+revision = "f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a"
+source_path = "adapters/aps/params_test.go"
+source_blob = "74e0358851e73cad3744f600271a68abb52ba62f"
+accepts = 5
+rejects = 9

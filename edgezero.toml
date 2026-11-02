@@ -1,0 +1,237 @@
+# EdgeZero manifest for the auctioneer application. Registers the
+# auction / status / info-bidder / health routes and pins the adapter
+# crates that build against them.
+
+[app]
+name = "auctioneer"
+middleware = ["edgezero_core::middleware::RequestLogger"]
+version = "0.1.0"
+kind = "http"
+entry = "crates/auctioneer-core"
+
+# Route ladder per the design spec §14 milestone block:
+#
+# M2 — auction core (no privacy logic; privacy stub in place):
+#   /openrtb2/auction   (POST)
+#   /status             (GET)
+#   /info/bidders       (GET)
+#   /info/bidders/{*}   (GET)
+#
+# M3 — privacy fidelity:
+#   /_auctioneer/health/gvl (GET)  operator-only; fail-closed 401 unless
+#                               the adapter boot installed an access
+#                               policy — restrict /_auctioneer/* at the
+#                               ingress (docs/deployment/restrict-operational-endpoints.md)
+#
+# M5 — user-sync (first milestone where sync endpoints are reachable):
+#   /cookie_sync        (POST)
+#   /setuid             (GET)
+#   /getuids            (GET)
+#
+# See docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md
+# §14 plus docs/superpowers/plans/2026-06-24-m2-auction.md for the
+# M2 wiring (auction-only; sync routes deliberately NOT registered).
+
+# Capability contract. `required` carries ONLY the guarantees whose
+# absence should block deployment: a required row that any target
+# reports BestEffort fails the build on that target. auctioneer requires
+# admission control, because an isolate that cannot refuse work has no
+# memory bound, and cache-bypass, because a cached bid response is a
+# correctness fault rather than a degradation.
+#
+# Nothing else is declared. An optional row was never load-bearing —
+# upstream logs it and never blocks — so listing what auctioneer consumes
+# at a degraded level only duplicated upstream's own capability table
+# and went stale against it. Documented BestEffort behaviour is still
+# handled in code, per adapter; see each adapter's `limits.rs`, which
+# records which rows its target degrades and what auctioneer does about it.
+[capabilities]
+required = ["ingress-admission", "outbound-cache-bypass"]
+
+[[triggers.http]]
+id      = "auction"
+class   = "auction"
+path    = "/openrtb2/auction"
+methods = ["POST"]
+handler = "crate::handlers::auction"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "OpenRTB 2.6 auction entry point (spec §5.1)"
+
+[[triggers.http]]
+id      = "status"
+# Never shed: a probe costs no aux capacity, and a 503 here makes an
+# orchestrator restart a healthy instance.
+class   = "probe"
+path    = "/status"
+methods = ["GET"]
+handler = "crate::handlers::status"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "Liveness probe (spec §11.2)"
+
+[[triggers.http]]
+id      = "info_bidders"
+class   = "aux"
+path    = "/info/bidders"
+methods = ["GET"]
+handler = "crate::handlers::info_bidders"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "List of registered bidders (spec §8.1)"
+
+[[triggers.http]]
+id      = "info_bidder"
+class   = "aux"
+path    = "/info/bidders/{name}"
+methods = ["GET"]
+handler = "crate::handlers::info_bidder"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "Per-bidder detail record (spec §8.1)"
+
+[[triggers.http]]
+id      = "health_gvl"
+class   = "aux"
+path    = "/_auctioneer/health/gvl"
+methods = ["GET"]
+handler = "crate::handlers::health_gvl"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "GVL archive health (operator-only; restrict /_auctioneer/* at ingress)"
+
+[[triggers.http]]
+id      = "cookie_sync"
+class   = "aux"
+path    = "/cookie_sync"
+methods = ["POST"]
+handler = "crate::handlers::cookie_sync"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "Bounded user-sync URL selection"
+
+[[triggers.http]]
+id      = "cookie_sync_preflight"
+class   = "aux"
+path    = "/cookie_sync"
+methods = ["OPTIONS"]
+handler = "crate::handlers::cookie_sync_preflight"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "Credentialed cookie-sync CORS preflight"
+
+[[triggers.http]]
+id      = "setuid"
+class   = "aux"
+path    = "/setuid"
+methods = ["GET"]
+handler = "crate::handlers::setuid"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "Bidder callback and UID cookie update"
+
+[[triggers.http]]
+id      = "getuids"
+class   = "aux"
+path    = "/getuids"
+methods = ["GET"]
+handler = "crate::handlers::getuids"
+adapters = ["axum", "cloudflare", "fastly", "spin"]
+description = "Read current UID cookie families"
+
+# -- Stores ----------------------------------------------------------------
+#
+# `[stores.<kind>]` declares logical store ids only — the portable fact
+# that this app uses a store. Fastly deployment resource links bind physical
+# stores to these baked logical aliases; health and dispatch use the same
+# aliases. Other adapters resolve their bindings through their host setup.
+
+[stores.config]
+ids = ["auctioneer_runtime"]
+default = "auctioneer_runtime"
+
+[stores.secrets]
+ids = ["default"]
+default = "default"
+
+# -- Adapters and their build/deploy/serve commands ------------------------
+#
+# DEV / STAGING ONLY. Every `deploy` command below — and the raw
+# `wrangler` / `fastly` / `spin` / `edgezero` invocations they wrap — is
+# for development and staging targets. None of them may be pointed at a
+# PRODUCTION service.
+#
+# auctioneer has no promotion tooling of its own. Production deploys go
+# through EdgeZero's production-deploy tooling
+# (https://github.com/IABTechLab/edgezero/pull/381); nothing in this repo
+# promotes a build to production. Nothing in the artifact states what it
+# is cleared for either — see the spec §14 production boundary for what
+# is still missing before any build belongs in production. No production
+# credentials are configured for the commands below, so they cannot
+# reach production even when run by hand.
+
+[adapters.axum.adapter]
+crate = "crates/auctioneer-adapter-axum"
+manifest = "crates/auctioneer-adapter-axum/axum.toml"
+
+[adapters.axum.build]
+target = "native"
+profile = "dev"
+
+[adapters.axum.commands]
+build = "cargo build -p auctioneer-adapter-axum"
+deploy = "# configure deployment for Axum"
+serve = "cargo run -p auctioneer-adapter-axum"
+
+
+[adapters.axum.logging]
+level = "info"
+echo_stdout = true
+
+[adapters.cloudflare.adapter]
+crate = "crates/auctioneer-adapter-cloudflare"
+manifest = "crates/auctioneer-adapter-cloudflare/wrangler.toml"
+
+[adapters.cloudflare.build]
+target = "wasm32-unknown-unknown"
+profile = "release"
+features = ["cloudflare"]
+
+[adapters.cloudflare.commands]
+build = "wrangler build --cwd crates/auctioneer-adapter-cloudflare"
+deploy = "wrangler deploy --cwd crates/auctioneer-adapter-cloudflare"
+serve = "wrangler dev --cwd crates/auctioneer-adapter-cloudflare"
+
+
+[adapters.cloudflare.logging]
+level = "info"
+
+[adapters.fastly.adapter]
+crate = "crates/auctioneer-adapter-fastly"
+manifest = "fastly.toml"
+
+[adapters.fastly.build]
+target = "wasm32-wasip1"
+profile = "release"
+features = ["fastly"]
+
+[adapters.fastly.commands]
+build = "fastly compute build"
+deploy = "fastly compute deploy"
+serve = "fastly compute serve"
+
+
+[adapters.fastly.logging]
+endpoint = "auctioneer_log"
+level = "info"
+echo_stdout = true
+
+[adapters.spin.adapter]
+crate = "crates/auctioneer-adapter-spin"
+manifest = "crates/auctioneer-adapter-spin/spin.toml"
+
+[adapters.spin.build]
+target = "wasm32-wasip2"
+profile = "release"
+features = ["spin"]
+
+[adapters.spin.commands]
+build = "cargo build --target wasm32-wasip2 --release -p auctioneer-adapter-spin"
+deploy = "spin deploy --from crates/auctioneer-adapter-spin"
+serve = "spin up --from crates/auctioneer-adapter-spin"
+
+
+[adapters.spin.logging]
+level = "info"

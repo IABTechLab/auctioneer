@@ -1,0 +1,23 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"$schema\":\"https://json-schema.org/draft/2019-09/schema\",\"additionalItems\":{\"type\":\"string\"},\"items\":[{\"type\":\"integer\"}],\"type\":\"array\",\"unevaluatedItems\":false}"
+expression: is_valid_body(schema)
+---
+match instance {
+            __Value::Array(arr) => {
+                ((arr
+                    .get(0usize)
+                    .map_or(
+                        true,
+                        |instance| match instance {
+                            __Value::Number(n) => __types::is_integer(n),
+                            _ => false,
+                        },
+                    )) && (arr.iter().skip(1usize).all(|instance| instance.is_string())))
+                    && (arr
+                        .iter()
+                        .enumerate()
+                        .all(|(idx, item)| { if true { true } else { false } }))
+            }
+            _ => false,
+        }

@@ -1,0 +1,16 @@
+error[E0277]: the trait bound `&'static str: FieldMetadata` is not satisfied
+ --> tests/conformance/fail/borrowed_field.rs:4:12
+  |
+4 |     value: &'static str,
+  |            ^^^^^^^^^^^^ the trait `FieldMetadata` is not implemented for `&'static str`
+  |
+note: required by a bound in `auctioneer_openrtb::field_metadata::Field::of`
+ --> $WORKSPACE/crates/auctioneer-openrtb/src/field_metadata.rs
+  |
+  |     pub const fn of<T: FieldMetadata + ?Sized>(name: &'static str, flattened: bool) -> Self {
+  |                        ^^^^^^^^^^^^^ required by this bound in `Field::of`
+help: consider removing the leading `&`-reference
+  |
+4 -     value: &'static str,
+4 +     value: str,
+  |

@@ -1,0 +1,6 @@
+{
+  "$recursiveAnchor": true,
+  "type": "array",
+  "items": {"anyOf": [{"type": "string", "pattern": "^x+$"}, {"$recursiveRef": "#"}]},
+  "unevaluatedItems": false
+}

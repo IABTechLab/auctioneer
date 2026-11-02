@@ -1,0 +1,164 @@
+key = "adtelligent"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/adtelligent"
+tree = "25dcda468fa6a47c419b0e6cae0de2ea08d5f564"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/adtelligent.yaml"
+source_blob = "0b73f065426788c462c7e7196672ea7d2e0080b9"
+source_bytes = 458
+source_sha256 = "4327949ec0fa1a89ede4eb764484f9e00069244236173ee145edc7873891a45d"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.adtelligent.com/pbs/ortb"
+selected_url = "https://ghb.adtelligent.com/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/copper6.yaml"
+source_blob = "fe3ea47a29d1e945bcfb438fc429d38112c2a20c"
+source_bytes = 341
+source_sha256 = "2647927fa369701ffee9a7e30f7af35b57805b89bd3566a41de31a226f9af11f"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.app.copper6.com/pbs/ortb"
+selected_url = "https://ghb.app.copper6.com/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/indicue.yaml"
+source_blob = "0548d0ed595e4592514de05f8a97c829aa261536"
+source_bytes = 343
+source_sha256 = "c816ae73169d71f92362597ea5414016145c21d10b7a132e13c2a81a9ef7b336"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.console.indicue.com/pbs/ortb"
+selected_url = "https://ghb.console.indicue.com/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/janet.yaml"
+source_blob = "4a77ef6f488a86ff793b43c560461a5b80eec12e"
+source_bytes = 335
+source_sha256 = "69fea398b5b96b93bd8667125663172b3b667c9bfebb7f16f7adf7f30d2fcf11"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.bidder.jmgads.com/pbs/ortb"
+selected_url = "https://ghb.bidder.jmgads.com/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/pgam.yaml"
+source_blob = "911fa4ef08affaeb357dc08801ded2d7042b5827"
+source_bytes = 338
+source_sha256 = "a77aded185d8cda2ae8cbb568381922fda6c1d86c44d54ff36e67ec5b6d3526b"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.pgamssp.com/pbs/ortb"
+selected_url = "https://ghb.pgamssp.com/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/streamkey.yaml"
+source_blob = "463abd64be0ef2b15b4cd57f4b1888f6dbeb6a66"
+source_bytes = 432
+source_sha256 = "881e68dff4c33515d46e132d8c1b0c2be5506bd8671a825e6a0c1e580ff634cc"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.hb.streamkey.net/pbs/ortb"
+selected_url = "https://ghb.hb.streamkey.net/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/viewdeos.yaml"
+source_blob = "8d14cb961d80ed4c81545301f0564a0ec3f4dd08"
+source_bytes = 345
+source_sha256 = "eede71c05f29d053e54712879a6effa91db334d92103978167b782795e43a8c4"
+port_differences = [
+    """\
+    Source HTTP template uses the HTTPS default; effective metadata binding and route tests \
+    remain pending; no new runtime definition is generated.""",
+]
+
+[provenance.artifacts.https_default]
+source_url = "http://ghb.sync.viewdeos.com/pbs/ortb"
+selected_url = "https://ghb.sync.viewdeos.com/pbs/ortb"
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/adtelligent.json"
+source_blob = "9b241bee149b94da783e5ae951d93bdb3bdf04e3"
+source_bytes = 744
+source_sha256 = "51ed2bb4a5d2022c0c554183307f2efead0b2555aad774e56c128e6ebc39c660"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 744
+source_sha256 = "51ed2bb4a5d2022c0c554183307f2efead0b2555aad774e56c128e6ebc39c660"

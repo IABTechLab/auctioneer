@@ -1,0 +1,19 @@
+# Independent pins for the locally authored synthetic fixture universe.
+repository = "https://registry-fixture.invalid/source.git"
+revision = "1111111111111111111111111111111111111111"
+
+[[implementations]]
+source_directory = "adapters/fake_registry_fake"
+internal_key = "fake_registry_fake"
+
+[[schema]]
+path = "static/bidder-params/fake_registry_fake.json"
+blob = "3333333333333333333333333333333333333333"
+bytes = 203
+sha256 = "5c857124071883c9776cce630f6d5e4569a8596faee7636d753b28d4628ee9d7"
+
+[[schema]]
+path = "static/bidder-params/fake_registry_alias.json"
+blob = "4444444444444444444444444444444444444444"
+bytes = 147
+sha256 = "a315d337718b411c52dfa27266df2aed0671061e611bde8b4f2745116b251dc5"

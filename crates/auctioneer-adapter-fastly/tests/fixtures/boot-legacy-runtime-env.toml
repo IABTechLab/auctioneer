@@ -1,0 +1,9 @@
+# Deliberately conflicting obsolete settings must not override baked Hooks.
+[local_server.config_stores.edgezero_runtime_env]
+format = "inline-toml"
+
+[local_server.config_stores.edgezero_runtime_env.contents]
+EDGEZERO__LOGGING__LEVEL = "off"
+EDGEZERO__LOGGING__ENDPOINT = "stdout"
+EDGEZERO__SERVICES__0000000000000000000000__LOGGING__LEVEL = "off"
+EDGEZERO__SERVICES__0000000000000000000000__LOGGING__ENDPOINT = "stdout"

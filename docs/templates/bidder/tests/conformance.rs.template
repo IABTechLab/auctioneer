@@ -1,0 +1,10 @@
+//! REPLACE_WITH_THE_REAL_SOURCE_OR_PROTOCOL_CONFORMANCE_BOUNDARY
+
+// Keep ordinary unit cases inline in their implementation file, not here.
+// Declare this through the root's native-gated inline test module.
+// Use ../fixtures/ paths and the shared protocol_fixtures! harness for real captures.
+
+#[test]
+fn reviewed_capture_matches_its_immutable_witness() {
+    todo!("Verify actual capture bytes and provenance before protocol-specific dispatch");
+}

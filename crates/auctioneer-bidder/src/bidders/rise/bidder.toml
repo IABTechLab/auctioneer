@@ -1,0 +1,450 @@
+key = "rise"
+factory = true
+native_only = true
+
+[endpoint.fields]
+account_id = "AccountID"
+publisher_id = "PublisherID"
+
+[definitions.rise]
+defaultEnabled = false
+endpoint = "https://pbs.yellowblue.io/pbs"
+endpointCompression = "gzip"
+gvlVendorID = 1043
+
+[definitions.rise.capabilities.app]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.rise.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+    "native",
+]
+
+[definitions.rise.maintainer]
+email = "rise-prog-dev@risecodes.com"
+
+[definitions.rise.userSync.iframe]
+url = "https://pbs-cs.yellowblue.io/pbs-iframe?gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&redirect={{.RedirectURL}}"
+userMacro = "[PBS_UID]"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/rise"
+tree = "fa673df96d139d2bd036ca4a97454bee319ccd8e"
+port_differences = [
+    """\
+    Bounded Rust protocol candidate with a discovered stateless factory and opt-in \
+    native-only publication. The coordinator observed compiled semantic red against the \
+    refusing stub \
+    before Phase 2 implementation; the implemented candidate still awaits coordinator-owned \
+    verification. Endpoint approval, serving activation, schema/resource qualification and \
+    migration are not claimed.""",
+    """\
+    Requests scan impressions in order, fully decode each inspected row, choose raw nonempty \
+    org before publisher_id, then trim and return even if empty. Later rows are not inspected, \
+    filtered or compared for identifier consistency. All original scoped impressions and \
+    ordered IDs remain in the one POST body with only Content-Type \
+    application/json;charset=utf-8.""",
+    """\
+    Structured query construction is the priority contract's explicit difference from source's \
+    raw ?publisher_id= concatenation. Shared EndpointBuilder::expand_with_query_into streams \
+    into capped metadata after call reservation, preserving endpoint macros and existing query \
+    while form-encoding the selected value. The request is borrowed directly into the sink's \
+    capped writer; no request/info tree clone, intermediate URL String or uncapped body is \
+    built. Controlled-native publication does not establish live authorization or acceptance.""",
+    """\
+    AG approved single equivalent case spellings and refusal of competing spellings for \
+    remaining bidders on 2026-10-23, even without canonical spelling or with equal/null values. \
+    ImpExtRise's placementId plus placementid hash collision selects json-iterator's general \
+    Unicode strings.ToLower decoder for all three parameter fields; dotted capital I matches \
+    publisher_id and placementId. The three-field ExtImpBidder container decoder folds ASCII \
+    only. No source map is cloned and no sorted-map precedence is inferred.""",
+    """\
+    Missing parameter containers are bidder-fatal before selection. Explicit null bidder \
+    parameters and null string fields allow source zero-value behavior and scanning. The \
+    existing shared JsonField<Value> preserves missing/null/value; borrowed matching retains \
+    canonical null presence while checking ASCII-equivalent bidder containers. Missing/null \
+    outer imp.ext provenance, duplicate identical wire keys, unrelated ae/prebid validation and \
+    general envelope case matching remain shared-boundary audit gaps, not recovered provenance.""",
+    """\
+    Source wraps request errors with fmt.Errorf and ReadCode checks only the outer Coder, so \
+    request decode/no-identifier errors expose source code 999 rather than the wrapped jsonutil \
+    code 14. The no-identifier message is preserved; request decoder messages are \
+    fixed/redacted. Source status helpers map 204 to no response, 400 to code 2, other non-200 \
+    to code 4 with the numeric-only source message. Sealed malformed envelopes remain code 14 \
+    and node refusals code 4.""",
+    """\
+    Source response currency is preserved verbatim, including absent/empty string, by moving \
+    parsed.cur around the shared classifier's empty-to-USD default without cloning it. Non-USD \
+    exchange conversion/delivery qualification remains separate. Null currency and missing/null \
+    response envelope fields still have inherited sealed typed-decoder differences.""",
+    """\
+    Source mtype is a signed int8 decoded as part of the response, with general \
+    case-insensitive key matching. Sealed parsing happens once; borrowed preflight gives \
+    malformed recognized values and competing spellings response-decode scope. In-range \
+    unsupported values, absent/null zero and audio are per-bid errors with source code 999. \
+    Only 1/2/4 select banner/video/native. Valid siblings survive source classification errors; \
+    all-invalid uses Auctioneer Err instead of source's empty response plus errors. Shared \
+    parsed-number provenance cannot distinguish lexical integer negative zero from floating \
+    negative zero; that boundary remains unqualified.""",
+    """\
+    Shared classification additionally checks offered media, standard/prebid consistency and \
+    known impression identity; exact sent-call coverage is mandatory. The source does not \
+    perform those checks. The banner-and-video.json capture explicitly demonstrates source \
+    accepting banner mtype for a video-only impression, and is a named shared compatibility \
+    boundary control rather than parity evidence.""",
+    """\
+    Thirteen verbatim protocol captures total 36627 bytes: seven positive source-consistent \
+    cases, three request failures, HTTP 400, all-unsupported mtype, and one shared \
+    unoffered-media boundary. No source parameter-test file exists for Rise. Captures are \
+    verified by the shared manifest-and-byte witness before each filtered dispatch. The worker \
+    ran no Cargo; the implemented source tests and capture replays await coordinator-owned \
+    green verification, independent review and shared delivery gates.""",
+]
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary"
+tree = "b1a2bb690e82ccf0fb378b47b220c78caa4ded02"
+
+[[provenance.trees]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/supplemental"
+tree = "d3aa6009686fe864f04ee51d26370e6af1127966"
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/rise.yaml"
+source_blob = "0d941622e86bef7f9bf3c97f5aecc928a851b470"
+source_bytes = 561
+source_sha256 = "67956b554452dd18dd03ecc64247238c0acd02310966497bcd5e414ef06545f1"
+port_differences = [
+    """\
+    Approved 2026-10-30 controlled-native publication preserves the source HTTPS endpoint, \
+    gzip, capabilities, vendor, maintainer and iframe sync. Runtime defaultEnabled=false. \
+    Source geoscope and modifyingVastXmlAllowed remain provenance, not new routing or \
+    permissions. Publication is not selected-flow acceptance or live authorization.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/rise.json"
+source_blob = "ee8a469cbbc37679f25186a1e285e5f1a3697ded"
+source_bytes = 634
+source_sha256 = "5337120610c68c1d2467cf56b569932187f87fab778964227395264be3f65a6f"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 634
+source_sha256 = "5337120610c68c1d2467cf56b569932187f87fab778964227395264be3f65a6f"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/rise/rise.go"
+source_blob = "d9d9c2a4bc9ca86b13d317b601d22cad05802250"
+source_bytes = 3571
+source_sha256 = "d3eb0eb21539661b773281d38e28fddc07130dc944fade41b94a5ca394a6c332"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/rise/rise_test.go"
+source_blob = "8d10cedb95b2eb68e8ee9225541ffb8b66c39cdb"
+source_bytes = 646
+source_sha256 = "24512af6e87a1a60380f11711bd3daa9e67a2c1f72ec5912862520458635ad01"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "upstream"
+source_path = "openrtb_ext/imp_rise.go"
+source_blob = "de37e4f800d0bc154b1ee4eda30b03715f54599e"
+source_bytes = 244
+source_sha256 = "a144b6e2bdb4a8b4549c1f753752da6da2bfed535c49b9b84e7722de8f2b9a4c"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/response.go"
+source_blob = "6c3c6a82370da0f8aae88ea273ef03c7fc441a87"
+source_bytes = 721
+source_sha256 = "b13407cbea94e6ef82fa188b5d0a95a30009e1e00f1d8300e8fd6435e022c0dc"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/response_test.go"
+source_blob = "70106756b4f68c973c2d0984c7042a95f67352f8"
+source_bytes = 1125
+source_sha256 = "d1e6b2dc6575c43c527e7009d60dc0f27e03822a8794bbe32b4a2d402d73beb6"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "openrtb_ext/imp.go"
+source_blob = "85be31245489ddfaa7eb61f6b24f745de9fdc988"
+source_bytes = 3337
+source_sha256 = "74906c9f9d9842956179f551b3e7868af871e5c11c7076bffa1f964395b0dd47"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil.go"
+source_blob = "da9027c1df837dd7d92d821f310c37faadc3beef"
+source_bytes = 7232
+source_sha256 = "27ee1995ea1783c86e4eb2d22b4e9ff57bbcbba0bb17d109669f325f1ec73d6a"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "util/jsonutil/jsonutil_test.go"
+source_blob = "96632d62548530c1f5086876b74fcf0da8257093"
+source_bytes = 13192
+source_sha256 = "605de1397f4128feddbf126688e96b33b31f46bd2cb54a3cc514ac74f8a8b822"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "errortypes/code.go"
+source_blob = "07b4727727e78400039fe1b162c4dea2c659e184"
+source_bytes = 1510
+source_sha256 = "6697a3f4df221451fbb953f5936eac5e53ad0f464f9ff52ed5c426b7196ef99c"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.mod"
+source_blob = "998750a0ab0830ae6a24f6d2f2abbddf2ba85855"
+source_bytes = 3548
+source_sha256 = "00d82a3d3a03e1dc411876b858a857a832bfc7a6dc4b5ace95a3d52b37e4e549"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "upstream"
+source_path = "go.sum"
+source_blob = "2d03cb08c4350a7beb75e8529d8d66c0720e3366"
+source_bytes = 100645
+source_sha256 = "8f3c2e47aa0cc516a7440a30c5d376dd1b4bf49a26ca79bd92905738d06ccd9b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/banner-and-video-app.json"
+source_blob = "4113fded84668477dda3adb7c0bda83d94521df8"
+source_bytes = 5456
+source_sha256 = "d7159f3ff129fe0f8487f89645786b05c7e12c306590f9f5264f77de96b6dd6b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video-app.json"
+source_bytes = 5456
+source_sha256 = "d7159f3ff129fe0f8487f89645786b05c7e12c306590f9f5264f77de96b6dd6b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/banner-and-video-gdpr.json"
+source_blob = "c7f25b8e81eb5f41b1f8827841cb66ce57ce9521"
+source_bytes = 4793
+source_sha256 = "1cb7908bb81f1feede948830bf82e849265a4ecc5c9fb4b168bbcfe705b36c63"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video-gdpr.json"
+source_bytes = 4793
+source_sha256 = "1cb7908bb81f1feede948830bf82e849265a4ecc5c9fb4b168bbcfe705b36c63"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/banner-and-video-site.json"
+source_blob = "8a170d0376d71306fcdde52c2040c18a2d9dc270"
+source_bytes = 4791
+source_sha256 = "bce1ce901a51dc6bd44e20bb523fbb20176768a90da8ec45e43db0ecdd274afe"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video-site.json"
+source_bytes = 4791
+source_sha256 = "bce1ce901a51dc6bd44e20bb523fbb20176768a90da8ec45e43db0ecdd274afe"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/banner-and-video.json"
+source_blob = "5b4a685570b8fb9dce8e7eb49f10dae44a4dcc7a"
+source_bytes = 4156
+source_sha256 = "fa8dd23b40eca711f8928d564c130ff3aa352bf64fa58304b1d7884f8289314f"
+port_differences = [
+    """\
+    Shared offered-media compatibility rejects the captured banner mtype for a video-only \
+    impression; retained as a named boundary control, not source parity.""",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/banner-and-video.json"
+source_bytes = 4156
+source_sha256 = "fa8dd23b40eca711f8928d564c130ff3aa352bf64fa58304b1d7884f8289314f"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/simple-banner-both-ids.json"
+source_blob = "31e18da7f0af399b9f75de9967cebad96b6eb2c4"
+source_bytes = 2614
+source_sha256 = "9cccab93ec7c5ab0477fa0d18c99de29f42c913cc7bdd80755a02ef4ddb62995"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner-both-ids.json"
+source_bytes = 2614
+source_sha256 = "9cccab93ec7c5ab0477fa0d18c99de29f42c913cc7bdd80755a02ef4ddb62995"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/simple-banner.json"
+source_blob = "161afae7c1bec8c586b267eaefa0845a6b7889bd"
+source_bytes = 2552
+source_sha256 = "3d882f724615f516e8f3b6c60db0f92da95e9abcd5f42f26e904f1140d2e1460"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-banner.json"
+source_bytes = 2552
+source_sha256 = "3d882f724615f516e8f3b6c60db0f92da95e9abcd5f42f26e904f1140d2e1460"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/simple-native.json"
+source_blob = "67fd689bfdb5b27bf6351da6a0e09498f6386e53"
+source_bytes = 2714
+source_sha256 = "34ef47a9a29028ca2a8dd94f799929e40bdfeec02f09e2461a10126b4bed650e"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-native.json"
+source_bytes = 2714
+source_sha256 = "34ef47a9a29028ca2a8dd94f799929e40bdfeec02f09e2461a10126b4bed650e"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/exemplary/simple-video.json"
+source_blob = "ee2b6946764b9fe4cdf27d9f1c3f3fc41455ff75"
+source_bytes = 2557
+source_sha256 = "04a1542db09c55a0dca6f9f7c707e6d31f627fcfb8a2857760e78a11c8488b9c"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/simple-video.json"
+source_bytes = 2557
+source_sha256 = "04a1542db09c55a0dca6f9f7c707e6d31f627fcfb8a2857760e78a11c8488b9c"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/supplemental/bad-request.json"
+source_blob = "969208edb2a3b5d6b49ccd25d4e39447d68d376a"
+source_bytes = 1819
+source_sha256 = "dc5c0787cdafd1460d94f1e00b5700d32cce8f283950bfac51ca3cd22a23da5a"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/bad-request.json"
+source_bytes = 1819
+source_sha256 = "dc5c0787cdafd1460d94f1e00b5700d32cce8f283950bfac51ca3cd22a23da5a"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/supplemental/missing-bidder.json"
+source_blob = "5cde70f57196b226749bfae5f760c7a7e5bd3e13"
+source_bytes = 755
+source_sha256 = "035a678bfa81f57063bda0901f48142f5c724a75e83a7086ae06c50a21b1e8cd"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/missing-bidder.json"
+source_bytes = 755
+source_sha256 = "035a678bfa81f57063bda0901f48142f5c724a75e83a7086ae06c50a21b1e8cd"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/supplemental/missing-extension.json"
+source_blob = "6bb8594d152cbedef1fdc47ce22df6bdb6e34315"
+source_bytes = 735
+source_sha256 = "87c89c9bd6a9d7f31338ad08938c46ceb2a71e73f0216761cdc7b7c83bd26195"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/missing-extension.json"
+source_bytes = 735
+source_sha256 = "87c89c9bd6a9d7f31338ad08938c46ceb2a71e73f0216761cdc7b7c83bd26195"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/supplemental/missing-mtype.json"
+source_blob = "70e9ea1ccda0d93421b22404f6bd3ea5d27e553e"
+source_bytes = 2860
+source_sha256 = "cf50506448318e4fc2e6439f58c72bc9e86dc722e3bb78a4885114f04efc6457"
+port_differences = [
+    """\
+    The source returns an empty response plus both unsupported-MType errors; the shared Bidder \
+    contract returns Err when all candidates are invalid.""",
+]
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/missing-mtype.json"
+source_bytes = 2860
+source_sha256 = "cf50506448318e4fc2e6439f58c72bc9e86dc722e3bb78a4885114f04efc6457"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "upstream"
+source_path = "adapters/rise/risetest/supplemental/missing-org.json"
+source_blob = "4107d40e1c30b4b7fc5a79f7749509a8fcdc4dfb"
+source_bytes = 825
+source_sha256 = "7c940f22782ea95f6da361af13a7f784ffaf606058bd21445f8ffa04b375cdc9"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/missing-org.json"
+source_bytes = 825
+source_sha256 = "7c940f22782ea95f6da361af13a7f784ffaf606058bd21445f8ffa04b375cdc9"

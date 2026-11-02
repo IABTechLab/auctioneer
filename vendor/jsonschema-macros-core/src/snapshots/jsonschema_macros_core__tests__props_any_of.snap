@@ -1,0 +1,23 @@
+---
+source: crates/jsonschema-macros-core/src/tests.rs
+description: "{\"anyOf\":[{\"properties\":{\"a\":{}},\"required\":[\"a\"]},{\"properties\":{\"b\":{}},\"required\":[\"b\"]}],\"type\":\"object\",\"unevaluatedProperties\":false}"
+expression: is_valid_body(schema)
+---
+(match instance {
+            __Value::Object(obj) => {
+                obj.iter()
+                    .all(|(__key, __value)| {
+                        let key_str = __key.as_str();
+                        if ((|instance: &__Value| validate_ref_0(instance))(instance)
+                            && (matches!(key_str, "a"))
+                            || (|instance: &__Value| validate_ref_1(instance))(instance)
+                                && (matches!(key_str, "b")))
+                        {
+                            true
+                        } else {
+                            false
+                        }
+                    })
+            }
+            _ => false,
+        }) && ((is_branch_valid_0(instance) || is_branch_valid_1(instance)))

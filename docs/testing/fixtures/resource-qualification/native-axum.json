@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "kind": "native_axum_candidate",
+  "platform": {
+    "memory_bytes": 4294967296,
+    "concurrent_requests": 384,
+    "wall_time_ms": 30000,
+    "cpu_time_ms": 30000
+  },
+  "headroom_bytes": 268435456,
+  "expected_limits": {
+    "isolate_total_bytes": 4294967296,
+    "max_outbound_requests": 16,
+    "max_concurrent_auctions": 2,
+    "inbound_request_bytes": 32768,
+    "max_parsed_nodes": 2048,
+    "max_impressions_per_auction": 8,
+    "max_transport_bytes": 16384,
+    "max_decoded_bytes": 32768
+  },
+  "sdk": {
+    "ingress": {
+      "max_connections": 256,
+      "max_raw_head_bytes": 16384,
+      "max_header_count": 100,
+      "head_read_timeout_ms": 5000
+    },
+    "config_store": {
+      "max_entries": 16,
+      "max_file_bytes": 1048576,
+      "max_key_bytes": 256,
+      "max_value_bytes": 262144,
+      "max_resident_bytes": 2097152,
+      "max_startup_bytes": 8388608
+    },
+    "http2_enabled": false
+  },
+  "duration_ms": 2000,
+  "warmup_ms": 250,
+  "repetitions": 2,
+  "cold_window_ms": 1000,
+  "warm_window_ms": 1000,
+  "max_requests": 128,
+  "request_timeout_ms": 1500,
+  "latency_threshold_us": 2000000,
+  "max_peak_bytes": 3221225472,
+  "max_retained_growth_bytes": 67108864,
+  "debug_reference": {
+    "limiting_factor": "fixture_shape",
+    "capture_bytes": { "min": 4096, "max": 65536 },
+    "output_bytes": { "min": 8192, "max": 65536 }
+  },
+  "admission_oracle": "parked_two_auctions_v1",
+  "base_load": {
+    "concurrency": 2,
+    "calls": 16,
+    "request_bytes": 8192,
+    "nodes": 128,
+    "impressions": 1,
+    "encoded_bytes": 4096,
+    "decoded_bytes": 8192
+  },
+  "maximum_load": {
+    "concurrency": 2,
+    "calls": 16,
+    "request_bytes": 32768,
+    "nodes": 2048,
+    "impressions": 8,
+    "encoded_bytes": 16384,
+    "decoded_bytes": 32768
+  },
+  "seed": 7,
+  "max_run_ms": 600000
+}

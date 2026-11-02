@@ -1,0 +1,53 @@
+# Raw Task 23 certification record — TWO runs concatenated.
+# Run 1 stopped at 03-clippy-hostile (exit 101): the command named a
+# feature the plan designed but the code never created; 03/05/14 were
+# retired as subsumed (see the matrix execution amendment in the plan)
+# and the amended matrix re-ran from 04. The exit 101 below is that
+# superseded row, not a failure of the certified command set.
+[20:27:03Z] START 00-fmt: cargo fmt --all -- --check
+[20:27:04Z] EXIT=0  (00-fmt, 1s)
+[20:27:04Z] START 01-clippy: cargo clippy --workspace --all-targets -- -D warnings
+[20:31:42Z] EXIT=0  (01-clippy, 278s)
+[20:31:42Z] START 02-clippy-insecure: cargo clippy --workspace --all-targets --features insecure-bidders -- -D warnings
+[20:35:16Z] EXIT=0  (02-clippy-insecure, 214s)
+[20:35:16Z] START 03-clippy-hostile: cargo clippy -p auctioneer-privacy --all-targets --features hostile-input-alloc -- -D warnings
+[20:35:16Z] EXIT=101  (03-clippy-hostile, 0s)
+MATRIX FAILED at 03-clippy-hostile (exit 101)
+[manual] marker-sweep EXIT=0 (rg alternation from plan 16205-16209)
+[20:40:09Z] START 04-clippy-timing: cargo clippy -p auctioneer-privacy --all-targets --features timing-tests -- -D warnings
+[20:42:57Z] EXIT=0  (04-clippy-timing, 168s)
+[20:42:57Z] START 06-clippy-harness: cargo clippy -p auctioneer-config --all-targets --features test-harness-override -- -D warnings
+[20:46:25Z] EXIT=0  (06-clippy-harness, 208s)
+[20:46:25Z] START 07-test-workspace: cargo test --workspace
+[01:43:04Z] EXIT=0  (07-test-workspace, 17799s)
+[01:43:04Z] START 08-test-insecure: cargo test --workspace --features insecure-bidders
+[02:33:51Z] EXIT=0  (08-test-insecure, 3047s)
+[02:33:51Z] START 09-test-axum: cargo test -p auctioneer-axum-transport-tests
+[02:38:21Z] EXIT=0  (09-test-axum, 270s)
+[02:38:21Z] START 10-clippy-conf: cargo clippy -p auctioneer-core --all-targets --features conformance-suite -- -D warnings
+[02:42:39Z] EXIT=0  (10-clippy-conf, 258s)
+[02:42:39Z] START 11-test-conf: cargo test -p auctioneer-core --features conformance-suite
+[02:47:08Z] EXIT=0  (11-test-conf, 269s)
+[02:47:08Z] START 12-clippy-conf-ins: cargo clippy -p auctioneer-core --all-targets --features insecure-bidders conformance-suite -- -D warnings
+[02:50:59Z] EXIT=0  (12-clippy-conf-ins, 231s)
+[02:50:59Z] START 13-test-conf-ins: cargo test -p auctioneer-core --features insecure-bidders conformance-suite
+[02:57:42Z] EXIT=0  (13-test-conf-ins, 403s)
+[02:57:42Z] START 15-test-timing: cargo test -p auctioneer-privacy --features timing-tests --tests
+[03:01:31Z] EXIT=0  (15-test-timing, 229s)
+[03:01:31Z] START 16-test-harness: env RUSTFLAGS=-D warnings cargo test -p auctioneer-config --features test-harness-override --test build_failure_harness
+[03:25:15Z] EXIT=0  (16-test-harness, 1424s)
+[03:25:15Z] START 17-wasm-cf-check: cargo check --target wasm32-unknown-unknown -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config -p auctioneer-gvl-schema -p auctioneer-privacy -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core
+[03:34:08Z] EXIT=0  (17-wasm-cf-check, 533s)
+[03:34:08Z] START 18-wasm-cf-conf: cargo test --no-run --target wasm32-unknown-unknown -p auctioneer-adapter-cloudflare --features conformance-suite
+[03:35:01Z] EXIT=0  (18-wasm-cf-conf, 53s)
+[03:35:01Z] START 19-wasm-wasi-check: cargo check --target wasm32-wasip1 -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config -p auctioneer-gvl-schema -p auctioneer-privacy -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core
+[03:38:39Z] EXIT=0  (19-wasm-wasi-check, 218s)
+[03:38:39Z] START 20-wasm-spin-conf: cargo test --no-run --target wasm32-wasip1 -p auctioneer-adapter-spin --features conformance-suite
+[03:42:53Z] EXIT=0  (20-wasm-spin-conf, 254s)
+[03:42:53Z] START 21-release-axum: cargo build --release -p auctioneer-adapter-axum
+[03:45:53Z] EXIT=0  (21-release-axum, 180s)
+[03:45:53Z] START 22-release-cf: cargo build --release -p auctioneer-adapter-cloudflare --target wasm32-unknown-unknown
+[03:48:21Z] EXIT=0  (22-release-cf, 148s)
+[03:48:21Z] START 23-release-wasi: cargo build --release --target wasm32-wasip1 -p auctioneer-adapter-fastly -p auctioneer-adapter-spin
+[03:51:07Z] EXIT=0  (23-release-wasi, 166s)
+MATRIX COMPLETE: commands 04-23 (00-02 passed in run 1; 03/05/14 subsumed per ledger ruling) exited 0

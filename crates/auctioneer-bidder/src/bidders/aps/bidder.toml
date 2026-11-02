@@ -1,0 +1,388 @@
+key = "aps"
+factory = true
+native_only = true
+
+[definitions.aps]
+defaultEnabled = false
+endpoint = "https://{{.Host}}/e/pb/bid"
+endpointCompression = "gzip"
+gvlVendorID = 793
+hostAllowlist = [
+    "s2s.prebid.bid-na.ads.aps.amazon-adsystem.com",
+    "s2s.prebid.bid-eu.ads.aps.amazon-adsystem.com",
+    "s2s.prebid.bid-fe.ads.aps.amazon-adsystem.com",
+]
+
+[definitions.aps.capabilities.site]
+mediaTypes = [
+    "banner",
+    "video",
+]
+
+[definitions.aps.maintainer]
+email = "aps-prebid@amazon.com"
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.supplemental]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a"
+
+[[provenance.trees]]
+category = "implementation"
+source = "supplemental"
+source_path = "adapters/aps"
+tree = "a8d550dbcee0ab4ef95d6478d1aeafdf4e6404d8"
+port_differences = [
+    """\
+    Pinned supplemental source for the existing APS factory and opt-in native-only \
+    publication. No source execution, protocol parity, delivery or migration is claimed. Rust SDK \
+    source/version intentionally differ from the captured prebid-server 1.0.0 identity.""",
+]
+
+[[provenance.trees]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/exemplary"
+tree = "bcf872996ca20ccc80a9808aac3344b4ca4b5211"
+
+[[provenance.trees]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental"
+tree = "9abd725a7784bd551b565cf9602b121a2939e791"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "supplemental"
+source_path = "adapters/aps/aps.go"
+source_blob = "6c9b88a872c1835bf77cba7a4623cdead9d58c23"
+source_bytes = 8436
+source_sha256 = "ccd42e9162b7e9fd66bfe2a9da1d1b81fe545db9f4ac332b83f6c1d98d59ea5d"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "supplemental"
+source_path = "adapters/aps/aps_test.go"
+source_blob = "80f92f7524fab6ae2a37124e3022f5d4f9a1e153"
+source_bytes = 623
+source_sha256 = "f365ee454a8c64f270da349573f55d3e77b920a908e6f3b6cee3930e26d9f276"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/exemplary/multi-slot.json"
+source_blob = "a0cfb76742fabf37b5d834a2328274432c5d955e"
+source_bytes = 3570
+source_sha256 = "34054e9800ebe72bb89480f246de966a5b87dd401883879c75b124a0b3d52c9f"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/multi-slot.json"
+source_bytes = 3570
+source_sha256 = "34054e9800ebe72bb89480f246de966a5b87dd401883879c75b124a0b3d52c9f"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/exemplary/multiformat-imp.json"
+source_blob = "5f8fb67d0b03e814225e94352f080ae4c0b3bcb3"
+source_bytes = 2472
+source_sha256 = "e7acca7da02acb330ff95f4cc79733e2651027b69b556773845a4c4bb77dd285"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/multiformat-imp.json"
+source_bytes = 2472
+source_sha256 = "e7acca7da02acb330ff95f4cc79733e2651027b69b556773845a4c4bb77dd285"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/exemplary/single-banner.json"
+source_blob = "80cebec7517c8d7f3f379addc90667161e915b75"
+source_bytes = 2392
+source_sha256 = "e8b8a97dc046fe9f3a9ac29ccbfe47d3f605845445e30bb28df93df1f1a04403"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/single-banner.json"
+source_bytes = 2392
+source_sha256 = "e8b8a97dc046fe9f3a9ac29ccbfe47d3f605845445e30bb28df93df1f1a04403"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/exemplary/single-video.json"
+source_blob = "63309a87af6b24e7270e6b7956097f2dacdfed20"
+source_bytes = 2261
+source_sha256 = "2c3e291f91f4c04a2aa57edd4657632f223063cccccdcf38e1799c70054b70a0"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/exemplary/single-video.json"
+source_bytes = 2261
+source_sha256 = "2c3e291f91f4c04a2aa57edd4657632f223063cccccdcf38e1799c70054b70a0"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/banner-partial-size-overwrite.json"
+source_blob = "7225423f29f40809d551b90b5a48d649974fd71f"
+source_bytes = 1525
+source_sha256 = "c210d9ee4e42c292f60fd9e54c8811592e12e8a3892259fd716505f5c0244115"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/banner-partial-size-overwrite.json"
+source_bytes = 1525
+source_sha256 = "c210d9ee4e42c292f60fd9e54c8811592e12e8a3892259fd716505f5c0244115"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/defaults-currency-to-usd.json"
+source_blob = "265f05598fb0b5d0365de8f43cb903f8b17660c0"
+source_bytes = 2368
+source_sha256 = "f721f033b9a89f173d4f9a113e752895786d6b6f345a39201962f2dd521184c5"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/defaults-currency-to-usd.json"
+source_bytes = 2368
+source_sha256 = "f721f033b9a89f173d4f9a113e752895786d6b6f345a39201962f2dd521184c5"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/region-na-explicit.json"
+source_blob = "3d76aede9b8d7547ff5448cd150c255039972ae4"
+source_bytes = 1540
+source_sha256 = "74d6eaa15a5b3dddfb4e0a0a10568cd09f2b2e22568a8976846ff8bb43c68ebf"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/region-na-explicit.json"
+source_bytes = 1540
+source_sha256 = "74d6eaa15a5b3dddfb4e0a0a10568cd09f2b2e22568a8976846ff8bb43c68ebf"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/rejects-mismatched-account.json"
+source_blob = "2a9b110e36cff242661bcd20dfcc5740da334a41"
+source_bytes = 749
+source_sha256 = "b6c811fb21570a8e6531f4fdefcfb41ae4304824f7130ada9f3f0d166f86585b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/rejects-mismatched-account.json"
+source_bytes = 749
+source_sha256 = "b6c811fb21570a8e6531f4fdefcfb41ae4304824f7130ada9f3f0d166f86585b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/rejects-unsupported-region.json"
+source_blob = "9b1253fd9180d85a76924bc2e258ea22f90199d5"
+source_bytes = 634
+source_sha256 = "0e90cb811a5f3ff133d5ed32e722bb060a2a6c25ffbe16696ffb1fc82e8aada2"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/rejects-unsupported-region.json"
+source_bytes = 634
+source_sha256 = "0e90cb811a5f3ff133d5ed32e722bb060a2a6c25ffbe16696ffb1fc82e8aada2"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/requires-account.json"
+source_blob = "da968534b5aaed0559fd1d890de0f3b1a14f0fc1"
+source_bytes = 556
+source_sha256 = "82f491dbd585a41139368fba6ca7d890e68a956061dcdaeb42ec2faa164e2e3b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/requires-account.json"
+source_bytes = 556
+source_sha256 = "82f491dbd585a41139368fba6ca7d890e68a956061dcdaeb42ec2faa164e2e3b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/resolves-eu-region.json"
+source_blob = "ecc3df1dbdea4dc0035a82729427b951f69b1ad9"
+source_bytes = 1626
+source_sha256 = "2027b9d3cb4ee4617d537c0e8cbc7e63b2e7d3e4cdd6f7fe385c7c011496e66b"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/resolves-eu-region.json"
+source_bytes = 1626
+source_sha256 = "2027b9d3cb4ee4617d537c0e8cbc7e63b2e7d3e4cdd6f7fe385c7c011496e66b"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/status-204.json"
+source_blob = "0655d294f0d3a4d385575f1ebe306540326ce854"
+source_bytes = 1140
+source_sha256 = "b1e7cc01b61e994814f1ed2eb5563fa29073cfed3af7abae8cbc2782259a9231"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/status-204.json"
+source_bytes = 1140
+source_sha256 = "b1e7cc01b61e994814f1ed2eb5563fa29073cfed3af7abae8cbc2782259a9231"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/status-400.json"
+source_blob = "05db0f758c78cdd9aa602763bf68a3a3b9e5bc7c"
+source_bytes = 1292
+source_sha256 = "01a5ca122d16cdc7183cf62ca2a4136a3e8162d8d3328d04d0f4c918c2daf25d"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/status-400.json"
+source_bytes = 1292
+source_sha256 = "01a5ca122d16cdc7183cf62ca2a4136a3e8162d8d3328d04d0f4c918c2daf25d"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/status-500.json"
+source_blob = "b120922e63204140beda296ed1d2c2526cd5a53d"
+source_bytes = 1296
+source_sha256 = "e5b532014a94e8d5b7cd8c96fc66a5f8518b39f6b39d6243f7d315ce327fbdeb"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/status-500.json"
+source_bytes = 1296
+source_sha256 = "e5b532014a94e8d5b7cd8c96fc66a5f8518b39f6b39d6243f7d315ce327fbdeb"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/strips-sensitive-data.json"
+source_blob = "8e5a3cebfd97635cf2ce6bad4cefaf6503236e15"
+source_bytes = 2703
+source_sha256 = "84ed038d204aeb0b0f011e939130d2ed6dd29829b5b7d0cca1af2a4d3a7ef051"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/strips-sensitive-data.json"
+source_bytes = 2703
+source_sha256 = "84ed038d204aeb0b0f011e939130d2ed6dd29829b5b7d0cca1af2a4d3a7ef051"
+
+[[provenance.artifacts]]
+category = "protocol"
+source = "supplemental"
+source_path = "adapters/aps/apstest/supplemental/test-mode-appends-debug.json"
+source_blob = "7fdf139c17fc081fcaf0466df7d3396e1fa48280"
+source_bytes = 1326
+source_sha256 = "ce61dca306d19bc3b51e6d1e5f24b9833e7359867f4ce0aef081d45af532d360"
+
+[provenance.artifacts.retained]
+source_path = "fixtures/protocol/supplemental/test-mode-appends-debug.json"
+source_bytes = 1326
+source_sha256 = "ce61dca306d19bc3b51e6d1e5f24b9833e7359867f4ce0aef081d45af532d360"
+
+[[provenance.artifacts]]
+category = "parameter"
+source = "supplemental"
+source_path = "adapters/aps/params_test.go"
+source_blob = "74e0358851e73cad3744f600271a68abb52ba62f"
+source_bytes = 1313
+source_sha256 = "96c244d0a61a4002b2228e060a019095308a59d2c2f0813017a9a620df2a0194"
+transformation = """\
+    Extract TestValidParams and TestInvalidParams raw JSON spans into ordered source-test \
+    expectations with zero-based raw-byte offsets; source tests were not executed."""
+
+[provenance.artifacts.retained]
+source_path = "fixtures/parameters.json"
+source_bytes = 2392
+source_sha256 = "5adcf9808af402728cdce2a71a6e992b31f802bba4984139cb80437bd5f57c64"
+
+[[provenance.artifacts]]
+category = "implementation"
+source = "supplemental"
+source_path = "openrtb_ext/imp_aps.go"
+source_blob = "f84a3e9a8fb3c2b6578923e5f3b2dc872fd4b1da"
+source_bytes = 190
+source_sha256 = "856101ddab40aca82ebc21c43e890823cba5e3bfde7ffb3af88e6197faeba085"
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "supplemental"
+source_path = "static/bidder-info/aps.yaml"
+source_blob = "dded94f05e4cf60c327877721dc2ce96cb7abfc4"
+source_bytes = 321
+source_sha256 = "2204cbfe1632647d7b63015d9a8dd314a51c28209482851db33802aef60f5d8d"
+port_differences = [
+    """\
+    AG's approved 2026-10-30 controlled-native publication keeps defaultEnabled=false. \
+    The source Region authority segment is represented by complete Host substitution, \
+    allowlisted to the existing na/eu/fe HTTPS hosts; bidder-owned parameter validation \
+    chooses the region. Preserve site-only banner/video, gzip, vendor and maintainer facts; \
+    no app capability or sync URL is invented. Source geoscope remains provenance, not a \
+    routing fallback. Publication does not establish live authorization or qualification.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "supplemental"
+source_path = "static/bidder-params/aps.json"
+source_blob = "48f5de753f4175e671f0d584ab532120c8c9cd5d"
+source_bytes = 513
+source_sha256 = "64f033004924ed57417549f59b08df4f54f12b40e9562379d0276d187d406dc3"
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 513
+source_sha256 = "64f033004924ed57417549f59b08df4f54f12b40e9562379d0276d187d406dc3"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "supplemental"
+source_path = "adapters/adapterstest/test_json.go"
+source_blob = "911a5b408dad2d62ab7d14d537bd304b9b74f9ab"
+source_bytes = 20531
+source_sha256 = "f8e32ce7f948b1b7a5ee73cc3e5ca431a8977e8f2147ab88300871cf4f4356a0"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "supplemental"
+source_path = "adapters/bidder.go"
+source_blob = "0be99b00809a1024a51ab92be9e263ef8526f44a"
+source_bytes = 7243
+source_sha256 = "bf103cd4d95c9d0a42e3c61fa8970d5ec3590dc45139099e93dd0ef5e5ea1254"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "supplemental"
+source_path = "adapters/infoawarebidder.go"
+source_blob = "414a9d3599bf45bef2634a3c284b35402f258c1c"
+source_bytes = 10377
+source_sha256 = "d86fbf6363654210de30e84da653b13ea7115263545cba631238a6c879854da8"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "supplemental"
+source_path = "exchange/adapter_builders.go"
+source_blob = "93d601431acdb09ab518599cb799c283b3462f85"
+source_bytes = 31697
+source_sha256 = "2574943069d062dbfb6406f53acfe1f9acca195336efb5afd9d318db061ee374"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "supplemental"
+source_path = "exchange/bidder.go"
+source_blob = "87d3eaa719a0f3732a4c45e7c6d63f2c4521c3ca"
+source_bytes = 34671
+source_sha256 = "dd398f54bd4667bd8874d4a8b202dd20abde19bc94fc25f0dbe023ac163155b9"
+
+[[provenance.artifacts]]
+category = "helper"
+source = "supplemental"
+source_path = "openrtb_ext/bidders.go"
+source_blob = "f87caa3fd2eab42bf99c316239bd9a0191c18bbd"
+source_bytes = 28110
+source_sha256 = "53774709e54ef283dd6128fd528a60eac16144c79c725be32028f37f9114f59c"
+
+[[provenance.artifacts]]
+category = "license"
+source = "supplemental"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"

@@ -1,0 +1,59 @@
+key = "kueezrtb"
+factory = false
+
+[definitions]
+
+[provenance]
+origin = "reference"
+
+[provenance.sources.upstream]
+repository = "https://github.com/prebid/prebid-server.git"
+revision = "d7f8515b86258688304b0d9b6668c6a0e258bc9e"
+
+[[provenance.trees]]
+category = "implementation"
+source = "upstream"
+source_path = "adapters/kueezrtb"
+tree = "541ba23b119a4d0f7b8ab6227cdb8c875d7aeec3"
+port_differences = [
+    """\
+    Reference-only source association; no Rust port, factory, endpoint approval or protocol \
+    parity is claimed.""",
+]
+
+[[provenance.artifacts]]
+category = "license"
+source = "upstream"
+source_path = "LICENSE"
+source_blob = "b7fa401fa4b79b208b1dbc4679b09b8f4691adbf"
+source_bytes = 10760
+source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
+port_differences = []
+
+[[provenance.artifacts]]
+category = "metadata"
+source = "upstream"
+source_path = "static/bidder-info/kueezrtb.yaml"
+source_blob = "4242e702d7ce7f054db61f96ae4d47154d4b6aa7"
+source_bytes = 541
+source_sha256 = "9004dea6cbc588e04c5c47be3d4d20a97fb486cabb289cc9cf2d223401c73bae"
+port_differences = [
+    "Source endpoint policy is unreviewed; no runtime definition is generated.",
+    """\
+    Ignored source spelling openrtb.gpp_supported is identified by the pinned source witness, \
+    not promoted into an effective setting.""",
+]
+
+[[provenance.artifacts]]
+category = "schema"
+source = "upstream"
+source_path = "static/bidder-params/kueezrtb.json"
+source_blob = "d8d0b8a733df53f1e8f5f261cad61889b0c690a8"
+source_bytes = 400
+source_sha256 = "42407d1c7ce27f80aa423a82592dfea1feebd936ff859f9fb2983bcd9793434b"
+port_differences = []
+
+[provenance.artifacts.retained]
+source_path = "parameters.json"
+source_bytes = 400
+source_sha256 = "42407d1c7ce27f80aa423a82592dfea1feebd936ff859f9fb2983bcd9793434b"
