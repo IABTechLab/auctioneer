@@ -46,6 +46,7 @@ jobs:
   cloudflare-build:
     name: wrangler dry-run + upload size
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -53,27 +54,26 @@ jobs:
         with:
           node-version-file: .tool-versions
 
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-cloudflare-vendor-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-cloudflare-vendor-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
-        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
       - name: Add the wasm32-unknown-unknown target

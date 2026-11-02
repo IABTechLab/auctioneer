@@ -345,6 +345,155 @@ mod tests {
         .unwrap())
     }
 
+    fn discarded_competitor_projection(
+        slot: &'static str,
+        payload_bytes: usize,
+    ) -> (u64, u64, Vec<u8>) {
+        let registry = registry();
+        let mut aliases = AliasMap::default();
+        aliases.bases.insert(
+            BidderName::new("fake_competitor/~"),
+            BidderName::new("fake_aaa"),
+        );
+        let dropped = BTreeSet::from([BidderName::new("fake_disabled/~")]);
+        let payload = serde_json::json!({"payload": "x".repeat(payload_bytes)});
+        let mut ext = serde_json::json!({"bidder": {"fake_aaa": {"fakeParamId": 1_i64}}});
+        match slot {
+            "hoisted" => ext["bidder"]["fake_competitor/~"] = payload,
+            "typed" => {
+                ext["prebid"] = serde_json::json!({"bidder": {"fake_competitor/~": payload}});
+            }
+            "fpd" => ext["prebid"] = serde_json::json!({"imp": {"fake_competitor/~": payload}}),
+            "legacy-live" => ext["fake_competitor/~"] = payload,
+            "legacy-dropped" => ext["fake_disabled/~"] = payload,
+            "passthrough" => ext["vendor_hint"] = payload,
+            _ => panic!("unknown competitor surface"),
+        }
+        let request: BidRequest = serde_json::from_value(serde_json::json!({
+            "id": "request", "site": {"id": "site"},
+            "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32}, "ext": ext}]
+        }))
+        .unwrap();
+        let original = serde_json::to_vec(&request).unwrap();
+        let source: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        let present = match slot {
+            "hoisted" => &source["imp"][0]["ext"]["bidder"]["fake_competitor/~"],
+            "typed" => &source["imp"][0]["ext"]["prebid"]["bidder"]["fake_competitor/~"],
+            "fpd" => &source["imp"][0]["ext"]["prebid"]["imp"]["fake_competitor/~"],
+            "legacy-live" => &source["imp"][0]["ext"]["fake_competitor/~"],
+            "legacy-dropped" => &source["imp"][0]["ext"]["fake_disabled/~"],
+            "passthrough" => &source["imp"][0]["ext"]["vendor_hint"],
+            _ => panic!("unknown competitor projection slot: {slot}"),
+        };
+        assert_eq!(present["payload"].as_str().unwrap().len(), payload_bytes);
+        assert!(original.len() <= usize::try_from(BODY_CAP).unwrap());
+        let grouped =
+            group_by_bidder(&request, &aliases, &registry, &BTreeSet::new(), &dropped).unwrap();
+        let survivors = [BidderName::new("fake_aaa")];
+        let before = alloc_track::live();
+        alloc_track::reset_peak();
+        let scoped =
+            materialize_per_bidder(&grouped, &survivors, &aliases, &registry, &dropped).unwrap();
+        black_box(&scoped);
+        let peak = alloc_track::peak_since(before);
+        let retained = u64::try_from(alloc_track::live().checked_sub(before).unwrap()).unwrap();
+        assert_eq!(scoped.len(), 1);
+        let wire = serde_json::to_vec(&scoped[0].request).unwrap();
+        assert_eq!(serde_json::to_vec(&request).unwrap(), original);
+        let output: serde_json::Value = serde_json::from_slice(&wire).unwrap();
+        let output_ext = &output["imp"][0]["ext"];
+        assert_eq!(
+            output_ext["bidder"],
+            serde_json::json!({"fakeParamId": 1_i64})
+        );
+        assert!(output_ext.get("fake_competitor/~").is_none());
+        assert!(output_ext.get("fake_disabled/~").is_none());
+        assert!(output_ext["prebid"].get("bidder").is_none());
+        assert!(output_ext["prebid"].get("imp").is_none());
+        if slot == "passthrough" {
+            assert_eq!(
+                output_ext["vendor_hint"]["payload"].as_str().unwrap().len(),
+                payload_bytes
+            );
+        } else {
+            assert!(output_ext.get("vendor_hint").is_none());
+        }
+        (peak, retained, wire)
+    }
+
+    #[test]
+    #[expect(
+        clippy::print_stderr,
+        reason = "parent-controlled red/green runs record cross-size allocation evidence"
+    )]
+    fn discarded_competitor_payload_does_not_scale_survivor_projection() {
+        let mut scaled_slots = Vec::new();
+        for slot in ["hoisted", "typed", "fpd", "legacy-live", "legacy-dropped"] {
+            let scales = thread::spawn(move || {
+                let baseline = discarded_competitor_projection(slot, 32);
+                let mut scales = false;
+                for bytes in [32 * 1024, 128 * 1024] {
+                    let measured = discarded_competitor_projection(slot, bytes);
+                    eprintln!(
+                        "discarded competitor: slot={slot} payload={bytes} baseline_peak={} peak={} baseline_retained={} retained={}",
+                        baseline.0, measured.0, baseline.1, measured.1
+                    );
+                    assert_eq!(
+                        measured.2, baseline.2,
+                        "{slot}: discarded bytes changed the wire output"
+                    );
+                    assert_eq!(
+                        measured.1, baseline.1,
+                        "{slot}: discarded bytes changed retained output"
+                    );
+                    scales |= measured.0 != baseline.0;
+                }
+                scales
+            })
+            .join()
+            .expect("isolated competitor projection finishes");
+            if scales {
+                scaled_slots.push(slot);
+            }
+        }
+        assert!(
+            scaled_slots.is_empty(),
+            "survivor projection duplicated discarded payload bytes: {scaled_slots:?}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::print_stderr,
+        reason = "retained-payload control validates the cross-size allocation measurement"
+    )]
+    fn retained_passthrough_payload_scales_survivor_projection() {
+        thread::spawn(|| {
+            let baseline = discarded_competitor_projection("passthrough", 32);
+            for bytes in [32 * 1024, 128 * 1024] {
+                let measured = discarded_competitor_projection("passthrough", bytes);
+                eprintln!(
+                    "retained passthrough: payload={bytes} baseline_peak={} peak={} baseline_retained={} retained={}",
+                    baseline.0, measured.0, baseline.1, measured.1
+                );
+                assert!(
+                    measured.0 > baseline.0,
+                    "retained payload must increase measured peak"
+                );
+                assert!(
+                    measured.1 > baseline.1,
+                    "retained payload must increase retained output"
+                );
+                assert!(
+                    measured.2.len() > baseline.2.len(),
+                    "retained payload must increase wire bytes"
+                );
+            }
+        })
+        .join()
+        .expect("isolated retained-payload control finishes");
+    }
+
     fn explicit_identity_rejection_peak(slot: &str) -> u64 {
         let owned_slot = slot.to_owned();
         thread::spawn(move || {

@@ -204,6 +204,50 @@ Scoped verification and its limitations are recorded in the
 [follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#parallel-lanes-and-complete-failure-collection).
 The new Linux execution remains the full acceptance and timing owner.
 
+**Slow-test and cache repair (2026-11-02, hosted verification pending):**
+The [duration analysis](docs/superpowers/specs/2026-11-02-github-actions-duration-analysis.md)
+and [slow-suite inventory](docs/superpowers/specs/2026-11-02-slow-test-inventory.md)
+are incorporated into the [repair plan](docs/superpowers/plans/2026-11-02-test-and-runtime-performance.md).
+The new workspace logs pass but spend about 20 minutes in evidence tests;
+the two fresh-build producers are the final cases, with shared-mutex waiting
+included. An average over 19 cases is not a per-case runtime measurement.
+
+- Hermetic sealed-body/feature-export child builds have one mandatory owner;
+  their parent-feature predicate remains in ordinary feature-sensitive tests.
+- The two heavy evidence producers have one exact-dispatch owner. Broad Cargo
+  graphs remain unchanged and still execute the 17 lightweight cases.
+- Source mutation units use six-file repositories and independent identities.
+  Report mutation units capture immutable validation inputs once; the real
+  validation entrypoint still checks current source on every invocation.
+- Two provider mutation matrices prepare twice instead of fourteen times,
+  restoring and freshly validating each of their 8/6 mutations.
+- Success-only schema JSON diagnostics are opt-in. No assertion, immutable
+  capture, resource ceiling, workload or measurement isolation is removed.
+- Download caches are shared. Only the native `target/debug/` seed is retained
+  as compiled output; implicit toolchain caches are disabled. Jobs and long
+  acceptance steps have finite timeouts. No paid runner or cache deletion.
+- Request scoping copies retained fields before cloning competitor data. A
+  cross-size regression fails against the old implementation in five channels;
+  clone-first equivalence and allocation controls pass after the change.
+- The isolated CLI lane explicitly builds the Axum binary and browser config
+  example before its shutdown regression. Run 41459435846 passed its Rust
+  steps but failed both Node cases before browser startup; an empty target
+  reproduces the missing example (`ENOENT`). Building the two prerequisites
+  makes both shutdown/cleanup cases pass locally, including SIGTERM exit 143.
+
+**Explicit follow-ups, not claimed fixed:** the 42 fast synthetic helper units
+remain registered in four integration roots; consolidate only through a clean
+owner boundary, not feature/cfg/import tricks. Config validation/materialization
+and per-impression bid scanning need controlled release profiling before a
+versioned cache or a new index changes ownership. Complete schema resource
+proofs, guest readiness and publisher qualification remain their existing gates.
+Cache footprint and elapsed-time improvement are unverified until the new
+hosted run finishes; retained-cache creation timestamps do not prove no cache
+was read. Actual logs show successful explicit and implicit cache restores.
+The strengthened real-CLI input-binding matrix passes (1 case, 18 filtered),
+but took 591.05 seconds locally; its repeated current-input checks remain a
+profiling/ownership follow-up, not a measured speedup in this repair.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

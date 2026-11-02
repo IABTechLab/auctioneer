@@ -279,40 +279,6 @@ fn main() {
     }
 
     #[test]
-    fn feature_predicate_controls_all_declared_factories_and_metadata() {
-        let declarations: Vec<_> = auctioneer_bidder::bidder_declarations()
-            .iter()
-            .filter(|row| row.required_feature == Some("insecure-bidders"))
-            .collect();
-        assert!(!declarations.is_empty());
-        for declaration in declarations {
-            assert_eq!(
-                auctioneer_bidder::compiled_bidders()
-                    .iter()
-                    .any(|row| row.key == declaration.key),
-                cfg!(feature = "insecure-bidders"),
-                "{}",
-                declaration.key,
-            );
-            let metadata: Vec<_> = auctioneer_config::bidder_metadata_declarations()
-                .iter()
-                .filter(|row| row.implementation == declaration.key)
-                .collect();
-            assert!(
-                !metadata.is_empty(),
-                "feature-gated metadata control must not be empty"
-            );
-            for row in metadata {
-                assert_eq!(row.required_feature, declaration.required_feature);
-                assert_eq!(
-                    auctioneer_config::bidder(row.bidder).is_some(),
-                    cfg!(feature = "insecure-bidders")
-                );
-            }
-        }
-    }
-
-    #[test]
     fn the_harness_builds_an_ungated_reference() {
         let control = Fixture::new("control", CONTROL_BODY);
         let (ok, output) = control.build();

@@ -10,7 +10,7 @@ version = { workspace = true }
 [lints]
 workspace = true
 
-# Mandatory explicit CI owners run these hermetic child-build suites once.
+# Mandatory explicit CI owners run these hermetic child-build suites once per PR.
 # `cargo test --test <name>` still executes them; broad all-target runs do not.
 [[test]]
 name = "schema_build_controls"
@@ -34,6 +34,14 @@ test = false
 
 [[test]]
 name = "insecure_bidders_snapshot"
+test = false
+
+[[test]]
+name = "response_body_is_sealed"
+test = false
+
+[[test]]
+name = "feature_exports_source_conformance"
 test = false
 
 [features]

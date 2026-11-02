@@ -1473,18 +1473,18 @@ pub(super) mod tests {
     async fn capture_and_component_handoff_reject_modified_added_deleted_and_untracked_build_inputs()
      {
         let supervisor = process::Supervisor::new();
+        let (_source, _work, plan) =
+            preparation::tests::prepared_with_source("spin", &supervisor, |root| {
+                fs::write(
+                    root.join("crates/auctioneer-core/src/local_untracked.rs"),
+                    b"A",
+                )
+                .unwrap();
+            })
+            .await;
         let mut checked = 0_usize;
         for boundary in ["capture", "handoff"] {
             for mutation in ["modify", "add", "delete", "untracked_modify"] {
-                let (_source, _work, plan) =
-                    preparation::tests::prepared_with_source("spin", &supervisor, |root| {
-                        fs::write(
-                            root.join("crates/auctioneer-core/src/local_untracked.rs"),
-                            b"A",
-                        )
-                        .unwrap();
-                    })
-                    .await;
                 assert!(
                     preparation::git(
                         &supervisor,
@@ -1508,10 +1508,16 @@ pub(super) mod tests {
                 } else {
                     "crates/auctioneer-core/src/lib.rs"
                 });
-                if mutation == "delete" {
-                    fs::remove_file(file).unwrap();
+                let original = if mutation == "add" {
+                    assert!(!file.try_exists().unwrap());
+                    None
                 } else {
-                    fs::write(file, b"changed").unwrap();
+                    Some(fs::read(&file).unwrap())
+                };
+                if mutation == "delete" {
+                    fs::remove_file(&file).unwrap();
+                } else {
+                    fs::write(&file, b"changed").unwrap();
                 }
                 let result = if boundary == "capture" {
                     capture(
@@ -1530,6 +1536,14 @@ pub(super) mod tests {
                     HarnessError::new("source_changed"),
                     "{boundary}:{mutation}"
                 );
+                if let Some(bytes) = original {
+                    fs::write(file, bytes).unwrap();
+                } else {
+                    fs::remove_file(file).unwrap();
+                }
+                preparation::verify_frozen_inputs(&plan, &supervisor)
+                    .await
+                    .unwrap();
                 checked = checked.checked_add(1).unwrap();
             }
         }
@@ -1540,11 +1554,10 @@ pub(super) mod tests {
     #[tokio::test]
     async fn capture_and_component_handoff_reject_each_isolated_metadata_member_change() {
         let supervisor = process::Supervisor::new();
+        let (_source, _work, plan) = preparation::tests::prepared("spin", &supervisor).await;
         let mut checked = 0_usize;
         for boundary in ["capture", "handoff"] {
             for mutation in ["modify", "add", "delete"] {
-                let (_source, _work, plan) =
-                    preparation::tests::prepared("spin", &supervisor).await;
                 let build = artifact(&plan);
                 let file = if mutation == "add" {
                     plan.bidders_dir.join("extra.toml")
@@ -1556,10 +1569,16 @@ pub(super) mod tests {
                         .min()
                         .unwrap()
                 };
-                if mutation == "delete" {
-                    fs::remove_file(file).unwrap();
+                let original = if mutation == "add" {
+                    assert!(!file.try_exists().unwrap());
+                    None
                 } else {
-                    fs::write(file, b"changed").unwrap();
+                    Some(fs::read(&file).unwrap())
+                };
+                if mutation == "delete" {
+                    fs::remove_file(&file).unwrap();
+                } else {
+                    fs::write(&file, b"changed").unwrap();
                 }
                 let result = if boundary == "capture" {
                     capture(
@@ -1578,6 +1597,14 @@ pub(super) mod tests {
                     HarnessError::new("fixture_changed"),
                     "{boundary}:{mutation}"
                 );
+                if let Some(bytes) = original {
+                    fs::write(file, bytes).unwrap();
+                } else {
+                    fs::remove_file(file).unwrap();
+                }
+                preparation::verify_frozen_inputs(&plan, &supervisor)
+                    .await
+                    .unwrap();
                 checked = checked.checked_add(1).unwrap();
             }
         }

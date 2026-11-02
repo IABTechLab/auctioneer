@@ -124,6 +124,48 @@ fn reject_compiler_errors(syntax: &mut syn::File) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::schema_build::application::Adapter;
+    use std::env::var;
+    use std::io::{self, Write, stderr};
+
+    #[test]
+    fn schema_diagnostics_stay_quiet_unless_flag_is_exactly_true() {
+        let report = json!({"kind": "schema_diagnostics", "count": 1_i32});
+        for flag in [
+            None,
+            Some(""),
+            Some("false"),
+            Some("TRUE"),
+            Some("True"),
+            Some("1"),
+            Some(" true"),
+            Some("true "),
+        ] {
+            let mut output = Vec::new();
+            write_schema_diagnostics(flag, &mut output, &report).unwrap();
+            assert!(output.is_empty(), "{flag:?}");
+        }
+    }
+
+    #[test]
+    fn schema_diagnostics_write_json_when_flag_is_true() {
+        let report = json!({"kind": "schema_diagnostics", "count": 2_i32});
+        let mut output = Vec::new();
+        write_schema_diagnostics(Some("true"), &mut output, &report).unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&output).unwrap(), report);
+        assert!(output.ends_with(b"\n"));
+    }
+
+    fn write_schema_diagnostics(
+        flag: Option<&str>,
+        writer: &mut impl Write,
+        report: &Value,
+    ) -> io::Result<()> {
+        if flag == Some("true") {
+            serde_json::to_writer(&mut *writer, report).map_err(io::Error::other)?;
+            writeln!(writer)?;
+        }
+        Ok(())
+    }
 
     #[test]
     fn priority_contract_approval_pins_reviewed_inputs_without_acceptance_grants() {
@@ -489,7 +531,6 @@ mod tests {
     fn compiler_private_layout_facts_cover_native_and_every_guest_abi() {
         use super::schema_build::schema_regex_vendor::FEATURES;
         use super::schema_syntax_construction::{PAYLOAD_TYPES, PRIVATE_TYPES};
-        use std::io::{Write as _, stderr};
         use std::mem::{align_of, size_of};
 
         let syntax_features = [
@@ -574,10 +615,10 @@ mod tests {
                     );
                 }
                 attach_target_components(&mut report, package);
-                writeln!(
-                    stderr().lock(),
-                    "{}",
-                    serde_json::to_string(&report).unwrap()
+                write_schema_diagnostics(
+                    var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
+                    &mut stderr().lock(),
+                    &report,
                 )
                 .unwrap();
                 checked += 1;
@@ -610,7 +651,6 @@ mod tests {
     fn assert_actual_application_artifacts(adapter: Adapter, package: &str) {
         use super::schema_build::application::inspect;
         use super::schema_selection_source::{Lane, selected_cohort};
-        use std::io::{Write as _, stderr};
 
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
@@ -650,10 +690,10 @@ mod tests {
                 );
                 assert_eq!(application["refusal_controls"].as_array().unwrap().len(), 8);
             }
-            writeln!(
-                stderr().lock(),
-                "{}",
-                serde_json::to_string(&report).unwrap()
+            write_schema_diagnostics(
+                var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
+                &mut stderr().lock(),
+                &report,
             )
             .unwrap();
         }
@@ -827,7 +867,6 @@ mod tests {
     #[test]
     fn selected_schema_probe_links_and_executes_the_source_bound_cohort() {
         use super::schema_selection_source::{Lane, selected_cohort};
-        use std::io::{Write as _, stderr};
         let runtime = super::schema_build::guest::Runtime::discover()
             .expect("repository-pinned local WASI runner");
         for lane in [Lane::Secure, Lane::Development] {
@@ -913,7 +952,12 @@ mod tests {
                 "resident_resource_bounds",
                 "all_target_qualification"
             ]);
-            writeln!(stderr(), "{}", serde_json::to_string(&report).unwrap()).unwrap();
+            write_schema_diagnostics(
+                var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
+                &mut stderr().lock(),
+                &report,
+            )
+            .unwrap();
         }
     }
 

@@ -415,6 +415,40 @@ mod tests {
     }
 
     #[test]
+    fn feature_predicate_controls_all_declared_factories_and_metadata() {
+        let declarations: Vec<_> = auctioneer_bidder::bidder_declarations()
+            .iter()
+            .filter(|row| row.required_feature == Some("insecure-bidders"))
+            .collect();
+        assert!(!declarations.is_empty());
+        for declaration in declarations {
+            assert_eq!(
+                auctioneer_bidder::compiled_bidders()
+                    .iter()
+                    .any(|row| row.key == declaration.key),
+                cfg!(feature = "insecure-bidders"),
+                "{}",
+                declaration.key,
+            );
+            let metadata: Vec<_> = auctioneer_config::bidder_metadata_declarations()
+                .iter()
+                .filter(|row| row.implementation == declaration.key)
+                .collect();
+            assert!(
+                !metadata.is_empty(),
+                "feature-gated metadata control must not be empty"
+            );
+            for row in metadata {
+                assert_eq!(row.required_feature, declaration.required_feature);
+                assert_eq!(
+                    auctioneer_config::bidder(row.bidder).is_some(),
+                    cfg!(feature = "insecure-bidders")
+                );
+            }
+        }
+    }
+
+    #[test]
     fn generated_views_have_exact_feature_membership_and_all_declarations() {
         let expected = Membership::from_manifests(&manifests());
         let actual = generated_membership();

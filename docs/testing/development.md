@@ -166,7 +166,7 @@ that target must be installed before selecting the case locally.
 
 ### Acceptance
 
-Seven hermetic child-build targets have explicit owners rather than running
+Nine hermetic child-build targets have explicit owners rather than running
 again in every broad `--all-targets` scope. Their `[[test]] test = false` Cargo
 setting changes default selection, not availability. Run the relevant owner
 explicitly when changing the compiler, discovery or config rejection behavior:
@@ -178,6 +178,8 @@ cargo test --locked -p auctioneer-bidder --test factory_binding_build
 cargo test --locked -p auctioneer-bidder --test registry_build -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test generated_settings -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test response_body_is_sealed -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test feature_exports_source_conformance -- --test-threads=1
 cargo test --locked -p auctioneer-config --test build_failure_harness
 ```
 
@@ -199,13 +201,36 @@ Keep their separate fixtures, fresh processes and every original assertion;
 this ownership does not authorize artifact reuse. Both workspace scopes use
 `--no-fail-fast` to report later target failures while retaining a failed exit.
 
-CI schedules four native lanes (secure, complete default workspace, complete
-insecure workspace, standalone CLI) and four compiler lanes (schema, settings,
-exports, discovery). The commands and feature graphs stay distinct and intact;
-this is scheduling, not substitution of package-only tests for a workspace.
-Each lane retains its prerequisites and strict lint. Ordinary Cargo compilation
-caches can be saved after a failed test job; cached products never count as
-test success or permit reuse of allocation/qualification observations.
+CI schedules the original four native graphs (secure, default workspace,
+insecure workspace and standalone CLI), one heavy evidence-producer owner,
+and four compiler lanes (schema, settings, exports and discovery). Only the
+two closed producer cases are skipped by libtest in broad runs; Cargo roots,
+features and the other 17 evidence cases remain unchanged. The dedicated owner
+enumerates the target, runs both full case names with `--exact`, and refuses
+missing, ignored, zero or mismatched dispatch. Each producer still executes its
+fresh child plans, including secure and development onboarding.
+
+For a complete local producer check, use the same owner script with the pinned
+source checkout available and `RUNNER_TEMP` set to a disposable directory:
+
+```sh
+bash .github/workflows/scripts/test/verify-evidence-producers.sh
+```
+
+The ordinary feature predicate stays in `registry_source_conformance`; moving
+child compiler suites does not move that predicate out of the parent graphs.
+Large schema diagnostic reports are opt-in with
+`AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS=true`; assertions and artifact inspection
+do not depend on that flag.
+
+All workflows share one registry/Git download cache. Only slow native lanes
+restore `target/debug/`, with the default-workspace lane as its single writer;
+Cargo revalidates source, features and fingerprints. Toolchain-action implicit
+caching is disabled so it cannot duplicate that policy. Save-after-failure
+retains normal compilation products, not observations or passing test results.
+Nested scratch workspaces and guest artifacts are outside the compiled seed.
+Every job and long acceptance step has an explicit safety limit. New cache
+footprint and whole-CI timing still require complete hosted measurement.
 
 The workflows in `.github/workflows/` remain the authoritative full matrix:
 secure-default package controls, workspace/features, conformance, all adapter

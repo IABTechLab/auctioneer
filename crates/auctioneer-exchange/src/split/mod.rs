@@ -395,7 +395,24 @@ fn build_scoped_imp(
     params: Value,
     inputs: &SplitInputs<'_>,
 ) -> Value {
-    let mut scoped = imp_value.clone();
+    // Copy only retained fields; competitor subtrees must not be cloned just
+    // to be discarded. Keep non-object shapes intact for merge-patch semantics.
+    let mut scoped = if let Some(imp) = imp_value.as_object() {
+        Value::Object(
+            imp.iter()
+                .map(|(key, value)| {
+                    let scoped_value = if key == "ext" {
+                        clone_scoped_ext(value, inputs)
+                    } else {
+                        value.clone()
+                    };
+                    (key.clone(), scoped_value)
+                })
+                .collect(),
+        )
+    } else {
+        imp_value.clone()
+    };
     // Replace `imp.ext.bidder` with this bidder's params only.
     if let Some(ext) = scoped.pointer_mut("/ext").and_then(Value::as_object_mut) {
         ext.insert("bidder".into(), params);
@@ -410,9 +427,8 @@ fn build_scoped_imp(
         .pointer("/ext/prebid/imp")
         .and_then(Value::as_object)
         .and_then(|obj| obj.get(bidder_name.as_str()))
-        .cloned()
     {
-        merge_patch(&mut scoped, &fpd);
+        merge_patch(&mut scoped, fpd);
     }
     // Strip every OTHER bidder's competitor params / FPD.
     // Three surfaces:
@@ -438,6 +454,38 @@ fn build_scoped_imp(
         });
     }
     scoped
+}
+
+fn clone_scoped_ext(ext: &Value, inputs: &SplitInputs<'_>) -> Value {
+    let Some(ext_obj) = ext.as_object() else {
+        return ext.clone();
+    };
+    let mut scoped = serde_json::Map::new();
+    for (key, value) in ext_obj {
+        // `bidder` is replaced with selected params before FPD. Other bidder
+        // slots are always removed after FPD, so their old values cannot affect
+        // retained fields. The final strip still removes reintroduced slots.
+        if key == "bidder"
+            || (!matches!(key.as_str(), "tid" | "prebid") && is_known_bidder(key, inputs))
+        {
+            continue;
+        }
+        let scoped_value = if key == "prebid"
+            && let Some(prebid) = value.as_object()
+        {
+            Value::Object(
+                prebid
+                    .iter()
+                    .filter(|(field, _)| !matches!(field.as_str(), "bidder" | "imp"))
+                    .map(|(field, child)| (field.clone(), child.clone()))
+                    .collect(),
+            )
+        } else {
+            value.clone()
+        };
+        scoped.insert(key.clone(), scoped_value);
+    }
+    Value::Object(scoped)
 }
 
 /// A key at `imp.ext.<key>` (or an entry in `imp.ext.bidder.<key>` /
@@ -509,6 +557,301 @@ mod tests {
     use auctioneer_openrtb::ext::imp::ImpExt;
     use auctioneer_openrtb::types::bid_request::{BidRequest, Imp};
     use auctioneer_openrtb::types::field::JsonField;
+
+    // Independent clone-first oracle: preserve the pre-optimization sequencing.
+    fn clone_first_scoped_imp(
+        imp_value: &serde_json::Value,
+        bidder_name: &BidderName,
+        params: serde_json::Value,
+        inputs: &super::SplitInputs<'_>,
+    ) -> serde_json::Value {
+        use serde_json::Value;
+
+        let mut scoped = imp_value.clone();
+        if let Some(ext) = scoped.pointer_mut("/ext").and_then(Value::as_object_mut) {
+            ext.insert("bidder".into(), params);
+        }
+        if let Some(fpd) = imp_value
+            .pointer("/ext/prebid/imp")
+            .and_then(Value::as_object)
+            .and_then(|obj| obj.get(bidder_name.as_str()))
+            .cloned()
+        {
+            merge_patch(&mut scoped, &fpd);
+        }
+        if let Some(prebid) = scoped
+            .pointer_mut("/ext/prebid")
+            .and_then(Value::as_object_mut)
+        {
+            prebid.remove("bidder");
+            prebid.remove("imp");
+        }
+        if let Some(ext_obj) = scoped.pointer_mut("/ext").and_then(Value::as_object_mut) {
+            ext_obj.retain(|key, _| {
+                if matches!(key.as_str(), "tid" | "prebid" | "bidder") {
+                    return true;
+                }
+                !super::is_known_bidder(key, inputs)
+            });
+        }
+        scoped
+    }
+
+    #[test]
+    fn scoped_imp_matches_clone_first_for_fpd_merge_and_strip_boundaries() {
+        use serde_json::{Value, json};
+
+        let registry = registry_with(&["fake_aaa", "fake_ccc"]);
+        let mut aliases = AliasMap::default();
+        for name in [
+            "fake_selected/~",
+            "fake_competitor/~",
+            "tid",
+            "prebid",
+            "bidder",
+        ] {
+            aliases
+                .bases
+                .insert(BidderName::new(name), BidderName::new("fake_aaa"));
+        }
+        let dropped = BTreeSet::from([BidderName::new("fake_disabled/~")]);
+        let inputs = super::SplitInputs {
+            aliases: &aliases,
+            registry: &registry,
+            dropped_alias_names: &dropped,
+        };
+        let patches = [
+            Value::Null,
+            json!(false),
+            json!(7_i64),
+            json!("replacement"),
+            json!([null, {"ext": {"fake_ccc": "inside-array"}}]),
+            json!({}),
+            json!({"id": null}),
+            json!({"id": "different", "banner": null}),
+            json!({"banner": {"w": 640_i32, "h": null}, "added": {"null": null}}),
+            json!({"ext": null}),
+            json!({"ext": false}),
+            json!({"ext": 9_i64}),
+            json!({"ext": "replacement"}),
+            json!({"ext": [{"prebid": {"imp": "inside-array"}}]}),
+            json!({"ext": {}}),
+            json!({"ext": {"bidder": null}}),
+            json!({"ext": {"bidder": false}}),
+            json!({"ext": {"bidder": [null, {"keep_null": null}]}}),
+            json!({"ext": {"bidder": {"remove": null, "nested": {"old": null, "new": true}}}}),
+            json!({"ext": {"prebid": null}}),
+            json!({"ext": {"prebid": false}}),
+            json!({"ext": {"prebid": "replacement"}}),
+            json!({"ext": {"prebid": [{"bidder": "inside-array"}]}}),
+            json!({"ext": {"prebid": {}}}),
+            json!({"ext": {"prebid": {"bidder": {"fake_ccc": "reintroduced"}, "imp": false}}}),
+            json!({"ext": {"prebid": {"storedrequest": null, "added": {"remove": null, "keep": true}}}}),
+            json!({"ext": {
+                "fake_aaa": {"reintroduced": true},
+                "fake_ccc": {"reintroduced": true},
+                "fake_selected/~": {"reintroduced": true},
+                "fake_competitor/~": {"reintroduced": true},
+                "fake_disabled/~": {"reintroduced": true},
+                "unknown": {"old": null, "new": true},
+                "tid": "patched", "PREBID": {"imp": "passthrough"}
+            }}),
+        ];
+        for name in ["fake_aaa", "fake_selected/~"] {
+            for params in [
+                Value::Null,
+                json!([null]),
+                json!({"remove": true, "nested": {"old": true}}),
+            ] {
+                for patch in &patches {
+                    let imp = json!({
+                        "id": "original", "banner": {"w": 300_i32, "h": 250_i32},
+                        "ext": {
+                            "tid": "original", "bidder": {name: "source", "fake_ccc": "competitor"},
+                            "prebid": {
+                                "bidder": {name: "typed-source", "fake_ccc": "competitor"},
+                                "imp": {name: patch, "fake_ccc": {"competitor": true}},
+                                "storedrequest": {"id": "kept"}
+                            },
+                            "fake_aaa": "legacy", "fake_ccc": "competitor",
+                            "fake_selected/~": "legacy", "fake_competitor/~": "competitor",
+                            "fake_disabled/~": "competitor", "unknown": {"old": true},
+                            "PREBID": null
+                        }
+                    });
+                    assert!(imp["ext"]["prebid"]["imp"].get(name).is_some());
+                    assert!(imp["ext"].get("fake_disabled/~").is_some());
+                    let original = serde_json::to_vec(&imp).unwrap();
+                    let bidder = BidderName::new(name);
+                    let expected = clone_first_scoped_imp(&imp, &bidder, params.clone(), &inputs);
+                    let actual = super::build_scoped_imp(&imp, &bidder, params.clone(), &inputs);
+                    assert_eq!(
+                        actual, expected,
+                        "name={name}, params={params}, patch={patch}"
+                    );
+                    assert_eq!(
+                        serde_json::to_vec(&actual).unwrap(),
+                        serde_json::to_vec(&expected).unwrap()
+                    );
+                    assert_eq!(serde_json::to_vec(&imp).unwrap(), original);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn scoped_imp_matches_clone_first_for_source_presence_and_nonobject_shapes() {
+        use serde_json::{Value, json};
+
+        let registry = registry_with(&["fake_aaa"]);
+        let aliases = AliasMap::default();
+        let dropped = BTreeSet::new();
+        let inputs = super::SplitInputs {
+            aliases: &aliases,
+            registry: &registry,
+            dropped_alias_names: &dropped,
+        };
+        let mut imps = vec![
+            Value::Null,
+            json!(true),
+            json!(7_i64),
+            json!("imp"),
+            json!([]),
+            json!({"id": "i"}),
+        ];
+        for ext in [
+            Value::Null,
+            json!(false),
+            json!(7_i64),
+            json!("ext"),
+            json!([]),
+            json!({}),
+        ] {
+            imps.push(json!({"id": "i", "ext": ext}));
+        }
+        for prebid in [
+            Value::Null,
+            json!(false),
+            json!(7_i64),
+            json!("prebid"),
+            json!([]),
+            json!({}),
+            json!({"bidder": null, "imp": null}),
+            json!({"bidder": [], "imp": []}),
+            json!({"bidder": {"fake_aaa": {}}, "imp": {"unknown": {}}}),
+        ] {
+            imps.push(json!({"id": "i", "ext": {"prebid": prebid}}));
+        }
+        for imp in imps {
+            for params in [Value::Null, json!({"selected": true})] {
+                let original = serde_json::to_vec(&imp).unwrap();
+                let bidder = BidderName::new("fake_aaa");
+                let expected = clone_first_scoped_imp(&imp, &bidder, params.clone(), &inputs);
+                let actual = super::build_scoped_imp(&imp, &bidder, params, &inputs);
+                assert_eq!(actual, expected, "source={imp}");
+                assert_eq!(
+                    serde_json::to_vec(&actual).unwrap(),
+                    serde_json::to_vec(&expected).unwrap()
+                );
+                assert_eq!(serde_json::to_vec(&imp).unwrap(), original);
+            }
+        }
+    }
+
+    #[test]
+    fn scoped_materialization_matches_clone_first_params_precedence_and_supplements() {
+        use serde_json::{Value, json};
+
+        let registry = registry_with(&["fake_aaa", "fake_ccc"]);
+        let mut aliases = AliasMap::default();
+        aliases.bases.insert(
+            BidderName::new("fake_selected/~"),
+            BidderName::new("fake_aaa"),
+        );
+        let dropped = BTreeSet::new();
+        let inputs = super::SplitInputs {
+            aliases: &aliases,
+            registry: &registry,
+            dropped_alias_names: &dropped,
+        };
+        for name in ["fake_aaa", "fake_selected/~"] {
+            for slot in ["hoisted", "typed", "legacy"] {
+                for null_params in [false, true] {
+                    let selected = if null_params {
+                        Value::Null
+                    } else {
+                        json!({"chosen": slot, "nested": {"keep": 1_i64}})
+                    };
+                    let mut ext = json!({
+                        name: {"chosen": "legacy-decoy"},
+                        "bidder": {"fake_ccc": {}},
+                        "prebid": {
+                            "bidder": {"fake_ccc": {}},
+                            "imp": {name: {"banner": {"w": 640_i32}, "ext": {"bidder": {"fpd": true}}}}
+                        }
+                    });
+                    match slot {
+                        "hoisted" => {
+                            ext["bidder"][name] = selected;
+                            ext["prebid"]["bidder"][name] = json!({"chosen": "typed-decoy"});
+                        }
+                        "typed" => ext["prebid"]["bidder"][name] = selected,
+                        "legacy" => ext[name] = selected,
+                        _ => unreachable!(),
+                    }
+                    let request: BidRequest = serde_json::from_value(json!({
+                        "id": "request", "site": {"id": "site"},
+                        "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32}, "ext": ext}],
+                        "ext": {"prebid": {"bidderparams": {name: {
+                            "chosen": "supplement-decoy", "fill": "supplement",
+                            "nested": {"keep": 9_i64, "add": 2_i64}
+                        }}}}
+                    }))
+                    .unwrap();
+                    let original = serde_json::to_vec(&request).unwrap();
+                    let grouped =
+                        group_by_bidder(&request, &aliases, &registry, &BTreeSet::new(), &dropped)
+                            .unwrap();
+                    let grouped_before = serde_json::to_vec(&grouped.request_value).unwrap();
+                    let bidder = BidderName::new(name);
+                    let params = if null_params {
+                        Value::Null
+                    } else {
+                        json!({
+                            "chosen": slot, "fill": "supplement", "nested": {"keep": 1_i64, "add": 2_i64}
+                        })
+                    };
+                    let mut expected_value = grouped.request_value.clone();
+                    expected_value["imp"][0] = clone_first_scoped_imp(
+                        &grouped.request_value["imp"][0],
+                        &bidder,
+                        params,
+                        &inputs,
+                    );
+                    let expected: BidRequest = serde_json::from_value(expected_value).unwrap();
+                    expected.validate().unwrap();
+                    let scoped =
+                        materialize_per_bidder(&grouped, &[bidder], &aliases, &registry, &dropped)
+                            .unwrap();
+                    assert_eq!(scoped.len(), 1);
+                    assert_eq!(
+                        serde_json::to_value(&scoped[0].request).unwrap(),
+                        serde_json::to_value(&expected).unwrap(),
+                        "name={name}, slot={slot}, null={null_params}"
+                    );
+                    assert_eq!(
+                        serde_json::to_vec(&scoped[0].request).unwrap(),
+                        serde_json::to_vec(&expected).unwrap()
+                    );
+                    assert_eq!(serde_json::to_vec(&request).unwrap(), original);
+                    assert_eq!(
+                        serde_json::to_vec(&grouped.request_value).unwrap(),
+                        grouped_before
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn merge_patch_replaces_arrays_whole() {

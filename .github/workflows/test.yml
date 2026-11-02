@@ -16,10 +16,21 @@ jobs:
   test:
     name: cargo test (${{ matrix.lane }})
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
       matrix:
-        lane: [secure, workspace-default, workspace-insecure, cli]
+        include:
+          - lane: secure
+            timeout_minutes: 35
+          - lane: workspace-default
+            timeout_minutes: 60
+          - lane: workspace-insecure
+            timeout_minutes: 60
+          - lane: cli
+            timeout_minutes: 75
+          - lane: evidence-producers
+            timeout_minutes: 45
     env:
       # Point the round-trip fixture test at the prebid-server clone
       # checked out below so CI walks the full valid-whole corpus, not
@@ -37,6 +48,10 @@ jobs:
       - name: Check raw JSON fixture gate rejection cases
         if: matrix.lane == 'secure'
         run: ./scripts/check-raw-json-fixtures-fixtures.sh
+
+      - name: Check libtest summary rejection controls
+        if: matrix.lane == 'secure'
+        run: bash .github/workflows/scripts/test/check-libtest-result-fixtures.sh
 
       - name: Check out prebid-server fixtures
         uses: actions/checkout@v7
@@ -63,20 +78,29 @@ jobs:
           ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
           path: vendor/bidder-supplemental-reference
 
-      - name: Cache Cargo dependencies
-        id: cargo-cache
+      - name: Cache Cargo downloads
+        id: download-cache
         uses: actions/cache/restore@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-native-${{ matrix.lane }}-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-test-native-${{ matrix.lane }}-
-            ${{ runner.os }}-cargo-test-native-
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      # Cargo rechecks source, features and fingerprints in every lane.
+      # One workspace owner saves the seed; consumers never cache test results.
+      - name: Restore native Cargo build products
+        if: matrix.lane != 'secure'
+        id: native-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: target/debug/
+          key: ${{ runner.os }}-cargo-native-build-v1-${{ hashFiles('.tool-versions', 'Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-native-build-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -86,6 +110,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           # Compile-fail snapshots include standard-library panic locations.
           components: "clippy, rustfmt, rust-src"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
@@ -126,7 +151,7 @@ jobs:
 
       - name: Verify factory and metadata feature ownership
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-bidder --test registry_join --test catalog_alloc --test registry_source_conformance --test feature_exports_source_conformance
+        run: cargo test --locked -p auctioneer-bidder --test registry_join --test catalog_alloc --test registry_source_conformance
 
       - name: Verify immutable bidder source inventory
         if: matrix.lane == 'secure'
@@ -193,6 +218,7 @@ jobs:
         run: cargo test --locked -p auctioneer-config-schema --lib --features build-support
 
       - name: Run bidder, exchange and core tests (secure defaults)
+        timeout-minutes: 25
         if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core --all-targets
 
@@ -238,8 +264,12 @@ jobs:
         run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-config/test-harness-override
 
       - name: Run workspace tests (default features)
+        timeout-minutes: 45
         if: matrix.lane == 'workspace-default'
-        run: cargo test --workspace --all-targets --no-fail-fast
+        run: >
+          cargo test --workspace --all-targets --no-fail-fast --
+          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
+          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
 
       - name: Verify source selection (default workspace graph)
         if: matrix.lane == 'workspace-default'
@@ -248,8 +278,12 @@ jobs:
       # Hermetic compiler/config targets have explicit mandatory owners below.
       # Keep the existing config exclusion and its feature-sensitive named lane.
       - name: Run workspace tests (insecure-bidders feature)
+        timeout-minutes: 45
         if: matrix.lane == 'workspace-insecure'
-        run: cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config --no-fail-fast
+        run: >
+          cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config --no-fail-fast --
+          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
+          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
 
       - name: Verify source selection (insecure workspace graph)
         if: matrix.lane == 'workspace-insecure'
@@ -286,16 +320,29 @@ jobs:
       # These use local fixtures and processes, not credentialed providers.
       # All targets includes the actual qualification_harness CLI integration tests.
       - name: Test Rust resource qualification and provider harnesses
+        timeout-minutes: 45
         if: matrix.lane == 'cli'
-        run: cargo test --locked -p auctioneer-cli --all-targets
+        run: >
+          cargo test --locked -p auctioneer-cli --all-targets --
+          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
+          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
+
+      # These closed plans build and dispatch secure/development child graphs.
+      # Only libtest selection changes above; all parent Cargo graphs stay intact.
+      - name: Verify fresh evidence producers and exact dispatch
+        timeout-minutes: 40
+        if: matrix.lane == 'evidence-producers'
+        run: bash .github/workflows/scripts/test/verify-evidence-producers.sh
 
       # Keep repair/reference coverage independent of application/config builds.
       # The job-level pinned bidder source also feeds these all-targets tests.
       - name: Test maintenance-only CLI
+        timeout-minutes: 20
         if: matrix.lane == 'cli'
         run: cargo test --locked -p auctioneer-cli --no-default-features --all-targets
 
       - name: Lint maintenance-only CLI
+        timeout-minutes: 10
         if: matrix.lane == 'cli'
         run: cargo clippy --locked -p auctioneer-cli --no-default-features --all-targets -- -D warnings
 
@@ -305,25 +352,37 @@ jobs:
         with:
           node-version-file: .tool-versions
 
+      # This isolated lane cannot inherit the workspace job's Axum artifacts.
+      - name: Build user-sync browser shutdown prerequisites
+        timeout-minutes: 15
+        if: matrix.lane == 'cli'
+        run: cargo build --locked -p auctioneer-adapter-axum --bin auctioneer-adapter-axum --example usersync_browser_config --features insecure-bidders
+
       - name: Test user-sync browser process shutdown
         if: matrix.lane == 'cli'
         run: node --test scripts/tests/usersync-browser-shutdown.test.mjs
 
-      - name: Save Cargo dependencies
-        if: ${{ always() && !cancelled() && steps.cargo-cache.outputs.cache-primary-key != '' && steps.cargo-cache.outputs.cache-hit != 'true' }}
+      - name: Save Cargo downloads
+        if: ${{ always() && !cancelled() && steps.download-cache.outputs.cache-primary-key != '' && steps.download-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+          key: ${{ steps.download-cache.outputs.cache-primary-key }}
+
+      - name: Save native Cargo build products
+        if: ${{ always() && !cancelled() && matrix.lane == 'workspace-default' && steps.native-build-cache.outputs.cache-primary-key != '' && steps.native-build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: target/debug/
+          key: ${{ steps.native-build-cache.outputs.cache-primary-key }}
 
   compiler-conformance:
     name: cargo test (compiler conformance ${{ matrix.lane }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -355,20 +414,17 @@ jobs:
           repository: prebid/prebid-server
           ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
           path: vendor/bidder-supplemental-reference
-      - name: Cache Cargo dependencies
-        id: cargo-cache
+      - name: Cache Cargo downloads
+        id: download-cache
         uses: actions/cache/restore@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-compiler-conformance-${{ matrix.lane }}-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-test-compiler-conformance-${{ matrix.lane }}-
-            ${{ runner.os }}-cargo-test-compiler-conformance-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -378,6 +434,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           components: "clippy, rustfmt, rust-src"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
@@ -403,6 +460,7 @@ jobs:
         run: bash .github/workflows/scripts/test/execute-catalog-publication.sh
 
       - name: Verify bounded schema compiler controls and source conformance
+        timeout-minutes: 35
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh '${{ matrix.lane }}'
 
@@ -427,21 +485,20 @@ jobs:
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-metadata-development.sh
 
-      - name: Save Cargo dependencies
-        if: ${{ always() && !cancelled() && steps.cargo-cache.outputs.cache-primary-key != '' && steps.cargo-cache.outputs.cache-hit != 'true' }}
+      - name: Save Cargo downloads
+        if: ${{ always() && !cancelled() && steps.download-cache.outputs.cache-primary-key != '' && steps.download-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+          key: ${{ steps.download-cache.outputs.cache-primary-key }}
 
   config-build-failures:
     name: cargo test (config build failures)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
@@ -469,18 +526,16 @@ jobs:
           repository: prebid/prebid-server
           ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
           path: vendor/bidder-supplemental-reference
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-config-build-failures-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-test-config-build-failures-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -490,6 +545,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           components: "clippy, rustfmt, rust-src"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
@@ -505,12 +561,14 @@ jobs:
         run: cargo fetch --locked --target wasm32-wasip1
 
       - name: Verify rejected configuration builds and exhaustive disclosure coverage
+        timeout-minutes: 30
         shell: bash
         run: bash .github/workflows/scripts/test/verify-config-build-failures.sh
 
   application-artifacts:
     name: cargo test (application artifact ${{ matrix.adapter }})
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -542,18 +600,16 @@ jobs:
           repository: prebid/prebid-server
           ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
           path: vendor/bidder-supplemental-reference
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-application-${{ matrix.adapter }}-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-test-application-${{ matrix.adapter }}-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -563,6 +619,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           components: "clippy, rustfmt, rust-src"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
@@ -579,6 +636,7 @@ jobs:
 
       # Each exact case inspects secure and development artifacts sequentially.
       - name: Inspect both feature lanes of the actual adapter artifact
+        timeout-minutes: 20
         shell: bash
         run: >
           bash .github/workflows/scripts/test/verify-schema-source.sh 1
@@ -588,6 +646,7 @@ jobs:
   schema-source-probes:
     name: cargo test (schema source ${{ matrix.probe }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -623,18 +682,16 @@ jobs:
           repository: prebid/prebid-server
           ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
           path: vendor/bidder-supplemental-reference
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-source-${{ matrix.probe }}-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-test-source-${{ matrix.probe }}-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -644,6 +701,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           components: "clippy, rustfmt, rust-src"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
@@ -664,6 +722,7 @@ jobs:
         run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
 
       - name: Verify the independently owned source probe
+        timeout-minutes: 25
         shell: bash
         run: >
           bash .github/workflows/scripts/test/verify-schema-source.sh 1
@@ -679,21 +738,20 @@ jobs:
   conformance-suite:
     name: cargo test (fanout conformance suite)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-conformance-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-conformance-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -703,6 +761,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
       - name: Fetch dependencies (locked)
@@ -732,6 +791,7 @@ jobs:
   cross-target-check:
     name: ${{ matrix.adapter }} ${{ matrix.target }} check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -748,18 +808,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ matrix.adapter }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.adapter }}-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -769,6 +827,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
       - name: Add wasm target

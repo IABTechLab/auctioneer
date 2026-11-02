@@ -44,20 +44,20 @@ jobs:
   fastly-build:
     name: fastly compute build + package size
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-fastly-vendor-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-fastly-vendor-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
@@ -67,6 +67,7 @@ jobs:
       - name: Set up Rust tool chain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
       # fastly.toml's build script targets wasm32-wasip1.

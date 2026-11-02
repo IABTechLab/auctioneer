@@ -8,11 +8,11 @@ if [[ $# -gt 1 ]]; then
 fi
 case "$lane" in
   all)
-    targets=(schema_build_controls schema_source_conformance factory_binding_build registry_build generated_settings insecure_bidders_snapshot)
+    targets=(schema_build_controls schema_source_conformance factory_binding_build registry_build generated_settings insecure_bidders_snapshot response_body_is_sealed feature_exports_source_conformance)
     ;;
   schema) targets=(schema_build_controls schema_source_conformance) ;;
   settings) targets=(generated_settings) ;;
-  exports) targets=(insecure_bidders_snapshot) ;;
+  exports) targets=(insecure_bidders_snapshot response_body_is_sealed feature_exports_source_conformance) ;;
   discovery) targets=(factory_binding_build registry_build) ;;
   *)
     printf 'Usage: %s [all|schema|settings|exports|discovery]\n' "$0" >&2
@@ -22,13 +22,7 @@ esac
 
 # Count both reports when a full target forwards its child contract's output.
 check_complete() {
-  local log="$1"
-  local filtered="$2"
-  local reports="${3:-1}"
-  test "$reports" -ge 1
-  test "$(grep -Ec '^running [0-9]+ tests?$' "$log")" -eq "$reports"
-  test "$(grep -c '^test result:' "$log")" -eq "$reports"
-  test "$(grep -Ec "^test result: ok\\. [1-9][0-9]* passed; 0 failed; 0 ignored; 0 measured; $filtered filtered out; finished in [0-9]+(\\.[0-9]+)?s$" "$log")" -eq "$reports"
+  bash "$(dirname -- "${BASH_SOURCE[0]}")/check-libtest-result.sh" "$@"
 }
 
 if [[ "$lane" == all || "$lane" == settings ]]; then
@@ -41,6 +35,14 @@ if [[ "$lane" == all || "$lane" == exports ]]; then
   cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- \
     --test-threads=1 2>&1 | tee "$RUNNER_TEMP/insecure-bidders-snapshot.log"
   check_complete "$RUNNER_TEMP/insecure-bidders-snapshot.log" 0
+
+  cargo test --locked -p auctioneer-bidder --test response_body_is_sealed -- \
+    --test-threads=1 2>&1 | tee "$RUNNER_TEMP/response-body-is-sealed.log"
+  check_complete "$RUNNER_TEMP/response-body-is-sealed.log" 0
+
+  cargo test --locked -p auctioneer-bidder --test feature_exports_source_conformance -- \
+    --test-threads=1 2>&1 | tee "$RUNNER_TEMP/feature-exports-source-conformance.log"
+  check_complete "$RUNNER_TEMP/feature-exports-source-conformance.log" 0
 fi
 
 if [[ "$lane" == all || "$lane" == schema ]]; then

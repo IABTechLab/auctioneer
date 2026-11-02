@@ -189,21 +189,35 @@ impl Report {
     }
 
     pub(crate) fn validate(&self) -> Result<(), Error> {
+        self.validate_header()?;
+        let identity = source_identity()?;
+        let (baked_bytes, baked_digest) = baked_identity()?;
+        self.validate_with_inputs(&identity, baked_bytes, &baked_digest)
+    }
+
+    fn validate_header(&self) -> Result<(), Error> {
         if self.schema_version != 1
             || !self.accounting_complete
-            || self
-                .adapters
+            || !self.adapters.iter().map(|row| row.adapter).eq(self
+                .selection
+                .adapters()
                 .iter()
-                .map(|row| row.adapter)
-                .collect::<Vec<_>>()
-                != self.selection.adapters()
+                .copied())
         {
             return Err(Error::ResourceInput);
         }
-        let identity = source_identity()?;
-        let (baked_bytes, baked_digest) = baked_identity()?;
+        Ok(())
+    }
+
+    fn validate_with_inputs(
+        &self,
+        identity: &Identity,
+        baked_bytes: u64,
+        baked_digest: &str,
+    ) -> Result<(), Error> {
+        self.validate_header()?;
         for row in &self.adapters {
-            let expected_row = source_row(row.adapter, &identity, &baked_digest)?;
+            let expected_row = source_row(row.adapter, identity, baked_digest)?;
             let rederived = derive_isolate_budget_with_baked_config(
                 &row.effective_limits,
                 &row.target_constants,
@@ -832,11 +846,15 @@ fn source_identity() -> Result<Identity, Error> {
 }
 
 fn source_identity_at(root: &Path) -> Result<Identity, Error> {
-    let built: BuildIdentity = serde_json::from_slice(include_bytes!(concat!(
-        env!("OUT_DIR"),
-        "/resource-identity.json"
-    )))
-    .map_err(|_error| Error::ResourceInput)?;
+    source_identity_with_build(
+        root,
+        include_bytes!(concat!(env!("OUT_DIR"), "/resource-identity.json")),
+    )
+}
+
+fn source_identity_with_build(root: &Path, build_identity: &[u8]) -> Result<Identity, Error> {
+    let built: BuildIdentity =
+        serde_json::from_slice(build_identity).map_err(|_error| Error::ResourceInput)?;
     if snapshot(root).map_err(|_error| Error::ResourceInput)? != built.snapshot {
         return Err(Error::ResourceInput);
     }
@@ -1055,59 +1073,147 @@ mod tests {
         );
     }
 
-    use super::{AdapterId, ROOT, build_report, check_named_terms, serialize, source_identity_at};
+    use super::{
+        AdapterId, ROOT, build_report, check_named_terms, serialize, source_identity_at,
+        source_identity_with_build,
+    };
+    use auctioneer_cli::{BuildIdentity, Snapshot};
+    use sha2::{Digest as _, Sha256};
+    use std::collections::BTreeMap;
     use std::fs;
     use std::path::Path;
     use std::process::Command;
-    use std::str::from_utf8;
     use tempfile::TempDir;
 
-    fn copied_sources() -> TempDir {
-        let root = tempfile::tempdir().unwrap();
-        let cloned = Command::new("git")
-            .args(["clone", "--shared", "--no-checkout", "--quiet", ROOT])
-            .arg(root.path())
-            .output()
-            .unwrap();
-        assert!(cloned.status.success(), "{cloned:?}");
-        let indexed = Command::new("git")
-            .current_dir(root.path())
-            .args(["read-tree", "HEAD"])
-            .output()
-            .unwrap();
-        assert!(indexed.status.success(), "{indexed:?}");
-        let listing = Command::new("git")
-            .current_dir(ROOT)
-            .args([
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-            ])
-            .output()
-            .unwrap();
-        assert!(listing.status.success(), "{listing:?}");
-        for bytes in listing
-            .stdout
-            .split(|byte| *byte == 0)
-            .filter(|part| !part.is_empty())
-        {
-            let path = Path::new(from_utf8(bytes).unwrap());
-            let source = Path::new(ROOT).join(path);
-            if source.is_file() {
-                let destination = root.path().join(path);
-                fs::create_dir_all(destination.parent().unwrap()).unwrap();
-                fs::copy(source, destination).unwrap();
+    struct ReportFixture {
+        identity: super::Identity,
+        baked_bytes: u64,
+        baked_digest: String,
+    }
+
+    impl ReportFixture {
+        fn capture() -> Self {
+            let identity = super::source_identity().unwrap();
+            let (baked_bytes, baked_digest) = super::baked_identity().unwrap();
+            Self {
+                identity,
+                baked_bytes,
+                baked_digest,
             }
         }
-        root
+
+        fn report(&self) -> super::Report {
+            let report = super::Report {
+                schema_version: 1,
+                accounting_complete: true,
+                selection: super::Selection::AllAdapters,
+                adapters: AdapterId::ALL
+                    .into_iter()
+                    .map(|adapter| {
+                        super::source_row(adapter, &self.identity, &self.baked_digest).unwrap()
+                    })
+                    .collect(),
+            };
+            self.validate(&report).unwrap();
+            report
+        }
+
+        fn validate(&self, report: &super::Report) -> Result<(), super::Error> {
+            report.validate_with_inputs(&self.identity, self.baked_bytes, &self.baked_digest)
+        }
+    }
+
+    fn source_fixture() -> (TempDir, Vec<u8>) {
+        let root = tempfile::tempdir().unwrap();
+        let mut files = BTreeMap::new();
+        // Construct the oracle from known members, not the inventory under test.
+        for (relative, bytes) in [
+            ("Cargo.lock", b"version = 4\n".to_vec()),
+            ("auctioneer.toml", b"[baked]\n".to_vec()),
+            (
+                "crates/auctioneer-config/build.rs",
+                b"// fixture build input\n".to_vec(),
+            ),
+            (
+                "crates/auctioneer-config/data/gvl_archive/gcl.json",
+                serde_json::to_vec(&serde_json::json!({})).unwrap(),
+            ),
+            (
+                "crates/auctioneer-exchange/src/scrub/value.rs",
+                b"// fixture scrub input\n".to_vec(),
+            ),
+            (
+                "crates/auctioneer-core/src/handlers/request_disclosure_audit.rs",
+                b"// fixture audit input\n".to_vec(),
+            ),
+        ] {
+            let destination = root.path().join(relative);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::write(destination, &bytes).unwrap();
+            files.insert(
+                relative.to_owned(),
+                Some(hex::encode(Sha256::digest(&bytes))),
+            );
+        }
+        for arguments in [
+            vec!["init", "--quiet"],
+            vec!["add", "--all"],
+            vec!["commit", "--quiet", "-m", "Capture synthetic source inputs"],
+        ] {
+            let output = Command::new("git")
+                .current_dir(root.path())
+                .env_clear()
+                .env("PATH", std::env::var_os("PATH").unwrap())
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .args([
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                ])
+                .args(arguments)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+        }
+        let sha256 = hex::encode(Sha256::digest(serde_json::to_vec(&files).unwrap()));
+        let built = BuildIdentity {
+            snapshot: Snapshot { files, sha256 },
+            compiler_verbose: "synthetic compiler identity".to_owned(),
+            compiled_target: "synthetic-target".to_owned(),
+            code_base_commit: "a".repeat(40),
+            source_tree_matches_commit: true,
+        };
+        (root, serde_json::to_vec(&built).unwrap())
+    }
+
+    #[test]
+    fn compiled_source_identity_binds_live_checkout() {
+        let built: BuildIdentity = serde_json::from_slice(include_bytes!(concat!(
+            env!("OUT_DIR"),
+            "/resource-identity.json"
+        )))
+        .unwrap();
+        let identity = source_identity_at(Path::new(ROOT)).unwrap();
+        assert_eq!(identity.source_sha256, built.snapshot.sha256);
+        assert_eq!(identity.source_file_count, built.snapshot.files.len());
+        assert_eq!(identity.compiler_verbose, built.compiler_verbose);
+        assert_eq!(identity.compiled_target, built.compiled_target);
     }
 
     #[test]
     fn compiled_source_identity_detects_baked_layout_added_and_deleted_inputs() {
-        let root = copied_sources();
-        source_identity_at(root.path()).unwrap();
+        let (root, built) = source_fixture();
+        source_identity_with_build(root.path(), &built).unwrap();
+        assert_eq!(
+            source_identity_at(root.path()).unwrap_err(),
+            super::Error::ResourceInput
+        );
         let mut rejected = Vec::new();
         for relative in [
             "auctioneer.toml",
@@ -1121,17 +1227,31 @@ mod tests {
             let mut changed = original.clone();
             changed.push(b'\n');
             fs::write(&path, changed).unwrap();
-            rejected.push((relative, source_identity_at(root.path()).is_err()));
+            rejected.push((
+                relative,
+                source_identity_with_build(root.path(), &built).is_err(),
+            ));
             fs::write(&path, &original).unwrap();
+            source_identity_with_build(root.path(), &built).unwrap();
             fs::remove_file(&path).unwrap();
-            rejected.push((relative, source_identity_at(root.path()).is_err()));
+            rejected.push((
+                relative,
+                source_identity_with_build(root.path(), &built).is_err(),
+            ));
             fs::write(&path, original).unwrap();
+            source_identity_with_build(root.path(), &built).unwrap();
         }
         let added = root
             .path()
             .join("crates/auctioneer-runtime/src/resource_identity_added.rs");
+        fs::create_dir_all(added.parent().unwrap()).unwrap();
+        assert!(!added.try_exists().unwrap());
         fs::write(&added, b"// isolated source addition\n").unwrap();
-        rejected.push(("added", source_identity_at(root.path()).is_err()));
+        rejected.push((
+            "added",
+            source_identity_with_build(root.path(), &built).is_err(),
+        ));
+        assert_eq!(rejected.len(), 11);
         assert!(
             rejected.iter().all(|(_path, refused)| *refused),
             "{rejected:?}"
@@ -1140,8 +1260,10 @@ mod tests {
 
     #[test]
     fn evidence_records_do_not_change_code_identity_but_rust_in_their_trees_does() {
-        let root = copied_sources();
-        let before = source_identity_at(root.path()).unwrap().source_sha256;
+        let (root, built) = source_fixture();
+        let before = source_identity_with_build(root.path(), &built)
+            .unwrap()
+            .source_sha256;
         for relative in [
             "docs/testing/resource-identity-generated.json",
             "crates/auctioneer-core/tests/fixtures/resource_envelopes/audit.toml",
@@ -1152,7 +1274,9 @@ mod tests {
             fs::write(path, b"generated evidence, not compiled source\n").unwrap();
         }
         assert_eq!(
-            source_identity_at(root.path()).unwrap().source_sha256,
+            source_identity_with_build(root.path(), &built)
+                .unwrap()
+                .source_sha256,
             before
         );
         for relative in [
@@ -1162,10 +1286,11 @@ mod tests {
             let path = root.path().join(relative);
             fs::write(&path, b"// isolated Rust owner\n").unwrap();
             assert_eq!(
-                source_identity_at(root.path()).unwrap_err(),
+                source_identity_with_build(root.path(), &built).unwrap_err(),
                 super::Error::ResourceInput
             );
             fs::remove_file(&path).unwrap();
+            source_identity_with_build(root.path(), &built).unwrap();
         }
         let original = root
             .path()
@@ -1173,9 +1298,11 @@ mod tests {
         let moved = root
             .path()
             .join("docs/testing/moved_resource_identity_owner.rs");
+        assert!(original.is_file());
+        assert!(!moved.try_exists().unwrap());
         fs::rename(original, moved).unwrap();
         assert_eq!(
-            source_identity_at(root.path()).unwrap_err(),
+            source_identity_with_build(root.path(), &built).unwrap_err(),
             super::Error::ResourceInput
         );
     }
@@ -1200,7 +1327,8 @@ mod tests {
 
     #[test]
     fn strict_exit_requires_every_synthetic_row_to_fit() {
-        let mut report = build_report().unwrap();
+        let fixture = ReportFixture::capture();
+        let mut report = fixture.report();
         for mask in 0_u8..16 {
             for (index, row) in report.adapters.iter_mut().enumerate() {
                 row.required_fit = mask & (1_u8 << index) != 0;
@@ -1243,7 +1371,8 @@ mod tests {
 
     #[test]
     fn every_named_term_rejects_missing_wrong_bytes_and_unknown_extras() {
-        let mut report = build_report().unwrap();
+        let fixture = ReportFixture::capture();
+        let mut report = fixture.report();
         let names = [
             "baseline",
             "gvl",
@@ -1315,12 +1444,13 @@ mod tests {
             )
             .unwrap();
         }
-        report.validate().unwrap();
+        fixture.validate(&report).unwrap();
     }
 
     #[test]
     fn source_report_refuses_rehashed_missing_and_wrong_catalog_terms() {
-        let mut report = build_report().unwrap();
+        let fixture = ReportFixture::capture();
+        let mut report = fixture.report();
         let expected_catalog_terms = [
             (AdapterId::Axum, 0x0100_0000, 0x0080_0000),
             (AdapterId::Cloudflare, 0, 0),
@@ -1348,7 +1478,7 @@ mod tests {
                     report.adapters[index].effective_profile_sha256 =
                         super::profile_digest(&report.adapters[index]).unwrap();
                     assert!(
-                        report.validate().is_err(),
+                        fixture.validate(&report).is_err(),
                         "rehashed {name} in row {index}: {replacement:?}"
                     );
                     report.adapters[index]
@@ -1358,23 +1488,27 @@ mod tests {
                 }
             }
         }
-        report.validate().unwrap();
+        fixture.validate(&report).unwrap();
     }
 
     #[test]
     fn source_report_refuses_independent_row_and_validation_fit_mutations() {
-        let mut report = build_report().unwrap();
+        let fixture = ReportFixture::capture();
+        let mut report = fixture.report();
         for index in 0..report.adapters.len() {
             let digest = report.adapters[index].effective_profile_sha256.clone();
             let expected = report.adapters[index].required_fit;
             report.adapters[index].required_fit = !expected;
-            assert!(report.validate().is_err(), "row required_fit {index}");
+            assert!(
+                fixture.validate(&report).is_err(),
+                "row required_fit {index}"
+            );
             // Repair the self-digest too: the independently constructed source
             // row must still refuse promotion, not just an unrehashed edit.
             report.adapters[index].effective_profile_sha256 =
                 super::profile_digest(&report.adapters[index]).unwrap();
             assert!(
-                report.validate().is_err(),
+                fixture.validate(&report).is_err(),
                 "rehashed row required_fit {index}"
             );
             report.adapters[index].required_fit = expected;
@@ -1382,48 +1516,51 @@ mod tests {
             let expected_validation_fit = report.adapters[index].validation.required_fit;
             report.adapters[index].validation.required_fit = !expected_validation_fit;
             assert!(
-                report.validate().is_err(),
+                fixture.validate(&report).is_err(),
                 "validation required_fit {index}"
             );
             report.adapters[index].effective_profile_sha256 =
                 super::profile_digest(&report.adapters[index]).unwrap();
             assert!(
-                report.validate().is_err(),
+                fixture.validate(&report).is_err(),
                 "rehashed validation required_fit {index}"
             );
             report.adapters[index].validation.required_fit = expected_validation_fit;
             report.adapters[index].effective_profile_sha256 = digest;
         }
-        report.validate().unwrap();
+        fixture.validate(&report).unwrap();
     }
 
     #[test]
     fn missing_rows_zero_baked_and_raw_shortcuts_refuse() {
-        let mut report = build_report().unwrap();
+        let fixture = ReportFixture::capture();
+        let mut report = fixture.report();
         let saved = report.adapters.pop().unwrap();
-        assert!(report.validate().is_err());
+        assert!(fixture.validate(&report).is_err());
         report.adapters.push(saved);
-        report.validate().unwrap();
-        let mut zero_baked = build_report().unwrap();
+        fixture.validate(&report).unwrap();
+        let mut zero_baked = fixture.report();
         zero_baked.adapters.first_mut().unwrap().baked_config_bytes = 0;
-        assert!(zero_baked.validate().is_err());
-        let mut raw_shortcut = build_report().unwrap();
+        assert!(fixture.validate(&zero_baked).is_err());
+        let mut raw_shortcut = fixture.report();
         raw_shortcut
             .adapters
             .first_mut()
             .unwrap()
             .effective_limits
             .max_runtime_config_bytes = 0;
-        assert!(raw_shortcut.validate().is_err());
+        assert!(fixture.validate(&raw_shortcut).is_err());
     }
 
     #[test]
     fn positive_but_wrong_baked_bytes_and_stale_identity_refuse() {
-        let mut report = build_report().unwrap();
+        let fixture = ReportFixture::capture();
+        let mut report = fixture.report();
         report.adapters.first_mut().unwrap().baked_config_bytes += 1;
-        assert!(report.validate().is_err());
-        let mut stale = build_report().unwrap();
+        assert!(fixture.validate(&report).is_err());
+        let mut stale = fixture.report();
         stale.adapters.first_mut().unwrap().identity.source_sha256 = "0".repeat(64);
+        // Retain a mutation control through the fresh-source public boundary.
         assert!(stale.validate().is_err());
     }
 }

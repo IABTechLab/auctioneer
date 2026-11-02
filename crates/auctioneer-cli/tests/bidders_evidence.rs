@@ -936,6 +936,40 @@ mod tests {
         let original = read(&root.join("manifest.json"));
         let receipt = read(&root.join("reference_integrity/receipt.json"));
         report(&fixture.invoke("check", &root, RUN, &[]), "complete");
+        // Probe linked features independently of the CLI's build_features() summary.
+        let features = original["inputs"]["features"].as_array().unwrap();
+        for (feature, enabled) in [
+            ("application", cfg!(feature = "application")),
+            ("test-support", cfg!(feature = "test-support")),
+            (
+                "conformance_suite",
+                auctioneer_core::CONFORMANCE_SUITE_ENABLED,
+            ),
+            (
+                "test_harness_override",
+                auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED,
+            ),
+        ] {
+            assert_eq!(
+                features.iter().filter(|value| *value == feature).count(),
+                usize::from(enabled),
+                "manifest must record the linked {feature} feature exactly"
+            );
+            let mut manifest = original.clone();
+            let changed = manifest["inputs"]["features"].as_array_mut().unwrap();
+            if enabled {
+                changed.retain(|value| value != feature);
+            } else {
+                changed.push(json!(feature));
+            }
+            repin_manifest(&root, &manifest, &receipt);
+            assert_incomplete(
+                &fixture.invoke("check", &root, RUN, &[]),
+                "bidder_evidence_binding",
+            );
+        }
+        repin_manifest(&root, &original, &receipt);
+        report(&fixture.invoke("check", &root, RUN, &[]), "complete");
         for (field, replacement) in [
             ("build_identity_sha256", json!("0".repeat(64))),
             ("executable_sha256", json!("0".repeat(64))),

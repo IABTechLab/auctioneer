@@ -16,29 +16,30 @@ jobs:
   format:
     name: cargo fmt + clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
-      - name: Cache cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
-        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Set up rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           components: "clippy, rustfmt"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
@@ -74,29 +75,30 @@ jobs:
   conformance-clippy:
     name: cargo clippy (fanout conformance suite)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
-      - name: Cache cargo dependencies
+      - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-conformance-clippy-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-conformance-clippy-
+            ${{ runner.os }}-cargo-downloads-v1-
 
       - name: Retrieve Rust version
         id: rust-version
-        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Set up rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
+          cache: false
           components: "clippy"
           toolchain: ${{ steps.rust-version.outputs.rust-version }}
 
