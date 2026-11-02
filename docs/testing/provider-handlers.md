@@ -40,7 +40,7 @@ The SDK archive tests are ordinary Rust unit tests, including in workspace
 explicit `EDGEZERO_SDK_ROOT`, or discover the dependency checkout through locked,
 offline Cargo metadata. A missing or invalid root fails rather than skips.
 The checkout must come from [IABTechLab/edgezero PR #275](https://github.com/IABTechLab/edgezero/pull/275)
-at exactly `9fe6c56c648f0a601b1c6c051ce71c09d3733ea9`. Follow the
+at exactly `775366fdac923135e8430b1e3dffebedc648ef7c`. Follow the
 [fresh-checkout bootstrap](development.md#fresh-checkout) before offline runs;
 an empty cache cannot fetch a Git revision in offline mode.
 Historical evidence retains the SDK revision it actually exercised; this

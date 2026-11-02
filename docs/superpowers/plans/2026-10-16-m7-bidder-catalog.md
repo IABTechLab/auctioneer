@@ -43,7 +43,7 @@ contract files by digest without rewriting their planning-status fields.
 
 **Architecture:** Generate factories and schema-specific validation code during the build, joining factories with independently generated data-only bindings at initialization. Keep all bidder implementations in the existing `auctioneer-bidder` crate. Keep the complete reference inventory separate from the progressively shipped catalog; every shipped identity has a real implementation. Extend existing resource, privacy, configuration and EdgeZero paths rather than creating a second registry service or host stack.
 
-**Tech Stack:** Rust 1.98.1, existing Cargo workspace and EdgeZero PR #275 at `9fe6c56c648f0a601b1c6c051ce71c09d3733ea9` (see the [outbound adoption plan](2026-10-30-edgezero-outbound-adoption.md)); Serde/JSON/TOML, existing `validator`, offline Git object reads, `serde_yaml_ng = "=0.10.0"`, candidate `jsonschema = { version = "=0.58.6", default-features = false, features = ["macros"] }`. See the [subsequent SDK update](../../testing/evidence/edgezero-pr275-update-20261030.md) for the current source delta and verification; earlier captures remain historical.
+**Tech Stack:** Rust 1.98.1, existing Cargo workspace and EdgeZero PR #275 at the workspace pin (see the [outbound adoption plan](2026-10-30-edgezero-outbound-adoption.md)); Serde/JSON/TOML, existing `validator`, offline Git object reads, `serde_yaml_ng = "=0.10.0"`, candidate `jsonschema = { version = "=0.58.6", default-features = false, features = ["macros"] }`. See the [subsequent SDK update](../../testing/evidence/edgezero-pr275-update-20261102.md) for the current source delta and verification; earlier captures remain historical.
 
 ---
 

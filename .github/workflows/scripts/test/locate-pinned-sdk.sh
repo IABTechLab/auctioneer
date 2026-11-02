@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-pin=9fe6c56c648f0a601b1c6c051ce71c09d3733ea9
+pin=775366fdac923135e8430b1e3dffebedc648ef7c
 cargo metadata --locked --offline --format-version 1 > "$RUNNER_TEMP/qualification-metadata.json"
 manifest=$(jq -er --arg source "git+https://github.com/IABTechLab/edgezero.git?rev=$pin#$pin" '
   [.packages[] | select(.name == "edgezero-cli")]

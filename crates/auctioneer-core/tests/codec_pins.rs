@@ -28,7 +28,7 @@ mod tests {
     /// The `EdgeZero` revision every `edgezero-*` package must resolve
     /// to. Asserted structurally — over `source =` lines only — so a
     /// renamed dependency cannot make the check vacuous.
-    const EDGEZERO_REV: &str = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9";
+    const EDGEZERO_REV: &str = "775366fdac923135e8430b1e3dffebedc648ef7c";
     const EDGEZERO_REPOSITORY: &str = "https://github.com/IABTechLab/edgezero.git";
 
     /// The tuple `Cargo.lock` must resolve. Every exact version here is

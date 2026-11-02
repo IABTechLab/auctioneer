@@ -21,7 +21,7 @@ use sha2::{Digest as _, Sha256};
 use std::io::{self, Write as _};
 
 const MAX_OUTPUT_BYTES: usize = 0x8000;
-const EDGEZERO_PIN: &str = "9fe6c56c648f0a601b1c6c051ce71c09d3733ea9";
+const EDGEZERO_PIN: &str = "775366fdac923135e8430b1e3dffebedc648ef7c";
 
 // Exhaustive destructuring makes new runtime terms a compile error here. The
 // original fields retain their owning types, including every integer width.

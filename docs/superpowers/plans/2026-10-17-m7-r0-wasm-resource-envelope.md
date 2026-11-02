@@ -22,7 +22,7 @@ private-engine expansion as an M7 completion prerequisite.
 
 **Architecture:** Reuse the portable runtime receipts/gates, core input resolver and M7's resource-report/checker ownership. Audit before selecting changes; verified unchanged-workload improvements may proceed under AG's authorization below. The feasibility checkpoint freezes any proposed limit/model changes for specific approval. Do not create a second calculator, private qualification equation or provider stack.
 
-**Tech Stack:** Rust 1.98.1, existing Cargo workspace, EdgeZero PR #275 at `9fe6c56c648f0a601b1c6c051ce71c09d3733ea9`, existing Rust CLI, target builds and qualification harnesses. The [October 30 outbound adoption](2026-10-30-edgezero-outbound-adoption.md) includes API and semantic changes, not just documentation. Historical captures retain their recorded revision; the October 18 update from `f6c708cc` to `bc300ace` changed seven documentation files only. See the [subsequent SDK update](../../testing/evidence/edgezero-pr275-update-20261030.md) for the current source delta and verification; earlier captures remain historical.
+**Tech Stack:** Rust 1.98.1, existing Cargo workspace, EdgeZero PR #275 at the workspace pin, existing Rust CLI, target builds and qualification harnesses. The [October 30 outbound adoption](2026-10-30-edgezero-outbound-adoption.md) includes API and semantic changes, not just documentation. Historical captures retain their recorded revision; the October 18 update from `f6c708cc` to `bc300ace` changed seven documentation files only. See the [subsequent SDK update](../../testing/evidence/edgezero-pr275-update-20261102.md) for the current source delta and verification; earlier captures remain historical.
 
 ---
 

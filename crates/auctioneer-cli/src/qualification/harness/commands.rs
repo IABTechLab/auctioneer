@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(cases.len(), 14_usize);
         let digest = "a".repeat(64_usize);
         let identity = json!({"auctioneer_commit":"a".repeat(40_usize),
-            "edgezero_pin":"9fe6c56c648f0a601b1c6c051ce71c09d3733ea9",
+            "edgezero_pin":"775366fdac923135e8430b1e3dffebedc648ef7c",
             "artifact_sha256":digest,"source_sha256":digest,
             "build_features":["spin","auctioneer-config/test-harness-override"],
             "target":"wasm32-wasip2","runtime_version":{"major":3_u32,"minor":0_u32,"patch":0_u32},

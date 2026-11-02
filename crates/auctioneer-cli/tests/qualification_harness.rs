@@ -126,7 +126,7 @@ mod tests {
     }).collect();
         assert_eq!(cases.len(), 14);
         let digest = "a".repeat(64);
-        let identity = json!({"auctioneer_commit":"a".repeat(40),"edgezero_pin":"9fe6c56c648f0a601b1c6c051ce71c09d3733ea9",
+        let identity = json!({"auctioneer_commit":"a".repeat(40),"edgezero_pin":"775366fdac923135e8430b1e3dffebedc648ef7c",
         "artifact_sha256":digest,"source_sha256":digest,"build_features":["spin","auctioneer-config/test-harness-override"],
         "target":"wasm32-wasip2","runtime_version":{"major":3_i32,"minor":0_i32,"patch":0_i32},"harness_sha256":digest,
         "fixtures_sha256":digest,"reference_data_sha256":digest,"baked_config_sha256":digest,"fixture_metadata_sha256":digest});
