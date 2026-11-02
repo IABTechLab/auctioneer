@@ -85,7 +85,9 @@ jobs:
       # wasm-opt on first use.
       # Cached binaries can outlive Cargo's installation records.
       - name: Install worker-build
-        run: cargo install worker-build --version 0.8.5 --locked --force
+        run: |
+          version="$(awk '$1 == "worker-build" { print $2 }' .tool-versions)"
+          cargo install worker-build --version "${version:?worker-build version is missing from .tool-versions}" --locked --force
 
       # The vendor packager. Runs worker-build via wrangler.toml's
       # [build] hook, bundles the shim and reports the upload size.
