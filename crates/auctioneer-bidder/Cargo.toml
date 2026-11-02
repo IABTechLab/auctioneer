@@ -69,6 +69,8 @@ toml = { workspace = true, optional = true }
 auctioneer-bidder = { workspace = true, features = ["test-support"] }
 auctioneer-config-schema = { workspace = true, features = ["build-support"] }
 auctioneer-runtime = { workspace = true, features = ["test-support"] }
+# Compiler-fixture source generation is linted on guest targets too.
+quote = { workspace = true }
 toml = { workspace = true }
 
 [build-dependencies]
@@ -91,7 +93,6 @@ jsonschema = { workspace = true }
 jsonschema-macros-core = { workspace = true }
 object = { workspace = true }
 proc-macro2 = { workspace = true }
-quote = { workspace = true }
 regex = { workspace = true }
 regex-automata = { workspace = true }
 regex-syntax = { workspace = true }

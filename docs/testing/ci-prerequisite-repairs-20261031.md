@@ -556,3 +556,29 @@ binaries. Adding `--force` succeeded with exit 0 and restored installation
 records for both binaries at the same fixture version. The fixture is not the
 vendor tool and does not establish actual worker packaging or size acceptance;
 the next Cloudflare CI run remains its owner.
+
+## WASM Compiler-Fixture Dependency Follow-Up
+
+The warning-policy repair in `1c6af43` introduced `quote!` into a fixture that
+all three guest jobs compile, but left `quote` in native-only dev-dependencies.
+The superseded test workflow was cancelled overall while its three WASM lint
+jobs had genuine failures; the current Spin job reproduced the same `E0433`.
+The exact Spin all-target lint command also failed locally before this repair.
+
+The existing workspace-managed `quote` dependency now appears in common
+dev-dependencies instead of the native-only test table. Its build-dependency
+declaration, version and features do not change. No target is excluded, no
+test is ignored, and no workflow command or warning policy is relaxed.
+
+The original bidder `cargo clippy --all-targets` commands pass for
+`wasm32-unknown-unknown`, `wasm32-wasip1` and `wasm32-wasip2`, each with
+`--locked --offline -j2` and `-- -D warnings`. These lint compilations do not
+execute guest tests. Native fixture targets pass 10 and eight cases under both
+secure defaults and `insecure-bidders`; the latter run also passes all 16
+source-isolation cases. No tests are filtered or ignored in those native runs.
+
+Before/after `cargo tree --edges normal` outputs compare byte-identically for
+the native host and all three guest targets. `Cargo.lock` is unchanged. Workspace
+Rust formatting and `git diff --check` pass. Existing GVL deletion warnings and
+the `proc-macro-error2` future-incompatibility notice remain. These results do
+not substitute for the subsequent complete Linux CI matrix.

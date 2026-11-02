@@ -150,6 +150,18 @@ This verifies Cargo's cache-recovery behavior, not the vendor package or hosted
 readiness. The next Cloudflare CI run must verify actual packaging. See the
 [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#cloudflare-cached-tool-installation-follow-up).
 
+**WASM compiler-fixture dependency regression (2026-11-01):** the fixture
+change in `1c6af43` used `quote!` while `quote` remained a native-only test
+dependency. All three guest bidder-lint jobs therefore failed with `E0433`.
+The existing workspace-managed dependency now lives in common dev-dependencies;
+its build dependency remains unchanged. The three original all-target WASM lint
+commands pass locally, without exclusions or lint allowances. Normal dependency
+graphs for the host and all three guests compare unchanged, and `Cargo.lock`
+is untouched. Native fixture suites pass in both feature lanes; source-isolation
+checks also pass. See the
+[verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#wasm-compiler-fixture-dependency-follow-up).
+These are compilation and scoped native results, not whole-CI acceptance.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser
