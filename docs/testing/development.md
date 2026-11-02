@@ -170,7 +170,7 @@ that target must be installed before selecting the case locally.
 
 ### Acceptance
 
-Nine hermetic child-build targets have explicit owners rather than running
+Ten hermetic child-build targets have explicit owners rather than running
 again in every broad `--all-targets` scope. Their `[[test]] test = false` Cargo
 setting changes default selection, not availability. Run the relevant owner
 explicitly when changing the compiler, discovery or config rejection behavior:
@@ -185,6 +185,7 @@ cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- --t
 cargo test --locked -p auctioneer-bidder --test response_body_is_sealed -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test feature_exports_source_conformance -- --test-threads=1
 cargo test --locked -p auctioneer-config --test build_failure_harness
+cargo test --locked -p auctioneer-cli --test resource_boot_parity
 ```
 
 These remain mandatory on every PR. The source suite's independent adapter,
@@ -208,11 +209,18 @@ this ownership does not authorize artifact reuse. Both workspace scopes use
 CI schedules the original four native graphs (secure, default workspace,
 insecure workspace and standalone CLI), one heavy evidence-producer owner,
 and four compiler lanes (schema, settings, exports and discovery). Only the
-two closed producer cases are skipped by libtest in broad runs; Cargo roots,
-features and the other 17 evidence cases remain unchanged. The dedicated owner
+two closed producer cases are skipped by libtest in broad runs; Cargo roots and
+features remain intact. The 17 lighter evidence cases still exercise those
+graphs, with exhaustive field matrices owned by inline verifiers. The dedicated owner
 enumerates the target, runs both full case names with `--exact`, and refuses
 missing, ignored, zero or mismatched dispatch. Each producer still executes its
 fresh child plans, including secure and development onboarding.
+
+The existing CLI lane also owns `resource_boot_parity` explicitly. Its eight
+tests build their own child feature graph, compare actual compiler feature
+receipts and exercise ten profiles through forty fresh adapter boot processes.
+Repeating that same recipe in outer workspace feature lanes adds no distinct
+feature experiment; genuine parent-feature checks stay in the normal suites.
 
 For a complete local producer check, use the same owner script with the pinned
 source checkout available and `RUNNER_TEMP` set to a disposable directory:
@@ -278,6 +286,11 @@ When moving tests, compare before/after names and dispatch counts, retaining
 assertions, feature gates and isolation. Do not merge binaries merely to hit
 a target-count goal. New helper APIs stay behind existing test-support
 boundaries; do not expose private production internals for convenience.
+
+When removing a redundant case, name the retained test that owns its guarantee.
+Keep exhaustive field matrices beside their verifier and retain representative
+real CLI/socket/compiler checks for wiring and error mapping. Independent
+oracles are distinct coverage, even when they share inputs or similar code.
 
 ## Build Invalidation
 

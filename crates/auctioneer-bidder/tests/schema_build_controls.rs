@@ -28,3 +28,6 @@ const _: () = assert!(
 );
 
 mod schema_build_cases;
+
+// The source-conformance root supplies the source-only bundle proof.
+fn assert_source_explicit_cache_layouts(_catalog: &schema_build::Catalog) {}

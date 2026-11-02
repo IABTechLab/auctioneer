@@ -143,7 +143,12 @@ The native-only callers are:
 - `compiled_explicit_cache_layouts_have_complete_typed_owner_membership`
 - `native_generated_callbacks_have_isolated_cold_and_repeat_allocation_reports`
 - `explicit_cache_measurements_separate_construction_growth_reuse_and_release`
-- Source-only `every_compiled_schema_cache_layout_funds_sibling_and_callback_storage`
+- The source cache-bundle assertions originally registered as
+  `every_compiled_schema_cache_layout_funds_sibling_and_callback_storage`.
+  The approved 2026-11-02 simplification now runs them inside the full explicit
+  source-catalogue case before refusal probes, removing their separate native
+  build. Native size/alignment, membership and heap-bound assertions remain;
+  native-only scope is no longer required when sharing an existing full build.
 
 Preserve all their existing assertions and add an exact `native`-only report
 membership check to guard against reintroducing unrelated builds. Preserve
@@ -154,7 +159,8 @@ No generated products or observations are cached by this change.
 
 The structural catalog-build census becomes 11 instead of 20 requests in the
 synthetic binary, and 12 instead of 24 in the source binary: 23 instead of 44
-for one execution of both targets. This is not a count of clean compilations
+for one execution of both targets, before that 2026-11-02 source-build removal.
+This is not a count of clean compilations
 and not a speedup estimate. Compare the same native-only test with unchanged
 assertions under temporary parent instrumentation before/after; label outer
 compilation separately, preserve cache conditions, and make no full-CI timing

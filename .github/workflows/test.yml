@@ -327,6 +327,18 @@ jobs:
           --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
           --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
 
+      # The scratch CLI and boot probe select and compare their own features.
+      # One explicit owner avoids repeating the same closed-graph experiment.
+      - name: Verify closed-graph resource boot parity
+        timeout-minutes: 15
+        if: matrix.lane == 'cli'
+        run: cargo test --locked -p auctioneer-cli --test resource_boot_parity
+
+      - name: Lint closed-graph resource boot parity
+        timeout-minutes: 10
+        if: matrix.lane == 'cli'
+        run: cargo clippy --locked -p auctioneer-cli --test resource_boot_parity -- -D warnings
+
       # These closed plans build and dispatch secure/development child graphs.
       # Only libtest selection changes above; all parent Cargo graphs stay intact.
       - name: Verify fresh evidence producers and exact dispatch

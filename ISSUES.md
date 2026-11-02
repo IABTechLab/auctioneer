@@ -260,6 +260,31 @@ Both full native workspace feature lanes and the Cloudflare, Fastly and Spin
 all-targets privacy/adapter Clippy selections pass locally with `-D warnings`.
 These are lint/compilation checks, not guest-runtime or hosted acceptance.
 
+**Test simplification (2026-11-02, hosted verification pending):** AG approved
+removing proven duplicate work rather than adding CI parallelism. The baseline
+at `85aba38` passed all 25 checks. Local verification and the retained-coverage
+mapping are recorded in the existing performance plan.
+
+- Ordinary/strict all-adapter report coverage shares two real CLI invocations
+  instead of five; parent-feature assertions remain in each relevant graph.
+- Evidence binding/receipt and provider compiler-message field matrices have
+  inline verifier owners. Representative real CLI/capture rejection routing,
+  actual freshness checks, source changes, leases and replay tests remain.
+- Catalogue-independent compiler refusals have one synthetic owner. Source
+  cache-bundle assertions share the full explicit catalogue before destructive
+  refusal probes, with fresh allocation-observation children unchanged.
+- The empty generated-settings consumer uses the existing clean config build.
+- Fifteen core-only adapter wrappers and two permissive privacy duplicates
+  retain canonical owners. Twelve pure runtime tests and two catalog-helper
+  tests move inline; two unnecessary integration binaries are removed.
+- Boot parity has one explicit test/lint owner in the existing CLI lane, keeping
+  eight registered tests, ten profiles, forty fresh installs and four corruption
+  controls. No job, feature flag, global verdict cache or framework is added.
+
+Distinct privacy oracles, secure/development contracts, real socket/adapter
+primitives, fresh measurement processes, source pins and resource limits stay.
+Counts describe removed work, not an unmeasured elapsed-time improvement.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

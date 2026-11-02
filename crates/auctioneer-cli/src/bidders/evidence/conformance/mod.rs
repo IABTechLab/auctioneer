@@ -344,6 +344,7 @@ pub(super) async fn consume(source: &Path, inventory: &Path, root: &Path, id: &s
 #[cfg(test)]
 mod tests {
     use super::*;
+    use auctioneer_cli::native_control::io::sha256;
     use serde_json::{Value, json};
     use std::env::temp_dir;
     use tempfile::tempdir_in;
@@ -410,17 +411,28 @@ mod tests {
         };
         // Synthetic transcripts test the verifier only; they are never
         // published or presented as execution/qualification evidence.
-        let operations = runner::TESTS.into_iter().map(|test| {
+        let operations = [
+            "tests::schema_selection_source_and_expanded_generated_membership_manifest",
+            "tests::schema_selection_manifest_is_order_independent_and_detects_omissions",
+        ].into_iter().map(|test| {
             let stdout = format!("\nrunning 1 test\ntest {test} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 269 filtered out; finished in 0.01s\n\n");
-            runner::dispatch(test, stdout.as_bytes()).unwrap()
+            runner::Dispatch {
+                test: test.to_owned(),
+                dispatched: 1,
+                passed: 1,
+                failed: 0,
+                ignored: 0,
+                stdout_sha256: sha256(stdout.as_bytes()),
+                stdout,
+            }
         }).collect();
         let receipt = Receipt {
-            schema_version: super::super::VERSION,
-            run_id: manifest.run_id.clone(),
+            schema_version: 3,
+            run_id: "fixture-run".to_owned(),
             manifest_sha256: canonical_digest(&manifest).unwrap(),
-            producer: PRODUCER.to_owned(),
-            operation: OPERATION.to_owned(),
-            operation_count: OPERATION_COUNT,
+            producer: "selected_schema_source_conformance".to_owned(),
+            operation: "selected_schema_source_tests".to_owned(),
+            operation_count: 2,
             dispatch_unit: DispatchUnit::RustTestCases,
             qualification: Qualification::Unqualified,
             promotion_allowed: false,
@@ -465,6 +477,7 @@ mod tests {
             ("build", Value::Null, Failure::Binding),
             ("operations", json!([]), Failure::Membership),
         ] {
+            assert_ne!(original[field], replacement, "{field}");
             let mut value = original.clone();
             value[field] = replacement;
             assert_eq!(verify(&value, &manifest), Err(expected.into()), "{field}");
@@ -475,6 +488,7 @@ mod tests {
     fn source_conformance_counters_cannot_replace_retained_nonzero_dispatch() {
         let (manifest, receipt) = fixture();
         let original = serde_json::to_value(receipt).unwrap();
+        assert_eq!(verify(&original, &manifest), Ok(()));
         for index in 0..2 {
             for (field, value) in [
                 ("dispatched", json!(0_u8)),
@@ -485,8 +499,13 @@ mod tests {
                 ("stdout_sha256", json!("0".repeat(64))),
             ] {
                 let mut bad = original.clone();
+                assert_ne!(bad["operations"][index][field], value, "{field}");
                 bad["operations"][index][field] = value;
-                assert!(verify(&bad, &manifest).is_err(), "{field}");
+                assert_eq!(
+                    verify(&bad, &manifest),
+                    Err(Failure::Membership.into()),
+                    "{field}"
+                );
             }
             let mut bad = original.clone();
             bad["operations"][index]["stdout"] = json!("running 0 tests\n");
@@ -497,7 +516,10 @@ mod tests {
         }
         let mut duplicate = original.clone();
         duplicate["operations"][1] = duplicate["operations"][0].clone();
-        assert!(verify(&duplicate, &manifest).is_err());
+        assert_eq!(
+            verify(&duplicate, &manifest),
+            Err(Failure::OperationFailed.into())
+        );
         for field in [
             "target",
             "features",

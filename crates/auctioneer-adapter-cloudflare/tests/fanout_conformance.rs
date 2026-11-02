@@ -6,43 +6,7 @@
 //! delays. No Fetch, JS event loop, `AbortController`, SDK decoder, or streaming
 //! response-cap enforcement runs here. WASM --no-run proves compilation only,
 //! not provider-runtime deadlines, finite origin cancellation, or memory bounds.
-//! `entry_deadline` and `transport_contract` instead register the shared core
-//! harness; those rows do not exercise Cloudflare host primitives.
-
-#[cfg(test)]
-mod transport_contract {
-    use auctioneer_core::conformance as rows;
-
-    #[test]
-    fn transport_error_yields_initial_code_4_statuscode_100_on_bounded_wave() {
-        rows::transport_error_yields_initial_code_4_statuscode_100_on_bounded_wave();
-    }
-}
-
-#[cfg(test)]
-mod entry_deadline {
-    use auctioneer_core::conformance::{self as rows, FanoutUnderTest};
-
-    #[test]
-    fn pre_expired_deadline_at_send_all_entry_short_circuits_on_bounded_wave() {
-        rows::pre_expired_deadline_at_send_all_entry_short_circuits(FanoutUnderTest::BoundedWave);
-    }
-
-    #[test]
-    fn deadline_equal_to_send_all_entry_short_circuits_on_bounded_wave() {
-        rows::deadline_equal_to_send_all_entry_short_circuits(FanoutUnderTest::BoundedWave);
-    }
-
-    #[test]
-    fn pre_expired_deadline_at_send_all_entry_short_circuits_on_per_call_bridge() {
-        rows::pre_expired_deadline_at_send_all_entry_short_circuits(FanoutUnderTest::PerCallBridge);
-    }
-
-    #[test]
-    fn deadline_equal_to_send_all_entry_short_circuits_on_per_call_bridge() {
-        rows::deadline_equal_to_send_all_entry_short_circuits(FanoutUnderTest::PerCallBridge);
-    }
-}
+//! Core-only entry-deadline and transport contracts remain in `auctioneer-core`.
 
 #[cfg(test)]
 mod tests {

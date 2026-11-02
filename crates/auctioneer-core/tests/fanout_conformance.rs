@@ -1,8 +1,8 @@
 //! `BidderFanout` conformance suite, auctioneer-core binary.
 //!
-//! Every case body lives in `auctioneer_core::conformance` so this binary,
-//! Cloudflare, Spin and Fastly run the SAME assertions. What
-//! differs between them is only which crate compiles them.
+//! This binary owns the shared portable algorithm contracts in
+//! `auctioneer_core::conformance`. Adapter conformance targets separately
+//! exercise their actual timer, cooperator and gate integrations.
 //!
 //! Bucket A rows run against `DevFanout` and against
 //! `EdgeZeroFanout` on both of its drives — the per-call strategy

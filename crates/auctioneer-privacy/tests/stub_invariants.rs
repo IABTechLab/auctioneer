@@ -59,20 +59,6 @@ mod tests {
     }
 
     #[test]
-    fn auction_stub_never_enforces_ccpa() {
-        let ctx = PrivacyContext::allow_all_no_scrub();
-        assert!(!ctx.ccpa_should_enforce());
-    }
-
-    #[test]
-    fn auction_stub_take_warnings_is_idempotent_empty() {
-        let mut ctx = PrivacyContext::allow_all_no_scrub();
-        assert!(ctx.take_warnings().is_empty());
-        assert!(ctx.take_warnings().is_empty());
-        assert!(ctx.take_warnings().is_empty());
-    }
-
-    #[test]
     fn sync_ambiguous_uses_raw_host_no_default() {
         let mut host = HostConfig::default();
         host.gdpr.default_value = "0".into();

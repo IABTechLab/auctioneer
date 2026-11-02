@@ -133,3 +133,5 @@ required-features = ["application"]
 name = "resource_boot_parity"
 path = "tests/resource_boot_parity/main.rs"
 required-features = ["application"]
+# Builds its own closed child graph; the existing CLI CI lane owns execution.
+test = false

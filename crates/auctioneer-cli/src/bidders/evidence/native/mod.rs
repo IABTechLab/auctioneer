@@ -331,6 +331,7 @@ pub(super) async fn consume(source: &Path, inventory: &Path, root: &Path, id: &s
 #[cfg(test)]
 mod tests {
     use super::*;
+    use auctioneer_cli::native_control::io::sha256;
     use serde_json::{Value, json};
     use std::env::temp_dir;
     use tempfile::tempdir_in;
@@ -367,27 +368,71 @@ mod tests {
             },
         };
         // Verifier-only data. No fake executable is run or published as evidence.
-        let operations = runner::PLANS.into_iter().map(|plan| {
-            let stdout = format!("\nrunning 1 test\ntest {} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.01s\n", plan.test_name());
-            runner::dispatch(plan, stdout.as_bytes()).unwrap()
-        }).collect();
-        let builds = runner::PLANS
+        let rows = [
+            (
+                runner::Plan::OnboardingSecure,
+                "native_bidder_onboarding",
+                &["conformance-suite", "test-support"][..],
+                "native_bidder_onboarding::cases::all_frozen_native_flows_use_generated_app_dispatch_and_fresh_activation_snapshots",
+            ),
+            (
+                runner::Plan::OnboardingInsecure,
+                "native_bidder_onboarding",
+                &["conformance-suite", "insecure-bidders", "test-support"][..],
+                "native_bidder_onboarding::cases::all_frozen_native_flows_use_generated_app_dispatch_and_fresh_activation_snapshots",
+            ),
+            (
+                runner::Plan::SchemaResources,
+                "native_schema_resources",
+                &["test-support"][..],
+                "tests::cold_native_schema_reservations_cover_discovered_bindings_and_fresh_evaluations",
+            ),
+            (
+                runner::Plan::NativeHeadroom,
+                "auctioneer_adapter_axum",
+                &[][..],
+                "envelope::tests::shipped_baked_budget_leaves_256_mib_headroom",
+            ),
+        ];
+        let operations = rows
             .into_iter()
-            .map(|plan| {
-                runner::build_fixture(
+            .map(|(plan, _, _, test)| {
+                assert_eq!(plan.test_name(), test);
+                let stdout = format!("\nrunning 1 test\ntest {test} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.01s\n");
+                runner::Dispatch {
                     plan,
-                    &manifest.inputs.evidence_target_directory,
-                    "native-fixture",
-                )
+                    test: test.to_owned(),
+                    dispatched: 1,
+                    passed: 1,
+                    failed: 0,
+                    ignored: 0,
+                    stdout_sha256: sha256(stdout.as_bytes()),
+                    stdout,
+                }
+            })
+            .collect();
+        let builds = rows
+            .into_iter()
+            .map(|(plan, name, features, _)| runner::Build {
+                plan,
+                target: "native-fixture".to_owned(),
+                features: features
+                    .iter()
+                    .map(|feature| (*feature).to_owned())
+                    .collect(),
+                executable: format!("/fixture/target/native-fixture/debug/deps/{name}-abc123")
+                    .into(),
+                executable_sha256: "a".repeat(64),
+                cargo_stdout_sha256: "b".repeat(64),
             })
             .collect();
         let receipt = Receipt {
-            schema_version: super::super::VERSION,
-            run_id: manifest.run_id.clone(),
+            schema_version: 3,
+            run_id: "native-fixture".to_owned(),
             manifest_sha256: canonical_digest(&manifest).unwrap(),
-            producer: PRODUCER.to_owned(),
-            operation: OPERATION.to_owned(),
-            operation_count: OPERATION_COUNT,
+            producer: "controlled_native_acceptance".to_owned(),
+            operation: "controlled_native_tests".to_owned(),
+            operation_count: 4,
             scope: Scope::NativeOnly,
             status: Status::TestedOnly,
             dispatch_unit: DispatchUnit::RustTestCases,
@@ -405,92 +450,100 @@ mod tests {
     fn each_native_receipt_guard_independently_refuses_missing_or_changed_evidence() {
         let (manifest, good) = fixture();
         verify_receipt(&good, &manifest, &manifest.run_id, "native-fixture").unwrap();
-        for (field, value) in [
-            ("schema_version", json!(0_u8)),
-            ("run_id", json!("foreign")),
-            ("manifest_sha256", json!("0".repeat(64))),
-            ("producer", json!("foreign")),
-            ("operation", json!("foreign")),
-            ("operation_count", json!(0_u8)),
-            ("formal_qualified", json!(true)),
-            ("wasm_ready", json!(true)),
-            ("status", json!("incomplete")),
-            ("outcome", json!("failed")),
-            ("error", json!("command")),
-            ("operations", json!([])),
-            ("builds", json!([])),
+        for (field, value, failure) in [
+            ("schema_version", json!(0_u8), Failure::Membership),
+            ("run_id", json!("foreign"), Failure::RunMismatch),
+            ("manifest_sha256", json!("0".repeat(64)), Failure::Binding),
+            ("producer", json!("foreign"), Failure::Membership),
+            ("operation", json!("foreign"), Failure::Membership),
+            ("operation_count", json!(0_u8), Failure::Membership),
+            ("formal_qualified", json!(true), Failure::Membership),
+            ("wasm_ready", json!(true), Failure::Membership),
+            ("status", json!("incomplete"), Failure::OperationFailed),
+            ("outcome", json!("failed"), Failure::OperationFailed),
+            ("error", json!("command"), Failure::OperationFailed),
+            ("operations", json!([]), Failure::Membership),
+            ("builds", json!([]), Failure::Membership),
         ] {
             let mut mutated_json = serde_json::to_value(&good).unwrap();
+            assert_ne!(mutated_json[field], value, "{field}");
             mutated_json[field] = value;
             let bad: Receipt = serde_json::from_value(mutated_json).unwrap();
-            assert!(
-                verify_receipt(&bad, &manifest, &manifest.run_id, "native-fixture").is_err(),
+            assert_eq!(
+                verify_receipt(&bad, &manifest, &manifest.run_id, "native-fixture"),
+                Err(failure.into()),
                 "{field}"
             );
         }
         let encoded = serde_json::to_value(&good).unwrap();
         for field in encoded.as_object().unwrap().keys() {
             let mut bad = encoded.clone();
-            bad.as_object_mut().unwrap().remove(field);
+            assert!(bad.as_object_mut().unwrap().remove(field).is_some());
             // An omitted optional error is equivalent to None; all other omissions refuse.
             if field == "error" {
+                let receipt = serde_json::from_value(bad).unwrap();
+                assert_eq!(
+                    verify_receipt(&receipt, &manifest, &manifest.run_id, "native-fixture"),
+                    Ok(())
+                );
                 continue;
             }
-            assert!(
-                serde_json::from_value::<Receipt>(bad).map_or(true, |receipt| verify_receipt(
-                    &receipt,
-                    &manifest,
-                    &manifest.run_id,
-                    "native-fixture"
-                )
-                .is_err()),
-                "{field}"
-            );
+            assert!(serde_json::from_value::<Receipt>(bad).is_err(), "{field}");
         }
     }
 
     #[test]
     fn transcript_counts_hashes_order_build_target_and_scope_cannot_be_forged() {
         let (manifest, good) = fixture();
-        for (field, value) in [
-            ("passed", json!(0_u8)),
-            ("failed", json!(1_u8)),
-            ("ignored", json!(1_u8)),
-            ("dispatched", json!(0_u8)),
-            ("stdout_sha256", json!("0".repeat(64))),
-            ("test", json!("foreign")),
-            ("stdout", json!("running 0 tests\n")),
+        assert_eq!(
+            verify_receipt(&good, &manifest, &manifest.run_id, "native-fixture"),
+            Ok(())
+        );
+        for (field, value, failure) in [
+            ("passed", json!(0_u8), Failure::Membership),
+            ("failed", json!(1_u8), Failure::Membership),
+            ("ignored", json!(1_u8), Failure::Membership),
+            ("dispatched", json!(0_u8), Failure::Membership),
+            ("stdout_sha256", json!("0".repeat(64)), Failure::Membership),
+            ("test", json!("foreign"), Failure::Membership),
+            (
+                "stdout",
+                json!("running 0 tests\n"),
+                Failure::OperationFailed,
+            ),
         ] {
             let mut mutated_json = serde_json::to_value(&good).unwrap();
+            assert_ne!(mutated_json["operations"][0][field], value, "{field}");
             mutated_json["operations"][0][field] = value;
             let bad: Receipt = serde_json::from_value(mutated_json).unwrap();
-            assert!(
-                verify_receipt(&bad, &manifest, &manifest.run_id, "native-fixture").is_err(),
+            assert_eq!(
+                verify_receipt(&bad, &manifest, &manifest.run_id, "native-fixture"),
+                Err(failure.into()),
                 "{field}"
             );
         }
         let mut changed_receipt: Receipt =
             serde_json::from_value(serde_json::to_value(&good).unwrap()).unwrap();
         changed_receipt.operations.swap(0, 1);
-        assert!(
+        assert_eq!(
             verify_receipt(
                 &changed_receipt,
                 &manifest,
                 &manifest.run_id,
                 "native-fixture"
-            )
-            .is_err()
+            ),
+            Err(Failure::Membership.into())
         );
         changed_receipt.operations.swap(0, 1);
         changed_receipt.builds[0].target = "foreign".to_owned();
-        assert!(
+        assert_eq!(
             verify_receipt(
                 &changed_receipt,
                 &manifest,
                 &manifest.run_id,
                 "native-fixture"
-            )
-            .is_err()
+            ),
+            Err(Failure::Binding.into())
         );
         for (field, value) in [
             ("scope", json!("whole_catalog")),
@@ -506,6 +559,10 @@ mod tests {
     #[test]
     fn every_current_binding_component_is_bound_to_the_native_receipt() {
         let (manifest, receipt) = fixture();
+        assert_eq!(
+            verify_receipt(&receipt, &manifest, &manifest.run_id, "native-fixture"),
+            Ok(())
+        );
         let encoded = serde_json::to_value(&manifest).unwrap();
         for field in encoded["inputs"].as_object().unwrap().keys() {
             let mut mutated_json = encoded.clone();

@@ -281,13 +281,18 @@ fn load(inventory: &Path, root: &Path, id: &str) -> Result<(Manifest, Context), 
         return Err(Failure::RunMismatch.into());
     }
     let (required, context) = expected(inventory, id)?;
+    verify_manifest(&manifest, &required)?;
+    Ok((manifest, context))
+}
+
+fn verify_manifest(manifest: &Manifest, required: &Manifest) -> Result<(), Error> {
     if manifest.requirements != required.requirements {
         return Err(Failure::Membership.into());
     }
     if manifest != required {
         return Err(Failure::Binding.into());
     }
-    Ok((manifest, context))
+    Ok(())
 }
 
 fn begin(inventory: &Path, root: &Path, id: &str) -> Result<(), Error> {
@@ -339,6 +344,19 @@ async fn validate(source: &Path, inventory: &Path, root: &Path, id: &str) -> Res
     files::members(&slot, &["receipt.json"])?;
     let receipt: Receipt = parse_json(&files::read(&slot.join("receipt.json"))?, CAP)
         .map_err(|_error| Failure::Input)?;
+    verify_receipt(&receipt, &manifest, id)?;
+    // Do not let a fabricated success receipt hide current reference drift.
+    let report = check::run_bytes(source, &context.inventory, false, None, None).await?;
+    if report.exit_code() != 0_i32 {
+        return Err(Failure::OperationFailed.into());
+    }
+    if current(inventory)?.binding != context.binding {
+        return Err(Failure::Binding.into());
+    }
+    Ok(())
+}
+
+fn verify_receipt(receipt: &Receipt, manifest: &Manifest, id: &str) -> Result<(), Error> {
     if receipt.run_id != id {
         return Err(Failure::RunMismatch.into());
     }
@@ -349,19 +367,11 @@ async fn validate(source: &Path, inventory: &Path, root: &Path, id: &str) -> Res
     {
         return Err(Failure::Membership.into());
     }
-    if receipt.manifest_sha256 != canonical_digest(&manifest).map_err(|_error| Failure::Input)? {
+    if receipt.manifest_sha256 != canonical_digest(manifest).map_err(|_error| Failure::Input)? {
         return Err(Failure::Binding.into());
     }
     if receipt.outcome != Outcome::Completed || receipt.error.is_some() {
         return Err(Failure::OperationFailed.into());
-    }
-    // Do not let a fabricated success receipt hide current reference drift.
-    let report = check::run_bytes(source, &context.inventory, false, None, None).await?;
-    if report.exit_code() != 0_i32 {
-        return Err(Failure::OperationFailed.into());
-    }
-    if current(inventory)?.binding != context.binding {
-        return Err(Failure::Binding.into());
     }
     Ok(())
 }
@@ -491,9 +501,223 @@ pub(super) async fn run(command: Command) -> Result<i32, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::env::temp_dir;
     use std::process::Command as ProcessCommand;
     use tempfile::{TempDir, tempdir_in};
+
+    fn manifest_fixture() -> Manifest {
+        serde_json::from_value(json!({
+            "schema_version": 3_u8,
+            "scope": "controlled_native_acceptance",
+            "run_id": "binding-fixture",
+            "requirements": {
+                "producers": [
+                    {"id": "reference_integrity", "operation": "inspect_reference_inventory", "operation_count": 1_u8},
+                    {"id": "selected_schema_source_conformance", "operation": "selected_schema_source_tests", "operation_count": 2_u8},
+                    {"id": "controlled_native_acceptance", "operation": "controlled_native_tests", "operation_count": 4_u8}
+                ],
+                "unavailable": [
+                    "foundation", "schema_qualification", "registry_lifecycle", "proprietary_decoder",
+                    "resource_qualification", "current_shipped_subset", "priority_contracts", "composed_onboarding"
+                ]
+            },
+            "inputs": {
+                "build_identity_sha256": "a".repeat(64),
+                "executable_sha256": "b".repeat(64),
+                "workspace_sha256": "c".repeat(64),
+                "lock_sha256": "d".repeat(64),
+                "features": ["application", "test-support"],
+                "source_revision": REVISION,
+                "inventory_sha256": "e".repeat(64),
+                "evidence_target_directory": "/fixture/target",
+                "evidence_tool_environment_sha256": "f".repeat(64)
+            }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn manifest_comparison_requires_each_current_input_binding() {
+        let required = manifest_fixture();
+        assert_eq!(required.schema_version, VERSION);
+        assert_eq!(required.requirements, requirements());
+        assert_eq!(verify_manifest(&required, &required), Ok(()));
+        let original = serde_json::to_value(&required).unwrap();
+        for (field, replacement) in [
+            ("build_identity_sha256", json!("0".repeat(64))),
+            ("executable_sha256", json!("0".repeat(64))),
+            ("workspace_sha256", json!("0".repeat(64))),
+            ("lock_sha256", json!("0".repeat(64))),
+            ("features", json!([])),
+            ("source_revision", json!("0".repeat(40))),
+            ("inventory_sha256", json!("0".repeat(64))),
+            ("evidence_target_directory", json!("/foreign/target")),
+            ("evidence_tool_environment_sha256", json!("0".repeat(64))),
+        ] {
+            assert_ne!(original["inputs"][field], replacement, "{field}");
+            let mut changed = original.clone();
+            changed["inputs"][field] = replacement;
+            let manifest = serde_json::from_value(changed).unwrap();
+            assert_eq!(
+                verify_manifest(&manifest, &required),
+                Err(Failure::Binding.into()),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn manifest_comparison_refuses_each_added_or_removed_linked_feature() {
+        for (feature, present) in [
+            ("application", true),
+            ("test-support", false),
+            ("test-support", true),
+            ("conformance_suite", false),
+            ("conformance_suite", true),
+            ("test_harness_override", false),
+            ("test_harness_override", true),
+        ] {
+            let mut required = manifest_fixture();
+            required.inputs.features = vec!["application".to_owned()];
+            if present && feature != "application" {
+                required.inputs.features.push(feature.to_owned());
+            }
+            assert_eq!(
+                required
+                    .inputs
+                    .features
+                    .iter()
+                    .filter(|value| *value == "application")
+                    .count(),
+                1_usize
+            );
+            assert_eq!(
+                required
+                    .inputs
+                    .features
+                    .iter()
+                    .filter(|value| *value == feature)
+                    .count(),
+                usize::from(present),
+                "{feature}: before-state present={present}"
+            );
+            assert_eq!(verify_manifest(&required, &required), Ok(()));
+            let mut manifest: Manifest =
+                serde_json::from_value(serde_json::to_value(&required).unwrap()).unwrap();
+            if present {
+                manifest.inputs.features.retain(|value| value != feature);
+            } else {
+                manifest.inputs.features.push(feature.to_owned());
+            }
+            assert_eq!(
+                manifest
+                    .inputs
+                    .features
+                    .iter()
+                    .filter(|value| *value == feature)
+                    .count(),
+                usize::from(!present),
+                "{feature}: after-state present={}",
+                !present
+            );
+            assert_ne!(manifest.inputs.features, required.inputs.features);
+            assert_eq!(
+                verify_manifest(&manifest, &required),
+                Err(Failure::Binding.into()),
+                "{feature}: present={present}"
+            );
+        }
+    }
+
+    #[test]
+    fn manifest_comparison_requires_scope_version_and_code_owned_membership() {
+        let required = manifest_fixture();
+        assert_eq!(verify_manifest(&required, &required), Ok(()));
+        let original = serde_json::to_value(&required).unwrap();
+        for (field, replacement, failure) in [
+            ("schema_version", json!(1_u8), Failure::Binding),
+            ("schema_version", json!(2_u8), Failure::Binding),
+            ("scope", json!("whole_catalog"), Failure::Binding),
+            (
+                "requirements",
+                json!({"producers": [], "unavailable": original["requirements"]["unavailable"]}),
+                Failure::Membership,
+            ),
+            (
+                "requirements",
+                json!({"producers": original["requirements"]["producers"].as_array().unwrap()[..2],
+                    "unavailable": original["requirements"]["unavailable"]}),
+                Failure::Membership,
+            ),
+            (
+                "requirements",
+                json!({"producers": original["requirements"]["producers"], "unavailable": []}),
+                Failure::Membership,
+            ),
+        ] {
+            assert_ne!(original[field], replacement, "{field}");
+            let mut changed = original.clone();
+            changed[field] = replacement;
+            let manifest = serde_json::from_value(changed).unwrap();
+            assert_eq!(verify_manifest(&manifest, &required), Err(failure.into()));
+        }
+    }
+
+    #[test]
+    fn manifest_decoding_requires_complete_requirements() {
+        let mut value = serde_json::to_value(manifest_fixture()).unwrap();
+        assert!(value["requirements"].get("producers").is_some());
+        assert!(value["requirements"].get("unavailable").is_some());
+        value["requirements"] = json!({});
+        assert_eq!(
+            parse_json::<Manifest>(&serde_json::to_vec(&value).unwrap(), CAP)
+                .map_err(|_error| Failure::Input),
+            Err(Failure::Input)
+        );
+    }
+
+    #[test]
+    fn reference_receipt_comparison_requires_each_success_field() {
+        let manifest = manifest_fixture();
+        let good = Receipt {
+            schema_version: 3,
+            run_id: "binding-fixture".to_owned(),
+            manifest_sha256: canonical_digest(&manifest).unwrap(),
+            producer: "reference_integrity".to_owned(),
+            operation: "inspect_reference_inventory".to_owned(),
+            operation_count: 1,
+            outcome: Outcome::Completed,
+            error: None,
+        };
+        assert_eq!(verify_receipt(&good, &manifest, "binding-fixture"), Ok(()));
+        let original = serde_json::to_value(good).unwrap();
+        for (field, replacement, failure) in [
+            ("schema_version", json!(0_u8), Failure::Membership),
+            ("run_id", json!("foreign"), Failure::RunMismatch),
+            ("manifest_sha256", json!("0".repeat(64)), Failure::Binding),
+            ("producer", json!("unknown"), Failure::Membership),
+            ("operation", json!("some_test"), Failure::Membership),
+            ("operation_count", json!(0_u8), Failure::Membership),
+            ("operation_count", json!(2_u8), Failure::Membership),
+            ("outcome", json!("failed"), Failure::OperationFailed),
+            (
+                "error",
+                json!("reference_integrity_failed"),
+                Failure::OperationFailed,
+            ),
+        ] {
+            assert_ne!(original[field], replacement, "{field}");
+            let mut changed = original.clone();
+            changed[field] = replacement;
+            let receipt = serde_json::from_value(changed).unwrap();
+            assert_eq!(
+                verify_receipt(&receipt, &manifest, "binding-fixture"),
+                Err(failure.into()),
+                "{field}"
+            );
+        }
+    }
 
     fn source_fixture() -> (TempDir, BuildIdentity) {
         let directory = tempdir_in(temp_dir().canonicalize().unwrap()).unwrap();

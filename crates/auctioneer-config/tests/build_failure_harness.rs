@@ -1953,6 +1953,7 @@ mediaTypes = ["banner"]
             generated.bidder_names().unwrap(),
             ["fake_fixture_adapter", "fake_unused"]
         );
+        bidder_settings_compile::assert_generated_settings_without_declared_schema(&bidder_dir);
     }
 
     #[test]

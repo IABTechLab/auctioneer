@@ -1833,7 +1833,10 @@ mod tests {
         assert_literal_schema_controls(&catalog);
         // Share the build, while every native observation still starts a fresh child.
         assert_native_generated_callback_allocations(&catalog);
-        catalog.check_reference_refusals().unwrap();
+        // Catalogue-independent compiler refusals have one synthetic owner.
+        if !crate::SCHEMA_SOURCE_CONFORMANCE {
+            catalog.check_reference_refusals().unwrap();
+        }
     }
 
     fn assert_literal_schema_controls(catalog: &schema_build::Catalog) {
@@ -2039,8 +2042,11 @@ mod tests {
         assert_source_parameter_sequences(&catalog);
         // Finish native observations before refusal probes mutate this workspace.
         assert_compiled_explicit_cache_layouts(&catalog);
+        crate::assert_source_explicit_cache_layouts(&catalog);
         assert_explicit_cache_measurements(&catalog);
-        catalog.check_explicit_refusals().unwrap();
+        if !crate::SCHEMA_SOURCE_CONFORMANCE {
+            catalog.check_explicit_refusals().unwrap();
+        }
     }
 
     fn assert_guest_observations(row: &schema_build::LinkReport) {

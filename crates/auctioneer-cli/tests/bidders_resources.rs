@@ -12,7 +12,10 @@ mod tests {
             .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
             .args(["bidders", "resources"])
             .args(arguments)
-            .env("RESOURCE_SECRET_CANARY", "DO_NOT_EXPORT_RESOURCE_SECRET")
+            .env(
+                "AUCTIONEER__TEST__RESOURCE_SECRET_CANARY",
+                "DO_NOT_EXPORT_RESOURCE_SECRET",
+            )
             .output()
             .unwrap()
     }
@@ -102,10 +105,13 @@ mod tests {
     }
 
     #[test]
-    fn full_audit_selection_is_explicit_in_the_report() {
-        let output = run(&["--check", "--all-adapters"]);
+    fn all_adapter_report_preserves_accounting_features_and_strict_refusal() {
+        let output = run_all(&["--check"]);
         assert_eq!(output.status.code(), Some(0_i32), "{output:?}");
         let value = report(&output);
+        let strict = run_all(&["--check", "--require-fit"]);
+        assert_eq!(strict.status.code(), Some(1_i32), "{strict:?}");
+        assert_eq!(value, report(&strict));
         assert_eq!(value["selection"]["scope"], "all_adapters");
         let rows = value["adapters"].as_array().unwrap();
         assert_eq!(rows.len(), 4);
@@ -115,20 +121,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["axum", "cloudflare", "fastly", "spin"]
         );
-    }
-
-    #[test]
-    fn accounting_check_reports_four_source_bound_rows_without_claiming_absolute_fit() {
-        let output = run_all(&["--check"]);
-        assert_eq!(output.status.code(), Some(0_i32), "{output:?}");
-        let value = report(&output);
-        let rows = value["adapters"].as_array().unwrap();
-        assert_eq!(rows.len(), 4);
         for (row, name) in rows.iter().zip(["axum", "cloudflare", "fastly", "spin"]) {
             assert_eq!(row["adapter"], name);
             assert_eq!(row["required_fit"], false);
             assert!(row["baked_config_bytes"].as_u64().unwrap() > 0);
-            assert_layout_and_caps(row, name);
+            assert_layout_caps_and_features(row, name);
             let terms = row["terms"].as_object().unwrap();
             let expected: Vec<_> = auctioneer_runtime::IsolateTerm::ALL
                 .iter()
@@ -157,6 +154,10 @@ mod tests {
                     .is_empty()
             );
         }
+        assert_platform_facts(rows);
+    }
+
+    fn assert_platform_facts(rows: &[Value]) {
         let axum = rows.first().unwrap();
         assert!(axum["validation"]["effective_ceiling_bytes"].is_null());
         assert!(axum["validation"]["minimum_headroom_bytes"].is_null());
@@ -179,7 +180,7 @@ mod tests {
         );
     }
 
-    fn assert_layout_and_caps(row: &Value, name: &str) {
+    fn assert_layout_caps_and_features(row: &Value, name: &str) {
         let (layout, backend, blob) = if name == "axum" {
             ("native_control", 0x0002_0000_u64, 0x0001_0000_u64)
         } else {
@@ -205,38 +206,20 @@ mod tests {
             row["construction_costs"]["retained_per_scope_bytes"],
             78_u64
         );
-    }
-
-    #[test]
-    fn report_features_include_linked_dependency_modes() {
-        let output = run_all(&["--check"]);
-        assert_eq!(output.status.code(), Some(0_i32));
-        let value = report(&output);
-        for row in value["adapters"].as_array().unwrap() {
-            let features = row["identity"]["features"].as_array().unwrap();
-            assert!(features.iter().any(|feature| feature == "application"));
-            assert_eq!(
-                features
-                    .iter()
-                    .any(|feature| feature == "conformance_suite"),
-                auctioneer_core::CONFORMANCE_SUITE_ENABLED
-            );
-            assert_eq!(
-                features
-                    .iter()
-                    .any(|feature| feature == "test_harness_override"),
-                auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED
-            );
-        }
-    }
-
-    #[test]
-    fn require_fit_refuses_and_emits_the_same_accounting() {
-        let relative = run_all(&["--check"]);
-        let strict = run_all(&["--check", "--require-fit"]);
-        assert_eq!(relative.status.code(), Some(0_i32), "{relative:?}");
-        assert_eq!(strict.status.code(), Some(1_i32), "{strict:?}");
-        assert_eq!(report(&relative), report(&strict));
+        let features = row["identity"]["features"].as_array().unwrap();
+        assert!(features.iter().any(|feature| feature == "application"));
+        assert_eq!(
+            features
+                .iter()
+                .any(|feature| feature == "conformance_suite"),
+            auctioneer_core::CONFORMANCE_SUITE_ENABLED
+        );
+        assert_eq!(
+            features
+                .iter()
+                .any(|feature| feature == "test_harness_override"),
+            auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED
+        );
     }
 
     #[test]

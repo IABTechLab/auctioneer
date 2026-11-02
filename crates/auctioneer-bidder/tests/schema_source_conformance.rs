@@ -5,6 +5,7 @@
 pub(crate) const SCHEMA_SOURCE_CONFORMANCE: bool = true;
 
 use std::path::Path;
+use tests::assert_source_explicit_cache_layouts;
 
 #[cfg(test)]
 mod schema_meter;
@@ -3695,22 +3696,18 @@ mod tests {
         writeln!(stderr(), "unused native meta pools: helpers=23 hostname-statics=1 owners=24 box={} shard-stride={} shards={} shard-bytes={} closure={} per-owner={} requested-total={requested_total} observed-total={observed_total}; conditional unused-pool bookkeeping only", bound.boxed_pool_bytes, bound.shard_stride, bound.shards, bound.shard_bytes, bound.closure_bytes, bound.requested_bytes).unwrap();
     }
 
-    #[test]
-    fn every_compiled_schema_cache_layout_funds_sibling_and_callback_storage() {
+    pub(super) fn assert_source_explicit_cache_layouts(catalog: &super::schema_build::Catalog) {
         use super::schema_bundle_heap::{CacheBundleHeap, format_peak};
         use super::schema_meta_heap::MetaCacheHeap;
         use regex_automata::meta::Cache;
         use std::collections::BTreeMap;
         use std::io::{Write as _, stderr};
 
-        let catalog = super::schema_build::linked_explicit_catalog(
-            super::schema_build::LinkTargets::NativeOnly,
-        )
-        .unwrap();
         assert_eq!(
             catalog
                 .reports()
                 .iter()
+                .filter(|row| row.target == "native")
                 .map(|row| row.target.as_str())
                 .collect::<Vec<_>>(),
             ["native"]

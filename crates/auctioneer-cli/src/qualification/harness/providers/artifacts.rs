@@ -123,13 +123,7 @@ fn cargo_messages(lines: &str) -> Result<Vec<CargoMessage>> {
     Ok(messages)
 }
 
-pub(super) async fn capture(
-    preparation: &Preparation,
-    lines: &str,
-    started_ms: u64,
-    supervisor: &process::Supervisor,
-) -> Result<BuildReceipt> {
-    preparation::verify_frozen_inputs(preparation, supervisor).await?;
+fn select_artifact(provider: &str, lines: &str) -> Result<PathBuf> {
     let messages = cargo_messages(lines)?;
     let compiled: Vec<_> = messages
         .iter()
@@ -151,8 +145,8 @@ pub(super) async fn capture(
     {
         return Err(HarnessError::new("build_feature_missing"));
     }
-    let underscore_name = format!("auctioneer_adapter_{}", preparation.provider);
-    let hyphen_name = format!("auctioneer-adapter-{}", preparation.provider);
+    let underscore_name = format!("auctioneer_adapter_{provider}");
+    let hyphen_name = format!("auctioneer-adapter-{provider}");
     let adapters: Vec<_> =
         compiled
             .iter()
@@ -171,7 +165,7 @@ pub(super) async fn capture(
     let adapter = adapters
         .first()
         .ok_or(HarnessError::new("artifact_identity"))?;
-    if adapter.features != [preparation.provider.clone()]
+    if adapter.features != [provider]
         || adapter.fresh == Some(true)
         || !adapter.profile.as_ref().is_some_and(|profile| {
             profile.opt_level == "3" && !profile.debug_assertions && !profile.test
@@ -190,10 +184,20 @@ pub(super) async fn capture(
     if emitted.len() != 1 {
         return Err(HarnessError::new("artifact_identity"));
     }
-    let artifact = (*emitted
+    Ok((*emitted
         .first()
         .ok_or(HarnessError::new("artifact_identity"))?)
-    .clone();
+    .clone())
+}
+
+pub(super) async fn capture(
+    preparation: &Preparation,
+    lines: &str,
+    started_ms: u64,
+    supervisor: &process::Supervisor,
+) -> Result<BuildReceipt> {
+    preparation::verify_frozen_inputs(preparation, supervisor).await?;
+    let artifact = select_artifact(&preparation.provider, lines)?;
     let artifact_sha256 = io::file_digest(&artifact, FILE_CAP)
         .map_err(|_error| HarnessError::new("artifact_identity"))?;
     let result = BuildReceipt {
@@ -1007,11 +1011,11 @@ pub(super) mod tests {
         }
     }
 
-    fn messages(plan: &Preparation, artifact: &Path) -> Vec<Value> {
+    fn messages(provider: &str, artifact: &Path) -> Vec<Value> {
         vec![
             json!({"reason":"compiler-artifact","target":{"name":"auctioneer_config"},"features":["test-harness-override"],"filenames":[]}),
-            json!({"reason":"compiler-artifact","target":{"name":format!("auctioneer_adapter_{}",plan.provider)},
-                "features":[plan.provider],"filenames":[artifact],"profile":{"opt_level":"3","debug_assertions":false,"test":false},"fresh":false}),
+            json!({"reason":"compiler-artifact","target":{"name":format!("auctioneer_adapter_{provider}")},
+                "features":[provider],"filenames":[artifact],"profile":{"opt_level":"3","debug_assertions":false,"test":false},"fresh":false}),
             json!({"reason":"build-finished","success":true}),
         ]
     }
@@ -1070,24 +1074,15 @@ pub(super) mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn capture_accepts_only_exact_compiler_features_target_profile_and_emitted_file() {
-        let supervisor = process::Supervisor::new();
-        let (_source, _work, plan) = preparation::tests::prepared("spin", &supervisor).await;
-        let build = artifact(&plan);
-        let valid = messages(&plan, &build.artifact);
-        let capture_input = plan.workspace.join("capture-input.json");
-        io::write_json(
-            &capture_input,
-            &json!({"preparation":plan,"cargo_json_lines":json_lines(&valid),"started_ms":1_u64}),
-            RECEIPT_CAP,
-        )
-        .unwrap();
-        let captured: BuildReceipt =
-            serde_json::from_value(capture_build(&capture_input, &supervisor).await.unwrap())
-                .unwrap();
-        assert_eq!(captured.artifact, build.artifact);
-        assert_eq!(captured.artifact_sha256, build.artifact_sha256);
+    #[test]
+    fn compiler_artifact_selection_requires_exact_features_target_profile_and_emitted_file() {
+        let artifact =
+            Path::new("/fixture/target/wasm32-wasip2/release/auctioneer_adapter_spin.wasm");
+        let valid = messages("spin", artifact);
+        assert_eq!(
+            select_artifact("spin", &json_lines(&valid)).unwrap(),
+            artifact
+        );
         let mut checked = 0_usize;
         for (row, field, bad, code) in [
             (0_usize, "features", json!([]), "build_feature_missing"),
@@ -1133,18 +1128,17 @@ pub(super) mod tests {
             (
                 1,
                 "filenames",
-                json!([build.artifact, build.artifact]),
+                json!([artifact, artifact]),
                 "artifact_identity",
             ),
             (1, "fresh", json!(true), "artifact_identity"),
             (2, "success", json!(false), "artifact_identity"),
         ] {
             let mut changed = valid.clone();
+            assert_ne!(changed[row][field], bad, "{row}:{field}");
             changed[row][field] = bad;
             assert_eq!(
-                capture(&plan, &json_lines(&changed), 1, &supervisor)
-                    .await
-                    .unwrap_err(),
+                select_artifact("spin", &json_lines(&changed)).unwrap_err(),
                 HarnessError::new(code),
                 "{row}:{field}"
             );
@@ -1153,12 +1147,38 @@ pub(super) mod tests {
         let mut duplicated = valid.clone();
         duplicated.insert(1, valid[1].clone());
         assert_eq!(
-            capture(&plan, &json_lines(&duplicated), 1, &supervisor)
-                .await
-                .unwrap_err(),
+            select_artifact("spin", &json_lines(&duplicated)).unwrap_err(),
             HarnessError::new("artifact_identity")
         );
         assert_eq!(checked, 13);
+    }
+
+    #[tokio::test]
+    async fn capture_accepts_only_exact_compiler_features_target_profile_and_emitted_file() {
+        let supervisor = process::Supervisor::new();
+        let (_source, _work, plan) = preparation::tests::prepared("spin", &supervisor).await;
+        let build = artifact(&plan);
+        let valid = messages(&plan.provider, &build.artifact);
+        let capture_input = plan.workspace.join("capture-input.json");
+        io::write_json(
+            &capture_input,
+            &json!({"preparation":plan,"cargo_json_lines":json_lines(&valid),"started_ms":1_u64}),
+            RECEIPT_CAP,
+        )
+        .unwrap();
+        let captured: BuildReceipt =
+            serde_json::from_value(capture_build(&capture_input, &supervisor).await.unwrap())
+                .unwrap();
+        assert_eq!(captured.artifact, build.artifact);
+        assert_eq!(captured.artifact_sha256, build.artifact_sha256);
+        let mut changed = valid.clone();
+        changed[0]["features"] = json!([]);
+        assert_eq!(
+            capture(&plan, &json_lines(&changed), 1, &supervisor)
+                .await
+                .unwrap_err(),
+            HarnessError::new("build_feature_missing")
+        );
         supervisor.cleanup().await.unwrap();
     }
 
@@ -1522,7 +1542,7 @@ pub(super) mod tests {
                 let result = if boundary == "capture" {
                     capture(
                         &plan,
-                        &json_lines(&messages(&plan, &build.artifact)),
+                        &json_lines(&messages(&plan.provider, &build.artifact)),
                         1,
                         &supervisor,
                     )
@@ -1583,7 +1603,7 @@ pub(super) mod tests {
                 let result = if boundary == "capture" {
                     capture(
                         &plan,
-                        &json_lines(&messages(&plan, &build.artifact)),
+                        &json_lines(&messages(&plan.provider, &build.artifact)),
                         1,
                         &supervisor,
                     )

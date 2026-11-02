@@ -220,6 +220,32 @@ fn execute_consumer(harness: &Harness, source: &str, inputs: &[(&str, &Path)]) {
     );
 }
 
+pub(super) fn assert_generated_settings_without_declared_schema(harness: &Harness) {
+    let generated = save_settings(harness, "empty");
+    execute_consumer(
+        harness,
+        r#"
+pub mod generated {
+    include!(concat!(env!("SETTINGS_BASE"), "/bidder_settings.rs"));
+}
+fn main() {
+    fn traits<T: Clone + std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned>() {}
+    traits::<generated::BidderSettings>();
+    for key in ["fake_probe", "std", "serde", "V0"] {
+        assert!(serde_json::from_value::<generated::BidderSettings>(serde_json::json!({
+            "implementation": key, "values": {}
+        })).is_err());
+    }
+    for wire in [serde_json::json!({}), serde_json::json!([]), serde_json::json!(null)] {
+        assert!(serde_json::from_value::<generated::BidderSettings>(wire).is_err());
+    }
+    println!("settings consumer passed");
+}
+"#,
+        &[("SETTINGS_BASE", &generated)],
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::{cargo_build_with_bidder_dir, harness_dirs, write_endpoint_contract};
@@ -430,36 +456,6 @@ fn main() {
     check!("std", std, as_std);
     check!("serde", serde, as_serde);
     check!("deserialize_object", deserialize_object, as_deserialize_object);
-    println!("settings consumer passed");
-}
-"#,
-            &[("SETTINGS_BASE", &generated)],
-        );
-    }
-
-    #[test]
-    fn generated_settings_compile_without_any_declared_schema() {
-        let harness = harness_dirs("settings_empty");
-        let (status, stderr) = cargo_build_with_bidder_dir(&harness);
-        assert!(status.success(), "empty catalog must build: {stderr}");
-        let generated = save_settings(&harness, "empty");
-        execute_consumer(
-            &harness,
-            r#"
-pub mod generated {
-    include!(concat!(env!("SETTINGS_BASE"), "/bidder_settings.rs"));
-}
-fn main() {
-    fn traits<T: Clone + std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned>() {}
-    traits::<generated::BidderSettings>();
-    for key in ["fake_probe", "std", "serde", "V0"] {
-        assert!(serde_json::from_value::<generated::BidderSettings>(serde_json::json!({
-            "implementation": key, "values": {}
-        })).is_err());
-    }
-    for wire in [serde_json::json!({}), serde_json::json!([]), serde_json::json!(null)] {
-        assert!(serde_json::from_value::<generated::BidderSettings>(wire).is_err());
-    }
     println!("settings consumer passed");
 }
 "#,

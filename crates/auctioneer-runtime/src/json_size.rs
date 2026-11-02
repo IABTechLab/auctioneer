@@ -38,7 +38,21 @@ pub fn serialized_json_bytes<T: Serialize + ?Sized>(value: &T) -> Result<u64, se
 mod tests {
     use super::{Counter, serialized_json_bytes};
     use crate::alloc_track;
+    use serde_json::json;
     use std::io::Write as _;
+
+    #[test]
+    fn counting_serialization_matches_actual_escaped_output() {
+        for value in [
+            json!(null),
+            json!({"a":"\n\"\\\t", "b":[1_i32, false, null]}),
+            json!({"unicode":"\u{212a}\u{1f600}"}),
+            json!(vec![json!({"":[]}); 1000]),
+        ] {
+            let expected = u64::try_from(serde_json::to_vec(&value).unwrap().len()).unwrap();
+            assert_eq!(serialized_json_bytes(&value).unwrap(), expected);
+        }
+    }
 
     #[test]
     fn overflow_does_not_wrap_the_counter() {
