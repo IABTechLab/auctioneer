@@ -1,8 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    env::var_os,
     fs::{self, File},
     io::Read as _,
     path::Path,
+    process::Command,
+    str::from_utf8,
 };
 
 use anyhow::{Context as _, Result, ensure};
@@ -107,6 +110,35 @@ fn read_relative(root: &Path, path: &str, limit: u64) -> Result<Vec<u8>> {
 }
 
 pub(crate) fn reject_go_sources(root: &Path) -> Result<()> {
+    if root.join(".git").exists() {
+        // Tracked paths remain owned even below an ignore rule. Ignored CI
+        // reference checkouts are inputs, not repository-maintained tooling.
+        let output = Command::new("git")
+            .current_dir(root)
+            .env_clear()
+            .env("PATH", var_os("PATH").unwrap_or_default())
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .args([
+                "--no-replace-objects",
+                "--no-optional-locks",
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ])
+            .output()?;
+        ensure!(output.status.success(), "repository source inventory");
+        for bytes in output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|bytes| !bytes.is_empty())
+        {
+            reject_go_path(Path::new(from_utf8(bytes)?))?;
+        }
+        return Ok(());
+    }
     let mut directories = vec![root.to_path_buf()];
     while let Some(directory) = directories.pop() {
         for result in fs::read_dir(directory)? {
@@ -119,18 +151,27 @@ pub(crate) fn reject_go_sources(root: &Path) -> Result<()> {
             ) {
                 continue;
             }
-            ensure!(
-                !name.ends_with(".go")
-                    && !name.ends_with(".go.txt")
-                    && !matches!(name.as_ref(), "go.mod" | "go.sum"),
-                "repository-owned Go tooling: {}",
-                entry.path().strip_prefix(root)?.display()
-            );
+            reject_go_path(entry.path().strip_prefix(root)?)?;
             if entry.file_type()?.is_dir() {
                 directories.push(entry.path());
             }
         }
     }
+    Ok(())
+}
+
+fn reject_go_path(path: &Path) -> Result<()> {
+    let name = path
+        .file_name()
+        .context("source file name")?
+        .to_string_lossy();
+    ensure!(
+        !name.ends_with(".go")
+            && !name.ends_with(".go.txt")
+            && !matches!(name.as_ref(), "go.mod" | "go.sum"),
+        "repository-owned Go tooling: {}",
+        path.display()
+    );
     Ok(())
 }
 
@@ -421,6 +462,44 @@ mod tests {
             .unwrap();
             assert!(reject_go_sources(&scratch.0).is_err(), "accepted {name}");
         }
+    }
+
+    #[test]
+    fn git_inventory_excludes_external_checkouts_but_not_owned_go_sources() {
+        let scratch = Scratch::new();
+        let git = |args: &[&str]| {
+            let output = Command::new("git")
+                .current_dir(&scratch.0)
+                .env_clear()
+                .env("PATH", env::var_os("PATH").unwrap())
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{args:?}: {output:?}");
+        };
+        git(&["init", "--quiet"]);
+        fs::write(scratch.0.join(".gitignore"), "/vendor/external/\n").unwrap();
+        fs::create_dir_all(scratch.0.join("vendor/external")).unwrap();
+        fs::write(scratch.0.join("vendor/external/main.go"), "package main").unwrap();
+        reject_go_sources(&scratch.0).unwrap();
+        for name in ["main.go", "main.go.txt", "go.mod", "go.sum"] {
+            let relative = format!("vendor/owned/{name}");
+            let path = scratch.0.join(&relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, "package main").unwrap();
+            assert_eq!(
+                reject_go_sources(&scratch.0).unwrap_err().to_string(),
+                format!("repository-owned Go tooling: {relative}")
+            );
+            fs::remove_file(path).unwrap();
+        }
+        git(&["add", "--force", "vendor/external/main.go"]);
+        assert_eq!(
+            reject_go_sources(&scratch.0).unwrap_err().to_string(),
+            "repository-owned Go tooling: vendor/external/main.go"
+        );
     }
 
     #[test]

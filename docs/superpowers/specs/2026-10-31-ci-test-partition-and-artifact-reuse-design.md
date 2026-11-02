@@ -178,11 +178,11 @@ profile without changing measurement isolation.
 
 ## Phase 1: Execution Ownership
 
-The existing YAML job ID is `test`, displayed as `cargo test`. Preserve that
-ordinary acceptance owner and add unconditional independent owners:
+The YAML job IDs remain stable; their lane-qualified check names make ownership
+visible. Preserve unconditional independent owners:
 
-- `test`: native/workspace acceptance, retaining its `cargo test` display name.
-- `compiler-conformance`: compiler/schema/guest acceptance.
+- `test`: native/workspace acceptance in four mandatory feature-scope lanes.
+- `compiler-conformance`: compiler/schema/guest acceptance in four mandatory lanes.
 - `config-build-failures`: hermetic configuration rejection and the explicit
   ignored disclosure-model check.
 - Matrix owners for the source compiler-layout experiment, selected linked
@@ -201,6 +201,38 @@ tools and working directory. In particular, compiler cases still need
 `rust-src`, all three WASM targets and the pinned Wasmtime; CLI source and SDK
 checks retain their reference checkouts and verifier tools. Do not remove a
 prerequisite from a job until its remaining commands are shown not to need it.
+
+### Approved Parallel Lanes And Cache Retention
+
+On 2026-11-01 AG approved the following scheduling revision after run
+`41393299498`: native acceptance took 34:25 and compiler acceptance 27:33.
+The native result includes later CLI work exposed by `--no-fail-fast`, so it
+is not comparable with the earlier fail-fast duration as a speedup/regression.
+
+| Job | Lane | Exclusive Work |
+| --- | --- | --- |
+| `test` | `secure` | Existing audits, source/provenance checks, secure package scopes and explicit feature controls |
+| `test` | `workspace-default` | The unchanged complete W0 command and its source-selection check |
+| `test` | `workspace-insecure` | The unchanged complete W1 command, source selection, named config scope and explicit socket checks |
+| `test` | `cli` | Standalone CA, CM, maintenance lint and browser shutdown checks |
+| `compiler-conformance` | `schema` | Both schema targets, WASI publication/storage and all four core/metadata scripts |
+| `compiler-conformance` | `settings` | Complete generated-settings target and its 14-case child |
+| `compiler-conformance` | `exports` | Complete synthetic export target with three isolated fixtures |
+| `compiler-conformance` | `discovery` | Factory-binding target followed by the registry rebuild sequence |
+
+Both matrices use `fail-fast: false`. Commands, flags, environments, prerequisites
+and order within a lane remain unchanged. In particular, W0/W1 still select the
+whole workspace: removing CLI and approximating its unified feature graph is
+not approved. The compiler script defaults to the complete serial `all` mode;
+an explicit lane runs only its owners and their strict Clippy checks. Preserve
+fresh measurement processes and each incremental mutation/restoration sequence.
+
+The two matrix jobs split ordinary Cargo restore/save actions with lane-specific
+keys and their previous prefixes as fallbacks. Save after success or failure,
+but not cancellation, only when a primary key exists and was not an exact hit.
+The path set is unchanged. Saving compiled products never changes a failing
+result or authorizes qualification. This is not Phase 2 result/observation reuse.
+Do not claim matched end-to-end improvement until complete hosted runs measure it.
 
 ### Package And Feature Scopes
 

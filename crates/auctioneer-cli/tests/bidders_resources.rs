@@ -138,8 +138,17 @@ mod tests {
             for term in expected {
                 assert!(terms.contains_key(term));
             }
-            assert_eq!(row["terms"]["catalog_resident"], 0_u64);
-            assert_eq!(row["terms"]["catalog_initialization"], 0_u64);
+            let (resident, initialization, scratch) = if name == "axum" {
+                (0x0100_0000_u64, 0x0080_0000_u64, 0x0008_0000_u64)
+            } else {
+                (0, 0, 0)
+            };
+            assert_eq!(row["terms"]["catalog_resident"], resident);
+            assert_eq!(row["terms"]["catalog_initialization"], initialization);
+            assert_eq!(
+                row["catalog_costs"]["schema_validation_per_auction_bytes"],
+                scratch
+            );
             assert_eq!(row["auction_receipts"].as_object().unwrap().len(), 6);
             assert!(
                 !row["validation"]["external_blockers"]

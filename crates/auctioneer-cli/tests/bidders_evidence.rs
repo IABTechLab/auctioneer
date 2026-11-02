@@ -222,6 +222,33 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn evidence_begin_hashes_its_cargo_style_hard_linked_executable() {
+        use std::os::unix::fs::MetadataExt as _;
+        let fixture = Fixture::new();
+        let executable = fixture.root("fake_cli");
+        fs::copy(env!("CARGO_BIN_EXE_auctioneer-cli"), &executable).unwrap();
+        fs::hard_link(&executable, fixture.root("fake_cli_alias")).unwrap();
+        assert_eq!(fs::metadata(&executable).unwrap().nlink(), 2);
+        let root = fixture.root("run");
+        let result = Command::new(&executable)
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args(["bidders", "evidence", "begin", "--source"])
+            .arg(fixture.directory.path())
+            .arg("--inventory")
+            .arg(&fixture.inventory)
+            .args(["--run-id", RUN, "--output"])
+            .arg(&root)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(0_i32), "{result:?}");
+        assert_eq!(
+            read(&root.join("manifest.json"))["inputs"]["executable_sha256"],
+            sha256(&fs::read(&executable).unwrap())
+        );
+    }
+
     #[test]
     fn code_owned_source_and_native_producers_are_required_even_when_receipts_are_absent() {
         let fixture = Fixture::new();

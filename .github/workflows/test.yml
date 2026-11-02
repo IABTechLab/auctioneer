@@ -14,8 +14,12 @@ concurrency:
 
 jobs:
   test:
-    name: cargo test
+    name: cargo test (${{ matrix.lane }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [secure, workspace-default, workspace-insecure, cli]
     env:
       # Point the round-trip fixture test at the prebid-server clone
       # checked out below so CI walks the full valid-whole corpus, not
@@ -27,9 +31,11 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Check raw JSON fixture budgets
+        if: matrix.lane == 'secure'
         run: ./scripts/check-raw-json-fixtures.sh
 
       - name: Check raw JSON fixture gate rejection cases
+        if: matrix.lane == 'secure'
         run: ./scripts/check-raw-json-fixtures-fixtures.sh
 
       - name: Check out prebid-server fixtures
@@ -58,7 +64,8 @@ jobs:
           path: vendor/bidder-supplemental-reference
 
       - name: Cache Cargo dependencies
-        uses: actions/cache@v6
+        id: cargo-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/bin/
@@ -66,8 +73,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-test-native-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-test-native-${{ matrix.lane }}-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-test-native-${{ matrix.lane }}-
             ${{ runner.os }}-cargo-test-native-
 
       - name: Retrieve Rust version
@@ -99,23 +107,29 @@ jobs:
         run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
 
       - name: Capture current source resource audit
+        if: matrix.lane == 'secure'
         run: cargo run --locked -p auctioneer-cli -- bidders resources --check --all-adapters --capture-audit > "$RUNNER_TEMP/resource-audit.toml"
 
       - name: Validate current source resource audit
+        if: matrix.lane == 'secure'
         run: cargo run --locked -p auctioneer-cli -- bidders resources --check --all-adapters --audit "$RUNNER_TEMP/resource-audit.toml" > "$RUNNER_TEMP/resource-audit.md"
 
       - name: Reconcile strict source resource fit
+        if: matrix.lane == 'secure'
         shell: bash
         run: bash .github/workflows/scripts/test/reconcile-resource-fit.sh
 
       - name: Verify field metadata derive compiler cases
+        if: matrix.lane == 'secure'
         timeout-minutes: 10
         run: cargo test --locked -p auctioneer-macros --all-targets
 
       - name: Verify factory and metadata feature ownership
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-bidder --test registry_join --test catalog_alloc --test registry_source_conformance --test feature_exports_source_conformance
 
       - name: Verify immutable bidder source inventory
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-cli --test bidders_source --test bidders_import --test bidders_wave
 
       # Rust provider archive controls run in workspace and standalone CLI tests.
@@ -131,6 +145,7 @@ jobs:
         run: bash .github/workflows/scripts/test/locate-pinned-sdk.sh
 
       - name: Check the independently sourced OpenRTB field catalogue
+        if: matrix.lane == 'secure'
         run: >
           cargo run --locked -p auctioneer-cli --no-default-features -- openrtb catalogue check
           --manifest crates/auctioneer-config/data/openrtb-2.6-source.toml
@@ -138,9 +153,11 @@ jobs:
           --catalogue crates/auctioneer-config/data/openrtb-2.6-catalogue.toml
 
       - name: Verify disclosure wire differences and retained construction bounds
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-exchange --test source_preflight --test disclosure_policy_diff --test projection_scrub_bound --test privacy_policy_composition
 
       - name: Verify bounded request disclosure observation
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-core --lib handlers::request_disclosure_audit::tests
 
       # Documentation gates. Both are pure shell over the docs tree, so
@@ -148,9 +165,11 @@ jobs:
       # roster whose arithmetic does not close should fail in seconds
       # rather than after a full workspace build.
       - name: Check batch-API documentation rebase
+        if: matrix.lane == 'secure'
         run: ./scripts/check-batch-rebase.sh
 
       - name: Check test-roster enumeration and ownership
+        if: matrix.lane == 'secure'
         run: ./scripts/check-roster.sh
 
       # The gate's own negative cases. A roster gate that has only been
@@ -159,68 +178,85 @@ jobs:
       # of this gate did pass a planted missing member and a planted
       # duplicate. These cases plant both and require the rejection.
       - name: Check the roster gate rejects a missing or duplicated member
+        if: matrix.lane == 'secure'
         run: ./scripts/check-roster-fixtures.sh
 
       # Axum's test-only insecure-bidders feature unifies into shared crates
       # during workspace tests. Run these packages separately for secure defaults;
       # named config targets avoid another build-failure harness run.
       - name: Run auctioneer-config non-harness tests (secure defaults)
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-config --lib --test codegen --test disclosure_codegen --test gvl_archive --test smoke --test url_safety --test activity --test baked_defaults_snapshot --test simple_fold --test usersync_config --test usersync_callback_validation --test bidder_bindings --test bidder_storage
 
       - name: Run configuration schema tests (secure defaults)
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-config-schema --lib --features build-support
 
       - name: Run bidder, exchange and core tests (secure defaults)
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core --all-targets
 
       - name: Verify source selection (secure package graph)
+        if: matrix.lane == 'secure'
         run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --locked -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core
 
       - name: Verify bidder captures against the pinned main source
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-bidder --lib source_objects_ -- --ignored
 
       - name: Verify bidder captures against the pinned supplemental source
+        if: matrix.lane == 'secure'
         shell: bash
         run: bash .github/workflows/scripts/test/verify-supplemental-source.sh
 
       - name: Probe secure production user-sync configuration
+        if: matrix.lane == 'secure'
         run: ./scripts/check-secure-usersync.sh
 
       # Each probe inspects the executable produced by its own feature set.
       # Keep these as separate, sequential Cargo invocations in this job.
       - name: Verify core build features (default features)
+        if: matrix.lane == 'secure'
         env:
           AUCTIONEER__TEST__EXPECT_CONFORMANCE_SUITE: disabled
         run: cargo test --locked -p auctioneer-core --lib build_feature_tests
 
       - name: Verify core build features (conformance suite)
+        if: matrix.lane == 'secure'
         env:
           AUCTIONEER__TEST__EXPECT_CONFORMANCE_SUITE: enabled
         run: cargo test --locked -p auctioneer-core --lib build_feature_tests --features conformance-suite
 
       - name: Verify native resource profile with core conformance enabled
+        if: matrix.lane == 'secure'
         run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-core/conformance-suite
 
       - name: Verify native resource profile with dependency-only config override
+        if: matrix.lane == 'secure'
         env:
           AUCTIONEER__TEST__EXPECT_CONFIG_OVERRIDE: enabled
         run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-config/test-harness-override
 
       - name: Run workspace tests (default features)
+        if: matrix.lane == 'workspace-default'
         run: cargo test --workspace --all-targets --no-fail-fast
 
       - name: Verify source selection (default workspace graph)
+        if: matrix.lane == 'workspace-default'
         run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace
 
       # Hermetic compiler/config targets have explicit mandatory owners below.
       # Keep the existing config exclusion and its feature-sensitive named lane.
       - name: Run workspace tests (insecure-bidders feature)
+        if: matrix.lane == 'workspace-insecure'
         run: cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config --no-fail-fast
 
       - name: Verify source selection (insecure workspace graph)
+        if: matrix.lane == 'workspace-insecure'
         run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace --features insecure-bidders --exclude auctioneer-config
 
       - name: Run auctioneer-config non-harness tests (insecure-bidders feature)
+        if: matrix.lane == 'workspace-insecure'
         run: cargo test -p auctioneer-config --features "insecure-bidders test-harness-override" --lib --test codegen --test gvl_archive --test smoke --test url_safety --test bidder_bindings --test bidder_storage
 
       # The real-transport probes, named as their own step.
@@ -240,35 +276,58 @@ jobs:
       # half. The vendor workflows therefore stay build-and-size gates,
       # and say so.
       - name: Probe cancellation, deadlines and body caps over a real socket
+        if: matrix.lane == 'workspace-insecure'
         run: cargo test --locked -p auctioneer-adapter-axum --test cancellation --test wave_transport
 
       - name: Probe handler privacy over a real bidder socket
+        if: matrix.lane == 'workspace-insecure'
         run: cargo test --locked -p auctioneer-adapter-axum --features insecure-bidders --test privacy_wire
 
       # These use local fixtures and processes, not credentialed providers.
       # All targets includes the actual qualification_harness CLI integration tests.
       - name: Test Rust resource qualification and provider harnesses
+        if: matrix.lane == 'cli'
         run: cargo test --locked -p auctioneer-cli --all-targets
 
       # Keep repair/reference coverage independent of application/config builds.
       # The job-level pinned bidder source also feeds these all-targets tests.
       - name: Test maintenance-only CLI
+        if: matrix.lane == 'cli'
         run: cargo test --locked -p auctioneer-cli --no-default-features --all-targets
 
       - name: Lint maintenance-only CLI
+        if: matrix.lane == 'cli'
         run: cargo clippy --locked -p auctioneer-cli --no-default-features --all-targets -- -D warnings
 
       - name: Set up Node.js for browser process shutdown tests
+        if: matrix.lane == 'cli'
         uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
 
       - name: Test user-sync browser process shutdown
+        if: matrix.lane == 'cli'
         run: node --test scripts/tests/usersync-browser-shutdown.test.mjs
 
+      - name: Save Cargo dependencies
+        if: ${{ always() && !cancelled() && steps.cargo-cache.outputs.cache-primary-key != '' && steps.cargo-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
   compiler-conformance:
-    name: cargo test (compiler conformance)
+    name: cargo test (compiler conformance ${{ matrix.lane }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [schema, settings, exports, discovery]
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
@@ -297,7 +356,8 @@ jobs:
           ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
           path: vendor/bidder-supplemental-reference
       - name: Cache Cargo dependencies
-        uses: actions/cache@v6
+        id: cargo-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/bin/
@@ -305,8 +365,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-test-compiler-conformance-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-test-compiler-conformance-${{ matrix.lane }}-${{ hashFiles('.tool-versions', '**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-test-compiler-conformance-${{ matrix.lane }}-
             ${{ runner.os }}-cargo-test-compiler-conformance-
 
       - name: Retrieve Rust version
@@ -337,29 +398,46 @@ jobs:
         run: cargo fetch --locked --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2
 
       - name: Execute catalog publication in WASI (secure and development)
+        if: matrix.lane == 'schema'
         shell: bash
         run: bash .github/workflows/scripts/test/execute-catalog-publication.sh
 
       - name: Verify bounded schema compiler controls and source conformance
         shell: bash
-        run: bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh
+        run: bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh '${{ matrix.lane }}'
 
       # Normal/staged and secure/development are distinct sequential builds.
       - name: Verify core schema artifacts (secure normal and staged)
+        if: matrix.lane == 'schema'
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-core-secure.sh
 
       - name: Verify schema artifact metadata (secure normal and staged)
+        if: matrix.lane == 'schema'
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-metadata-secure.sh
 
       - name: Verify core schema artifacts (development normal and staged)
+        if: matrix.lane == 'schema'
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-core-development.sh
 
       - name: Verify schema artifact metadata (development normal and staged)
+        if: matrix.lane == 'schema'
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-metadata-development.sh
+
+      - name: Save Cargo dependencies
+        if: ${{ always() && !cancelled() && steps.cargo-cache.outputs.cache-primary-key != '' && steps.cargo-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
 
   config-build-failures:
     name: cargo test (config build failures)

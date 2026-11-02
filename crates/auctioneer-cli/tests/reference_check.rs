@@ -40,6 +40,46 @@ mod tests {
     }
 
     #[test]
+    fn source_audit_ignores_git_environment_redirection() {
+        let owned = tempfile::tempdir().unwrap();
+        let alternate = tempfile::tempdir().unwrap();
+        for directory in [owned.path(), alternate.path()] {
+            let result = Command::new("git")
+                .current_dir(directory)
+                .env_clear()
+                .env("PATH", env::var_os("PATH").unwrap())
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .args(["init", "--quiet"])
+                .output()
+                .unwrap();
+            assert!(result.status.success(), "{result:?}");
+        }
+        for path in paths() {
+            let destination = owned.path().join(&path);
+            fs::create_dir_all(destination.parent().unwrap()).unwrap();
+            fs::copy(root().join(path), destination).unwrap();
+        }
+        fs::write(owned.path().join("fake_tool.go"), "package main").unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_auctioneer-cli"))
+            .args(["reference", "check", "--root"])
+            .arg(owned.path())
+            .env("GIT_DIR", alternate.path().join(".git"))
+            .env("GIT_WORK_TREE", alternate.path())
+            .env("GIT_INDEX_FILE", alternate.path().join(".git/index"))
+            .env("RUST_BACKTRACE", "0")
+            .env("RUST_LIB_BACKTRACE", "0")
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(1_i32), "{result:?}");
+        assert!(result.stdout.is_empty());
+        assert_eq!(
+            result.stderr,
+            b"Error: repository-owned Go tooling: fake_tool.go\n"
+        );
+    }
+
+    #[test]
     fn real_cli_checks_every_staged_capture_read_only_and_does_not_bless() {
         let root = root();
         let staged = env::temp_dir().join(format!("auctioneer-reference-cli-{}", process::id()));

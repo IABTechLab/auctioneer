@@ -256,7 +256,7 @@ fn inject_cli_controls(source: &Path) {
     let original = fs::read_to_string(&owner).unwrap();
     let mut syntax = syn::parse_file(&original).unwrap();
     let needle: syn::Stmt = syn::parse_quote! {
-        let inputs = resolve_budget_inputs(boot.limits).map_err(|_error| Error::ResourceInput)?;
+        let inputs = resolve_budget_inputs(boot.limits)?;
     };
     let marker = MUTATION_ENV;
     let controls: syn::Block = syn::parse_quote!({
@@ -329,7 +329,8 @@ impl ScratchCli {
             .join("../..")
             .canonicalize()
             .unwrap();
-        let directory = tempdir().unwrap();
+        // The staging guard rejects symlink ancestors, including macOS /var.
+        let directory = tempfile::tempdir_in(env::temp_dir().canonicalize().unwrap()).unwrap();
         let source = directory.path().join("source");
         let target = directory.path().join("target");
         copy_source(&workspace, &source);
@@ -505,9 +506,46 @@ fn build_boot_probe(
 
 #[cfg(test)]
 mod tests {
-    use super::{enable_host_and_target_test_support, inject_adapter, owner_features};
+    use super::{
+        enable_host_and_target_test_support, inject_adapter, inject_cli_controls, owner_features,
+    };
     use serde_json::{Value, json};
-    use std::fs;
+    use std::{fs, path::Path};
+
+    #[test]
+    fn scratch_cli_controls_mutate_the_current_budget_resolver() {
+        let scratch = tempfile::tempdir().unwrap();
+        let relative = "crates/auctioneer-cli/src/bidders/resources/mod.rs";
+        let owner = scratch.path().join(relative);
+        fs::create_dir_all(owner.parent().unwrap()).unwrap();
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        fs::copy(workspace.join(relative), &owner).unwrap();
+        inject_cli_controls(scratch.path());
+        let syntax = syn::parse_file(&fs::read_to_string(owner).unwrap()).unwrap();
+        let mutated = syntax
+            .items
+            .iter()
+            .find_map(|item| {
+                if let syn::Item::Fn(function) = item
+                    && function.sig.ident == "row"
+                {
+                    Some(function)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let source = quote::quote!(#mutated).to_string();
+        assert_eq!(source.matches("let mut inputs = inputs").count(), 1);
+        for control in [
+            "raw_zero",
+            "zero_baked",
+            "raw_zero_cloudflare",
+            "zero_baked_spin",
+        ] {
+            assert!(source.contains(control), "missing {control}");
+        }
+    }
 
     #[test]
     fn scratch_test_support_aligns_every_owner_and_preserves_dependency_properties() {

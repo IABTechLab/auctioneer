@@ -6,7 +6,7 @@ mod files;
 mod native;
 
 use super::{Error, check, source::REVISION};
-use auctioneer_cli::native_control::io::{canonical_digest, file_digest, parse_json, sha256};
+use auctioneer_cli::native_control::io::{canonical_digest, hash_file, parse_json, sha256};
 use auctioneer_cli::{BuildIdentity, Snapshot, snapshot};
 use clap::{Args, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -232,7 +232,9 @@ fn current(inventory: &Path) -> Result<Context, Error> {
         conformance::build_binding(&root)?;
     let binding = Binding {
         build_identity_sha256: sha256(BUILT),
-        executable_sha256: file_digest(
+        // Cargo may hard-link the running binary into its output directory.
+        // Supplied evidence keeps the stricter file_digest link policy.
+        executable_sha256: hash_file(
             &current_exe().map_err(|_error| Failure::Binding)?,
             512 << 20,
         )

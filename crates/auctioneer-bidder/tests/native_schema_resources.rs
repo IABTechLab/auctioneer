@@ -719,16 +719,24 @@ mod tests {
         assert_eq!(coverage.census.authored_cases, 120);
         assert_eq!(coverage.census.stress_cases, 564);
         assert_eq!(coverage.census.evaluations, 2_526);
+        // The development feature adds one legacy schema, eight authored
+        // cases and 35 shape cases, each evaluated three times.
+        let (legacy_bindings, authored, stress, evaluations) = if cfg!(feature = "insecure-bidders")
+        {
+            (3, 33, 105, 489)
+        } else {
+            (2, 25, 70, 360)
+        };
         assert_eq!(
             coverage.legacy_bindings.len(),
-            2,
+            legacy_bindings,
             "selected legacy schemas are available but not mandatory"
         );
-        assert_eq!(coverage.legacy_census.authored_cases, 25);
+        assert_eq!(coverage.legacy_census.authored_cases, authored);
         assert_eq!(coverage.legacy_census.source_cases, 26);
         assert_eq!(coverage.legacy_census.lexical_refusals, 1);
-        assert_eq!(coverage.legacy_census.stress_cases, 70);
-        assert_eq!(coverage.legacy_census.evaluations, 360);
+        assert_eq!(coverage.legacy_census.stress_cases, stress);
+        assert_eq!(coverage.legacy_census.evaluations, evaluations);
     }
 
     fn report_coverage(coverage: &Coverage) {

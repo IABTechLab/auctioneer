@@ -181,6 +181,29 @@ later targets report their results. Cache/reuse mechanisms are unchanged.
 See the [verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#native-accounting-and-remaining-compiler-owners).
 Full Linux acceptance and a matched end-to-end speedup remain unverified.
 
+**Parallel lanes and complete failure collection (2026-11-01):**
+[run 41393299498](https://github.com/IABTechLab/auctioneer/actions/runs/41393299498)
+passed all other checks and reported six failed workspace targets, not another
+failure in the prior Axum repair. Fixes retain every workload, resource cap,
+fixture and supplied-artifact link refusal:
+
+- The cold schema census distinguishes secure and development-only legacy rows.
+- Reference auditing uses Git-owned paths, excluding ignored external checkouts
+  while rejecting tracked or untracked owned Go tooling. Non-Git staged roots
+  retain the full scan. Git environment redirection is isolated and tested.
+- Evidence self-identification permits Cargo's normal executable hardlinks,
+  retaining the byte cap; supplied evidence remains under strict link checks.
+- Resource-report tests reflect the shipped native catalog reservations.
+- The scratch boot-parity selector matches the current resolver statement and
+  has a fast current-source regression before its full application build.
+
+AG approved four mandatory native feature lanes and four compiler lanes,
+preserving every original command and feature graph. Ordinary Cargo caches now
+save after test failures, without changing test outcomes or observation reuse.
+Scoped verification and its limitations are recorded in the
+[follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#parallel-lanes-and-complete-failure-collection).
+The new Linux execution remains the full acceptance and timing owner.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

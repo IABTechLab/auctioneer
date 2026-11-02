@@ -5,6 +5,10 @@ approved once-owned workflow partition are implemented. No complete passing CI
 baseline or whole-CI performance improvement is claimed; artifact caching remains
 deferred. Follow-up sections distinguish local checks from Linux acceptance.
 
+The approved 2026-11-01 follow-up also permits ordinary Cargo cache retention
+after test failures. That is separate from deferred Phase 2 observation/artifact
+reuse; tests and fresh measurements still execute.
+
 ## Failed CI Baseline
 
 [Run 41184541480](https://github.com/IABTechLab/auctioneer/actions/runs/41184541480),
@@ -664,3 +668,87 @@ targets. The complete workspace and all existing compiler/artifact owners were
 not rerun locally because disk space is limited. The next Linux CI run remains
 the full acceptance owner. No matched complete CI before/after measurement is
 available, so no end-to-end speedup is claimed.
+
+## Parallel Lanes And Complete Failure Collection
+
+At `6b8674f`, [run 41393299498](https://github.com/IABTechLab/auctioneer/actions/runs/41393299498)
+passed all other PR checks. Native acceptance failed after 34:25 and compiler
+acceptance passed after 27:33. Both moved compiler suites executed exactly once;
+the secure group took 6:39 instead of the preceding observed 10:35. These are
+different source/cache conditions, not a matched speedup measurement. The
+default workspace continued for 10:12 after its first failure, exposing all six
+failed targets, including CLI work that earlier runs never reached.
+
+| Failing Target | Root Cause And Repair |
+| --- | --- |
+| `native_schema_resources` | The insecure feature adds a legacy schema. Independently counted expected totals are 3 bindings, 33 authored, 105 stress, 489 evaluations; secure remains 2/25/70/360. Limits and allocation observations are unchanged. |
+| CLI reference units, `reference_check` | A physical directory walk treated ignored CI reference clones as owned Go tooling. Git roots now use tracked plus nonignored untracked paths; non-Git staged roots retain the complete walk. A real CLI negative control proves inherited Git repository/index variables cannot redirect the audit. |
+| `bidders_evidence` | Strict artifact hashing rejected the running executable's normal Cargo hardlink. Only OS-selected self-identification uses the existing bounded link-permitting hasher; supplied evidence retains strict hashing. |
+| `bidders_resources` | Native catalog reservations were incorrectly expected to be zero. Tests pin the shipped 16-MiB resident, 8-MiB initialization and 512-KiB scratch charges; guests remain zero here. |
+| `resource_boot_parity` | The scratch AST selector still expected an explicit `map_err` removed from the real resolver. Its needle now matches the current typed statement, with a fast current-source regression before the application build. |
+
+A dependency-free probe in the already-installed Rust 1.98.1 Linux image,
+with networking disabled, reproduced Cargo's two-link executable. The real
+CLI hardlink regression first failed with `bidder_evidence_binding`, then passed.
+The owned-source regression first rejected ignored external Go; the repaired
+audit passes that case and still rejects every owned Go form and a tracked file
+inside an ignored directory. A separate redirection regression first produced
+a false pass with `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` set to an empty
+repository; the production Git command now clears inherited environment using
+the existing metadata-command convention. Tooling and privacy caps did not move.
+
+The compiler script previously spent 22:14 serially in six full targets.
+Mandatory schema/settings/exports/discovery lanes retain their exact owners,
+prerequisites, filters, nested-report checks, strict lint and fresh children.
+Native secure/W0/W1/standalone-CLI lanes keep the original selections intact;
+no CLI exclusion or inferred feature equivalence is introduced. Matrices do not
+fail fast. The existing ordinary Cargo path set uses split restore/save actions,
+lane-specific keys and legacy fallback prefixes. Failed jobs can retain compiled
+products; cancellation, missing primary keys and exact hits do not save. Test
+failure remains failure, and no observation/result caching is introduced.
+
+Disposable structured-YAML comparison preserves all 36 native acceptance
+commands, environments, flags and lane-relative order, plus triggers and five
+unrelated jobs. A Cargo-command stub preserves the compiler default sequence,
+reconciles exactly six test/lint owners across lanes, checks eight failing-command
+propagations, and rejects an unknown lane before Cargo. These are orchestration
+checks, not Rust acceptance. The 13 existing summary success/refusal controls
+still pass. Hosted cache retention and complete end-to-end timing require CI.
+
+The initial broad local evidence baseline was deliberately interrupted with exit
+130 while it was still running expensive application-copy producers. It does
+not count as a complete result. Focused failing-branch regressions replace that
+diagnostic run; the full CI target selections and unique assertions remain.
+Final scoped results are recorded below after verification.
+
+The full parity run first reached the repaired injection point, then refused
+the fixture's `/var` temporary target path on macOS as a symlink ancestor. Its
+fresh workspace now uses the canonical temporary parent, matching the other
+owned-source harnesses. The staging guard is unchanged. Local Rust tooling also
+emitted a `rust-objcopy` LLVM-loading warning; it was not the build failure's
+cause. Neither run is recorded as passing parity acceptance.
+
+After canonicalization, the complete parity target passes all eight cases with
+no failures, filters or ignores, including the real CLI/boot executables and
+all corruption controls (236.86 s locally). The cold schema target passes once
+under secure defaults and once with `insecure-bidders`; each process preserves
+its cold allocator state and every original reservation. Reference units pass
+19 cases, the complete real reference CLI passes three, real evidence-begin
+controls pass two (including the hard-linked executable), and the exact failing
+resource-report case passes one. Filtered runs are not full CLI/workspace runs.
+
+After final lint cleanup, reference units pass all 19 selected cases again and
+source isolation passes all 16 cases without filters or ignores. All seven
+selected fast parity-harness controls pass after cleanup; the
+earlier complete eight-case parity run remains the application-build evidence.
+Strict Clippy passes for the CLI library/binary and all five changed integration owners,
+and for bidder's cold-schema and source-isolation owners, under `-D warnings`.
+The existing artifact-I/O group passes 18 selected cases, including supplied-file
+hardlink, symlink and size refusals. No new lint allowance was added.
+
+Final orchestration probes, actionlint, ShellCheck and Bash syntax pass.
+Rust formatting, raw-JSON budgets, documentation rebase and roster gates pass;
+the roster enumerates all 139 members. Existing GVL deletion warnings and the
+`proc-macro-error2` future-incompatibility notice remain. Tool pins, `Cargo.lock`,
+captured evidence and resource ceilings are unchanged. This verifies the scoped
+repairs locally, not every CLI target or a complete Linux acceptance run.

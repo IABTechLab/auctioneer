@@ -74,6 +74,34 @@ No cache/reuse change, assertion removal, workload reduction or platform change.
 Publication of these verified repairs to PR #1 is approved. Push after the final
 diff check; do not claim the subsequent CI result before it completes.
 
+## Approved Parallel Lanes And Failed-Run Compilation Cache
+
+On 2026-11-01 AG approved parallel mandatory native/compiler lanes, retention
+of the existing ordinary Cargo cache after test failures, and publication of
+verified repairs to PR #1. This does not approve Phase 2 observation/artifact
+reuse, package exclusions, inferred feature equivalence or relaxed assertions.
+
+- [x] Collect all six failed targets from run `41393299498`, rather than stop
+      at the first failure. Reproduce the feature census and Linux Cargo link
+      layout; distinguish project-owned files from external CI checkouts.
+- [x] Repair source ownership, self-executable hashing, the feature-sensitive
+      native census, catalog-cost references and the scratch parity selector.
+      Keep supplied-artifact link refusal, byte caps and all workload limits.
+- [x] Split native execution by existing command graph: secure,
+      workspace-default, workspace-insecure and standalone CLI. Keep both full
+      workspace commands intact; do not substitute standalone CLI selection.
+- [x] Split compiler execution into schema, settings, exports and discovery
+      lanes with exact existing owners, prerequisites and strict lint.
+- [x] Restore/save ordinary Cargo products with lane-specific keys and
+      existing fallback prefixes; save after failure but not cancellation.
+      Cached files never authorize a passing test or a qualification result.
+- [x] Compare original versus expanded lane commands/environments as structured
+      YAML; verify regression failures, scoped green runs, Bash/ShellCheck,
+      actionlint, source isolation, strict lint and formatting.
+- [x] Update the verification record and issues with scoped results and limits.
+      Publication of the verified round is approved; full Linux acceptance and
+      matched timing still require the new CI execution.
+
 ## Working Boundaries
 
 - Work in the existing `import/auctioneer` branch in the Auctioneer checkout.

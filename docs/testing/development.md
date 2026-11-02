@@ -199,6 +199,14 @@ Keep their separate fixtures, fresh processes and every original assertion;
 this ownership does not authorize artifact reuse. Both workspace scopes use
 `--no-fail-fast` to report later target failures while retaining a failed exit.
 
+CI schedules four native lanes (secure, complete default workspace, complete
+insecure workspace, standalone CLI) and four compiler lanes (schema, settings,
+exports, discovery). The commands and feature graphs stay distinct and intact;
+this is scheduling, not substitution of package-only tests for a workspace.
+Each lane retains its prerequisites and strict lint. Ordinary Cargo compilation
+caches can be saved after a failed test job; cached products never count as
+test success or permit reuse of allocation/qualification observations.
+
 The workflows in `.github/workflows/` remain the authoritative full matrix:
 secure-default package controls, workspace/features, conformance, all adapter
 guest builds/execution and resource/evidence gates. In particular, workspace
