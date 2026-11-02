@@ -248,6 +248,18 @@ The strengthened real-CLI input-binding matrix passes (1 case, 18 filtered),
 but took 591.05 seconds locally; its repeated current-input checks remain a
 profiling/ownership follow-up, not a measured speedup in this repair.
 
+**Unit-target lint follow-up (2026-11-02):** run 41477671736's three
+cross-target lint jobs and run 41477671697's native workspace lint exposed
+the same `unreachable!()` in a new split unit case. The earlier focused
+Clippy command selected the library and named integration targets, not the
+library unit-test target. Reproduction with `--all-targets` also exposed a
+missing explicit `var_os` import in the CLI source-fixture unit helper.
+Both corrections are test-only; no lint allowance or assertion changes.
+Verification uses CI's all-targets selections rather than the narrower command.
+Both full native workspace feature lanes and the Cloudflare, Fastly and Spin
+all-targets privacy/adapter Clippy selections pass locally with `-D warnings`.
+These are lint/compilation checks, not guest-runtime or hosted acceptance.
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser

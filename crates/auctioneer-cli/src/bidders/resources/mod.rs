@@ -1080,6 +1080,7 @@ mod tests {
     use auctioneer_cli::{BuildIdentity, Snapshot};
     use sha2::{Digest as _, Sha256};
     use std::collections::BTreeMap;
+    use std::env::var_os;
     use std::fs;
     use std::path::Path;
     use std::process::Command;
@@ -1163,7 +1164,7 @@ mod tests {
             let output = Command::new("git")
                 .current_dir(root.path())
                 .env_clear()
-                .env("PATH", std::env::var_os("PATH").unwrap())
+                .env("PATH", var_os("PATH").unwrap())
                 .env("GIT_CONFIG_NOSYSTEM", "1")
                 .env("GIT_CONFIG_GLOBAL", "/dev/null")
                 .args([

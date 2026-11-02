@@ -91,8 +91,18 @@ and two build jobs. These are focused local results, not full hosted acceptance.
 | Browser shutdown | 2 passed against the real Axum child |
 | Evidence feature binding | 1 passed, 18 filtered; 591.05 seconds locally |
 
-Strict Clippy passes for the modified CLI, exchange and bidder owners, including
-their changed integration targets. Formatting, raw-JSON fixture gate (200
+The original focused Clippy pass covered the modified libraries and named
+integration targets, not their unit-test targets. A subsequent CI follow-up
+reproduced the split unit case's forbidden `unreachable!()` and the CLI unit
+helper's absolute path; both are corrected without allowances or assertion
+changes. Follow-up lint commands use CI's `--all-targets` selections.
+Both complete native workspace feature lanes and all three WASM
+privacy/adapter lint selections pass locally with `-D warnings`; no guest
+execution is implied by these compilation checks.
+The affected split module rerun passes 27 cases; the CLI resource module
+rerun passes 12, including live source binding. Formatting and diff checks
+remain clean. Hosted confirmation stays pending until the new CI run finishes.
+Formatting, raw-JSON fixture gate (200
 fixtures in 57 files), all five workflow files under actionlint, four shell
 helpers under ShellCheck and Bash syntax, and 18 libtest-summary controls pass.
 A disposable Cargo stub also confirms the producer owner rejects a missing

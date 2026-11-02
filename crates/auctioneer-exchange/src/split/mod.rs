@@ -797,7 +797,7 @@ mod tests {
                         }
                         "typed" => ext["prebid"]["bidder"][name] = selected,
                         "legacy" => ext[name] = selected,
-                        _ => unreachable!(),
+                        _ => panic!("unknown scoped parameter slot: {slot}"),
                     }
                     let request: BidRequest = serde_json::from_value(json!({
                         "id": "request", "site": {"id": "site"},

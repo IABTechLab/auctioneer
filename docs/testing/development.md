@@ -102,6 +102,10 @@ cargo clippy --locked -p auctioneer-bidder --lib --tests -- -D warnings
 cargo fmt --all -- --check
 ```
 
+For unit-test edits, include `--tests` or use `--all-targets` when running
+Clippy. `cargo clippy --lib` alone checks the ordinary library, not its
+`cfg(test)` unit-test build; adding named integration targets does not fix that.
+
 For shared handler setup/configuration, run the affected handler integration
 targets as well as core units. Preserve individual binaries where boot gates
 or other process state would interfere. Grant loopback/process access only
