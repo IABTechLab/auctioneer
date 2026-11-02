@@ -535,3 +535,24 @@ corpus and SDK bindings. It was interrupted during compilation (exit 130) when
 free disk space fell to 3.4 GiB; 2.5 GiB remained after shutdown. No tests ran in
 that invocation. It is not a passing workspace result. Full Linux acceptance
 requires the subsequent CI run.
+
+## Cloudflare Cached-Tool Installation Follow-Up
+
+[Run 41381814843](https://github.com/IABTechLab/auctioneer/actions/runs/41381814843)
+failed before packaging: `cargo install worker-build --version 0.8.5 --locked`
+refused existing `worker-build` and `worker-codegen` executables. The workflow
+caches `~/.cargo/bin/`, not Cargo's installation records, so a restored binary
+can exist without the metadata that identifies its package.
+
+The installer now adds `--force`, retaining the version and locked dependency
+selection. No cache paths, build flags, packager commands, size ceilings or
+acceptance checks change. The one-line command stays inline; no workflow
+snapshot test or additional script is introduced.
+
+A dependency-free temporary Cargo package with two binaries was installed,
+then only its install records were removed to reproduce the cache-only state.
+The original install command failed with exit 101 naming both existing
+binaries. Adding `--force` succeeded with exit 0 and restored installation
+records for both binaries at the same fixture version. The fixture is not the
+vendor tool and does not establish actual worker packaging or size acceptance;
+the next Cloudflare CI run remains its owner.

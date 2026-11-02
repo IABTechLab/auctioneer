@@ -138,6 +138,18 @@ Strict Clippy passes in both lanes. A broader workspace attempt was interrupted
 during compilation to avoid exhausting local disk space; it ran no tests and
 does not count as acceptance. Full Linux acceptance remains pending.
 
+**Cloudflare cached-tool installation follow-up (2026-11-01):**
+[run 41381814843](https://github.com/IABTechLab/auctioneer/actions/runs/41381814843)
+stopped before packaging because Cargo refused existing `worker-build` and
+`worker-codegen` binaries. The cache includes executables but not Cargo's
+installation records. The installer now uses `--force`, retaining worker-build
+`0.8.5`, `--locked` and every existing
+packaging/size check. A dependency-free, two-binary local Cargo fixture
+reproduces the collision without `--force` and installs both binaries with it.
+This verifies Cargo's cache-recovery behavior, not the vendor package or hosted
+readiness. The next Cloudflare CI run must verify actual packaging. See the
+[verification follow-up](docs/testing/ci-prerequisite-repairs-20261031.md#cloudflare-cached-tool-installation-follow-up).
+
 ## Environment Section Separators
 
 **Hard cutoff implemented (2026-10-30).** Current Auctioneer-owned CLI, test, browser
