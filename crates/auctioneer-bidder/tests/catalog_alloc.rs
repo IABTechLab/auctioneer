@@ -9,10 +9,157 @@ mod tests {
     use auctioneer_bidder::schema::{
         SchemaInputError, SchemaInputLimits, SchemaInputStats, measure_schema_input,
     };
+    #[cfg(not(target_arch = "wasm32"))]
+    use auctioneer_config::types::{
+        BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
+    };
     use auctioneer_runtime::CatalogResourceCosts;
     use serde_json::{Value, json};
     use std::array;
     use std::hint::black_box;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    struct RegistryConstructionFixture {
+        infos: &'static [BidderInfo],
+        bindings: Vec<BidderImplementationBinding>,
+        metadata: Vec<BidderMetadataDeclaration>,
+        declarations: Vec<auctioneer_bidder::BidderDeclaration>,
+        factories: Vec<auctioneer_bidder::BidderRegistration>,
+        aliases: Vec<auctioneer_bidder::RegistryAlias>,
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl RegistryConstructionFixture {
+        fn new(count: usize) -> Self {
+            use auctioneer_bidder::{BidderDeclaration, BidderRegistration, RegistryAlias};
+            use auctioneer_config::types::{
+                BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
+            };
+
+            fn forbidden_factory() -> Box<dyn auctioneer_bidder::Bidder> {
+                panic!("registry validation must not invoke a bidder factory")
+            }
+
+            fn identity(kind: &str, index: usize) -> &'static str {
+                String::leak(format!("fake_layout_{kind}_{index:04}"))
+            }
+
+            let mut infos = Vec::new();
+            let mut bindings = Vec::new();
+            let mut metadata = Vec::new();
+            let mut declarations = Vec::new();
+            let mut factories = Vec::new();
+            let mut aliases = Vec::new();
+            for index in 0..count {
+                let implementation = identity("owner", index);
+                let base = identity("base", index);
+                let child = identity("child", index);
+                for name in [base, child] {
+                    infos.push(BidderInfo {
+                        name: name.into(),
+                        endpoint: "https://fake-layout.example.test/bid".into(),
+                        ..BidderInfo::default()
+                    });
+                    bindings.push(BidderImplementationBinding {
+                        bidder: name,
+                        implementation,
+                    });
+                    metadata.push(BidderMetadataDeclaration {
+                        bidder: name,
+                        implementation,
+                        required_feature: Some("fake_layout_feature"),
+                    });
+                }
+                declarations.push(BidderDeclaration {
+                    key: implementation,
+                    required_feature: Some("fake_layout_feature"),
+                    has_settings: false,
+                });
+                factories.push(BidderRegistration {
+                    key: implementation,
+                    factory: forbidden_factory,
+                    config_validator: None,
+                });
+                aliases.push(RegistryAlias {
+                    name: child,
+                    source_parent: base,
+                    canonical_base: base,
+                });
+            }
+            Self {
+                infos: Box::leak(infos.into_boxed_slice()),
+                bindings,
+                metadata,
+                declarations,
+                factories,
+                aliases,
+            }
+        }
+
+        fn inputs(&self) -> auctioneer_bidder::RegistryInputs<'_> {
+            auctioneer_bidder::RegistryInputs {
+                infos: self.infos,
+                bindings: &self.bindings,
+                metadata_declarations: &self.metadata,
+                factory_declarations: &self.declarations,
+                factories: &self.factories,
+                aliases: &self.aliases,
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn actual_registry_construction_peak_observation() {
+        use auctioneer_bidder::ValidatedRegistryPlan;
+        use std::io::{Write as _, stderr};
+
+        assert_allocator_control();
+        // Bounded observations across insertion populations, not a worst-case
+        // bound or an assertion about every possible B-tree split regime.
+        for count in [0_usize, 1, 11, 12, 13, 63, 64, 65, 127, 128, 129, 255, 256] {
+            let fixture = RegistryConstructionFixture::new(count);
+            assert!(fixture.infos.len() <= 512);
+            let inputs = fixture.inputs();
+            let (result, allocation) =
+                alloc_track::measure(|| ValidatedRegistryPlan::validate(black_box(inputs)));
+            let plan = result.expect("synthetic registry must validate");
+            assert_eq!(plan.definitions().len(), 2 * count);
+            assert_eq!(plan.base_names().len(), count);
+            assert_eq!(plan.aliases().len(), count);
+            assert_eq!(plan.factory_keys().len(), count);
+            assert!(allocation.peak_bytes >= allocation.retained_bytes);
+            if count == 0 {
+                assert_eq!(allocation, Measurement::default());
+            } else {
+                assert!(allocation.allocation_calls > 0);
+                assert!(allocation.retained_bytes > 0);
+            }
+            // Fixture setup, reporting and final destruction are outside the
+            // interval; the returned plan stays alive through measurement end.
+            writeln!(
+                stderr(),
+                "{}",
+                serde_json::to_string(&json!({
+                    "workload": "actual_registry_construction",
+                    "pointer_bytes": size_of::<usize>(),
+                    "implementations": count,
+                    "definitions": fixture.infos.len(),
+                    "aliases": fixture.aliases.len(),
+                    "allocation_calls": allocation.allocation_calls,
+                    "deallocation_calls": allocation.deallocation_calls,
+                    "reallocation_calls": allocation.reallocation_calls,
+                    "requested_bytes": allocation.requested_bytes,
+                    "retained_bytes": allocation.retained_bytes,
+                    "peak_bytes": allocation.peak_bytes,
+                    "invalid": allocation.invalid,
+                }))
+                .unwrap()
+            )
+            .unwrap();
+            drop(black_box(plan));
+        }
+    }
 
     #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
     struct Measurement {

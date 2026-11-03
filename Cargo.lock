@@ -298,6 +298,7 @@ dependencies = [
  "toml 0.8.23",
  "url",
  "uuid-simd",
+ "validator",
  "wasm-encoder 0.247.0",
  "wasmparser 0.247.0",
 ]

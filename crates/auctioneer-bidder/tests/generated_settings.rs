@@ -75,8 +75,11 @@ mod tests {
             let directory = workspace.bidder().join("src/bidders").join(key);
             fs::create_dir_all(&directory).unwrap();
             fs::write(directory.join("bidder.toml"), format!(
-                "key = '{key}'\nfactory = false\n[settings.fields]\n{fields}\n[provenance]\norigin = 'local'\n"
+                "key = '{key}'\nfactory = true\n[settings.fields]\n{fields}\n[provenance]\norigin = 'local'\n"
             )).unwrap();
+            let (root, config) = synthetic_config_owner(key);
+            fs::write(directory.join("mod.rs"), root).unwrap();
+            fs::write(directory.join("config.rs"), config).unwrap();
         }
         let string_manifest = workspace
             .bidder()
@@ -111,7 +114,11 @@ mod tests {
         workspace.report();
     }
 
-    const EXPECTED_TESTS: [&str; 14] = [
+    const EXPECTED_TESTS: [&str; 18] = [
+        "config_callbacks::supplied_values_are_independent_even_when_disabled_or_overridden",
+        "config_callbacks::effective_requiredness_and_fieldwise_fallback_use_the_same_callback",
+        "config_callbacks::missing_null_zero_empty_and_request_local_context_remain_distinct",
+        "config_callbacks::swapped_callbacks_fail_the_behavioral_contract_without_factories",
         "allocation_meter::canonical_allocator_tracks_allocations_without_refunding_deallocations",
         "config_limits::typed_settings_byte_ceiling_includes_the_envelope_and_json_escaping",
         "generated_exchange_settings::tests::both_request_and_host_aliases_borrow_settings_with_independent_field_precedence",
@@ -142,7 +149,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -164,7 +171,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }
@@ -176,5 +183,85 @@ mod tests {
         let mut renamed = EXPECTED_TESTS;
         renamed[0] = "fake_renamed_test";
         assert!(catch_unwind(|| reconcile_tests(&report(&renamed))).is_err());
+    }
+
+    fn synthetic_config_owner(key: &str) -> (String, String) {
+        let (validation, error) = match key {
+            "fake_integer_probe" => (
+                quote::quote! {
+                    let requested = self.0.requested.and_then(BidderSettings::as_fake_integer_probe);
+                    let base = self.0.base.and_then(BidderSettings::as_fake_integer_probe);
+                    for supplied in [requested, base].into_iter().flatten() {
+                        if supplied.primary_number.is_some_and(|value| value < 0) {
+                            errors.add("primary_number", ValidationError::new("invalid"));
+                        }
+                        if supplied.secondary_number.is_some_and(|value| value < 0) {
+                            errors.add("secondary_number", ValidationError::new("invalid"));
+                        }
+                    }
+                    if self.0.enabled && self.0.definition.is_some() {
+                        let resolved = auctioneer_config::bidder_settings::fake_integer_probe::resolve(requested, base);
+                        if resolved.primary_number().is_none() {
+                            errors.add("primary_number", ValidationError::new("required"));
+                        } else if resolved.secondary_number().is_none() {
+                            errors.add("secondary_number", ValidationError::new("required"));
+                        }
+                    }
+                },
+                quote::quote! {
+                    let fields = errors.field_errors();
+                    let field = if fields.contains_key("primary_number") { "primary_number" } else { "secondary_number" };
+                    let reason = if fields[field].iter().any(|error| error.code == "invalid") { "invalid" } else { "required" };
+                    BidderConfigError {field, reason}
+                },
+            ),
+            "fake_string_probe" => (
+                quote::quote! {
+                    let requested = self.0.requested.and_then(BidderSettings::as_fake_string_probe);
+                    let base = self.0.base.and_then(BidderSettings::as_fake_string_probe);
+                    for supplied in [requested, base].into_iter().flatten() {
+                        if supplied.token.as_deref().is_some_and(str::is_empty) {
+                            errors.add("token", ValidationError::new("invalid"));
+                        }
+                    }
+                    if self.0.enabled && self.0.definition.is_some()
+                        && auctioneer_config::bidder_settings::fake_string_probe::resolve(requested, base).token().is_none() {
+                        errors.add("token", ValidationError::new("required"));
+                    }
+                },
+                quote::quote! {
+                    let fields = errors.field_errors();
+                    BidderConfigError { field:"token", reason: if fields["token"].iter().any(|error| error.code == "invalid") { "invalid" } else { "required" } }
+                },
+            ),
+            _ => panic!("unknown synthetic settings owner"),
+        };
+        let root = quote::quote! {
+            mod config;
+            use crate::{BidderConfigError, BidderConfigInput};
+            use validator::Validate as _;
+            pub(crate) fn create_bidder() -> Box<dyn crate::Bidder> { crate::fake_synthetic::create_bidder() }
+            pub(crate) fn validate_config(input: BidderConfigInput<'_>) -> Result<(), BidderConfigError> {
+                config::Config(input).validate().map_err(config::error)
+            }
+        }.to_string();
+        let config = quote::quote! {
+            use auctioneer_config::BidderSettings;
+            use crate::{BidderConfigError, BidderConfigInput};
+            use validator::{Validate, ValidationError, ValidationErrors};
+            pub(super) struct Config<'a>(pub(super) BidderConfigInput<'a>);
+            impl Validate for Config<'_> {
+                fn validate(&self) -> Result<(), ValidationErrors> {
+                    let mut errors = ValidationErrors::new();
+                    #validation
+                    if errors.is_empty() { Ok(()) } else { Err(errors) }
+                }
+            }
+            pub(super) fn error(errors: ValidationErrors) -> BidderConfigError {
+                #error
+            }
+        }
+        .to_string();
+        (root, config)
     }
 }

@@ -1,5 +1,6 @@
 //! Borrowed Rubicon transforms with explicit regional policy; public promotion remains separate.
 
+mod config;
 mod floor;
 mod native;
 mod parameters;
@@ -23,6 +24,15 @@ pub struct RubiconBidder;
 
 pub(crate) fn create_bidder() -> Box<dyn Bidder> {
     Box::new(RubiconBidder)
+}
+
+pub(super) fn validate_config(
+    input: crate::BidderConfigInput<'_>,
+) -> Result<(), crate::BidderConfigError> {
+    use validator::Validate as _;
+    config::Config::from(input)
+        .validate()
+        .map_err(|errors| config::error(&errors))
 }
 
 impl Bidder for RubiconBidder {

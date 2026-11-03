@@ -36,10 +36,12 @@ pub fn inputs() -> RegistryInputs<'static> {
     static DECLARATIONS: &[BidderDeclaration] = &[BidderDeclaration {
         key: "fake_registry_fake",
         required_feature: None,
+        has_settings: false,
     }];
     static FACTORIES: &[BidderRegistration] = &[BidderRegistration {
         key: "fake_registry_fake",
         factory: create_bidder,
+        config_validator: None,
     }];
     static BINDINGS: &[BidderImplementationBinding] = &[
         BidderImplementationBinding {

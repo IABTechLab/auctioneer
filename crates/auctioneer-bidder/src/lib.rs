@@ -4,6 +4,7 @@ pub mod bidder;
 pub mod bidders;
 pub mod capped_writer;
 pub mod catalog;
+pub mod config_validation;
 pub mod correlation;
 pub mod currency;
 pub mod debug_projection;
@@ -27,6 +28,7 @@ pub use bidders::{
     BidderDeclaration, BidderRegistration, accepts_sync_uid, bidder_declarations, compiled_bidders,
 };
 pub use capped_writer::{BodyWriteError, CappedWriter};
+pub use config_validation::{BidderConfigError, BidderConfigInput, BidderConfigValidator};
 pub use currency::{FloorConversion, FloorConversionError};
 pub use debug_projection::{
     DebugBodyEligibility, DebugBodyProjection, DebugBodySchema, DebugBodyStatus,

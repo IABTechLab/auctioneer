@@ -4,9 +4,24 @@ use crate::BidderRequestInfo;
 use auctioneer_config::types::BidderInfo;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use std::{
+    cell::Cell,
     num::NonZeroUsize,
     sync::{LazyLock, atomic::AtomicUsize},
 };
+
+thread_local! {
+    static FACTORY_CALLS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Thread-local constructor observation, independent of validation calls.
+#[must_use]
+pub fn factory_calls() -> usize {
+    FACTORY_CALLS.with(Cell::get)
+}
+
+pub(super) fn record_factory_call() {
+    FACTORY_CALLS.with(|calls| calls.set(calls.get().saturating_add(1)));
+}
 
 #[must_use]
 pub fn info() -> &'static BidderInfo {
@@ -59,6 +74,13 @@ pub type RequestObserver = dyn Fn(&BidRequest, &BidderRequestInfo<'_>) + Send + 
 mod tests {
     use super::info;
     use std::ptr;
+
+    #[test]
+    fn constructor_observation_counts_actual_factory_calls() {
+        let before = super::factory_calls();
+        drop(super::super::create_bidder());
+        assert_eq!(super::factory_calls(), before + 1);
+    }
 
     #[test]
     fn synthetic_metadata_is_shared_and_keeps_its_explicit_endpoint_policy() {

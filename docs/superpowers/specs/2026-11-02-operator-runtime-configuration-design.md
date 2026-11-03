@@ -5,6 +5,12 @@ Date: 2026-11-02
 Status: Draft for maintainer review. This document proposes contracts; the new
 types, authoring layout and bootstrap paths below are not implemented.
 
+Implementation clarification: section 5.1 adds bidder-owned policy validation
+after the original design merged in PR #139. This local amendment is not part
+of that merged review or a claim that the new callback is implemented.
+The maintainer approved this amendment and implementation on 2026-11-02;
+numeric startup reservations still require the separate review in section 7.
+
 Tracking: [configuration epic #124](https://github.com/IABTechLab/auctioneer/issues/124),
 [contract task #125](https://github.com/IABTechLab/auctioneer/issues/125).
 
@@ -158,6 +164,129 @@ features) stay independent of HTTP/runtime configuration DTOs.
 Do not deserialize public input directly into today's effective output DTOs:
 they are not uniformly strict or self-validating. Keep strict input types and
 one explicit validated construction path to effective state.
+
+### 5.1. Bidder-Owned Settings Validation
+
+The shared validator orchestrates configuration admission; each bidder owns
+the meaning of its protocol settings. Do not move bidder-specific conditions
+into a central core validator or treat strict deserialization as complete
+semantic validation. Current generated settings enforce types, unknown fields
+and shared byte/structure/reference bounds; current discovered factory
+registrations do not carry a bidder-owned configuration-validation callback.
+The following extends that boundary, rather than describes an existing hook.
+
+Keep `bidder.toml` as the source of typed settings declarations and generated
+borrowed accessors. Use one bidder-owned `validator::Validate` implementation
+for field constraints and custom cross-field validation. Do not add another TOML
+validation language, runtime schema compiler or duplicate settings DTO. The
+generated settings type is owned by `auctioneer-config`: Rust's orphan rules
+prevent a bidder from implementing the external `validator::Validate` trait
+directly for it. Use a bidder-local borrowed validation view instead, with
+`Validate` derive/custom rules, projected borrowed fields and the same
+pure semantic helpers as request construction. No settings clone, second
+config parse or bidder factory invocation is needed for this projection.
+
+Extend the existing discovered registration, not a second registration list.
+A factory whose manifest declares settings must supply an owner-local
+`config.rs`, wired by ordinary `mod config;`. The implementation's `mod.rs`
+exposes a narrow owner-level `validate_config` function as a thin adapter to
+that view's `Validate::validate`. Generated wiring references
+`implementation::validate_config`, not a private child path. This adapter
+is registration plumbing, not a second validation implementation or an
+alternative optional hook. Discovery derives its requirement from the settings
+declaration and emits a compiler-checked function reference with the factory's
+actual feature/target eligibility. Missing or incompatible callbacks fail the
+build; do not silently substitute success. A settings-free factory needs no
+empty config module; shared validation rejects an incorrectly bound settings
+object. Reference-only packages do not become executable validation providers.
+
+There is one typed input and one validator invocation for each relevant bidder
+configuration identity. Supplied-value checks and effective-requiredness checks
+are internal rules of the same validator, not selectable validation modes.
+Names below are proposed bidder-crate API roles, without core/HTTP/SDK types:
+
+```rust
+pub struct BidderConfigInput<'a> {
+    pub requested: Option<&'a BidderSettings>,
+    pub base: Option<&'a BidderSettings>,
+    pub definition: Option<&'a BidderInfo>,
+    pub enabled: bool,
+}
+
+pub type BidderConfigValidator =
+    for<'a> fn(BidderConfigInput<'a>) -> Result<(), BidderConfigError>;
+```
+
+For settings-owning implementations, shared orchestration forms a bounded
+identity union: known effectively enabled public identities/configured aliases,
+plus every explicit settings entry, including disabled and request-dependent
+entries. Visit each identity once
+using existing indexes and borrowed keys. After shared structural and binding
+checks, its bidder-owned validator checks all supplied requested/base values,
+including disabled values or those shadowed by an override; a local constraint
+must not disappear because a different value won resolution. Preserve current
+missing/null settings behavior; no new clear union applies.
+An identity whose implementation has no settings declaration has no callback
+to run; it follows the same shared admission path with zero callback calls,
+and any incorrectly attached settings object is refused. This is absence of
+bidder configuration, not an alternative validation mechanism.
+
+The same validator checks merged requiredness for known eligible enabled
+identities, even when neither settings object is present. It uses the generated
+fieldwise requested/base view and documented protocol defaults; `enabled` and
+`definition` come from shared resolution, never a bidder-selected bypass.
+Shared code retains enablement, namespace, catalog and immutable binding
+checks. Use the existing alias/base resolution,
+not a new all-fields-or-nothing merge. Required settings that are intrinsically
+configuration-only can be checked here; a field that may validly come from an
+auction/impression must not become a mandatory deployment setting. An absent
+optional field is not automatically an error.
+
+Do not use this hook to prohibit existing request-local alias behavior. For a
+settings entry whose observable identity depends on a future request, validate
+its declared implementation's supplied values through this same contract,
+with `definition = None` and `enabled = false` until a request resolves it.
+Retain binding, effective fallback and request-dependent requiredness checks
+at the request boundary.
+For identities resolvable from the document/catalog, validate their bindings
+and effective settings before accepting the snapshot. No future request may
+use the configuration callback to bypass exchange binding or parameter checks.
+
+`BidderConfigError` carries only reviewed static field/reason identifiers.
+Convert any `ValidationErrors` inside the bidder without formatting, logging or
+retaining its value parameters across the callback boundary. Validator-derived
+errors can temporarily allocate/copy values; the configuration work owner must
+fund and bound that failure path, not label the callback allocation-free.
+Shared public diagnostics remain fixed categories and approved paths, without
+echoing instance names, settings or secret locations. Keep configured secret
+references syntax/purpose-checked; do not read secret contents, authenticate a
+credential, consult ambient environment, call a network service or initialize
+mutable process caches from this callback.
+
+`ConfigValidationContext` supplies the validated catalog/callback view without
+installing a serving registry or constructing bidders. CLI, actual SDK store
+extraction and the typed-host snapshot constructor run the same shared
+orchestrator before accepting a candidate. A callback rejection rejects that
+candidate; it never silently disables the bidder or publishes the rest of a
+partly validated snapshot. Existing failed-host-candidate versus failed-store-
+load dispositions remain different as specified in section 8.
+
+Validation loops use bounded identity/alias indexes and borrowed views; do not
+resolve/copy all accounts for every bidder or add a separately maintained
+callback registry. Include any additional index/storage/error peak in the
+existing configuration/catalog owners before serving cutover. Request-time
+parameter schemas, endpoint/sink safety, privacy and secret-loading preflight
+remain independent mandatory checks, not replacements for policy validation.
+
+Required controls vary supplied values and effective requiredness independently
+within this single contract: disabled entries with invalid supplied values,
+enabled identities without settings,
+fieldwise alias inheritance, explicit zero/empty/null, implementation mismatch,
+request-supplied fallbacks, exact redacted errors and zero factory/store/secret
+calls. Omit or miswire a callback in a synthetic discovered package and require
+a real build/behavioral failure. Shared tests use the existing capable fake
+and the existing synthetic settings compiler workspace, not a real bidder as
+a stand-in or a fake variant added to production generated settings.
 
 ## 6. Authoring Cutover
 
@@ -516,7 +645,7 @@ testing to final Trusted Server or publisher testing.
 | --- | --- |
 | Release neutrality | Build once without an operator file; run that unchanged artifact with two isolated operator configurations and show different expected policies and identical executable hashes. Removing/adding/changing a local operator file cannot affect a release build. |
 | Classification | Cover every current field group in the inventory. Reject unknown startup/policy fields and all retired authoring roots. Any deliberately removed field has a named migration/refusal, not silent ignore. |
-| Shared validation | Exercise the same scalar and cross-field invalid cases through CLI, actual store extraction and host-typed constructors; assert exact fixed categories. Include a wrong application schema version under a valid SDK envelope and recomputed correct digest. Validation is non-installing and uses the supplied context, not whichever global profile a test installed first. |
+| Shared validation | Exercise the same scalar and cross-field invalid cases through CLI, actual store extraction and host-typed constructors; assert exact fixed categories. Include bidder-owned supplied/effective validation, disabled entries, alias inheritance, a missing/miswired discovered callback and a wrong application schema version under a valid SDK envelope and recomputed correct digest. Validation is non-installing and uses the supplied context, not whichever global profile a test installed first. |
 | Bootstrap | Under/at/over input and extraction bounds independently; malformed explicit domain values, absent required fields, missing source/binding, preboot App, captured caps above funding, conflicting second installation and concurrent identical initialization. Fatal domain validation performs no policy read or startup-policy/gate publication. Separately assert native-fatal versus edge-closed health resolution and fatal health installation conflicts. |
 | Replacement | Publish A, then B omitting an account/alias/override, and prove A's data is gone. Invalid B cannot masquerade as a valid fresh/default document. Hold requests on distinct valid generations and prove each uses one coherent snapshot. |
 | Resolution | Vary product, host, account-default, selected-account, bidder and alias values independently. Assert empty/false/zero/null behavior by field and valid/malformed explicit clears, including inherited nonempty before-states for every clear case, fallback account identity, independent activity default/rules inheritance, whole-rule-array replacement and separate transport/decoded clamps. Include parent activity default false plus child rules [] and assert that default false survives. |

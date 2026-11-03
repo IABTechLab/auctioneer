@@ -8,7 +8,53 @@ The [shared crate rules](../../../AGENTS.md) apply here: handwritten `#[path]`
 and source-file `include!` imports are forbidden, including within this crate.
 Only generated-code includes are allowed.
 
-## Layout
+## Configuration Validation
+
+An executable owner with a manifest `settings` declaration supplies ordinary
+`mod config;` wiring and an owner-level `validate_config` in `mod.rs`.
+Discovery derives this requirement from settings plus factory ownership; it
+emits a compiler-checked reference with the factory's existing eligibility.
+Settings-free owners need no config module or callback, and reference-only
+definitions do not become executable validation providers.
+
+`validate_config` is only a thin adapter to the bidder-local borrowed view's
+`validator::Validate`. Generated settings stay in `auctioneer-config`; do not
+add a settings DTO, implement an external trait on those external types, or
+introduce validation constraints in TOML. The one `BidderConfigInput` borrows
+requested settings, base settings and optional resolved metadata, together
+with caller-resolved enablement. Validate both supplied entries even when
+disabled or overridden. Check intrinsic requiredness only for an enabled,
+resolvable identity, using existing fieldwise fallback. Preserve null, zero,
+empty, optional defaults and valid impression/request-supplied values.
+
+Callbacks must not construct bidders, decode requests, build outbound calls,
+perform I/O, resolve secrets, inspect environment or install mutable globals.
+Reuse actual pure protocol predicates when needed. Return only reviewed static
+`BidderConfigError` field/reason identifiers; do not format or retain validator
+value parameters. An owner with no additional semantic rule records that fact
+in its local view instead of inventing required deployment fields or ranges.
+
+Validated definitions and implementation lookup retain callbacks in the existing
+catalog indexes, not a second registry. Shared admission/orchestration belongs
+to core; these callbacks are not activated by the old serving policy reader.
+Request-local aliases retain their request-time binding and effective checks.
+
+Task 4 must account for the declaration's derived settings flag, the optional
+function pointer added to each registration and validated definition, and the
+optional pointer stored alongside each constructor in the existing factory
+index. The temporary feature-index value also gains the derived settings flag.
+These layouts grow when registry validation builds its indexes even before
+callbacks are activated; the metadata census does not automatically fund them.
+Alignment and B-tree node layout remain target-dependent. Local
+`ValidationErrors` can allocate on failure and must also be bounded/funded
+before serving activation. The config-owned `MetadataStorageDescriptor` census
+does not cover these bidder-owned tables or registry-plan B-trees. Catalog cost
+aggregation consumes separately qualified owner contributions; it does not
+automatically inspect these layouts. The registry owner's contribution and
+startup peak therefore need Task 4 accounting even before callbacks are invoked.
+This contract is not resource-readiness evidence.
+
+## Source Layout
 
 ```text
 src/bidders/<implementation_key>/

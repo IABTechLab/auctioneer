@@ -7,7 +7,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config_schema::AuctioneerConfigSource;
+    use auctioneer_config_schema::{AuctioneerConfigSource, OperatorConfigSource};
     use serde::Deserialize;
 
     /// A minimal document with both namespaces present. The baked
@@ -46,6 +46,106 @@ disabled = false
     struct OverlayRuntime {
         #[serde(default)]
         auction: Option<toml::Value>,
+    }
+
+    const OPERATOR_FIXTURE: &str = r#"
+[startup]
+status_response = ""
+
+[runtime]
+disabled = false
+"#;
+
+    #[test]
+    fn operator_consumers_agree_on_the_root_shape() {
+        let startup_side: OperatorConfigSource<StrictHost, toml::Value> =
+            toml::from_str(OPERATOR_FIXTURE).expect("startup can be typed independently");
+        assert_eq!(startup_side.startup.status_response, "");
+        assert!(startup_side.runtime.is_table());
+
+        let runtime_side: OperatorConfigSource<toml::Value, StrictAccount> =
+            toml::from_str(OPERATOR_FIXTURE).expect("runtime can be typed independently");
+        assert!(runtime_side.startup.is_table());
+        assert!(!runtime_side.runtime.disabled);
+    }
+
+    #[test]
+    fn operator_root_requires_startup() {
+        let error =
+            toml::from_str::<OperatorConfigSource<toml::Value, OverlayRuntime>>("[runtime]\n")
+                .expect_err("startup must not be defaulted");
+        assert!(error.to_string().contains("startup"));
+    }
+
+    #[test]
+    fn operator_root_requires_runtime_even_when_the_subtree_has_defaults() {
+        let error =
+            toml::from_str::<OperatorConfigSource<toml::Value, OverlayRuntime>>("[startup]\n")
+                .expect_err("runtime must not be defaulted");
+        assert!(error.to_string().contains("runtime"));
+    }
+
+    #[test]
+    fn operator_root_requires_sections_even_for_optional_subtree_types() {
+        for (document, missing) in [("[startup]\n", "runtime"), ("[runtime]\n", "startup")] {
+            let error = toml::from_str::<
+                OperatorConfigSource<Option<toml::Value>, Option<toml::Value>>,
+            >(document)
+            .expect_err("generic subtree optionality must not weaken root presence");
+            assert!(error.to_string().contains(missing));
+        }
+    }
+
+    #[test]
+    fn operator_root_rejects_unknown_namespaces() {
+        for unknown in ["runtim", "startpu", "other"] {
+            let document = format!("{OPERATOR_FIXTURE}\n[{unknown}]\n");
+            let error =
+                toml::from_str::<OperatorConfigSource<StrictHost, StrictAccount>>(&document)
+                    .expect_err("unknown operator namespaces must fail closed");
+            assert!(error.to_string().contains("unknown field"));
+            assert!(error.to_string().contains(unknown));
+        }
+    }
+
+    #[test]
+    fn operator_root_rejects_baked_instead_of_aliasing_it() {
+        for document in [FIXTURE.to_owned(), format!("{OPERATOR_FIXTURE}\n[baked]\n")] {
+            let error = toml::from_str::<OperatorConfigSource<toml::Value, toml::Value>>(&document)
+                .expect_err("the new root must never accept the legacy baked namespace");
+            assert!(error.to_string().contains("unknown field"));
+            assert!(error.to_string().contains("baked"));
+        }
+    }
+
+    #[test]
+    fn operator_root_preserves_strict_subtree_parsing() {
+        for document in [
+            OPERATOR_FIXTURE.replace("status_response = \"\"", "status_response = false"),
+            OPERATOR_FIXTURE.replace("disabled = false", "disabled = 0"),
+        ] {
+            let error =
+                toml::from_str::<OperatorConfigSource<StrictHost, StrictAccount>>(&document)
+                    .unwrap_err();
+            assert!(error.to_string().contains("invalid type"));
+        }
+    }
+
+    #[test]
+    fn unknown_subtree_keys_are_rejected_with_valid_required_fields() {
+        for document in [
+            OPERATOR_FIXTURE.replace(
+                "status_response = \"\"",
+                "status_response = \"\"\nunexpected = true",
+            ),
+            OPERATOR_FIXTURE.replace("disabled = false", "disabled = false\nunexpected = true"),
+        ] {
+            let error =
+                toml::from_str::<OperatorConfigSource<StrictHost, StrictAccount>>(&document)
+                    .expect_err("valid required fields cannot mask an unknown sibling");
+            assert!(error.to_string().contains("unknown field"));
+            assert!(error.to_string().contains("unexpected"));
+        }
     }
 
     #[test]

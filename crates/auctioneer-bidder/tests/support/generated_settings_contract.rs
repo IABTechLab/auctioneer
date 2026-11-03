@@ -128,7 +128,9 @@ mod request_binding {
                 .unwrap_err();
             assert_eq!(
                 error,
-                auctioneer_bidder::BidderError::failed_to_request_bids("bidder settings exceed limits")
+                auctioneer_bidder::BidderError::failed_to_request_bids(
+                    "bidder settings exceed limits"
+                )
             );
             assert!(info.settings().is_none());
             assert!(info.base_settings().is_none());
@@ -204,7 +206,9 @@ mod retained_owner {
     mod tests {
         use auctioneer_bidder::request_info::BidderSettingsSource as _;
         use auctioneer_config::{BidderSettings, bidder_settings::fake_string_probe};
-        use auctioneer_core::config::{AuctioneerAppConfig, bidder_settings::RuntimeBidderSettings};
+        use auctioneer_core::config::{
+            AuctioneerAppConfig, bidder_settings::RuntimeBidderSettings,
+        };
         use serde_json::json;
 
         #[test]
@@ -287,6 +291,16 @@ mod config_limits {
 mod runtime {
     use super::{bounded_store::bounded_over_get, config_funding};
     use async_trait::async_trait;
+    use auctioneer_core::{
+        config::runtime::{RuntimeConfigError, resolve_runtime_config},
+        handlers::TestFanoutHandle,
+        host_primitives::{TestClockHandle, TestRngHandle},
+    };
+    use auctioneer_exchange::{
+        AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
+        FanoutInternalError, TimeoutCause,
+    };
+    use auctioneer_runtime::{Clock, FakeClock, Rng, SeededRng};
     use edgezero_core::{
         blob_envelope::BlobEnvelope,
         body::Body,
@@ -301,16 +315,6 @@ mod runtime {
     };
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
-    use auctioneer_core::{
-        config::runtime::{RuntimeConfigError, resolve_runtime_config},
-        handlers::TestFanoutHandle,
-        host_primitives::{TestClockHandle, TestRngHandle},
-    };
-    use auctioneer_exchange::{
-        AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
-        FanoutInternalError, TimeoutCause,
-    };
-    use auctioneer_runtime::{Clock, FakeClock, Rng, SeededRng};
     use std::{
         sync::{Arc, Mutex, PoisonError},
         time::Duration,
@@ -566,5 +570,231 @@ mod generated_endpoints {
             cases += 1;
         }
         assert_eq!(cases, 2);
+    }
+}
+
+mod config_callbacks {
+    use auctioneer_bidder::{
+        BidderConfigError, BidderConfigInput, BidderConfigValidator, BidderRegistration,
+        RegistryInputs, ValidatedRegistryPlan, bidder_declarations, compiled_bidders,
+    };
+    use auctioneer_config::{BidderSettings, types::BidderInfo};
+    use serde_json::{Value, json};
+
+    fn plan(factories: &[BidderRegistration]) -> ValidatedRegistryPlan {
+        ValidatedRegistryPlan::validate(RegistryInputs {
+            infos: &[],
+            bindings: &[],
+            metadata_declarations: &[],
+            factory_declarations: bidder_declarations(),
+            factories,
+            aliases: &[],
+        })
+        .unwrap()
+    }
+
+    fn settings(implementation: &str, values: Value) -> BidderSettings {
+        serde_json::from_value(json!({"implementation":implementation, "values":values})).unwrap()
+    }
+
+    fn integer(values: Value) -> BidderSettings {
+        settings("fake_integer_probe", values)
+    }
+
+    fn callback(key: &str) -> BidderConfigValidator {
+        plan(compiled_bidders()).config_validator(key).unwrap()
+    }
+
+    fn check(
+        callback: BidderConfigValidator,
+        requested: Option<&BidderSettings>,
+        base: Option<&BidderSettings>,
+        definition: Option<&BidderInfo>,
+        enabled: bool,
+    ) -> Result<(), BidderConfigError> {
+        callback(BidderConfigInput {
+            requested,
+            base,
+            definition,
+            enabled,
+        })
+    }
+
+    #[test]
+    fn supplied_values_are_independent_even_when_disabled_or_overridden() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let validate = callback("fake_integer_probe");
+        let good = integer(json!({"primary_number":17,"secondary_number":19}));
+        let mut cases = 0;
+        for field in ["primary_number", "secondary_number"] {
+            let bad = integer(json!({(field):-1}));
+            for enabled in [false, true] {
+                for (requested, base) in [
+                    (Some(&bad), Some(&good)),
+                    (Some(&good), Some(&bad)),
+                    (Some(&bad), None),
+                    (None, Some(&bad)),
+                ] {
+                    assert_eq!(
+                        check(validate, requested, base, None, enabled),
+                        Err(BidderConfigError {
+                            field,
+                            reason: "invalid"
+                        })
+                    );
+                    cases += 1;
+                }
+            }
+        }
+        assert_eq!(cases, 16);
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn effective_requiredness_and_fieldwise_fallback_use_the_same_callback() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let validate = callback("fake_integer_probe");
+        let definition = BidderInfo::default();
+        let primary = integer(json!({"primary_number":0}));
+        let secondary = integer(json!({"secondary_number":23}));
+        assert_eq!(
+            check(validate, None, None, Some(&definition), true),
+            Err(BidderConfigError {
+                field: "primary_number",
+                reason: "required"
+            })
+        );
+        assert_eq!(
+            check(validate, Some(&primary), None, Some(&definition), true),
+            Err(BidderConfigError {
+                field: "secondary_number",
+                reason: "required"
+            })
+        );
+        for (requested, base) in [
+            (Some(&primary), Some(&secondary)),
+            (Some(&secondary), Some(&primary)),
+        ] {
+            assert_eq!(
+                check(validate, requested, base, Some(&definition), true),
+                Ok(())
+            );
+        }
+        assert_eq!(
+            check(validate, None, None, Some(&definition), false),
+            Ok(())
+        );
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn missing_null_zero_empty_and_request_local_context_remain_distinct() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let validate = callback("fake_integer_probe");
+        let definition = BidderInfo::default();
+        let base = integer(json!({"primary_number":31,"secondary_number":37}));
+        for values in [
+            json!({}),
+            json!({"primary_number":null,"secondary_number":null}),
+            json!({"primary_number":0}),
+        ] {
+            let requested = integer(values);
+            assert_eq!(
+                check(
+                    validate,
+                    Some(&requested),
+                    Some(&base),
+                    Some(&definition),
+                    true
+                ),
+                Ok(())
+            );
+        }
+        assert_eq!(check(validate, None, None, None, false), Ok(()));
+        let token_validate = callback("fake_string_probe");
+        let empty = settings("fake_string_probe", json!({"token":""}));
+        assert_eq!(
+            check(token_validate, Some(&empty), None, None, false),
+            Err(BidderConfigError {
+                field: "token",
+                reason: "invalid"
+            })
+        );
+        let null = settings("fake_string_probe", json!({"token":null}));
+        assert_eq!(
+            check(token_validate, Some(&null), None, None, false),
+            Ok(())
+        );
+        let canary = settings(
+            "fake_string_probe",
+            json!({"token":"fake_private_credential_location"}),
+        );
+        let error = check(token_validate, Some(&empty), Some(&canary), None, false).unwrap_err();
+        assert_eq!(
+            error,
+            BidderConfigError {
+                field: "token",
+                reason: "invalid"
+            }
+        );
+        assert!(!format!("{error:?} {error}").contains("fake_private_credential_location"));
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    fn assert_callbacks(plan: &ValidatedRegistryPlan) {
+        let integer = integer(json!({"primary_number":-1}));
+        let token = settings("fake_string_probe", json!({"token":""}));
+        assert_eq!(
+            check(
+                plan.config_validator("fake_integer_probe").unwrap(),
+                Some(&integer),
+                None,
+                None,
+                false
+            ),
+            Err(BidderConfigError {
+                field: "primary_number",
+                reason: "invalid"
+            })
+        );
+        assert_eq!(
+            check(
+                plan.config_validator("fake_string_probe").unwrap(),
+                Some(&token),
+                None,
+                None,
+                false
+            ),
+            Err(BidderConfigError {
+                field: "token",
+                reason: "invalid"
+            })
+        );
+    }
+
+    #[test]
+    fn swapped_callbacks_fail_the_behavioral_contract_without_factories() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        assert_callbacks(&plan(compiled_bidders()));
+        let integer = callback("fake_integer_probe");
+        let token = callback("fake_string_probe");
+        let swapped: Vec<_> = compiled_bidders()
+            .iter()
+            .map(|row| BidderRegistration {
+                key: row.key,
+                factory: row.factory,
+                config_validator: match row.key {
+                    "fake_integer_probe" => Some(token),
+                    "fake_string_probe" => Some(integer),
+                    _ => row.config_validator,
+                },
+            })
+            .collect();
+        let wrong = plan(&swapped);
+        assert!(
+            std::panic::catch_unwind(|| assert_callbacks(&wrong)).is_err(),
+            "swapped callbacks escaped behavioral checks"
+        );
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
     }
 }

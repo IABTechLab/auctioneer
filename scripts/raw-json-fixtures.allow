@@ -150,6 +150,10 @@ crates/auctioneer-core/src/test_support/usersync_keys.rs 1
 # duplicate/escaped publisher keys, plus an incomplete root object (1).
 crates/auctioneer-core/src/config/resolve.rs 8
 
+# Override marker/value duplicate keys, including escaped-equivalent spellings,
+# must reach Serde unchanged; json! would collapse these five lexical controls.
+crates/auctioneer-core/src/config/override_value.rs 5
+
 # Exact opaque 1e400 token must survive generated-App identity discovery.
 crates/auctioneer-core/tests/auction_config_lifecycle.rs 1
 

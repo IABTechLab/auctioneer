@@ -19,6 +19,8 @@ pub struct BidderDeclaration {
     pub key: &'static str,
     /// The Cargo feature required to compile this implementation, if any.
     pub required_feature: Option<&'static str>,
+    /// Derived from this executable owner's manifest settings declaration.
+    pub has_settings: bool,
 }
 
 /// A compiled implementation and its lazy, stateless constructor.
@@ -27,6 +29,9 @@ pub struct BidderRegistration {
     pub key: &'static str,
     /// Constructs a bidder synchronously and infallibly, without I/O.
     pub factory: fn() -> Box<dyn crate::Bidder>,
+    /// Present exactly when this executable owner declares settings.
+    /// This only adapts the bidder-local `validator::Validate` implementation.
+    pub config_validator: Option<crate::BidderConfigValidator>,
 }
 
 /// Borrow all implementation declarations, regardless of enabled features.

@@ -137,23 +137,30 @@ fn host_settings<'a>(info: &'a BidderRequestInfo<'_>) -> SettingsRef<'a> {
 }
 
 fn regional_host(info: &BidderRequestInfo<'_>) -> Result<&'static str, BidderError> {
-    match host_settings(info).region() {
-        Some("us-east") => Ok("exapi-us-east.rubiconproject.com"),
-        Some("us-west") => Ok("exapi-us-west.rubiconproject.com"),
-        Some("eu") => Ok("exapi-eu.rubiconproject.com"),
-        Some("apac") => Ok("exapi-apac.rubiconproject.com"),
-        _ => Err(BidderError::failed_to_request_bids(
-            "rubicon invalid region",
-        )),
+    host_settings(info)
+        .region()
+        .and_then(regional_host_for)
+        .ok_or_else(|| BidderError::failed_to_request_bids("rubicon invalid region"))
+}
+
+pub(super) fn regional_host_for(region: &str) -> Option<&'static str> {
+    match region {
+        "us-east" => Some("exapi-us-east.rubiconproject.com"),
+        "us-west" => Some("exapi-us-west.rubiconproject.com"),
+        "eu" => Some("exapi-eu.rubiconproject.com"),
+        "apac" => Some("exapi-apac.rubiconproject.com"),
+        _ => None,
     }
+}
+
+pub(super) fn valid_credential_reference(key: &str) -> bool {
+    !key.is_empty() && key.len() <= 128 && !key.bytes().any(|byte| byte.is_ascii_control())
 }
 
 fn credential_reference<'a>(info: &'a BidderRequestInfo<'_>) -> Result<&'a str, BidderError> {
     host_settings(info)
         .credentials_secret()
-        .filter(|key| {
-            !key.is_empty() && key.len() <= 128 && !key.bytes().any(|byte| byte.is_ascii_control())
-        })
+        .filter(|key| valid_credential_reference(key))
         .ok_or_else(|| BidderError::failed_to_request_bids("rubicon invalid credential reference"))
 }
 

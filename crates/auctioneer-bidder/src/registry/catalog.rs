@@ -3,7 +3,7 @@
 //! This does not install a process registry or fund catalog storage. Callers
 //! must fund metadata materialization and these indexes before construction.
 
-use crate::{Bidder, BidderDeclaration, BidderRegistration};
+use crate::{Bidder, BidderConfigValidator, BidderDeclaration, BidderRegistration};
 use auctioneer_config::types::{
     BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
 };
@@ -12,6 +12,8 @@ use std::error::Error;
 use std::fmt;
 
 type Factory = fn() -> Box<dyn Bidder>;
+type FactoryEntry = (Factory, Option<BidderConfigValidator>);
+type FactoryFeature = (Option<&'static str>, bool);
 
 /// Source ancestry of a flattened, compiled public alias.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -40,6 +42,7 @@ pub enum RegistryBuildError {
     DuplicateFactoryDeclaration { implementation: &'static str },
     DuplicateFactory { implementation: &'static str },
     UndeclaredFactory { implementation: &'static str },
+    ConfigValidatorMismatch { implementation: &'static str },
     MissingFactoryDeclaration { implementation: &'static str },
     DuplicateBidder { bidder: &'static str },
     UndeclaredBidder { bidder: &'static str },
@@ -71,6 +74,9 @@ impl fmt::Display for RegistryBuildError {
             }
             Self::DuplicateFactory { implementation } => ("duplicate factory", implementation),
             Self::UndeclaredFactory { implementation } => ("undeclared factory", implementation),
+            Self::ConfigValidatorMismatch { implementation } => {
+                ("configuration validator mismatch", implementation)
+            }
             Self::MissingFactoryDeclaration { implementation } => {
                 ("missing factory declaration", implementation)
             }
@@ -106,6 +112,7 @@ pub struct RegistryDefinition {
     canonical_base: &'static str,
     source_parent: Option<&'static str>,
     factory: Factory,
+    config_validator: Option<BidderConfigValidator>,
 }
 
 impl RegistryDefinition {
@@ -134,6 +141,12 @@ impl RegistryDefinition {
     pub fn construct(&self) -> Box<dyn Bidder> {
         (self.factory)()
     }
+
+    /// Borrow the owner's validation adapter without constructing a bidder.
+    #[must_use]
+    pub const fn config_validator(&self) -> Option<BidderConfigValidator> {
+        self.config_validator
+    }
 }
 
 /// Read-only public-definition, base, source-alias and factory indexes.
@@ -141,7 +154,7 @@ pub struct ValidatedRegistryPlan {
     definitions: BTreeMap<&'static str, RegistryDefinition>,
     bases: BTreeMap<&'static str, &'static BidderInfo>,
     aliases: BTreeMap<&'static str, RegistryAlias>,
-    factories: BTreeMap<&'static str, Factory>,
+    factories: BTreeMap<&'static str, FactoryEntry>,
 }
 
 impl fmt::Debug for ValidatedRegistryPlan {
@@ -172,7 +185,7 @@ impl ValidatedRegistryPlan {
                 .bindings
                 .get(name)
                 .ok_or(RegistryBuildError::MissingBinding { bidder: name })?;
-            let factory = *declarations
+            let (factory, config_validator) = *declarations
                 .factories
                 .get(implementation)
                 .ok_or(RegistryBuildError::FeatureActivationMismatch { bidder: name })?;
@@ -192,6 +205,7 @@ impl ValidatedRegistryPlan {
                     canonical_base,
                     source_parent,
                     factory,
+                    config_validator,
                 },
             );
         }
@@ -232,11 +246,19 @@ impl ValidatedRegistryPlan {
     pub fn factory_keys(&self) -> impl ExactSizeIterator<Item = &'static str> {
         self.factories.keys().copied()
     }
+
+    /// Look up validation for a linked implementation, including request-local
+    /// identities without published definitions. No separate callback index exists.
+    #[must_use]
+    pub fn config_validator(&self, implementation: &str) -> Option<BidderConfigValidator> {
+        let (_, validator) = self.factories.get(implementation)?;
+        *validator
+    }
 }
 
 struct DeclarationIndexes {
     metadata: BTreeMap<&'static str, BidderMetadataDeclaration>,
-    factories: BTreeMap<&'static str, Factory>,
+    factories: BTreeMap<&'static str, FactoryEntry>,
 }
 
 impl DeclarationIndexes {
@@ -251,10 +273,10 @@ impl DeclarationIndexes {
             }
             metadata.insert(row.bidder, *row);
         }
-        let mut factory_features = BTreeMap::new();
+        let mut factory_features: BTreeMap<_, FactoryFeature> = BTreeMap::new();
         for row in inputs.factory_declarations {
             if factory_features
-                .insert(row.key, row.required_feature)
+                .insert(row.key, (row.required_feature, row.has_settings))
                 .is_some()
             {
                 return Err(RegistryBuildError::DuplicateFactoryDeclaration {
@@ -264,19 +286,27 @@ impl DeclarationIndexes {
         }
         let mut factories = BTreeMap::new();
         for row in inputs.factories {
-            if !factory_features.contains_key(row.key) {
+            let Some((_, has_settings)) = factory_features.get(row.key) else {
                 return Err(RegistryBuildError::UndeclaredFactory {
                     implementation: row.key,
                 });
-            }
-            if factories.insert(row.key, row.factory).is_some() {
+            };
+            if factories
+                .insert(row.key, (row.factory, row.config_validator))
+                .is_some()
+            {
                 return Err(RegistryBuildError::DuplicateFactory {
+                    implementation: row.key,
+                });
+            }
+            if *has_settings != row.config_validator.is_some() {
+                return Err(RegistryBuildError::ConfigValidatorMismatch {
                     implementation: row.key,
                 });
             }
         }
         for row in inputs.metadata_declarations {
-            let feature = factory_features.get(row.implementation).ok_or(
+            let (feature, _) = factory_features.get(row.implementation).ok_or(
                 RegistryBuildError::MissingFactoryDeclaration {
                     implementation: row.implementation,
                 },
@@ -285,7 +315,7 @@ impl DeclarationIndexes {
                 return Err(RegistryBuildError::FeaturePredicateMismatch { bidder: row.bidder });
             }
         }
-        for (implementation, feature) in factory_features {
+        for (implementation, (feature, _)) in factory_features {
             if feature.is_none() && !factories.contains_key(implementation) {
                 return Err(RegistryBuildError::UnavailableFactory { implementation });
             }
@@ -464,6 +494,86 @@ mod tests {
     use std::cell::RefCell;
     use std::ptr;
 
+    #[test]
+    fn configuration_callback_layouts_record_static_and_index_growth() {
+        // These are the exact predecessor fields at 3b1b6d9, not a node or
+        // allocation model. Current private types remain checked by their owner.
+        #[expect(
+            dead_code,
+            reason = "predecessor fields exist solely for ABI layout comparison"
+        )]
+        struct BeforeDeclaration {
+            key: &'static str,
+            required_feature: Option<&'static str>,
+        }
+        #[expect(
+            dead_code,
+            reason = "predecessor fields exist solely for ABI layout comparison"
+        )]
+        struct BeforeRegistration {
+            key: &'static str,
+            factory: super::Factory,
+        }
+        #[expect(
+            dead_code,
+            reason = "predecessor fields exist solely for ABI layout comparison"
+        )]
+        struct BeforeDefinition {
+            info: &'static BidderInfo,
+            implementation: &'static str,
+            canonical_base: &'static str,
+            source_parent: Option<&'static str>,
+            factory: super::Factory,
+        }
+        // A const block also checks the layouts when guest test code is only
+        // compiled. It does not claim guest execution or heap qualification.
+        const {
+            let before = [
+                size_of::<BeforeDeclaration>(),
+                size_of::<BeforeRegistration>(),
+                size_of::<BeforeDefinition>(),
+                size_of::<super::Factory>(),
+                size_of::<Option<&'static str>>(),
+            ];
+            let after = [
+                size_of::<BidderDeclaration>(),
+                size_of::<BidderRegistration>(),
+                size_of::<super::RegistryDefinition>(),
+                size_of::<super::FactoryEntry>(),
+                size_of::<super::FactoryFeature>(),
+            ];
+            let alignment = [
+                align_of::<BeforeDeclaration>(),
+                align_of::<BeforeRegistration>(),
+                align_of::<BeforeDefinition>(),
+                align_of::<super::Factory>(),
+                align_of::<Option<&'static str>>(),
+                align_of::<BidderDeclaration>(),
+                align_of::<BidderRegistration>(),
+                align_of::<super::RegistryDefinition>(),
+                align_of::<super::FactoryEntry>(),
+                align_of::<super::FactoryFeature>(),
+            ];
+            let (old_sizes, new_sizes, expected_alignment) = if cfg!(target_pointer_width = "64") {
+                ([32, 24, 64, 8, 16], [40, 32, 72, 16, 24], 8)
+            } else {
+                assert!(cfg!(target_pointer_width = "32"));
+                ([16, 12, 32, 4, 8], [20, 16, 36, 8, 12], 4)
+            };
+            let mut index = 0;
+            while index < before.len() {
+                assert!(before[index] == old_sizes[index]);
+                assert!(after[index] == new_sizes[index]);
+                index += 1;
+            }
+            index = 0;
+            while index < alignment.len() {
+                assert!(alignment[index] == expected_alignment);
+                index += 1;
+            }
+        }
+    }
+
     thread_local! {
         static CALLS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
     }
@@ -567,15 +677,18 @@ mod tests {
                     BidderDeclaration {
                         key: "fake_shared",
                         required_feature: None,
+                        has_settings: false,
                     },
                     BidderDeclaration {
                         key: "fake_unused",
                         required_feature: Some("unused-feature"),
+                        has_settings: false,
                     },
                 ],
                 factories: vec![BidderRegistration {
                     key: "fake_shared",
                     factory: shared,
+                    config_validator: None,
                 }],
                 aliases: vec![
                     RegistryAlias {
@@ -607,6 +720,97 @@ mod tests {
             assert_eq!(self.validate().unwrap_err(), expected);
             CALLS.with_borrow(|calls| assert!(calls.is_empty(), "invalid input called a factory"));
         }
+    }
+
+    #[test]
+    fn config_callbacks_follow_existing_definition_and_implementation_indexes() {
+        use crate::{BidderConfigError, BidderConfigInput};
+        fn reject(input: BidderConfigInput<'_>) -> Result<(), BidderConfigError> {
+            Err(BidderConfigError {
+                field: "fake_field",
+                reason: if !input.enabled && input.definition.is_none() {
+                    "fake_rejected"
+                } else {
+                    "fake_unexpected_context"
+                },
+            })
+        }
+        let mut fixture = Fixture::new();
+        fixture.declarations[0].has_settings = true;
+        fixture.factories[0].config_validator = Some(reject);
+        let plan = fixture.validate().unwrap();
+        for name in [
+            "fake_base",
+            "fake_child",
+            "fake_nested",
+            "fake_zIndependent",
+        ] {
+            let callback = plan.definition(name).unwrap().config_validator().unwrap();
+            assert_eq!(
+                callback(BidderConfigInput {
+                    requested: None,
+                    base: None,
+                    definition: None,
+                    enabled: false,
+                }),
+                Err(BidderConfigError {
+                    field: "fake_field",
+                    reason: "fake_rejected"
+                })
+            );
+        }
+        let callback = plan.config_validator("fake_shared").unwrap();
+        assert_eq!(
+            callback(BidderConfigInput {
+                requested: None,
+                base: None,
+                definition: None,
+                enabled: false,
+            }),
+            Err(BidderConfigError {
+                field: "fake_field",
+                reason: "fake_rejected",
+            })
+        );
+        assert!(plan.config_validator("fake_unused").is_none());
+        assert!(plan.config_validator("fake_unknown").is_none());
+        CALLS.with_borrow(|calls| assert!(calls.is_empty()));
+    }
+
+    #[test]
+    fn config_callback_presence_must_match_settings_declaration_without_factories() {
+        fn accept(input: crate::BidderConfigInput<'_>) -> Result<(), crate::BidderConfigError> {
+            if input.enabled {
+                Ok(())
+            } else {
+                Err(crate::BidderConfigError {
+                    field: "fake_enabled",
+                    reason: "fake_disabled",
+                })
+            }
+        }
+        for (has_settings, has_callback) in [(true, false), (false, true)] {
+            let mut fixture = Fixture::new();
+            fixture.declarations[0].has_settings = has_settings;
+            fixture.factories[0].config_validator = has_callback.then_some(accept);
+            assert_eq!(
+                fixture.validate().err(),
+                Some(RegistryBuildError::ConfigValidatorMismatch {
+                    implementation: "fake_shared",
+                })
+            );
+            CALLS.with_borrow(|calls| assert!(calls.is_empty()));
+        }
+        let fixture = Fixture::new();
+        let plan = fixture.validate().unwrap();
+        assert!(
+            plan.definition("fake_base")
+                .unwrap()
+                .config_validator()
+                .is_none()
+        );
+        assert!(plan.config_validator("fake_shared").is_none());
+        CALLS.with_borrow(|calls| assert!(calls.is_empty()));
     }
 
     #[test]
@@ -665,6 +869,7 @@ mod tests {
         fixture.declarations.push(BidderDeclaration {
             key: "fake_shared",
             required_feature: None,
+            has_settings: false,
         });
         fixture.refusal(RegistryBuildError::DuplicateFactoryDeclaration {
             implementation: "fake_shared",
@@ -673,6 +878,7 @@ mod tests {
         fixture.factories.push(BidderRegistration {
             key: "fake_shared",
             factory: other,
+            config_validator: None,
         });
         fixture.refusal(RegistryBuildError::DuplicateFactory {
             implementation: "fake_shared",
@@ -731,6 +937,7 @@ mod tests {
         fixture.factories.push(BidderRegistration {
             key: "fake_other",
             factory: other,
+            config_validator: None,
         });
         fixture.refusal(RegistryBuildError::UndeclaredFactory {
             implementation: "fake_other",
@@ -759,6 +966,7 @@ mod tests {
         fixture.factories.push(BidderRegistration {
             key: "fake_shared",
             factory: shared,
+            config_validator: None,
         });
         fixture.infos = &[];
         fixture.bindings.clear();
@@ -814,6 +1022,7 @@ mod tests {
         fixture.factories.push(BidderRegistration {
             key: "fake_shared",
             factory: shared,
+            config_validator: None,
         });
         fixture.declarations[1].required_feature = None;
         fixture.refusal(RegistryBuildError::UnavailableFactory {
@@ -822,6 +1031,7 @@ mod tests {
         fixture.factories.push(BidderRegistration {
             key: "fake_unused",
             factory: other,
+            config_validator: None,
         });
         let plan = fixture.validate().unwrap();
         assert_eq!(
@@ -903,10 +1113,12 @@ mod tests {
         fixture.declarations.push(BidderDeclaration {
             key: "fake_other",
             required_feature: None,
+            has_settings: false,
         });
         fixture.factories.push(BidderRegistration {
             key: "fake_other",
             factory: other,
+            config_validator: None,
         });
         fixture.metadata[2].implementation = "fake_other";
         fixture.bindings[2].implementation = "fake_other";
@@ -976,6 +1188,7 @@ mod tests {
                 fixture.factories.push(BidderRegistration {
                     key: "fake_unused",
                     factory: other,
+                    config_validator: None,
                 });
             }
             if shared_active == unused_active {

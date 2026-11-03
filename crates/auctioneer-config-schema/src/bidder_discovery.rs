@@ -14,6 +14,7 @@ struct Declaration {
     key: String,
     required_feature: Option<String>,
     native_only: bool,
+    has_settings: bool,
     allocation_conformance: Option<PathBuf>,
     response_conformance: Option<PathBuf>,
 }
@@ -101,6 +102,7 @@ pub fn scan(crate_dir: &Path) -> Result<Discovery, String> {
                 key: bidder.key,
                 required_feature: bidder.required_feature,
                 native_only: bidder.native_only,
+                has_settings: bidder.settings.is_some(),
                 allocation_conformance,
                 response_conformance,
             },
@@ -466,14 +468,22 @@ impl Discovery {
                 || quote::quote!(None),
                 |feature| quote::quote!(Some(#feature)),
             );
+            let has_settings = declaration.has_settings;
+            let config_validator = if has_settings {
+                quote::quote!(Some(#owner::validate_config))
+            } else {
+                quote::quote!(None)
+            };
             modules.push(quote::quote!(#guard #[path = #path] mod #owner;));
             declarations.push(quote::quote!(BidderDeclaration {
                 key: #key,
                 required_feature: #feature,
+                has_settings: #has_settings,
             }));
             registrations.push(quote::quote!(#guard BidderRegistration {
                 key: #key,
                 factory: #owner::create_bidder,
+                config_validator: #config_validator,
             }));
             let fixture = directory.join("fixtures/factory.json");
             let fixture_path = fixture
@@ -1552,6 +1562,7 @@ mod tests {
             &quote::quote!(BidderDeclaration {
                 key: "fake_probe",
                 required_feature: Some("experimental"),
+                has_settings: false,
             })
         ));
         assert!(contains_tokens(
@@ -2003,6 +2014,7 @@ mod tests {
             &quote::quote!(BidderDeclaration {
                 key: "fake_adapterstest",
                 required_feature: Some("experimental"),
+                has_settings: false,
             })
         ));
         assert!(contains_tokens(
@@ -2592,6 +2604,133 @@ mod tests {
         }
     }
 
+    #[test]
+    fn config_callback_requirement_comes_only_from_executable_settings_ownership() {
+        let fixture = Fixture::new().unwrap();
+        fixture.local_factory("fake_plain").unwrap();
+        fixture.bidder("fake_settings", "key = 'fake_settings'\nfactory = true\nnative_only = true\nrequired_feature = 'experimental'\n[settings.fields]\ntoken = 'optional_string'\n[provenance]\norigin = 'local'\n").unwrap();
+        let reference = fixture.bidder("fake_reference", "key = 'fake_reference'\nfactory = false\n[settings.fields]\ntoken = 'optional_string'\n[provenance]\norigin = 'local'\n").unwrap();
+        fs::remove_file(reference.join("mod.rs")).unwrap();
+        let rendered = scan(&fixture.directory).unwrap().render().unwrap();
+        assert!(contains_tokens(
+            &rendered,
+            &quote::quote!(BidderDeclaration {
+                key: "fake_settings",
+                required_feature: Some("experimental"),
+                has_settings: true,
+            })
+        ));
+        assert!(contains_tokens(
+            &rendered,
+            &quote::quote!(
+                #[cfg(feature = "experimental")]
+                BidderRegistration {
+                    key: "fake_settings",
+                    factory: fake_settings::create_bidder,
+                    config_validator: Some(fake_settings::validate_config),
+                }
+            )
+        ));
+        assert!(contains_tokens(
+            &rendered,
+            &quote::quote!(BidderRegistration {
+                key: "fake_plain",
+                factory: fake_plain::create_bidder,
+                config_validator: None,
+            })
+        ));
+        assert!(!rendered.contains("fake_reference"));
+        assert!(!rendered.contains("fake_settings :: config ::"));
+    }
+
+    #[test]
+    fn settings_callback_is_compiler_checked_only_when_its_factory_is_eligible() {
+        let fixture = Fixture::new().unwrap();
+        let owner = fixture.bidder("fake_settings", "key = 'fake_settings'\nfactory = true\nrequired_feature = 'experimental'\n[settings.fields]\ntoken = 'optional_string'\n[provenance]\norigin = 'local'\n").unwrap();
+        let output = fixture.directory.join("output");
+        fs::create_dir_all(&output).unwrap();
+        fs::write(
+            output.join("discovery.rs"),
+            scan(&fixture.directory).unwrap().render().unwrap(),
+        )
+        .unwrap();
+        let source = fixture.directory.join("main.rs");
+        fs::write(&source, quote::quote! {
+            pub trait Bidder {}
+            struct Fake;
+            impl Bidder for Fake {}
+            pub struct BidderConfigInput;
+            pub struct BidderConfigError;
+            pub type BidderConfigValidator = for<'a> fn(BidderConfigInput) -> Result<(), BidderConfigError>;
+            mod bidders {
+                pub struct BidderDeclaration {
+                    pub key: &'static str, pub required_feature: Option<&'static str>, pub has_settings: bool,
+                }
+                pub struct BidderRegistration {
+                    pub key: &'static str, pub factory: fn() -> Box<dyn crate::Bidder>,
+                    pub config_validator: Option<crate::BidderConfigValidator>,
+                }
+                include!(concat!(env!("OUT_DIR"), "/discovery.rs"));
+            }
+            fn main() {
+                assert_eq!(bidders::compiled_bidders().len(), usize::from(cfg!(feature = "experimental")));
+            }
+        }.to_string()).unwrap();
+        let factory = quote::quote!(
+            pub(crate) fn create_bidder() -> Box<dyn crate::Bidder> {
+                Box::new(crate::Fake)
+            }
+        );
+        for (callback, expected) in [
+            (quote::quote!(), Some("cannot find value `validate_config`")),
+            (
+                quote::quote!(
+                    pub(crate) fn validate_config(_: u8) {}
+                ),
+                Some("mismatched types"),
+            ),
+            (
+                quote::quote!(
+                    pub(crate) fn validate_config(
+                        _: crate::BidderConfigInput,
+                    ) -> Result<(), crate::BidderConfigError> {
+                        Ok(())
+                    }
+                ),
+                None,
+            ),
+        ] {
+            fs::write(
+                owner.join("mod.rs"),
+                quote::quote!(#factory #callback).to_string(),
+            )
+            .unwrap();
+            for enabled in [false, true] {
+                let mut command = Command::new("rustc");
+                command
+                    .args(["--edition=2024", "--crate-name", "fake_validation_probe"])
+                    .env("OUT_DIR", &output)
+                    .arg(&source)
+                    .arg("-o")
+                    .arg(fixture.directory.join("probe"));
+                if enabled {
+                    command.args(["--cfg", "feature=\"experimental\""]);
+                }
+                let compiled = child_output(&mut command).unwrap();
+                let stderr = String::from_utf8_lossy(&compiled.stderr);
+                if enabled && let Some(reason) = expected {
+                    assert!(
+                        !compiled.status.success(),
+                        "missing/wrong callback compiled"
+                    );
+                    assert!(stderr.contains(reason), "{stderr}");
+                } else {
+                    assert!(compiled.status.success(), "{stderr}");
+                }
+            }
+        }
+    }
+
     fn compiler_fixture(fixture: &Fixture) -> TestResult<PathBuf> {
         compiler_bidder_sources(fixture)?;
         fs::write(
@@ -2613,10 +2752,12 @@ mod tests {
             pub struct BidderDeclaration {
                 pub key: &'static str,
                 pub required_feature: Option<&'static str>,
+                pub has_settings: bool,
             }
             pub struct BidderRegistration {
                 pub key: &'static str,
                 pub factory: fn() -> Box<dyn crate::Bidder>,
+                pub config_validator: Option<fn()>,
             }
             include!(concat!(env!("OUT_DIR"), "/discovery.rs"));
         "#,
@@ -2638,12 +2779,14 @@ mod tests {
                 assert_eq!(counters(), [0, 0, 0]);
                 let all: Vec<_> = bidders::ALL_DECLARATIONS.iter().map(|row| (row.key, row.required_feature)).collect();
                 assert_eq!(all, [("fake_a_signal", None), ("fake_adapterstest", Some("experimental")), ("fake_zeta_probe", None)]);
+                assert!(bidders::ALL_DECLARATIONS.iter().all(|row| !row.has_settings));
                 let factories = bidders::compiled_bidders();
                 assert_eq!(counters(), [0, 0, 0]);
                 let enabled = cfg!(feature = "experimental");
                 let expected = if enabled { vec!["fake_a_signal", "fake_adapterstest", "fake_zeta_probe"] } else { vec!["fake_a_signal", "fake_zeta_probe"] };
                 assert_eq!(factories.iter().map(|row| row.key).collect::<Vec<_>>(), expected);
                 for row in factories {
+                    assert!(row.config_validator.is_none());
                     let expected = match row.key { "fake_a_signal" => 31, "fake_adapterstest" => 42, "fake_zeta_probe" => 53, _ => panic!("unexpected bidder") };
                     assert_eq!((row.factory)().answer(), expected);
                 }

@@ -37,7 +37,78 @@
 //! `auctioneer-config`, whose build script deserializes through this type,
 //! so any such edge would make that build script cyclic.
 
-use serde::Deserialize;
+use core::fmt;
+use serde::{Deserialize, Deserializer};
+
+/// Strict operator authoring document, separate from compiled product data.
+///
+/// Both sections are required even when a caller chooses optional subtree
+/// types. This staged root replaces [`AuctioneerConfigSource`] at cutover;
+/// it never accepts that type's retired `baked` namespace.
+#[derive(Deserialize)]
+#[serde(
+    deny_unknown_fields,
+    bound(deserialize = "Startup: Deserialize<'de>, Runtime: Deserialize<'de>")
+)]
+pub struct OperatorConfigSource<Startup, Runtime> {
+    /// Deployment settings validated before policy extraction or admission.
+    #[serde(deserialize_with = "required_section")]
+    pub startup: Startup,
+    /// Complete policy publication, projected by the CLI's push wrapper.
+    #[serde(deserialize_with = "required_section")]
+    pub runtime: Runtime,
+}
+
+fn required_section<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer)
+}
+
+impl<Startup, Runtime> fmt::Debug for OperatorConfigSource<Startup, Runtime> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OperatorConfigSource")
+            .field("startup", &"<redacted>")
+            .field("runtime", &"<redacted>")
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod operator_source_tests {
+    use super::OperatorConfigSource;
+
+    #[test]
+    fn debug_does_not_require_subtrees_to_implement_debug() {
+        struct Private;
+        let source = OperatorConfigSource {
+            startup: Private,
+            runtime: Private,
+        };
+        assert_eq!(
+            format!("{source:?}"),
+            "OperatorConfigSource { startup: \"<redacted>\", runtime: \"<redacted>\" }"
+        );
+    }
+
+    #[test]
+    fn normal_and_alternate_debug_are_independent_of_private_values() {
+        let source = OperatorConfigSource {
+            startup: "private-startup-prefix-secret-suffix",
+            runtime: "private-policy-prefix-secret-suffix",
+        };
+        assert_eq!(
+            format!("{source:?}"),
+            "OperatorConfigSource { startup: \"<redacted>\", runtime: \"<redacted>\" }"
+        );
+        assert_eq!(
+            format!("{source:#?}"),
+            "OperatorConfigSource {\n    startup: \"<redacted>\",\n    runtime: \"<redacted>\",\n}"
+        );
+    }
+}
 
 #[cfg(feature = "config-model")]
 pub mod activity;

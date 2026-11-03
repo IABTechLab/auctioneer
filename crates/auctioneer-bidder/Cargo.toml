@@ -73,6 +73,7 @@ regex-automata = { workspace = true, optional = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 url         = { workspace = true }
+validator = { workspace = true }
 uuid-simd = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

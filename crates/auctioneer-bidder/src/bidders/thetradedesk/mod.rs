@@ -1,5 +1,6 @@
 //! The Trade Desk protocol construction and response normalization.
 
+mod config;
 mod request;
 mod response;
 
@@ -16,6 +17,15 @@ pub struct TheTradeDeskBidder;
 
 pub(crate) fn create_bidder() -> Box<dyn Bidder> {
     Box::new(TheTradeDeskBidder)
+}
+
+pub(super) fn validate_config(
+    input: crate::BidderConfigInput<'_>,
+) -> Result<(), crate::BidderConfigError> {
+    use validator::Validate as _;
+    config::Config::from(input)
+        .validate()
+        .map_err(config::error)
 }
 
 impl Bidder for TheTradeDeskBidder {
