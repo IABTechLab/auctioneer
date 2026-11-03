@@ -668,9 +668,7 @@ mod tests {
                 );
                 grouped
                     .ensure_projection_capacity(&survivors, charged.auction_charges.projection)
-                    .expect(
-                        "the funded privacy enforcement projection context admits every sweep row",
-                    );
+                    .expect("funded projection admits every sweep row");
                 let projection_charge = grouped.projection_charge(&survivors).unwrap();
                 assert_reused_survivor_scopes(&grouped, &registry, &funded, impressions);
                 black_box((&normalized, underlying, &grouped));
