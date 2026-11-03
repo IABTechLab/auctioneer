@@ -59,6 +59,7 @@ fn main() -> BuildResult {
         &source.baked.account,
         &host_type_imports,
     )?;
+    emit_product_defaults(&mut out)?;
     emit_eea_set(&mut out)?;
     emit_runtime_bootstrap(&mut out)?;
     emit_disclosure(&out_dir)?;
@@ -68,6 +69,43 @@ fn main() -> BuildResult {
     emit_gvl_archive(&out_dir)?;
 
     println!("cargo:rerun-if-changed=data");
+    Ok(())
+}
+
+fn emit_product_defaults(out: &mut TokenStream) -> BuildResult {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct ProductDefaults {
+        host: HostDefaultRaw,
+        account: AccountRaw,
+    }
+
+    let path = "data/product-defaults.toml";
+    println!("cargo:rerun-if-changed={path}");
+    let source: ProductDefaults = toml::from_str(&fs::read_to_string(path)?)?;
+    if source.host.user_sync.is_some()
+        || !source.host.aliases.is_empty()
+        || source.host.gdpr.host_vendor_id != 0
+        || !source.host.gdpr.non_standard_publishers.is_empty()
+        || source.host.host_cookie.domain.is_some()
+        || source.host.host_cookie.optout_cookie.is_some()
+        || !source.host.status_response.is_empty()
+    {
+        return Err("product defaults must not configure operator identities or services".into());
+    }
+    let mut defaults = TokenStream::new();
+    let imports = emit_host_default(&mut defaults, path, &source.host, &[])?;
+    emit_account_default(&mut defaults, path, &source.account, &imports)?;
+    out.extend(quote! {
+        mod product_defaults {
+            use std::sync::OnceLock;
+            #defaults
+        }
+        pub use product_defaults::{
+            account_default as product_account_default,
+            host_default as product_host_default,
+        };
+    });
     Ok(())
 }
 

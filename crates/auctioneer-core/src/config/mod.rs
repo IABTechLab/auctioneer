@@ -42,6 +42,7 @@ pub mod budgets;
 mod floor_currency;
 pub mod override_value;
 pub mod policy;
+pub mod policy_account;
 pub mod resolve;
 pub mod runtime;
 pub mod validation;
@@ -250,7 +251,13 @@ impl AuctioneerAppConfig {
         self.validate().map_err(|err| err.to_string())?;
         let host = resolve::resolve_host(self, baked_host);
         validate_host_cookie(&host.host_cookie)?;
-        validate_user_sync(&host.user_sync, cfg!(feature = "insecure-bidders"))?;
+        match &host.user_sync {
+            Some(sync) => validate_user_sync(sync, cfg!(feature = "insecure-bidders"))?,
+            None if self.user_sync.is_some() => {
+                return Err("user_sync requires an explicit external origin".to_owned());
+            }
+            None => {}
+        }
         validate_catalog_size(compiled_names.len(), host.aliases.len())?;
         validate_account_cookie_sync(&baked_account.cookie_sync)?;
         for (id, account) in &self.accounts {
@@ -1766,5 +1773,60 @@ mod tests {
                 assert_eq!(app.validate().is_ok(), valid, "{field}={value}");
             }
         }
+    }
+
+    #[test]
+    fn unconfigured_sync_requires_an_explicit_valid_origin_before_activation() {
+        let host = auctioneer_config::product_host_default();
+        let account = auctioneer_config::product_account_default();
+        assert!(host.user_sync.is_none());
+        let omitted = AuctioneerAppConfig::default();
+        assert_eq!(
+            omitted.validate_effective_with_catalog(host, account, &[]),
+            Ok(())
+        );
+        assert!(
+            super::resolve::resolve_host(&omitted, host)
+                .user_sync
+                .is_none()
+        );
+
+        for source in [
+            "[user_sync]\npriority_groups = []\n",
+            "[user_sync.cooperative]\nenabled_by_default = true\n",
+        ] {
+            let partial: AuctioneerAppConfig = toml::from_str(source).unwrap();
+            assert_eq!(
+                partial.validate_effective_with_catalog(host, account, &[]),
+                Err("user_sync requires an explicit external origin".to_owned())
+            );
+            assert!(
+                super::resolve::resolve_host(&partial, host)
+                    .user_sync
+                    .is_none()
+            );
+        }
+
+        let configured: AuctioneerAppConfig =
+            toml::from_str("[user_sync]\nexternal_url = 'https://sync.example.test'\n").unwrap();
+        assert_eq!(
+            configured.validate_effective_with_catalog(host, account, &[]),
+            Ok(())
+        );
+        assert_eq!(
+            super::resolve::resolve_host(&configured, host)
+                .user_sync
+                .as_ref()
+                .unwrap()
+                .external_url,
+            "https://sync.example.test"
+        );
+
+        let invalid: AuctioneerAppConfig =
+            toml::from_str("[user_sync]\nexternal_url = 'https:/sync.example.test'\n").unwrap();
+        assert_eq!(
+            invalid.validate_effective_with_catalog(host, account, &[]),
+            Err("sync URL must have an explicit scheme and authority".to_owned())
+        );
     }
 }

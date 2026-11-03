@@ -267,6 +267,73 @@ load/validate pipeline. Startup and runtime remain scopes of that document,
 not separate files, loaders or validators. Design section 9.1 records the
 required bounded, reload-free SDK path and its remaining review prerequisites.
 
+## Neutral Defaults And Scoped Resolution
+
+This later local checkpoint prepares product data and pure composition without
+switching the runtime reader. The operator file still feeds the old build path;
+removing that input belongs to the coordinated cutover, not this checkpoint.
+
+- `data/product-defaults.toml` is product-only input to the existing quote/syn
+  generation. All ten numeric resource defaults are independently asserted
+  unchanged. It supplies no sync service, operator aliases, publisher list,
+  domain, opt-out cookie or status banner. Existing serving-default snapshots
+  still reproduce their exact previous bytes, including explicitly configured
+  demonstration sync in that old, not-yet-retired source.
+- Effective host sync is optional. Unconfigured handler/preflight/decoration
+  paths return a fixed unavailable response before signing-key futures, bidder
+  registry construction or callback work. Configured tests explicitly construct
+  the synthetic service rather than obtaining it from `HostConfig::default()`.
+  Neutral-host admission distinguishes omission, partial configuration without
+  an origin, a valid explicit origin and an unsafe URL.
+- The pure account composer applies product -> account defaults -> genuinely
+  selected named account. Sixteen inline cases preserve scalar and keyed
+  privacy merges, ordered-array replacement, independent activity default/rules,
+  and each clearable leaf from a nonempty parent at both override layers.
+  Common GDPR field merging borrows its input; it does not clone into a legacy
+  override DTO. No boot state or serving snapshot is installed.
+- The scoped response-cap composer adds account defaults to the actual
+  per-field precedence chain. It reuses host fallback and bidder-map population
+  with the old resolver. It does not repair invalid requests or preclamp them;
+  exchange still owns installed minima and warnings. Seven new cases vary
+  independent fields, all scopes, genuine account selection, routed identities,
+  invalid requests and asymmetric clamp ceilings.
+
+Red controls were executed: the default host exposed the example sync URL;
+the staged product accessor still returned that configured service; a product-
+clone account stub failed 15 of 16 cases; and an empty response-cap map failed
+all seven new cases. Removing only the three handler service-presence checks
+made all three key/registry-refusal controls fail. Those checks were restored
+before green verification. There is no uncommitted mutation left in serving
+code.
+
+| Local command selection | Executed result |
+| --- | --- |
+| `cargo test -p auctioneer-config-schema --features config-model --lib types::tests::default_host_has_no_configured_sync_service -- --exact` | Red on the example service, then 1 passed. |
+| `cargo test -p auctioneer-config --lib --test codegen --test usersync_config --test usersync_callback_validation --test baked_defaults_snapshot` | 19 library, 74 codegen, 5 sync, 6 callback and 2 snapshot cases passed after adapting the optional-service syntax expectation without dropping inner-field assertions. |
+| `cargo test -p auctioneer-core --lib` | 698 passed, no failures, ignores or filtered cases on the completed account/cap composition tree. |
+| `cargo test -p auctioneer-core --lib config::budgets::tests::` | All 14 cases passed: 7 previous and 7 new. |
+| Core `usersync_config`, `resolve_runtime_config`, `runtime_config_failclosed`, `config_funding` integrations | 9 + 2 + 19 + 1 passed on the optional-sync/account tree before the isolated cap-only addition. |
+| `cargo clippy -p auctioneer-core --lib --tests -- -D warnings` | Passed after test-only hexadecimal/shadowing/exhaustive-match corrections. No allowance, range or expected value was weakened. |
+| `cargo test -p auctioneer-bidder --test test_isolation` | 16 passed on the completed account/cap tree. |
+| Formatting, whitespace and raw JSON fixture gate | Passed; raw fixtures remain 205 across 58 files with unchanged budgets. |
+
+Commands used the existing locked/offline shared target and serialized `-j2`
+builds. Separate read-only specification and quality reviews found no remaining
+in-scope issues in the defaults/account/sync slice; the one identified missing-
+origin test gap was added and executed. Both budget reviews reported no findings.
+Their static review does not replace the separately recorded Cargo execution.
+
+No guest/provider execution, complete new semantic-admission path, resource
+qualification, same-binary acceptance or hosted-green result is claimed here.
+The model-ownership amendment is a subsequent package/declaration migration,
+not something this checkpoint has already applied.
+
+EdgeZero already supports one application config file and its existing typed
+validate/diff/push flow. The audited bounded-startup and accepted-input reuse
+gaps are separate safety requirements in the operator plan; they do not mean
+single-file configuration is unsupported. No SDK change or alternate loader
+has been implemented in this checkpoint.
+
 ## Required Before Cutover
 
 Tasks 4-10 remain uncompleted. In particular:

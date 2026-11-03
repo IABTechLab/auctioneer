@@ -844,7 +844,7 @@ mod tests {
                 ttl_days: 30,
                 ..HostCookieRaw::default()
             },
-            user_sync: UserSyncConfig::default(),
+            user_sync: Some(UserSyncConfig::default()),
             status_response: String::new(),
             resource_limits: minimal_limits(),
             aliases: BTreeMap::new(),
@@ -910,9 +910,9 @@ mod tests {
         ));
         assert!(contains_syntax(
             &out,
-            "user_sync: UserSyncConfig { external_url: \"https://sync.example.test\".to_owned(), \
+            "user_sync: Some(UserSyncConfig { external_url: \"https://sync.example.test\".to_owned(), \
              redirect_url: None, cooperative: CooperativeConfig { enabled_by_default: false }, \
-             priority_groups: Vec::new(), allowed_origins: Vec::new() },"
+             priority_groups: Vec::new(), allowed_origins: Vec::new() }),"
         ));
         assert!(contains_syntax(&out, "max_transport_bytes: 0x4_0000,"));
         assert!(contains_syntax(&out, "max_decoded_bytes: 0x4_0000,"));

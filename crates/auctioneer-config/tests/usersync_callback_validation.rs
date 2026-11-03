@@ -30,7 +30,8 @@ mod tests {
             "bidder=fake_fixture_base&bidder={{.SyncerKey}}&uid={{.UserMacro}}",
             "%62idder=fake_fixture_base&bidder={{.SyncerKey}}&uid={{.UserMacro}}",
         ] {
-            host.user_sync.redirect_url = Some(format!("{{{{.ExternalURL}}}}/setuid?{query}"));
+            host.user_sync.as_mut().unwrap().redirect_url =
+                Some(format!("{{{{.ExternalURL}}}}/setuid?{query}"));
             assert_user_sync_error(
                 &host,
                 "user_sync.redirect_url must contain one bound bidder macro field",
@@ -55,7 +56,7 @@ mod tests {
                 "sync URL must have a literal authority and no whitespace or backslash",
             ),
         ] {
-            host.user_sync.external_url = base.to_owned();
+            host.user_sync.as_mut().unwrap().external_url = base.to_owned();
             assert_user_sync_error(&host, expected);
         }
     }
@@ -64,11 +65,11 @@ mod tests {
     fn baked_callback_codegen_rejects_embedded_scheme_delimiter() {
         let base = "https:sync.example.test://unused";
         let mut host = source_host();
-        host.user_sync.external_url = base.to_owned();
+        host.user_sync.as_mut().unwrap().external_url = base.to_owned();
         assert_user_sync_error(&host, "sync URL must have an explicit scheme and authority");
 
-        host.user_sync.external_url = "https://sync.example.test".to_owned();
-        host.user_sync.redirect_url = Some(format!(
+        host.user_sync.as_mut().unwrap().external_url = "https://sync.example.test".to_owned();
+        host.user_sync.as_mut().unwrap().redirect_url = Some(format!(
             "{base}/setuid?bidder={{{{.SyncerKey}}}}&uid={{{{.UserMacro}}}}"
         ));
         assert_user_sync_error(
@@ -87,7 +88,7 @@ mod tests {
             "https://[100::1]",
             "https://[3fff::1]",
         ] {
-            host.user_sync.external_url = base.to_owned();
+            host.user_sync.as_mut().unwrap().external_url = base.to_owned();
             assert_user_sync_error(&host, "sync URL cannot use a private literal host");
         }
     }
@@ -110,11 +111,11 @@ mod tests {
         ] {
             let base = format!("https://{name}.:8443");
             let mut host = source_host();
-            host.user_sync.external_url = format!("{base}/base/");
+            host.user_sync.as_mut().unwrap().external_url = format!("{base}/base/");
             assert_user_sync_error(&host, "sync URL cannot use a private literal host");
 
             host = source_host();
-            host.user_sync.redirect_url = Some(format!(
+            host.user_sync.as_mut().unwrap().redirect_url = Some(format!(
                 "{base}/setuid?bidder={{{{.SyncerKey}}}}&uid={{{{.UserMacro}}}}"
             ));
             assert_user_sync_error(
@@ -123,7 +124,7 @@ mod tests {
             );
 
             host = source_host();
-            host.user_sync.allowed_origins = vec![base.clone()];
+            host.user_sync.as_mut().unwrap().allowed_origins = vec![base.clone()];
             assert_user_sync_error(&host, "sync URL cannot use a private literal host");
         }
     }
@@ -140,8 +141,8 @@ mod tests {
         ] {
             let mut host = source_host();
             let base = format!("https://{name}:8443/base%20path");
-            host.user_sync.external_url = base.clone();
-            host.user_sync.redirect_url = Some(format!(
+            host.user_sync.as_mut().unwrap().external_url = base.clone();
+            host.user_sync.as_mut().unwrap().redirect_url = Some(format!(
                 "{base}/setuid?bidder={{{{.SyncerKey}}}}&uid={{{{.UserMacro}}}}"
             ));
             assert!(render_host_config(&host).is_ok(), "{base}");
@@ -154,7 +155,7 @@ mod tests {
             "[fc00::1]",
         ] {
             let mut host = source_host();
-            host.user_sync.external_url = format!("https://{name}");
+            host.user_sync.as_mut().unwrap().external_url = format!("https://{name}");
             assert_user_sync_error(&host, "sync URL cannot use a private literal host");
         }
     }

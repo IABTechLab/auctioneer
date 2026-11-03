@@ -320,7 +320,8 @@ pub struct HostDefaultRaw {
     pub ccpa: CcpaRaw,
     pub lmt: LmtRaw,
     pub host_cookie: HostCookieRaw,
-    pub user_sync: usersync::UserSyncConfig,
+    #[serde(default)]
+    pub user_sync: Option<usersync::UserSyncConfig>,
     pub status_response: String,
     pub resource_limits: ResourceLimitsRaw,
     #[serde(default)]
@@ -852,8 +853,10 @@ pub fn render_host_config(parsed: &HostDefaultRaw) -> Result<String, RenderError
 
 fn host_config_tokens(parsed: &HostDefaultRaw) -> Result<TokenStream, RenderError> {
     usersync::validate_host_cookie(&parsed.host_cookie).map_err(RenderError::UserSync)?;
-    usersync::validate_user_sync(&parsed.user_sync, cfg!(feature = "insecure-bidders"))
-        .map_err(RenderError::UserSync)?;
+    if let Some(sync) = &parsed.user_sync {
+        usersync::validate_user_sync(sync, cfg!(feature = "insecure-bidders"))
+            .map_err(RenderError::UserSync)?;
+    }
     if parsed.status_response.len() > limits::MAX_STATUS_BANNER_BYTES {
         return Err(RenderError::StatusResponseTooLarge {
             bytes: parsed.status_response.len(),
@@ -883,7 +886,13 @@ fn host_config_tokens(parsed: &HostDefaultRaw) -> Result<TokenStream, RenderErro
         owned_string(response)
     };
 
-    let user_sync = render_host_user_sync(&parsed.user_sync);
+    let user_sync = parsed.user_sync.as_ref().map_or_else(
+        || quote!(None),
+        |sync| {
+            let service = render_host_user_sync(sync);
+            quote!(Some(#service))
+        },
+    );
     let resource_limits = resource_limits_tokens(&parsed.resource_limits);
     let aliases = string_map_tokens(&parsed.aliases);
     Ok(
@@ -1600,12 +1609,13 @@ pub fn host_default_type_imports(parsed: &HostDefaultRaw) -> Vec<&'static str> {
         "CcpaConfig",
         "LmtConfig",
         "HostCookieConfig",
-        "UserSyncConfig",
-        "CooperativeConfig",
         "PurposeOneTreatment",
         "ResourceLimits",
         "Tcf2Config",
     ];
+    if parsed.user_sync.is_some() {
+        imports.extend(["UserSyncConfig", "CooperativeConfig"]);
+    }
     if parsed.host_cookie.optout_cookie.is_some() {
         imports.push("OptoutCookie");
     }

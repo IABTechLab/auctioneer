@@ -4,11 +4,12 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_bidder::BidderName;
-    use auctioneer_config::types::{AccountConfig, HostConfig, TriState};
+    use auctioneer_config::types::{AccountConfig, TriState};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{
         AccountSelection, resolve_host, resolve_selected_account,
     };
+    use auctioneer_core::test_support::config_store::configured_sync_host;
     use auctioneer_runtime::aux_work::MAX_CATALOG_IDENTITIES;
 
     fn app(source: &str) -> AuctioneerAppConfig {
@@ -21,13 +22,18 @@ mod tests {
 
     #[test]
     fn host_overrides_are_per_field_and_preserve_explicit_values() {
-        let mut baked = HostConfig::default();
+        let mut baked = configured_sync_host();
         baked.host_cookie.cookie_name = "host_id".into();
         baked.host_cookie.family = "family".into();
         baked.host_cookie.max_cookie_size_bytes = 1000;
-        baked.user_sync.cooperative.enabled_by_default = true;
-        baked.user_sync.priority_groups = vec![vec!["fake_aaa".into()]];
-        baked.user_sync.allowed_origins = vec!["https://old.example".into()];
+        baked
+            .user_sync
+            .as_mut()
+            .unwrap()
+            .cooperative
+            .enabled_by_default = true;
+        baked.user_sync.as_mut().unwrap().priority_groups = vec![vec!["fake_aaa".into()]];
+        baked.user_sync.as_mut().unwrap().allowed_origins = vec!["https://old.example".into()];
         let cfg = app("[host_cookie]\nmax_cookie_size_bytes = 0\n\
          [user_sync]\npriority_groups = []\nallowed_origins = []\n\
          [user_sync.cooperative]\nenabled_by_default = false\n\
@@ -36,17 +42,24 @@ mod tests {
         assert_eq!(host.host_cookie.cookie_name, "host_id");
         assert_eq!(host.host_cookie.family, "family");
         assert_eq!(host.host_cookie.max_cookie_size_bytes, 0);
-        assert!(host.user_sync.priority_groups.is_empty());
-        assert!(host.user_sync.allowed_origins.is_empty());
-        assert!(!host.user_sync.cooperative.enabled_by_default);
+        assert!(host.user_sync.as_ref().unwrap().priority_groups.is_empty());
+        assert!(host.user_sync.as_ref().unwrap().allowed_origins.is_empty());
+        assert!(
+            !host
+                .user_sync
+                .as_ref()
+                .unwrap()
+                .cooperative
+                .enabled_by_default
+        );
         assert!(host.gdpr.tcf2.purpose_one_treatment.enabled);
         assert!(!host.gdpr.tcf2.purpose_one_treatment.access_allowed);
     }
 
     #[test]
     fn account_priority_empty_replaces_host_and_none_inherits() {
-        let mut host = HostConfig::default();
-        host.user_sync.priority_groups = vec![vec!["fake_bbb".into()]];
+        let mut host = configured_sync_host();
+        host.user_sync.as_mut().unwrap().priority_groups = vec![vec!["fake_bbb".into()]];
         let cfg = app("[accounts.empty.cookie_sync]\npriority_groups = []\n");
         let empty = resolve_selected_account(
             AccountSelection::Named("empty".into()),
@@ -66,7 +79,7 @@ mod tests {
         assert!(empty.effective_priority_groups(&host).is_empty());
         assert_eq!(
             inherited.effective_priority_groups(&host),
-            host.user_sync.priority_groups
+            host.user_sync.as_ref().unwrap().priority_groups
         );
     }
 
@@ -131,7 +144,7 @@ mod tests {
 
     #[test]
     fn merged_config_validation_rejects_invalid_effective_values_and_namespaces() {
-        let mut invalid_host = HostConfig::default();
+        let mut invalid_host = configured_sync_host();
         invalid_host.host_cookie.cookie_name = "uids".into();
         assert!(
             AuctioneerAppConfig::default()
@@ -143,7 +156,7 @@ mod tests {
                 .is_err()
         );
 
-        let baked = HostConfig::default();
+        let baked = configured_sync_host();
         let account = AccountConfig::default();
         assert!(
             app("[host_cookie]\ncookie_name = 'uids'\n")
@@ -186,7 +199,7 @@ mod tests {
         assert_eq!(MAX_CATALOG_IDENTITIES, 512);
         let base_count = compiled_names().len();
         assert!(base_count < catalog_limit);
-        let mut baked = HostConfig::default();
+        let mut baked = configured_sync_host();
         for index in 0..(catalog_limit - base_count - 1) {
             baked
                 .aliases
@@ -214,7 +227,7 @@ mod tests {
 
     #[test]
     fn bidder_override_cannot_shadow_effective_alias_with_different_case() {
-        let baked = HostConfig::default();
+        let baked = configured_sync_host();
         let account = AccountConfig::default();
         let colliding =
             app("[aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_foo]\nusersync_enabled = false\n");
@@ -230,7 +243,7 @@ mod tests {
             .validate_effective_with_catalog(&baked, &account, &compiled_names())
             .unwrap();
 
-        let mut baked_alias = HostConfig::default();
+        let mut baked_alias = configured_sync_host();
         baked_alias
             .aliases
             .insert("fake_Foo".into(), "fake_pp".into());

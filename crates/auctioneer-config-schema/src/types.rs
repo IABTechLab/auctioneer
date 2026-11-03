@@ -22,7 +22,9 @@ pub struct HostConfig {
     pub ccpa: CcpaConfig,
     pub lmt: LmtConfig,
     pub host_cookie: HostCookieConfig,
-    pub user_sync: UserSyncConfig,
+    /// A service exists only when an operator supplies its external origin.
+    #[serde(default)]
+    pub user_sync: Option<UserSyncConfig>,
     /// Body returned by `GET /status` when no upstream probe is configured.
     pub status_response: String,
     pub resource_limits: ResourceLimits,
@@ -422,4 +424,16 @@ pub struct RuntimeBootstrap {
     /// extraction budget enforces it. Baked rather than pushed because
     /// it bounds the very read that resolves the pushed config.
     pub max_config_fetch_ms: u32,
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::HostConfig;
+    use serde_json::json;
+
+    #[test]
+    fn default_host_has_no_configured_sync_service() {
+        let value = serde_json::to_value(HostConfig::default()).unwrap();
+        assert_eq!(value.get("user_sync"), Some(&json!(null)));
+    }
 }

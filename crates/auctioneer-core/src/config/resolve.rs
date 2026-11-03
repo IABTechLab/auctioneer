@@ -10,16 +10,17 @@
 //! `AuctioneerAppConfig` directly, preserving the foundations dependency-purity
 //! contract.
 
+use crate::config::policy_account::AccountGdprFields;
 use crate::config::{
-    AccountGdprOverride, AccountOverride, AccountPrivacyOverride, AuctioneerAppConfig,
-    ChannelEnabledOverride, HostGdprOverride,
+    AccountOverride, AccountPrivacyOverride, AuctioneerAppConfig, ChannelEnabledOverride,
+    HostGdprOverride,
 };
 use crate::host_primitives::gates::boot_limits;
 use auctioneer_bidder::BidderName;
 use auctioneer_config::activity::merge_activities;
 use auctioneer_config::types::{
-    AccountConfig, AccountGdprConfig, BidderInfo, ChannelEnabled, HostConfig, PurposeEnforcement,
-    SpecialFeatureEnforcement,
+    AccountConfig, AccountGdprConfig, BidderInfo, ChannelEnabled, CooperativeConfig, HostConfig,
+    PurposeEnforcement, SpecialFeatureEnforcement, UserSyncConfig,
 };
 use auctioneer_exchange::{AccountSource, AuctionError, ExchangeFeatures, UNRESOLVED_ACCOUNT_ID};
 use auctioneer_runtime::aux_work::MAX_CATALOG_IDENTITIES;
@@ -77,7 +78,11 @@ impl ResolvedAccountOwned {
             .cookie_sync
             .priority_groups
             .as_deref()
-            .unwrap_or(&host.user_sync.priority_groups)
+            .unwrap_or_else(|| {
+                host.user_sync
+                    .as_ref()
+                    .map_or(&[], |sync| sync.priority_groups.as_slice())
+            })
     }
 }
 
@@ -320,20 +325,34 @@ pub fn resolve_host(app: &AuctioneerAppConfig, baked: &HostConfig) -> HostConfig
         }
     }
     if let Some(sync) = &app.user_sync {
-        if let Some(value) = &sync.external_url {
-            host.user_sync.external_url.clone_from(value);
+        if host.user_sync.is_none() {
+            host.user_sync = sync
+                .external_url
+                .as_ref()
+                .map(|external_url| UserSyncConfig {
+                    external_url: external_url.clone(),
+                    redirect_url: None,
+                    cooperative: CooperativeConfig::default(),
+                    priority_groups: Vec::new(),
+                    allowed_origins: Vec::new(),
+                });
         }
-        if let Some(value) = &sync.redirect_url {
-            host.user_sync.redirect_url = Some(value.clone());
-        }
-        if let Some(value) = sync.cooperative.as_ref().and_then(|v| v.enabled_by_default) {
-            host.user_sync.cooperative.enabled_by_default = value;
-        }
-        if let Some(value) = &sync.priority_groups {
-            host.user_sync.priority_groups.clone_from(value);
-        }
-        if let Some(value) = &sync.allowed_origins {
-            host.user_sync.allowed_origins.clone_from(value);
+        if let Some(target) = &mut host.user_sync {
+            if let Some(value) = &sync.external_url {
+                target.external_url.clone_from(value);
+            }
+            if let Some(value) = &sync.redirect_url {
+                target.redirect_url = Some(value.clone());
+            }
+            if let Some(value) = sync.cooperative.as_ref().and_then(|v| v.enabled_by_default) {
+                target.cooperative.enabled_by_default = value;
+            }
+            if let Some(value) = &sync.priority_groups {
+                target.priority_groups.clone_from(value);
+            }
+            if let Some(value) = &sync.allowed_origins {
+                target.allowed_origins.clone_from(value);
+            }
         }
     }
 
@@ -737,7 +756,11 @@ fn merge_account(mut base: AccountConfig, overlay: &AccountOverride) -> AccountC
 /// and meaningful — it tells the runtime merge the account has no
 /// opinion for that field and host should decide. `auctioneer-privacy::sync`
 /// owns the effective web gate and Purpose 1 treatment permission merge.
-fn merge_account_gdpr(base: &mut AccountGdprConfig, overlay: &AccountGdprOverride) {
+pub(super) fn merge_account_gdpr<'a>(
+    base: &mut AccountGdprConfig,
+    source: impl Into<AccountGdprFields<'a>>,
+) {
+    let overlay = source.into();
     if let Some(value) = overlay.enabled {
         base.enabled = value;
     }
@@ -749,10 +772,10 @@ fn merge_account_gdpr(base: &mut AccountGdprConfig, overlay: &AccountGdprOverrid
             base.purpose_one_treatment.access_allowed = Some(value);
         }
     }
-    if let Some(channels) = overlay.channel_enabled.as_ref() {
+    if let Some(channels) = overlay.channel_enabled {
         merge_channels(&mut base.channel_enabled, channels);
     }
-    if let Some(overrides) = overlay.purposes.as_ref() {
+    if let Some(overrides) = overlay.purposes {
         for (&id, purpose) in overrides {
             let entry: &mut PurposeEnforcement = base.purposes.entry(id).or_default();
             if let Some(value) = purpose.enforce_algo {
@@ -769,7 +792,7 @@ fn merge_account_gdpr(base: &mut AccountGdprConfig, overlay: &AccountGdprOverrid
             }
         }
     }
-    if let Some(overrides) = overlay.special_features.as_ref() {
+    if let Some(overrides) = overlay.special_features {
         for (&id, feature) in overrides {
             let entry: &mut SpecialFeatureEnforcement =
                 base.special_features.entry(id).or_default();
@@ -783,12 +806,12 @@ fn merge_account_gdpr(base: &mut AccountGdprConfig, overlay: &AccountGdprOverrid
     }
     // Whole-array replace (RFC 7396 array semantics); account-only, so
     // there is no host-side merge for this field.
-    if let Some(value) = overlay.basic_enforcement_vendors.as_ref() {
+    if let Some(value) = overlay.basic_enforcement_vendors {
         base.basic_enforcement_vendors.clone_from(value);
     }
 }
 
-fn merge_channels(base: &mut ChannelEnabled, overlay: &ChannelEnabledOverride) {
+pub(super) fn merge_channels(base: &mut ChannelEnabled, overlay: &ChannelEnabledOverride) {
     if let Some(value) = overlay.web {
         base.web = value;
     }
@@ -809,7 +832,7 @@ fn merge_channels(base: &mut ChannelEnabled, overlay: &ChannelEnabledOverride) {
 /// IP-anon is account-scoped with no runtime host fall-through, so the
 /// resolved value here is what `ip_keep_bits()` reads directly. A family
 /// the overlay leaves absent keeps its baked default (24 / 56).
-fn merge_account_privacy(base: &mut AccountConfig, overlay: &AccountPrivacyOverride) {
+pub(super) fn merge_account_privacy(base: &mut AccountConfig, overlay: &AccountPrivacyOverride) {
     if let Some(bits) = overlay.ipv4.as_ref().and_then(|v4| v4.anon_keep_bits) {
         base.privacy.ipv4.anon_keep_bits = bits;
     }
@@ -935,7 +958,11 @@ pub fn resolve_cooperative(
 ) -> bool {
     request
         .or(account.cookie_sync.default_coop_sync)
-        .unwrap_or(host.user_sync.cooperative.enabled_by_default)
+        .unwrap_or_else(|| {
+            host.user_sync
+                .as_ref()
+                .is_some_and(|sync| sync.cooperative.enabled_by_default)
+        })
 }
 
 /// `None` means unlimited. A positive account maximum still caps an
@@ -999,6 +1026,7 @@ mod tests {
         resolved_host, sync_bidder_enabled,
     };
     use crate::outbound::wave::tests::test_limits;
+    use crate::test_support::config_store::configured_sync_host;
     use auctioneer_bidder::BidderName;
     use auctioneer_config::activity::Activity;
     use auctioneer_config::types::{
@@ -1132,8 +1160,12 @@ mod tests {
         host.gdpr.tcf2.enabled = false;
         host.gdpr.tcf2.purpose_one_treatment.access_allowed = true;
         host.host_cookie.domain = Some("publisher.example".into());
-        host.user_sync.cooperative.enabled_by_default = true;
-        host.user_sync.priority_groups = vec![vec!["fake_pp".into()]];
+        host.user_sync
+            .as_mut()
+            .unwrap()
+            .cooperative
+            .enabled_by_default = true;
+        host.user_sync.as_mut().unwrap().priority_groups = vec![vec!["fake_pp".into()]];
         let mut account = baked_account();
         account.gdpr.channel_enabled.web = TriState::Disabled;
         account.gdpr.basic_enforcement_vendors = vec!["fake_pp".into()];
@@ -1174,9 +1206,13 @@ mod tests {
             name: "optout".into(),
             value: "yes".into(),
         });
-        host.user_sync.cooperative.enabled_by_default = true;
-        host.user_sync.priority_groups = vec![vec!["fake_aaa".into()]];
-        host.user_sync.allowed_origins = vec!["https://publisher.example".into()];
+        host.user_sync
+            .as_mut()
+            .unwrap()
+            .cooperative
+            .enabled_by_default = true;
+        host.user_sync.as_mut().unwrap().priority_groups = vec![vec!["fake_aaa".into()]];
+        host.user_sync.as_mut().unwrap().allowed_origins = vec!["https://publisher.example".into()];
         let mut account = baked_account();
         account.debug_allow = true;
         account.cookie_sync.default_limit = Some(7);
@@ -1205,9 +1241,30 @@ mod tests {
                 resolved.host_cookie.cookie_name,
                 host.host_cookie.cookie_name
             );
-            assert!(!resolved.user_sync.cooperative.enabled_by_default);
-            assert!(resolved.user_sync.priority_groups.is_empty());
-            assert!(resolved.user_sync.allowed_origins.is_empty());
+            assert!(
+                !resolved
+                    .user_sync
+                    .as_ref()
+                    .unwrap()
+                    .cooperative
+                    .enabled_by_default
+            );
+            assert!(
+                resolved
+                    .user_sync
+                    .as_ref()
+                    .unwrap()
+                    .priority_groups
+                    .is_empty()
+            );
+            assert!(
+                resolved
+                    .user_sync
+                    .as_ref()
+                    .unwrap()
+                    .allowed_origins
+                    .is_empty()
+            );
             let selected = super::resolve_selected_account(
                 super::AccountSelection::Named("pub".into()),
                 &app,
@@ -1280,8 +1337,12 @@ mod tests {
 
     #[test]
     fn cooperative_and_limit_precedence_preserves_nonpositive_unlimited() {
-        let mut host = HostConfig::default();
-        host.user_sync.cooperative.enabled_by_default = true;
+        let mut host = configured_sync_host();
+        host.user_sync
+            .as_mut()
+            .unwrap()
+            .cooperative
+            .enabled_by_default = true;
         let mut account = AccountConfig::default();
         assert!(resolve_cooperative(None, &account, &host));
         account.cookie_sync.default_coop_sync = Some(false);
@@ -1403,7 +1464,7 @@ mod tests {
                 max_decoded_bytes: 0x0004_0000,
                 max_parsed_nodes: 0x0001_0000,
             },
-            ..HostConfig::default()
+            ..configured_sync_host()
         }
     }
 
@@ -2002,6 +2063,7 @@ mod tests {
     mod account_resolution {
         use crate::config::AuctioneerAppConfig;
         use crate::config::resolve::{ResolvedAccountOwned, resolve_account, resolve_host};
+        use crate::test_support::config_store::configured_sync_host;
         use auctioneer_config::types::{
             AccountConfig, AccountGdprConfig, ChannelEnabled, EnforceAlgo, GdprConfig, HostConfig,
             PurposeEnforcement, PurposeOneTreatment, PurposeOneTreatmentOverride, ResourceLimits,
@@ -2141,7 +2203,7 @@ mod tests {
                     max_parsed_nodes: 0x0001_0000,
                 },
                 aliases,
-                ..HostConfig::default()
+                ..configured_sync_host()
             }
         }
 

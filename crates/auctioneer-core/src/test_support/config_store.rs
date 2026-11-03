@@ -1,5 +1,6 @@
 //! Fixed runtime-config fixtures; no boot state, policy or expected limits.
 
+use auctioneer_config::types::{CooperativeConfig, HostConfig, UserSyncConfig};
 use edgezero_core::blob_envelope::BlobEnvelope;
 use edgezero_core::config_store::{
     BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
@@ -8,6 +9,22 @@ use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreReg
 use edgezero_core::time::{Deadline, MonotonicClock};
 use serde::Serialize;
 use std::sync::Arc;
+
+/// Explicit synthetic service for tests whose subject needs configured sync.
+/// Production host defaults deliberately have no external sync origin.
+#[must_use]
+pub fn configured_sync_host() -> HostConfig {
+    HostConfig {
+        user_sync: Some(UserSyncConfig {
+            external_url: "https://sync.example.test".to_owned(),
+            redirect_url: None,
+            cooperative: CooperativeConfig::default(),
+            priority_groups: Vec::new(),
+            allowed_origins: Vec::new(),
+        }),
+        ..HostConfig::default()
+    }
+}
 
 /// Build the real loader's binding with a deterministic integrity envelope.
 /// The caller owns the config and installs the registry on its own request.

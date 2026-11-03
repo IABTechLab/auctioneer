@@ -38,7 +38,10 @@ async fn getuids_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Err(error) => return error.into_response(),
     };
     let host = resolve::resolve_host(&app, auctioneer_config::host_default());
-    let policy = sync_http::SyncBrowserPolicy::new(&host.user_sync);
+    let Some(sync) = &host.user_sync else {
+        return Ok(sync_http::unavailable());
+    };
+    let policy = sync_http::SyncBrowserPolicy::new(sync);
     if deadline.is_expired_at(ctx.monotonic_clock().now()) {
         return Ok(sync_http::cpu_overloaded_with_policy(
             &policy,
@@ -100,6 +103,9 @@ pub(crate) async fn respond(
     now: OffsetDateTime,
     key_read: impl Future<Output = KeyringResult>,
 ) -> Response {
+    if host.user_sync.is_none() {
+        return sync_http::unavailable();
+    }
     let limits = CookieLimits::default();
     let optout = host.host_cookie.optout_cookie.as_ref();
     let optout_only = HostCookie {
@@ -139,6 +145,7 @@ pub(crate) async fn respond(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::signed::CookieKeyring;
     use auctioneer_config::usersync::OptoutCookie;
     use edgezero_core::http::{HeaderValue, header::COOKIE};
@@ -162,8 +169,25 @@ mod tests {
     }
 
     #[test]
+    fn unconfigured_service_refuses_before_signing_keys() {
+        let host = HostConfig::default();
+        assert!(host.user_sync.is_none());
+        let response = block_on(super::respond(&HeaderMap::new(), &host, now(), async {
+            panic!("unconfigured sync must not poll signing keys")
+        }));
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body(&response), b"user sync is not configured");
+        assert!(!response.headers().contains_key("set-cookie"));
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-credentials")
+        );
+    }
+
+    #[test]
     fn getuids_host_optout_does_not_read_uids() {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
             value: "yes".into(),

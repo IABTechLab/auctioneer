@@ -83,8 +83,18 @@ mod tests {
         assert_eq!(host.host_cookie.cookie_name, "auctioneer_uid");
         assert_eq!(host.host_cookie.family, "auctioneer");
         assert_eq!(host.host_cookie.ttl_days, 90);
-        assert_eq!(host.user_sync.external_url, "https://sync.example.test");
-        assert!(!host.user_sync.cooperative.enabled_by_default);
+        assert_eq!(
+            host.user_sync.as_ref().unwrap().external_url,
+            "https://sync.example.test"
+        );
+        assert!(
+            !host
+                .user_sync
+                .as_ref()
+                .unwrap()
+                .cooperative
+                .enabled_by_default
+        );
         assert!(host.gdpr.tcf2.purpose_one_treatment.enabled);
         assert!(host.gdpr.tcf2.purpose_one_treatment.access_allowed);
         assert_eq!(account.cookie_sync.priority_groups, None);

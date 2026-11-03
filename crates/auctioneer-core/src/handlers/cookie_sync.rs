@@ -61,7 +61,10 @@ async fn cookie_sync_preflight_body(ctx: RequestContext) -> Result<Response, Edg
         Err(error) => return error.into_response(),
     };
     let host = resolve::resolve_host(&app, auctioneer_config::host_default());
-    let policy = sync_http::SyncBrowserPolicy::new(&host.user_sync);
+    let Some(sync) = &host.user_sync else {
+        return Ok(sync_http::unavailable());
+    };
+    let policy = sync_http::SyncBrowserPolicy::new(sync);
     if deadline.is_expired_at(ctx.monotonic_clock().now()) {
         return Ok(sync_http::cpu_overloaded_with_policy(
             &policy,
@@ -92,7 +95,10 @@ async fn cookie_sync_preflight_body(ctx: RequestContext) -> Result<Response, Edg
 }
 
 pub(crate) fn preflight(headers: &HeaderMap, host: &HostConfig) -> Response {
-    let policy = sync_http::SyncBrowserPolicy::new(&host.user_sync);
+    let Some(sync) = &host.user_sync else {
+        return sync_http::unavailable();
+    };
+    let policy = sync_http::SyncBrowserPolicy::new(sync);
     policy
         .preflight(headers, sync_http::response_header_cap())
         .unwrap_or_else(|_| {
@@ -112,7 +118,10 @@ pub(crate) fn decorate_response(
     headers: &HeaderMap,
     host: &HostConfig,
 ) -> Response {
-    let policy = sync_http::SyncBrowserPolicy::new(&host.user_sync);
+    let Some(sync) = &host.user_sync else {
+        return sync_http::unavailable();
+    };
+    let policy = sync_http::SyncBrowserPolicy::new(sync);
     policy
         .decorate(response, headers, sync_http::response_header_cap())
         .unwrap_or_else(|_| {
@@ -142,7 +151,10 @@ async fn cookie_sync_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Err(error) => return error.into_response(),
     };
     let host = resolve::resolve_host(&app, auctioneer_config::host_default());
-    let policy = sync_http::SyncBrowserPolicy::new(&host.user_sync);
+    let Some(sync) = &host.user_sync else {
+        return Ok(sync_http::unavailable());
+    };
+    let policy = sync_http::SyncBrowserPolicy::new(sync);
     if deadline.is_expired_at(monotonic.now()) {
         return Ok(sync_http::cpu_overloaded_with_policy(
             &policy,
@@ -261,6 +273,9 @@ async fn respond_with_registry(
         host,
         registry: load_registry,
     } = context;
+    if host.user_sync.is_none() {
+        return sync_http::unavailable();
+    }
     let limits = CookieLimits::default();
     let optout = host.host_cookie.optout_cookie.as_ref();
     let optout_only = HostCookie {
@@ -418,6 +433,9 @@ fn chosen_response(
     account: &resolve::AccountSelection,
     privacy: &SyncPrivacyContext<'_>,
 ) -> Response {
+    let Some(sync) = &host.user_sync else {
+        return sync_http::unavailable();
+    };
     let account_name = match account {
         resolve::AccountSelection::Default => None,
         resolve::AccountSelection::Named(name) => Some(name.as_str()),
@@ -445,7 +463,7 @@ fn chosen_response(
             continue;
         };
         let built_result = build_sync_url(SyncTemplateInput {
-            host: &host.user_sync,
+            host: sync,
             endpoint,
             callback_bidder: &selected.normalized_name,
             bidder_name: &selected.normalized_name,
@@ -616,6 +634,7 @@ pub(super) mod tests {
     use super::*;
     use crate::bidder_fixture::fixtures::registry;
     use crate::handlers::tests::bidder_registry;
+    use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::signed::CookieKeyring;
     use crate::usersync::wire;
     use auctioneer_config::usersync::OptoutCookie;
@@ -687,6 +706,62 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn unconfigured_service_refuses_before_registry_or_signing_keys() {
+        let host = HostConfig::default();
+        assert!(host.user_sync.is_none());
+        let bytes = serde_json::to_vec(&json!({"gdpr": 0_i32})).unwrap();
+        let request = wire::parse_cookie_sync_body(&bytes, 64).unwrap();
+        let response = block_on(super::respond_with_registry(
+            &request,
+            &HeaderMap::new(),
+            ResponseContext {
+                app: &AuctioneerAppConfig::default(),
+                host: &host,
+                registry: || panic!("unconfigured sync must not load the registry"),
+            },
+            now(),
+            &SeededRng::new(1),
+            async { panic!("unconfigured sync must not poll signing keys") },
+        ));
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body(&response), b"user sync is not configured");
+        assert!(!response.headers().contains_key("set-cookie"));
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-credentials")
+        );
+    }
+
+    #[test]
+    fn unconfigured_preflight_and_decoration_do_not_advertise_browser_access() {
+        let host = HostConfig::default();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "origin",
+            HeaderValue::from_static("https://publisher.example.test"),
+        );
+        for response in [
+            super::preflight(&headers, &host),
+            super::decorate_response(sync_http::setuid_error(StatusCode::OK, ""), &headers, &host),
+        ] {
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+            assert_eq!(body(&response), b"user sync is not configured");
+            assert!(
+                !response
+                    .headers()
+                    .contains_key("access-control-allow-origin")
+            );
+            assert!(
+                !response
+                    .headers()
+                    .contains_key("access-control-allow-credentials")
+            );
+            assert!(!response.headers().contains_key("set-cookie"));
+        }
+    }
+
+    #[test]
     fn registry_failure_is_not_an_invalid_bidder_catalog() {
         let bytes = serde_json::to_vec(&json!({"gdpr": 0_i32})).unwrap();
         let request = wire::parse_cookie_sync_body(&bytes, 64).unwrap();
@@ -695,7 +770,7 @@ pub(super) mod tests {
             &HeaderMap::new(),
             ResponseContext {
                 app: &AuctioneerAppConfig::default(),
-                host: &HostConfig::default(),
+                host: &configured_sync_host(),
                 registry: || {
                     Err(RegistryBuildError::MissingBinding {
                         bidder: "fake_missing",
@@ -714,7 +789,7 @@ pub(super) mod tests {
     fn catalog_loading_follows_optout_account_privacy_filter_and_limit_checks() {
         let app: AuctioneerAppConfig =
             toml::from_str("[accounts.disabled]\ndisabled = true\n").unwrap();
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
             value: "yes".into(),
@@ -832,7 +907,7 @@ pub(super) mod tests {
     }
 
     fn active_gdpr_host() -> HostConfig {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.gdpr.enabled = true;
         host.gdpr.tcf2.enabled = true;
         host.gdpr.host_vendor_id = Some(32);
@@ -958,7 +1033,7 @@ pub(super) mod tests {
 
     #[test]
     fn cookie_sync_optout_precedes_account_and_uid_decode() {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
             value: "yes".into(),
@@ -981,8 +1056,12 @@ pub(super) mod tests {
 
     #[test]
     fn cookie_sync_request_false_overrides_account_cooperative_true() {
-        let mut host = HostConfig::default();
-        host.user_sync.cooperative.enabled_by_default = false;
+        let mut host = configured_sync_host();
+        host.user_sync
+            .as_mut()
+            .unwrap()
+            .cooperative
+            .enabled_by_default = false;
         let app: AuctioneerAppConfig =
             toml::from_str("[accounts.publisher.cookie_sync]\ndefault_coop_sync = true\n").unwrap();
         let one = wire::parse_cookie_sync_body(
@@ -1032,8 +1111,8 @@ pub(super) mod tests {
 
     #[test]
     fn cookie_sync_preflight_uses_allowlist_without_cookie_work() {
-        let mut host = HostConfig::default();
-        host.user_sync.allowed_origins = vec!["https://publisher.example".into()];
+        let mut host = configured_sync_host();
+        host.user_sync.as_mut().unwrap().allowed_origins = vec!["https://publisher.example".into()];
         let mut headers = HeaderMap::new();
         headers.insert(
             "origin",
@@ -1060,7 +1139,7 @@ pub(super) mod tests {
 
     #[test]
     fn cookie_sync_debug_reports_bounded_unknown_bidder_category() {
-        let host = HostConfig::default();
+        let host = configured_sync_host();
         let request = wire::parse_cookie_sync_body(
             &serde_json::to_vec(&json!({
                 "bidders": ["fake_not_a_bidder"], "gdpr": 0_i32, "debug": true
@@ -1095,7 +1174,7 @@ pub(super) mod tests {
             &request,
             &HeaderMap::new(),
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
             &SeededRng::new(1),
         );
@@ -1106,8 +1185,8 @@ pub(super) mod tests {
 
     #[test]
     fn cookie_sync_failed_header_bound_redecorates_fixed_error_with_cors() {
-        let mut host = HostConfig::default();
-        host.user_sync.allowed_origins = vec!["https://publisher.example".into()];
+        let mut host = configured_sync_host();
+        host.user_sync.as_mut().unwrap().allowed_origins = vec!["https://publisher.example".into()];
         let mut headers = HeaderMap::new();
         headers.insert(
             "origin",
@@ -1135,7 +1214,7 @@ pub(super) mod tests {
     #[test]
     fn cookie_sync_empty_consent_uses_parsed_or_defaulted_gdpr_message() {
         let app = AuctioneerAppConfig::default();
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.gdpr.default_value = "1".into();
         for (value, expected) in [
         (json!({"gdpr": 1_i32}), b"gdpr_consent is required if gdpr=1\n".as_slice()),
@@ -1176,7 +1255,7 @@ pub(super) mod tests {
             &request,
             &HeaderMap::new(),
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
             &SeededRng::new(1),
         );
@@ -1199,7 +1278,7 @@ pub(super) mod tests {
             &hostile,
             &HeaderMap::new(),
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
             &SeededRng::new(1),
         );
@@ -1229,7 +1308,7 @@ pub(super) mod tests {
             &request,
             &HeaderMap::new(),
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
             &SeededRng::new(1),
         );
@@ -1255,7 +1334,7 @@ pub(super) mod tests {
             &request,
             &HeaderMap::new(),
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
             &SeededRng::new(1),
         );
