@@ -1,8 +1,10 @@
 # Auction Review Follow-up Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use test-driven-development and verification-before-completion. Independent repairs may run in parallel with disjoint file ownership.
 
-**Goal:** Correct the seven findings in the latest M3b review without reducing milestone scope or changing accepted provider deferrals.
+**Goal:** Correct the seven findings in the latest bounded fanout review without reducing capability scope or changing accepted provider deferrals.
 
 **Architecture:** Preserve denied identities through splitting. Resolve independent transport/decoded caps across host, account, bidder and alias layers into the auction plan, then clamp each cap to the installed envelope. Preflight request-derived response bookkeeping before impression-ID copies and charge its bounded peak separately. Keep SDK-owned routing and adapter conversion.
 
@@ -10,10 +12,10 @@
 
 ## Constraints
 
-- Work in `.claude/worktrees/m3b-fanout`; preserve existing uncommitted repairs.
-- No compatibility shims are required. No commits, pushes or milestone merges are requested.
+- Work in `.claude/worktrees/bounded-fanout`; preserve existing uncommitted repairs.
+- No compatibility shims are required. No commits, pushes or capability merges are requested.
 - Unit tests stay beside implementation; process/allocation/lifetime tests remain integration tests.
-- Tests describe behavior, not milestone numbers. Preserve required wire identifiers and attribution.
+- Tests describe behavior, not capability numbers. Preserve required wire identifiers and attribution.
 - Warn-mode budgets and hosted/raw-ingress/egress qualification remain accepted boundaries.
 
 ## Tasks
@@ -56,7 +58,7 @@ Files: Cloudflare/Spin logging and entrypoints, shared helpers only as needed, f
 
 ### 5. Acceptance Reliability
 
-Files: `scripts/check-roster*.sh`, roster section of the M3b plan, node-budget integration fixture, Fastly CI if locally runnable tests can be wired.
+Files: `scripts/check-roster*.sh`, roster section of the bounded fanout plan, node-budget integration fixture, Fastly CI if locally runnable tests can be wired.
 
 - [x] Make the auction fixture safe under parallel test execution without weakening admission assertions.
 - [x] Require the enumerated roster count to equal the declared total; reconcile counts and add arbitrary deletion fixtures.
@@ -110,4 +112,4 @@ its timing is not evidence for the release/production-hardware target.
 Warn-only over-ceiling budgets and hosted, raw-ingress and BestEffort
 response-egress qualification remain accepted boundaries, not newly
 claimed guarantees. These repairs are uncommitted and unpushed in the
-M3b worktree; no changes were propagated to later milestone branches.
+bounded fanout worktree; no changes were propagated to later capability branches.

@@ -11,7 +11,7 @@
     {
       "id": "disabled_automatic_sync_candidates",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-10-16-m7-bidder-catalog-design.md"], "notes": "Automatic additions exclude disabled identities before group shuffling and family deduplication. Explicitly requested disabled identities retain the existing diagnostic and family-attempt ladder. This is a Auctioneer policy control, not a new external capture."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-10-16-bidder-catalog-design.md"], "notes": "Automatic additions exclude disabled identities before group shuffling and family deduplication. Explicitly requested disabled identities retain the existing diagnostic and family-attempt ladder. This is a Auctioneer policy control, not a new external capture."},
       "input": {
         "aliases": {"aaa-disabled": "bidder_a"},
         "app_config": "[bidders.aaa-disabled]\nusersync_enabled = false\n",
@@ -33,49 +33,49 @@
     {
       "id": "safe_diagnostics",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design sections 9 and 13; baseline wire.json/setuid_malformed_consent is an actual handler call with the same fake permission error used by upstream tests."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design sections 9 and 13; baseline wire.json/setuid_malformed_consent is an actual handler call with the same fake permission error used by upstream tests."},
       "input": {"reference_file": "wire.json", "reference_case": "setuid_malformed_consent"},
       "expected": {"reference_echoes_consent": true, "auctioneer_echoes_consent": false, "auctioneer_status": 400, "auctioneer_set_cookie_present": false}
     },
     {
       "id": "empty_explicit_format",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 9 explicitly rejects empty f=; pinned getResponseFormat uses the default."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 9 explicitly rejects empty f=; pinned getResponseFormat uses the default."},
       "input": {"reference_file": "wire.json", "reference_case": "setuid_empty_format_defaults"},
       "expected": {"reference_status": 200, "auctioneer_status": 400, "auctioneer_set_cookie_present": false}
     },
     {
       "id": "lexical_eviction_tie",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 6 versus OldestEjector. Upstream only tests Before while ranging a Go map; no deterministic tied winner is claimed or captured."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 6 versus OldestEjector. Upstream only tests Before while ranging a Go map; no deterministic tied winner is claimed or captured."},
       "input": {"families": ["zeta", "alpha"], "expires": "2026-10-14T12:00:00Z", "priority_groups": []},
       "expected": {"reference_winner": null, "reference_winner_is_deterministic": false, "auctioneer_winner": "alpha"}
     },
     {
       "id": "complete_cookie_size",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 6: PrepareCookieForWrite omits Domain/Secure/SameSite from its size estimate; Auctioneer measures the complete field. This is source inspection, not an invented upstream size-limit execution."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 6: PrepareCookieForWrite omits Domain/Secure/SameSite from its size estimate; Auctioneer measures the complete field. This is source inspection, not an invented upstream size-limit execution."},
       "input": {"reference_file": "cookies.json", "reference_case": "set_cookie_same_site_none"},
       "expected": {"auctioneer_measurement": "utf8_byte_length_of_expected_set_cookie", "reference_preparation_omits_attributes": ["Domain", "Secure", "SameSite"]}
     },
     {
       "id": "credentialed_cors",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 9: compare only bare reference handlers; corpus does not claim upstream router middleware has no CORS."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 9: compare only bare reference handlers; corpus does not claim upstream router middleware has no CORS."},
       "input": {"origin": "https://publisher.example", "allowed_origins": ["https://publisher.example"], "validated_config_available": true},
       "expected": {"auctioneer_headers": {"Access-Control-Allow-Origin": ["https://publisher.example"], "Access-Control-Allow-Credentials": ["true"], "Vary": ["Origin"]}, "auctioneer_infrastructure_failure_has_allow_headers": false}
     },
     {
       "id": "no_store",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 9: all Auctioneer-owned sync responses require no-store. Bare pinned endpoint results are recorded separately without this addition."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 9: all Auctioneer-owned sync responses require no-store. Bare pinned endpoint results are recorded separately without this addition."},
       "input": {"reference_file": "wire.json", "reference_case": "getuids_live"},
       "expected": {"reference_cache_control": null, "auctioneer_cache_control": "no-store"}
     },
     {
       "id": "automatic_account_propagation",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design sections 4 and 8: Prebid's default callback has no account token. Named-account template fixtures use a deliberately configured custom callback; they do not claim the pinned server automatically forwards request account."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design sections 4 and 8: Prebid's default callback has no account token. Named-account template fixtures use a deliberately configured custom callback; they do not claim the pinned server automatically forwards request account."},
       "input": {"selection": "Named", "account": "unknown", "callback_mode": "append_only"},
       "expected": {"reference_default_callback_account_count": 0, "auctioneer_callback_account": "unknown", "auctioneer_callback_account_count": 1, "auctioneer_callback_suffix": "&uid="}
     }

@@ -1,5 +1,7 @@
 # Resource Command Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local names are descriptive. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-18
 Starting code baseline: `036bb439`; SDK `bc300ace`.
 
@@ -112,10 +114,10 @@ No canonical audit, baseline or historical evidence was overwritten. This
 documentation-only follow-up records execution at the code checkpoint; it is
 not a recapture against a later documentation commit.
 
-Logs: `/private/tmp/r0-resource-controls-*.log` and
-`/private/tmp/r0-parent-resource-*.log`; review repairs additionally use
-`/private/tmp/r0-quality-*.log`. These scoped targets are not a
+Logs: `/private/tmp/resource-qualification-resource-controls-*.log` and
+`/private/tmp/resource-qualification-parent-resource-*.log`; review repairs additionally use
+`/private/tmp/resource-qualification-quality-*.log`. These scoped targets are not a
 new full-workspace or guest-runtime execution. Existing GVL/future-compatibility
 warnings remain. Current absolute-fit failures and unavailable provider/stack
-facts still prevent R0 closure; this round is not the unfinished matched-catalog
+facts still prevent resource qualification closure; this round is not the unfinished matched-catalog
 allowance gate, physical allocation proof or hosted qualification.

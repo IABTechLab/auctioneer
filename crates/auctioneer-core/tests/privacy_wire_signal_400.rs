@@ -311,10 +311,10 @@ mod tests {
     fn runtime_activity_config_reaches_the_real_handler() {
         let mut value =
             serde_json::to_value(with_serving_bidder(request_with_regs(Regs::default()))).unwrap();
-        value["site"] = json!({"publisher":{"id":"m4-publisher"}});
+        value["site"] = json!({"publisher":{"id":"fake_account"}});
         let fixture: BidRequest = serde_json::from_value(value).unwrap();
         let config = "
-[accounts.m4-publisher.privacy.allowactivities.fetchBids]
+[accounts.fake_account.privacy.allowactivities.fetchBids]
 default = false
 ";
         let (status, body, sends) = drive_counted(&fixture, config);

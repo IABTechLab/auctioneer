@@ -1,5 +1,7 @@
 # Bidder Conversion Test Pipeline Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use subagent-driven-development and test-driven-development. Keep writes disjoint and serialize Cargo in the existing target directory.
 
 **Goal:** Adding a normal bidder changes only its adjacent folder, without losing
@@ -91,7 +93,7 @@ metadata-integrity guards where their existing coverage needs preserving.
       target directories. Reuse completed source audits and stay OpenRTB-first.
 - [x] Independently review the refactor, verify the exact publication tree,
       and update `ISSUES.md` and bidder rules. Publish this verified round on the
-      existing M7 branch/PR; do not start another port inside this frozen batch.
+      existing bidder catalog branch/PR; do not start another port inside this frozen batch.
 
 ## Completion Boundary
 
@@ -99,7 +101,7 @@ This work is complete when an ordinary new bidder needs no shared name list,
 schema-pin table, provenance-count row or protocol branch, and the existing
 assertions still run in their new owners. It does not implement the five
 remaining priority protocols, qualify schemas/resources, promote definitions,
-close R0 or execute the deferred hosted pilot.
+close resource qualification or execute the deferred hosted pilot.
 
 ## Verification Record
 
@@ -149,4 +151,4 @@ no suppression was added.
 Original external captures, bidder manifests, dependency/feature declarations
 and CI workflows remain unchanged. New local factory cases are not external
 capture provenance. These are scoped refactor checks, not schema/resource,
-R0, protocol promotion or hosted-delivery qualification.
+resource qualification, protocol promotion or hosted-delivery qualification.

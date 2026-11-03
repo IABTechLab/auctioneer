@@ -140,8 +140,8 @@ pub fn bootstrap_adapter<C, R, T, D, S>(
 ///
 /// An envelope whose worst-case total exceeds the platform ceiling
 /// WARNS and boots. Its caps state what production traffic is expected
-/// to need, and tuning them against real traffic is a milestone of its
-/// own; the warning carries the overshoot and the dominating terms, and
+/// to need, and tuning them requires separate workload evidence;
+/// the warning carries the overshoot and the dominating terms, and
 /// is the whole safety margin on that path.
 ///
 /// # Errors

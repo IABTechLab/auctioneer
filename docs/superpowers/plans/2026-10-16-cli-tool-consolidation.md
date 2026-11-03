@@ -1,5 +1,7 @@
 # CLI Tool Consolidation Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use superpowers:subagent-driven-development or superpowers:executing-plans. Track each step below and verify before committing.
 
 **Goal:** Consolidate operator commands in `auctioneer-cli`, removing two tool-only packages without making archive repair depend on the archive being valid.
@@ -61,11 +63,11 @@ aliases. Do not run a live archive refresh or invent refreshed evidence.
 - [x] Run default `cargo test --locked -p auctioneer-cli --all-targets -j 2` with pinned source/SDK prerequisites. Freeze CLI binaries and HEAD while qualification tests execute. Confirm all former tool unit/integration tests now execute from CLI.
 - [x] Run catalogue library tests, core workflow guards, workspace feature-ful clippy, formatting, raw-JSON gate and `git diff --check`. Check Cargo metadata shows 15 workspace members and no removed binary targets.
 - [x] Obtain independent code review of dependency isolation and moved safety invariants. Record actual verification, including any environment limitations; do not claim live network/provider verification.
-- [x] Commit all consolidation changes without authorship trailers and push to the existing M7 branch/PR; confirm clean synchronized status.
+- [x] Commit all consolidation changes without authorship trailers and push to the existing bidder catalog branch/PR; confirm clean synchronized status.
 
 ## Verification Record
 
-Implementation committed and pushed as `faa8298e` on `m7-bidder-catalog`
+Implementation committed and pushed as `faa8298e` on `bidder-catalog`
 (PR #21); the worktree and upstream were synchronized afterward.
 
 Verified locally on 2026-10-17 with Rust 1.98.1, the pinned bidder checkout

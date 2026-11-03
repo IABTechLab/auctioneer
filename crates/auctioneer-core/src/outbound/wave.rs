@@ -1892,7 +1892,7 @@ pub(crate) mod tests {
         }
     }
 
-    /// M1 — a driver delivering terminal indices 2, 0, 1 still publishes
+    /// a driver delivering terminal indices 2, 0, 1 still publishes
     /// in INPUT order: position comes from `OutboundBatchItem.index`,
     /// never from arrival order.
     #[test]
@@ -2024,7 +2024,7 @@ pub(crate) mod tests {
         ));
     }
 
-    /// M4 — the loop keeps polling once its own tally is full and still
+    /// the loop keeps polling once its own tally is full and still
     /// observes `Finished(Completed)`, so the positional check always
     /// runs. The driver here emits both items and then ENDS; upstream
     /// reports `Completed` only after observing clean EOF on the poll

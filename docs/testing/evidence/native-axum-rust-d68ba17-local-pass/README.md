@@ -1,5 +1,7 @@
 # Repaired Rust Native Capture
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Source: `d68ba170f0b25b40fe4890d9d56bdd9d5048251c`. The exact profile was
 committed and pushed as `7a1b246` before traffic. Its SHA-256 is
 `6bb2a0a158f097da31957b6122218b43aa868962a7c95a743369ddc11abd243c`.
@@ -54,4 +56,4 @@ the private local evidence directory; their digests are retained in metadata.
 Raw HTTP/config/consent bodies, logs, credentials and temporary stores are not
 committed. The [first Rust capture and failed separate control](../native-axum-rust-aefcf47-local-pass/README.md)
 and all earlier historical attempts remain unchanged. No live provider test
-was run; selected-target hosted acceptance and rollout remain M7.6 work.
+was run; selected-target hosted acceptance and rollout remain publisher pilot work.

@@ -92,7 +92,7 @@ mod tests {
     }
 
     fn runtime_input(value: &Value) -> Value {
-        let mut input = json!({"accounts": {"m4-parity": value["account"]}});
+        let mut input = json!({"accounts": {"fake_acct": value["account"]}});
         for key in ["ccpa", "lmt"] {
             if let Some(block) = value.get(key) {
                 input[key] = block.clone();
@@ -109,11 +109,11 @@ mod tests {
         let app: AuctioneerAppConfig =
             serde_json::from_value(runtime_input(value)).expect("valid runtime DTO");
         app.validate().expect("valid runtime bounds");
-        let body = serde_json::to_vec(&json!({"site": {"publisher": {"id": "m4-parity"}}}))
+        let body = serde_json::to_vec(&json!({"site": {"publisher": {"id": "fake_acct"}}}))
             .expect("valid request body");
         let resolved =
             resolve_account(&body, &app, account, u32::MAX).expect("resolve configured account");
-        assert_eq!(resolved.id, "m4-parity");
+        assert_eq!(resolved.id, "fake_acct");
         (resolve_host(&app, host), resolved.config)
     }
 

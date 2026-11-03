@@ -1,7 +1,9 @@
 # Local Development And Test Ownership Verification
 
-Date: 2026-10-30. Base: `6f62fc77`, branch `m7-bidder-catalog`.
-This covers the approved first slice, not complete M7 acceptance.
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+Date: 2026-10-30. Base: `6f62fc77`, branch `bidder-catalog`.
+This covers the approved first slice, not complete bidder catalog acceptance.
 
 ## Case And Target Inventory
 
@@ -97,4 +99,4 @@ Full workspace CI, feature/guest matrices, provider execution and resource
 qualification were not rerun for this test-only slice. Existing GVL
 deleted-vendor warnings and `proc-macro-error2`'s future-incompatibility
 notice remain. Discovery watches, source identity, historical captures
-and M7 publication/readiness requirements are unchanged.
+and bidder catalog publication/readiness requirements are unchanged.

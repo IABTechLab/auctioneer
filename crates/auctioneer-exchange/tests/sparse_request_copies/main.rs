@@ -201,9 +201,9 @@ mod tests {
         } else {
             input_chains
         };
-        // M4 retains each survivor's full request, including the original
+        // privacy enforcement retains each survivor's full request, including the original
         // supplement and its per-impression copies. Size this context against
-        // the existing projection receipt, not M3b's sequential reconstruction.
+        // the existing projection receipt, not bounded fanout's sequential reconstruction.
         let projection_charge = |chain_count| {
             let body = sparse_body_with_chains(impressions, supplement, chain_count);
             let request: BidRequest =
@@ -668,7 +668,7 @@ mod tests {
                 );
                 grouped
                     .ensure_projection_capacity(&survivors, charged.auction_charges.projection)
-                    .expect("the funded M4 projection context admits every sweep row");
+                    .expect("funded projection admits every sweep row");
                 let projection_charge = grouped.projection_charge(&survivors).unwrap();
                 assert_reused_survivor_scopes(&grouped, &registry, &funded, impressions);
                 black_box((&normalized, underlying, &grouped));

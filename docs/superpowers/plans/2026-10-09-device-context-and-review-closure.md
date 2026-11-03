@@ -28,8 +28,8 @@ No request-log evidence is available to justify string or float-to-int coercion.
 - [x] Repair the round-trip contract comment and add corpus regression shapes.
 - [x] Run affected suites, full native tests, strict native/WASM lint checks,
       allocation guards, and a real Spin build with its unchanged 50,000,000 ceiling.
-- [x] Commit and push verified repairs; propagate to M4, M5, and M6 with clean
-      worktrees, preserving each milestone's implementation and documents.
+- [x] Commit and push verified repairs; propagate to privacy enforcement, user sync, and diagnostic qualification with clean
+      worktrees, preserving each capability's implementation and documents.
 
 ## Verification Commands
 
@@ -83,36 +83,36 @@ root. Record measured bytes, exact revisions, failures, and verification limits.
   Raw-JSON and roster gates and their mutation fixtures passed; formatting,
   diff whitespace, and batch-API rebase checks passed. No size ceiling or
   allocation factor was increased. Remote CI results are not local evidence.
-- M4 propagation preserved its composed privacy policies, response-reservation
+- privacy enforcement propagation preserved its composed privacy policies, response-reservation
   preflight, and genuine JSON encoding-error regression. The Linux workspace
   follow-up excluding the unchanged config package passed 1,924 tests in 153
   target groups; strict native Clippy, formatting, raw-JSON, roster, and
   batch-API rebase checks passed. The concurrent scrub-classification design
   was retained as documentation, not implemented as part of this repair.
-- M5 propagation preserved usersync and the renamed master specification. Its
+- user sync propagation preserved usersync and the renamed master specification. Its
   Linux workspace run excluding config passed 2,235 tests in 172 target groups,
   zero failures and six ignored declarations; strict native Clippy, formatting,
   raw-JSON, roster, and batch-API rebase checks passed. Stale generated schemas
   in shared main and nested compile-probe caches initially broke verification;
   only disposable Auctioneer build artifacts were invalidated before the successful
   rerun. No source or test expectation was changed to accommodate those failures.
-- M5's additional config unit and integration run passed 199 tests in ten
+- user sync's additional config unit and integration run passed 199 tests in ten
   target groups, including callback validation and usersync configuration.
   The isolated build-failure harness was not repeated downstream; all 55 of
-  its cases had passed in M3b, and this repair does not change config sources.
-- M6's merged Rust sources, manifests, lockfile, and workflows exactly match
-  verified M5. Its own OpenRTB, exchange, and core all-target conformance run
+  its cases had passed in bounded fanout, and this repair does not change config sources.
+- diagnostic qualification's merged Rust sources, manifests, lockfile, and workflows exactly match
+  verified user sync. Its own OpenRTB, exchange, and core all-target conformance run
   passed 1,298 tests in 110 groups, zero failures and one ignored declaration.
   Formatting, raw-JSON, roster, and batch-API rebase checks also passed. Its
   separate hardening spec, plan, roadmap, and architecture changes were kept.
-- Propagation parents are M3b `ca19384` (repair `545ad21` plus concurrent
-  design-only updates), M4 `7078810`, and M5 `5c2dfb4`. The final M6 merge
+- Propagation parents are bounded fanout `ca19384` (repair `545ad21` plus concurrent
+  design-only updates), privacy enforcement `7078810`, and user sync `5c2dfb4`. The final diagnostic qualification merge
   carries these repairs and this verification record without implementing
   the separately proposed scrub-classification redesign.
-- Remote M3b checks at `ca19384` failed before any runner was assigned: the
+- Remote bounded fanout checks at `ca19384` failed before any runner was assigned: the
   inspected jobs have empty runner names and no executed steps. Local evidence
   does not make these remote checks green or establish a merge approval.
-- A concurrent documentation-only snapshot at M3b `1b91ca4` was subsequently
-  pushed and carried through M4 `b38126c` and M5 `84cc451` into M6. Source,
+- A concurrent documentation-only snapshot at bounded fanout `1b91ca4` was subsequently
+  pushed and carried through privacy enforcement `b38126c` and user sync `84cc451` into diagnostic qualification. Source,
   manifests, lockfile, and workflows still match their verified repair trees;
   this follow-up changes only the separate classification design and records.

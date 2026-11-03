@@ -1510,11 +1510,11 @@ fn process_one_result(
                             });
                         }
                     }
-                    // Non-USD unconditional drop for M2: response `cur`
+                    // Non-USD response bids are dropped: response `cur`
                     // is hardcoded to "USD" in the response builder,
                     // so admitting foreign-currency bids would emit
-                    // wrong-labelled prices. M3 fx wires currency-
-                    // aware bundles + a per-seat `cur` column.
+                    // wrong-labelled prices. Request-floor conversion does not
+                    // provide a response-price conversion path.
                     if currency != "USD" && !currency.is_empty() {
                         bundle.warnings.push(ErrorEntry {
                             code: 10004,

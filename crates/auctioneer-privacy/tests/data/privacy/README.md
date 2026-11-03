@@ -51,7 +51,7 @@ records all eight activities and explicit ordered rule/component inputs.
 `scrubs` stores input and actual serialized reference output; rows with
 intentional differences are named separately from parity cases.
 
-The thirteen approved M4 decisions remain in section 12 of the M4 design:
+The thirteen approved privacy enforcement decisions remain in section 12 of the privacy enforcement design:
 inactive section 2 handling; opaque unenforced sections; account CCPA
 fallback; hard parsing/configuration limits; no implicit DV grant; independent
 no-sale validation; consistent native/legacy EID removal; USP conflicts do not
@@ -66,6 +66,6 @@ name the relevant deliberate difference.
 The `coppa` reference row is labeled `intentional-coppa-user-fpd-difference`;
 its recorded reference output is unchanged and is not a Auctioneer parity oracle.
 
-Fixture generation is evidence acquisition, not full M4 acceptance. Rust
+Fixture generation is evidence acquisition, not full privacy enforcement acceptance. Rust
 consumers, outbound captures, resource tests, and portable builds are tracked
 independently by the implementation plan.

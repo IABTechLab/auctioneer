@@ -68,14 +68,14 @@
 //! separate claim about the TYPE's size, not as a substitute for the
 //! funded bound.
 //!
-//! Catch-all nesting is now funded by M4's corrected parse charge.
-//! The M3b depth sweep, node accounting, measured ratio bracket and
-//! per-node ceiling remain regression guards alongside M4's margin test.
+//! Catch-all nesting is now funded by privacy enforcement's corrected parse charge.
+//! The bounded fanout depth sweep, node accounting, measured ratio bracket and
+//! per-node ceiling remain regression guards alongside privacy enforcement's margin test.
 //! The response assembly API moves bids instead of retaining cloned input.
 //!
 //! # The response charge is per-byte AND per-node
 //!
-//! M4's `RESPONSE_PARSE_FACTOR` and `MIN_RESPONSE_PARSE_FACTOR` are both
+//! privacy enforcement's `RESPONSE_PARSE_FACTOR` and `MIN_RESPONSE_PARSE_FACTOR` are both
 //! 256, conservatively funding even admitted catch-all nesting with the
 //! required 20% margin. The measured peak still tracks nodes: holding
 //! the node count at the cap while varying the wire size 23%, bytes per
@@ -529,7 +529,7 @@ mod tests {
             let request = request_for_response(&owned);
             let response = BidderHttpResponse::new(200, vec![], owned.into_bytes())
                 .within_node_budget(u32::MAX);
-            // M4 retains metadata and each capped, scrubbed request across
+            // privacy enforcement retains metadata and each capped, scrubbed request across
             // fanout. Build that context outside the response-allocation
             // window; the per-bidder projection charge funds its lifetime.
             let sent = sent_meta();
@@ -897,7 +897,7 @@ mod tests {
         bids
     }
 
-    /// The catch-all depth sweep fits the shipped M4 parse charge, and
+    /// The catch-all depth sweep fits the shipped privacy enforcement parse charge, and
     /// remains bounded by the independently measured ratio bracket.
     #[test]
     fn the_parse_factor_funds_the_catch_all_nesting_shape() {
@@ -963,7 +963,7 @@ mod tests {
     }
 
     /// The full per-call charge funds the catch-all shape at every
-    /// admitted depth. M4's conservative byte half also funds it alone.
+    /// admitted depth. privacy enforcement's conservative byte half also funds it alone.
     /// The production node term is proved independently by the delta
     /// integration guard, not by assuming the byte half must be short.
     #[test]
@@ -1023,7 +1023,7 @@ mod tests {
     /// Across [`CATCH_ALL_DEPTHS`] the node count is held near the cap
     /// while the wire size varies by about a quarter. If the cost were
     /// per-byte, bytes-per-byte would hold and bytes-per-node would
-    /// move. Preserve that distinction even though M4's conservative
+    /// move. Preserve that distinction even though privacy enforcement's conservative
     /// shipped byte factor now funds the entire admitted sweep.
     #[test]
     fn the_catch_all_peak_is_node_driven_not_byte_driven() {
@@ -1090,8 +1090,8 @@ mod tests {
         );
     }
 
-    /// Keep M3b's independently derived node-term ceiling: it covers every
-    /// measured catch-all peak, and M4's shipped byte charge funds it too.
+    /// Keep bounded fanout's independently derived node-term ceiling: it covers every
+    /// measured catch-all peak, and privacy enforcement's shipped byte charge funds it too.
     #[test]
     fn the_node_term_that_would_fund_the_response_parse() {
         let node_term_per_call = u64::from(SHIPPED_RESPONSE_NODE_CAP)
@@ -1114,13 +1114,13 @@ mod tests {
         }
         assert!(
             node_term_per_call <= byte_term_per_call,
-            "the node-derived {node_term_per_call} B ceiling exceeds M4's \
+            "the node-derived {node_term_per_call} B ceiling exceeds privacy enforcement's \
              funded parse charge of {byte_term_per_call} B per call",
         );
     }
 
     /// The shipped node term alone covers every measured catch-all peak.
-    /// M4's byte floor is conservatively larger at the shipped caps;
+    /// privacy enforcement's byte floor is conservatively larger at the shipped caps;
     /// node accounting is still mandatory in the production equation.
     #[test]
     fn the_shipped_node_term_funds_the_response_parse() {
@@ -1145,7 +1145,7 @@ mod tests {
         }
         assert!(
             node_term_per_call <= byte_term_per_call,
-            "the node-derived {node_term_per_call} B ceiling exceeds M4's \
+            "the node-derived {node_term_per_call} B ceiling exceeds privacy enforcement's \
              funded parse charge of {byte_term_per_call} B per call",
         );
     }

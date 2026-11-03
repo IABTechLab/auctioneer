@@ -94,7 +94,7 @@ impl<'info> EndpointBuilder<'info> {
     /// Construct a builder over a bidder's template.
     ///
     /// # Errors
-    /// Returns no errors today; the `Result` shape is the M3+-stable
+    /// Returns no errors today; the `Result` shape is the GDPR enforcement-stable
     /// signature for when codegen-time template validation moves to a
     /// runtime parser.
     pub fn new(info: &'info BidderInfo) -> Result<Self, EndpointBuilderError> {

@@ -157,7 +157,7 @@ mod tests {
             auctioneer_config::account_default(),
         ))
         .unwrap();
-        // This synthetic row proves auction phases, but must also fund M5's
+        // This synthetic row proves auction phases, but must also fund user sync's
         // independent auxiliary privacy/config peak before the row can derive.
         let mut funded_limits = *limits;
         let auxiliary = derive_aux_work_for_profile(&funded_limits, &target, baked).unwrap();

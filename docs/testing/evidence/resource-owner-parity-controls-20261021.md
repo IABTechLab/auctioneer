@@ -1,5 +1,7 @@
 # Resource Owner And CLI Parity Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-21
 Starting commit: `ced48cd4`
 Scope: native accounting and test-harness verification, not catalog qualification.
@@ -45,7 +47,7 @@ Each of the 18 invocations reported zero passed, one failed and nine filtered
 tests. The production source was restored after every probe. The before/after
 SHA-256 of `auctioneer-runtime/src/budget.rs` is
 `05ca7a50cdc7fe691270c3e95dd4c1932665bc62ef6ad0f0207d1ad7bcecabe7`,
-and its Git diff is empty. Logs use `/private/tmp/m7-resource-owner-omit-*.log`
+and its Git diff is empty. Logs use `/private/tmp/bidder-catalog-resource-owner-omit-*.log`
 and the `validation_to_config`, `context_to_config`, `resident_128x`,
 `resident_per_auction`, `resident_per_auxiliary`, `initialization_per_auction`
 and `node_unit_one` suffixes under that same prefix.
@@ -128,19 +130,19 @@ CARGO_INCREMENTAL=0 cargo clippy --offline --locked -j2 --workspace \
   --all-targets --features insecure-bidders,conformance-suite -- -D warnings
 ```
 
-Final logs are `/private/tmp/m7-resource-owner-core-final-secure.log`,
-`/private/tmp/m7-resource-owner-core-final-features.log`,
-`/private/tmp/m7-resource-owner-parity-final.log`,
-`/private/tmp/m7-resource-owner-clippy-ready.log` and
-`/private/tmp/m7-resource-owner-ci-workflows.log`. The CI guard invocation is
+Final logs are `/private/tmp/bidder-catalog-resource-owner-core-final-secure.log`,
+`/private/tmp/bidder-catalog-resource-owner-core-final-features.log`,
+`/private/tmp/bidder-catalog-resource-owner-parity-final.log`,
+`/private/tmp/bidder-catalog-resource-owner-clippy-ready.log` and
+`/private/tmp/bidder-catalog-resource-owner-ci-workflows.log`. The CI guard invocation is
 `CARGO_INCREMENTAL=0 cargo test --offline --locked -j2 -p auctioneer-core --test
 ci_workflows`. Existing secure core and workspace/standalone CLI all-target
 workflow commands already execute these targets; no new target or lane was
 added. Local CI-guard success is not a hosted workflow result.
 
 Collector and dispatch RED logs are
-`/private/tmp/m7-resource-owner-cargo-units-red.log` and
-`/private/tmp/m7-resource-owner-all-adapters-dispatch-red.log`. The compiling
+`/private/tmp/bidder-catalog-resource-owner-cargo-units-red.log` and
+`/private/tmp/bidder-catalog-resource-owner-all-adapters-dispatch-red.log`. The compiling
 focused collector RED is zero passed/one failed; its repair is four passed.
 After that, the all-adapter dispatch RED is four passed/one failed. Both are
 runtime assertion failures, not zero-match or compile failures. Separate
@@ -160,5 +162,5 @@ No hosted CI, guest build/execution or live provider test is claimed.
 This does not qualify metadata/validator/cache storage or enable a serving
 catalog. Full Task 4 still requires its remaining strict/aggregate boundaries,
 qualified descriptors and live consumers. Schema-engine qualification, full
-M7 migration and M7-R0 readiness remain open. The separate roadmap edit is
+bidder catalog migration and resource qualification readiness remain open. The separate roadmap edit is
 outside this increment.

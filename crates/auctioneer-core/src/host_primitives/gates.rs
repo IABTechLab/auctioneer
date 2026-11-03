@@ -29,7 +29,7 @@
 //! declared caps PERMIT a state that would not fit — an ambition about
 //! load, not a contradiction — and the caps state what production
 //! traffic is expected to need rather than what keeps a sum under a
-//! ceiling. Tuning them against real traffic is a milestone of its own,
+//! ceiling. Tuning them against real traffic requires separate workload evidence,
 //! and blocking every adapter on a worst-case model before any traffic
 //! exists buys nothing.
 //!

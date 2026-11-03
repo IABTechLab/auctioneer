@@ -1,5 +1,7 @@
 # Explicit Schema Search Cache Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans task-by-task, with test-driven development and independent review.
 
 **Goal:** Implement the approved generated cache API as a third replayable compiler patch, verify compatibility, and refuse unproved resource qualification.
@@ -8,12 +10,12 @@
 
 **Tech Stack:** Existing Rust workspace, patched `jsonschema-macros-core 0.58.6`, existing `syn` AST APIs, locked `regex-automata 0.4.18`, current schema/provenance/linked-artifact controls.
 
-**Qualification scope, 2026-10-29:** remaining M7 serving/resource obligations
+**Qualification scope, 2026-10-29:** remaining bidder catalog serving/resource obligations
 use the complete shipped closure `S` from the
-[scope amendment](../specs/2026-10-29-m7-shipped-schema-qualification-design.md).
+[scope amendment](../specs/2026-10-29-shipped-schema-qualification-design.md).
 Preserve existing all-source compatibility/component tests and dated results.
 Do not expand private-backend proofs without a demonstrated need in `S`;
-future-only surfaces belong to their M7.7 wave or M20 before publication.
+future-only surfaces belong to their bidder expansion wave or remaining catalog closure before publication.
 Required shipped bounds remain mandatory; observations cannot replace them.
 
 AG approved the [written design](../specs/2026-10-22-explicit-schema-search-cache-design.md)
@@ -104,7 +106,7 @@ until complete target-specific derivations exist.
 
 - [x] Obtain spec-compliance and independent code-quality review; fix their findings and rerun affected controls.
 - [x] Run secure/default and feature bidder controls separately, workspace Clippy, formatting and raw-fixture gates. Record exact counts, interruptions and limitations; keep serving integration closed while qualification is unproved.
-- [x] Commit explicit file sets and push to the existing M7 PR. Do not stage unrelated user changes, relax watchdogs or raise limits for passing results.
+- [x] Commit explicit file sets and push to the existing bidder catalog PR. Do not stage unrelated user changes, relax watchdogs or raise limits for passing results.
 
 ## 6. Approved Hostname Cache Follow-Up
 
@@ -428,7 +430,7 @@ no remaining findings after the recovery guard and overflow control landed.
 Both were read-only; the main verification runs supplied all runtime results.
 The full linked-artifact suite and guest execution were not repeated: no
 generated validator, serving path, workload, ceiling, funding equation or usable
-resource descriptor changed. No overall M7 readiness is claimed.
+resource descriptor changed. No overall bidder catalog readiness is claimed.
 
 ## 12. Requested Collection Layout And Hybrid Heap Envelope
 
@@ -876,7 +878,7 @@ Only qualification support, its two integration owners and documentation
 changed. No compiler/probe/schema/dependency/serving input or funding/limit
 changed; the previous complete linked-artifact suite was not repeated. No full
 workspace assertion run, guest execution, fresh physical measurement, usable
-descriptor, full M7 completion or R0 readiness is claimed. Shared programs,
+descriptor, full bidder catalog completion or resource qualification readiness is claimed. Shared programs,
 constructor/work/lifetime bounds, whole-schema/format overlap, production
 owner multiplicities and physical/target qualification remain open. This
 increment adds no bidder protocol implementation or activation.
@@ -1292,7 +1294,7 @@ No serving code, schema, compiler patch, production funding, workload/engine
 limit or resource ceiling changed. Complete meta availability/fallback,
 counter lifetimes, shared program/constructor storage, physical allocator and
 target/work descriptors remain open. No full workspace test run, guest execution,
-usable descriptor, full M7 completion or R0 readiness is claimed. The separate
+usable descriptor, full bidder catalog completion or resource qualification readiness is claimed. The separate
 APS contract is source-reviewed and records AG's approved decisions; its
 implementation/evidence are not supplied by these cache controls. The unrelated
 roadmap edit remains excluded.
@@ -1328,7 +1330,7 @@ tests or guest execution ran. Quit-set admission is closed for the fixed
 qualified candidates, not private strategy selection, cumulative counter
 lifetimes, eager capture/available one-pass residency, whole-meta work or
 physical/target bounds. No serving integration, usable resource descriptor,
-workload/ceiling change, full M7 completion or R0 readiness is claimed. The user
+workload/ceiling change, full bidder catalog completion or resource qualification readiness is claimed. The user
 roadmap edit remains outside the commit.
 
 ### Fresh Core Auxiliary Verification
@@ -1372,7 +1374,7 @@ This component provides fresh auxiliary requested bytes, not a whole-meta,
 reset/clone, physical allocator, lifetime/work or deployment descriptor. Shared
 program/pool storage, primary/optional hybrid owners and reachable lazy fallback
 still require composition. No full workspace test run, guest execution, serving
-cutover, funding/limit/ceiling change, full M7 completion or R0 readiness is
+cutover, funding/limit/ceiling change, full bidder catalog completion or resource qualification readiness is
 claimed. The unrelated user roadmap edit remains excluded.
 
 ## 21. Fresh Start-Anchored Half-Search Qualification
@@ -1484,7 +1486,7 @@ passed with the unchanged 189 fixtures across 55 files. Production code,
 schemas, compiler patch, dependency/SDK pins, workload limits and funding are
 unchanged. The broad serial-history model remains intact. Shared-program,
 constructor/work, whole-schema and physical/target qualification still block
-usable descriptors and serving integration; this is not M7 or R0 closure.
+usable descriptors and serving integration; this is not bidder catalog or resource qualification closure.
 
 ## 22. Complete Native Pattern-Bundle And Format Overlap
 
@@ -1577,8 +1579,8 @@ formatting passed (188 raw fixtures across 54 files).
 
 This closes only the conditional native cache-component overlap. Complete call
 frames, other validator scratch, shared programs/pools, initialization/work,
-production cache multiplicity and physical/guest bounds remain M7 qualification
-work. No usable runtime descriptor, priority-flow acceptance, M7/R0 completion
+production cache multiplicity and physical/guest bounds remain bidder catalog qualification
+work. No usable runtime descriptor, priority-flow acceptance, bidder catalog/resource qualification completion
 or hosted qualification follows from this checkpoint.
 
 ## 23. Unused Native Meta-Pool Bookkeeping
@@ -1661,7 +1663,7 @@ cargo test --offline --locked -j2 -p auctioneer-bidder --features insecure-bidde
 ```
 
 No lifetime-wide non-acquisition, complete program/constructor/work bound,
-production cache multiplicity, usable descriptor or M7/R0 completion follows.
+production cache multiplicity, usable descriptor or bidder catalog/resource qualification completion follows.
 
 ## 24. Native Immutable Regex Metadata
 
@@ -1762,7 +1764,7 @@ No engine, schema, compiler patch, dependency/SDK pin, workload, ceiling,
 funding coefficient or serving behavior changed. NFA/capture graphs, strategy
 allocations, one-pass/literal ownership, complete initialization/work and
 physical/guest qualification remain open. This is not a complete program
-descriptor, full engine acceptance, priority-flow promotion or M7/R0 closure.
+descriptor, full engine acceptance, priority-flow promotion or bidder catalog/resource qualification closure.
 
 ## 25. Native NFA And Capture-Metadata Trees
 
@@ -1862,7 +1864,7 @@ cargo test --offline --locked -j2 -p auctioneer-bidder --features insecure-bidde
 No engine, schema, compiler patch, dependency/SDK pin, workload, ceiling,
 funding coefficient or serving behavior changed. Complete strategy/literal and
 one-pass ownership, initialization/work, physical/guest and production lifetime
-qualification remain M7 work. No usable complete descriptor or M7/R0 readiness
+qualification remain bidder catalog work. No usable complete descriptor or bidder catalog/resource qualification readiness
 claim follows.
 
 ## 26. Native Retained One-Pass Tables
@@ -1900,7 +1902,7 @@ controls. No new dependency, module wiring, schema, limit or funding change.
       lanes, strict lint, formatting/import/fixture guards and independent
       source/spec and quality reviews; record exact results before commit/push.
       Complete strategy/literal, initialization/work, guest and physical-memory
-      qualification remain M7 work; no serving descriptor is enabled here.
+      qualification remain bidder catalog work; no serving descriptor is enabled here.
 
 ### Retained One-Pass Verification (2026-10-28)
 
@@ -1936,7 +1938,7 @@ modes and captured parameter verdicts. It is not relabeled a full 365-test
 source run here. Component 26 introduces no builder, engine, schema, target,
 dependency or serving change. Source/spec and independent quality reviews
 approve its exact conditional retained-buffer scope, not whole-program or
-M7/R0 acceptance.
+bidder catalog/resource qualification acceptance.
 
 The two individually valid native buffer sizes cannot overflow `usize` when
 summed: each is at most `isize::MAX`. The final checked addition remains
@@ -1962,15 +1964,15 @@ cargo test --offline --locked -j2 -p auctioneer-bidder --features insecure-bidde
 ## 27. Close Native Literal Owners
 
 **2026-10-29 scope correction:** the
-[shipped-schema amendment](../specs/2026-10-29-m7-shipped-schema-qualification-design.md)
+[shipped-schema amendment](../specs/2026-10-29-shipped-schema-qualification-design.md)
 governs remaining work here. Preserve existing code, tests and historical
 evidence. Before extending private literal/backend ownership qualification,
-derive the complete M7 shipped closure and demonstrate a reachable need.
-Otherwise assign the extension to the first affected M7.7 wave or M20 with
-that pre-publication trigger. This is not permission to defer a required M7
+derive the complete bidder catalog shipped closure and demonstrate a reachable need.
+Otherwise assign the extension to the first affected bidder expansion wave or remaining catalog closure with
+that pre-publication trigger. This is not permission to defer a required bidder catalog
 owner, call observations bounds, or enable unqualified schema serving.
 
-Continue M7 Task 3 without changing matching, schemas, builder limits or serving
+Continue bidder catalog Task 3 without changing matching, schemas, builder limits or serving
 admission. The payload queries do not report literal children. Derive retained
 storage from the pinned constructors instead of treating approximate memory
 reports or an independently reconstructed prefilter as hidden-owner evidence.
@@ -2015,5 +2017,5 @@ bidder test edge; it does not change package versions or enabled features.
 
 The unchecked packed-pattern/Teddy and whole-constructor reconciliation items
 remain open. Derive `S` before extending them: only a demonstrated reachable
-need keeps those extensions in M7. Initialization/work, guest/physical facts and
+need keeps those extensions in bidder catalog. Initialization/work, guest/physical facts and
 complete serving descriptors are not established by this checkpoint.

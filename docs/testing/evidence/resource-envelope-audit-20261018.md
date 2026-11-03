@@ -1,5 +1,7 @@
 # Resource Envelope Audit Notes
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Source baseline: `b3f08e464b34dd69151c1975342637fe378421d4`.
 SDK: `f6c708ccb5be19ba9fa92575db3c08c0f17e0d72`; Rust 1.98.1.
 Date: 2026-10-18.
@@ -10,7 +12,7 @@ separately in [checkpoint controls](resource-review-controls-20261018.md).
 The original counts and limitations below describe that earlier slice.
 
 This is a source/lifetime investigation for the
-[resource remediation plan](../../superpowers/plans/2026-10-17-m7-r0-wasm-resource-envelope.md),
+[resource remediation plan](../../superpowers/plans/2026-10-17-resource-envelope.md),
 not an approved remediation package, the canonical typed audit, a WASM
 measurement or a fit sign-off. The required `audit.toml`, frozen change record
 and AG approval checkpoint remain outstanding. No workload or allocation
@@ -139,7 +141,7 @@ envelope and feature detection; the existing schema-2 wire export is unchanged.
 The CLI build script captures the actual Rust compiler's verbose identity
 and compilation target. A shared Git source snapshot detects changed, added,
 deleted and moved inputs, including config generation data and owning layouts.
-Non-Rust documentation and the R0 evidence directory are excluded to avoid
+Non-Rust documentation and the resource qualification evidence directory are excluded to avoid
 self-hashing captures; Rust remains source in either location. Source hashes
 are streamed and only a digest/count is repeated in target rows, not file
 contents or four complete source manifests. This is build-input provenance,

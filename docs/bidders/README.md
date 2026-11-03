@@ -196,7 +196,7 @@ Exactly 78 bases declare top-level HTTP endpoints: 77 source-enabled and
 one source-disabled. Their URLs are provenance, never permission to send a
 request. Endpoint approval, effective routing inheritance, factory-binding
 review and the evidence-derived migration ledger remain
-work in the [implementation plan](../superpowers/plans/2026-10-16-m7-bidder-catalog.md).
+work in the [implementation plan](../superpowers/plans/2026-10-16-bidder-catalog.md).
 
 ## Bidder Layout
 

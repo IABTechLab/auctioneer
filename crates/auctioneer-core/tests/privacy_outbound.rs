@@ -121,15 +121,15 @@ enabled = false
 enforce = true
 [lmt]
 enforce = true
-[accounts.m4-outbound.privacy.ipv4]
+[accounts.fake_tenant.privacy.ipv4]
 anon_keep_bits = 24
-[accounts.m4-outbound.privacy.ipv6]
+[accounts.fake_tenant.privacy.ipv6]
 anon_keep_bits = 64
-[accounts.m4-outbound.privacy.allowactivities.transmitUfpd]
+[accounts.fake_tenant.privacy.allowactivities.transmitUfpd]
 default = {allow}
-[accounts.m4-outbound.privacy.allowactivities.transmitPreciseGeo]
+[accounts.fake_tenant.privacy.allowactivities.transmitPreciseGeo]
 default = {allow}
-[accounts.m4-outbound.privacy.allowactivities.transmitTid]
+[accounts.fake_tenant.privacy.allowactivities.transmitTid]
 default = {allow}
 "
         )
@@ -189,8 +189,8 @@ default = {allow}
             .map(|row| (row.name().to_owned(), row.params.clone()))
             .collect();
         serde_json::from_value(json!({
-            "id": "m4-outbound-auction", "cur": ["USD"], "tmax": 1000_i64,
-            "site": {"id": "contextual-site", "publisher": {"id": "m4-outbound"},
+            "id": "fake_auction_record", "cur": ["USD"], "tmax": 1000_i64,
+            "site": {"id": "contextual-site", "publisher": {"id": "fake_tenant"},
                 "ext": {"amp": 0_i32, "data": {"section": "news"}}},
             "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32},
                 "ext": {"tid": "private-imp-tid", "data": {"slot": "top"},
@@ -532,7 +532,7 @@ default = {allow}
                     fixture.app = Some(
                         serde_json::from_value(json!({
                             "id": "contextual-app", "name": "Example App", "bundle": "example.app",
-                            "publisher": {"id": "m4-outbound"},
+                            "publisher": {"id": "fake_tenant"},
                             "ext": {"data": {"section": "news"}}
                         }))
                         .expect("app context"),
@@ -624,7 +624,7 @@ default = {allow}
                     let original = serde_json::to_value(&fixture).unwrap();
                     let enforcement = if enabled { "enabled" } else { "disabled" };
                     let config = format!(
-                        "{}\n[accounts.m4-outbound.ccpa]\nenabled = \"{enforcement}\"\n",
+                        "{}\n[accounts.fake_tenant.ccpa]\nenabled = \"{enforcement}\"\n",
                         runtime_config(true)
                     );
                     let outbound = drive(&fixture, &config, &bidders);

@@ -1,4 +1,4 @@
-//! Per-bidder request split. M2 uses `serde_json::Value`
+//! Per-bidder request split. auction core uses `serde_json::Value`
 //! ops for the per-imp ext rewrite + FPD merge; typed FPD is deferred.
 
 mod resource;

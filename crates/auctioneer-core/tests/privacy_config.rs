@@ -1,4 +1,4 @@
-//! M4 typed config boundaries and overlay semantics.
+//! privacy enforcement typed config boundaries and overlay semantics.
 
 #[cfg(test)]
 mod tests {

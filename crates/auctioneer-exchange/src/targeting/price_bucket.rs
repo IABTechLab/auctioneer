@@ -65,9 +65,8 @@ impl PriceGranularityScope {
 
 impl PriceGranularity {
     /// Account-level fallback. Account `targeting.pricegranularity`
-    /// is a string OR object; M2's `AccountConfig` does not yet model
-    /// that field, so the M2 dev fallback is `Med`. M3 widens
-    /// `AccountConfig` and revisits.
+    /// is not modeled by `AccountConfig`, so the account fallback is `Med`.
+    /// Request-level granularity is resolved separately.
     #[must_use]
     pub fn from_account(_account: &AccountConfig) -> Self {
         Self::Med
@@ -243,7 +242,7 @@ fn format_at(value: f64, precision: u8) -> String {
 
 impl BidRounding {
     /// Account-level fallback — the `bid_rounding` string on
-    /// `AccountConfig` (already shipped on M1) maps to one of `Down` /
+    /// `AccountConfig` (already shipped on foundations) maps to one of `Down` /
     /// `Up` / `Nearest` / `TimeSplit`. Unknown values fall back to
     /// `Down`.
     #[must_use]

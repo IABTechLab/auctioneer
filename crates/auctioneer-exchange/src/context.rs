@@ -21,14 +21,13 @@ use time::OffsetDateTime;
 ///
 /// `run_auction` reads these instead of hard-coding behavior. Adding
 /// a knob here is the seam that lets `auctioneer config push` genuinely
-/// change exchange behavior — an empty `ExchangeFeatures` = "act as
-/// M2 baseline".
+/// change exchange behavior. Defaults retain the baseline exchange policy.
 ///
-/// **Non-USD bids are unconditionally dropped in M2** — the exchange
-/// has no fx path, and admitting mixed-currency bids would either
+/// **Non-USD response bids are unconditionally dropped** — the exchange
+/// has no response-price conversion path, and admitting mixed-currency bids would either
 /// mis-label the response `cur` as USD or force a per-seat currency
-/// column that the M2 wire shape does not carry. M3 fx wiring
-/// revisits this.
+/// column that the response does not carry. Request-floor conversion does not
+/// change this response-price policy.
 #[derive(Clone, Copy, Debug)]
 pub struct ExchangeFeatures {
     /// Send outbound `Content-Encoding: gzip` when a bidder declares

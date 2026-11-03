@@ -1,6 +1,6 @@
-//! Runtime host-alias registry validation (M3b-9).
+//! Runtime host-alias registry validation (Fanout-9).
 //!
-//! M3a's Task 18 rejects an unknown alias base in the BAKED
+//! GDPR fanout's Task 18 rejects an unknown alias base in the BAKED
 //! `[baked.host]` in `auctioneer.toml` at `build.rs` time, but a runtime overlay
 //! arrives through the config store and never sees `build.rs`. Without a
 //! registry check on that path, a pushed `[aliases]` naming a base this

@@ -1,7 +1,9 @@
 # Resource Review Checkpoint Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-18. Continues the
-[source/lifetime audit](resource-envelope-audit-20261018.md) on the same M7 branch.
+[source/lifetime audit](resource-envelope-audit-20261018.md) on the same bidder catalog branch.
 
 This round implements audit/package validation and mechanical Git scope
 controls. It changes no production workload, allocation ownership, coefficients

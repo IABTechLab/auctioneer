@@ -18,7 +18,7 @@ set -euo pipefail
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 repo=$(cd -- "$here/.." && pwd)
 gate="$here/check-roster.sh"
-plan=${1:-$repo/docs/superpowers/plans/2026-07-10-m3b-multi-adapter-production-fanout.md}
+plan=${1:-$repo/docs/superpowers/plans/2026-07-10-multi-adapter-production-fanout.md}
 
 [ -x "$gate" ] || { echo "gate not executable: $gate" >&2; exit 3; }
 [ -r "$plan" ] || { echo "cannot read plan: $plan" >&2; exit 3; }

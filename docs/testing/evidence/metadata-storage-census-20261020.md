@@ -1,8 +1,10 @@
 # Generated Metadata Storage Census
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-20
-Branch: `m7-bidder-catalog`, based on `6303f3e4`
-Scope: config-owned preparation for M7 Task 4, not full storage qualification.
+Branch: `bidder-catalog`, based on `6303f3e4`
+Scope: config-owned preparation for bidder catalog Task 4, not full storage qualification.
 
 ## Contract And Limits
 
@@ -77,11 +79,11 @@ also requires it, and exact command guards retain failure propagation. The
 workflow control first failed before these commands were added.
 
 Commands use Rust 1.98.1, locked/offline dependency resolution and two build jobs.
-Native logs are `/private/tmp/m7-metadata-config-full-secure.log` and
-`/private/tmp/m7-metadata-config-final-insecure.log`. The allocator prints its census
+Native logs are `/private/tmp/bidder-catalog-metadata-config-full-secure.log` and
+`/private/tmp/bidder-catalog-metadata-config-final-insecure.log`. The allocator prints its census
 and source digest outside the measured interval so the retained log is auditable.
 RED logs use the `layout-red`, `constructor-red`, `materialization-red` and
-`ci-red` suffixes under `/private/tmp/m7-metadata-*.log`.
+`ci-red` suffixes under `/private/tmp/bidder-catalog-metadata-*.log`.
 
 Final results below are per invocation, not disjoint totals. All selected test
 scopes report zero failures and zero ignored tests.
@@ -102,23 +104,23 @@ The secure command is CI's complete `auctioneer-config` non-harness command plus
 bidder_bindings --test bidder_storage --test smoke --features insecure-bidders`.
 Core uses `--lib --test ci_workflows`; bidder uses `--test factory_binding_build
 --test registry_join`. All use `cargo test --offline --locked -j2 -p <package>`.
-Their logs are `m7-metadata-core.log` and `m7-metadata-factory-build.log` under
+Their logs are `bidder-catalog-metadata-core.log` and `bidder-catalog-metadata-factory-build.log` under
 `/private/tmp/`. The factory driver completed in 54.28 seconds.
 
 The selected config build-harness command additionally exports
 `CARGO_NET_OFFLINE=true` to its children and filters exactly
 `sync_config_child_build_catalog_metadata_511_512_513`; it completed in 33.85
-seconds. `/private/tmp/m7-metadata-catalog-boundaries-final.log` retains the
+seconds. `/private/tmp/bidder-catalog-metadata-catalog-boundaries-final.log` retains the
 result. This is not a claim that the other 91 harness tests ran.
 
 Guest commands use `cargo check --offline --locked -j2 -p auctioneer-config --lib
 --target <ABI>`, independently with and without `--features insecure-bidders`,
 for `wasm32-unknown-unknown`, `wasm32-wasip1` and `wasm32-wasip2`. Their logs use
-`m7-metadata-<ABI>-{secure,insecure}.log`. These compile the target-side
+`bidder-catalog-metadata-<ABI>-{secure,insecure}.log`. These compile the target-side
 arithmetic; they do not execute guest allocation tests or qualify physical fit.
 Final lint is `cargo clippy --workspace --all-targets --offline --locked -j2
 --features insecure-bidders,conformance-suite -- -D warnings`, recorded in
-`/private/tmp/m7-metadata-clippy-workspace-final.log`. Initial lint findings
+`/private/tmp/bidder-catalog-metadata-clippy-workspace-final.log`. Initial lint findings
 were repaired without exemptions; only the necessary test allocator retains
 its narrowly scoped unsafe exception. Existing GVL deletion notices and the
 tracked `proc-macro-error2` future-compiler warning remain.
@@ -127,4 +129,4 @@ Spec and quality reviewers found no remaining issues in this census-only slice;
 both reviews were static, with parent verification kept separate. This record
 does not claim a full workspace test run or a hosted CI/deployment result and
 does not complete Task 4, schema qualification, live registry cutover, physical
-WASM fit, hosted-provider qualification or M7.
+WASM fit, hosted-provider qualification or bidder catalog.

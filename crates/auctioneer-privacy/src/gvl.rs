@@ -26,8 +26,8 @@ use time::OffsetDateTime;
 /// the cache and holds it for the auction's lifetime, so an evicted
 /// entry's memory stays resident until the last clone drops. Cache-owned
 /// entries are bounded by this count times the worst-case parsed size; a
-/// byte-exact, retention-aware total-resident reservation is an M3b
-/// deliverable alongside the admission gate.
+/// total-resident reservation must also fund entries retained by outstanding
+/// auction handles, independently of the cache's entry count.
 ///
 /// Sized to 4: a ~4 MiB worst-case `Gvl` × 4 = ~16 MiB, comfortably
 /// inside the 128 MB isolate. The hot working set is 1-2 versions

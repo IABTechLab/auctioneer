@@ -795,7 +795,7 @@ mod tests {
     }
 }
 
-/// Independent classified-policy expectations, separate from the old M4 oracle.
+/// Independent classified-policy expectations, separate from the old privacy enforcement oracle.
 #[cfg(test)]
 mod classified_tests {
     use super::value::{AddressBuffer, Frames, Mutation, TransformScratch};

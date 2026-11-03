@@ -1,5 +1,7 @@
 # Second Failed Native Qualification Attempt
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Executed on 2026-10-15 against the committed
 [predeclared profile](../../fixtures/resource-qualification/native-axum-local-4bcc666.json).
 This attempt remains failed evidence, not acceptance or publisher readiness.
@@ -19,7 +21,7 @@ This attempt remains failed evidence, not acceptance or publisher readiness.
   Corrupt-config observation and debug completion require independent diagnosis.
 
 ```sh
-node scripts/qualify-resources.mjs --profile docs/testing/fixtures/resource-qualification/native-axum-local-4bcc666.json --output /private/tmp/auctioneer-m6-q2-measured-4bcc666 --source-commit 4bcc6663f746e4cf1a21241dfe1c40ebf713c446 --no-build
+node scripts/qualify-resources.mjs --profile docs/testing/fixtures/resource-qualification/native-axum-local-4bcc666.json --output /private/tmp/auctioneer-diagnostic-qualification-q2-measured-4bcc666 --source-commit 4bcc6663f746e4cf1a21241dfe1c40ebf713c446 --no-build
 ```
 
 Safe report/observations/runner files are retained byte-for-byte. They contain

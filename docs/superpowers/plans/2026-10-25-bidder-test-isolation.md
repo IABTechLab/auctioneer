@@ -1,5 +1,7 @@
 # Bidder Test Isolation Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Check off completed steps only after verification.
 
 **Goal:** Shared bidder tests use a capable synthetic bidder, not production bidder names, protocols, schemas or metadata.
@@ -71,7 +73,7 @@
 - Native production allocation runner: 29 passed (28 local cases plus the generated nonempty guard). Original 26 tests retain their assertions; splitting the three-owner aggregate loop yields two additional test entries.
 - Discovery: 78 passed, including actual rustc execution after synthetic conformance additions, edits, feature transitions and removal. Unix-socket controls require the existing unsandboxed native lane; their sandbox permission failure is not a code failure.
 - Synthetic compiler controls: 163 passed including support tests. Full original production-source qualification remains a separate required validation, not replaced by this result.
-- Logs are separate files under `/private/tmp/m7-fake-*` and `/private/tmp/m7-test-ownership-*`; these are interim results, not completion evidence for later edits.
+- Logs are separate files under `/private/tmp/bidder-catalog-fake-*` and `/private/tmp/bidder-catalog-test-ownership-*`; these are interim results, not completion evidence for later edits.
 
 ## Final Review Reconciliation
 
@@ -97,7 +99,7 @@
   semantically before their repair.
 - Independent source-preservation and architecture reviews report no remaining
   findings. Full publication checks below remain required; these reviews alone
-  do not establish target readiness or complete M7.
+  do not establish target readiness or complete bidder catalog.
 
 ## Final Verification
 
@@ -120,7 +122,7 @@ local Git checkout; no foreign source program was executed.
 | Workspace and discovered bidder formatting; staged diff whitespace    | Passed                                                                                                             |
 | Raw JSON fixture gate and its negative controls                       | Passed: 172 fixtures across 52 files; all rejection controls behaved                                               |
 
-The frozen suite logs are `/private/tmp/m7-isolation-*-complete.log`; guest and
+The frozen suite logs are `/private/tmp/bidder-catalog-isolation-*-complete.log`; guest and
 formatting logs use the same prefix. Earlier failed/intermediate logs are not
 the final acceptance record. An earlier CLI resource-identity run detected
 concurrent source edits and correctly refused; the frozen 251-test run passes
@@ -128,8 +130,8 @@ without weakening that check. Original GVL deletion notices and the existing
 `proc-macro-error2` future-incompatibility notice remain unchanged.
 
 These checks validate this isolation change, not hosted bidder delivery,
-complete schema-engine qualification, absolute guest memory fit or M7 closure.
+complete schema-engine qualification, absolute guest memory fit or bidder catalog closure.
 
-Published code commit `e826e10d` to `origin/m7-bidder-catalog`. A fresh CLI run
+Published code commit `e826e10d` to `origin/bidder-catalog`. A fresh CLI run
 against that committed tree also passed all 251 selected bidder tests, including
 the source-identity assertions. This follow-up records the completed publication.

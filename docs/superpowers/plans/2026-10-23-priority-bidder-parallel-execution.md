@@ -1,14 +1,16 @@
 # Priority Bidder Parallel Execution Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use subagent-driven-development and test-driven-development. The coordinator owns integration and publication; workers have disjoint bidder-owned write scopes.
 
-**Goal:** Finish M7's full selected-flow acceptance for all 14 priority bidders,
+**Goal:** Finish bidder catalog's full selected-flow acceptance for all 14 priority bidders,
 including Sharethrough/Rubicon, APS and the existing PubMatic audit/repair,
 without duplicating shared infrastructure or confusing protocol candidates
 with accepted publisher delivery.
 
 **Architecture:** One shared-capability owner and two bidder owners run concurrently
-where dependencies permit, in the existing M7 worktree. Bidder owners each own
+where dependencies permit, in the existing bidder catalog worktree. Bidder owners each own
 one `crates/auctioneer-bidder/src/bidders/<key>/` folder; the shared owner has an
 explicit disjoint module scope. The coordinator owns contract integration,
 documentation, serialized Cargo runs, independent reviews, commits and pushes. Automatic
@@ -29,29 +31,29 @@ and retain schema/resource, shared context/decoder and hosted-delivery gaps.
 
 ### 2026-10-26 Scope Correction
 
-AG approved M7 = foundations plus full 14-priority selected-flow acceptance,
-not full-catalog migration. Sharethrough and Rubicon remain required M7 work,
+AG approved bidder catalog = foundations plus full 14-priority selected-flow acceptance,
+not full-catalog migration. Sharethrough and Rubicon remain required bidder catalog work,
 including their bounded FX, credential, decoder and resource prerequisites;
 their source audits alone are not delivery. APS keeps its independent reviewed
 contract/evidence. No required priority-local branch, schema/resource gate or
-composed onboarding obligation is removed, weakened or transferred to M20.
+composed onboarding obligation is removed, weakened or transferred to remaining catalog closure.
 
-M20 retains the parent plan's Tasks 20/21 terminal full-catalog gates;
-M7 closure cannot wait for them. The 2026-10-27 amendment brings post-pilot
-bidder expansion forward into M7.7, with residual migration under M20. Preserve the
+remaining catalog closure retains the parent plan's Tasks 20/21 terminal full-catalog gates;
+bidder catalog closure cannot wait for them. The 2026-10-27 amendment brings post-pilot
+bidder expansion forward into bidder expansion, with residual migration under remaining catalog closure. Preserve the
 358-source inventory, 261 bases/schemas/bindings, 97 aliases and 259 source
 implementations. Imported metadata is not implementation. Default/normal
 `bidders check`, wave checks and full `--require-complete` semantics stay
 unchanged; full completion still refuses unfinished source rows/branches.
-M7 closes only at the parent plan's complete Task 19 foundation/priority gate,
+bidder catalog closes only at the parent plan's complete Task 19 foundation/priority gate,
 not a partial selected-flow check or protocol-candidate publication.
 
-M7.7 follows selected M7.5/M7.6 Trusted Server/publisher testing, before M8
+bidder expansion follows selected Trusted Server embedding/publisher pilot Trusted Server/publisher testing, before stored requests and accounts
 onward. Freeze a finite demand-led queue with reviewed source requirements and
 reuse the parent's Task 20 wave procedure. Its full-catalog terminal gate stays
-M20-only. Exact membership requires demonstrated requests/adoption, not guessed
+remaining catalog closure-only. Exact membership requires demonstrated requests/adoption, not guessed
 rankings; see the [roadmap](../../roadmap.md#2026-10-27-post-pilot-bidder-expansion).
-M7's 14-priority scope, M7.5/M7.6 and M8-M19 requirements, and R0 readiness
+bidder catalog's 14-priority scope, Trusted Server embedding/publisher pilot and stored requests through browser privacy compatibility requirements, and resource qualification readiness
 boundaries are unchanged. No selected wave can bypass schema/resource,
 promotion, composed acceptance or its own rollout requirements.
 Dated execution records below remain historical evidence, not acceptance of
@@ -115,7 +117,7 @@ own their conformance fixtures; shared rosters and protocol switches must not gr
 
 APS, Kargo and Triplelift already have protocol candidates; their uncompleted
 wire/resource/configuration/delivery work remains required, not restarted or
-declared complete by this queue. All 14 selected identities remain in M7 under
+declared complete by this queue. All 14 selected identities remain in bidder catalog under
 the [scope correction](#2026-10-26-scope-correction). Sharethrough/Rubicon's
 implemented protocol candidates still require complete selected-flow acceptance.
 
@@ -166,7 +168,7 @@ control not selected), 515 exchange-library tests, 271 core-library tests and
 Clippy for those three packages' libraries and tests, formatting, whitespace
 and the unchanged 172-fixture raw-JSON gate passed. Spec and quality reviews
 approved the slice after hint presence and video inventory were independently
-varied. These checks do not establish provider execution or complete M7.
+varied. These checks do not establish provider execution or complete bidder catalog.
 
 AG approved TTD's SupplyId disposition on 2026-10-24: use the first selected
 nonempty impression value, otherwise the resolved typed host setting. Missing,
@@ -263,7 +265,7 @@ Final local verification after lint cleanup and fixture-helper refactoring:
 
 Endpoint/alias metadata promotion, shared schema/resource qualification, composed
 privacy/deadline/gzip flows and publisher delivery remain open. Native unit,
-capture and allocation evidence does not satisfy those gates or R0 readiness.
+capture and allocation evidence does not satisfy those gates or resource qualification readiness.
 
 ## Shared Query Replacement (2026-10-24)
 
@@ -317,7 +319,7 @@ checks, formatting, whitespace and the unchanged 172-fixture raw-JSON gate
 passed. Independent source/spec and quality reviews found no remaining blocking
 issue in this slice. GVL deletion notices and the existing third-party future
 incompatibility warning remain. These are local checks, not hosted execution,
-M7 completion, MSFT acceptance or absolute WASM memory-fit qualification.
+bidder catalog completion, MSFT acceptance or absolute WASM memory-fit qualification.
 
 ## MSFT Protocol Candidate (2026-10-24)
 
@@ -377,8 +379,8 @@ Source/spec and independent quality reviews found no blocking protocol defect.
 Remaining priority implementation families are Criteo, OpenX, Sharethrough,
 Rubicon and PubMatic's source-specific repair. Their acceptance, all candidate
 metadata promotion, shared schema/resource qualification, composed privacy and
-original-deadline/gzip controls, full catalog migration and hosted M7.6 delivery
-remain open. Neither a discovered factory nor these native controls qualify R0.
+original-deadline/gzip controls, full catalog migration and hosted publisher pilot delivery
+remain open. Neither a discovered factory nor these native controls qualify resource qualification.
 
 Final local verification used offline/locked resolution and two build jobs:
 
@@ -399,7 +401,7 @@ Final local verification used offline/locked resolution and two build jobs:
   Clippy passed under `-D warnings`. The only new localized lint exception is the
   Serde-required reference predicate's explicit signature-based expectation.
 - Cloudflare, Fastly and Spin library checks passed on their
-  existing compiler targets. No provider execution, workload fit or R0 readiness
+  existing compiler targets. No provider execution, workload fit or resource qualification readiness
   is implied. Existing GVL deletion notices and the third-party future-compatibility
   warning remain distinct from new errors.
 - Workspace formatting, explicit discovered-module formatting, whitespace and
@@ -467,7 +469,7 @@ First-batch publication checkpoints:
 - [x] Publish the verified first batch.
 
 The implementation batch was committed and pushed as `aac6ba82` to
-`m7-bidder-catalog` for PR #21. This closes that integration round only;
+`bidder-catalog` for PR #21. This closes that integration round only;
 the three new public definitions remain unpromoted.
 
 The initial cohort run had 147 controls: 140 failed and seven passed, including
@@ -529,7 +531,7 @@ Source-only independent review found no new P1/P2 issue in either the shared
 presence changes or this bounded-header repair.
 
 These are scoped local checks, not a whole-workspace test result, complete
-schema qualification, publisher acceptance or readiness of any R0-blocked target.
+schema qualification, publisher acceptance or readiness of any resource qualification-blocked target.
 
 The PubMatic audit identified missing request wrapper/allowed-bidder handling,
 adslot/dimension and publisher selection, impression filtering, floors/keywords,
@@ -584,16 +586,16 @@ remain explicit shared work rather than bidder-local parser workarounds.
       affected test set immediately; do not reuse results across changed inputs.
 - [ ] Commit only reviewed, verified family changes plus their matching shared
       integration/evidence updates. Push each coherent completed round to the
-      existing M7 branch/PR; leave concurrent unfinished folders unstaged.
+      existing bidder catalog branch/PR; leave concurrent unfinished folders unstaged.
 - [ ] Reconcile the complete selected-flow set and actual original-deadline,
       privacy/context, runtime activation, schema/resource and delivery evidence
       before reporting priority completion. Require all 14 identities and all
       mandatory priority-local branches, plus current foundation/schema and
       four-target build/package/catalog-relative gates with native fit/headroom,
-      at the parent plan's Task 19 M7 closure. Keep partial in_progress rows
-      honest; do not shrink branch manifests to close M7. M20 Tasks 20/21 do
-      not gate M7. Parallel preparation makes neither checkpoint nor R0 ready;
-      M7.5 embedding and M7.6 credentialed delivery remain separate.
+      at the parent plan's Task 19 bidder catalog closure. Keep partial in_progress rows
+      honest; do not shrink branch manifests to close bidder catalog. remaining catalog closure Tasks 20/21 do
+      not gate bidder catalog. Parallel preparation makes neither checkpoint nor resource qualification ready;
+      Trusted Server embedding and publisher pilot credentialed delivery remain separate.
 
 ## OpenX Protocol Candidate (2026-10-26)
 
@@ -641,8 +643,8 @@ against the unchanged 7,144-byte allowance. Exact source restoration was
 checksum-verified; the restored owner/factory filter passed 50 tests plus
 all four owner allocation controls. No mutation hook remains.
 
-Logs use `/private/tmp/m7-openx-*.log`. The existing generic `source_objects_`
+Logs use `/private/tmp/bidder-catalog-openx-*.log`. The existing generic `source_objects_`
 CI selector discovers the new primary-source control without a provider roster.
 This completes the native protocol slice, not endpoint approval, public
-activation, full source parity, schema/resource qualification, absolute R0
+activation, full source parity, schema/resource qualification, absolute resource qualification
 readiness, hosted execution or the priority wave's selected-flow acceptance.

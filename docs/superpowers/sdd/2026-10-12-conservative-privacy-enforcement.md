@@ -7,9 +7,9 @@ named user-FPD branches on COPPA requests, and apply enabled CCPA ID/geo scrubbi
 to malformed selected nonempty USP. These are product decisions, not an
 IAB-prescribed deletion list, malformed-input mandate, or legal approval.
 
-Implemented on `m4-privacy`, based on `36e87e1`, under the
+Implemented on `privacy-enforcement`, based on `36e87e1`, under the
 [implementation plan](../plans/2026-10-12-conservative-privacy-enforcement.md).
-Main, M5 and M6 are not changed. Earlier pending-policy evidence is superseded;
+Main, user sync and diagnostic qualification are not changed. Earlier pending-policy evidence is superseded;
 its historical verification results are not presented as new checks.
 
 ## Implementation
@@ -91,5 +91,5 @@ the parent-executed verification commands above.
 
 Committed and pushed code, tests, specs, coverage and plan/evidence documents as
 `9e5df6d20a33ec44c8776c7ddbf3030b9398015f`. `git ls-remote origin
-refs/heads/m4-privacy` returned that exact SHA after the successful push. This
+refs/heads/privacy-enforcement` returned that exact SHA after the successful push. This
 publication-record update is a subsequent documentation-only commit.

@@ -358,7 +358,7 @@ pub fn classify_endpoint_authority(endpoint: &str) -> EndpointAuthorityKind {
 /// stable codegen output. Each name is returned
 /// WITHOUT the surrounding `{{` / `}}` and WITHOUT the leading `.`
 /// (e.g. `"AccountID"`, not `"{{.AccountID}}"`), matching the form
-/// the M2 plan pins for `BidderRequestInfo.endpoint_macros` and
+/// the auction core plan pins for `BidderRequestInfo.endpoint_macros` and
 /// `EndpointBuilder` consumption.
 ///
 /// The special `{{.Host}}` authority macro is EXCLUDED — it is the

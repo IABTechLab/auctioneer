@@ -79,7 +79,7 @@ the priority execution record and `ISSUES.md`.
       catalog, allocation, strict lint, formatting and three guest-library checks.
 - [x] Record actual results and remaining readiness boundaries.
 
-Publication procedure: commit and push the coherent round to the existing M7
+Publication procedure: commit and push the coherent round to the existing bidder catalog
 PR after these checks. Restore parked unfinished work only after the verified
 publication, not into its claim.
 
@@ -134,6 +134,6 @@ single-family source command with the common `source_objects_` selector, which
 executes both primary-source controls without growing a bidder roster. Its
 required-command guards failed before the workflow update and passed afterward.
 `ISSUES.md`, bidder rules and the priority execution queue record this completed
-channel without claiming public activation, full source parity, complete M7,
+channel without claiming public activation, full source parity, complete bidder catalog,
 absolute target readiness or live provider authorization. The parked OpenX draft
 remains preserved separately and is not part of this verified publication.

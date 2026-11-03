@@ -1,6 +1,8 @@
 # Schema Matcher Comparison Plan
 
-> **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Serialize Cargo in the existing M7 worktree.
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+> **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Serialize Cargo in the existing bidder catalog worktree.
 
 **Goal:** Obtain reproducible native comparison evidence for the current meta matcher and the locked library's direct PikeVM, without selecting a production engine.
 
@@ -128,7 +130,7 @@ speedup from those readings. Increased batching does not guarantee precision.
 
 ## Verification And Disposition
 
-Executed in the M7 worktree on 2026-10-27 with Rust 1.98.1 and the locked
+Executed in the bidder catalog worktree on 2026-10-27 with Rust 1.98.1 and the locked
 dependencies. Cargo jobs were serialized; host scheduling was not isolated.
 
 - The final `schema_source_conformance schema_m` selection passed 35 tests under
@@ -163,4 +165,4 @@ dependencies. Cargo jobs were serialized; host scheduling was not isolated.
 Warm search and fresh-cache setup show different tradeoffs; PikeVM memory is
 not uniformly smaller. The [results](../../bidders/schema-qualification.md#native-matcher-comparison-2026-10-27)
 retain both optimized records and state what remains unproven. This checkpoint
-finishes the approved comparison, not schema resource qualification or M7.
+finishes the approved comparison, not schema resource qualification or bidder catalog.

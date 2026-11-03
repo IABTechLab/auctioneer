@@ -334,7 +334,7 @@ impl RuntimeConfigError {
 ///   type. THIS pair is the ambiguous one: "no blob pushed yet" and
 ///   "blob is malformed" arrive as the same opaque variant, and the
 ///   first is a legitimate fresh-deploy state. Degrades with a WARN
-///   naming the milestone, so an operator grepping logs sees why.
+///   naming the fallback reason, so an operator grepping logs sees why.
 ///   Tightening it needs a typed store error `EdgeZero` does not
 ///   expose yet. The list of failures folded into this variant is
 ///   upstream's to grow, and it HAS grown: the pin's optional
@@ -1082,7 +1082,7 @@ mod tests {
     }
 
     /// The rejected-key reason has to travel the REAL extractor path.
-    /// M3b reaches it as `StoreExtractionReason::InvalidKey`, which the
+    /// bounded fanout reaches it as `StoreExtractionReason::InvalidKey`, which the
     /// classifier used to group with the malformed family — a test
     /// building an `EdgeError::BadRequest` by hand would pass while the
     /// shipped path still reported `malformed_config`.

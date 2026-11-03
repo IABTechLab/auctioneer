@@ -92,7 +92,7 @@ jobs:
         run: spin build
 
       # Exact measurement of the component the manifest points at, per
-      # the M3b spec. wasm32-wasip2, not wasip1.
+      # the bounded fanout spec. wasm32-wasip2, not wasip1.
       - name: Measure the built component
         id: size
         run: bash .github/workflows/scripts/ci-spin/measure-component.sh

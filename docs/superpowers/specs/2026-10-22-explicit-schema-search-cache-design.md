@@ -1,5 +1,7 @@
 # Explicit Schema Search Caches
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Status: written contract approved by AG on 2026-10-22. The opt-in compiler API
 is implemented; verification is recorded in the [plan](../plans/2026-10-22-explicit-schema-search-cache.md).
 Complete resource qualification is pending. This does not approve serving integration, new workload limits,
@@ -160,11 +162,11 @@ Update the upgrade instructions and resolved-source controls together. No
 source-schema or external expected-output capture changes are permitted.
 
 Name the source/build cohort before reporting this candidate qualified. Under
-the [2026-10-29 shipped-schema amendment](2026-10-29-m7-shipped-schema-qualification-design.md),
-M7 resource acceptance covers its complete target/feature-specific `S`, not
+the [2026-10-29 shipped-schema amendment](2026-10-29-shipped-schema-qualification-design.md),
+bidder catalog resource acceptance covers its complete target/feature-specific `S`, not
 unshipped catalog backends. Keep all-source compatibility controls below.
-Newly reachable strategies require qualification before their M7.7 wave;
-M20 owns residual universal catalog resource closure. A needed M7 owner cannot
+Newly reachable strategies require qualification before their bidder expansion wave;
+remaining catalog closure owns residual universal catalog resource closure. A needed bidder catalog owner cannot
 be deferred, and observations cannot replace its required bound.
 
 Required controls for that named qualification claim:
@@ -183,7 +185,7 @@ Required controls for that named qualification claim:
    prove the explicit path does not call pooled matching or clone the regex.
 4. Independently derived bounds cover every generated schema and reachable
    retained strategy in `S`, including custom formats and disabled shipped
-   definitions. Universal all-261 resource coverage is the M20 closure target,
+   definitions. Universal all-261 resource coverage is the remaining catalog closure closure target,
    reached through the same checks on each intervening expansion wave.
    Cold, growth, warm, alternating
    validator and concurrent positive controls test the derivation; deliberately

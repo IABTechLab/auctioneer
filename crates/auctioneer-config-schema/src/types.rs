@@ -1,17 +1,9 @@
 //! Runtime config types.
 //!
-//! M1 scope (intentionally narrow): captures the bidder-info and
-//! host-default fields the foundation crates need TODAY to compile and
-//! test. The broader host schema — `gdpr.host_vendor_id`, the full
-//! `host_cookie.{cookie_name,family,opt_out,domain,max_size}`, host
-//! `user_sync.*`, RFC 7396 merge surface — is **explicitly deferred to
-//! M2 / M5 (`cookie_sync`)** plan tasks where the consuming handler
-//! exists to drive the type's exact shape. Adding those fields in M1
-//! with no consumer would just be schema sketching; only capture what
-//! M2/M5 already consumes (`capabilities`, syncer URLs,
-//! `gpp-supported`, `status_response`, `resource_limits`, account
-//! defaults). Privacy / activity / RFC 7396 merge land in
-//! `auctioneer-privacy` from M3+.
+//! Typed host, account and bidder configuration shared by build-time defaults
+//! and runtime resolution. These declarations include auction, privacy,
+//! activity, user-sync and resource settings without depending on the engine
+//! or provider handlers that consume them.
 
 use super::activity::ActivityConfigs;
 pub use super::usersync::{
@@ -363,7 +355,7 @@ pub struct BidderInfo {
     /// The set of `{{...}}` macro names that appear in this bidder's
     /// `endpoint` template, extracted by codegen from the TOML at
     /// build time. Stored without surrounding braces or leading `.`
-    /// (e.g. `["AccountID", "PublisherID"]`) so M2's
+    /// (e.g. `["AccountID", "PublisherID"]`) so auction core's
     /// `BidderRequestInfo.endpoint_macros` and `EndpointBuilder` can
     /// consume it as a flat allow-list. Empty for fixed-host endpoints
     /// with no path/query macros; the special `{{.Host}}` authority
@@ -371,14 +363,14 @@ pub struct BidderInfo {
     pub endpoint_macros: Vec<String>,
     pub maintainer_email: Option<String>,
     /// Per-inventory media-type support from `capabilities.*.mediaTypes`
-    /// in the bidder TOML. Consumed by the M2 exchange to filter bidders
+    /// in the bidder TOML. Consumed by the auction core exchange to filter bidders
     /// against the incoming `site` / `app` / `dooh` shape.
     pub capabilities: Capabilities,
     /// `userSync` block from the TOML. Empty when the bidder ships no
-    /// syncer. Consumed by `/cookie_sync` (M5+).
+    /// syncer. Consumed by `/cookie_sync` (user sync).
     pub user_sync: SyncerConfig,
     /// OpenRTB-level capabilities (version, GPP support, etc.) from the
-    /// `openrtb` block. Consumed by the M2 exchange when forwarding the
+    /// `openrtb` block. Consumed by the auction core exchange when forwarding the
     /// request shape.
     pub openrtb: OpenRtbCapabilities,
 }

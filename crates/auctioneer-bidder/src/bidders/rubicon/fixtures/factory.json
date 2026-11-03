@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "implementation": "rubicon",
-  "manifest_sha256": "4c6c0181cfd81c0ed16d3ba439ba1b6e414d7b098853bf40539231f6d779a61e",
+  "manifest_sha256": "b0a7e55c0e5bee88c2c3dc3410ca7da078352d7ce5eaac6220848c454609eb1e",
   "cases": [
     {
       "name": "credentialed-banner-and-source-response-metadata",

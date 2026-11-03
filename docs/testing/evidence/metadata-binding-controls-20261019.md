@@ -1,8 +1,10 @@
 # Explicit Metadata Binding Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-19
-Branch: `m7-bidder-catalog`, based on `52dd63f3`
-Scope: the data-only binding-generation part of M7 Task 6, not its full cutover.
+Branch: `bidder-catalog`, based on `52dd63f3`
+Scope: the data-only binding-generation part of bidder catalog Task 6, not its full cutover.
 
 ## Build Contract
 
@@ -115,7 +117,7 @@ plus `--test ci_workflows`. Guest checks use `cargo check --offline --locked
 --target wasm32-wasip2`, separately with `--features insecure-bidders`.
 These are library compilation checks, not artifact links or guest execution.
 
-Parent logs are `/private/tmp/m7-bindings-*-final.log`; the failed controls
+Parent logs are `/private/tmp/bidder-catalog-bindings-*-final.log`; the failed controls
 and initial lint failures remain in separate scratch logs. Independent spec
 and quality reviews approved this bounded increment after the inactive-row
 and diagnostic repairs. Existing GVL deletion notices and the tracked
@@ -131,6 +133,6 @@ declarations, consume these bindings in the live registry, remove its generic
 fallback, approve schema or endpoint policy, or promote an imported identity.
 Schema/alias/routing DTOs, generated target-layout bounds, catalog aggregation,
 startup precharging, incremental lifecycle acceptance and full Task 6/7
-completion retain their planned owners. R0 absolute fit and M7.6 deployed
+completion retain their planned owners. resource qualification absolute fit and publisher pilot deployed
 qualification remain open. No workload, budget coefficient, SDK/toolchain pin,
 reference capture, dependency declaration or historical report was changed.

@@ -1,5 +1,7 @@
 # Patched-Lock Catalog Continuity
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-21
 Source checkpoint: `7286bedfd1f1999edae9a5e3e5665b1f95117541`
 Scope: matched accounting, not physical residency or catalog qualification.
@@ -18,7 +20,7 @@ Each file is 131,237 bytes. The new file is actual output of the existing
 `bidders resources --check --all-adapters --capture-audit` command, not an
 edited historical record or a synthetic report. Two independent invocations
 at the clean code checkpoint produced byte-identical output. Its capture log
-is `/private/tmp/m7-catalog-lock-continuity-capture.log`.
+is `/private/tmp/bidder-catalog-catalog-lock-continuity-capture.log`.
 
 The SDK, compiler, tool declarations, features, ABI/layout labels, all resource
 limits and the shared equation are unchanged. The lock moves from
@@ -88,7 +90,7 @@ qualified zero-cost bounds. Actual code/data/heap increments still require
 qualified records against the retained original source basis, including work
 introduced before the new capture. No serving registry, validator, bidder,
 workload limit or runtime budget changes in this increment. Full Task 4,
-schema qualification, guest observations and M7-R0 readiness remain open.
+schema qualification, guest observations and resource qualification readiness remain open.
 
 ## Verification
 
@@ -126,20 +128,20 @@ checkout_filters_preserve_byte_pinned_catalog_and_resource_fixtures`.
 Only incremental caching is disabled to limit disk growth: toolchain, profiles,
 debug information, production limits and accounting coefficients are unchanged.
 
-Final test logs are `/private/tmp/m7-catalog-continuity-unit-verified-secure.log`,
-`/private/tmp/m7-catalog-continuity-cli-verified-secure.log`,
-`/private/tmp/m7-catalog-continuity-unit-verified-features.log`,
-`/private/tmp/m7-catalog-continuity-cli-verified-features.log` and
-`/private/tmp/m7-catalog-continuity-checkout.log`. RED/mutation logs are
-`/private/tmp/m7-catalog-continuity-red.log`,
-`/private/tmp/m7-catalog-continuity-loader-red.log` and
-`/private/tmp/m7-catalog-continuity-first-row-mutation.log`.
+Final test logs are `/private/tmp/bidder-catalog-catalog-continuity-unit-verified-secure.log`,
+`/private/tmp/bidder-catalog-catalog-continuity-cli-verified-secure.log`,
+`/private/tmp/bidder-catalog-catalog-continuity-unit-verified-features.log`,
+`/private/tmp/bidder-catalog-catalog-continuity-cli-verified-features.log` and
+`/private/tmp/bidder-catalog-catalog-continuity-checkout.log`. RED/mutation logs are
+`/private/tmp/bidder-catalog-catalog-continuity-red.log`,
+`/private/tmp/bidder-catalog-catalog-continuity-loader-red.log` and
+`/private/tmp/bidder-catalog-catalog-continuity-first-row-mutation.log`.
 Standalone reports are scratch files at
-`/private/tmp/m7-catalog-continuity-verified-{report,strict-report}.json`;
+`/private/tmp/bidder-catalog-catalog-continuity-verified-{report,strict-report}.json`;
 `cmp` verified their exact equality. They are not captured deployment evidence.
 The final matching-build command was compiled and run again after both selected
 feature-mode suites; its build log is
-`/private/tmp/m7-catalog-continuity-verified-command.log`.
+`/private/tmp/bidder-catalog-catalog-continuity-verified-command.log`.
 
 The final selected suites were rerun after representation-only hexadecimal
 literal corrections required by the existing lint. No value, assertion,
@@ -147,11 +149,11 @@ production coefficient or allowance changed, and no suppression was added.
 The full lint command is `CARGO_INCREMENTAL=0 cargo clippy --offline --locked
 -j2 --workspace --all-targets --features insecure-bidders,conformance-suite --
 -D warnings`; its log is
-`/private/tmp/m7-catalog-continuity-clippy-verified.log`. Existing GVL deletion
+`/private/tmp/bidder-catalog-catalog-continuity-clippy-verified.log`. Existing GVL deletion
 notices and Cargo's third-party `proc-macro-error2` future-incompatibility
 notice remain; neither prevented the command's successful exit.
 
 Read-only spec and code-quality reviews approved this arithmetic-only
 increment; the parent executed verification. No full workspace test run,
 guest execution, hosted CI success, credentialed deployment, physical-memory
-qualification, completed M7 or R0 readiness is claimed.
+qualification, completed bidder catalog or resource qualification readiness is claimed.

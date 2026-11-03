@@ -86,7 +86,7 @@ correspondence remain open independently of this refactor.
 ## Publication
 
 Implementation commit `ae6c9fbbcf095ee4eb43807775fb08e773f1576c` was pushed to
-`origin/m7-bidder-catalog`. Against that committed source state, the exact CLI
+`origin/bidder-catalog`. Against that committed source state, the exact CLI
 test `bidders::resources::tests::report_uses_normalized_baked_inputs_and_all_runtime_owned_terms`
 rebuilt and passed (1 passed, 0 failed, 711 filtered out). This checks the
 reporter's current source/input binding; it is not a full CLI-suite run or

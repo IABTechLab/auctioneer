@@ -1,5 +1,7 @@
 # APS Priority Integration
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Status: implementation decisions approved by AG on 2026-10-23; Rust protocol
 candidate and local fixture/raw-admission controls implemented. Metadata
 promotion, complete qualification and delivery acceptance remain pending.
@@ -35,7 +37,7 @@ generate expected protocol output by executing Auctioneer itself.
 ## Protocol Contract
 
 Use `src/bidders/aps/` and its adjacent declaration in `auctioneer-bidder`.
-The approved [single-folder contract](2026-10-16-m7-bidder-catalog-design.md#catalog-storage)
+The approved [single-folder contract](2026-10-16-bidder-catalog-design.md#catalog-storage)
 also puts effective metadata, schema associations and source/capture provenance
 in APS's owning TOML. The coordinated asset cutover removed the former JSON
 provenance consumer. Under the approved 2026-10-24 metadata boundary, APS keeps
@@ -107,7 +109,7 @@ semantics from stricter shared safety admission.
 - No adapter-specific credential lookup, Authorization header or SigV4 flow
   is evidenced by this source. `accountID` is a routing/account parameter, not
   proof of live access. Do not invent authentication; hosted acceptance remains
-  in the separately authorized publisher-pilot milestone.
+  in the separately authorized publisher-pilot capability.
 - Source mock fixtures establish compatibility expectations, not live endpoint
   acceptance. Preserve the original fixtures and explicitly record Auctioneer
   expected outputs for reviewed intentional differences.

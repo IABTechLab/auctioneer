@@ -1,8 +1,10 @@
 # Bidder Evidence Run Scope Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Execute with red/green controls and separate specification and quality reviews.
 
-**Goal:** Implement the first executable run-scoped evidence checkpoint in M7
+**Goal:** Implement the first executable run-scoped evidence checkpoint in bidder catalog
 Task 16 without granting migration or foundation acceptance.
 
 **Architecture:** The existing CLI owns a fixed reference-integrity producer.
@@ -18,7 +20,7 @@ pinned Git source inspector and source snapshots.
 ## Scope And Authority
 
 This executes a subset of the approved
-[M7 Task 16](2026-10-16-m7-bidder-catalog.md#task-16-evidence-derived-migration-checking),
+[bidder catalog Task 16](2026-10-16-bidder-catalog.md#task-16-evidence-derived-migration-checking),
 not a replacement completion contract. The reference-integrity producer executes
 one operation, `inspect_reference_inventory`: fresh pinned source inspection and
 complete inventory comparison using existing code. Its receipt reports one
@@ -110,7 +112,7 @@ only if a reusable byte-parsing boundary is needed.
 - [x] Obtain source/spec review, fix issues, then independent quality review.
   Re-run affected controls after fixes. Do not mark full Task 16 complete.
 - [x] Record unimplemented acceptance and producer requirements explicitly,
-  commit the verified checkpoint and push `m7-bidder-catalog`.
+  commit the verified checkpoint and push `bidder-catalog`.
 
 ## Verification Record
 

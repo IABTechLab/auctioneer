@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Execute the checkboxes in order and preserve the existing harness contracts.
 
-**Goal:** Reuse the existing bounded native process and file controls for M7's
+**Goal:** Reuse the existing bounded native process and file controls for bidder catalog's
 evidence commands without copying them or making maintenance tools depend on
 embedded application data.
 
@@ -10,7 +10,7 @@ embedded application data.
 library and keep qualification-specific orchestration and DTOs in the binary.
 Both future evidence commands and existing qualification commands consume the
 same explicit library API. This is a prerequisite of the already-approved
-[Task 16](2026-10-16-m7-bidder-catalog.md#task-16-evidence-derived-migration-checking),
+[Task 16](2026-10-16-bidder-catalog.md#task-16-evidence-derived-migration-checking),
 not evidence-driver completion or permission to certify unfinished work.
 
 **Tech Stack:** Existing Rust 1.98.1, Tokio, futures, Serde, SHA-256, rustix and
@@ -119,7 +119,7 @@ use auctioneer_cli::native_control::{io, process};
       `src/lib.rs`; other binary/integration owners retain their current roots.
       Preserve every family, named test and rejection control. Add positive and
       negative library-owner controls, without teaching the resolver to follow
-      re-exports or private-source imports. Keep the historical M6 plan intact.
+      re-exports or private-source imports. Keep the historical diagnostic qualification plan intact.
 - [x] Transfer the raw-fixture allowance to the new `io.rs` path with its
       unchanged count **12**, not the naive grep count. Do not reformat or
       re-pin frozen captures.
@@ -208,4 +208,4 @@ Existing GVL deletion notices and the dependency future-incompatibility warning
 remain unrelated. No engine, SDK/toolchain or dependency pin, workload, ceiling,
 funding coefficient, qualification wire format or historical artifact changed.
 This is not Task 16 producer/checker completion, schema qualification, provider
-readiness, or M7/R0 closure.
+readiness, or bidder catalog/resource qualification closure.

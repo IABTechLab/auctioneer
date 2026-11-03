@@ -357,7 +357,7 @@ fn check_retention_flags(max_age_days: u32, allow_oversize_bundle: bool) -> anyh
         bail!(
             "--max-age-days {max_age_days} exceeds 180; pass --allow-oversize-bundle to \
              acknowledge extended retention (the raw-bundle cap still applies — see the \
-             M3a plan's retention policy)"
+             GDPR fanout plan's retention policy)"
         );
     }
     Ok(())

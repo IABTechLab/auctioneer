@@ -86,6 +86,6 @@ default instead of the supplied row; the corrected envelopes pass.
 The live native total is 2,536,789,752 bytes with 1,758,177,544 bytes of declared
 margin. This is accounting, not a new physical measurement. Guest ceilings and
 readiness blockers are unchanged. No historical evidence/capture is rewritten,
-and none of these results imply provider readiness or complete M7 delivery.
+and none of these results imply provider readiness or complete bidder catalog delivery.
 Existing deleted-vendor build notices and the `proc-macro-error2` future-
 incompatibility warning remain; no new lint suppression was added.

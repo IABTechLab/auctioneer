@@ -1,5 +1,7 @@
 # Kargo Protocol Candidate Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Keep protocol implementation separate from activation and migration evidence.
 
 **Goal:** Port the Kargo protocol named by the existing priority-wave contract,
@@ -104,14 +106,14 @@ No pending human review, Task 18A/18B acceptance or full migration is invented.
       verification, discovery/join/import/config controls, target compilation,
       strict lint, formatting and fixture gates. Report exact scopes and limits.
 - [x] Update `ISSUES.md` and priority-plan progress, commit and push the verified
-      candidate to the existing M7 PR. Do not claim new serving activation, complete
-      parameter validation, full migration, live-provider evidence or R0 readiness.
+      candidate to the existing bidder catalog PR. Do not claim new serving activation, complete
+      parameter validation, full migration, live-provider evidence or resource qualification readiness.
 
 ## Verification Record: 2026-10-23
 
 Published implementation: `8b8e83246b9b8d463225e5435f91b105f3a36728` on the
-existing `m7-bidder-catalog` branch and PR #21. This completes this candidate
-increment, not either wave-acceptance checkpoint or the overall milestone.
+existing `bidder-catalog` branch and PR #21. This completes this candidate
+increment, not either wave-acceptance checkpoint or the overall capability.
 
 All runs used Rust 1.98.1, the unchanged lockfile and SDK pin, offline locked
 Cargo with two build jobs and incremental compilation disabled. Secure and

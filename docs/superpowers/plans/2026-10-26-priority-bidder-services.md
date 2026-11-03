@@ -1,8 +1,10 @@
 # Priority Bidder Services Implementation Plan
 
-> **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Keep Cargo verification serialized in the existing M7 worktree. Units stay inline; cross-module controls use synthetic bidders.
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
 
-**Goal:** Complete the shared floor-conversion and coherent-credential prerequisites needed by the remaining priority bidders, without bringing the full M9 currency product into M7.
+> **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Keep Cargo verification serialized in the existing bidder catalog worktree. Units stay inline; cross-module controls use synthetic bidders.
+
+**Goal:** Complete the shared floor-conversion and coherent-credential prerequisites needed by the remaining priority bidders, without bringing the full shared auction foundations currency product into bidder catalog.
 
 **Architecture:** Borrow operator-configured rates from the existing validated configuration snapshot. The exchange requests a bounded credential bundle only for an admitted bidder that declares the need; core supplies the existing EdgeZero secret-store implementation. Bidder transforms remain synchronous and provider-independent.
 
@@ -11,12 +13,12 @@
 ## Approved Boundary
 
 AG approved these scoped prerequisites on 2026-10-26. All 14 priority flows
-remain M7 requirements; moving other catalog migrations to M20 does not remove
+remain bidder catalog requirements; moving other catalog migrations to remaining catalog closure does not remove
 Sharethrough, Rubicon, schema/resource qualification, or composed acceptance.
 
 - Rates are explicit USD-per-unit values, not inferred market data. No external
   rate fetcher, bid-response currency conversion, or price relabeling is added.
-  Those remain M9 work. Existing non-USD response rejection remains unchanged.
+  Those remain shared auction foundations work. Existing non-USD response rejection remains unchanged.
 - A rate snapshot has an explicit expiry and bounded, strict currency-code/rate
   entries. Lookups borrow the snapshot, allocate nothing, and reject missing,
   stale, non-finite, overflowing or positive-underflowing conversions. USD
@@ -48,7 +50,7 @@ Sharethrough, Rubicon, schema/resource qualification, or composed acceptance.
 - [x] Verify harness, ownership, reference and boot-parity targets: 8/5/2/5 passed.
 - [x] Publish this small restoration separately from serving changes (`4b8d4f1a`).
 
-The subsequently exercised roster gate also needed its historical M3b plan
+The subsequently exercised roster gate also needed its historical bounded fanout plan
 restored/excluded. Its baseline and all planted rejection controls passed;
 the repair shipped with the scope correction in `b49f2252`.
 
@@ -125,7 +127,7 @@ resource-construction descriptor owners and their existing tests.
   constants/measurements and boot-versus-strict equality; do not borrow unused
   privacy/config funds or rewrite old evidence to make a new artifact fit.
 - [x] Verify current native and all three provider compilation/resource rows,
-  preserving R0's explicit absolute readiness blockers.
+  preserving resource qualification's explicit absolute readiness blockers.
 
 These service controls exercise the bidder's pure parameter preflight, not the
 unimplemented generated-schema survivor boundary. Parent Task 12 remains a
@@ -163,7 +165,7 @@ decoder helpers only where a real protocol branch requires them.
   Routing and no-work controls pass; the owning manifest records the exact
   complete-host policy. No default region, user-geo routing or failover is added.
   Public definitions remain empty. Prospective activation stays disabled by
-  default, and live provider authorization remains M7.6 work; a synthetic
+  default, and live provider authorization remains publisher pilot work; a synthetic
   endpoint test is not that authorization or composed App acceptance.
 - [x] For each: constructor and response allocation controls, immutable provenance,
   secure/feature builds and source review. Candidate code is not promotion.
@@ -173,7 +175,7 @@ decoder helpers only where a real protocol branch requires them.
 ## Task 6: Review And Publish The Complete Priority Checkpoint
 
 **Files:** existing priority wave/producer owners, selected handler acceptance,
-schema/resource qualification records, `ISSUES.md` and the main M7 plan.
+schema/resource qualification records, `ISSUES.md` and the main bidder catalog plan.
 
 - [ ] Complete required schema/work/cache qualification and funded serving joins;
   a passing protocol unit cannot waive them.
@@ -181,13 +183,13 @@ schema/resource qualification records, `ISSUES.md` and the main M7 plan.
   nonempty expected calls/bids, post-scrub wire checks, sibling isolation,
   runtime activation and bounded signed sync where supported.
 - [ ] Bind fresh evidence to current code/config/schema/SDK/target identities.
-  Keep priority completion separate from M20's full 358-source closure and from
-  R0 fit, M7.5 embedding and M7.6 live acceptance.
+  Keep priority completion separate from remaining catalog closure's full 358-source closure and from
+  resource qualification fit, Trusted Server embedding and publisher pilot live acceptance.
 - [ ] Freeze the publication tree, run secure and feature tests, strict Clippy,
   formatting/raw-fixture controls and matched resource checks, then obtain
   independent spec and quality reviews before commit/push.
 
-Do not mark this plan or M7 complete because the roadmap moved the long tail.
+Do not mark this plan or bidder catalog complete because the roadmap moved the long tail.
 
 ## Verified Service Checkpoint: 2026-10-27
 
@@ -236,8 +238,8 @@ physical provider qualification or newly measured deployment evidence.
 
 Task 6 remains open. Generated-schema admission, qualified schema work/cache and
 catalog descriptors, regional/public-definition promotion, all 14 composed
-priority flows and their current executable evidence still belong to M7. R0
-absolute/provider readiness, M7.5 embedding and M7.6 live delivery remain distinct.
+priority flows and their current executable evidence still belong to bidder catalog. resource qualification
+absolute/provider readiness, Trusted Server embedding and publisher pilot live delivery remain distinct.
 
 ## Funded Handler And Rewarded-Signal Follow-Up
 
@@ -296,7 +298,7 @@ Logs use `/tmp/auctioneer-services-followup-*`, with the two mutation controls i
 workload cap, resource ceiling, production dispatch or qualification artifact
 changed. Guest checks are compilation, not release-package, stack/RSS or hosted
 execution evidence. Existing GVL notices and the dependency future-incompatibility
-warning remain. This is not a whole-workspace test run or M7 closure.
+warning remain. This is not a whole-workspace test run or bidder catalog closure.
 
 ## Consumed-Field Admission Follow-Up
 
@@ -345,4 +347,4 @@ tracked dependency future-incompatibility warning remain. Guest checks are
 compilation, not release-package, physical-memory or live-provider evidence.
 Generated-schema survivor admission, complete schema/work/cache qualification,
 regional/public-definition promotion, all 14 composed flows and Task 6 remain
-open. No regex-engine change or M7 completion claim follows from this repair.
+open. No regex-engine change or bidder catalog completion claim follows from this repair.

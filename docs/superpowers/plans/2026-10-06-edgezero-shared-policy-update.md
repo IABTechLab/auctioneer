@@ -1,6 +1,8 @@
 # EdgeZero Shared Policy Update
 
-Update the existing milestone stack to EdgeZero PR 275 at
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+Update the existing capability stack to EdgeZero PR 275 at
 `91f4af38821de3454dafff75803ea6fea65efb8b`, replacing
 `950cb81d406d0dc269baf94314547329a4c1cef0`. Preserve SDK-owned transport,
 ingress, config resolution and egress. Do not enable the new optional
@@ -15,12 +17,12 @@ reusable application lifecycle or change the production resource caps.
       changes against Auctioneer's actual integration paths.
 - [x] Run fresh native integration, strict Clippy, resource guards,
       conformance and provider-target compilation checks.
-- [x] Push M3b and synchronize M4, M5 and M6 without changing main.
+- [x] Push bounded fanout and synchronize privacy enforcement, user sync and diagnostic qualification without changing main.
 - [x] Verify SDK-update remote heads and report merge readiness and CI gaps.
 
 ## CI Status At Start
 
-M3b PR 15 at `7d0fa9957408b4516286723ede828875928254fb` has failed checks,
+bounded fanout PR 15 at `7d0fa9957408b4516286723ede828875928254fb` has failed checks,
 but the jobs have no executed steps. The GitHub check annotation states
 that jobs were not started because recent account payments failed or the
 spending limit needs increasing. This is a runner/account block, not a
@@ -65,7 +67,7 @@ All commands used the new locked SDK revision and offline dependencies.
 
 | Check                                                                              | Result                                                |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| M3b workspace/all-target compilation                                               | Passed                                                |
+| bounded fanout workspace/all-target compilation                                               | Passed                                                |
 | Core/exchange libraries and SDK-sensitive integration targets                      | 439 passed                                            |
 | Core/exchange libraries, codec guard and config allocation with `insecure-bidders` | 350 passed                                            |
 | Real TCP cancellation and production-wave transport probes                         | 9 passed                                              |
@@ -79,8 +81,8 @@ All commands used the new locked SDK revision and offline dependencies.
 | Spin `wasm32-wasip2` compilation                                                   | Passed                                                |
 | Formatting, whitespace, batch, roster and raw-JSON guards                          | Passed, including negative fixture suites             |
 | Resolved SDK capability enumeration                                                | All 23 capabilities present; support levels unchanged |
-| M4, M5 and M6 workspace/all-target compilation                                     | Passed                                                |
-| M5 codec, user-sync lifecycle/resource/route integration targets                   | 24 passed                                             |
+| privacy enforcement, user sync and diagnostic qualification workspace/all-target compilation                                     | Passed                                                |
+| user sync codec, user-sync lifecycle/resource/route integration targets                   | 24 passed                                             |
 
 The 439-test run selected `--lib` and these integration targets from core
 and exchange: `config_parse_factor`, `config_envelope_value_factor`,
@@ -94,26 +96,26 @@ full-workspace sweep. The expensive config subprocess harness, release
 performance/package-size qualification and hosted-provider tests were not
 rerun. Previous broad-run evidence remains in its own dated record.
 
-Initial downstream checks reused M5's target directory for M4 and failed
-on stale M4 generated-config types and runtime exports. Clearing only the
-`auctioneer-config` and `auctioneer-runtime` build artifacts restored M5 compilation;
-M6 compilation passed with its own target directory. No source repair was
+Initial downstream checks reused user sync's target directory for privacy enforcement and failed
+on stale privacy enforcement generated-config types and runtime exports. Clearing only the
+`auctioneer-config` and `auctioneer-runtime` build artifacts restored user sync compilation;
+diagnostic qualification compilation passed with its own target directory. No source repair was
 needed. Keep incompatible worktree build outputs separate for future checks.
-M6 still has identical code, manifests, workflows and scripts to M5.
+diagnostic qualification still has identical code, manifests, workflows and scripts to user sync.
 
-The SDK update was pushed as M3b `87bba91`, M4 `1c34df9`, M5 `bf8c974` and
-M6 `66023dc`. Later commits synchronize this verification record only. Main
+The SDK update was pushed as bounded fanout `87bba91`, privacy enforcement `1c34df9`, user sync `bf8c974` and
+diagnostic qualification `66023dc`. Later commits synchronize this verification record only. Main
 remains `e75881ec4590c6529c15f2f9df1f3afbf8bff7b8`. The upstream PR head was
 rechecked after verification and still matched `91f4af3`.
 
 ## Merge Assessment
 
 No further full review cycle is required for this dependency delta, and no
-new merge-blocking source finding remains. M3b is code-ready on the evidence
+new merge-blocking source finding remains. bounded fanout is code-ready on the evidence
 above; that does not label every provider production-qualified.
 
-M3b PR 15 at the pushed `87bba91` is mergeable but its checks are not green.
+bounded fanout PR 15 at the pushed `87bba91` is mergeable but its checks are not green.
 The new check annotation again confirms jobs were not started because of
 account billing/spending limits. Restore Actions execution and rerun the PR
 checks before normal merge acceptance. The targeted local results must not
-be represented as a successful full CI run. M3b was not merged into main.
+be represented as a successful full CI run. bounded fanout was not merged into main.
