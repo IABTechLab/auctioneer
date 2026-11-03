@@ -2,6 +2,7 @@
 
 #![cfg(all(unix, not(target_arch = "wasm32")))]
 
+mod bidder_settings_compile;
 #[expect(
     dead_code,
     reason = "shared build runner also supports discovery probes"
@@ -28,7 +29,7 @@ mod tests {
 
     #[test]
     fn generated_settings_contract_uses_actual_apis_with_only_fake_declarations() {
-        let workspace = BuildWorkspace::with_crates(
+        let workspace = BuildWorkspace::with_prepared_crates(
             "fake_unused_probe",
             &quote::quote!(
                 fn main() {}
@@ -39,7 +40,27 @@ mod tests {
                 "auctioneer-exchange",
                 "auctioneer-privacy",
             ],
+            prepare_settings_contract,
         );
+        let output = workspace.cargo_package(
+            "auctioneer-core",
+            "test",
+            &[
+                "--test",
+                "generated_settings_contract",
+                "--",
+                "--test-threads=1",
+            ],
+            true,
+        );
+        require_success(&output, "fake generated-settings contract");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        reconcile_tests(&stdout);
+        writeln!(stderr(), "{stdout}").unwrap();
+        workspace.report();
+    }
+
+    fn prepare_settings_contract(workspace: &BuildWorkspace) {
         prepare_synthetic_catalog(workspace.bidder());
         install_synthetic_fake(workspace.bidder());
         let source = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -99,25 +120,10 @@ mod tests {
             .into(),
         );
         fs::write(string_manifest, toml::to_string(&declaration).unwrap()).unwrap();
-        let output = workspace.cargo_package(
-            "auctioneer-core",
-            "test",
-            &[
-                "--test",
-                "generated_settings_contract",
-                "--",
-                "--test-threads=1",
-            ],
-            true,
-        );
-        require_success(&output, "fake generated-settings contract");
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        reconcile_tests(&stdout);
-        writeln!(stderr(), "{stdout}").unwrap();
-        workspace.report();
     }
 
-    const EXPECTED_TESTS: [&str; 25] = [
+    const EXPECTED_TESTS: [&str; 26] = [
+        "config_limits::aggregate_validation_delegates_structural_limits_with_fixed_redacted_errors",
         "config_callbacks::shared_admission_rejects_settings_for_unlinked_factories",
         "config_callbacks::shared_admission_visits_each_identity_once_with_fieldwise_alias_fallback",
         "config_callbacks::shared_admission_checks_disabled_and_shadowed_supplied_values",
@@ -159,7 +165,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -181,7 +187,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }
@@ -210,7 +216,7 @@ mod tests {
                         }
                     }
                     if self.0.enabled && self.0.definition.is_some() {
-                        let resolved = auctioneer_config::bidder_settings::fake_integer_probe::resolve(requested, base);
+                        let resolved = auctioneer_bidder::bidder_settings::fake_integer_probe::resolve(requested, base);
                         if resolved.primary_number().is_none() {
                             errors.add("primary_number", ValidationError::new("required"));
                         } else if resolved.secondary_number().is_none() {
@@ -235,7 +241,7 @@ mod tests {
                         }
                     }
                     if self.0.enabled && self.0.definition.is_some()
-                        && auctioneer_config::bidder_settings::fake_string_probe::resolve(requested, base).token().is_none() {
+                        && auctioneer_bidder::bidder_settings::fake_string_probe::resolve(requested, base).token().is_none() {
                         errors.add("token", ValidationError::new("required"));
                     }
                 },
@@ -256,7 +262,7 @@ mod tests {
             }
         }.to_string();
         let config = quote::quote! {
-            use auctioneer_config::BidderSettings;
+            use auctioneer_bidder::BidderSettings;
             use crate::{BidderConfigError, BidderConfigInput};
             use validator::{Validate, ValidationError, ValidationErrors};
             pub(super) struct Config<'a>(pub(super) BidderConfigInput<'a>);

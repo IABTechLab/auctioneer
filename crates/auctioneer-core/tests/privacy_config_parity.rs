@@ -1,13 +1,13 @@
 //! ACT-2 parity between baked configuration and runtime overlays.
-//! The ignored child probe is executed by auctioneer-config's hermetic build harness
+//! The ignored child probe is executed by auctioneer-config-data's hermetic build harness
 //! with a nondefault TOML fixture compiled into the actual generated Rust.
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::activity::{
+    use auctioneer_config_data::activity::{
         Activity, ActivityConfig, ComponentType, Condition, Rule, validate_activities,
     };
-    use auctioneer_config::types::{AccountConfig, AccountPrivacyConfig, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, AccountPrivacyConfig, HostConfig};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{resolve_account, resolve_host};
     use serde_json::{Value, json};
@@ -134,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "run by auctioneer-config's build_failure_harness with a baked TOML override"]
+    #[ignore = "run by auctioneer-config-data's build_failure_harness with a baked TOML override"]
     fn emitted_baked_config_matches_runtime_fixture() {
         let path = env::var_os("AUCTIONEER__DEFAULTS__PATH_OVERRIDE")
             .expect("the parent harness must supply its compiled-in TOML fixture");
@@ -152,8 +152,8 @@ mod tests {
             }
         });
         let generated = (
-            auctioneer_config::host_default().clone(),
-            auctioneer_config::account_default().clone(),
+            auctioneer_config_data::host_default().clone(),
+            auctioneer_config_data::account_default().clone(),
         );
         // Resolve from neutral defaults, not the generated defaults: otherwise
         // a missing runtime field could inherit the same codegen mistake.

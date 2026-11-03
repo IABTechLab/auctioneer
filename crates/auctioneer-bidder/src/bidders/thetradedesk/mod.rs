@@ -58,9 +58,9 @@ mod tests {
     mod conformance;
 
     use super::TheTradeDeskBidder;
+    use crate::BidderSettings;
     use crate::bidders::harness;
     use crate::{BidderHttpRequest, BidderName, BidderRequestInfo, EntryPoint};
-    use auctioneer_config::BidderSettings;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 

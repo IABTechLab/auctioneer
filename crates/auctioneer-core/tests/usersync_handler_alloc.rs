@@ -113,9 +113,12 @@ mod tests {
 
     use super::bidder_fixture::{fake_bidder::FakeBidder, registry as synthetic_registry};
     use auctioneer_bidder::{BidderName, BidderRegistry};
-    use auctioneer_config::types::{AccountConfig, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
     use auctioneer_core::{
-        config::{AuctioneerAppConfig, HostCookieOverride, UserSyncOverride},
+        config::{
+            AuctioneerAppConfig, HostCookieOverride, UserSyncOverride,
+            validate_effective_with_catalog,
+        },
         host_primitives::boot_gates,
         usersync::{
             catalog::Catalog,
@@ -967,10 +970,13 @@ mod tests {
                         fixture.app.aliases.is_none(),
                         "aliases are baked, not an overlay"
                     );
-                    fixture
-                        .app
-                        .validate_effective_with_catalog(&host, &fixture.account, &fixture.names)
-                        .unwrap();
+                    validate_effective_with_catalog(
+                        &fixture.app,
+                        &host,
+                        &fixture.account,
+                        &fixture.names,
+                    )
+                    .unwrap();
                     let alias = host.aliases.keys().next().unwrap();
                     let lower_name = alias.to_ascii_lowercase();
                     assert_eq!(alias != &lower_name, mixed_case);

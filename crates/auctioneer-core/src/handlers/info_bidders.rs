@@ -10,7 +10,7 @@ use crate::handlers::auction as auction_helpers;
 use crate::handlers::aux_egress::with_aux_egress;
 use crate::serialize::serialize_json_exact;
 use auctioneer_bidder::BidderName;
-use auctioneer_config::types::{BidderInfo, MediaType};
+use auctioneer_config_data::types::{BidderInfo, MediaType};
 use edgezero_core::action;
 use edgezero_core::body::Body;
 use edgezero_core::context::RequestContext;
@@ -435,7 +435,7 @@ mod tests {
     use crate::config::resolve::resolve_host;
     use crate::handlers::auction as auction_helpers;
     use auctioneer_bidder::registry::BidderRegistry;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use auctioneer_exchange::alias::resolve_aliases;
     use auctioneer_exchange::split::split_by_bidder;
     use auctioneer_openrtb::types::bid_request::BidRequest;
@@ -775,7 +775,7 @@ mod tests {
     #[test]
     fn info_catalog_projection_and_encoding_fit_the_auxiliary_manifest_reservation() {
         use crate::bidder_registry::info_work;
-        use auctioneer_config::types::MediaType;
+        use auctioneer_config_data::types::MediaType;
         use auctioneer_runtime::budget::AUX_MANIFEST_BYTES;
         use auctioneer_runtime::test_support::alloc_track::{peak_since, reset_peak};
         use std::hint::black_box;

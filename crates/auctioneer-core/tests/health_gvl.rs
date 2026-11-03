@@ -31,12 +31,12 @@ mod tests {
     }
 
     fn generated_at() -> OffsetDateTime {
-        OffsetDateTime::parse(auctioneer_config::gvl_archive_generated_at(), &Rfc3339)
+        OffsetDateTime::parse(auctioneer_config_data::gvl_archive_generated_at(), &Rfc3339)
             .expect("baked generated_at parses as RFC 3339")
     }
 
     fn gcl_expires_at() -> OffsetDateTime {
-        OffsetDateTime::from_unix_timestamp(auctioneer_config::gcl_expires_at_unix_secs())
+        OffsetDateTime::from_unix_timestamp(auctioneer_config_data::gcl_expires_at_unix_secs())
             .expect("baked GCL expiry is a representable timestamp")
     }
 
@@ -92,11 +92,11 @@ mod tests {
             assert_eq!(payload["status"], "ok");
             assert_eq!(
                 payload["generated_at"],
-                auctioneer_config::gvl_archive_generated_at(),
+                auctioneer_config_data::gvl_archive_generated_at(),
                 "payload must echo the manifest's generated_at verbatim"
             );
             let expected_spec3: Vec<u32> = {
-                let mut versions: Vec<u32> = auctioneer_config::gvl_archive()
+                let mut versions: Vec<u32> = auctioneer_config_data::gvl_archive()
                     .iter()
                     .filter(|entry| entry.spec == 3)
                     .map(|entry| entry.vendor_list_version)
@@ -106,7 +106,7 @@ mod tests {
             };
             assert_eq!(payload["spec3_versions"], serde_json::json!(expected_spec3));
             let expected_spec2: Vec<u32> = {
-                let mut versions: Vec<u32> = auctioneer_config::gvl_archive()
+                let mut versions: Vec<u32> = auctioneer_config_data::gvl_archive()
                     .iter()
                     .filter(|entry| entry.spec == 2)
                     .map(|entry| entry.vendor_list_version)
@@ -134,7 +134,7 @@ mod tests {
             assert_eq!(payload["age_days"], expected_age);
             assert_eq!(
                 payload["max_age_days"],
-                auctioneer_config::gvl_archive_max_age_days()
+                auctioneer_config_data::gvl_archive_max_age_days()
             );
         });
     }
@@ -143,7 +143,7 @@ mod tests {
     fn health_gvl_stale_archive_returns_503() {
         install_acknowledged();
         block_on(async {
-            let past_max = i64::from(auctioneer_config::gvl_archive_max_age_days()) + 2;
+            let past_max = i64::from(auctioneer_config_data::gvl_archive_max_age_days()) + 2;
             let (status, payload) =
                 call_at(generated_at().saturating_add(Duration::days(past_max))).await;
             assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
@@ -165,7 +165,7 @@ mod tests {
                 .saturating_sub(generated_at().unix_timestamp())
                 .div_euclid(86_400);
             assert!(
-                archive_age_days <= i64::from(auctioneer_config::gvl_archive_max_age_days()),
+                archive_age_days <= i64::from(auctioneer_config_data::gvl_archive_max_age_days()),
                 "fixture must isolate the GCL gate: archive age {archive_age_days} is already                  past its own window"
             );
             let (status, payload) = call_at(now).await;

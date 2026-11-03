@@ -461,7 +461,8 @@ mod tests {
     };
     use sha2::{Digest as _, Sha256};
 
-    const PINNED_SOURCE: &str = include_str!("../../auctioneer-config/data/openrtb-2.6-source.md");
+    const PINNED_SOURCE: &str =
+        include_str!("../../auctioneer-config-data/data/openrtb-2.6-source.md");
     const SCOPES: [(&str, &str); 7] = [
         ("Device", "3.2.18"),
         ("Geo", "3.2.19"),

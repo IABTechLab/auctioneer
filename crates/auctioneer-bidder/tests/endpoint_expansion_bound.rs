@@ -122,7 +122,7 @@ mod tests {
         META_BIDDER_REGION_BYTES, META_BYTES_CAPACITY, OutboundBuildError,
         OutboundRequestMetaBuilder, OutboundRequestSink, SinkAbort, SinkLimits,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_openrtb::types::bid_request::{Banner, BidRequest, Imp};
     use std::hint::black_box;
     use std::str::from_utf8;

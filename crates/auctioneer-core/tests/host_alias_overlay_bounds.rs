@@ -27,7 +27,10 @@
 mod tests {
     use auctioneer_bidder::BidderName;
     use auctioneer_core::config::resolve::resolve_host;
-    use auctioneer_core::config::{AuctioneerAppConfig, MAX_ALIAS_NAME_BYTES, MAX_ALIASES};
+    use auctioneer_core::config::{
+        AuctioneerAppConfig, MAX_ALIAS_NAME_BYTES, MAX_ALIASES, validate_effective,
+        validate_effective_with_catalog,
+    };
     use std::collections::BTreeMap;
     use std::fmt::Write as _;
     use validator::Validate as _;
@@ -92,8 +95,8 @@ mod tests {
 
     #[test]
     fn effective_catalog_counts_merged_baked_and_runtime_aliases_at_the_boundary() {
-        let compiled = auctioneer_config::bidders().len();
-        let base = &auctioneer_config::bidders()
+        let compiled = auctioneer_config_data::bidders().len();
+        let base = &auctioneer_config_data::bidders()
             .first()
             .expect("effective alias validation requires a baked base")
             .name;
@@ -101,7 +104,7 @@ mod tests {
         // The actual roster can fill the catalog. The separate injected-catalog
         // case pins 511/512/513 with 64 overlay aliases independently of it.
         for total in [compiled, 512, 513] {
-            let mut host = auctioneer_config::host_default().clone();
+            let mut host = auctioneer_config_data::host_default().clone();
             host.aliases.clear();
             let mut config = AuctioneerAppConfig::default();
             let alias_count = total.checked_sub(compiled).unwrap();
@@ -118,9 +121,9 @@ mod tests {
             config.validate().unwrap();
             let merged = resolve_host(&config, &host);
             assert_eq!(compiled + merged.aliases.len(), total);
-            let result = config
-                .validate_effective(&host, auctioneer_config::account_default())
-                .map_err(|error| error.to_string());
+            let result =
+                validate_effective(&config, &host, auctioneer_config_data::account_default())
+                    .map_err(|error| error.to_string());
             if total <= 512 {
                 assert_eq!(result, Ok(()), "catalog total {total}");
             } else {
@@ -147,15 +150,16 @@ mod tests {
                 ..AuctioneerAppConfig::default()
             };
             config.validate().unwrap();
-            let mut host = auctioneer_config::host_default().clone();
+            let mut host = auctioneer_config_data::host_default().clone();
             host.aliases.clear();
             assert_eq!(
                 compiled_count + config.aliases.as_ref().unwrap().len(),
                 total
             );
-            let result = config.validate_effective_with_catalog(
+            let result = validate_effective_with_catalog(
+                &config,
                 &host,
-                auctioneer_config::account_default(),
+                auctioneer_config_data::account_default(),
                 &names,
             );
             if total <= 512 {
@@ -174,13 +178,14 @@ mod tests {
         let names: Vec<_> = (0_usize..512)
             .map(|index| BidderName::new(format!("fake_base_{index:03}")))
             .collect();
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.aliases.clear();
         let mut config = AuctioneerAppConfig::default();
         assert_eq!(
-            config.validate_effective_with_catalog(
+            validate_effective_with_catalog(
+                &config,
                 &host,
-                auctioneer_config::account_default(),
+                auctioneer_config_data::account_default(),
                 &names,
             ),
             Ok(())
@@ -191,9 +196,10 @@ mod tests {
         )]));
         config.validate().unwrap();
         assert_eq!(
-            config.validate_effective_with_catalog(
+            validate_effective_with_catalog(
+                &config,
                 &host,
-                auctioneer_config::account_default(),
+                auctioneer_config_data::account_default(),
                 &names,
             ),
             Err("user-sync catalog exceeds 512 names".to_owned())

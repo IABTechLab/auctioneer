@@ -10,7 +10,7 @@ mod tests {
     use crate::serving_catalog::{ServingBidder, default_active_publications};
     use async_trait::async_trait;
     use auctioneer_bidder::{BidderHttpResponse, outbound_meta_bytes};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
@@ -89,8 +89,8 @@ mod tests {
             transmit_state_bytes: 4_096,
         };
         let baked_config_bytes = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         row.aux_route_peak_bytes = derive_aux_work_for_profile(&row, &target(), baked_config_bytes)

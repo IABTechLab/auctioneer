@@ -15,7 +15,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRegistry, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
     };
-    use auctioneer_config::types::{AccountConfig, BidderInfo};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo};
     use auctioneer_core::config::{AuctioneerAppConfig, budgets::resolve_budgets};
     use auctioneer_core::host_primitives::{
         DevFanout, EdgeZeroFanout, EdgeZeroProxyAdapter, RaceTimersStrategy,
@@ -259,7 +259,7 @@ mod tests {
             },
         )
         .unwrap();
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         let account = AccountConfig::default();
         let resolved = ResolvedAccount {

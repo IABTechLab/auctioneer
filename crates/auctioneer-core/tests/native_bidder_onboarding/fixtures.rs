@@ -6,7 +6,7 @@ use auctioneer_bidder::{
         serving_catalog::{self, ServingBidder},
     },
 };
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use auctioneer_runtime::ResolvedIsolateLimits;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -246,13 +246,13 @@ fn flow_from_member(
     loop {
         assert!(!info.disabled, "source safety veto cannot be waived");
         assert!(
-            ancestry.len() < auctioneer_config::bidders().len(),
+            ancestry.len() < auctioneer_config_data::bidders().len(),
             "compiled alias ancestry is acyclic"
         );
         ancestry.push(info);
         match info.alias_of.as_deref() {
             Some(parent) => {
-                info = auctioneer_config::bidder(parent).expect("compiled ancestor metadata");
+                info = auctioneer_config_data::bidder(parent).expect("compiled ancestor metadata");
             }
             None => break,
         }

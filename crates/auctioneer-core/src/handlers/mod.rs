@@ -33,7 +33,7 @@ mod tests {
         use std::{collections::BTreeMap, sync::OnceLock};
 
         use auctioneer_bidder::BidderRegistry;
-        use auctioneer_config::{
+        use auctioneer_config_data::{
             types::BidderInfo,
             usersync::{SyncType, SyncerEndpoint},
         };
@@ -134,7 +134,7 @@ mod tests {
     use crate::usersync::wire::parse_cookie_sync_body;
     use crate::usersync::{cookie as payload_cookie, limits::CookieLimits};
     use crate::{config::AuctioneerAppConfig, handlers::sync_http};
-    use auctioneer_config::usersync::UserSyncConfig;
+    use auctioneer_config_data::usersync::UserSyncConfig;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use cookie::Cookie;
     use edgezero_core::{body::Body, http::Response};

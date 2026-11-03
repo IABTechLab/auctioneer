@@ -6,7 +6,7 @@ pub mod metadata;
 
 use crate::{AliasMap, response::ErrorEntry};
 use auctioneer_bidder::{BidderName, BidderRegistry};
-use auctioneer_config::types::AccountConfig;
+use auctioneer_config_data::types::AccountConfig;
 use auctioneer_openrtb::ext::request_prebid::DebugSignal;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 
@@ -86,7 +86,7 @@ mod tests {
     use crate::fake_bidder::FakeBidder;
     use crate::response::ErrorEntry;
     use auctioneer_bidder::{BidderName, BidderRegistry};
-    use auctioneer_config::types::{AccountConfig, BidderInfo};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo};
     use auctioneer_openrtb::ext::request_prebid::DebugSignal;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::json;

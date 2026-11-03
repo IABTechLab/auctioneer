@@ -3,7 +3,7 @@ use auctioneer_privacy::test_support::tc_encode;
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, EnforceAlgo, HostConfig, PurposeEnforcement, TriState,
     };
     use auctioneer_openrtb::WarningCode;
@@ -998,7 +998,7 @@ mod tests {
 
     #[test]
     fn basic_purpose_two_li_only_grants_require_a_nonzero_resolved_vendor() {
-        assert!(auctioneer_config::bidder("fake_no_gvl").is_none());
+        assert!(auctioneer_config_data::bidder("fake_no_gvl").is_none());
         for &order in PUBLISHER_BASIS_ORDERS {
             let raw = encoded_purpose_two_consent(order, false, true);
             let denied = order.contains(&0) || (order.contains(&1) && order.contains(&2));

@@ -21,7 +21,7 @@ use crate::{
     },
 };
 use auctioneer_bidder::{BidderRegistry, RegistryBuildError};
-use auctioneer_config::{
+use auctioneer_config_data::{
     types::{AccountConfig, HostConfig},
     usersync::SyncResponseFormat,
 };
@@ -50,7 +50,7 @@ async fn setuid_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -204,7 +204,7 @@ async fn respond_with_registry(
     let account = resolve::resolve_selected_account(
         resolve::AccountSelection::from_requested(parsed.first("account")),
         app,
-        auctioneer_config::account_default(),
+        auctioneer_config_data::account_default(),
     );
     if account.config.disabled {
         return bad("account is disabled, please reach out to the prebid server host");
@@ -391,7 +391,7 @@ pub(super) mod tests {
     use crate::handlers::tests::bidder_registry;
     use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::signed::CookieKeyring;
-    use auctioneer_config::usersync::OptoutCookie;
+    use auctioneer_config_data::usersync::OptoutCookie;
     use edgezero_core::http::{HeaderValue, header::COOKIE};
     use futures::executor::block_on;
     use serde_json::json;

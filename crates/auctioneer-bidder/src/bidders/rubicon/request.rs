@@ -9,7 +9,7 @@ use crate::meta::{META_BIDDER_REGION_BYTES, SinkAbort};
 use crate::{
     BidderError, BidderRequestInfo, ConstructionDiagnostic, EndpointBuilder, OutboundRequestSink,
 };
-use auctioneer_config::{
+use crate::{
     BidderSettings,
     bidder_settings::rubicon::{SettingsRef, resolve},
 };
@@ -167,6 +167,7 @@ fn credential_reference<'a>(info: &'a BidderRequestInfo<'_>) -> Result<&'a str, 
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod tests {
+    use crate::BidderSettings;
     use crate::bidders::harness;
     use crate::bidders::rubicon::test_support::{
         ENDPOINT, EndpointPolicy, Transactions, banner, body, context, outbound, request, settings,
@@ -178,7 +179,6 @@ mod tests {
         ConstructionDiagnostic, EndpointRejectReason, EndpointValidator, EntryPoint,
         OutboundRequestSink, SinkLimits,
     };
-    use auctioneer_config::BidderSettings;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
     use std::{cell::Cell, slice::from_ref};

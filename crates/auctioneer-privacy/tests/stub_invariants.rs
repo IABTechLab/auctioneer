@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::{AccountConfig, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
     use auctioneer_privacy::{
         Activity, AuctionPermissions, Component, GdprSignalIn, PrivacyContext, Signal,
         SyncEndpoint, SyncPrivacyError, SyncPrivacyInput, gcl::Gcl, gvl::GvlStore,

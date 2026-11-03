@@ -1,6 +1,8 @@
 //! Bidder framework.
 
 pub mod bidder;
+pub mod bidder_endpoint;
+pub mod bidder_settings;
 pub mod bidders;
 pub mod capped_writer;
 pub mod catalog;
@@ -24,6 +26,7 @@ pub mod test_support;
 pub mod types;
 
 pub use bidder::{Bidder, BidderError, BidderErrorKind, EntryPoint};
+pub use bidder_settings::BidderSettings;
 pub use bidders::{
     BidderDeclaration, BidderRegistration, accepts_sync_uid, bidder_declarations, compiled_bidders,
 };

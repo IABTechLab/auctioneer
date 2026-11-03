@@ -1,8 +1,8 @@
 //! Runtime settings keep their extracted owner; resolving an alias borrows it.
 
 use super::{AuctioneerAppConfig, BidderOverrides};
+use auctioneer_bidder::BidderSettings;
 use auctioneer_bidder::request_info::BidderSettingsSource;
-use auctioneer_config::BidderSettings;
 use std::collections::BTreeMap;
 
 /// The original parsed bidder map, pruned in place without rebuilding settings.

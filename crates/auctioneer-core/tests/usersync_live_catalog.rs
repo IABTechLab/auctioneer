@@ -6,7 +6,7 @@ use auctioneer_core::test_support::live_catalog;
 #[cfg(test)]
 mod tests {
     use super::live_catalog;
-    use auctioneer_config::usersync::SyncType;
+    use auctioneer_config_data::usersync::SyncType;
     use std::ptr::eq;
 
     #[test]
@@ -16,7 +16,7 @@ mod tests {
         let unsyncable = live_catalog::unsyncable();
         for role in [redirect, iframe] {
             assert!(
-                auctioneer_config::bidders()
+                auctioneer_config_data::bidders()
                     .iter()
                     .any(|info| eq(info, role.info))
             );

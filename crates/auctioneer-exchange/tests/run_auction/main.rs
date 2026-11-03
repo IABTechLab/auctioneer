@@ -19,7 +19,7 @@ mod tests {
     use futures::executor::block_on;
 
     use auctioneer_bidder::{BidderHttpResponse, BidderName, BidderRegistry, DebugBodySchema};
-    use auctioneer_config::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,
@@ -385,7 +385,7 @@ mod tests {
 
     #[test]
     fn oversized_request_aliases_have_bounded_identity_refusals() {
-        use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+        use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
 
         let mut registry = BidderRegistry::new();
         registry

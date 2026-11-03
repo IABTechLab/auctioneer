@@ -284,8 +284,8 @@ mod tests {
         };
         expected.max_config_json_nodes = if zero_mask & 4 == 0 { 127 } else { 8192 };
         let serialized = serde_json::to_vec(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         let baked = u64::try_from(serialized.len()).unwrap();
@@ -346,8 +346,8 @@ mod tests {
     fn retained_receipt(raw: &ResolvedIsolateLimits) -> Value {
         let gates = boot_gates().unwrap();
         let baked = serde_json::to_vec(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         json!({

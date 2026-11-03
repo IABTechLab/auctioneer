@@ -23,7 +23,7 @@ mod tests {
     use futures::executor::block_on;
 
     use auctioneer_bidder::{BidderHttpResponse, BidderName, BidderRegistry};
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, Capabilities, Compression, HostConfig, MediaType, ResourceLimits,
     };
     use auctioneer_exchange::construction_costs;

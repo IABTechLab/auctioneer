@@ -718,8 +718,8 @@ mod tests {
                 if mask & 4 == 0 { 127 } else { 8192 }
             );
             let captured = serde_json::to_vec(&(
-                auctioneer_config::host_default(),
-                auctioneer_config::account_default(),
+                auctioneer_config_data::host_default(),
+                auctioneer_config_data::account_default(),
             ))
             .unwrap();
             assert_eq!(

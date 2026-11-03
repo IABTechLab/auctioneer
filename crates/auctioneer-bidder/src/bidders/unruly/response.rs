@@ -4,7 +4,7 @@ use crate::bidders::{
     wire_fields::{canonical_integer, signed_byte as response_signed_byte, signed_integer},
 };
 use crate::{BidderError, BidderHttpResponse, BidderResponse, OutboundRequestMeta};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use serde_json::{Map, Value};
 
@@ -104,7 +104,7 @@ mod tests {
     use super::super::tests::{info, parameters, request};
     use crate::bidders::harness;
     use crate::{Bidder as _, BidderError, BidderErrorKind};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use serde_json::{Value, json};
 
     fn assert_integer_dto_failure_before_filtering(fields: &Value) {

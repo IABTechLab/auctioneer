@@ -10,7 +10,7 @@ mod tests {
         SchemaInputError, SchemaInputLimits, SchemaInputStats, measure_schema_input,
     };
     #[cfg(not(target_arch = "wasm32"))]
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
     };
     use auctioneer_runtime::CatalogResourceCosts;
@@ -40,7 +40,7 @@ mod tests {
 
         fn with_settings(count: usize, has_settings: bool) -> Self {
             use auctioneer_bidder::{BidderDeclaration, BidderRegistration, RegistryAlias};
-            use auctioneer_config::types::{
+            use auctioneer_config_data::types::{
                 BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
             };
 

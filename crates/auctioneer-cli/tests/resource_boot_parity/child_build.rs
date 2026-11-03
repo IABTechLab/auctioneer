@@ -407,7 +407,7 @@ fn cargo_command(source: &Path, target: &Path) -> Command {
 fn owner_features(output: &[u8]) -> BTreeMap<String, (String, Vec<String>)> {
     let owners = [
         "auctioneer_core",
-        "auctioneer_config",
+        "auctioneer_config_data",
         "auctioneer_bidder",
         "auctioneer_exchange",
         "auctioneer_privacy",
@@ -649,7 +649,7 @@ features = ['fake_unrelated']
     fn events() -> Vec<Value> {
         [
             "auctioneer_core",
-            "auctioneer_config",
+            "auctioneer_config_data",
             "auctioneer_bidder",
             "auctioneer_exchange",
             "auctioneer_privacy",

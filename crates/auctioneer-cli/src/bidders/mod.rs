@@ -1,6 +1,6 @@
 //! Offline reference inspection. Inventory is not runtime promotion or migration evidence.
 
-use auctioneer_config_schema::bidder_manifest;
+use auctioneer_config::bidder_manifest;
 mod check;
 #[cfg(feature = "application")]
 mod empty_object;

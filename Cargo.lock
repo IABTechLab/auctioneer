@@ -182,7 +182,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "auctioneer-bidder",
- "auctioneer-config",
+ "auctioneer-config-data",
  "auctioneer-core",
  "auctioneer-exchange",
  "auctioneer-privacy",
@@ -209,7 +209,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "auctioneer-bidder",
- "auctioneer-config",
+ "auctioneer-config-data",
  "auctioneer-core",
  "auctioneer-exchange",
  "auctioneer-runtime",
@@ -230,7 +230,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "auctioneer-bidder",
- "auctioneer-config",
+ "auctioneer-config-data",
  "auctioneer-core",
  "auctioneer-exchange",
  "auctioneer-runtime",
@@ -251,7 +251,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "auctioneer-bidder",
- "auctioneer-config",
+ "auctioneer-config-data",
  "auctioneer-core",
  "auctioneer-exchange",
  "auctioneer-runtime",
@@ -272,7 +272,7 @@ dependencies = [
  "aho-corasick",
  "auctioneer-bidder",
  "auctioneer-config",
- "auctioneer-config-schema",
+ "auctioneer-config-data",
  "auctioneer-openrtb",
  "auctioneer-runtime",
  "flate2",
@@ -314,7 +314,7 @@ dependencies = [
  "auctioneer-adapter-spin",
  "auctioneer-cli",
  "auctioneer-config",
- "auctioneer-config-schema",
+ "auctioneer-config-data",
  "auctioneer-core",
  "auctioneer-gvl-schema",
  "auctioneer-openrtb-catalogue",
@@ -363,33 +363,6 @@ dependencies = [
 name = "auctioneer-config"
 version = "0.1.0"
 dependencies = [
- "auctioneer-config-schema",
- "auctioneer-gvl-schema",
- "auctioneer-openrtb",
- "auctioneer-openrtb-catalogue",
- "auctioneer-runtime",
- "brotli",
- "fs2",
- "hex",
- "ipnetwork",
- "percent-encoding",
- "proc-macro2",
- "quote",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "syn 2.0.118",
- "time",
- "toml 0.8.23",
- "unicode-case-mapping",
- "url",
- "validator",
-]
-
-[[package]]
-name = "auctioneer-config-schema"
-version = "0.1.0"
-dependencies = [
  "auctioneer-macros",
  "auctioneer-openrtb",
  "auctioneer-openrtb-catalogue",
@@ -413,6 +386,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "auctioneer-config-data"
+version = "0.1.0"
+dependencies = [
+ "auctioneer-config",
+ "auctioneer-gvl-schema",
+ "auctioneer-openrtb",
+ "auctioneer-openrtb-catalogue",
+ "auctioneer-runtime",
+ "brotli",
+ "fs2",
+ "hex",
+ "ipnetwork",
+ "percent-encoding",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "syn 2.0.118",
+ "time",
+ "toml 0.8.23",
+ "unicode-case-mapping",
+ "url",
+ "validator",
+]
+
+[[package]]
 name = "auctioneer-core"
 version = "0.1.0"
 dependencies = [
@@ -420,7 +420,7 @@ dependencies = [
  "async-trait",
  "auctioneer-bidder",
  "auctioneer-config",
- "auctioneer-config-schema",
+ "auctioneer-config-data",
  "auctioneer-core",
  "auctioneer-exchange",
  "auctioneer-openrtb",
@@ -456,7 +456,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "auctioneer-bidder",
- "auctioneer-config",
+ "auctioneer-config-data",
  "auctioneer-exchange",
  "auctioneer-openrtb",
  "auctioneer-privacy",
@@ -526,7 +526,7 @@ dependencies = [
 name = "auctioneer-privacy"
 version = "0.1.0"
 dependencies = [
- "auctioneer-config",
+ "auctioneer-config-data",
  "auctioneer-gvl-schema",
  "auctioneer-openrtb",
  "auctioneer-privacy",

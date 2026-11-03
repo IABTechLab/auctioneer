@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_bidder::{bidder_declarations, compiled_bidders, configured_registry};
-    use auctioneer_config::{
+    use auctioneer_config_data::{
         bidder_implementation_bindings, bidder_metadata_declarations, bidders,
     };
     use std::collections::{BTreeMap, BTreeSet};

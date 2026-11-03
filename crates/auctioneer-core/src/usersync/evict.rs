@@ -210,7 +210,7 @@ fn oldest_evictable_family(cookie: &UidCookie, priorities: &FamilyPriorities) ->
 mod tests {
     use std::collections::BTreeMap;
 
-    use auctioneer_config::types::{BidderInfo, SyncerConfig, SyncerEndpoint};
+    use auctioneer_config_data::types::{BidderInfo, SyncerConfig, SyncerEndpoint};
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use http::{HeaderMap, header::SET_COOKIE};
     use serde_json::json;

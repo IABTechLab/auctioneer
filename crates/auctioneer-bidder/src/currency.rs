@@ -1,6 +1,6 @@
 //! Borrowed floor-conversion context; source protocols choose error disposition.
 
-use auctioneer_config::currency::FloorCurrencyConfig;
+use auctioneer_config_data::currency::FloorCurrencyConfig;
 use std::str::from_utf8;
 
 /// Floor-specific refusal reasons, without request/impression error policy.
@@ -118,7 +118,7 @@ impl<'req> FloorConversion<'req> {
 #[cfg(test)]
 mod tests {
     use super::{FloorConversion, FloorConversionError};
-    use auctioneer_config::currency::FloorCurrencyConfig;
+    use auctioneer_config_data::currency::FloorCurrencyConfig;
     use serde_json::json;
     use std::collections::BTreeMap;
 

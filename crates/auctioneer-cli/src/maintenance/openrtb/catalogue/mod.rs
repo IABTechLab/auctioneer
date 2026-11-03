@@ -266,7 +266,7 @@ mod tests {
 
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../auctioneer-config/data/openrtb-2.6-source.md"
+        "/../auctioneer-config-data/data/openrtb-2.6-source.md"
     ));
     static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
 

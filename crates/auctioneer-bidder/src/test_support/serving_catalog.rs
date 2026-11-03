@@ -2,7 +2,7 @@
 
 use super::privacy_wire::PrivacyWireContract;
 use crate::Bidder;
-use auctioneer_config::types::{BidderInfo, MediaType};
+use auctioneer_config_data::types::{BidderInfo, MediaType};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::BTreeSet, fs, path::Path, sync::OnceLock};
@@ -97,11 +97,11 @@ fn owned_capture(implementation: &str, file: &str) -> Result<Vec<u8>, String> {
 /// Panics if metadata, factory bindings or owner fixtures are missing or inconsistent.
 #[must_use]
 pub fn published() -> Vec<ServingBidder> {
-    let bindings = auctioneer_config::bidder_implementation_bindings();
+    let bindings = auctioneer_config_data::bidder_implementation_bindings();
     let rows: Vec<_> = bindings
         .iter()
         .map(|binding| {
-            let info = auctioneer_config::bidder(binding.bidder)
+            let info = auctioneer_config_data::bidder(binding.bidder)
                 .expect("published binding has active metadata");
             let registration = crate::compiled_bidders()
                 .iter()
@@ -129,7 +129,7 @@ pub fn published() -> Vec<ServingBidder> {
         "published conformance cohort must not be empty"
     );
     let actual: BTreeSet<_> = rows.iter().map(ServingBidder::name).collect();
-    let expected: BTreeSet<_> = auctioneer_config::bidders()
+    let expected: BTreeSet<_> = auctioneer_config_data::bidders()
         .iter()
         .map(|info| info.name.as_str())
         .collect();
@@ -176,14 +176,14 @@ pub fn passthrough_info() -> &'static BidderInfo {
 }
 
 fn default_active(mut info: &BidderInfo) -> bool {
-    for _ in 0..auctioneer_config::bidders().len() {
+    for _ in 0..auctioneer_config_data::bidders().len() {
         if info.disabled || info.default_enabled == Some(false) {
             return false;
         }
         let Some(parent_name) = info.alias_of.as_deref() else {
             return true;
         };
-        let Some(parent) = auctioneer_config::bidder(parent_name) else {
+        let Some(parent) = auctioneer_config_data::bidder(parent_name) else {
             return false;
         };
         info = parent;
@@ -250,7 +250,7 @@ pub fn site_media(required: &[MediaType]) -> Vec<ServingBidder> {
         "published site-media cohort must not be empty"
     );
     let actual: BTreeSet<_> = rows.iter().map(ServingBidder::name).collect();
-    let expected: BTreeSet<_> = auctioneer_config::bidders()
+    let expected: BTreeSet<_> = auctioneer_config_data::bidders()
         .iter()
         .filter(|info| {
             required
@@ -295,7 +295,7 @@ mod tests {
         assert_eq!(native, 14, "13 new priority flows plus canonical ancestry");
         assert_eq!(baseline.len() + native, rows.len());
     }
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
 
     #[test]
     fn baseline_ranking_prefers_default_active_without_filtering_the_public_cohort() {

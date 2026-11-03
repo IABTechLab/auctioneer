@@ -15,7 +15,7 @@ mod tests {
     use crate::config_funding;
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
-    use auctioneer_config::limits::MAX_STATUS_BANNER_BYTES;
+    use auctioneer_config_data::limits::MAX_STATUS_BANNER_BYTES;
     use auctioneer_core::config::runtime::CONFIG_STATUS_HEADER;
     use auctioneer_core::handlers::probe_config::{
         __probe_isolation_for_tests, config_work_capacity, config_work_in_flight,
@@ -113,8 +113,8 @@ mod tests {
         };
         // Match bootstrap's auxiliary work and independent baked policy charge.
         let baked_bytes = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         let aux_work = derive_aux_work_for_profile(&limits, &target, baked_bytes).unwrap();

@@ -108,7 +108,7 @@ mod tests {
         Bidder as _, BidderName, BidderRegistry, BidderRequestInfo, CallBudget, EntryPoint,
         OutboundRequestSink, SinkLimits, outbound_meta_bytes,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_exchange::scrub::{DisclosureAudit, construction_costs};
     use auctioneer_exchange::split::{GroupedBidders, group_by_bidder, materialize_per_bidder};
     use auctioneer_exchange::validate_endpoint::ExchangeEndpointValidator;
@@ -924,7 +924,9 @@ mod tests {
     )]
     fn denied_alias_status_rows_are_bounded_before_impression_ids_are_copied() {
         use async_trait::async_trait;
-        use auctioneer_config::types::{AccountConfig, HostConfig, PurposeEnforcement, TriState};
+        use auctioneer_config_data::types::{
+            AccountConfig, HostConfig, PurposeEnforcement, TriState,
+        };
         use auctioneer_exchange::{
             AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall,
             BidderCallResult, BidderFanout, ExchangeFeatures, FanoutInternalError, ResolvedAccount,

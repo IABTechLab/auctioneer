@@ -2,7 +2,7 @@ use super::fixtures::{self, Flow};
 use auctioneer_bidder::{
     BidderHttpRequest, BidderHttpResponse, outbound_meta_bytes, schema::controlled_native_costs,
 };
-use auctioneer_config::types::{Compression as CfgCompression, MediaType};
+use auctioneer_config_data::types::{Compression as CfgCompression, MediaType};
 use auctioneer_core::{
     App as CoreApp,
     handlers::{TestFanoutHandle, request_disclosure_audit::construction_costs},

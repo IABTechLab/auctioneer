@@ -25,7 +25,7 @@ mod tests {
         OutboundRequestSink, RegistryAlias, RegistryBuildError, RegistryInputs, SinkLimits,
         ValidatedRegistryPlan,
     };
-    use auctioneer_config::types::{BidderImplementationBinding, BidderMetadataDeclaration};
+    use auctioneer_config_data::types::{BidderImplementationBinding, BidderMetadataDeclaration};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
     use std::ptr;

@@ -8,7 +8,7 @@ mod tests {
     use crate::{
         BidderError, BidderHttpRequest, BidderName, BidderRequestInfo, BidderResponse, EntryPoint,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 

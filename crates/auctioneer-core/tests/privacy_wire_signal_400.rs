@@ -25,7 +25,7 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_bidder::{BidderHttpRequest, BidderHttpResponse};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{TestClockHandle, TestRngHandle};
     use auctioneer_exchange::{
@@ -221,7 +221,7 @@ mod tests {
     fn conflicting_gpp_usp_with_valid_no_sale_warns_and_obeys_ccpa() {
         // A registered, nonparticipating exemption leaves the actual bidder subject to CCPA.
         let participating = auction_bidder();
-        let exempt = auctioneer_config::bidders()
+        let exempt = auctioneer_config_data::bidders()
             .iter()
             .find(|info| !info.disabled && info.name != participating.name())
             .expect("CCPA coverage requires a distinct registered nonparticipant");

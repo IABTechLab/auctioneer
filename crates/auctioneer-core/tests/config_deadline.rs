@@ -51,7 +51,7 @@ mod fanout_limits;
 mod tests {
     use crate::config_funding;
     use async_trait::async_trait;
-    use auctioneer_config::RUNTIME_BOOTSTRAP;
+    use auctioneer_config_data::RUNTIME_BOOTSTRAP;
     use auctioneer_core::config::runtime::{RuntimeConfigError, resolve_runtime_config};
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::host_primitives::ingress_lease::{

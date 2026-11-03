@@ -4,11 +4,11 @@ use usersync_template_controls as template_controls;
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::{AccountConfig, HostConfig};
-    use auctioneer_config::usersync::{
+    use auctioneer_config::url_safety::{ValidationResult, validate_syncer_template};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
+    use auctioneer_config_data::usersync::{
         SyncType, SyncerEndpoint, UserSyncConfig, validate_user_sync,
     };
-    use auctioneer_config_schema::url_safety::{ValidationResult, validate_syncer_template};
     use auctioneer_core::usersync::template::{
         BuiltSyncUrl, SyncPrivacyMacros, SyncTemplateInput, TemplateError, build_sync_url,
     };

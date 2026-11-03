@@ -4,9 +4,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config_schema::{
-        bidder_discovery, bidder_reconcile, types::BidderMetadataDeclaration,
-    };
+    use auctioneer_config::{bidder_discovery, bidder_reconcile, types::BidderMetadataDeclaration};
     use quote::ToTokens as _;
     use std::collections::BTreeMap;
     use std::fs;
@@ -18,7 +16,7 @@ mod tests {
         let directory = temporary.path().canonicalize().unwrap();
         fs::write(
             directory.join("Cargo.toml"),
-            "[features]\nexperimental = ['auctioneer-config/experimental']\n",
+            "[features]\nexperimental = ['auctioneer-config-data/experimental']\n",
         )
         .unwrap();
         for (key, factory, feature) in [
@@ -58,7 +56,7 @@ mod tests {
     fn committed_catalog_reconciles_with_the_actual_generated_metadata() {
         let directory = Path::new(env!("CARGO_MANIFEST_DIR"));
         let discovery = bidder_discovery::scan(directory).unwrap();
-        let metadata = auctioneer_config::bidder_metadata_declarations();
+        let metadata = auctioneer_config_data::bidder_metadata_declarations();
         assert!(!metadata.is_empty());
         assert_eq!(discovery.validate_metadata(metadata), Ok(()));
         let registry = syn::parse_file(&discovery.render_registry(metadata).unwrap()).unwrap();

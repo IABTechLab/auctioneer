@@ -64,7 +64,7 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,

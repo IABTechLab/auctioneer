@@ -3,17 +3,13 @@
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use futures::executor::block_on;
     use auctioneer_bidder::{
         BidderRegistry, BidderRequestInfo, fake_synthetic::FakeBidder,
         request_info::BidderSettingsSource,
     };
-    use auctioneer_config::{
-        BidderSettings,
-        bidder_settings::fake_integer_probe,
-        types::{
-            AccountConfig, BidderImplementationBinding, BidderInfo, HostConfig, ResourceLimits,
-        },
+    use auctioneer_bidder::{BidderSettings, bidder_settings::fake_integer_probe};
+    use auctioneer_config_data::types::{
+        AccountConfig, BidderImplementationBinding, BidderInfo, HostConfig, ResourceLimits,
     };
     use auctioneer_exchange::test_support::response_budgets;
     use auctioneer_exchange::{
@@ -24,6 +20,7 @@ mod tests {
     use auctioneer_openrtb::{PrepareLimits, RequestHeaders, prepare};
     use auctioneer_privacy::{gcl::Gcl, gvl::GvlStore};
     use auctioneer_runtime::{Clock as _, FakeClock, SeededRng};
+    use futures::executor::block_on;
     use serde_json::{Value, json};
     use std::{
         collections::{BTreeMap, BTreeSet},

@@ -2,7 +2,7 @@
 
 use auctioneer_bidder::test_support::fake_bidder::create_bidder;
 use auctioneer_bidder::{BidderDeclaration, BidderRegistration, RegistryInputs};
-use auctioneer_config::types::{
+use auctioneer_config_data::types::{
     BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
 };
 use std::sync::OnceLock;

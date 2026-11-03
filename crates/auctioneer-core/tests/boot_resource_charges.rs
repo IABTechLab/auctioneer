@@ -287,8 +287,8 @@ mod tests {
         )
         .unwrap();
         let baked = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         let aux_inputs = gates.aux_work_derived.limits();
@@ -368,10 +368,11 @@ mod tests {
         );
         let mut more_aux = gates.limits;
         more_aux.aux_route_permits = 11;
-        let mut larger_default = auctioneer_config::host_default().clone();
+        let mut larger_default = auctioneer_config_data::host_default().clone();
         larger_default.resource_limits.max_bidder_response_bytes = usize::MAX;
         let larger_tuple_bytes =
-            serialized_json_bytes(&(larger_default, auctioneer_config::account_default())).unwrap();
+            serialized_json_bytes(&(larger_default, auctioneer_config_data::account_default()))
+                .unwrap();
         assert_ne!(larger_tuple_bytes, gates.baked_config_bytes);
         // Catalog residency and initialization are not config parse work or aux work.
         for (limits, baked) in [

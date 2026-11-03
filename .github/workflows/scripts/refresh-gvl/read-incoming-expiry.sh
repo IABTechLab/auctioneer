@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-manifest=crates/auctioneer-config/data/gvl_archive/manifest.json
+manifest=crates/auctioneer-config-data/data/gvl_archive/manifest.json
 fetched=$(jq -r '.gcl.fetched_at' "$manifest")
 max_age=$(jq -r '.gcl.cache_max_age_secs' "$manifest")
 expiry_epoch=$(( $(date -u -d "$fetched" +%s) + max_age ))

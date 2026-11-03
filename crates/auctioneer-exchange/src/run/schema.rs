@@ -144,7 +144,7 @@ mod tests {
         };
         use auctioneer_bidder::test_support::serving_catalog::{ServingBidder, published};
         use auctioneer_bidder::{BidderName, BidderRegistry, CallBudget};
-        use auctioneer_config::types::{AccountConfig, HostConfig, ResourceLimits};
+        use auctioneer_config_data::types::{AccountConfig, HostConfig, ResourceLimits};
         use auctioneer_privacy::{gcl::Gcl, gvl::GvlStore};
         use auctioneer_runtime::bounded_json::count_json_nodes;
         use auctioneer_runtime::{

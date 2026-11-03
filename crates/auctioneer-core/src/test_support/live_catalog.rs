@@ -1,7 +1,7 @@
 //! Roles for tests that dispatch the real App or linked serving binary.
 //! This reads generated metadata only; it never installs a replacement registry.
 
-use auctioneer_config::{
+use auctioneer_config_data::{
     types::{BidderInfo, BidderMetadataDeclaration},
     usersync::{SyncResponseFormat, SyncType, SyncerEndpoint},
 };
@@ -134,7 +134,7 @@ impl SyncRole {
     reason = "a missing live-catalog coverage role must fail the test"
 )]
 fn select_sync(obligation: &str, kind: SyncType, predicate: impl Fn(SyncRole) -> bool) -> SyncRole {
-    auctioneer_config::bidders()
+    auctioneer_config_data::bidders()
         .iter()
         .filter(|info| {
             !info.disabled
@@ -219,7 +219,7 @@ pub fn iframe() -> SyncRole {
 /// Panics if every live identity has a sync endpoint.
 #[must_use]
 pub fn unsyncable() -> &'static BidderInfo {
-    auctioneer_config::bidders()
+    auctioneer_config_data::bidders()
         .iter()
         .filter(|info| {
             !info.disabled && info.user_sync.iframe.is_none() && info.user_sync.redirect.is_none()
@@ -234,7 +234,7 @@ pub fn unsyncable() -> &'static BidderInfo {
 /// Panics if the feature has no declarations, preventing vacuous membership coverage.
 #[must_use]
 pub fn feature_declarations(feature: &str) -> Vec<&'static BidderMetadataDeclaration> {
-    let rows: Vec<_> = auctioneer_config::bidder_metadata_declarations()
+    let rows: Vec<_> = auctioneer_config_data::bidder_metadata_declarations()
         .iter()
         .filter(|row| row.required_feature == Some(feature))
         .collect();
@@ -248,7 +248,7 @@ pub fn feature_declarations(feature: &str) -> Vec<&'static BidderMetadataDeclara
 #[cfg(test)]
 mod tests {
     use super::SyncRole;
-    use auctioneer_config::{
+    use auctioneer_config_data::{
         types::BidderInfo,
         usersync::{SyncType, SyncerEndpoint},
     };

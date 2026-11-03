@@ -6,7 +6,8 @@
 //! No callback may perform I/O, resolve secrets or install mutable global state.
 //! Temporary validator errors remain local and must be funded before activation.
 
-use auctioneer_config::{BidderSettings, types::BidderInfo};
+use crate::BidderSettings;
+use auctioneer_config_data::types::BidderInfo;
 use std::{error::Error, fmt};
 
 /// One borrowed context for supplied and effective bidder-owned rules.
@@ -49,7 +50,7 @@ impl Error for BidderConfigError {}
 #[cfg(test)]
 mod tests {
     use super::{BidderConfigError, BidderConfigInput, BidderConfigValidator};
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
 
     #[test]
     fn callback_accepts_independent_borrowed_context_without_factories() {

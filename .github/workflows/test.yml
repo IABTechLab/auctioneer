@@ -173,9 +173,9 @@ jobs:
         if: matrix.lane == 'secure'
         run: >
           cargo run --locked -p auctioneer-cli --no-default-features -- openrtb catalogue check
-          --manifest crates/auctioneer-config/data/openrtb-2.6-source.toml
-          --source crates/auctioneer-config/data/openrtb-2.6-source.md
-          --catalogue crates/auctioneer-config/data/openrtb-2.6-catalogue.toml
+          --manifest crates/auctioneer-config-data/data/openrtb-2.6-source.toml
+          --source crates/auctioneer-config-data/data/openrtb-2.6-source.md
+          --catalogue crates/auctioneer-config-data/data/openrtb-2.6-catalogue.toml
 
       - name: Verify disclosure wire differences and retained construction bounds
         if: matrix.lane == 'secure'
@@ -209,13 +209,13 @@ jobs:
       # Axum's test-only insecure-bidders feature unifies into shared crates
       # during workspace tests. Run these packages separately for secure defaults;
       # named config targets avoid another build-failure harness run.
-      - name: Run auctioneer-config non-harness tests (secure defaults)
+      - name: Run auctioneer-config-data non-harness tests (secure defaults)
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-config --lib --test codegen --test disclosure_codegen --test gvl_archive --test smoke --test url_safety --test activity --test baked_defaults_snapshot --test simple_fold --test usersync_config --test usersync_callback_validation --test bidder_bindings --test bidder_storage
+        run: cargo test --locked -p auctioneer-config-data --lib --test codegen --test disclosure_codegen --test gvl_archive --test smoke --test url_safety --test activity --test baked_defaults_snapshot --test simple_fold --test usersync_config --test usersync_callback_validation --test bidder_bindings --test bidder_storage
 
       - name: Run configuration schema tests (secure defaults)
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-config-schema --lib --features build-support
+        run: cargo test --locked -p auctioneer-config --lib --features build-support
 
       - name: Run bidder, exchange and core tests (secure defaults)
         timeout-minutes: 25
@@ -261,7 +261,7 @@ jobs:
         if: matrix.lane == 'secure'
         env:
           AUCTIONEER__TEST__EXPECT_CONFIG_OVERRIDE: enabled
-        run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-config/test-harness-override
+        run: cargo test --locked -p auctioneer-adapter-axum --test resource_profile --features auctioneer-config-data/test-harness-override
 
       - name: Run workspace tests (default features)
         timeout-minutes: 45
@@ -281,17 +281,17 @@ jobs:
         timeout-minutes: 45
         if: matrix.lane == 'workspace-insecure'
         run: >
-          cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config --no-fail-fast --
+          cargo test --workspace --all-targets --features insecure-bidders --exclude auctioneer-config-data --no-fail-fast --
           --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
           --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
 
       - name: Verify source selection (insecure workspace graph)
         if: matrix.lane == 'workspace-insecure'
-        run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace --features insecure-bidders --exclude auctioneer-config
+        run: bash .github/workflows/scripts/test/verify-schema-source.sh 34 schema_selection --workspace --features insecure-bidders --exclude auctioneer-config-data
 
-      - name: Run auctioneer-config non-harness tests (insecure-bidders feature)
+      - name: Run auctioneer-config-data non-harness tests (insecure-bidders feature)
         if: matrix.lane == 'workspace-insecure'
-        run: cargo test -p auctioneer-config --features "insecure-bidders test-harness-override" --lib --test codegen --test gvl_archive --test smoke --test url_safety --test bidder_bindings --test bidder_storage
+        run: cargo test -p auctioneer-config-data --features "insecure-bidders test-harness-override" --lib --test codegen --test gvl_archive --test smoke --test url_safety --test bidder_bindings --test bidder_storage
 
       # The real-transport probes, named as their own step.
       #
@@ -858,7 +858,7 @@ jobs:
       # would let a compile regression merge green.
       - name: Check foundation crates and the adapter on ${{ matrix.target }}
         run: >
-          cargo check -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config
+          cargo check -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config-data
           -p auctioneer-adapter-${{ matrix.adapter }} --target ${{ matrix.target }}
 
       - name: Lint adapter and shared privacy code on ${{ matrix.target }}

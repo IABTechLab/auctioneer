@@ -12,7 +12,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRegistry, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
     };
-    use auctioneer_config::types::{AccountConfig, BidderInfo, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo, HostConfig};
     use auctioneer_exchange::construction_costs;
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::split::group_by_bidder;
@@ -170,7 +170,7 @@ mod tests {
     }
 
     fn host() -> HostConfig {
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host
     }

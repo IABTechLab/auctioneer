@@ -19,7 +19,7 @@ mod tests {
     use futures::executor::block_on;
 
     use auctioneer_bidder::{BidderHttpResponse, BidderRegistry};
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, GdprConfig, HostConfig, PurposeEnforcement, PurposeOneTreatment,
         ResourceLimits, SpecialFeatureEnforcement, Tcf2Config, TriState,
     };

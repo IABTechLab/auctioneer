@@ -2,7 +2,7 @@
 
 use crate::types::{BidderResponse, TypedBid};
 use crate::{BidderError, OutboundRequestMeta};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{
     bid_request::BidRequest,
     bid_response::{Bid, BidResponse},

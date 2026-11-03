@@ -45,7 +45,7 @@ use auctioneer_bidder::{
     Bidder, BidderError, BidderHttpResponse, BidderName, BidderRegistry, BidderRequestInfo,
     BidderResponse, DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
 };
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use auctioneer_exchange::fanout::{TransportError, TransportErrorKind};
 use auctioneer_exchange::scrub::DisclosureAudit;
 use auctioneer_exchange::{
@@ -1082,8 +1082,8 @@ fn drive_run_auction_with(
     clock: &FakeClock,
     registry: &BidderRegistry,
 ) -> Result<BidResponse, AuctionError> {
-    let host = auctioneer_config::host_default().clone();
-    let account = auctioneer_config::account_default();
+    let host = auctioneer_config_data::host_default().clone();
+    let account = auctioneer_config_data::account_default();
     let resolved = ResolvedAccount {
         id: UNRESOLVED_ACCOUNT_ID.to_owned(),
         source: AccountSource::DefaultFallback,

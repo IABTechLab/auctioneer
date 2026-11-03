@@ -11,7 +11,7 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use auctioneer_config_schema::bidder_manifest;
+use auctioneer_config::bidder_manifest;
 use bidder_manifest::{Category, Manifest, Provenance};
 
 const MAX_DEPTH: usize = 64;

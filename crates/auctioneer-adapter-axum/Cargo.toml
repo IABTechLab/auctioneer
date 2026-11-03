@@ -38,7 +38,7 @@ path = "tests/privacy_wire.rs"
 auctioneer-core = { path = "../auctioneer-core" }
 # Named directly by the baseline probe's touch pass, which walks the
 # embedded GVL archive and the baked GCL blob page by page.
-auctioneer-config = { path = "../auctioneer-config" }
+auctioneer-config-data = { path = "../auctioneer-config-data" }
 auctioneer-bidder = { workspace = true }
 auctioneer-exchange = { workspace = true }
 auctioneer-privacy = { workspace = true }

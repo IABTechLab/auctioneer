@@ -3,7 +3,7 @@
 
 use super::fixtures::{self, Flow};
 use super::harness::{self, ObservedCall, Secrets};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_privacy::{gpp::Limits as GppLimits, sources::normalize};
 use edgezero_core::app::App;
 use serde_json::{Map, Value, json};

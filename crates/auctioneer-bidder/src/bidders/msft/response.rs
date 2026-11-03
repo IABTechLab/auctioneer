@@ -6,7 +6,7 @@ use crate::bidders::{
 };
 use crate::response_decode::CandidatePolicy;
 use crate::{BidderError, BidderHttpResponse, BidderResponse, OutboundRequestMeta};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use serde_json::Value;
 
@@ -255,7 +255,7 @@ mod tests {
     use super::{bid_extension_error, response_dto_error, status_error, unsupported_bid_type};
     use crate::bidders::harness;
     use crate::{Bidder as _, BidderError, BidderErrorKind, BidderResponse};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 

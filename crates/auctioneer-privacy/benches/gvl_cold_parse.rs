@@ -14,7 +14,7 @@ use auctioneer_privacy::gvl::Gvl;
 use std::time::Instant;
 
 fn main() {
-    let Some(largest) = auctioneer_config::gvl_archive()
+    let Some(largest) = auctioneer_config_data::gvl_archive()
         .iter()
         .max_by_key(|entry| entry.raw.len())
     else {

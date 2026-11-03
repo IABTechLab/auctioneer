@@ -48,7 +48,9 @@ use auctioneer_bidder::{
     OutboundRequestMeta, OutboundRequestSink, SinkLimits, SinkOutcome, TransportFinalize, TypedBid,
     finalize_for_transport,
 };
-use auctioneer_config::types::{BidderInfo, Compression as CfgCompression, IpKeepBits, MediaType};
+use auctioneer_config_data::types::{
+    BidderInfo, Compression as CfgCompression, IpKeepBits, MediaType,
+};
 use auctioneer_openrtb::NormalizedBidRequest;
 use auctioneer_openrtb::ext::bid::{ExtBid, ExtBidPrebid};
 use auctioneer_openrtb::types::bid_request::BidRequest;
@@ -1968,7 +1970,7 @@ mod tests {
     use crate::fanout::OversizeRequestStage;
     use crate::scrub::DisclosureAudit;
     use auctioneer_bidder::BidderName;
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_privacy::{FetchDenial, PrivacyContext};
     use auctioneer_runtime::SeededRng;
     use std::collections::BTreeMap;

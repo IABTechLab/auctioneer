@@ -8,8 +8,8 @@ members = [
   "crates/auctioneer-adapter-spin",
   "crates/auctioneer-bidder",
   "crates/auctioneer-cli",
+  "crates/auctioneer-config-data",
   "crates/auctioneer-config",
-  "crates/auctioneer-config-schema",
   "crates/auctioneer-exchange",
   "crates/auctioneer-gvl-schema",
   "crates/auctioneer-macros",
@@ -69,10 +69,10 @@ edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = 
 fastly = "=0.13.1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
-# auctioneer-config's build.rs (pin matches the bounded fanout budget work).
+# auctioneer-config-data's build.rs (pin matches the bounded fanout budget work).
 brotli = "=8.0.4"
 # Advisory flock on the committed gvl_archive.lock / refresh.lock
-# sentinels — shared by auctioneer-config's build.rs (reader) and
+# sentinels — shared by auctioneer-config-data's build.rs (reader) and
 # auctioneer-cli's maintenance refresh (writer). NOT a auctioneer-gvl-schema dep;
 # that crate must keep cross-compiling to wasm32.
 fs2 = "0.4"
@@ -94,8 +94,8 @@ log = "0.4"
 lru = "0.12"
 auctioneer-bidder = { path = "crates/auctioneer-bidder" }
 auctioneer-cli = { path = "crates/auctioneer-cli", default-features = false }
+auctioneer-config-data = { path = "crates/auctioneer-config-data" }
 auctioneer-config = { path = "crates/auctioneer-config" }
-auctioneer-config-schema = { path = "crates/auctioneer-config-schema" }
 auctioneer-core = { path = "crates/auctioneer-core" }
 auctioneer-exchange = { path = "crates/auctioneer-exchange" }
 auctioneer-gvl-schema = { path = "crates/auctioneer-gvl-schema" }
@@ -160,7 +160,7 @@ uuid-simd = { version = "=0.8.0", default-features = false, features = ["std", "
 # Declarative validation. Used for field-level constraints (range,
 # length, etc.) where the check is purely a shape predicate. Domain-
 # specific validators (SSRF gate, syncer-URL macro allow-list, etc.)
-# stay as plain fns in `auctioneer-config/build_support.rs` because
+# stay as plain fns in `auctioneer-config-data/build_support.rs` because
 # they have arguments validator's per-field derive cannot pass
 # (e.g. `allow_insecure: bool` for the URL gate).
 validator = { version = "0.21", features = ["derive"] }

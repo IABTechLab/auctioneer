@@ -35,7 +35,8 @@ http            = { workspace = true }
 hmac            = { workspace = true }
 log             = { workspace = true }
 auctioneer-bidder   = { workspace = true }
-auctioneer-config   = { workspace = true }
+auctioneer-config-data   = { workspace = true }
+auctioneer-config = { workspace = true, features = ["config-model"] }
 auctioneer-exchange = { workspace = true }
 auctioneer-openrtb  = { workspace = true }
 auctioneer-privacy  = { workspace = true }
@@ -69,7 +70,7 @@ required-features = ["conformance-suite"]
 
 [dev-dependencies]
 auctioneer-core     = { workspace = true, features = ["test-support"] }
-auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-config = { workspace = true, features = ["build-support"] }
 auctioneer-exchange = { workspace = true, features = ["test-support"] }
 auctioneer-bidder   = { workspace = true, features = ["test-support"] }
 auctioneer-runtime  = { workspace = true, features = ["test-support"] }

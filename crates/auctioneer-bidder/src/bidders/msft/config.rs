@@ -30,7 +30,8 @@ pub(super) fn error(_: ValidationErrors) -> BidderConfigError {
 #[cfg(test)]
 mod tests {
     use crate::BidderConfigInput;
-    use auctioneer_config::{BidderSettings, bidder_settings::msft, types::BidderInfo};
+    use crate::{BidderSettings, bidder_settings::msft};
+    use auctioneer_config_data::types::BidderInfo;
     use serde_json::json;
 
     #[test]

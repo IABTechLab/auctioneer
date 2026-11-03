@@ -20,7 +20,7 @@ use crate::{
     },
 };
 use auctioneer_bidder::{BidderRegistry, RegistryBuildError};
-use auctioneer_config::{types::HostConfig, usersync::SyncType};
+use auctioneer_config_data::{types::HostConfig, usersync::SyncType};
 use auctioneer_privacy::{
     GdprSignalIn, Signal, SyncDecision, SyncEndpoint, SyncPrivacyContext, SyncPrivacyError,
     SyncPrivacyInput, gcl::Gcl, gvl::GvlStore, resolve_sync_privacy,
@@ -60,7 +60,7 @@ async fn cookie_sync_preflight_body(ctx: RequestContext) -> Result<Response, Edg
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -150,7 +150,7 @@ async fn cookie_sync_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -292,7 +292,7 @@ async fn respond_with_registry(
     let account = resolve::resolve_selected_account(
         resolve::AccountSelection::from_requested(request.account.as_deref()),
         app,
-        auctioneer_config::account_default(),
+        auctioneer_config_data::account_default(),
     );
     if account.config.disabled {
         return bad("account is disabled, please reach out to the prebid server host");
@@ -637,7 +637,7 @@ pub(super) mod tests {
     use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::signed::CookieKeyring;
     use crate::usersync::wire;
-    use auctioneer_config::usersync::OptoutCookie;
+    use auctioneer_config_data::usersync::OptoutCookie;
     use auctioneer_runtime::SeededRng;
     use edgezero_core::http::{HeaderValue, header::COOKIE};
     use futures::executor::block_on;

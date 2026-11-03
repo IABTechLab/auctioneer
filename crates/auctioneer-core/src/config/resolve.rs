@@ -17,8 +17,8 @@ use crate::config::{
 };
 use crate::host_primitives::gates::boot_limits;
 use auctioneer_bidder::BidderName;
-use auctioneer_config::activity::merge_activities;
-use auctioneer_config::types::{
+use auctioneer_config_data::activity::merge_activities;
+use auctioneer_config_data::types::{
     AccountConfig, AccountGdprConfig, BidderInfo, ChannelEnabled, CooperativeConfig, HostConfig,
     PurposeEnforcement, SpecialFeatureEnforcement, UserSyncConfig,
 };
@@ -1025,11 +1025,12 @@ mod tests {
         AuctioneerAppConfig, bidder_enabled, resolve_cooperative, resolve_limit, resolved_account,
         resolved_host, sync_bidder_enabled,
     };
+    use crate::config::validate_effective;
     use crate::outbound::wave::tests::test_limits;
     use crate::test_support::config_store::configured_sync_host;
     use auctioneer_bidder::BidderName;
-    use auctioneer_config::activity::Activity;
-    use auctioneer_config::types::{
+    use auctioneer_config_data::activity::Activity;
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, HostConfig, OptoutCookie, ResourceLimits, TriState,
     };
     use auctioneer_runtime::ResolvedIsolateLimits;
@@ -1226,8 +1227,7 @@ mod tests {
                 "user_sync":{"cooperative":{"enabled_by_default":false},"priority_groups":[],"allowed_origins":[]},
                 "accounts":{"pub":{"debug_allow":false,"cookie_sync":{"default_limit":0_i32,"priority_groups":[]},"privacy":{"ipv4":{"anon_keep_bits":0_i32}},"gdpr":{"basic_enforcement_vendors":replacement}}}
             })).expect("explicit overlay");
-            app.validate_effective(&host, &account)
-                .expect("valid explicit values");
+            validate_effective(&app, &host, &account).expect("valid explicit values");
             let resolved = super::resolve_host(&app, &host);
             assert_eq!(resolved.host_cookie.domain, host.host_cookie.domain);
             let optout = resolved
@@ -2047,12 +2047,12 @@ mod tests {
         )
         .unwrap();
         app.validate().unwrap();
-        let host = resolved_host(&app, auctioneer_config::host_default());
+        let host = resolved_host(&app, auctioneer_config_data::host_default());
         assert_eq!(host.resource_limits.max_outbound_raw_bytes, 1024);
         assert_eq!(host.resource_limits.max_outbound_request_bytes, 2048);
         let round_trip: AuctioneerAppConfig =
             toml::from_str(&toml::to_string(&app).unwrap()).unwrap();
-        let round_trip_host = resolved_host(&round_trip, auctioneer_config::host_default());
+        let round_trip_host = resolved_host(&round_trip, auctioneer_config_data::host_default());
         assert_eq!(round_trip_host.resource_limits.max_outbound_raw_bytes, 1024);
         assert_eq!(
             round_trip_host.resource_limits.max_outbound_request_bytes,
@@ -2064,7 +2064,7 @@ mod tests {
         use crate::config::AuctioneerAppConfig;
         use crate::config::resolve::{ResolvedAccountOwned, resolve_account, resolve_host};
         use crate::test_support::config_store::configured_sync_host;
-        use auctioneer_config::types::{
+        use auctioneer_config_data::types::{
             AccountConfig, AccountGdprConfig, ChannelEnabled, EnforceAlgo, GdprConfig, HostConfig,
             PurposeEnforcement, PurposeOneTreatment, PurposeOneTreatmentOverride, ResourceLimits,
             SpecialFeatureEnforcement, Tcf2Config, TriState,

@@ -7,7 +7,7 @@ use std::{
     str::from_utf8,
 };
 
-use auctioneer_config::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
+use auctioneer_config_data::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
 use auctioneer_runtime::aux_work::{
     MAX_SYNC_OUTPUT_BYTES, MAX_SYNC_RESPONSE_HEADER_BYTES, MAX_SYNC_RESPONSE_HEADER_COUNT,
 };
@@ -720,7 +720,7 @@ mod tests {
             limits::CookieLimits,
         },
     };
-    use auctioneer_config::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
+    use auctioneer_config_data::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
     use bytes::Bytes;
     use edgezero_core::body::Body;
     use edgezero_core::error::{EdgeError, RequestBodyOverflowOrigin};

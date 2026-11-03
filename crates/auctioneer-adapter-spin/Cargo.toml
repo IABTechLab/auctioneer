@@ -52,7 +52,7 @@ log = { workspace = true }
 auctioneer-core = { workspace = true, features = ["test-support"] }
 futures = { workspace = true }
 auctioneer-bidder = { workspace = true }
-auctioneer-config = { workspace = true }
+auctioneer-config-data = { workspace = true }
 auctioneer-exchange = { workspace = true }
 serde_json = { workspace = true }
 time = { workspace = true }

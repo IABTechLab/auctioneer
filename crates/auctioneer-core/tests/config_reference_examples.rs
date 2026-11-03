@@ -21,7 +21,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::{account_default, host_default};
+    use auctioneer_config_data::{account_default, host_default};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{resolve_host, resolved_account};
     use validator::Validate as _;
@@ -162,7 +162,7 @@ mod tests {
     }
 
     /// The `[baked.*]` half. Those tables are read by
-    /// `auctioneer-config`'s build script, which compiles them into
+    /// `auctioneer-config-data`'s build script, which compiles them into
     /// `host_default()` / `account_default()` — so the shipped file's
     /// baked namespaces are correct exactly when this build's baked
     /// constants match them field for field. That is a stronger check

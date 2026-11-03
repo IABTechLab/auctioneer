@@ -134,7 +134,7 @@ mod tests {
         BidderResponse, DebugBodySchema, OutboundBuildError, OutboundRequestMeta,
         OutboundRequestSink,
     };
-    use auctioneer_config::types::{AccountConfig, BidderInfo, Compression};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo, Compression};
     use auctioneer_exchange::construction_costs;
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
@@ -378,7 +378,7 @@ mod tests {
         diagnostics: bool,
         partial_diagnostics: bool,
     ) -> Observed {
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host.resource_limits.max_tmax_ms = 100;
         host.resource_limits.max_outbound_raw_bytes = u64::try_from(body_allocations::CAP).unwrap();
@@ -533,7 +533,7 @@ mod tests {
         accepted_calls_per_bidder: u8,
         partial_diagnostics: bool,
     ) -> FinalizationObserved {
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host.resource_limits.max_tmax_ms = 100;
         host.resource_limits.max_outbound_raw_bytes = u64::try_from(body_allocations::CAP).unwrap();

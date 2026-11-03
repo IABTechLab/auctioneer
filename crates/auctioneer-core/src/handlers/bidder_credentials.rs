@@ -1,7 +1,7 @@
 //! Request-bound credential reads; bidder implementations never access stores.
 
 use async_trait::async_trait;
-use auctioneer_config::bidder_settings::MAX_CREDENTIAL_REFERENCE_BYTES;
+use auctioneer_bidder::bidder_settings::MAX_CREDENTIAL_REFERENCE_BYTES;
 use auctioneer_runtime::MonotonicInstant;
 use auctioneer_runtime::bidder_credentials::{
     BidderCredentialSource, BidderCredentials, CredentialUnavailable, MAX_BIDDER_CREDENTIAL_BYTES,

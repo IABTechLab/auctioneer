@@ -1,6 +1,6 @@
 use crate::bidders::media_type::{classify_bid, classify_response};
 use crate::{BidderError, BidderHttpResponse, BidderResponse};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{
     bid_request::BidRequest,
     bid_response::{Bid, BidResponse},
@@ -69,7 +69,7 @@ fn appnexus_media_type(bid: &Bid) -> Result<Option<MediaType>, BidderError> {
 mod tests {
     use super::super::AppnexusBidder;
     use crate::bidders::harness;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
 
     #[test]
     fn all_rejected_bids_return_every_error_without_silent_no_bid() {

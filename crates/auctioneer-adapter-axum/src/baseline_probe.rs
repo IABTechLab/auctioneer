@@ -68,7 +68,7 @@ fn touch_embedded_archive() -> u64 {
     let mut walked: u64 = 0;
     let mut sink: u64 = 0;
 
-    for entry in auctioneer_config::gvl_archive() {
+    for entry in auctioneer_config_data::gvl_archive() {
         let raw: &[u8] = entry.raw;
         let mut offset = 0;
         while offset < raw.len() {
@@ -85,7 +85,7 @@ fn touch_embedded_archive() -> u64 {
         walked = walked.saturating_add(u64::try_from(raw.len()).unwrap_or(u64::MAX));
     }
 
-    let gcl = auctioneer_config::baked_gcl_json().as_bytes();
+    let gcl = auctioneer_config_data::baked_gcl_json().as_bytes();
     let mut offset = 0;
     while offset < gcl.len() {
         if let Some(byte) = gcl.get(offset) {

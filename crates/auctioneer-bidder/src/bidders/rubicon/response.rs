@@ -4,7 +4,7 @@ use crate::bidders::status::{bad_input_or_server, standard_status};
 use crate::{
     BidderError, BidderErrorKind, BidderHttpResponse, BidderResponse, OutboundRequestMeta, TypedBid,
 };
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use serde_json::{Map, Value};
 
@@ -222,7 +222,7 @@ mod tests {
     };
     use crate::correlation::CorrelationMedia;
     use crate::{Bidder as _, BidderErrorKind, BidderHttpResponse};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::json;
 

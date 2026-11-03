@@ -2,11 +2,11 @@
 //! snapshot admission. This module does not install serving configuration.
 
 use super::{BidderOverrides, MAX_BIDDER_NAME_BYTES, validate_host_alias_overlay};
+use auctioneer_bidder::BidderSettings;
 use auctioneer_bidder::{
     BidderConfigError, BidderConfigInput, RegistryDefinition, ValidatedRegistryPlan,
 };
 use auctioneer_config::usersync::validate_catalog_size;
-use auctioneer_config::{BidderSettings, bidder_settings::ensure_limits};
 use std::collections::{BTreeMap, BTreeSet};
 use validator::Validate as _;
 
@@ -58,9 +58,6 @@ pub fn validate_bidder_configuration(
         return Err(BidderConfigurationError::Structure);
     }
     for entry in bidders.values() {
-        if let Some(settings) = &entry.settings {
-            ensure_limits(settings).map_err(|_error| BidderConfigurationError::Structure)?;
-        }
         entry
             .validate()
             .map_err(|_error| BidderConfigurationError::Structure)?;
@@ -202,7 +199,7 @@ mod tests {
         Bidder, BidderConfigError, BidderConfigInput, BidderDeclaration, BidderRegistration,
         RegistryAlias, RegistryInputs, ValidatedRegistryPlan,
     };
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
     };
     use serde_json::json;

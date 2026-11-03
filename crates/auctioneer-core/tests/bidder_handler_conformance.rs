@@ -14,7 +14,7 @@ mod tests {
     use auctioneer_bidder::{
         BidderHttpRequest, BidderHttpResponse, BidderRegistry, BidderRequestInfo,
     };
-    use auctioneer_config::types::{BidderInfo, Compression};
+    use auctioneer_config_data::types::{BidderInfo, Compression};
     use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_core::handlers::{TestFanoutHandle, auction::auction_for_conformance};
     use auctioneer_core::host_primitives::{RequestClock, resolve_budget_inputs};

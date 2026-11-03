@@ -93,7 +93,7 @@ crates/auctioneer-core/tests/normalized_numeric_source.rs 1
 
 # Snapshots compared with `assert_eq!` against `to_string`: the exact
 # serialized bytes are the contract this file exists to pin.
-crates/auctioneer-config/tests/baked_defaults_snapshot.rs 2
+crates/auctioneer-config-data/tests/baked_defaults_snapshot.rs 2
 
 # `auctioneer-privacy` carries no `serde_json` dependency (reason 5 above).
 crates/auctioneer-privacy/src/gvl.rs 1
@@ -152,7 +152,7 @@ crates/auctioneer-core/src/config/resolve.rs 8
 
 # Override marker/value duplicate keys, including escaped-equivalent spellings,
 # must reach Serde unchanged; json! would collapse these five lexical controls.
-crates/auctioneer-core/src/config/override_value.rs 5
+crates/auctioneer-config/src/override_value.rs 5
 
 # Exact opaque 1e400 token must survive generated-App identity discovery.
 crates/auctioneer-core/tests/auction_config_lifecycle.rs 1
@@ -173,8 +173,7 @@ crates/auctioneer-cli/src/qualification/harness/native/system.rs 2
 crates/auctioneer-cli/src/native_control/io.rs 12
 
 # Duplicate and escaped-equivalent currency keys require original wire spelling.
-crates/auctioneer-config/src/currency.rs 2
-crates/auctioneer-core/src/config/floor_currency.rs 2
+crates/auctioneer-config/src/currency.rs 4
 
 # Credential duplicate/escaped keys, malformed structure and UTF-8 are lexical
 # controls. Ordinary credential and boundary documents are built with json!.

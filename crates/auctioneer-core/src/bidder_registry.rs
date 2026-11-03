@@ -8,7 +8,7 @@
 //! import it.
 
 use auctioneer_bidder::{BidderName, BidderRegistry, RegistryBuildError};
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 #[cfg(test)]
 use std::cell::Cell;
 use std::cmp::Ordering;
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn shared_registry_borrows_original_generated_rows() {
-        let infos = auctioneer_config::bidders();
+        let infos = auctioneer_config_data::bidders();
         let registry = registry_handle().unwrap();
         let repeated = registry_handle().unwrap();
         assert!(

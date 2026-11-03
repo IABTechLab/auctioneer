@@ -1,4 +1,4 @@
-//! GVL / GCL / manifest schema validation shared by `auctioneer-config`'s
+//! GVL / GCL / manifest schema validation shared by `auctioneer-config-data`'s
 //! build script, the `auctioneer-privacy` runtime lowering, and
 //! `auctioneer-cli`'s archive-independent `gvl refresh` maintenance command.
 //!
@@ -6,7 +6,7 @@
 //! bytes through [`validate_gvl_json`] / [`validate_gcl_json`] /
 //! [`validate_manifest`], so schema and hostile-input invariants hold
 //! identically at build time and at runtime. The crate deliberately has
-//! no build script and no `auctioneer-config` dependency — it must build
+//! no build script and no `auctioneer-config-data` dependency — it must build
 //! even when the checked-in archive is broken, or the refresh tool
 //! could never repair it — and it must keep cross-compiling to wasm32
 //! (so no `fs2`; [`recover_gvl_archive`] is pure `std::fs` and the

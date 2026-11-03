@@ -362,7 +362,7 @@ mod tests {
         let identity = json!({"auctioneer_commit":"a".repeat(40_usize),
             "edgezero_pin":"775366fdac923135e8430b1e3dffebedc648ef7c",
             "artifact_sha256":digest,"source_sha256":digest,
-            "build_features":["spin","auctioneer-config/test-harness-override"],
+            "build_features":["spin","auctioneer-config-data/test-harness-override"],
             "target":"wasm32-wasip2","runtime_version":{"major":3_u32,"minor":0_u32,"patch":0_u32},
             "harness_sha256":digest,"fixtures_sha256":digest,"reference_data_sha256":digest,
             "baked_config_sha256":digest,"fixture_metadata_sha256":digest});

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod generated_settings_tests {
-    use auctioneer_config::{
+    use crate::{
         BidderSettings, bidder_endpoint::thetradedesk::Values, bidder_settings::thetradedesk,
     };
     use serde_json::json;
@@ -62,13 +62,14 @@ mod generated_settings_tests {
 #[cfg(test)]
 mod tests {
     use super::super::super::{TheTradeDeskBidder, invalid_parameters};
+    use crate::BidderSettings;
     use crate::bidders::harness::{self, protocol_fixtures, verify_protocol_capture};
     use crate::{
         Bidder as _, BidderError, BidderErrorKind, BidderHttpRequest, BidderName,
         BidderRequestInfo, BidderResponse, EndpointRejectReason, EndpointValidator, EntryPoint,
         SinkLimits,
     };
-    use auctioneer_config::{BidderSettings, types::MediaType};
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde::Deserialize;
     use serde_json::{Value, json};

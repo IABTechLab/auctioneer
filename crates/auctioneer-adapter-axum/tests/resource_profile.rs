@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_adapter_axum::envelope::resource_profile;
-    use auctioneer_config::types::{BidderInfo, MediaType};
+    use auctioneer_config_data::types::{BidderInfo, MediaType};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
     use auctioneer_privacy::gvl::GVL_PARSE_CACHE_MAX_ENTRIES;
@@ -526,8 +526,8 @@ mod tests {
                     .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
             );
         }
-        let host = auctioneer_config::host_default();
-        let account = auctioneer_config::account_default();
+        let host = auctioneer_config_data::host_default();
+        let account = auctioneer_config_data::account_default();
         assert_eq!(
             profile["baked_host_sha256"],
             sha256(&serde_json::to_vec(host).unwrap())
@@ -561,7 +561,7 @@ mod tests {
         if auctioneer_core::CONFORMANCE_SUITE_ENABLED {
             features.push("conformance_suite");
         }
-        if auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED {
+        if auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED {
             features.push("test_harness_override");
         }
         assert_eq!(profile["build_features"], json!(features));
@@ -581,10 +581,13 @@ mod tests {
     #[test]
     fn config_override_probe_checks_explicit_expectations() {
         for (expected_state, should_succeed) in [
-            ("enabled", auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED),
+            (
+                "enabled",
+                auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED,
+            ),
             (
                 "disabled",
-                !auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED,
+                !auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED,
             ),
             ("", false),
             ("true", false),
@@ -618,7 +621,7 @@ mod tests {
         let exported_override = features.contains(&json!("test_harness_override"));
         assert_eq!(
             exported_override,
-            auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED
+            auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED
         );
         if let Some(expected_state) = var_os("AUCTIONEER__TEST__EXPECT_CONFIG_OVERRIDE") {
             let expected_override = match expected_state.to_str() {
@@ -661,7 +664,7 @@ mod tests {
     #[test]
     fn reference_identity_hashes_the_baked_archive_and_lookup_data() {
         let profile = Fixture::new().profile(&[]);
-        let entries: Vec<_> = auctioneer_config::gvl_archive()
+        let entries: Vec<_> = auctioneer_config_data::gvl_archive()
             .iter()
             .map(|entry| {
                 (
@@ -675,12 +678,12 @@ mod tests {
             .collect();
         let references = (
             entries,
-            auctioneer_config::gvl_archive_generated_at(),
-            auctioneer_config::gvl_archive_max_age_days(),
-            auctioneer_config::gcl_expires_at_unix_secs(),
-            auctioneer_config::baked_gcl_json(),
-            auctioneer_config::eea_set(),
-            auctioneer_config::bidders(),
+            auctioneer_config_data::gvl_archive_generated_at(),
+            auctioneer_config_data::gvl_archive_max_age_days(),
+            auctioneer_config_data::gcl_expires_at_unix_secs(),
+            auctioneer_config_data::baked_gcl_json(),
+            auctioneer_config_data::eea_set(),
+            auctioneer_config_data::bidders(),
         );
         assert_eq!(
             profile["reference_data_sha256"],
@@ -755,7 +758,7 @@ mod tests {
     }
 
     fn snapshot_bidder_name() -> &'static str {
-        &auctioneer_config::bidders()
+        &auctioneer_config_data::bidders()
             .iter()
             .find(|info| !info.disabled && info.capabilities.site.contains(&MediaType::Banner))
             .expect("the serving catalog has an enabled site banner bidder")

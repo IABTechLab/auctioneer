@@ -15,7 +15,7 @@ use crate::{
         wire::parse_setuid_query,
     },
 };
-use auctioneer_config::types::HostConfig;
+use auctioneer_config_data::types::HostConfig;
 use auctioneer_runtime::body_caps::DEFAULT_CAP_BYTES;
 use edgezero_core::{
     action,
@@ -37,7 +37,7 @@ async fn getuids_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -147,7 +147,7 @@ mod tests {
     use super::*;
     use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::signed::CookieKeyring;
-    use auctioneer_config::usersync::OptoutCookie;
+    use auctioneer_config_data::usersync::OptoutCookie;
     use edgezero_core::http::{HeaderValue, header::COOKIE};
     use futures::executor::block_on;
     use serde_json::json;

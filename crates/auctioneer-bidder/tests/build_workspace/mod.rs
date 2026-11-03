@@ -23,8 +23,8 @@ const SOURCE_LIMIT: u64 = 64 * 1024 * 1024;
 const SCRATCH_LIMIT: u64 = 4 * 1024 * 1024 * 1024;
 const OWNED_CRATES: &[&str] = &[
     "auctioneer-bidder",
+    "auctioneer-config-data",
     "auctioneer-config",
-    "auctioneer-config-schema",
     "auctioneer-gvl-schema",
     "auctioneer-openrtb",
     "auctioneer-openrtb-catalogue",
@@ -60,6 +60,19 @@ impl BuildWorkspace {
     /// # Panics
     /// Panics if scratch inputs, manifests, or the reviewed lock cannot be prepared.
     pub fn with_crates(probe: &str, probe_source: &str, extra_crates: &[&str]) -> Self {
+        Self::with_prepared_crates(probe, probe_source, extra_crates, |_| {})
+    }
+
+    /// Install the entire source closure before even the child lock command runs.
+    ///
+    /// # Panics
+    /// Panics if preparation, source bounds or the reviewed child lock are invalid.
+    pub fn with_prepared_crates(
+        probe: &str,
+        probe_source: &str,
+        extra_crates: &[&str],
+        prepare: impl FnOnce(&Self),
+    ) -> Self {
         let started = Instant::now();
         let source = Path::new(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
@@ -107,6 +120,7 @@ impl BuildWorkspace {
                 .config()
                 .starts_with(harness.root().canonicalize().unwrap())
         );
+        prepare(&harness);
         // Adapt only the workspace package closure, then reject any changed dependency pin.
         require_success(
             &harness.cargo("update", &["--workspace"], false),
@@ -184,8 +198,16 @@ impl BuildWorkspace {
         }
         command.args(extra);
         writeln!(stderr(), "build child: cargo {action} {}", extra.join(" ")).unwrap();
+        self.command(&mut command)
+    }
+
+    /// Run a compiler or executable under the same process, output and scratch bounds.
+    ///
+    /// # Panics
+    /// Panics on child-runner infrastructure failures or checked accounting overflow.
+    pub fn command(&self, command: &mut Command) -> Output {
         let started = Instant::now();
-        let result = bounded_output(&mut command, self.started, || self.sample_disk());
+        let result = bounded_output(command, self.started, || self.sample_disk());
         self.runtime
             .set(self.runtime.get().checked_add(started.elapsed()).unwrap());
         self.children
@@ -197,9 +219,7 @@ impl BuildWorkspace {
             self.peak_logical_bytes.get()
         )
         .unwrap();
-        result.unwrap_or_else(|error| {
-            panic!("build infrastructure failure running {action}: {error}")
-        })
+        result.unwrap_or_else(|error| panic!("build infrastructure failure running child: {error}"))
     }
 
     fn sample_disk(&self) -> io::Result<()> {
@@ -312,7 +332,7 @@ fn synthetic_schema_boundary(source: &str) -> (String, String) {
     build.items.retain_mut(|item| {
         if let syn::Item::Use(import) = item
             && let syn::UseTree::Path(root) = &import.tree
-            && root.ident == "auctioneer_config_schema"
+            && root.ident == "auctioneer_config"
             && let syn::UseTree::Path(module) = &*root.tree
             && matches!(
                 module.ident.to_string().as_str(),
@@ -427,9 +447,9 @@ pub(crate) fn prepare_workspace(
         dependencies.get_mut(*name).unwrap()["path"] = relative.into();
     }
     let bidder = temporary.join("crates/auctioneer-bidder");
-    let config = temporary.join("crates/auctioneer-config");
+    let config = temporary.join("crates/auctioneer-config-data");
     copy_source_tree(
-        &root.join("crates/auctioneer-config/data"),
+        &root.join("crates/auctioneer-config-data/data"),
         &config.join("data"),
         &mut copied_bytes,
     );
@@ -734,7 +754,10 @@ mod tests {
             toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
         let temporary = tempfile::tempdir().unwrap();
         let (bidder, config) = prepare_workspace(&root, temporary.path(), &original, &[]);
-        for (name, copied) in [("auctioneer-bidder", bidder), ("auctioneer-config", config)] {
+        for (name, copied) in [
+            ("auctioneer-bidder", bidder),
+            ("auctioneer-config-data", config),
+        ] {
             let source: Value = toml::from_str(
                 &fs::read_to_string(root.join("crates").join(name).join("Cargo.toml")).unwrap(),
             )

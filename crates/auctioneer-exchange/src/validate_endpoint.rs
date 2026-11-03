@@ -4,7 +4,7 @@ use auctioneer_bidder::{
     BidderError, BidderRequestInfo, EndpointRejectReason, EndpointValidator,
     MAX_RETAINED_SINK_ERRORS,
 };
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use std::cell::RefCell;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
@@ -279,7 +279,7 @@ impl EndpointValidator for ExchangeEndpointValidator<'_> {
 mod tests {
     use super::{ExchangeEndpointValidator, MAX_RETAINED_SINK_ERRORS};
     use auctioneer_bidder::{BidderName, BidderRequestInfo, EndpointValidator as _, EntryPoint};
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
 
     /// A bidder whose configured surface rejects everything this test
     /// offers, so every `validate` call is a rejection.

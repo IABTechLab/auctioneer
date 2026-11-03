@@ -13,12 +13,12 @@ git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 # so force-with-lease against whatever a previous attempt left is
 # the idempotent choice: any retry converges on the same tree.
 git checkout -B "$branch"
-git add crates/auctioneer-config/data/gvl_archive
+git add crates/auctioneer-config-data/data/gvl_archive
 git commit -m "chore: refresh the baked GVL and CMP archive" \
   -m "The baked Global CMP List expired at ${BEFORE_EXPIRY}; the refreshed artifact expires at ${AFTER_EXPIRY}."
 git push --force-with-lease --set-upstream origin "$branch"
 body=$(printf '%s\n' \
-  "Automated refresh of \`crates/auctioneer-config/data/gvl_archive/\`," \
+  "Automated refresh of \`crates/auctioneer-config-data/data/gvl_archive/\`," \
   "produced by \`cargo run --locked -p auctioneer-cli --no-default-features -- gvl refresh\`. The job runs daily" \
   "and opens a pull request only on the days the Global CMP List expiry" \
   "actually moved forward." \

@@ -415,7 +415,7 @@ mod tests {
         BidderHttpRequest, BidderRequestInfo, ConstructionDiagnostic, EndpointRejectReason,
         EndpointValidator, FloorConversion, SinkLimits,
     };
-    use auctioneer_config::currency::FloorCurrencyConfig;
+    use auctioneer_config_data::currency::FloorCurrencyConfig;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
     use url::Url;

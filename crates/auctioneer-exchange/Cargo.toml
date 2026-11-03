@@ -20,7 +20,7 @@ async-trait    = { workspace = true }
 # only operator-visible trace of a bad `[aliases]` row is a WARN line.
 log            = { workspace = true }
 auctioneer-bidder  = { workspace = true }
-auctioneer-config  = { workspace = true }
+auctioneer-config-data  = { workspace = true }
 auctioneer-openrtb = { workspace = true }
 auctioneer-privacy = { workspace = true }
 auctioneer-runtime = { workspace = true }

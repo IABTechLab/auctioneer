@@ -8,7 +8,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::bidder_fixture::registry;
-    use auctioneer_config::types::{AccountConfig, HostConfig, SyncType};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig, SyncType};
     use auctioneer_core::{
         config::AuctioneerAppConfig,
         usersync::{

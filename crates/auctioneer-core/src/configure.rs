@@ -97,7 +97,7 @@ use crate::host_primitives::gates::{boot_limits, boot_target};
 use crate::host_primitives::static_egress::detached_egress_decision;
 use crate::ingress::decide as decide_admission;
 use auctioneer_bidder::schema::{SchemaArtifactState, schema_artifact_state};
-use auctioneer_config::RUNTIME_BOOTSTRAP;
+use auctioneer_config_data::RUNTIME_BOOTSTRAP;
 use auctioneer_runtime::BudgetError;
 use edgezero_core::app::App;
 use edgezero_core::config_store::ConfigExtractionLimits;

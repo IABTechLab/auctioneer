@@ -1,6 +1,6 @@
 //! Fixed runtime-config fixtures; no boot state, policy or expected limits.
 
-use auctioneer_config::types::{CooperativeConfig, HostConfig, UserSyncConfig};
+use auctioneer_config_data::types::{CooperativeConfig, HostConfig, UserSyncConfig};
 use edgezero_core::blob_envelope::BlobEnvelope;
 use edgezero_core::config_store::{
     BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,

@@ -27,7 +27,7 @@ mod tests {
         BidderRequestInfo, BidderResponse, DebugBodyEligibility, DebugBodySchema,
         OutboundRequestMeta, OutboundRequestSink,
     };
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, Compression, HostConfig, ResourceLimits,
     };
     use auctioneer_exchange::fanout::{TransportError, TransportErrorKind};

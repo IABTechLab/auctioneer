@@ -12,7 +12,7 @@ pub mod sdk;
 mod recovery;
 
 const SDK_PIN: &str = "775366fdac923135e8430b1e3dffebedc648ef7c";
-const OVERRIDE_FEATURE: &str = "auctioneer-config/test-harness-override";
+const OVERRIDE_FEATURE: &str = "auctioneer-config-data/test-harness-override";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -688,7 +688,7 @@ mod tests {
         json!({"auctioneer_commit":"a".repeat(40_usize),
             "edgezero_pin":"775366fdac923135e8430b1e3dffebedc648ef7c",
             "artifact_sha256":"a".repeat(64_usize),"source_sha256":"a".repeat(64_usize),
-            "build_features":["spin","auctioneer-config/test-harness-override"],"target":"wasm32-wasip2",
+            "build_features":["spin","auctioneer-config-data/test-harness-override"],"target":"wasm32-wasip2",
             "runtime_version":{"major":3_usize,"minor":0_usize,"patch":0_usize},"harness_sha256":"a".repeat(64_usize),
             "fixtures_sha256":"a".repeat(64_usize),"reference_data_sha256":"a".repeat(64_usize),
             "baked_config_sha256":"a".repeat(64_usize),"fixture_metadata_sha256":"a".repeat(64_usize)})
@@ -830,8 +830,8 @@ mod tests {
             ("spin", "wasm32-wasip2"),
         ] {
             for features in [
-                json!([provider, "auctioneer-config/test-harness-override"]),
-                json!(["auctioneer-config/test-harness-override", provider]),
+                json!([provider, "auctioneer-config-data/test-harness-override"]),
+                json!(["auctioneer-config-data/test-harness-override", provider]),
             ] {
                 let mut provider_evidence = input();
                 provider_evidence["provider"] = json!(provider);
@@ -844,24 +844,24 @@ mod tests {
         for features in [
             json!(["spin"]),
             json!(["spin", "spin"]),
-            json!(["fastly", "auctioneer-config/test-harness-override"]),
+            json!(["fastly", "auctioneer-config-data/test-harness-override"]),
             json!([
                 "spin",
-                "auctioneer-config/test-harness-override",
+                "auctioneer-config-data/test-harness-override",
                 "insecure-bidders"
             ]),
             json!([
                 "spin",
-                "auctioneer-config/test-harness-override",
+                "auctioneer-config-data/test-harness-override",
                 "conformance-suite"
             ]),
             json!([
                 "spin",
-                "auctioneer-config/test-harness-override",
+                "auctioneer-config-data/test-harness-override",
                 "test-harness-override"
             ]),
             json!(null),
-            json!("spin,auctioneer-config/test-harness-override"),
+            json!("spin,auctioneer-config-data/test-harness-override"),
             json!(["spin", true]),
         ] {
             let mut invalid_features = input();
@@ -871,7 +871,7 @@ mod tests {
         }
         let mut reordered_features = input();
         reordered_features["expected_identity"]["build_features"] =
-            json!(["auctioneer-config/test-harness-override", "spin"]);
+            json!(["auctioneer-config-data/test-harness-override", "spin"]);
         refuses(reordered_features, "identity_mismatch");
     }
 

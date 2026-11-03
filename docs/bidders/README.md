@@ -211,7 +211,7 @@ work use the existing shared boundaries; adding a factory does not promote metad
 
 ## Discovery Preparation
 
-The build-only [discovery generator](../../crates/auctioneer-config-schema/src/bidder_discovery.rs)
+The build-only [discovery generator](../../crates/auctioneer-config/src/bidder_discovery.rs)
 validates adjacent declarations under a fixed `src/bidders` root, records
 rebuild inputs and renders direct module includes plus sorted declaration and
 feature-filtered factory tables. It has no central list of bidder names and

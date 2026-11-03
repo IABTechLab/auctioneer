@@ -290,7 +290,7 @@ mod tests {
     }
 
     fn assert_lifecycle(endpoint: Endpoint) {
-        const { assert!(!auctioneer_config::RUNTIME_BOOTSTRAP.allow_missing_config) };
+        const { assert!(!auctioneer_config_data::RUNTIME_BOOTSTRAP.allow_missing_config) };
         testing_logger::setup();
         let app = TestApp::new(ALLOWED);
         assert_allowed(endpoint, &endpoint.dispatch(&app));

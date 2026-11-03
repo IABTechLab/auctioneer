@@ -307,8 +307,8 @@ mod tests {
             }),
         );
         let baked = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .expect("baked config is serializable");
         let required = boot_gates()

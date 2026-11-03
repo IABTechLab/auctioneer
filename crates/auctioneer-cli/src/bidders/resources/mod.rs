@@ -395,8 +395,8 @@ fn profile_digest(row: &AdapterRow) -> Result<String, Error> {
 
 fn baked_identity() -> Result<(u64, String), Error> {
     let baked = serde_json::to_vec(&(
-        auctioneer_config::host_default(),
-        auctioneer_config::account_default(),
+        auctioneer_config_data::host_default(),
+        auctioneer_config_data::account_default(),
     ))
     .map_err(|_error| Error::ResourceInput)?;
     let baked_digest = hex::encode(Sha256::digest(&baked));
@@ -1132,11 +1132,11 @@ mod tests {
             ("Cargo.lock", b"version = 4\n".to_vec()),
             ("auctioneer.toml", b"[baked]\n".to_vec()),
             (
-                "crates/auctioneer-config/build.rs",
+                "crates/auctioneer-config-data/build.rs",
                 b"// fixture build input\n".to_vec(),
             ),
             (
-                "crates/auctioneer-config/data/gvl_archive/gcl.json",
+                "crates/auctioneer-config-data/data/gvl_archive/gcl.json",
                 serde_json::to_vec(&serde_json::json!({})).unwrap(),
             ),
             (
@@ -1218,8 +1218,8 @@ mod tests {
         let mut rejected = Vec::new();
         for relative in [
             "auctioneer.toml",
-            "crates/auctioneer-config/build.rs",
-            "crates/auctioneer-config/data/gvl_archive/gcl.json",
+            "crates/auctioneer-config-data/build.rs",
+            "crates/auctioneer-config-data/data/gvl_archive/gcl.json",
             "crates/auctioneer-exchange/src/scrub/value.rs",
             "crates/auctioneer-core/src/handlers/request_disclosure_audit.rs",
         ] {
@@ -1355,8 +1355,8 @@ mod tests {
             AdapterId::ALL
         );
         let baked = serde_json::to_vec(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         for row in &report.adapters {

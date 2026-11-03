@@ -53,7 +53,7 @@ auctioneer-runtime = { workspace = true }
 
 [dev-dependencies]
 auctioneer-core = { workspace = true, features = ["test-support"] }
-auctioneer-config = { workspace = true }
+auctioneer-config-data = { workspace = true }
 futures = { workspace = true }
 auctioneer-bidder = { workspace = true }
 auctioneer-exchange = { workspace = true }

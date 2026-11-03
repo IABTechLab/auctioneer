@@ -9,7 +9,7 @@
 #   [runtime]        pushed by `auctioneer-cli config push`, effective on
 #                    the next request
 #
-# `[baked.*]` is read by `crates/auctioneer-config/build.rs` and compiled
+# `[baked.*]` is read by `crates/auctioneer-config-data/build.rs` and compiled
 # into the binary as `host_default()` / `account_default()`. Changing a
 # value there takes a rebuild: `config push` cannot reach it and
 # neither can a restart, because the same binary re-reads the same

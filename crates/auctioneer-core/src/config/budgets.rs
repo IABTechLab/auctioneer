@@ -5,7 +5,7 @@ use crate::config::{
     resolve::AccountSelection,
 };
 use auctioneer_bidder::BidderRegistry;
-use auctioneer_config::types::HostConfig;
+use auctioneer_config_data::types::HostConfig;
 use auctioneer_exchange::{AccountSource, BidderBudgets, ResolvedAliases, ResolvedBudgets};
 use std::collections::BTreeMap;
 
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn fallback_identity_cannot_select_the_unknown_publisher_override() {
         use crate::config::resolve::resolve_account_from_value;
-        use auctioneer_config::types::AccountConfig;
+        use auctioneer_config_data::types::AccountConfig;
 
         let app: AuctioneerAppConfig = toml::from_str(
             "[accounts.unknown]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n",
@@ -194,7 +194,7 @@ mod tests {
     };
     use crate::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_bidder::BidderName;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use auctioneer_exchange::{
         AliasMap, BidderBudgets, BootEnvelope, ResolvedAliases, resolve_budget,
     };

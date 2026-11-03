@@ -4,11 +4,11 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_bidder::BidderName;
-    use auctioneer_config::types::{AccountConfig, TriState};
-    use auctioneer_core::config::AuctioneerAppConfig;
+    use auctioneer_config_data::types::{AccountConfig, TriState};
     use auctioneer_core::config::resolve::{
         AccountSelection, resolve_host, resolve_selected_account,
     };
+    use auctioneer_core::config::{AuctioneerAppConfig, validate_effective_with_catalog};
     use auctioneer_core::test_support::config_store::configured_sync_host;
     use auctioneer_runtime::aux_work::MAX_CATALOG_IDENTITIES;
 
@@ -147,50 +147,78 @@ mod tests {
         let mut invalid_host = configured_sync_host();
         invalid_host.host_cookie.cookie_name = "uids".into();
         assert!(
-            AuctioneerAppConfig::default()
-                .validate_effective_with_catalog(
-                    &invalid_host,
-                    &AccountConfig::default(),
-                    &compiled_names()
-                )
-                .is_err()
+            validate_effective_with_catalog(
+                &AuctioneerAppConfig::default(),
+                &invalid_host,
+                &AccountConfig::default(),
+                &compiled_names()
+            )
+            .is_err()
         );
 
         let baked = configured_sync_host();
         let account = AccountConfig::default();
         assert!(
-            app("[host_cookie]\ncookie_name = 'uids'\n")
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
-                .is_err()
+            validate_effective_with_catalog(
+                &app("[host_cookie]\ncookie_name = 'uids'\n"),
+                &baked,
+                &account,
+                &compiled_names()
+            )
+            .is_err()
         );
         assert!(
-            app("[user_sync]\nexternal_url = 'http://bad.example'\n")
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
-                .is_err()
+            validate_effective_with_catalog(
+                &app("[user_sync]\nexternal_url = 'http://bad.example'\n"),
+                &baked,
+                &account,
+                &compiled_names()
+            )
+            .is_err()
         );
         assert!(
-            app("[aliases]\nfake_Foo = 'fake_pp'\nfake_foo = 'fake_pp'\n")
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
-                .is_err()
+            validate_effective_with_catalog(
+                &app("[aliases]\nfake_Foo = 'fake_pp'\nfake_foo = 'fake_pp'\n"),
+                &baked,
+                &account,
+                &compiled_names()
+            )
+            .is_err()
         );
         assert!(
-            app("[aliases]\nfake_Pp = 'fake_bbb'\n")
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
-                .is_err()
+            validate_effective_with_catalog(
+                &app("[aliases]\nfake_Pp = 'fake_bbb'\n"),
+                &baked,
+                &account,
+                &compiled_names()
+            )
+            .is_err()
         );
         assert!(
-            app("[bidders.fake_Foo]\nusersync_enabled = false\n[bidders.fake_foo]\nenabled = false\n")
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
-                .is_err()
+            validate_effective_with_catalog(
+                &app("[bidders.fake_Foo]\nusersync_enabled = false\n[bidders.fake_foo]\nenabled = false\n"),
+                &baked,
+                &account,
+                &compiled_names()
+            )
+            .is_err()
         );
         assert!(
-            app("[bidders.fake_Pp]\nusersync_enabled = false\n")
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
-                .is_err()
+            validate_effective_with_catalog(
+                &app("[bidders.fake_Pp]\nusersync_enabled = false\n"),
+                &baked,
+                &account,
+                &compiled_names()
+            )
+            .is_err()
         );
-        app("[aliases]\nfake_pp = 'fake_bbb'\n")
-            .validate_effective_with_catalog(&baked, &account, &compiled_names())
-            .unwrap();
+        validate_effective_with_catalog(
+            &app("[aliases]\nfake_pp = 'fake_bbb'\n"),
+            &baked,
+            &account,
+            &compiled_names(),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -206,21 +234,27 @@ mod tests {
                 .insert(format!("fake_sync_alias_{index}"), "fake_pp".into());
         }
         let account = AccountConfig::default();
-        AuctioneerAppConfig::default()
-            .validate_effective_with_catalog(&baked, &account, &compiled_names())
-            .unwrap();
+        validate_effective_with_catalog(
+            &AuctioneerAppConfig::default(),
+            &baked,
+            &account,
+            &compiled_names(),
+        )
+        .unwrap();
         let runtime = app("[aliases]\nfake_overflow = 'fake_pp'\n");
-        runtime
-            .validate_effective_with_catalog(&baked, &account, &compiled_names())
-            .unwrap();
+        validate_effective_with_catalog(&runtime, &baked, &account, &compiled_names()).unwrap();
         baked
             .aliases
             .insert("fake_last_baked".into(), "fake_pp".into());
-        AuctioneerAppConfig::default()
-            .validate_effective_with_catalog(&baked, &account, &compiled_names())
-            .unwrap();
+        validate_effective_with_catalog(
+            &AuctioneerAppConfig::default(),
+            &baked,
+            &account,
+            &compiled_names(),
+        )
+        .unwrap();
         assert_eq!(
-            runtime.validate_effective_with_catalog(&baked, &account, &compiled_names()),
+            validate_effective_with_catalog(&runtime, &baked, &account, &compiled_names()),
             Err("user-sync catalog exceeds 512 names".into()),
         );
     }
@@ -232,16 +266,13 @@ mod tests {
         let colliding =
             app("[aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_foo]\nusersync_enabled = false\n");
         assert!(
-            colliding
-                .validate_effective_with_catalog(&baked, &account, &compiled_names())
+            validate_effective_with_catalog(&colliding, &baked, &account, &compiled_names())
                 .is_err()
         );
 
         let exact =
             app("[aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_Foo]\nusersync_enabled = false\n");
-        exact
-            .validate_effective_with_catalog(&baked, &account, &compiled_names())
-            .unwrap();
+        validate_effective_with_catalog(&exact, &baked, &account, &compiled_names()).unwrap();
 
         let mut baked_alias = configured_sync_host();
         baked_alias
@@ -249,8 +280,7 @@ mod tests {
             .insert("fake_Foo".into(), "fake_pp".into());
         let runtime = app("[bidders.fake_foo]\nusersync_enabled = false\n");
         assert!(
-            runtime
-                .validate_effective_with_catalog(&baked_alias, &account, &compiled_names())
+            validate_effective_with_catalog(&runtime, &baked_alias, &account, &compiled_names())
                 .is_err()
         );
     }

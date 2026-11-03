@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use auctioneer_config::types::{AccountConfig, PurposeOneTreatmentOverride, TriState};
+use auctioneer_config_data::types::{AccountConfig, PurposeOneTreatmentOverride, TriState};
 
 use super::{
     AccountGdprOverride, ChannelEnabledOverride, PurposeEnforcementOverride,
@@ -134,7 +134,7 @@ impl<'a> From<&'a AccountGdprPolicy> for AccountGdprFields<'a> {
 mod tests {
     use super::resolve_policy_account;
     use crate::config::{policy::OperatorPolicy, resolve::AccountSelection};
-    use auctioneer_config::{
+    use auctioneer_config_data::{
         activity::{Activity, Rule},
         types::{AccountConfig, EnforceAlgo, TriState},
     };

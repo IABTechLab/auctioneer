@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::activity::{Activity, ActivityConfig, Rule, validate_activities};
+    use auctioneer_config_data::activity::{Activity, ActivityConfig, Rule, validate_activities};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::resolve_account;
     use serde_json::json;
@@ -10,7 +10,7 @@ mod tests {
 
     #[test]
     fn account_clone_and_runtime_overlay_share_rule_storage() {
-        let mut baked = auctioneer_config::account_default().clone();
+        let mut baked = auctioneer_config_data::account_default().clone();
         Arc::make_mut(&mut baked.privacy.allowactivities).insert(
             Activity::FetchBids,
             ActivityConfig {

@@ -35,7 +35,7 @@ mod tests {
     use super::super::GenericBidder;
     use crate::Bidder as _;
     use crate::bidders::harness;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
 
     #[test]

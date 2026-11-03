@@ -27,7 +27,7 @@ mod allocation_meter {
 
 mod request_binding {
     use auctioneer_bidder::{BidderName, BidderRequestInfo, EntryPoint};
-    use auctioneer_config::{BidderSettings, bidder_settings::fake_integer_probe};
+    use auctioneer_bidder::{BidderSettings, bidder_settings::fake_integer_probe};
     use serde_json::json;
     use std::ptr;
 
@@ -205,7 +205,7 @@ mod retained_owner {
     #[cfg(test)]
     mod tests {
         use auctioneer_bidder::request_info::BidderSettingsSource as _;
-        use auctioneer_config::{BidderSettings, bidder_settings::fake_string_probe};
+        use auctioneer_bidder::{BidderSettings, bidder_settings::fake_string_probe};
         use auctioneer_core::config::{
             AuctioneerAppConfig, bidder_settings::RuntimeBidderSettings,
         };
@@ -256,7 +256,7 @@ mod retained_owner {
 }
 
 mod config_limits {
-    use auctioneer_config::BidderSettings;
+    use auctioneer_bidder::BidderSettings;
     use serde_json::{Value, json};
 
     fn decode(value: Value) -> Result<BidderSettings, serde_json::Error> {
@@ -264,8 +264,29 @@ mod config_limits {
     }
 
     #[test]
+    fn aggregate_validation_delegates_structural_limits_with_fixed_redacted_errors() {
+        use validator::Validate as _;
+        let policy = auctioneer_config::policy::OperatorPolicy::<BidderSettings>::default();
+        policy.validate().unwrap();
+        let valid = decode(
+            json!({"implementation":"fake_string_probe","values":{"token":"private-marker"}}),
+        )
+        .unwrap();
+        valid.validate().unwrap();
+        let invalid = decode(json!({"implementation":"fake_string_probe","values":{"token":"private-marker".repeat(2048)}})).unwrap();
+        let errors = invalid.validate().unwrap_err();
+        let fields = errors.field_errors();
+        assert_eq!(fields.len(), 1);
+        let errors = fields["values"];
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].code, "bidder settings exceed byte limit");
+        assert!(errors[0].params.is_empty());
+        assert!(errors[0].message.is_none());
+    }
+
+    #[test]
     fn typed_settings_byte_ceiling_includes_the_envelope_and_json_escaping() {
-        use auctioneer_config::bidder_settings::ensure_limits;
+        use auctioneer_bidder::bidder_settings::ensure_limits;
         let empty =
             decode(json!({"implementation":"fake_string_probe","values":{"token":""}})).unwrap();
         let overhead = auctioneer_runtime::serialized_json_bytes(&empty).unwrap();
@@ -448,11 +469,11 @@ mod runtime {
 }
 
 mod generated_endpoints {
+    use auctioneer_bidder::bidder_endpoint::fake_string_probe::Values;
     use auctioneer_bidder::{
         EndpointBuilder, META_BIDDER_REGION_BYTES, META_BYTES_CAPACITY, OutboundRequestMetaBuilder,
         SinkAbort,
     };
-    use auctioneer_config::bidder_endpoint::fake_string_probe::Values;
 
     fn typed_info<'a>(
         endpoint: &'a str,
@@ -574,14 +595,14 @@ mod generated_endpoints {
 }
 
 mod config_callbacks {
+    use auctioneer_bidder::BidderSettings;
     use auctioneer_bidder::{
         BidderConfigError, BidderConfigInput, BidderConfigValidator, BidderDeclaration,
         BidderRegistration, RegistryInputs, ValidatedRegistryPlan, bidder_declarations,
         compiled_bidders,
     };
-    use auctioneer_config::{
-        BidderSettings,
-        types::{BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration},
+    use auctioneer_config_data::types::{
+        BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
     };
     use auctioneer_core::config::{
         BidderOverrides,
@@ -608,7 +629,7 @@ mod config_callbacks {
     }
 
     fn observe_integer(input: BidderConfigInput<'_>) -> Result<(), BidderConfigError> {
-        let resolved = auctioneer_config::bidder_settings::fake_integer_probe::resolve(
+        let resolved = auctioneer_bidder::bidder_settings::fake_integer_probe::resolve(
             input
                 .requested
                 .and_then(BidderSettings::as_fake_integer_probe),

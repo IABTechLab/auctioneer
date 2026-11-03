@@ -11,7 +11,7 @@ static ALLOCATOR: alloc_track::CountingAllocator = alloc_track::CountingAllocato
 #[cfg(test)]
 mod tests {
     use super::{alloc_track, tc_encode};
-    use auctioneer_config::types::{HostConfig, PurposeEnforcement, TriState};
+    use auctioneer_config_data::types::{HostConfig, PurposeEnforcement, TriState};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_privacy::gpp::Envelope;
     use auctioneer_privacy::gvl::Gvl;
@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn cold_gvl_parse_peak_is_charged_separately_from_resident_storage() {
         let mut maximum = 0;
-        for entry in auctioneer_config::gvl_archive() {
+        for entry in auctioneer_config_data::gvl_archive() {
             let raw = entry.raw;
             let spec = entry.spec;
             let cost = peak(move || Gvl::load_from_json_bytes(raw, Some(spec)).unwrap());
@@ -136,7 +136,7 @@ mod tests {
     fn granting_baked_consent(
         now: OffsetDateTime,
     ) -> (&'static str, u16, tc_encode::CoreSpec, String) {
-        let entry = auctioneer_config::gvl_archive()
+        let entry = auctioneer_config_data::gvl_archive()
             .iter()
             .filter(|entry| entry.spec == 3)
             .max_by_key(|entry| entry.vendor_list_version)
@@ -147,7 +147,7 @@ mod tests {
         let warmed = GvlStore::baked()
             .get(entry.spec, entry.vendor_list_version)
             .unwrap();
-        let (core_name, vendor_id) = auctioneer_config::bidders()
+        let (core_name, vendor_id) = auctioneer_config_data::bidders()
             .iter()
             .find_map(|info| {
                 let id = u16::try_from(info.gvl_vendor_id?).ok()?;
@@ -185,7 +185,7 @@ mod tests {
     }
 
     fn enforcing_host() -> HostConfig {
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = true;
         host.gdpr.tcf2.enabled = true;
         for purpose in 1..=10 {
@@ -229,7 +229,7 @@ mod tests {
         let now = datetime!(2026-10-12 00:00 UTC);
         let gvl = GvlStore::baked();
         let (core_name, vendor_id, spec, consent) = granting_baked_consent(now);
-        assert!(auctioneer_config::bidder("fake_privacy_budget_unknown_core").is_none());
+        assert!(auctioneer_config_data::bidder("fake_privacy_budget_unknown_core").is_none());
         let mut baseline = None;
         for count in [0_usize, 1, 100, 5000] {
             let names: Vec<String> = (0..count).map(|n| format!("fake_{n}")).collect();
@@ -249,7 +249,7 @@ mod tests {
                 auctioneer_runtime::from_slice_within(&raw, 0x0001_0000).unwrap();
             let bytes = u64::try_from(raw.len()).unwrap();
             let host = enforcing_host();
-            let account = auctioneer_config::account_default();
+            let account = auctioneer_config_data::account_default();
             let gcl = Gcl::for_test(
                 vec![CmpRecord {
                     id: spec.cmp_id,

@@ -123,8 +123,8 @@ mod tests {
         // Use the same host + account config the handler wires so the
         // direct-path and handler-path responses match byte-for-byte.
         let app_config = host_config();
-        let host = resolve_host(&app_config, auctioneer_config::host_default());
-        let acct = auctioneer_config::account_default();
+        let host = resolve_host(&app_config, auctioneer_config_data::host_default());
+        let acct = auctioneer_config_data::account_default();
         let resolved = ResolvedAccount {
             id: "unknown".into(),
             source: AccountSource::DefaultFallback,

@@ -20,8 +20,8 @@ pub fn fund_sdk_defaults(limits: &mut ResolvedIsolateLimits, target: &TargetPlat
     limits.max_runtime_config_blob_bytes = caps.max_blob_bytes;
     limits.max_config_json_nodes = caps.max_json_nodes;
     let baked = serialized_json_bytes(&(
-        auctioneer_config::host_default(),
-        auctioneer_config::account_default(),
+        auctioneer_config_data::host_default(),
+        auctioneer_config_data::account_default(),
     ))
     .unwrap();
     limits.aux_route_peak_bytes = limits.aux_route_peak_bytes.max(
@@ -41,7 +41,7 @@ pub fn install() {
         let mut limits = envelope::limits();
         // Standalone handlers previously resolved the baked workload ceilings.
         // Fund those too, so installing config funding does not narrow fanout.
-        let workload = &auctioneer_config::host_default().resource_limits;
+        let workload = &auctioneer_config_data::host_default().resource_limits;
         limits.egress_permits = 64;
         limits.max_bidders_per_auction = u32::try_from(workload.max_bidders_per_auction).unwrap();
         limits.max_outbound_requests = u32::try_from(workload.max_outbound_requests).unwrap();

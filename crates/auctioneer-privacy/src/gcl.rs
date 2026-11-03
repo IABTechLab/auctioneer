@@ -22,18 +22,20 @@ pub struct Gcl {
 }
 
 impl Gcl {
-    /// Boot/baked constructor: lowers `auctioneer_config::baked_gcl_json()`
+    /// Boot/baked constructor: lowers `auctioneer_config_data::baked_gcl_json()`
     /// once into a process-static. Called at boot alongside the
     /// host-primitives install, so its heap sits inside the measured
     /// baseline (no separate budget term).
     pub fn baked() -> &'static Gcl {
         BAKED.get_or_init(|| {
-            let expires_at =
-                OffsetDateTime::from_unix_timestamp(auctioneer_config::gcl_expires_at_unix_secs())
-                    // Fail-closed: an unconvertible expiry reads as already
-                    // stale, never as never-expiring.
-                    .unwrap_or(OffsetDateTime::UNIX_EPOCH);
-            match auctioneer_gvl_schema::validate_gcl_json(auctioneer_config::baked_gcl_json()) {
+            let expires_at = OffsetDateTime::from_unix_timestamp(
+                auctioneer_config_data::gcl_expires_at_unix_secs(),
+            )
+            // Fail-closed: an unconvertible expiry reads as already
+            // stale, never as never-expiring.
+            .unwrap_or(OffsetDateTime::UNIX_EPOCH);
+            match auctioneer_gvl_schema::validate_gcl_json(auctioneer_config_data::baked_gcl_json())
+            {
                 Ok(validated) => Gcl {
                     cmps: validated
                         .cmps

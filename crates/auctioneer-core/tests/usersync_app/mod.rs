@@ -180,8 +180,8 @@ fn bootstrap(final_response_cap: Option<u64>) {
             egress_handoff_factor: 2,
         };
         let baked = auctioneer_runtime::serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .expect("baked config size");
         limits.aux_route_peak_bytes = derive_aux_work_for_profile(&limits, &target, baked)

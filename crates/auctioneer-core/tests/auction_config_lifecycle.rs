@@ -21,7 +21,7 @@ mod tests {
     use super::app::{self, TestApp};
     use crate::serving_catalog::{ServingBidder, default_active_publications};
     use auctioneer_bidder::{BidderHttpResponse, DebugBodyEligibility};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::{
         handlers::TestFanoutHandle,
         host_primitives::{TestMonotonicClockHandle, gates::boot_gates},

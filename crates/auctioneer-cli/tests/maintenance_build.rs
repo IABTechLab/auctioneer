@@ -71,7 +71,7 @@ mod tests {
             );
         }
         for forbidden in [
-            "auctioneer-config",
+            "auctioneer-config-data",
             "auctioneer-core",
             "auctioneer-privacy",
             "auctioneer-exchange",
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn corrupt_embedded_archive_cannot_prevent_building_the_repair_command() {
         let original_root = root();
-        let relative = "crates/auctioneer-config/data/gvl_archive/gcl.json";
+        let relative = "crates/auctioneer-config-data/data/gvl_archive/gcl.json";
         let original = fs::read(original_root.join(relative)).unwrap();
         // Build scripts embed CARGO_MANIFEST_DIR; a reusable cache needs a stable source path.
         let boundary = original_root.join("target/cli-maintenance-build");
@@ -148,13 +148,16 @@ mod tests {
         copied_workspace(&copy);
         fs::write(copy.join(relative), b"corrupted GCL fixture").unwrap();
         let target = boundary.join("build");
-        let broken = child_cargo(&copy, &target, &["check", "-p", "auctioneer-config"]);
+        let broken = child_cargo(&copy, &target, &["check", "-p", "auctioneer-config-data"]);
         assert!(
             !broken.status.success(),
             "a corrupt archive unexpectedly baked"
         );
         let diagnostic = String::from_utf8(broken.stderr).unwrap();
-        assert!(diagnostic.contains("auctioneer-config"), "{diagnostic}");
+        assert!(
+            diagnostic.contains("auctioneer-config-data"),
+            "{diagnostic}"
+        );
         assert!(
             diagnostic.contains("SHA mismatch for gcl.json")
                 || diagnostic.contains("manifest validation:"),

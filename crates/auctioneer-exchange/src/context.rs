@@ -4,7 +4,7 @@ use crate::{account::ResolvedAccount, fanout::BidderFanout};
 use auctioneer_bidder::{
     BidderName, BidderRegistry, EntryPoint, FloorConversion, request_info::BidderSettingsSource,
 };
-use auctioneer_config::types::{BidderImplementationBinding, HostConfig};
+use auctioneer_config_data::types::{BidderImplementationBinding, HostConfig};
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_privacy::gcl::Gcl;
 use auctioneer_privacy::gvl::GvlStore;
@@ -211,7 +211,7 @@ impl<'a> AuctionContext<'a> {
             bidder_settings: None,
             floor_currency: FloorConversion::default(),
             credential_source: None,
-            bidder_bindings: auctioneer_config::bidder_implementation_bindings(),
+            bidder_bindings: auctioneer_config_data::bidder_implementation_bindings(),
         }
     }
 
@@ -262,7 +262,7 @@ impl<'a> AuctionContext<'a> {
             bidder_settings: None,
             floor_currency: FloorConversion::default(),
             credential_source: None,
-            bidder_bindings: auctioneer_config::bidder_implementation_bindings(),
+            bidder_bindings: auctioneer_config_data::bidder_implementation_bindings(),
         }
     }
 }

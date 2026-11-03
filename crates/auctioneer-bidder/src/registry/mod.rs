@@ -7,7 +7,7 @@ pub use catalog::{
 };
 
 use crate::{bidder::Bidder, types::BidderName};
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use std::collections::{BTreeMap, btree_map::Entry};
 
 /// Holds `Box<dyn Bidder>` bidder instances paired with their `&'static`

@@ -4,7 +4,7 @@
 //! must fund metadata materialization and these indexes before construction.
 
 use crate::{Bidder, BidderConfigValidator, BidderDeclaration, BidderRegistration};
-use auctioneer_config::types::{
+use auctioneer_config_data::types::{
     BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -487,7 +487,7 @@ mod tests {
         BidderRequestInfo, BidderResponse, DebugBodySchema, OutboundRequestMeta,
         OutboundRequestSink,
     };
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
     };
     use auctioneer_openrtb::types::bid_request::BidRequest;

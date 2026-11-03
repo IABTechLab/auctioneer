@@ -18,7 +18,7 @@ mod tests {
         UNKNOWN_PATHS, absent, coarse_geo, no_raw_ips, request, second_imp, unchanged,
     };
     use auctioneer_bidder::BidderName;
-    use auctioneer_config::types::TriState;
+    use auctioneer_config_data::types::TriState;
     use auctioneer_exchange::AuctionError;
     use serde_json::{Value, json};
     use std::time::Duration;

@@ -157,8 +157,8 @@ mod tests {
             assert!(envelope.len() <= 1024 * 1024);
             let bytes = u64::try_from(envelope.len()).unwrap();
             let (peak, baked) = thread::spawn(move || {
-                let baked_host = auctioneer_config::host_default();
-                let baked_account = auctioneer_config::account_default();
+                let baked_host = auctioneer_config_data::host_default();
+                let baked_account = auctioneer_config_data::account_default();
                 let baked = serde_json::to_vec(&(baked_host, baked_account))
                     .unwrap()
                     .len();

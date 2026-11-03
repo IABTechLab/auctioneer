@@ -18,8 +18,10 @@
 //! which prefixes every secret path with `runtime.` — a prefix the
 //! deployed blob does not have.
 
-use auctioneer_config_schema::AuctioneerConfigSource;
-use auctioneer_core::config::{AuctioneerAppConfig, EffectiveConfigError};
+use auctioneer_config::AuctioneerConfigSource;
+use auctioneer_core::config::{
+    AuctioneerAppConfig, EffectiveConfigError, SdkAuctioneerAppConfig, validate_effective_defaults,
+};
 use edgezero_core::app_config::{AppConfigMeta, SecretField};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use validator::{Validate, ValidationError, ValidationErrors};
@@ -86,9 +88,7 @@ impl Serialize for AuctioneerPushSource {
 impl Validate for AuctioneerPushSource {
     fn validate(&self) -> Result<(), ValidationErrors> {
         self.0.runtime.validate()?;
-        self.0
-            .runtime
-            .validate_effective_defaults()
+        validate_effective_defaults(&self.0.runtime)
             .map_err(|detail| effective_config_errors(&detail))
     }
 }
@@ -107,10 +107,10 @@ fn effective_config_errors(detail: &EffectiveConfigError) -> ValidationErrors {
 
 /// Hand-written so secret paths match the DEPLOYED blob exactly, with
 /// no `runtime.` prefix: the blob's root is the runtime table, so the
-/// paths the runtime walk resolves are `AuctioneerAppConfig`'s own.
+/// paths the runtime walk resolves are `SdkAuctioneerAppConfig`'s own.
 impl AppConfigMeta for AuctioneerPushSource {
     fn secret_fields() -> Vec<SecretField> {
-        AuctioneerAppConfig::secret_fields()
+        SdkAuctioneerAppConfig::secret_fields()
     }
 }
 
@@ -189,7 +189,7 @@ mod tests {
     fn fixture_file(label: &str, body: &str) -> PathBuf {
         let nonce = FIXTURE_NONCE.fetch_add(1, Ordering::Relaxed);
         let dir = env::temp_dir()
-            .join("auctioneer_config_source_fixtures")
+            .join("auctioneer_config_data_source_fixtures")
             .join(format!("{label}_{pid}_{nonce}", pid = process_id()));
         fs::create_dir_all(&dir).expect("create fixture dir");
         let path = dir.join("auctioneer.toml");

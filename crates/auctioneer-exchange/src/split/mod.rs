@@ -5,7 +5,7 @@ mod resource;
 
 use crate::{alias::AliasMap, error::AuctionError, response::ErrorEntry};
 use auctioneer_bidder::{BidderName, BidderRegistry};
-use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::json_preflight::{MAX_CONSTRUCTION_DEPTH, preflight};
 use serde_json::Value;
@@ -553,7 +553,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_openrtb::ext::imp::ImpExt;
     use auctioneer_openrtb::types::bid_request::{BidRequest, Imp};
     use auctioneer_openrtb::types::field::JsonField;

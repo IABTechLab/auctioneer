@@ -93,7 +93,7 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_bidder::{BidderHttpResponse, BidderRegistry};
-    use auctioneer_config::types::{BidderInfo, Capabilities, MediaType, TriState};
+    use auctioneer_config_data::types::{BidderInfo, Capabilities, MediaType, TriState};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::budgets::resolve_budgets;
     use auctioneer_core::config::resolve::{resolve_account, resolve_host};
@@ -509,11 +509,11 @@ mod tests {
 
     /// Capture actual serialized transport bytes after core config resolution.
     fn outbound_body(app: &AuctioneerAppConfig, request_body: &str) -> (Value, AuctionPermissions) {
-        let host = resolve_host(app, auctioneer_config::host_default());
+        let host = resolve_host(app, auctioneer_config_data::host_default());
         let owned = resolve_account(
             request_body.as_bytes(),
             app,
-            auctioneer_config::account_default(),
+            auctioneer_config_data::account_default(),
             u32::MAX,
         )
         .expect("the fixture account is not disabled");

@@ -3,7 +3,7 @@
 use super::decision::{Action, Disclosure, Input, action, clear_object};
 use super::{ChangeKind, DisclosureAudit};
 use crate::AuctionError;
-use auctioneer_config::disclosure::{FieldRule, SCHEMAS, SchemaId, Shape, Transform};
+use auctioneer_config_data::disclosure::{FieldRule, SCHEMAS, SchemaId, Shape, Transform};
 use serde_json::map::IterMut as ObjectIterMut;
 use serde_json::{Map, Number, Value};
 use std::array::from_fn;

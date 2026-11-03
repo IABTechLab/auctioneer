@@ -5,7 +5,7 @@ use auctioneer_privacy::test_support::tc_encode;
 mod tests {
     use std::ptr::from_ref;
 
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, EnforceAlgo, HostConfig, PurposeEnforcement, SkipWhen, TriState,
     };
     use auctioneer_privacy::{

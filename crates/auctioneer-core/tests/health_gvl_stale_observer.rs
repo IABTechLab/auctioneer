@@ -270,7 +270,7 @@ mod tests {
         // Derived from the baked expiry rather than a hardcoded date so
         // the fixture stays correct across every archive refresh.
         let expiry =
-            OffsetDateTime::from_unix_timestamp(auctioneer_config::gcl_expires_at_unix_secs())
+            OffsetDateTime::from_unix_timestamp(auctioneer_config_data::gcl_expires_at_unix_secs())
                 .expect("the baked GCL expiry is a representable instant");
         let now = expiry.saturating_add(time::Duration::hours(1));
         let clock = Arc::new(FakeClock::new(now));

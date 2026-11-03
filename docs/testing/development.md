@@ -184,7 +184,7 @@ cargo test --locked -p auctioneer-bidder --test generated_settings -- --test-thr
 cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test response_body_is_sealed -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test feature_exports_source_conformance -- --test-threads=1
-cargo test --locked -p auctioneer-config --test build_failure_harness
+cargo test --locked -p auctioneer-config-data --test build_failure_harness
 cargo test --locked -p auctioneer-cli --test resource_boot_parity
 ```
 

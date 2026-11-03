@@ -1,92 +1,198 @@
-//! Host / account / bidder configuration.
+//! The ROOT document shape of `auctioneer.toml` — the single source
+//! artifact an operator edits.
 //!
-//! The `data/` table (bidder TOMLs, host/account defaults, EEA country list,
-//! the GVL/GCL archive) is baked at build time into `OUT_DIR/generated.rs`
-//! plus `OUT_DIR/gvl_archive.rs` by `build.rs` and re-exported through this
-//! crate's public surface.
+//! `auctioneer.toml` carries two explicit namespaces:
+//!
+//! ```toml
+//! [baked.host]     # compiled in by build.rs — REBUILD REQUIRED
+//! [baked.account]  # compiled in by build.rs — REBUILD REQUIRED
+//! [runtime]        # pushed by `auctioneer-cli config push`
+//! ```
+//!
+//! Two consumers read that one document and each needs a different
+//! half of it typed, so the root is generic over all three subtrees:
+//!
+//! - `auctioneer-config-data`'s build script instantiates
+//!   `AuctioneerConfigSource<HostDefaultRaw, AccountRaw, toml::Value>` —
+//!   both baked tables fully strict, the runtime subtree parsed only
+//!   loosely enough to prove it EXISTS.
+//! - `auctioneer-cli` instantiates
+//!   `AuctioneerConfigSource<toml::Value, toml::Value, AuctioneerAppConfig>` —
+//!   the mirror image. A typo inside `[baked.host]` is caught at
+//!   BUILD, not at push: the CLI cannot see the baked types without a
+//!   dependency cycle, so it accepts those tables as opaque values.
+//!   Both namespaces must still be PRESENT, which the strict root
+//!   enforces.
+//!
+//! Strict SUBTREE parsing alone cannot reject an extra ROOT namespace
+//! — a `[runtim]` typo or a stray `[baked.other]` would simply never
+//! be read. `deny_unknown_fields` on both structs here is what closes
+//! that, and hosting ONE root definition for both consumers is what
+//! stops them drifting.
+//!
+//! The default root schema depends on `serde` only. `config-model` owns
+//! shared serving DTOs and validation; `build-support` adds native manifest
+//! admission and code generation. Neither feature may depend on
+//! `auctioneer-core` or `auctioneer-config-data`: `auctioneer-core` depends on
+//! `auctioneer-config-data`, whose build script deserializes through this type,
+//! so any such edge would make that build script cyclic.
 
-pub mod bidder_endpoint;
-pub mod bidder_settings;
-pub mod currency;
-pub mod disclosure;
-mod gvl_archive;
+use core::fmt;
+use serde::{Deserialize, Deserializer};
 
-use auctioneer_config_schema::disclosure_types;
-pub use auctioneer_config_schema::{activity, bidder_storage, limits, types, usersync};
+/// Strict operator authoring document, separate from compiled product data.
+///
+/// Both sections are required even when a caller chooses optional subtree
+/// types. This staged root replaces [`AuctioneerConfigSource`] at cutover;
+/// it never accepts that type's retired `baked` namespace.
+#[derive(Deserialize)]
+#[serde(
+    deny_unknown_fields,
+    bound(deserialize = "Startup: Deserialize<'de>, Runtime: Deserialize<'de>")
+)]
+pub struct OperatorConfigSource<Startup, Runtime> {
+    /// Deployment settings validated before policy extraction or admission.
+    #[serde(deserialize_with = "required_section")]
+    pub startup: Startup,
+    /// Complete policy publication, projected by the CLI's push wrapper.
+    #[serde(deserialize_with = "required_section")]
+    pub runtime: Runtime,
+}
 
-pub use bidder_settings::BidderSettings;
-pub use currency::FloorCurrencyConfig;
-pub use gvl_archive::BakedGvlEntry;
-// A plain re-export of the sibling crate — no `include!`, no `#[path]`,
-// no duplicated source file. Keeps `auctioneer_config::gvl_schema::…` call
-// paths resolving for runtime callers and tests alike.
-pub use auctioneer_gvl_schema as gvl_schema;
+fn required_section<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer)
+}
 
-/// Whether this linked build permits development-only configuration overrides.
-pub const TEST_HARNESS_OVERRIDE_ENABLED: bool = cfg!(feature = "test-harness-override");
-
-include!(concat!(env!("OUT_DIR"), "/generated.rs"));
-include!(concat!(env!("OUT_DIR"), "/gvl_archive.rs"));
+impl<Startup, Runtime> fmt::Debug for OperatorConfigSource<Startup, Runtime> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OperatorConfigSource")
+            .field("startup", &"<redacted>")
+            .field("runtime", &"<redacted>")
+            .finish()
+    }
+}
 
 #[cfg(test)]
-mod tests {
-    use serde_json::json;
-    use std::hint::black_box;
+mod operator_source_tests {
+    use super::OperatorConfigSource;
 
     #[test]
-    fn product_host_defaults_preserve_resources_without_an_operator_service() {
-        let host = super::product_host_default();
-        assert!(host.user_sync.is_none());
-        assert!(host.aliases.is_empty());
-        assert!(host.gdpr.non_standard_publishers.is_empty());
-        assert_eq!(host.gdpr.host_vendor_id, Some(0));
-        assert!(host.host_cookie.domain.is_none());
-        assert!(host.host_cookie.optout_cookie.is_none());
-        assert!(host.status_response.is_empty());
+    fn debug_does_not_require_subtrees_to_implement_debug() {
+        struct Private;
+        let source = OperatorConfigSource {
+            startup: Private,
+            runtime: Private,
+        };
         assert_eq!(
-            serde_json::to_value(&host.resource_limits).unwrap(),
-            json!({
-                "default_tmax_ms": 1000_i64,
-                "max_tmax_ms": 2000_i64,
-                "max_bidder_response_bytes": 262144_usize,
-                "max_bidders_per_auction": 50_usize,
-                "max_outbound_requests": 100_usize,
-                "max_outbound_raw_bytes": 262144_u64,
-                "max_outbound_request_bytes": 262144_u64,
-                "max_transport_bytes": 262144_u64,
-                "max_decoded_bytes": 262144_u64,
-                "max_parsed_nodes": 65536_u32
-            })
+            format!("{source:?}"),
+            "OperatorConfigSource { startup: \"<redacted>\", runtime: \"<redacted>\" }"
         );
     }
 
     #[test]
-    fn product_account_defaults_preserve_neutral_policy() {
-        let account = super::product_account_default();
-        assert!(!account.disabled);
-        assert!(!account.debug_allow);
-        assert_eq!(account.bid_rounding, "down");
-        assert_eq!(account.targeting_prefix, "hb");
-        assert!(account.truncate_target_attribute.is_none());
-        assert!(account.gdpr.purposes.is_empty());
-        assert!(account.gdpr.special_features.is_empty());
-        assert!(account.gdpr.basic_enforcement_vendors.is_empty());
-        assert_eq!(account.privacy.ipv4.anon_keep_bits, 24);
-        assert_eq!(account.privacy.ipv6.anon_keep_bits, 56);
-        assert!(account.cookie_sync.default_limit.is_none());
-        assert!(account.cookie_sync.max_limit.is_none());
-        assert!(account.cookie_sync.priority_groups.is_none());
+    fn normal_and_alternate_debug_are_independent_of_private_values() {
+        let source = OperatorConfigSource {
+            startup: "private-startup-prefix-secret-suffix",
+            runtime: "private-policy-prefix-secret-suffix",
+        };
+        assert_eq!(
+            format!("{source:?}"),
+            "OperatorConfigSource { startup: \"<redacted>\", runtime: \"<redacted>\" }"
+        );
+        assert_eq!(
+            format!("{source:#?}"),
+            "OperatorConfigSource {\n    startup: \"<redacted>\",\n    runtime: \"<redacted>\",\n}"
+        );
     }
+}
 
-    #[cfg(not(feature = "test-harness-override"))]
-    #[test]
-    fn production_build_disallows_harness_overrides() {
-        assert!(!black_box(super::TEST_HARNESS_OVERRIDE_ENABLED));
-    }
+#[cfg(feature = "config-model")]
+pub mod activity;
+#[cfg(feature = "config-model")]
+pub mod currency;
+#[cfg(feature = "config-model")]
+pub use currency::{FloorCurrencyConfig, MAX_FLOOR_CURRENCY_RATES};
+#[cfg(feature = "config-model")]
+pub mod override_value;
+#[cfg(feature = "config-model")]
+pub mod policy;
+#[cfg(feature = "config-model")]
+pub mod source;
+#[cfg(feature = "config-model")]
+pub use source::*;
+#[cfg(feature = "build-support")]
+pub mod bidder_discovery;
+#[cfg(feature = "build-support")]
+pub mod bidder_endpoint_codegen;
+#[cfg(feature = "build-support")]
+pub mod bidder_manifest;
+#[cfg(feature = "build-support")]
+pub mod bidder_reconcile;
+#[cfg(feature = "build-support")]
+pub mod bidder_settings_codegen;
+#[cfg(feature = "config-model")]
+pub mod bidder_storage;
+#[cfg(feature = "build-support")]
+pub mod bindings;
+#[cfg(feature = "build-support")]
+pub mod build_catalog;
+#[cfg(feature = "build-support")]
+pub mod build_disclosure;
+#[cfg(feature = "build-support")]
+pub mod codegen;
+pub mod disclosure_types;
+#[cfg(feature = "build-support")]
+pub mod endpoint_contract;
+#[cfg(feature = "config-model")]
+pub mod limits;
+/// Non-serving schema artifact planning, available only to native build tooling.
+#[cfg(feature = "build-support")]
+pub mod schema_staging;
+#[cfg(feature = "build-support")]
+pub mod schema_staging_build;
+#[cfg(feature = "build-support")]
+pub mod schema_staging_codegen;
+#[cfg(feature = "config-model")]
+pub mod types;
+/// Build-facing URL admission and macro validation. Serving policy is internal.
+#[cfg(feature = "build-support")]
+pub mod url_safety;
+#[cfg(all(feature = "config-model", not(feature = "build-support")))]
+mod url_safety;
+#[cfg(feature = "config-model")]
+pub mod usersync;
 
-    #[cfg(feature = "test-harness-override")]
-    #[test]
-    fn explicit_harness_build_reports_override_support() {
-        assert!(black_box(super::TEST_HARNESS_OVERRIDE_ENABLED));
-    }
+/// The whole `auctioneer.toml` document. Both namespaces are REQUIRED:
+/// a document missing either one is a build failure rather than a
+/// silently-defaulted config.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuctioneerConfigSource<Host, Account, Runtime> {
+    /// Compiled into the binary by `auctioneer-config-data`'s build script.
+    /// Changing anything under it requires a REBUILD; `config push`
+    /// cannot reach it and neither can a restart.
+    pub baked: BakedSection<Host, Account>,
+
+    /// Pushed as a blob envelope by `auctioneer-cli config push` and
+    /// effective on the next request. Every field is an `Option<_>`
+    /// overlay over the baked layer, so a pushed blob stays PARTIAL.
+    pub runtime: Runtime,
+}
+
+/// The `[baked]` namespace: the build-time defaults, one table per
+/// resolution scope.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BakedSection<Host, Account> {
+    /// `[baked.host]` — the host-scoped defaults `host_default()`
+    /// returns.
+    pub host: Host,
+
+    /// `[baked.account]` — the account-scoped defaults
+    /// `account_default()` returns.
+    pub account: Account,
 }

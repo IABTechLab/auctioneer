@@ -12,8 +12,8 @@ static ALLOCATOR: alloc_track::CountingAllocator = alloc_track::CountingAllocato
 #[cfg(test)]
 mod tests {
     use super::alloc_track;
-    use auctioneer_config::disclosure::SchemaId;
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::disclosure::SchemaId;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_exchange::scrub::{
         DisclosureAudit, ScrubDecisions, apply_classified, construction_costs,
     };

@@ -17,7 +17,7 @@ mod tests {
         Bidder as _, BidderHttpResponse, BidderName, BidderResponse, META_BYTES_CAPACITY,
         OutboundRequestMetaBuilder,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_exchange::{
         BidderResultBundle, ResponseInput, ResponseTimeStat, build_response,
     };

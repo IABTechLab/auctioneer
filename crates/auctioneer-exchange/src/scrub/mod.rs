@@ -9,7 +9,7 @@
 //! independently permitted FPD. Unrelated vendor payloads are not privacy-scanned.
 
 #[cfg(test)]
-use auctioneer_config::types::IpKeepBits;
+use auctioneer_config_data::types::IpKeepBits;
 #[cfg(test)]
 use auctioneer_openrtb::types::bid_request::BidRequest;
 
@@ -147,7 +147,7 @@ fn scrub_geo_and_device_ip(req: &mut BidRequest, keep_bits: IpKeepBits) {
 mod tests {
     use super::value::coordinate as round_half_up_2dp;
     use super::{apply_gdpr_scrubs, scrub_gdpr_id, scrub_geo_and_device_ip};
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_openrtb::types::device::Device;
 
@@ -800,8 +800,8 @@ mod tests {
 mod classified_tests {
     use super::value::{AddressBuffer, Frames, Mutation, TransformScratch};
     use super::{ChangeKind, DisclosureAudit, ScrubDecisions, apply_classified};
-    use auctioneer_config::disclosure::SchemaId;
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::disclosure::SchemaId;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_openrtb::types::device::{Device, Geo};
     use auctioneer_openrtb::types::user::User;
@@ -2019,7 +2019,7 @@ mod classified_tests {
         use crate::scrub::{DisclosureAudit, apply_classified, apply_classified_with_limits};
         use crate::split::{group_by_bidder, materialize_per_bidder};
         use auctioneer_bidder::BidderRegistry;
-        use auctioneer_config::disclosure::SchemaId;
+        use auctioneer_config_data::disclosure::SchemaId;
         use auctioneer_openrtb::ext::imp::{ExtImpPrebid, ImpExt};
         use auctioneer_openrtb::types::bid_request::{Banner, BidRequest, Imp};
         use auctioneer_openrtb::types::field::JsonField;
@@ -2386,7 +2386,7 @@ mod composition_tests {
         ScrubDecisions, apply_gdpr_scrubs, apply_scrubs, scrub_ccpa_lmt, scrub_coppa,
         scrub_gdpr_id, scrub_geo_and_device_ip, scrub_tid, scrub_user_fpd,
     };
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 
@@ -3387,7 +3387,7 @@ mod boundary_proof {
     use crate::resolve_aliases;
     use crate::split::{group_by_bidder, materialize_per_bidder};
     use auctioneer_bidder::BidderRegistry;
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_openrtb::types::device::Geo;
     use serde_json::{Value, json};

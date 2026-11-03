@@ -203,8 +203,8 @@ pub fn resolve_budget_inputs(
     limits.max_config_json_nodes = extraction.max_json_nodes;
     let baked_config_bytes = (*BAKED_CONFIG_BYTES.get_or_init(|| {
         serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .map_err(|_error| BudgetError::BudgetArithmeticOverflow)
     }))?;
@@ -651,8 +651,8 @@ mod tests {
     #[test]
     fn budget_input_resolution_counts_only_the_compiled_default_pair() {
         let expected = serde_json::to_vec(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap()
         .len();
@@ -851,8 +851,8 @@ mod tests {
         let mut expected_limits = input;
         expected_limits.max_config_json_nodes = extraction.max_json_nodes;
         let baked_bytes = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         // Config extraction and sync-route work share this auxiliary reservation.

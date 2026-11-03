@@ -1,8 +1,9 @@
 //! Discover implementations only in the crate's committed `src/bidders` root.
 
-use auctioneer_config_schema::bidder_discovery as build_discovery;
-use auctioneer_config_schema::schema_staging::BuildContext;
-use auctioneer_config_schema::schema_staging_build::{BuildRequest, generate, write_snapshots};
+use auctioneer_config::bidder_discovery as build_discovery;
+use auctioneer_config::schema_staging::BuildContext;
+use auctioneer_config::schema_staging_build::{BuildRequest, generate, write_snapshots};
+use auctioneer_config::{bidder_endpoint_codegen, bidder_settings_codegen};
 
 use std::collections::BTreeMap;
 use std::env;
@@ -125,7 +126,7 @@ fn stage_schemas(
         crate_dir: manifest_dir,
         out_dir,
         discovery,
-        metadata: auctioneer_config::bidder_metadata_declarations(),
+        metadata: auctioneer_config_data::bidder_metadata_declarations(),
         context: BuildContext {
             target: &target,
             profile,
@@ -152,18 +153,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let out_dir = env::var("OUT_DIR")?;
     let layout = record_layout_build(Path::new(&out_dir))?;
     let discovery = build_discovery::scan(Path::new(&manifest_dir))?;
-    discovery.validate_metadata(auctioneer_config::bidder_metadata_declarations())?;
+    discovery.validate_metadata(auctioneer_config_data::bidder_metadata_declarations())?;
     let rendered = discovery.render()?;
-    let registry = discovery.render_registry(auctioneer_config::bidder_metadata_declarations())?;
+    let registry =
+        discovery.render_registry(auctioneer_config_data::bidder_metadata_declarations())?;
     let uid_policies = discovery.render_uid_policies()?;
     let allocation_conformance = discovery.render_allocation_conformance()?;
     let response_conformance = discovery.render_response_conformance()?;
+    let settings = bidder_settings_codegen::render(discovery.manifests())?;
+    let endpoints = bidder_endpoint_codegen::render(discovery.manifests())?;
 
     for path in discovery.rerun_paths() {
         println!("cargo::rerun-if-changed={}", path.display());
     }
     fs::write(Path::new(&out_dir).join("discovery.rs"), rendered)?;
     fs::write(Path::new(&out_dir).join("registry.rs"), registry)?;
+    fs::write(Path::new(&out_dir).join("bidder_settings.rs"), settings)?;
+    fs::write(Path::new(&out_dir).join("bidder_endpoint.rs"), endpoints)?;
     fs::write(
         Path::new(&out_dir).join("sync_uid_policies.rs"),
         uid_policies,

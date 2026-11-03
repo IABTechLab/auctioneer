@@ -2,7 +2,9 @@
 
 use std::{borrow::Cow, mem};
 
-use auctioneer_config::types::{EnforceAlgo, PurposeEnforcement, PurposeOneTreatment, TriState};
+use auctioneer_config_data::types::{
+    EnforceAlgo, PurposeEnforcement, PurposeOneTreatment, TriState,
+};
 
 use super::{SyncDecision, SyncPrivacyContext, SyncTcfError, SyncerLookup};
 use crate::{
@@ -323,7 +325,7 @@ fn tri_or(value: TriState, fallback: TriState) -> TriState {
 mod tests {
     use std::ptr::{eq, from_ref};
 
-    use auctioneer_config::types::{AccountConfig, BidderInfo, EnforceAlgo, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo, EnforceAlgo, HostConfig};
     use serde_json::json;
     use time::{OffsetDateTime, macros::datetime};
 
@@ -979,7 +981,7 @@ mod tests {
 
     #[test]
     fn authenticated_sync_context_retains_selected_gvl_after_lru_eviction() {
-        let selected = auctioneer_config::gvl_archive()
+        let selected = auctioneer_config_data::gvl_archive()
             .iter()
             .filter(|entry| entry.spec == 3)
             .min_by_key(|entry| entry.vendor_list_version)
@@ -1034,7 +1036,7 @@ mod tests {
 
         // Only the context holds the selected request GVL while the real LRU rotates.
         let mut fetched = 0_usize;
-        for entry in auctioneer_config::gvl_archive()
+        for entry in auctioneer_config_data::gvl_archive()
             .iter()
             .filter(|entry| {
                 entry.spec == selected.spec

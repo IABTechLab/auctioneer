@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::AccountConfig;
+    use auctioneer_config_data::types::AccountConfig;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{resolve_account, resolve_host};
     use serde_json::{Value, json};
@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn host_switches_are_optional_boolean_overlays() {
-        let mut baked = auctioneer_config::host_default().clone();
+        let mut baked = auctioneer_config_data::host_default().clone();
         assert!(!baked.ccpa.enforce);
         assert!(!baked.lmt.enforce);
         baked.ccpa.enforce = true;
@@ -40,7 +40,7 @@ mod tests {
         assert!(!lmt_disabled.lmt.enforce);
         let enabled = resolve_host(
             &app(json!({"ccpa":{"enforce":true}, "lmt":{"enforce":true}})),
-            auctioneer_config::host_default(),
+            auctioneer_config_data::host_default(),
         );
         assert!(enabled.ccpa.enforce);
         assert!(enabled.lmt.enforce);
@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn ccpa_unset_replaces_baked_while_omissions_inherit() {
         let mut baked_value =
-            serde_json::to_value(auctioneer_config::account_default()).expect("baked");
+            serde_json::to_value(auctioneer_config_data::account_default()).expect("baked");
         baked_value["ccpa"] = json!({"enabled":"enabled", "channel_enabled":{
             "web":"enabled", "app":"disabled", "amp":"enabled", "video":"disabled", "dooh":"enabled"
         }});
@@ -86,7 +86,7 @@ mod tests {
                 "channel_enabled":{"web":state,"app":state,"video":state,"amp":state,"dooh":state}
             }}}}));
             let encoded =
-                serde_json::to_value(account(&config, auctioneer_config::account_default()))
+                serde_json::to_value(account(&config, auctioneer_config_data::account_default()))
                     .expect("resolved");
             for channel in ["web", "app", "video", "amp", "dooh"] {
                 assert_eq!(encoded["ccpa"]["channel_enabled"][channel], state);
@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn activity_merge_is_per_key_per_field_with_whole_rule_replacement() {
         let mut baked_value =
-            serde_json::to_value(auctioneer_config::account_default()).expect("baked");
+            serde_json::to_value(auctioneer_config_data::account_default()).expect("baked");
         baked_value["privacy"]["allowactivities"] = json!({
             "fetchBids":{"default":false,"rules":[{"allow":false}]},
             "transmitUfpd":{"default":true,"rules":[{"allow":false}]},
@@ -156,7 +156,7 @@ mod tests {
                 key:{"rules":[{"allow":false},{"allow":true,"condition":{}},{"allow":false,"condition":{"componentName":[],"componentType":[]}}]}
             }}}}}));
             let resolved =
-                serde_json::to_value(account(&config, auctioneer_config::account_default()))
+                serde_json::to_value(account(&config, auctioneer_config_data::account_default()))
                     .expect("resolved");
             assert_eq!(
                 resolved["privacy"]["allowactivities"][key]["default"],

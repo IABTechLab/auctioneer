@@ -7,7 +7,7 @@ use super::{
     inputs::{self, Candidate},
 };
 use crate::qualification::profile::Digest;
-use auctioneer_config::types::{BidderInfo, BidderMetadataDeclaration, MediaType};
+use auctioneer_config_data::types::{BidderInfo, BidderMetadataDeclaration, MediaType};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
@@ -183,8 +183,8 @@ pub fn assert_artifact(path: &Path, digest: &Digest) -> Result<()> {
 fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
     let nodes = variant_nodes(candidate, id)?;
     let bidder = fixture_bidder(
-        auctioneer_config::bidder_metadata_declarations(),
-        auctioneer_config::bidders(),
+        auctioneer_config_data::bidder_metadata_declarations(),
+        auctioneer_config_data::bidders(),
     )?;
     let aliases = geometry::aliases(candidate.maximum_load.calls)?
         .into_iter()
@@ -471,7 +471,7 @@ fn freeze_permissions(file: &File) -> Result<()> {
 mod tests {
     use super::*;
     use crate::config_source::AuctioneerPushSource;
-    use auctioneer_config::types::{Capabilities, Compression};
+    use auctioneer_config_data::types::{Capabilities, Compression};
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::{Value, json};
     use std::ffi::OsString;
@@ -600,8 +600,8 @@ mod tests {
             })
         );
         let bidder = fixture_bidder(
-            auctioneer_config::bidder_metadata_declarations(),
-            auctioneer_config::bidders(),
+            auctioneer_config_data::bidder_metadata_declarations(),
+            auctioneer_config_data::bidders(),
         )
         .unwrap();
         assert_eq!(runtime["bidders"].as_object().unwrap().len(), 1);
@@ -618,7 +618,7 @@ mod tests {
     fn structured_toml_uses_the_real_semantic_validator_without_enabling_fixture_metadata() {
         let mut document = config_document(&candidate(), 1).unwrap();
         // Secure-default binaries omit local transport; validate against active HTTPS metadata.
-        let bidder_name = auctioneer_config::bidders()
+        let bidder_name = auctioneer_config_data::bidders()
             .iter()
             .find(|bidder| {
                 bidder.uses_https && !bidder.disabled && bidder.endpoint_macros.is_empty()

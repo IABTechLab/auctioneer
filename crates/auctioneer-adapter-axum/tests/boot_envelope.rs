@@ -205,8 +205,8 @@ mod tests {
             return;
         }
         let baked_bytes = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         let derived = derive_isolate_budget_with_baked_config(
@@ -303,8 +303,8 @@ mod tests {
         assert_eq!(gates.construction_costs, envelope.construction_costs);
         assert_eq!(gates.rederive_budget().unwrap(), gates.derived);
         let baked_bytes = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         assert_eq!(baked_bytes, 1_592);

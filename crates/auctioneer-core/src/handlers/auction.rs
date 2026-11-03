@@ -25,8 +25,8 @@ use crate::host_primitives::strategy::FanoutStrategy;
 use crate::serialize::serialize_response_fitting_debug;
 use auctioneer_bidder::{BidderName, BidderRegistry, FloorConversion};
 #[cfg(test)]
-use auctioneer_config::types::BidderInfo;
-use auctioneer_config::types::{HostConfig, MAX_BIDDER_NAME_BYTES};
+use auctioneer_config_data::types::BidderInfo;
+use auctioneer_config_data::types::{HostConfig, MAX_BIDDER_NAME_BYTES};
 use auctioneer_exchange::context::RequestConstructionLimits;
 use auctioneer_exchange::debug::DebugPermission;
 use auctioneer_exchange::scrub::DisclosureAudit;
@@ -492,7 +492,7 @@ async fn auction_inner(
     )
     .map_err(node_budget_error)?;
 
-    let baked_account = auctioneer_config::account_default();
+    let baked_account = auctioneer_config_data::account_default();
     // Both parses share the installed syntactic node ceiling. Direct
     // in-process calls without an envelope have no configured ceiling.
     let max_nodes = host.resource_limits.max_parsed_nodes;
@@ -1167,7 +1167,7 @@ fn record_gvl_unavailable(
 
 pub(crate) fn host_config_handle() -> &'static HostConfig {
     static HOST: OnceLock<HostConfig> = OnceLock::new();
-    HOST.get_or_init(|| auctioneer_config::host_default().clone())
+    HOST.get_or_init(|| auctioneer_config_data::host_default().clone())
 }
 
 /// Drop aliases outside the bidder identity byte bounds or whose base
@@ -1463,7 +1463,7 @@ mod tests {
 
     #[test]
     fn catalog_aliases_require_bounded_utf8_identities_and_a_registered_base() {
-        use auctioneer_config::types::{BidderInfo, MAX_BIDDER_NAME_BYTES};
+        use auctioneer_config_data::types::{BidderInfo, MAX_BIDDER_NAME_BYTES};
         use std::collections::BTreeMap;
 
         let long_base = "b".repeat(MAX_BIDDER_NAME_BYTES + 1);
@@ -1911,7 +1911,7 @@ mod tests {
     fn disabled_set_tracks_compiled_defaults_and_base_vetoes_without_registry_rebuilds() {
         use crate::bidder_fixture::fake_bidder::FakeBidder;
         use auctioneer_bidder::BidderRegistry;
-        use auctioneer_config::types::BidderInfo;
+        use auctioneer_config_data::types::BidderInfo;
 
         let mut registry = BidderRegistry::new();
         for (name, parent) in [

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use auctioneer_config::types::{BidderInfo, SyncType};
+use auctioneer_config_data::types::{BidderInfo, SyncType};
 use auctioneer_privacy::{SyncDecision, SyncPrivacyContext, SyncerLookup};
 use auctioneer_runtime::{
     Rng,
@@ -471,7 +471,7 @@ mod tests {
     use crate::bidder_fixture::{self, fake_bidder::FakeBidder};
     use crate::{config::AuctioneerAppConfig, usersync::cookie::UidCookie};
     use auctioneer_bidder::BidderRegistry;
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, HostConfig, SkipWhen, SyncType, SyncerConfig, SyncerEndpoint,
     };
     use auctioneer_privacy::{

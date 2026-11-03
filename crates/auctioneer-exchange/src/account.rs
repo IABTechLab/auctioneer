@@ -1,6 +1,6 @@
 //! Caller-resolved account identity.
 
-use auctioneer_config::types::AccountConfig;
+use auctioneer_config_data::types::AccountConfig;
 
 /// The id [`ResolvedAccount`] carries when the request named no
 /// publisher at all — prebid's `PublisherUnknown` convention.
@@ -45,7 +45,7 @@ pub struct ResolvedAccount<'a> {
 #[cfg(test)]
 mod tests {
     use super::{AccountSource, ResolvedAccount, UNRESOLVED_ACCOUNT_ID};
-    use auctioneer_config::types::AccountConfig;
+    use auctioneer_config_data::types::AccountConfig;
 
     #[test]
     fn carries_id_through_default_fallback() {

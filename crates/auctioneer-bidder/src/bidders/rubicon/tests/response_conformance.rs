@@ -1,11 +1,12 @@
 //! Sealed Rubicon response controls with actual constructor metadata.
 
+use auctioneer_bidder::BidderSettings;
 use auctioneer_bidder::{
     Bidder, BidderError, BidderErrorKind, BidderHttpRequest, BidderHttpResponse, BidderName,
     BidderRequestInfo, BidderResponse, CallBudget, EndpointRejectReason, EndpointValidator,
     EntryPoint, OutboundRequestSink, SinkLimits, compiled_bidders,
 };
-use auctioneer_config::{BidderSettings, types::MediaType};
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::{bidder_credentials::BidderCredentials, bounded_json::count_json_nodes};
 use serde_json::{Value, json};

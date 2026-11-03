@@ -239,7 +239,7 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use auctioneer_config::activity::{Activity, ActivityOverride, Condition, Rule};
+    use auctioneer_config_data::activity::{Activity, ActivityOverride, Condition, Rule};
     use auctioneer_core::config::{AccountOverride, AccountPrivacyOverride};
     use std::collections::BTreeMap;
     use validator::Validate as _;
@@ -288,7 +288,7 @@ mod tests {
             ..AuctioneerAppConfig::default()
         };
         // Exclude one-time initialization from the request-time measurement.
-        let _baked = auctioneer_config::account_default();
+        let _baked = auctioneer_config_data::account_default();
         let root_defaults = AuctioneerAppConfig::default();
         root_defaults.validate().expect("valid root defaults");
         // The derive's nested validators allocate scratch maps even on success.
@@ -308,7 +308,7 @@ mod tests {
             "validation must inspect supplied rules without merging baked defaults per account"
         );
     }
-    use auctioneer_config::types::{HostConfig, TriState};
+    use auctioneer_config_data::types::{HostConfig, TriState};
     use auctioneer_core::config::resolve::{
         ResolvedAccountOwned, resolve_account_from_value, resolve_host,
     };
@@ -420,7 +420,7 @@ mod tests {
                     max_secret_bytes: 1,
                     max_json_nodes: nodes,
                     timeout: Duration::from_millis(u64::from(
-                        auctioneer_config::RUNTIME_BOOTSTRAP.max_config_fetch_ms,
+                        auctioneer_config_data::RUNTIME_BOOTSTRAP.max_config_fetch_ms,
                     )),
                     ..defaults
                 },
@@ -481,8 +481,8 @@ mod tests {
             );
             // Initialize immutable baked defaults and preparse the request outside
             // measurement. The resolvers' owned default clones remain inside it.
-            let baked_host = auctioneer_config::host_default();
-            let baked_account = auctioneer_config::account_default();
+            let baked_host = auctioneer_config_data::host_default();
+            let baked_account = auctioneer_config_data::account_default();
             let publisher = Arc::new(json!({"site": {"publisher": {"id": "0"}}}));
             let router = RouterService::builder()
                 .get("/resolve-config", move |ctx: RequestContext| {
@@ -677,7 +677,7 @@ mod tests {
         let resolved = guard_production_peak("minimal", &fixture);
         assert_eq!(
             resolved.host.status_response,
-            auctioneer_config::host_default().status_response
+            auctioneer_config_data::host_default().status_response
         );
         assert_eq!(resolved.account.source, AccountSource::DefaultFallback);
     }
@@ -711,7 +711,7 @@ mod tests {
 
     #[test]
     fn production_resolution_peak_fits_funding_for_many_account_overlays_and_aliases() {
-        let base = &auctioneer_config::bidders()
+        let base = &auctioneer_config_data::bidders()
             .first()
             .expect("production alias validation requires a baked base")
             .name;
@@ -888,7 +888,7 @@ mod tests {
 
     #[test]
     fn production_resolution_funds_oversized_bidder_key_rejection() {
-        use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+        use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
         for key_bytes in [MAX_BIDDER_NAME_BYTES + 1, 0x0001_0000] {
             let key = "b".repeat(key_bytes);
             let mut data = json!({"bidders": {}});

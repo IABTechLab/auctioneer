@@ -1373,7 +1373,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
 
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         EnforceAlgo, PurposeEnforcement, SpecialFeatureEnforcement, TriState,
     };
     use time::macros::datetime;

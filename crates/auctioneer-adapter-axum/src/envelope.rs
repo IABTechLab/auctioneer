@@ -659,15 +659,15 @@ mod tests {
 
     fn baked_config_bytes() -> u64 {
         auctioneer_runtime::serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap()
     }
 
     #[test]
     fn baked_cookie_identity_bytes_are_funded_per_admitted_auction() {
-        let host = auctioneer_config::host_default();
+        let host = auctioneer_config_data::host_default();
         assert_eq!(host.host_cookie.cookie_name, "auctioneer_uid");
         assert_eq!(host.host_cookie.family, "auctioneer");
         let mut shorter = host.clone();
@@ -675,7 +675,7 @@ mod tests {
         shorter.host_cookie.family = "fake_a".to_owned();
         let shorter_bytes = auctioneer_runtime::serialized_json_bytes(&(
             &shorter,
-            auctioneer_config::account_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         assert_eq!(shorter_bytes, 1_584);

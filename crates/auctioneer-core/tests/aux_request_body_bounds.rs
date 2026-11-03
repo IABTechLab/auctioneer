@@ -247,7 +247,7 @@ mod tests {
     fn exact_4096_bytes_reach_every_handler_for_declared_chunked_and_lengthless_bodies() {
         let _isolation = __probe_isolation_for_tests();
         let fixture = Fixture::new();
-        let bidder = auctioneer_config::bidders()
+        let bidder = auctioneer_config_data::bidders()
             .first()
             .expect("the detail route requires a baked bidder");
         let detail_path = format!("/info/bidders/{}", bidder.name);

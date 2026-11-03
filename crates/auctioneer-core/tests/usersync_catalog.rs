@@ -6,7 +6,7 @@ pub use auctioneer_core::test_support::bidder_fixture;
 #[cfg(test)]
 mod tests {
     use super::bidder_fixture::registry;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::usersync::catalog::{Catalog, CatalogError};
 

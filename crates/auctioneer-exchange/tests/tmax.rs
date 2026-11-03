@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::{HostConfig, ResourceLimits};
+    use auctioneer_config_data::types::{HostConfig, ResourceLimits};
     use auctioneer_exchange::{TmaxSource, resolve_tmax};
     use auctioneer_runtime::MonotonicInstant;
     use std::time::Duration;

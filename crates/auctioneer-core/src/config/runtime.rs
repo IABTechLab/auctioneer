@@ -22,9 +22,9 @@
 //! place rather than reconstructing it from four handlers.
 
 use crate::bidder_registry::{cached_registry_error, registry_handle};
-use crate::config::AuctioneerAppConfig;
+use crate::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig, validate_effective_defaults};
 use crate::host_primitives::boot_gates;
-use auctioneer_config::RUNTIME_BOOTSTRAP;
+use auctioneer_config_data::RUNTIME_BOOTSTRAP;
 use edgezero_core::body::Body;
 use edgezero_core::config_store::ConfigExtractionLimits;
 use edgezero_core::context::RequestContext;
@@ -430,7 +430,9 @@ async fn resolve_with_registry(
     }
     check_funding()?;
     initialize_registry()?;
-    let loaded = AppConfig::<AuctioneerAppConfig>::from_store(ctx, CONFIG_STORE_ID, None).await;
+    let loaded = AppConfig::<SdkAuctioneerAppConfig>::from_store(ctx, CONFIG_STORE_ID, None)
+        .await
+        .map(|config| config.0);
     classify_load(loaded)
 }
 
@@ -460,7 +462,7 @@ fn classify_load(
 ) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
     match loaded {
         Ok(cfg) => {
-            cfg.validate_effective_defaults()?;
+            validate_effective_defaults(&cfg)?;
             Ok(cfg)
         }
         Err(EdgeError::StoreExtraction {

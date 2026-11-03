@@ -1,9 +1,9 @@
 //! Actual application artifacts, never isolated probes or resource bounds.
 
 use crate::schema_qualification::SchemaInventory;
-use auctioneer_config_schema::bidder_discovery::{Discovery, scan};
-use auctioneer_config_schema::schema_staging::BuildContext;
-use auctioneer_config_schema::schema_staging_build::{BuildRequest, SchemaSnapshot, generate};
+use auctioneer_config::bidder_discovery::{Discovery, scan};
+use auctioneer_config::schema_staging::BuildContext;
+use auctioneer_config::schema_staging_build::{BuildRequest, SchemaSnapshot, generate};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -1084,7 +1084,7 @@ fn verify_staging(
         crate_dir: &prepared.crate_dir,
         out_dir: expected.out_dir,
         discovery: &prepared.discovery,
-        metadata: auctioneer_config::bidder_metadata_declarations(),
+        metadata: auctioneer_config_data::bidder_metadata_declarations(),
         context: BuildContext {
             target: expected.target,
             profile: expected.profile,

@@ -2,7 +2,7 @@
 
 use super::request::{regional_host_for, valid_credential_reference};
 use crate::{BidderConfigError, BidderConfigInput};
-use auctioneer_config::{
+use crate::{
     BidderSettings,
     bidder_settings::rubicon::{Settings, resolve},
 };
@@ -83,9 +83,8 @@ pub(super) fn error(errors: &ValidationErrors) -> BidderConfigError {
 #[cfg(test)]
 mod tests {
     use crate::{BidderConfigError, BidderConfigInput};
-    use auctioneer_config::{
-        BidderSettings, bidder_settings::rubicon::Settings, types::BidderInfo,
-    };
+    use crate::{BidderSettings, bidder_settings::rubicon::Settings};
+    use auctioneer_config_data::types::BidderInfo;
     use serde_json::{Value, json};
     use validator::Validate as _;
 

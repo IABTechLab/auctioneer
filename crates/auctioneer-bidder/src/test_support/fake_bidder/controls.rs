@@ -1,7 +1,7 @@
 //! Synthetic metadata and opt-in capabilities for the shared test fixture.
 
 use crate::BidderRequestInfo;
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use std::{
     cell::Cell,

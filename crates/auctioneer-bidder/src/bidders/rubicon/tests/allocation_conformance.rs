@@ -1,5 +1,6 @@
 //! Bounded constructor and sealed-response allocation controls for the discovered factory.
 
+use auctioneer_bidder::BidderSettings;
 use crate::alloc_track::{
     self, AllowAllEndpoints, construction_budget, response as response_alloc_track,
     size_growth_is_bounded,
@@ -11,7 +12,7 @@ use auctioneer_bidder::{
     Bidder, BidderHttpResponse, BidderName, BidderRequestInfo, BidderResponse, CallBudget,
     EntryPoint, OutboundBuildError, OutboundRequestSink, SinkLimits, compiled_bidders,
 };
-use auctioneer_config::{BidderSettings, types::MediaType};
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::bidder_credentials::BidderCredentials;
 use serde_json::{Value, json};

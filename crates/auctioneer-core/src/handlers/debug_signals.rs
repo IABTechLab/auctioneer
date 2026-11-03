@@ -1,6 +1,6 @@
 //! Bounded, independent HTTP debug signals for the auction handler.
 
-use auctioneer_config::usersync::validate_sync_query_encoding;
+use auctioneer_config_data::usersync::validate_sync_query_encoding;
 use edgezero_core::http::HeaderMap;
 use url::form_urlencoded;
 

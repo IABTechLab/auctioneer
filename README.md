@@ -29,7 +29,8 @@ see the [vision](vision.md) for the distinction from the existing library.
 | [`crates/auctioneer-core`](crates/auctioneer-core/)                             | EdgeZero app, HTTP routes and handlers, host integration, and response serialization                                                                                         |
 | [`crates/auctioneer-runtime`](crates/auctioneer-runtime/)                       | Host-environment seams: `Clock` + `Rng` traits with deterministic test impls (`FakeClock`, `SeededRng`), Fisher-Yates `shuffle`, Lemire `gen_range`                            |
 | [`crates/auctioneer-openrtb`](crates/auctioneer-openrtb/)                       | OpenRTB 2.6 typed model + `prepare(req, headers)` — the sole construction gate for a `NormalizedBidRequest`                                                                    |
-| [`crates/auctioneer-config`](crates/auctioneer-config/)                         | Host / account / bidder configuration. Build-time codegen reads bidder-owned `bidder.toml` manifests, `auctioneer.toml`, and shared reference data, then emits typed accessors |
+| [`crates/auctioneer-config`](crates/auctioneer-config/) | Shared configuration models, pure validation and optional native build support; no compiled deployment data |
+| [`crates/auctioneer-config-data`](crates/auctioneer-config-data/) | Compiled product defaults, bidder metadata, disclosure tables and reference archives; build-time generation reuses the shared models |
 | [`crates/auctioneer-adapter-axum`](crates/auctioneer-adapter-axum/)             | Axum (native) entry point                                                                                                                                                      |
 | [`crates/auctioneer-adapter-cloudflare`](crates/auctioneer-adapter-cloudflare/) | Cloudflare Workers (wasm32-unknown-unknown) entry point                                                                                                                        |
 | [`crates/auctioneer-adapter-fastly`](crates/auctioneer-adapter-fastly/)         | Fastly Compute@Edge (wasm32-wasip1) entry point                                                                                                                                |
@@ -104,11 +105,11 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The `insecure-bidders` cargo feature on `auctioneer-config` enables
+The `insecure-bidders` cargo feature on `auctioneer-config-data` enables
 deterministic loopback test bidders:
 
 ```
-cargo test --workspace --features auctioneer-config/insecure-bidders
+cargo test --workspace --features auctioneer-config-data/insecure-bidders
 ```
 
 Axum's default `cargo test -p auctioneer-adapter-axum --all-targets` also runs the

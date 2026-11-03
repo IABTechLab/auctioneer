@@ -31,7 +31,7 @@ mod tests {
     use crate::serving_catalog::{ServingBidder, default_active_publications};
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;

@@ -693,7 +693,7 @@ fn build_args(selected: Provider) -> Vec<String> {
         "-p",
         &format!("auctioneer-adapter-{}", selected.name()),
         "-p",
-        "auctioneer-config",
+        "auctioneer-config-data",
         "--features",
         OVERRIDE_FEATURE,
         "--features",
@@ -1203,7 +1203,7 @@ pub(super) mod tests {
         fs::write(root.path().join("auctioneer.toml"), b"[baked]\n").unwrap();
         let schema = root
             .path()
-            .join("crates/auctioneer-config-schema/src/bidder_manifest.rs");
+            .join("crates/auctioneer-config/src/bidder_manifest.rs");
         fs::create_dir_all(schema.parent().unwrap()).unwrap();
         fs::write(schema, b"// Shared manifest fixture\n").unwrap();
         (root, members)
@@ -1541,7 +1541,7 @@ pub(super) mod tests {
                 assert_eq!(fs::read(plan.bidders_dir.join(member)).unwrap(), *bytes);
             }
         }
-        let schema = "crates/auctioneer-config-schema/src/bidder_manifest.rs";
+        let schema = "crates/auctioneer-config/src/bidder_manifest.rs";
         assert!(plan.source_files.contains(&(
             schema.to_owned(),
             Some(io::sha256(&fs::read(repo.join(schema)).unwrap()))
@@ -1583,7 +1583,7 @@ pub(super) mod tests {
         supervisor: &process::Supervisor,
     ) {
         let repo = &plan.repo_root;
-        let schema = "crates/auctioneer-config-schema/src/bidder_manifest.rs";
+        let schema = "crates/auctioneer-config/src/bidder_manifest.rs";
         let mut inputs: Vec<_> = RAW_CATALOG_MEMBERS
             .iter()
             .enumerate()
@@ -1737,7 +1737,9 @@ pub(super) mod tests {
                 "{member}"
             );
         }
-        assert!(reference_input("crates/auctioneer-config/data/baked.toml"));
+        assert!(reference_input(
+            "crates/auctioneer-config-data/data/baked.toml"
+        ));
         assert!(!reference_input("crates/auctioneer-core/src/lib.rs"));
     }
 
@@ -1807,7 +1809,7 @@ pub(super) mod tests {
             "Cargo.lock",
             "edgezero.toml",
             "auctioneer.toml",
-            "crates/auctioneer-config/Cargo.toml",
+            "crates/auctioneer-config-data/Cargo.toml",
             "crates/auctioneer-core/Cargo.toml",
             "crates/auctioneer-core/src/lib.rs",
             "crates/auctioneer-adapter-spin/spin.toml",
@@ -1901,7 +1903,7 @@ pub(super) mod tests {
         for generated in [
             "target",
             "crates/auctioneer-core/target",
-            "crates/auctioneer-config/target",
+            "crates/auctioneer-config-data/target",
         ] {
             let directory = root.path().join(generated);
             fs::create_dir_all(directory.join("debug/deps")).unwrap();
@@ -2097,7 +2099,7 @@ pub(super) mod tests {
             HarnessError::new("invalid_input")
         );
         let request = serde_json::json!({"repo_root":base.repo_root,"workspace":destination.path(),"provider":"spin",
-            "origin":"https://fixture.example","approved_origin":"https://fixture.example","build_features":["spin","auctioneer-config/test-harness-override"]});
+            "origin":"https://fixture.example","approved_origin":"https://fixture.example","build_features":["spin","auctioneer-config-data/test-harness-override"]});
         fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
         let result = prepare_build(&input, &supervisor).await.unwrap();
         assert_eq!(result["kind"], "offline_handler_preparation");
