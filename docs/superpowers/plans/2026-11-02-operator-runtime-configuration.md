@@ -689,3 +689,12 @@ records subsequent test execution, the pinned SDK audit and registry growth.
 | Bidder-owned validation | Discovery, local callbacks and the staged pure shared dispatcher are implemented; bidder library 1,188 passed (9 existing source-dependent ignores), registry 21 and ownership 16 passed. Strict bidder lint passed. The once-owned settings contract passed 19 outer / 25 reconciled child cases, including absent-feature settings refusal; discovery passed 38. Exact ABI controls and matched native construction observations completed; staging spec and quality reviews approved. Allocation target: 8 passed, including independent regression ceilings and populated callback slots. Earlier guest test compilation and strict guest library/allocation lint passed; guest checks were not rerun for these review repairs. No serving callback activation or resource admission. |
 | SDK bounded-input audit | Exact locked source confirmed through Cargo metadata. Store extraction has bounded reads; the TOML authoring loader and typed CLI rereads do not expose equivalent bounded-input hooks. This remains a Task 4 prerequisite, not an excuse for unbounded bootstrap. |
 | Serving/default/bootstrap/CLI cutover | Not started; the exact startup reservation gate is still outstanding. |
+
+The maintainer subsequently requested one physical owner for shared configuration
+models, with bidder-specific settings remaining bidder-owned. The
+[ownership amendment](../specs/2026-11-03-configuration-model-ownership-design.md)
+and [migration plan](2026-11-03-configuration-model-ownership.md) specify the
+cycle-free package/declaration move before extending the runtime cutover.
+The maintainer explicitly approved the config/config-data package-role rename
+on 2026-11-03. This supersedes the earlier file-owner mapping; it does not waive
+this plan's resource and end-to-end acceptance gates.
