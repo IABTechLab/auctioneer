@@ -30,7 +30,10 @@ mod tests {
     fn generated_settings_contract_uses_actual_apis_with_only_fake_declarations() {
         let workspace = BuildWorkspace::with_crates(
             "fake_unused_probe",
-            "fn main() {}",
+            &quote::quote!(
+                fn main() {}
+            )
+            .to_string(),
             &[
                 "auctioneer-core",
                 "auctioneer-exchange",
@@ -77,9 +80,9 @@ mod tests {
             fs::write(directory.join("bidder.toml"), format!(
                 "key = '{key}'\nfactory = true\n[settings.fields]\n{fields}\n[provenance]\norigin = 'local'\n"
             )).unwrap();
-            let (root, config) = synthetic_config_owner(key);
-            fs::write(directory.join("mod.rs"), root).unwrap();
-            fs::write(directory.join("config.rs"), config).unwrap();
+            let (owner_source, config_source) = synthetic_config_owner(key);
+            fs::write(directory.join("mod.rs"), owner_source).unwrap();
+            fs::write(directory.join("config.rs"), config_source).unwrap();
         }
         let string_manifest = workspace
             .bidder()
