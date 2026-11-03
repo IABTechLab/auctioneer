@@ -1,5 +1,8 @@
 # Auctioneer
 
+> [!IMPORTANT]
+> Auctioneer is under heavy development and is not yet stable. We are not accepting outside contributions or pull requests at this time. This notice will be updated when the project is ready for external contributions.
+
 [IAB Tech Lab repository](https://github.com/IABTechLab/auctioneer).
 This is a fresh-history import. Historical plans and evidence are retained;
 see [repository import](docs/repository-import.md) for their status.
