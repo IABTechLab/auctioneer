@@ -25,8 +25,7 @@ impl Deref for NormalizedBidRequest {
 }
 
 impl NormalizedBidRequest {
-    /// Crate-internal: hand the `BidRequest` off to `run_auction` once
-    /// auctioneer-exchange depends on this crate.
+    /// Transfer the prepared request to the exchange.
     #[must_use]
     #[inline]
     pub fn into_inner(self) -> BidRequest {
@@ -49,17 +48,14 @@ pub struct NonFatalWarning {
     pub scope: Option<String>,
 }
 
-/// Numeric warning codes. The `InvalidPrivacyConsent` variant is
-/// defined here (since `NonFatalWarning` is) but **not populated by
-/// `prepare()`** in M1 — consent-string parsing lives in
-/// `auctioneer-privacy` from M3+. `prepare()` emits no warnings in M1;
-/// the `warnings` field stays empty and the `run_auction` surfacing
-/// path is already wired for when M3 starts emitting them via
-/// `PrivacyContext::take_warnings()`.
+/// Numeric warning codes shared by request preparation and downstream policy.
+/// `prepare()` does not parse consent strings and leaves its warnings empty.
+/// Privacy resolution supplies consent warnings to the exchange, which exposes
+/// them through the response warning surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]
 pub enum WarningCode {
-    /// 10001 — emitted by `auctioneer-privacy::PrivacyContext` from M3+, NOT by
+    /// 10001 — emitted by `auctioneer-privacy::PrivacyContext`, NOT by
     /// `auctioneer-openrtb::prepare()`. Kept here because `NonFatalWarning`
     /// lives in this crate.
     InvalidPrivacyConsent = 10001,

@@ -7,7 +7,7 @@
 //!
 //! Handlers call these once per request and pass the resolved config
 //! into `run_auction` — the exchange never learns about
-//! `AuctioneerAppConfig` directly, preserving the M1 dependency-purity
+//! `AuctioneerAppConfig` directly, preserving the foundations dependency-purity
 //! contract.
 
 use crate::config::{

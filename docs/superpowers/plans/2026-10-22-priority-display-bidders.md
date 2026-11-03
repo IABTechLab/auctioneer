@@ -1,5 +1,7 @@
 # Priority Display Bidder Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Keep the operation contract separate from execution evidence.
 
 **Goal:** Implement the 13 source-backed display flows and the additional priority APS integration (14 selected flows total), using reviewed source-specific or independent integration requirements rather than treating metadata, a shared endpoint or generic wire handling as migration.
@@ -66,18 +68,18 @@ validate the actual document.
 The operation labels name **planned** Rust test owners, not executable commands
 or existing passing tests. A label cannot select a shell command. Protocol unit
 tests belong adjacent to their implementation. Cross-package behavior belongs
-in the named integration targets below. Do not rename tests after a milestone.
+in the named integration targets below. Do not rename tests after a capability.
 
 The catalog's independent schema-work/cache/target-resource qualification,
 funded strict serving join, host context, correlation and proprietary response
-decoding gates remain open. This plan neither bypasses them nor makes R0 ready.
+decoding gates remain open. This plan neither bypasses them nor makes resource qualification ready.
 Source-local future media/browser branches remain required for full migration;
 an unsupported-feature refusal cannot count as implementing that branch.
 
 ## Endpoint Policy Checkpoint (2026-10-28)
 
 AG approved HTTPS-by-default selection, superseding this checkpoint's earlier
-separate vendor TLS-mapping evidence requirement. Apply [spec section 6.1](../specs/2026-10-16-m7-bidder-catalog-design.md#61-baked-versus-runtime):
+separate vendor TLS-mapping evidence requirement. Apply [spec section 6.1](../specs/2026-10-16-bidder-catalog-design.md#61-baked-versus-runtime):
 change only the scheme, preserving authority/port, path/query and bidding
 protocol. Keep exact source URLs/blobs and effective transport-difference
 records. HTTP requires an explicit scoped exception; preserve only the existing
@@ -85,7 +87,7 @@ records. HTTP requires an explicit scoped exception; preserve only the existing
 or automatic downgrade on HTTPS error. Absent/placeholder/unusable destinations
 stay unavailable; source-disabled stays disabled unless separately approved.
 
-| Identity | Approved Transport Selection | Remaining M7 Work |
+| Identity | Approved Transport Selection | Remaining bidder catalog Work |
 | --- | --- | --- |
 | `msft` | Select `https://ib.adnxs.com/openrtb2` from the pinned HTTP destination under AG policy. The same transport policy covers the existing AppNexus override, not shared protocol qualification. | Bind effective metadata, source URL/blob and transport difference; retain independent member/HB-source/chunking and extension/header behavior review and deterministic route tests. No separate vendor TLS contract is required. |
 | `openx` | Select HTTPS on the unchanged `rtb.openx.net/prebid` destination from the [pinned source metadata](https://github.com/prebid/prebid-server/blob/d7f8515b86258688304b0d9b6668c6a0e258bc9e/static/bidder-info/openx.yaml). | Bind effective metadata/provenance and run deterministic HTTPS/no-unapproved-HTTP route tests, not a separate vendor TLS-mapping review. Do not substitute browser or sync destinations. |
@@ -100,8 +102,8 @@ binds typed scheme-only selections to source artifacts, independently of serving
 metadata binding and deterministic route acceptance. The wave stays `pending`.
 No runtime endpoint changes or probes occur here. HTTPS selection proves neither
 connectivity nor live authorization. Live authorization, allowlisting, provider
-credentials and deployed traffic tests remain M7.6; Rubicon's technical
-regional/credential work and all deterministic selected-flow acceptance stay M7.
+credentials and deployed traffic tests remain publisher pilot; Rubicon's technical
+regional/credential work and all deterministic selected-flow acceptance stay bidder catalog.
 
 ## Delivery And Files
 
@@ -172,7 +174,7 @@ requirements.
 - [ ] Bring forward a separately reviewed bounded currency-conversion prerequisite if required source branches cannot be implemented under the existing USD-only shared contract. Refusal-only display tests do not complete those branches.
 
 Do not implement a permissive schema fallback or claim the selected flows usable
-because their protocol bodies compile. M7 may progress while R0 blockers remain
+because their protocol bodies compile. bidder catalog may progress while resource qualification blockers remain
 explicit, but this does not waive the catalog's own qualification gates.
 
 ## 3. Port One Coherent Family At A Time
@@ -215,7 +217,7 @@ Task 16's evidence driver/checker and Task 17's CI guards.
 - [ ] Run fresh snapshot enable/disable/re-enable without registry reconstruction, base veto and alias-specific disable. No public/implementation-name conflation.
 - [ ] Reuse signed-cookie handlers and existing caps for declared sync endpoints. TTD's selected alias, Rubicon support-only and other absent declarations stay explicitly unavailable unless separately reviewed configuration supplies a legitimate contract.
 - [ ] Bind the exact selected 14-name set (13 source-backed names plus `aps`), dependency closure, operation counts and required producers to a fresh run/attempt/commit. Require both the source-backed wave and APS contract/evidence; missing/stale/failed evidence cannot report selected success or migrated.
-- [ ] Build all four shipped applications and run matched catalog-relative checks without claiming physical WASM fit from successful compilation. Keep credentialed/live Q2-D and publisher/provider execution in M7.6, after M7.5 and affected R0 prerequisites.
+- [ ] Build all four shipped applications and run matched catalog-relative checks without claiming physical WASM fit from successful compilation. Keep credentialed/live Q2-D and publisher/provider execution in publisher pilot, after Trusted Server embedding and affected resource qualification prerequisites.
 
 No threshold, workload limit, dependency, feature, funding equation or existing
 external fixture changes merely to make this design pass.

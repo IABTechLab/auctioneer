@@ -15,7 +15,7 @@ editing. Preserve normal Cargo incremental state; do not routinely clean the
 target directory or force `CARGO_INCREMENTAL=0`. A package checkpoint adds
 the affected public integration/conformance targets and feature controls.
 Full CI, guest execution and qualification remain separate acceptance gates.
-A focused pass must never be reported as full milestone acceptance.
+A focused pass must never be reported as full capability acceptance.
 
 CLI maintenance commands may use its existing `--no-default-features` mode
 when the command supports it; application/resource commands retain the real
@@ -62,5 +62,5 @@ consumers, relevant library suites, source-isolation controls, strict affected
 target lint and formatting. Test the shared store at/over both byte caps and
 at an expired deadline. Compare focused repeated commands only under the
 same package/profile/cache conditions; distinguish rebuild time from warm
-time. Leave full CI commands unchanged. M7 delivery/readiness blockers are
+time. Leave full CI commands unchanged. bidder catalog delivery/readiness blockers are
 not closed by this cleanup.

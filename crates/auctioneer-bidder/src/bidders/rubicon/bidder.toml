@@ -149,7 +149,7 @@ port_differences = [
     existing complete Host allowlist mechanism. Retain this exact source blob and its \
     source_disabled=true/REGION/credential placeholders as provenance. This exact source \
     blob's deployment disable is reclassified to disabled=false, defaultEnabled=false \
-    under AG's approved M7 section 6.1 and 2026-10-30 controlled-native design: an \
+    under AG's approved bidder catalog section 6.1 and 2026-10-30 controlled-native design: an \
     unconfigured deployment default is not an immutable safety veto. Required region and \
     atomic credential-reference preflight remain enforced. No xapi placeholder is baked \
     as a credential. Sync supports redirect but has no configured URL; none is invented. \

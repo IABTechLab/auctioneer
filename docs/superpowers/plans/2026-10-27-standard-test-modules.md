@@ -1,5 +1,7 @@
 # Standard Test Modules Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace test-only `#[path]` wiring throughout the workspace with normal Rust modules and real crate interfaces, without losing coverage or changing serving behavior.
@@ -24,7 +26,7 @@
 ### 1. Baseline And Ownership
 
 - [x] Inventory `#[path]` uses across every crate, including generated probe strings.
-- [x] Confirm the clean M7 branch and approved organization.
+- [x] Confirm the clean bidder catalog branch and approved organization.
 - [x] Record test target/test-list baselines before moves; distinguish genuine tests from repeated support-module tests.
 - [x] Resolve shared test-support and build-model ownership before removing cross-crate imports.
 
@@ -65,7 +67,7 @@ Production generated module discovery can legitimately select source paths; it m
 - Independent static review confirms all 239 Cargo test targets retain names and required-feature gates. The 16 source-isolation controls passed. Private-source `include!` and handwritten module-path imports are rejected; approved generated includes and production discovery remain.
 - A syntax-based comparison found no changed multiline fixture values in the inlined unit-test blocks; moved captures and historical qualification bundles remain byte-identical. The two schema benchmark captures moved into bidder test data without changing bytes.
 - Rust emission now uses `quote!`/`syn`; no workload limits, resource coefficients or SDK pins changed. Normal tests retain `allow-expect-in-tests`; AG approved scoped `expect_used` allowances in opt-in fixture helpers, not production code. The final strict workspace all-target Clippy run passed with `-D warnings` after the last fixture repairs.
-- The pre-existing supplemental immutable-source CI selection gap is explicitly Open in `ISSUES.md`: local execution is not evidence of CI execution. Browser/live provider qualification and complete M7/R0 readiness remain outside this refactor's verification claims.
+- The pre-existing supplemental immutable-source CI selection gap is explicitly Open in `ISSUES.md`: local execution is not evidence of CI execution. Browser/live provider qualification and complete bidder catalog/resource qualification readiness remain outside this refactor's verification claims.
 
 ## Repair The Published Privacy Oracle
 

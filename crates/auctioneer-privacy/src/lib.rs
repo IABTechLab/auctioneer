@@ -7,8 +7,8 @@
 //! resolved context. GPP/legacy source normalization feeds the same TCF
 //! authorization path. Activity, CCPA, LMT, and COPPA decisions remain
 //! independent of GDPR scope. The exchange owns request transformations.
-//! The sync entry point `resolve_sync_privacy` is still deferred to M5;
-//! it returns a context where every gate is `Allowed`.
+//! The sync entry point `resolve_sync_privacy` resolves endpoint-specific
+//! signals and permissions independently of the auction disclosure path.
 
 mod activity;
 mod auction_context;

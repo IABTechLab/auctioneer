@@ -3,7 +3,7 @@
 //! The `RouteMatch` shape carries the ingress hook contract.
 //!
 //! The hook calls [`match_route`] with the raw request method + path and
-//! the milestone's `RouteTable`; the returned [`RouteMatch`] carries the
+//! the application's `RouteTable`; the returned [`RouteMatch`] carries the
 //! body cap the hook applies. A path that doesn't match any wired route
 //! returns `NotFound { cap_bytes: 4096 }`; a known path with the wrong
 //! method returns `MethodNotAllowed { cap_bytes: 4096 }`.
@@ -24,13 +24,13 @@ pub const COOKIESYNC_CAP_BYTES: usize = 32 * 1024;
 /// 4 KiB cap for `GET /_auctioneer/health/gvl` — the no-body route class.
 pub const HEALTH_GVL_CAP_BYTES: usize = 4_096;
 
-/// One route registered for the current milestone.
+/// One route registered by the application.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Route {
     /// Stable identifier (`"auction"`, `"cookie_sync"`, `"status"`,
     /// `"info_bidders"`, `"info_bidder"`, `"setuid"`, `"getuids"`).
     pub id: &'static str,
-    /// HTTP method this route is wired under in the current milestone.
+    /// HTTP method this route is wired under.
     pub method: Method,
     /// Exact path or path template (`/info/bidders/{bidder}`).
     pub path: &'static str,
@@ -38,7 +38,7 @@ pub struct Route {
     pub cap_bytes: usize,
 }
 
-/// Milestone-scoped set of wired routes. Constructed from
+/// Application-scoped set of wired routes. Constructed from
 /// `edgezero.toml` registrations once per build; the ingress hook
 /// borrows it for every dispatch.
 #[derive(Clone, Debug)]
@@ -49,7 +49,7 @@ pub struct RouteTable {
 impl RouteTable {
     /// Build a `RouteTable` from an explicit slice of routes. The
     /// caller is responsible for matching the slice against the
-    /// milestone's actual `[[triggers.http]]` registrations.
+    /// application's actual `[[triggers.http]]` registrations.
     #[must_use]
     #[inline]
     pub fn new(routes: Vec<Route>) -> Self {
@@ -57,7 +57,7 @@ impl RouteTable {
     }
 
     /// Empty route table — every `match_route` call returns `NotFound`
-    /// with the default cap. Useful for tests and for milestones with
+    /// with the default cap. Useful for tests and applications with
     /// no body-bearing routes wired yet.
     #[must_use]
     #[inline]
@@ -80,7 +80,7 @@ impl Default for RouteTable {
     }
 }
 
-/// The current milestone's wired routes — one entry per
+/// The application's wired routes — one entry per
 /// `[[triggers.http]]` registration in the workspace `edgezero.toml`.
 /// The ingress hook and the handler-side registration test read THIS
 /// table, and `tests/route_table_parity.rs` asserts a bijection with
@@ -168,7 +168,7 @@ pub enum RouteMatch {
     NotFound { cap_bytes: usize },
 }
 
-/// Classify a request against the milestone's wired routes. The hook
+/// Classify a request against the application's wired routes. The hook
 /// calls this first, then runs Content-Encoding → Content-Length →
 /// bounded-read checks against the returned `cap_bytes`.
 ///

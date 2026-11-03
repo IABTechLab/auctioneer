@@ -218,7 +218,7 @@ mod tests {
             let expected_tcf = if active_tcf {
                 &row["selected_tcf"]
             } else {
-                // Approved M4 decision: ignore section 2 when SID does not activate it.
+                // Approved privacy enforcement decision: ignore section 2 when SID does not activate it.
                 &row["legacy_tcf"]
             };
             assert_eq!(sources.tcf().raw(), expected_tcf.as_str(), "{row}");

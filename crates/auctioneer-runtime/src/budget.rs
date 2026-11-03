@@ -445,7 +445,7 @@ pub const CONFIG_PARSE_FACTOR: u64 = 128;
 /// At the shipped structural caps (64 levels and 8,192 values), the worst
 /// admitted envelope retains 6,067,476 bytes at the shipped 1 MiB cap;
 /// its measured factor 17 remains covered. Declared node caps are configurable
-/// and independently funded by [`CONFIG_NODE_RETAINED_BYTES`]. Keep M4's
+/// and independently funded by [`CONFIG_NODE_RETAINED_BYTES`]. Keep privacy enforcement's
 /// conservative 128-byte charge for this representation, including rejected
 /// dense unknown fields, separately from typed config and independent
 /// baked-policy clones.
@@ -1293,7 +1293,7 @@ fn decoder_chain_bytes(wbits: u8, layers: u8) -> Result<u64, BudgetError> {
     add(CHUNK_STAGING_BYTES, add(brotli, flate)?)
 }
 
-/// Normalize the existing isolate envelope into M5 auxiliary work caps.
+/// Normalize the existing isolate envelope into user sync auxiliary work caps.
 /// Baked config is independent of the runtime-config blob and may coexist
 /// with it during config extraction. The caller must use the same normalized
 /// envelope snapshot for this function and for isolate derivation.
@@ -1559,7 +1559,7 @@ pub fn derive_isolate_budget_with_baked_config(
         node_tree,
     )?;
     let working_copies = mul(2, add(request_copy, scoped_supplement)?)?;
-    // M4's projection receipt checks measured work across all survivors,
+    // privacy enforcement's projection receipt checks measured work across all survivors,
     // including FPD scratch. It covers bidder request trees retained in
     // run.capped through make_bids as well as sequential projection temporaries;
     // keep that allowance separate from the copy model.
@@ -2120,7 +2120,7 @@ mod tests {
             response_write_deadline_ms: 30_000,
             guest_decoder_bound_bytes: 0,
             aux_route_permits: 16,
-            // Synthetic M5 aux-work floor, not the shipped 768 MiB reservation.
+            // Synthetic user sync aux-work floor, not the shipped 768 MiB reservation.
             aux_route_peak_bytes: 700_114_944,
             max_brotli_wbits: 22,
             max_brotli_layers: 1,
@@ -4082,7 +4082,7 @@ mod tests {
         assert_eq!(
             wider.auction_charges.projection - charged.auction_charges.projection,
             49 * normalized * super::TYPED_CLONE_FACTOR,
-            "M4's independent measured projection allowance still follows survivors"
+            "privacy enforcement's independent measured projection allowance still follows survivors"
         );
 
         limits.max_impressions_per_auction += 1;
@@ -4319,7 +4319,7 @@ mod tests {
         .unwrap();
 
         // Bidder scopes are sequential, so the copy-model ingress stays
-        // fixed. M4's independent measured projection receipt still sums
+        // fixed. privacy enforcement's independent measured projection receipt still sums
         // work across survivors and needs its existing per-bidder allowance.
         let mut more_bidders = limits;
         more_bidders.max_bidders_per_auction += 1;

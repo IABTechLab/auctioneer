@@ -69,7 +69,7 @@ edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = 
 fastly = "=0.13.1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
-# auctioneer-config's build.rs (pin matches the M3b budget work).
+# auctioneer-config's build.rs (pin matches the bounded fanout budget work).
 brotli = "=8.0.4"
 # Advisory flock on the committed gvl_archive.lock / refresh.lock
 # sentinels — shared by auctioneer-config's build.rs (reader) and
@@ -286,16 +286,15 @@ missing_inline_in_public_items = "allow"
 pub_use = "allow"
 
 # Identifier style — `'a` lifetime names, single-letter loop / closure
-# variables, and `let x = ...` patterns are conventional Rust. M1's
+# variables, and `let x = ...` patterns are conventional Rust. The
 # `OpenRTB` types use `w`, `h`, `id` etc. as protocol field names; the
 # restriction would force a workspace-wide rename for no readability
 # gain.
 min_ident_chars = "allow"
 single_char_lifetime_names = "allow"
 
-# Empty-struct shape — `pub struct PrivacyContext {}` keeps the future-
-# field growth a non-syntactic change; the unit-struct form (`PrivacyContext;`)
-# would force a syntactic flip when M3/M4 add fields.
+# Braced empty structs can gain fields without changing construction syntax;
+# a unit-struct declaration would require that syntactic change.
 empty_structs_with_brackets = "allow"
 
 # Imports / paths — std-using app code, not no_std libraries.

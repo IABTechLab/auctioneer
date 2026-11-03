@@ -1,8 +1,10 @@
 # Config Extraction Funding Boundary
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-18
 SDK: `bc300ace5ca1ffe7060594a7bdb01c1da80de305`
-Implementation based on `5344376b` in the existing M7 branch.
+Implementation based on `5344376b` in the existing bidder catalog branch.
 
 AG explicitly approved refusing unfunded extraction while retaining bounded
 liveness. This changes the initialization contract, not normal workload caps.
@@ -53,9 +55,9 @@ uses public configured-App dispatch under unchanged shipped caps.
 | Raw fixture gate                                                                         | 168 fixtures across 50 files; passed after removing the obsolete two-fixture allowance |
 | Formatting and diff checks                                                               | Passed                                                                                 |
 
-Local records: `/private/tmp/r0-config-funding-{core-verified,adapters-green,
+Local records: `/private/tmp/resource-qualification-config-funding-{core-verified,adapters-green,
 insecure-verified,check-axum,check-cloudflare,check-fastly,check-spin}.log` and
-`/private/tmp/r0-parent-funding-checks.log`. Initial socket failures and failed
+`/private/tmp/resource-qualification-parent-funding-checks.log`. Initial socket failures and failed
 intermediate compile/test runs remain in separate logs; escalated final runs
 resolved local-network restrictions. No new ignore or suppression was added.
 

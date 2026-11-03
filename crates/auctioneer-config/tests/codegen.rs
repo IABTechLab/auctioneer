@@ -289,7 +289,7 @@ mod tests {
             "https://x.example/{{.PublisherID}}/rtb?a={{.AccountID}}",
             &["AccountID".into(), "PublisherID".into()],
         )
-        .expect("m2 macros");
+        .expect("auction-core macros");
         assert_syntax_eq(
             out,
             "vec![\"AccountID\".to_owned(), \"PublisherID\".to_owned()]",

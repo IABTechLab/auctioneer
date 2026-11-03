@@ -1,5 +1,7 @@
 # Archive Verification Guards Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans
 > to execute these reviewed repair requirements with focused regression checks.
 
@@ -20,11 +22,11 @@ defense. No new archive format, qualification claim, dependency or SDK pin.
 - `auctioneer-cli/.../providers/artifacts.rs`: shared metadata policy, bounded extracted walk and colocated tests.
 - `Cargo.toml` and affected impls: remove functional workspace suppressions, retaining explicit style policies.
 - `scripts/raw-json-fixtures.allow`: explain the existing object-leading count without increasing it.
-- `ISSUES.md` and the M6 verification record: accurate disposition and scoped evidence, not historical rewrites.
+- `ISSUES.md` and the diagnostic qualification verification record: accurate disposition and scoped evidence, not historical rewrites.
 
 Paths abbreviated above start at `crates/`; provider modules live under
-`auctioneer-cli/src/qualification/harness/`. Changes remain on `m6-hardening`;
-M7 specification work is independent.
+`auctioneer-cli/src/qualification/harness/`. Changes remain on `diagnostic-hardening`;
+bidder catalog specification work is independent.
 
 ## Task 1: Expose Independent Boundary Regressions
 
@@ -59,7 +61,7 @@ M7 specification work is independent.
 - [x] Independently review the final diff; record precise commands, failures and passing scopes in the verification record and `ISSUES.md`.
 
 Publication follows these verification steps: commit and push the completed
-M6 repair without changing M7. The Git branch records publication, not a
+diagnostic qualification repair without changing bidder catalog. The Git branch records publication, not a
 second verification or qualification claim.
 
 Focused commands use `CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0

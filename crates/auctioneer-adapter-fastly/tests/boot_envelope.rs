@@ -17,8 +17,8 @@ mod tests {
         baked_bytes: u64,
         catalog_costs: CatalogResourceCosts,
     ) {
-        // Stage-2 M5's golden already funds auxiliary work and its pinned GVLs.
-        // M4 adds 2B + 8H + 189 + 23N over the old raw-body wire allowance.
+        // Stage-2 user sync's golden already funds auxiliary work and its pinned GVLs.
+        // privacy enforcement adds 2B + 8H + 189 + 23N over the old raw-body wire allowance.
         let enrichment = limits
             .inbound_request_bytes
             .checked_mul(2)

@@ -1,12 +1,14 @@
 # Adapter-Owned Resource Audit
 
-Date: 2026-10-18. Same M7 branch and PR #21.
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+Date: 2026-10-18. Same bidder catalog branch and PR #21.
 
 The [canonical typed audit](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/audit.toml)
 records the exact source baseline, SDK, lockfile, compiler, features and four
 profile digests. [Generated human tables](../adapter-resource-envelopes.md) come
 from that record, not a second calculator. This is a source audit, **not** a
-frozen remediation package, AG approval, physical measurement or R0 completion.
+frozen remediation package, AG approval, physical measurement or resource qualification completion.
 
 ## Ownership Boundary
 
@@ -38,7 +40,7 @@ compiler ABI and resource profile. Operators do not select a Rust target or map
 one to an adapter. `--all-adapters` explicitly selects the complete matrix;
 canonical audit and review modes require it. JSON reports declare their scope
 and use `adapters`/`adapter` identities. A single-adapter fit result is not global
-R0 acceptance. The unmerged source-audit format is cut over without aliases;
+resource qualification acceptance. The unmerged source-audit format is cut over without aliases;
 historical qualification captures and their schema are unchanged.
 
 ## Executed Verification
@@ -120,4 +122,4 @@ also records the preboot/App-across-boot config-bound gap before any proposed
 handoff credit. Its ownership is Auctioneer's, not an SDK publication issue.
 Missing host ingress/framing facts, Axum ceiling/population, Cloudflare inbound
 population and Fastly stack evidence retain their separate owners/actions.
-No live deployment was contacted or mutated; hosted qualification remains M7.6.
+No live deployment was contacted or mutated; hosted qualification remains publisher pilot.

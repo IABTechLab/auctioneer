@@ -100,7 +100,7 @@ pub enum NativeSchemaError {
 /// Validate the final borrowed subtree without cloning or retaining it.
 ///
 /// Work tokens are a predeclared admission policy (1024 + 16/byte + 128/node),
-/// not a proven regex instruction or wall-clock bound. Full certification is R0.
+/// not a proven regex instruction or wall-clock bound. Full certification is resource qualification.
 ///
 /// # Errors
 /// Refuses missing funding/initialization, oversized inputs, exhausted work,

@@ -1,4 +1,6 @@
-# Feedback on the EdgeZero outbound-HTTP spec branch (from auctioneer M3b)
+# Feedback on the EdgeZero outbound-HTTP spec branch (from auctioneer bounded fanout)
+
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
 
 **To:** EdgeZero maintainers, `docs/outbound-http-spec` branch (pinned @ `120dd2aa` since round-142; previously `12965da2`, originally `fcefdde3`. Branch HEAD @ **`325134e4`, verified by `ls-remote` 2026-09-24** (`46f85958` superseded) (`1e7e0562`, `03cdba98`, `351698c9` superseded) — auctioneer has not moved to it; see the current-head summary below. Earlier heads cited in this file — `3d87d5bc`, `543b782d`, `5eccff8e`, `fc8d7e9f`, `4790a140`, `351698c9` — are all superseded.)
 
@@ -35,10 +37,10 @@
 > `ResponseEgressCompletion::late_bound<T>()`, which is the typed,
 > nine-test version of the permit-binding mechanism auctioneer had
 > specified by hand; auctioneer deletes its own and uses upstream's.
-> auctioneer adopts all of it in M3b-11, ONE atomic pin move to
+> auctioneer adopts all of it in Fanout-11, ONE atomic pin move to
 > `03cdba98` carrying the batch migration and the lifecycle work
 > together (round-184 #1).
-> **From:** auctioneer M3b prerequisite alignment (round-120), 2026-09-06
+> **From:** auctioneer bounded fanout prerequisite alignment (round-120), 2026-09-06
 > **Status:** DELIVERED to the outbound-spec author, 2026-09-06. Upstream
 > responses land as revisions on `docs/outbound-http-spec`; auctioneer picks them
 > up through the branch pin (`cargo update` moves it deliberately).
@@ -59,7 +61,7 @@ Result<OutboundBatchResults, OutboundBatchFailure>` — whose
 > requests also default to `OutboundCachePolicy::PlatformDefault`,
 > which auctioneer must override to `Bypass` on every bidder call.
 > auctioneer still compiles against the PINNED `120dd2aa`; the move is
-> task M3b-11, gated on the M3b-0 documentation rebase.
+> task Fanout-11, gated on the Fanout-0 documentation rebase.
 > Most of this file was written against `fcefdde3`/`12965da2`, when
 > the outbound surface was a design rather than code, and its
 > signatures reflect that draft — e.g. entries that describe
@@ -78,9 +80,9 @@ outcome }` still carries per-slot elapsed on BOTH outcomes. STATUS AT THE PINNED
 > | G10 unreachable / decode discriminants   | CLOSED — `BadGatewayReason::{Unreachable, Decode(..)}`                                                                                                                                                                                                                                        |
 > | G11 multi-member gzip / EOF              | CLOSED — drained to native EOF                                                                                                                                                                                                                                                                |
 > | G15 per-slot elapsed                     | CLOSED — `OutboundSlotResult.elapsed`                                                                                                                                                                                                                                                         |
-> | G1/G16 ingress route surfaces            | PARTIAL — string route classes landed; adapter wiring absent (blocks M3b-10)                                                                                                                                                                                                                  |
+> | G1/G16 ingress route surfaces            | PARTIAL — string route classes landed; adapter wiring absent (blocks Fanout-10)                                                                                                                                                                                                                  |
 > | G6 bounded source-read allocation        | OPEN — bounds the certificate SCOPE to `managed`, blocks no task                                                                                                                                                                                                                              |
-> | G17 batch handle with partial collection | **CLOSED at head (2026-09-17)** — `collect()`'s `OutboundBatchFailure { error, slots }` delivers exactly the partial collection G17 asked for; auctioneer's own policy still discards those slots deliberately (see the M3b plan), so the ask is satisfied even though the behaviour is unchanged |
+> | G17 batch handle with partial collection | **CLOSED at head (2026-09-17)** — `collect()`'s `OutboundBatchFailure { error, slots }` delivers exactly the partial collection G17 asked for; auctioneer's own policy still discards those slots deliberately (see the bounded fanout plan), so the ask is satisfied even though the behaviour is unchanged |
 >
 > The per-gap entries below are kept for the derivations and for the
 > asks that are still open; where one contradicts this table, this
@@ -120,13 +122,13 @@ outcome }` still carries per-slot elapsed on BOTH outcomes. STATUS AT THE PINNED
 > (per-slot elapsed) are IMPLEMENTED at the candidate EdgeZero head
 > `120dd2aa`; they close for auctioneer when the ATOMIC pin move lands
 > (the move also deletes `edgezero_core::proxy`, so it ships in one
-> commit with the facade migration — M3b plan, round-139 #1).
+> commit with the facade migration — bounded fanout plan, round-139 #1).
 > **Inputs reviewed (all four, in full):**
 > `docs/.../2026-05-21-outbound-http-design.md` (the master outbound design),
 > `2026-08-22-inbound-body-design.md`, `2026-07-10-outbound-http-implementation.md`,
 > `2026-07-10-outbound-http-phase1a-error-time.md`.
 
-auctioneer's M3b plan predates these documents and had invented its own API shapes for the
+auctioneer's bounded fanout plan predates these documents and had invented its own API shapes for the
 same surface (`ProxyClient::send_bounded`, `ResponseBodyPolicy`, `TypedBodyError`,
 `TypedProxyError`, `BodySource`, …). Round-120 re-expresses auctioneer's prerequisites in the
 branch's canonical vocabulary wherever the branch defines the capability, and records a
@@ -178,7 +180,7 @@ cancellation asks stand.
   opt-out). A 3xx arrives as `Ok(OutboundResponse)`, so auctioneer's code-4 classification
   of received 3xx stays app-side, consistent with the "non-2xx is not an error" rule.
 - Header multi-value preservation (`append`, never `insert`/`set`) and the CF
-  `set-cookie` fix are mandated upstream (§3.1.4, §4.2) — auctioneer's round-32 M1 adapter
+  `set-cookie` fix are mandated upstream (§3.1.4, §4.2) — auctioneer's round-32 foundations adapter
   precondition is satisfied by design.
 - The §3.4.1 content-encoding policy (decode only bare single `gzip`/`br`; everything
   else passes through **untouched with `content-encoding`/`content-length` intact**)
@@ -297,7 +299,7 @@ timestamp, and the time axis.)**
 - **auctioneer needs (Prereq 1):** `AppConfig<C>::from_store` returning a dedicated typed
   error distinguishing missing-key / envelope-parse / envelope-SHA / typed-deserialize
   / validation / missing-binding / missing-secret / backend-unavailable (… — the full
-  variant table is in auctioneer's M3b Prereq 1), instead of today's collapse into
+  variant table is in auctioneer's bounded fanout Prereq 1), instead of today's collapse into
   `EdgeError::ConfigOutOfDate` / `EdgeError::internal`. Additionally (round-119 F1)
   the complete extraction must be runnable under a caller deadline whose expiry
   cancels the pending store/secret lookup.
@@ -597,7 +599,7 @@ MethodNotAllowed { allowed } | NotFound }` rather than a bare id, so 404
 > therefore NOT build a workaround. 2a.7 implements checkpoints (1)-(3)
 > now; the permit's release-on-terminal-report binding waits for this
 > guard rather than settling for an early release. Re-verify the shape
-> when it lands — M3b-11's pin move is the natural checkpoint.
+> when it lands — Fanout-11's pin move is the natural checkpoint.
 
 - **Ask:** a per-response opaque token or application-owned extension that
   `ResponseEgressAttempt` retains until its exactly-once terminal transition,

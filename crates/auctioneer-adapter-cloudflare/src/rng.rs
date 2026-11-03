@@ -2,8 +2,7 @@
 //! `worker::Date::now() XOR Math::random()`.
 //!
 //! Not `crypto.getRandomValues` per call — the seeded xorshift path is
-//! pinned for test determinism; M3+ may swap in crypto once tests stop
-//! relying on seed reproducibility.
+//! pinned for test determinism. This is not a cryptographic random source.
 
 use auctioneer_runtime::Rng;
 use js_sys::Math;

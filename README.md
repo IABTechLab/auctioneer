@@ -10,22 +10,23 @@ see [repository import](docs/repository-import.md) for their status.
 An OpenRTB 2.6 auction engine written in Rust, usable as a standalone server
 or a library for in-binary integration. Built on the
 [EdgeZero](https://github.com/IABTechLab/edgezero) framework, its standalone
-service runs across Axum (native), Cloudflare Workers, Fastly Compute@Edge,
-and Spin (Fermyon). Direct Trusted Server integration is a product goal;
+adapters target Axum (native), Cloudflare Workers, Fastly Compute@Edge,
+and Spin (Fermyon). Target support is not deployment qualification.
+Direct Trusted Server integration is a product goal;
 see the [vision](vision.md) for the distinction from the existing library.
 
 **Product vision**: [`vision.md`](vision.md)
 **Architecture overview**: [`docs/architecture.md`](docs/architecture.md)
 **Design spec**: [Master design](docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md)
 **Approved roadmap**: [`docs/roadmap.md`](docs/roadmap.md)
-**M1 plan**: [`docs/superpowers/plans/2026-05-25-m1-foundations.md`](docs/superpowers/plans/2026-05-25-m1-foundations.md)
+**Foundations plan**: [`docs/superpowers/plans/2026-05-25-foundations.md`](docs/superpowers/plans/2026-05-25-foundations.md)
 **Upstream credit**: [Prebid and other acknowledgements](#acknowledgements)
 
 ## Workspace
 
 | Crate                                                                           | Purpose                                                                                                                                                                        |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`crates/auctioneer-core`](crates/auctioneer-core/)                             | EdgeZero app entry point; routes and handlers land in M2                                                                                                                       |
+| [`crates/auctioneer-core`](crates/auctioneer-core/)                             | EdgeZero app, HTTP routes and handlers, host integration, and response serialization                                                                                         |
 | [`crates/auctioneer-runtime`](crates/auctioneer-runtime/)                       | Host-environment seams: `Clock` + `Rng` traits with deterministic test impls (`FakeClock`, `SeededRng`), Fisher-Yates `shuffle`, Lemire `gen_range`                            |
 | [`crates/auctioneer-openrtb`](crates/auctioneer-openrtb/)                       | OpenRTB 2.6 typed model + `prepare(req, headers)` — the sole construction gate for a `NormalizedBidRequest`                                                                    |
 | [`crates/auctioneer-config`](crates/auctioneer-config/)                         | Host / account / bidder configuration. Build-time codegen reads bidder-owned `bidder.toml` manifests, `auctioneer.toml`, and shared reference data, then emits typed accessors |
@@ -36,33 +37,39 @@ see the [vision](vision.md) for the distinction from the existing library.
 
 ## Status
 
-- **M1 (foundations)** — complete. `auctioneer-runtime`, `auctioneer-openrtb`, `auctioneer-config` with their unit and integration tests.
-- **M2 (auction core, no privacy logic)** — complete. `/openrtb2/auction` end-to-end plus `/status` and `/info/*` per the design spec.
-- **M3a (GDPR/TCF privacy + axum fanout)**: complete on the `m3-gdpr` branch, including TCF v2 parsing and legal-basis enforcement, GVL/GCL authenticity and freshness, GDPR scrubs, config overlays (per-bidder kill-switch, `sample_rate`, host aliases, per-account), and golden fixtures. Subsequent M3b/M4 work hardens configuration loading and resource ownership. Production deploys use [EdgeZero's production-deploy tooling](https://github.com/IABTechLab/edgezero/pull/381); commands in `edgezero.toml` are dev/staging-only.
-- **M4 implemented and locally verified**: the `m4-privacy` worktree includes the latest M3b fanout changes, GPP source normalization, independent CCPA/LMT/COPPA and activity decisions, bidder-local scrubs/projection, bounded outbound construction, and measured per-auction reservations. Native default/alternate-feature tests, conformance, strict Clippy, and all three WASM check/conformance builds passed. These are logical accounting limits, not a physical-OOM guarantee; see the [verification record](docs/superpowers/plans/2026-09-28-m4-verification.md). Merge M3b first, then M4 into `main`; hosted CI is separate.
-- **M5 user sync implemented in this worktree**: `/cookie_sync`, `/setuid`, `/getuids`, and the preflight use the generated App. Issued UID state has a mandatory MAC envelope. Native and Chromium loopback checks are recorded in the [verification record](docs/superpowers/plans/2026-09-30-m5-verification.md); cross-site browser policy and hosted-provider execution remain separate qualification.
+- **Foundations and auction core**: runtime primitives, typed OpenRTB preparation, generated configuration, and the auction, status, and bidder-info routes are implemented with unit and integration tests.
+- **GDPR fanout**: TCF v2 parsing and legal-basis enforcement, GVL/GCL authenticity and freshness, GDPR scrubs, config overlays (bidder kill switches, `sample_rate`, aliases, and accounts), and golden fixtures are implemented.
+- **Bounded fanout and privacy enforcement**: strict config resolution, GPP source normalization, independent CCPA/LMT/COPPA and activity decisions, bidder-local projection/scrubs, bounded outbound construction, and measured per-auction reservations are integrated. The [verification record](docs/superpowers/plans/2026-09-28-privacy-enforcement-verification.md) records native tests, conformance, linting, and WASM compilation checks, not a physical-OOM guarantee or hosted qualification.
+- **Signed user sync**: `/cookie_sync`, `/setuid`, `/getuids`, and the preflight use the generated App; issued UID state requires a MAC envelope. [Recorded native and Chromium loopback checks](docs/superpowers/plans/2026-09-30-usersync-verification.md) do not establish third-party-cookie acceptance or hosted-provider readiness.
+- **Bounded diagnostics**: permission-gated capture and sanitized projection into auction `ext.debug` are implemented. [Local diagnostic and qualification evidence](docs/testing/evidence/diagnostics-qualification-verification-20261015.md) retains explicit provider, resource, and publisher-readiness limitations.
+- **Controlled-native bidder delivery**: source registration is generated, and all 14 priority selected flows, including Sharethrough, Rubicon, and APS, are implemented under the [approved native contract](docs/superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md). [Recorded local acceptance](docs/testing/evidence/controlled-native-bidders-20261030.md) is not full-catalog completion or complete worst-case resource certification. New priority publications are native-only and inactive by default; existing guest publications remain unchanged.
+
+Complete resource certification is outstanding; affected guest production
+readiness remains blocked. Hosted execution, Trusted Server embedding, and
+live publisher acceptance remain separate work.
+Production deployment uses [EdgeZero's production-deploy tooling](https://github.com/IABTechLab/edgezero/pull/381);
+commands in `edgezero.toml` are dev/staging-only.
 
 ## Roadmap
 
-M6 retains its existing parity-hardening scope. Under the approved
-[2026-10-26 scope correction](docs/roadmap.md#2026-10-26-scope-correction),
-M7 owns foundations and full selected-flow acceptance for all 14 priority
-bidders, including Sharethrough, Rubicon and APS; M20 owns remaining
-full-catalog migration and closure, not a prerequisite for M7 completion.
-Direct Trusted Server embedding remains M7.5, followed by stored
-requests/accounts (M8), currency/multibid/auction identity (M9), creative caching (M10), and full
-video support (M11). Remaining shared parity work is assigned to M12-M19.
-These are planned capabilities, not implementation or production-readiness
-claims. See the [roadmap](docs/roadmap.md) for scope, dependencies, and
-completion criteria.
+The [approved roadmap](docs/roadmap.md) separates delivered diagnostic hardening
+and controlled-native priority flows from planned integration and qualification.
+The next priorities are direct Trusted Server embedding and a selected-bidder
+publisher pilot, then demand-led bidder expansion. Stored requests/accounts,
+currency/multibid/auction identity, creative caching, and full video delivery
+follow. Other shared parity work covers first-party data, floors/adjustments,
+AMP/native, privacy/transparency, compressed ingress, hooks/modules,
+metrics/analytics, and browser privacy compatibility. Residual full-catalog
+migration remains distinct from priority-flow delivery and bidder expansion.
+These plans do not claim implementation or production readiness.
 
-A banner/display publisher with its required bidders implemented can target
-a controlled pilot at M6 without waiting for the full catalog or video.
-Publisher-specific dependencies can move that checkpoint; see the
+Diagnostic qualification is a local/staging checkpoint, not a live publisher
+pilot. [Trusted Server embedding](docs/roadmap.md#7-trusted-server-embedding-capability)
+owns in-binary integration; [publisher-pilot acceptance](docs/roadmap.md#8-limited-bidder-publisher-pilot-and-hosted-acceptance)
+owns hosted execution and live limited-bidder rollout. Selected banner/display
+flows need not wait for the full catalog or video, but publisher-specific
+dependencies and deployment checks still apply; see the
 [pilot requirements](docs/roadmap.md#6-publisher-pilot-checkpoint).
-For the equivalent in-binary Trusted Server pilot, the integration checkpoint
-is [M7.5](docs/roadmap.md#7-trusted-server-embedding-milestone); selected bidders
-can make that integration possible before the full catalog is complete.
 
 ## Build
 
@@ -135,7 +142,7 @@ Limit violations and invalid `ext.prebid.nosale` names return `400` before
 bidder construction, even when enforcement is disabled. Within-limit format
 errors instead use fixed warnings and the documented source-selection rules;
 an empty or invalid active TCF section never retries granting legacy consent.
-See the [M4 design](docs/superpowers/specs/2026-09-26-m4-privacy-design.md)
+See the [privacy enforcement design](docs/superpowers/specs/2026-09-26-privacy-enforcement-design.md)
 for precedence, scrubs, and the remaining acceptance requirements.
 
 `[baked.host.resource_limits]` defines independent `max_outbound_raw_bytes`
@@ -146,7 +153,7 @@ to the installed boot envelope. An oversized bidder request is a bidder-local
 code-5 refusal; exceeding an auction's prepaid resource allowance instead
 returns fixed `503 overloaded\n`. The latter never changes consent selection.
 
-## User sync operator setup (M5)
+## User sync operator setup
 
 Provision `usersync_cookie_keyring` in the default EdgeZero secret store before
 serving UID routes. See [key provisioning and rotation](docs/deployment/usersync-cookie-keys.md).
@@ -189,7 +196,7 @@ Chrome/CriOS 67+ user-agent rule adds `Secure` and `SameSite=None`.
 Browser acceptance, especially in third-party contexts, is not guaranteed
 by a successful server response and needs real-browser validation.
 
-| Sync surface                  | Hard limit in this worktree                                                                                                                                    |
+| Sync surface                  | Current hard limit                                                                                                                                             |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /cookie_sync`           | 32 KiB body and 4,096 JSON nodes; compressed bodies rejected                                                                                                   |
 | `GET /setuid`, `GET /getuids` | 32 KiB encoded query, at most 32 parameters; adapter request-target profiles allow 33 KiB, subject to provider limits                                          |
@@ -198,16 +205,16 @@ by a successful server response and needs real-browser validation.
 | Output                        | 32 KiB per sync URL, 256 KiB response body, 4 KiB complete signed Set-Cookie field value                                                                       |
 
 These are resource ceilings, not a promise that every legal browser or
-provider request is admitted. M5 does not migrate the full upstream bidder
+provider request is admitted. User sync does not migrate the full upstream bidder
 catalog and does not feed stored `buyeruid` values into auction bidder
 requests; `/getuids` exposes the stored map to clients only. See the
-[M5 design](docs/superpowers/specs/2026-09-30-m5-usersync-design.md)
+[user sync design](docs/superpowers/specs/2026-09-30-usersync-design.md)
 for endpoint ordering and intentional reference differences.
 
 ## Per-adapter dev commands
 
-Routes are wired in M2; the commands below are the cargo / framework
-entry points the adapter shells use when handlers exist.
+Routes are wired in `auctioneer-core`; the commands below are the Cargo/framework
+entry points for the adapter shells.
 Run them from the workspace root.
 
 | Adapter             | Local dev                                                 |

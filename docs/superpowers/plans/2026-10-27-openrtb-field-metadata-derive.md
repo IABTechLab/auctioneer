@@ -9,7 +9,7 @@
 **Tech Stack:** Workspace-pinned Rust 1.98.1; existing `syn`, `quote`, `proc-macro2`; workspace-managed native-only `trybuild` compiler conformance tests.
 
 Approved design: [field-metadata derive](../specs/2026-10-27-openrtb-field-metadata-derive-design.md), approved by AG on 2026-10-27.
-All edits stay in `.claude/worktrees/m7-bidder-catalog`. Use serialized Cargo invocations, `CARGO_INCREMENTAL=0`, `--offline --locked -j2` after any authorized lockfile update. Do not change limits, resource coefficients, evidence bytes or SDK/toolchain pins.
+All edits stay in `.claude/worktrees/bidder-catalog`. Use serialized Cargo invocations, `CARGO_INCREMENTAL=0`, `--offline --locked -j2` after any authorized lockfile update. Do not change limits, resource coefficients, evidence bytes or SDK/toolchain pins.
 
 ## Interface And Files
 
@@ -92,7 +92,7 @@ cargo check -p auctioneer-config --target wasm32-wasip2 --offline --locked -j2
 - [x] Run secure and `insecure-bidders` Core privacy/response tests, exchange composition/differential/allocation suites and ignored exhaustive-model controls. Any dependency guard must not replace the intended scrub-adapter refusal.
 - [x] Run all three adapter guest checks and relevant CLI resource/boot parity tests. Keep numerical limits and expected independent accounting equations unchanged.
 - [x] Run strict workspace all-target Clippy, formatting, raw-JSON gates and all workspace isolation controls. Do not label an unrerun full workspace green.
-- [x] Perform independent spec-compliance and code-quality review, fix findings, update crate docs/`ISSUES.md`/this checklist with actual evidence, then commit and push verified checkpoints. Do not change historical evidence or claim M7/R0 readiness.
+- [x] Perform independent spec-compliance and code-quality review, fix findings, update crate docs/`ISSUES.md`/this checklist with actual evidence, then commit and push verified checkpoints. Do not change historical evidence or claim bidder catalog/resource qualification readiness.
 
 ## Progress
 
@@ -130,7 +130,7 @@ cargo check -p auctioneer-config --target wasm32-wasip2 --offline --locked -j2
 
 At this checkpoint the scanner remained the production policy storage source;
 the later cutover below supersedes that state. The checkpoint does not claim
-complete M7 delivery or deployment readiness.
+complete bidder catalog delivery or deployment readiness.
 
 ### Compiled Policy Cutover (2026-10-27)
 
@@ -245,7 +245,7 @@ git diff --check
 Existing GVL-deletion notices and the `proc-macro-error2` dependency's
 future-incompatibility notice remain visible. This is the completed metadata
 refactor, not an unexecuted full-workspace test claim, full bidder-schema
-qualification, M7 completion or M7-R0/hosted readiness. No request/Serde field,
+qualification, bidder catalog completion or resource qualification/hosted readiness. No request/Serde field,
 privacy policy, budget coefficient, workload limit, dependency pin or
-historical capture changed during the cutover/removal. The next M7 gates are
-recorded in the [current execution priorities](2026-10-16-m7-bidder-catalog.md#current-execution-priorities-2026-10-27).
+historical capture changed during the cutover/removal. The next bidder catalog gates are
+recorded in the [current execution priorities](2026-10-16-bidder-catalog.md#current-execution-priorities-2026-10-27).

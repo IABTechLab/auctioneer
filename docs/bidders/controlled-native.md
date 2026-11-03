@@ -1,10 +1,10 @@
 # Controlled Native Priority Bidders
 
-This delivery uses the [approved native boundary](../superpowers/specs/2026-10-30-m7-controlled-native-completion-design.md):
+This delivery uses the [approved native boundary](../superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md):
 tested reservations and enforced schema/input/work limits, not complete
 worst-case resource certification. It does not qualify guest deployments or
-claim live bidder authorization. Complete proofs belong to M7-R0 and hosted
-publisher acceptance to M7.6.
+claim live bidder authorization. Complete proofs belong to resource qualification and hosted
+publisher acceptance to publisher pilot.
 
 ## Enablement
 

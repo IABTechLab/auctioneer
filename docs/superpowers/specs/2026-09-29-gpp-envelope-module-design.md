@@ -10,7 +10,7 @@ Implement a bounded, reference-based GPP envelope parser as
 `auctioneer-privacy::gpp`, not as a new workspace crate or an `iab_gpp` fork.
 The user approved the internal-module approach with a future extraction
 requirement. This is the explicit replacement decision required by section
-5.5 of the [M4 design](2026-09-26-m4-privacy-design.md).
+5.5 of the [privacy enforcement design](2026-09-26-privacy-enforcement-design.md).
 
 The module must be independently understandable and testable. Moving it into
 a library later should require relocating its files and updating imports,
@@ -21,7 +21,7 @@ In scope: envelope version 1, numeric section IDs, bounded header decoding,
 borrowed section lookup, closed errors, and portable parser tests.
 Out of scope: encoding, canonicalizing outbound strings, section codecs,
 GDPR/CCPA decisions, legacy fallback, `gpp_sid`, and all network/runtime work.
-This decision does not reduce any M4 policy or integration requirement.
+This decision does not reduce any privacy enforcement policy or integration requirement.
 
 ## 2. Ownership and Extraction Boundary
 
@@ -57,7 +57,7 @@ without issuing a warning. A valid zero-section header is a valid envelope
 with no sections, distinct from missing input.
 
 `Limits` is a small immutable value with private fields, documented defaults,
-and validated construction for lower limits. Defaults are the M4 ceilings
+and validated construction for lower limits. Defaults are the privacy enforcement ceilings
 below. Raising a limit beyond these supported ceilings requires a deliberate
 future API/design change, not silently larger storage. Invalid caller limits
 are rejected when constructing `Limits`, before request parsing. A zero work
@@ -81,7 +81,7 @@ The format authority is the IAB GPP version 1.0
 including its 2023-11-03 encoding clarifications, pinned to document revision
 `2e9d322e2b7873f0438f9ba83afc3206f5304876` (retrieved 2026-09-29).
 The interoperability reference remains pinned
-[go-gpp v0.2.0](https://github.com/prebid/go-gpp/tree/v0.2.0), as used by M4's
+[go-gpp v0.2.0](https://github.com/prebid/go-gpp/tree/v0.2.0), as used by privacy enforcement's
 pinned upstream revision. Preserve provenance and applicable attribution for
 any translated implementation or fixtures; do not copy an entire parser.
 
@@ -113,7 +113,7 @@ and decoder. Fixture-generation provenance: offline with Go 1.23.12.
 These are header probes, not complete valid TCF/USP auction fixtures. Retain
 the cumulative-singleton regression: the rejected `iab_gpp` 0.1.2 candidate
 returned 2/6/5 for `DBADNb`. Its audit remains in the
-[verification record](../plans/2026-09-28-m4-verification.md#gpp-candidate-audit).
+[verification record](../plans/2026-09-28-privacy-enforcement-verification.md#gpp-candidate-audit).
 
 Reference agreement is required only in the reference's valid representable
 domain. Do not copy the reference's unchecked integer arithmetic, recursive large-weight
@@ -170,7 +170,7 @@ Closed error classes:
 - `Malformed`: unsupported type/version, invalid alphabet, truncation,
   invalid within-limit coding/order/zero ID, nonzero/excess padding, or
   decoded-count mismatch. Auctioneer maps this to its bounded envelope warning
-  and only the legacy fallback permitted by the M4 source-selection rules.
+  and only the legacy fallback permitted by the privacy enforcement source-selection rules.
 
 Structural cap errors take priority over format errors. During decoding,
 the first encountered error wins; do not continue after an invalid type or
@@ -181,7 +181,7 @@ tests pin mixed-error ordering. No raw string appears in errors.
 
 Keep parser-only fixtures, provenance, and tests together under the GPP module
 and its dedicated test-data directory. They may use test dependencies but no
-Auctioneer policy types. Preserve this suite when extracting a crate. Full M4
+Auctioneer policy types. Preserve this suite when extracting a crate. Full privacy enforcement
 source-selection and outbound tests consume the public module API separately.
 
 Required parser coverage:
@@ -202,7 +202,7 @@ Required parser coverage:
 
 Measure parser scratch and result sizes on native and WASM-relevant layouts,
 including coexistence with the raw request, normalized state, and TCF data.
-Fixed storage still consumes live memory. Feed those measurements into M4
+Fixed storage still consumes live memory. Feed those measurements into privacy enforcement
 Task 10 admission accounting; parser bounds alone do not close that task.
 
 ## 6. Delivery and Future Extraction
@@ -212,7 +212,7 @@ Task 10 admission accounting; parser bounds alone do not close that task.
    this module; preserve all existing reference and security acceptance gates.
 3. Implement parser-only tests first, then bounded decoding, then independent
    spec and code-quality review. Do not activate auction policies in this step.
-4. Integrate source selection and enforcement in the existing M4 tasks.
+4. Integrate source selection and enforcement in the existing privacy enforcement tasks.
 
 If extraction later has a concrete consumer, move the module and its isolated
 tests/fixtures into a new crate, retain their attribution, and optionally
@@ -223,12 +223,12 @@ name, release process, or general-purpose framework is reserved prematurely.
 
 ## 7. Review Record
 
-Independent spec review on 2026-09-29 approved the document against M4 section
+Independent spec review on 2026-09-29 approved the document against privacy enforcement section
 5 and plan Tasks 4/7. Its fixed-width-arithmetic advisory was incorporated
 above. Approval covers the design only, not implementation, fixture
-qualification, live policy activation, or full M4 acceptance.
+qualification, live policy activation, or full privacy enforcement acceptance.
 
 Self-review on 2026-09-29 found no scope or extraction blocker. It clarified
 lazy alphabet validation so mixed-error precedence is reproducible. The user's
-instruction to self-review and continue finishing M4 authorizes the planned
+instruction to self-review and continue finishing privacy enforcement authorizes the planned
 implementation; it does not waive the reference, test, or resource gates.

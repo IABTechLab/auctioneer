@@ -2,7 +2,7 @@
 
 The evidence commands implement **reference integrity, selected source/compiler
 conformance and controlled-native priority acceptance**. The native scope uses
-the [approved tested-reservation boundary](../superpowers/specs/2026-10-30-m7-controlled-native-completion-design.md),
+the [approved tested-reservation boundary](../superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md),
 not formal resource qualification, guest readiness or full-catalog migration.
 They are available in the default application-enabled CLI build. Reference inventory and repair commands
 remain available without application features.
@@ -133,8 +133,8 @@ An invocation or producer failure may instead exit two with a fixed diagnostic.
 `--require-complete` cannot promote this scoped acceptance to full-catalog closure.
 
 Complete worst-case schema/resource certification and absolute WASM readiness
-remain M7-R0 work. Actual hosted/publisher execution remains M7.6. Remaining
-catalog flows belong to M7.7/M20; the full-catalog unavailable list in the report
+remain resource qualification work. Actual hosted/publisher execution remains publisher pilot. Remaining
+catalog flows belong to bidder expansion/remaining catalog closure; the full-catalog unavailable list in the report
 does not reinterpret native acceptance as completing those producers. Protocol
 source suites and the full CI matrix remain separate required checks.
 

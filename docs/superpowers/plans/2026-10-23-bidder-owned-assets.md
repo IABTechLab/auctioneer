@@ -1,5 +1,7 @@
 # Bidder-Owned Assets Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Keep each verified cutover coherent; do not leave two production sources of truth.
 
 **Goal:** Put each implementation's code, reviewed metadata, schemas, protocol/parameter captures and TOML provenance in one bidder-owned folder.
@@ -10,8 +12,8 @@
 
 ## Contract And Status
 
-Approved layout: [M7 sections 5.1 and 10](../specs/2026-10-16-m7-bidder-catalog-design.md#catalog-storage) and the [bidder rules](../../../crates/auctioneer-bidder/src/bidders/README.md).
-This plan is part of M7, not a new milestone. Task 1's structural reader and
+Approved layout: [bidder catalog sections 5.1 and 10](../specs/2026-10-16-bidder-catalog-design.md#catalog-storage) and the [bidder rules](../../../crates/auctioneer-bidder/src/bidders/README.md).
+This plan is part of bidder catalog, not a new capability. Task 1's structural reader and
 Task 2's production config/discovery/receipt cutover are implemented and tested.
 The four reference-derived factories own verbatim canonical `parameters.json`
 files. Generic remains explicitly local, without an invented parameter schema.
@@ -102,7 +104,7 @@ resulting config `codegen` target passes 158 tests. Its Clippy target passes wit
 `-D warnings`. All 35 new unit tests live in `build_catalog.rs`; it is included
 by the existing `codegen` integration binary. The first commit did not switch
 production inputs; Task 2 now consumes that same reader. Full receipt-category
-staleness controls belong to Tasks 3-4 and M7's Task 16 and are not discharged by
+staleness controls belong to Tasks 3-4 and bidder catalog's Task 16 and are not discharged by
 this structural preparation or the effective-metadata relocation.
 
 ## Task 2: Cut Over Effective Config And Factory Discovery
@@ -115,7 +117,7 @@ tests, bidder `tests/{registry_join,registry_build,factory_binding_build}.rs` an
 `src/qualification/harness/providers/preparation.rs` and its conformance tests.
 
 Preserve the current effective runtime catalog during this relocation. The
-M7 plan's funded live-registry cutover and schema qualification remain separate
+bidder catalog plan's funded live-registry cutover and schema qualification remain separate
 prerequisites before promoting new public definitions; these layout tests do
 not discharge them. Exercise unknown-key execution through the existing
 validated registry-plan harness without claiming that plan is installed.
@@ -295,7 +297,7 @@ change those allocation/descriptor audit inputs.
 
 ## Task 5: Verify The Closed Cutover
 
-- [x] Re-read the M7 contract and scan every active reader, include path,
+- [x] Re-read the bidder catalog contract and scan every active reader, include path,
       isolated-workspace copier and documented command. Legacy per-bidder locations
       may appear in clearly historical evidence only, not as a fallback or a second
       editable catalog. Runtime input must remain compiled data, never a directory.
@@ -303,10 +305,10 @@ change those allocation/descriptor audit inputs.
       tests, then workspace/all-target Clippy with `-D warnings`, formatting and
       raw-JSON fixture gates. Preserve conformance/ignored-test CI coverage.
 - [x] Check the real Cloudflare/Fastly/Spin target builds using the pinned SDK
-      and existing workload. Do not infer memory fit from compilation or lift R0.
+      and existing workload. Do not infer memory fit from compilation or lift resource qualification.
 - [x] Record commands, counts, failed controls and actual remaining gates;
       independently review spec compliance and implementation quality. Update this
-      checklist incrementally, commit and push verified rounds to the existing M7 PR.
+      checklist incrementally, commit and push verified rounds to the existing bidder catalog PR.
 
 ### Cutover Verification (2026-10-23)
 
@@ -380,8 +382,8 @@ reference checkout, as appropriate.
   EdgeZero pin. Compilation does not establish WASM memory fit, schema-engine
   qualification, provider readiness, live-registry installation or bidder
   protocol completion. Evidence whose source identity changed stays stale
-  until its owning qualification is rerun. M7's remaining tasks and explicit
-  R0 readiness blockers are unchanged.
+  until its owning qualification is rerun. bidder catalog's remaining tasks and explicit
+  resource qualification readiness blockers are unchanged.
 - Separate spec-compliance and quality reviews found no scoped correctness
   defects. The quality review's missing tree-witness controls were added and
   verified rather than deferred.

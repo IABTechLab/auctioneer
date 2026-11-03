@@ -1,8 +1,10 @@
 # Resource SDK Update Verification
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-18
 
-The M7 branch updates IABTechLab/edgezero PR #275 from
+The bidder catalog branch updates IABTechLab/edgezero PR #275 from
 `f6c708ccb5be19ba9fa92575db3c08c0f17e0d72` to
 `bc300ace5ca1ffe7060594a7bdb01c1da80de305`. The primary repository's PR head
 and comparison were fetched directly. The new head is one direct successor:
@@ -31,8 +33,8 @@ was updated, before the manifest repair. With the new manifest and lockfile:
 | Locked offline Cargo metadata and source inventory                                                                                                          | All eight SDK packages resolve to the exact new source |
 | Formatting and diff whitespace checks                                                                                                                       | Passed                                                 |
 
-Logs are retained locally under `/private/tmp/r0-sdk-update-*.log`. Existing
+Logs are retained locally under `/private/tmp/resource-qualification-sdk-update-*.log`. Existing
 GVL and future-incompatibility warnings remain. This scoped verification did
 not run the complete CLI suite, vendor packaging or WASM builds and does not
-recertify old measurements. The current R0 fit failures and unknown provider
+recertify old measurements. The current resource qualification fit failures and unknown provider
 facts remain open.

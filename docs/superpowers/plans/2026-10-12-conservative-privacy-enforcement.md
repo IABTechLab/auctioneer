@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use superpowers:subagent-driven-development or superpowers:executing-plans. Preserve red/green regression evidence before production edits.
 
-**Goal:** Implement the owner's approved COPPA user-FPD removal and malformed selected nonempty USP enforcement on `m4-privacy`, based on `36e87e1`.
+**Goal:** Implement the owner's approved COPPA user-FPD removal and malformed selected nonempty USP enforcement on `privacy-enforcement`, based on `36e87e1`.
 
 **Architecture:** Keep source selection and syntax separate from enablement and per-bidder exceptions. Retain the selected USP parse result inside normalization; expose malformed state without fabricating a valid USP. Compose COPPA into the existing classified FPD denial at the mutation boundary. These are explicit Auctioneer policies, not IAB-prescribed deletion rules.
 
@@ -28,7 +28,7 @@ Files: privacy `src/{sources.rs,resolve.rs}`, `tests/{privacy_sources.rs,privacy
 
 ## Task 3: Wire Coverage And Documentation
 
-Files: exchange `tests/privacy_policy_composition.rs`, core `tests/privacy_outbound.rs`, privacy fixture `tests/data/privacy/README.md`, master/M4/classified specs, repair checklist and new SDD record.
+Files: exchange `tests/privacy_policy_composition.rs`, core `tests/privacy_outbound.rs`, privacy fixture `tests/data/privacy/README.md`, master/privacy enforcement/classified specs, repair checklist and new SDD record.
 
 - [x] Add outbound ID/geo assertions for malformed selected USP with enabled/disabled/no-sale controls, a valid unselected legacy control, unchanged raw GPP/projection rules, and original/sibling isolation. Keep invalid-no-sale and terminal GPP limit precedence.
 - [x] Confirm COPPA strips all four user-FPD branches with activity allowed, no-sale and GDPR bypass controls; use shipped-adapter captures where available.
@@ -37,4 +37,4 @@ Files: exchange `tests/privacy_policy_composition.rs`, core `tests/privacy_outbo
 ## Task 4: Review And Publish
 
 - [x] Run affected native/all-target suites, strict workspace Clippy and shared privacy/exchange/adapter all-target Clippy for all three WASM targets, formatting, raw-fixture and documentation gates. Do not raise budgets, factors or warning counts to pass.
-- [x] Obtain an independent repair review, resolve concrete findings, record exact verification limits, commit and push to `m4-privacy`, and verify the remote SHA. Code/documentation commit `9e5df6d20a33ec44c8776c7ddbf3030b9398015f` is published and independently read back with `git ls-remote`. Main/M5/M6 remain untouched.
+- [x] Obtain an independent repair review, resolve concrete findings, record exact verification limits, commit and push to `privacy-enforcement`, and verify the remote SHA. Code/documentation commit `9e5df6d20a33ec44c8776c7ddbf3030b9398015f` is published and independently read back with `git ls-remote`. Main/user sync/diagnostic qualification remain untouched.

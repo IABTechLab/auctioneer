@@ -24,7 +24,7 @@ pub enum AuctionError {
     #[error("Internal: {0}")]
     Internal(String),
     /// Account resolved but its config-store record is unusable (future
-    /// remote-account fetch path; the M3 single-TOML resolver never
+    /// remote-account fetch path; the single-TOML resolver never
     /// emits this — both sides are typed structs). Caller maps to
     /// `500 Invalid request: <err>` (spec §9 line 3890).
     #[error("MalformedAcct: {0}")]

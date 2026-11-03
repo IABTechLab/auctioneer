@@ -1,5 +1,7 @@
 # Native Local Acceptance
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Executed on 2026-10-15 against the committed
 [predeclared profile](../../fixtures/resource-qualification/native-axum-local-82075f1.json).
 All 45 local acceptance rows pass. This is not production qualification,
@@ -22,7 +24,7 @@ hosted-provider evidence or publisher readiness.
   pass cannot grant these capabilities or qualify the selected live deployment.
 
 ```sh
-node scripts/qualify-resources.mjs --profile docs/testing/fixtures/resource-qualification/native-axum-local-82075f1.json --output /private/tmp/auctioneer-m6-q2-measured-82075f1 --source-commit 82075f11abded7265aa4245e01cb0191523c85bc --no-build
+node scripts/qualify-resources.mjs --profile docs/testing/fixtures/resource-qualification/native-axum-local-82075f1.json --output /private/tmp/auctioneer-diagnostic-qualification-q2-measured-82075f1 --source-commit 82075f11abded7265aa4245e01cb0191523c85bc --no-build
 ```
 
 The report distinguishes `local_acceptance: pass` from
@@ -35,8 +37,8 @@ described in the [harness runbook](../../resource-qualification.md).
 Safe report/observations/runner files are retained byte-for-byte. They contain
 bounded aggregates, enums and digests, not traffic, debug bodies, configuration,
 credentials or raw logs. Frozen executable copies remain outside the repository.
-M7.6 owns actual deployment Q2-D, credentialed provider execution and the limited
-publisher rollout/rollback after M7.5 and the selected bidder wave/host setup.
+publisher pilot owns actual deployment Q2-D, credentialed provider execution and the limited
+publisher rollout/rollback after Trusted Server embedding and the selected bidder wave/host setup.
 
 | File | SHA-256 |
 | --- | --- |

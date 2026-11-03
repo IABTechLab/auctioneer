@@ -2,11 +2,11 @@
 
 ## Decision and Scope
 
-The user approved replacing both M6 JavaScript harnesses with Rust commands in
+The user approved replacing both diagnostic qualification JavaScript harnesses with Rust commands in
 the existing `auctioneer-cli`, keeping JavaScript only for Playwright browser checks.
 This changes implementation language and operator commands, not qualification
-criteria, evidence meaning or the M7.6 live-provider boundary. The
-[M6 design](2026-10-05-m6-parity-hardening-design.md), current runbooks and existing
+criteria, evidence meaning or the publisher pilot live-provider boundary. The
+[diagnostic qualification design](2026-10-05-diagnostics-and-qualification-design.md), current runbooks and existing
 negative controls remain the behavioral requirements.
 
 The chosen approach is modules in the existing CLI. A separate Rust tool crate
@@ -175,4 +175,4 @@ CI mutation guards; dated execution records remain historically accurate.
 A fresh release build, committed Rust-source profile predeclaration and actual
 45-row native run are required after cutover. Preserve failed runs, do not tune
 thresholds after measurement, and independently review the new capture. No live
-Cloudflare/Fastly/Spin mutation is authorized; those remain M7.6.
+Cloudflare/Fastly/Spin mutation is authorized; those remain publisher pilot.

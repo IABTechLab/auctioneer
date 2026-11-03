@@ -1,7 +1,9 @@
 # Catalog Cost Aggregation Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-20
-Branch: `m7-bidder-catalog`, based on `a97fc586`
+Branch: `bidder-catalog`, based on `a97fc586`
 Scope: the scalar aggregation boundary in Task 4, not completed qualification.
 
 ## Ownership
@@ -32,7 +34,7 @@ allocation are installed. Provider profiles retain `CatalogResourceCosts::UNCHAN
 Metadata's preceding requested-storage census is not converted into a physical
 resident bound. Generated/schema/cache/registry bounds, aggregate precharging,
 auxiliary accounting, post-build artifact proof and live cutover remain open.
-Neither M7 nor R0 readiness is established by this increment.
+Neither bidder catalog nor resource qualification readiness is established by this increment.
 
 ## Controls
 
@@ -59,9 +61,9 @@ failed before the allocator target was added to the real CI invocation.
 
 ## Verification
 
-The RED logs are `/private/tmp/m7-catalog-aggregate-red.log`,
-`/private/tmp/m7-catalog-alloc-red.log` and
-`/private/tmp/m7-catalog-aggregate-ci-red.log`.
+The RED logs are `/private/tmp/bidder-catalog-catalog-aggregate-red.log`,
+`/private/tmp/bidder-catalog-catalog-alloc-red.log` and
+`/private/tmp/bidder-catalog-catalog-aggregate-ci-red.log`.
 
 Rust is `1.98.1 (48a229cea 2026-09-01)`. Final selected scopes report zero
 failures and zero ignored tests; totals below are per invocation, not disjoint
@@ -82,18 +84,18 @@ insecure_bidders_snapshot`, with `--test factory_binding_build` in the secure
 run and `--features insecure-bidders` in the feature run. The existing Unix
 socket fixture needs local host permissions; no deployed service is accessed.
 The isolated factory driver completed in 51.99 seconds. Logs are
-`/private/tmp/m7-catalog-aggregate-bidder-final-{secure,insecure}.log`.
+`/private/tmp/bidder-catalog-catalog-aggregate-bidder-final-{secure,insecure}.log`.
 
 Core uses `cargo test --offline --locked -j2 -p auctioneer-core --lib --test
-ci_workflows`, logged in `/private/tmp/m7-catalog-aggregate-core.log`.
+ci_workflows`, logged in `/private/tmp/bidder-catalog-catalog-aggregate-core.log`.
 Final lint uses `cargo clippy --offline --locked -j2 --workspace --all-targets
 --features insecure-bidders,conformance-suite -- -D warnings`, logged in
-`/private/tmp/m7-catalog-aggregate-clippy-workspace-final.log`.
+`/private/tmp/bidder-catalog-catalog-aggregate-clippy-workspace-final.log`.
 
 Guest commands use `cargo check --offline --locked -j2 -p auctioneer-bidder --lib
 --target wasm32-unknown-unknown --target wasm32-wasip1 --target wasm32-wasip2`,
 independently with and without `--features insecure-bidders`. Logs are
-`/private/tmp/m7-catalog-aggregate-guest-{secure,insecure}.log`. These are library
+`/private/tmp/bidder-catalog-catalog-aggregate-guest-{secure,insecure}.log`. These are library
 compile checks, not linked package, guest execution or physical-memory evidence.
 
 Initial lint/type/format findings were repaired without weakening tests or
@@ -102,5 +104,5 @@ exception. Existing GVL deletion notices and the tracked `proc-macro-error2`
 future-compiler warning remain. Spec and fresh quality reviews approved the
 bounded increment through static inspection; parent verification is separate.
 No full workspace test run, hosted CI result, deployment, completed Task 4 or
-M7/R0 readiness is claimed. Workload limits, dependency pins, original captures
+bidder catalog/resource qualification readiness is claimed. Workload limits, dependency pins, original captures
 and the additive runtime equation are unchanged.

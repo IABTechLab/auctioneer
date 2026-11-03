@@ -1,4 +1,4 @@
-//! Test-only comparator frozen from committed M4, never production enforcement.
+//! Test-only comparator frozen from committed privacy enforcement, never production enforcement.
 //! Source: crates/auctioneer-exchange/src/scrub/mod.rs
 //! Revision: 3f0f7f5aeb01d96742e0dd2012f179887ee474bc (HEAD supplied for Task 7).
 //! Retrieved with git show, not copied from a partially edited working tree.
@@ -254,9 +254,9 @@ fn coarsen_geo(geo: &mut Geo) {
     geo.lon = geo.lon.map(round_half_up_2dp);
     // Alternate coordinates, postal codes, or opaque extensions cannot
     // retain precise location after the typed coordinates were coarsened.
-    // M3b also conservatively loses untyped context: region, regionfips104,
+    // bounded fanout also conservatively loses untyped context: region, regionfips104,
     // city, metro, utcoffset, type, ipservice, and lastfix. Context preservation
-    // is follow-on M4 work, not a claim that these fields are precise location:
+    // is follow-on privacy enforcement work, not a claim that these fields are precise location:
     // docs/superpowers/specs/2026-10-09-gdpr-scrub-classification-design.md.
     geo.other.clear();
     geo.ext = None;

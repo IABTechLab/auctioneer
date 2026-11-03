@@ -12,7 +12,7 @@ use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, env::var_os, process::Command, str::from_utf8};
 
 const MANIFEST: &str = include_str!("../bidder.toml");
-const MANIFEST_SHA256: &str = "4c6c0181cfd81c0ed16d3ba439ba1b6e414d7b098853bf40539231f6d779a61e";
+const MANIFEST_SHA256: &str = "b0a7e55c0e5bee88c2c3dc3410ca7da078352d7ce5eaac6220848c454609eb1e";
 const REVISION: &str = "d7f8515b86258688304b0d9b6668c6a0e258bc9e";
 const ENDPOINT: &str = "https://bidder.example.test/a/api/exchange";
 

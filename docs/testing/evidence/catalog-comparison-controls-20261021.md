@@ -1,7 +1,9 @@
 # Catalog Arithmetic Comparison Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-21
-Branch: `m7-bidder-catalog`, based on `e96279ab`
+Branch: `bidder-catalog`, based on `e96279ab`
 Scope: Task 4 numeric declaration comparison, not catalog qualification.
 
 Follow-up: [patched-lock continuity](catalog-baseline-continuity-20261021.md)
@@ -130,25 +132,25 @@ prefix and the complete `--test bidders_resources` in separate invocations with
 `--features auctioneer-core/insecure-bidders,auctioneer-core/conformance-suite`.
 Lint uses `cargo clippy --offline --locked -j2 --workspace --all-targets
 --features insecure-bidders,conformance-suite -- -D warnings`; its log is
-`/private/tmp/m7-catalog-comparison-clippy-final.log`. Initial type/style lint
+`/private/tmp/bidder-catalog-catalog-comparison-clippy-final.log`. Initial type/style lint
 findings were repaired without suppressions. Existing GVL deletion notices and
 the tracked `proc-macro-error2` future-compiler warning remain. Formatting uses
 `cargo fmt --all --check`; script checks use the existing
 `check-raw-json-fixtures{,-fixtures}.sh`, `check-roster.sh` and
 `check-batch-rebase.sh` under `scripts/`.
 
-Logs are `/private/tmp/m7-catalog-comparison-cli-final-secure.log`,
-`/private/tmp/m7-catalog-comparison-resources-final-secure.log`,
-`/private/tmp/m7-catalog-comparison-resources-final-features.log` and
-`/private/tmp/m7-catalog-comparison-cli-final-features.log`. Compiling-stub RED
-logs are `/private/tmp/m7-catalog-matched-arithmetic-red.log` and
-`/private/tmp/m7-catalog-baseline-cli-red.log`. Isolated repair/mutation logs are
-`/private/tmp/m7-catalog-comparison-runtime-facts-red.log`,
-`/private/tmp/m7-catalog-comparison-normalization-mutation.log` and
-`/private/tmp/m7-catalog-comparison-pin-mutation.log`.
+Logs are `/private/tmp/bidder-catalog-catalog-comparison-cli-final-secure.log`,
+`/private/tmp/bidder-catalog-catalog-comparison-resources-final-secure.log`,
+`/private/tmp/bidder-catalog-catalog-comparison-resources-final-features.log` and
+`/private/tmp/bidder-catalog-catalog-comparison-cli-final-features.log`. Compiling-stub RED
+logs are `/private/tmp/bidder-catalog-catalog-matched-arithmetic-red.log` and
+`/private/tmp/bidder-catalog-catalog-baseline-cli-red.log`. Isolated repair/mutation logs are
+`/private/tmp/bidder-catalog-catalog-comparison-runtime-facts-red.log`,
+`/private/tmp/bidder-catalog-catalog-comparison-normalization-mutation.log` and
+`/private/tmp/bidder-catalog-catalog-comparison-pin-mutation.log`.
 
 Spec and code-quality reviews approved only this bounded preparation after
 the runtime-facts and normalization-control corrections. They were read-only;
 the parent executed verification. No full workspace test run, hosted CI result,
-deployment, positive matched capture, completed Task 4 or M7/R0 readiness is
+deployment, positive matched capture, completed Task 4 or bidder catalog/resource qualification readiness is
 claimed.

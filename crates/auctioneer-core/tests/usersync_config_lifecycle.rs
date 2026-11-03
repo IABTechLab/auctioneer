@@ -31,7 +31,7 @@ mod tests {
     const ORIGIN: &str = "https://publisher.example";
     const ALLOWED: &str =
         "[user_sync]\nallowed_origins = ['https://publisher.example']\n[accounts.publisher]\n";
-    const CONFIG_CANARY: &str = "synthetic-config-secret-m5";
+    const CONFIG_CANARY: &str = "synthetic-config-secret-id";
     const WRONG_SHA: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
     #[derive(Clone, Copy)]

@@ -4,7 +4,7 @@ Date: 2026-10-17
 Baseline: `cfd69dae`, Rust 1.98.1, EdgeZero PR #275 revision
 `f6c708ccb5be19ba9fa92575db3c08c0f17e0d72`.
 
-This records the first part of M7-R0 Task 1, not a completed resource audit,
+This records the first part of resource qualification Task 1, not a completed resource audit,
 remediation package, WASM fit result or deployment qualification.
 
 ## Implemented Boundary

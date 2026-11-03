@@ -1,6 +1,6 @@
 # Auctioneer Architecture
 
-Updated: 2026-10-14
+Updated: 2026-11-02
 
 Auctioneer is an OpenRTB 2.6 header-bidding server written in Rust. It receives
 an auction request, resolves publisher policy, prepares a private request
@@ -36,89 +36,91 @@ and [NOTICE](../NOTICE) for attribution.
 
 ## 1. Scope and Source of Truth
 
-This map describes the merged M5 source inherited by `m6-hardening` from
-`main` at `b01c309`. Its M4 base had locally
-verified parsing, policy decisions, bounded outbound construction, and
-measured per-auction reservations; see the
-[M4 verification record](superpowers/plans/2026-09-28-m4-verification.md).
-M5 sync routes and supporting modules passed native integration, host
-conformance, and three target compilation checks; see the
-[M5 verification record](superpowers/plans/2026-09-30-m5-verification.md).
-The M5 record separately identifies local same-site browser checks and
-remaining cross-site and hosted-provider evidence. None of these inherited
-checks establishes completion of M6.
+This map describes the current source, including bounded privacy/fanout,
+signed user sync, diagnostic projection, and controlled-native priority bidders.
+The [privacy enforcement record](superpowers/plans/2026-09-28-privacy-enforcement-verification.md),
+[user-sync record](superpowers/plans/2026-09-30-usersync-verification.md),
+[diagnostic-hardening record](testing/evidence/diagnostics-qualification-verification-20261015.md),
+and [controlled-native record](testing/evidence/controlled-native-bidders-20261030.md)
+document dated local checks, not new runs of this checkout. Native tests,
+same-site browser checks, target compilation, and selected guest controls do
+not establish third-party-cookie acceptance, complete resource certification,
+hosted readiness, or a live publisher pilot.
 
 | Concern                                                                 | Authoritative location                                                                                                                                           |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current modules and dependencies                                        | [Workspace manifest](../Cargo.toml), crate manifests, and source                                                                                                 |
+| Current modules and dependencies                                        | [Workspace manifest](../Cargo.toml), [lockfile](../Cargo.lock), crate manifests, and source                                                                      |
 | Product direction and standalone/embedded delivery goals                | [Product vision](../vision.md)                                                                                                                                   |
 | HTTP routes and provider configuration                                  | [EdgeZero manifest](../edgezero.toml)                                                                                                                            |
 | Detailed auction/privacy behavior and intentional reference differences | [Master design](superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md)                                                                                    |
-| M3b transport, admission, and resource requirements                     | [M3b plan](superpowers/plans/2026-07-10-m3b-multi-adapter-production-fanout.md)                                                                                  |
-| M4 auction-privacy requirements                                         | [M4 design](superpowers/specs/2026-09-26-m4-privacy-design.md)                                                                                                   |
+| Bounded fanout, admission, and resource requirements                     | [Bounded fanout plan](superpowers/plans/2026-07-10-multi-adapter-production-fanout.md)                                                                              |
+| Auction privacy requirements                                            | [Privacy enforcement design](superpowers/specs/2026-09-26-privacy-enforcement-design.md)                                                                          |
 | Classified disclosure boundary and current local evidence               | [Scrub design](superpowers/specs/2026-10-09-gdpr-scrub-classification-design.md) and [execution ledger](superpowers/sdd/2026-10-11-gdpr-scrub-classification.md) |
-| M5 sync contract and intentional differences                            | [M5 design](superpowers/specs/2026-09-30-m5-usersync-design.md)                                                                                                  |
-| Future milestone priority and deferred scope ownership                  | [Approved roadmap](roadmap.md)                                                                                                                                   |
+| User-sync contract and intentional differences                           | [User-sync design](superpowers/specs/2026-09-30-usersync-design.md)                                                                                               |
+| Bounded diagnostics and qualification contracts                          | [Diagnostic-hardening design](superpowers/specs/2026-10-05-diagnostics-and-qualification-design.md)                                                               |
+| Controlled-native priority bidder delivery                               | [Native delivery contract](superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md)                                                           |
+| Future capability priority and deferred scope ownership                  | [Approved roadmap](roadmap.md)                                                                                                                                   |
 | Deployment mode and provider capability policy                          | [EdgeZero manifest](../edgezero.toml) and [deployment guidance](deployment/restrict-operational-endpoints.md)                                                    |
 | Committed execution ledgers                                             | [`docs/superpowers/sdd/`](superpowers/sdd/) alongside specs and plans                                                                                            |
 
 The master design contains historical review notes and older dependency
-pins. For what this checkout actually builds, consult `Cargo.toml` and
-`Cargo.lock`: its EdgeZero revision is
-`f6c708ccb5be19ba9fa92575db3c08c0f17e0d72`, using Rust 1.98.1. Source code describes current
-behavior; the milestone documents describe required and proposed behavior.
+pins. For this checkout's EdgeZero revision and dependency resolution, consult
+[`Cargo.toml`](../Cargo.toml) and [`Cargo.lock`](../Cargo.lock); tool versions
+belong in [`.tool-versions`](../.tool-versions). Source code describes current
+behavior; capability documents distinguish delivered, required, and proposed behavior.
 Do not silently treat a difference between them as implemented work.
 
 ### Capability Snapshot
 
 | Area                                                               | State in this snapshot                                                                                                                                                                  |
 | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenRTB preparation, bidder splitting, targeting, auction response | Implemented, M1/M2 foundations                                                                                                                                                          |
-| GDPR/TCF decisions, versioned GVL/GCL validation, GDPR scrubs      | Implemented, M3a                                                                                                                                                                        |
-| Multi-provider fanout and strict runtime-config resolution         | Implemented M3b paths; production qualification remains separate                                                                                                                        |
+| OpenRTB preparation, bidder splitting, targeting, auction response | Implemented core auction path                                                                                                                                                           |
+| GDPR/TCF decisions, versioned GVL/GCL validation, GDPR scrubs      | Implemented GDPR fanout                                                                                                                                                                 |
+| Multi-provider fanout and strict runtime-config resolution         | Implemented bounded fanout paths; production qualification remains separate                                                                                                                        |
 | Whole-runtime admission, memory accounting, and egress ownership   | Admission lifetime, measured phase reservations, bounded construction, and response ownership are integrated; over-ceiling boot still warns rather than proving a physical memory bound |
-| GPP decoding, CCPA, activity controls, complete LMT/COPPA scrubs   | Implemented and locally verified M4 policy components, auction wiring, and resource accounting                                                                                          |
-| User-sync endpoints and cookie lifecycle                           | M5 signed handlers and local Chromium same-site checks passed; cross-site browser and hosted-provider verification remain separate                                                      |
-| Debug response surface and remaining parity hardening              | [M6 hardening design](superpowers/specs/2026-10-05-m6-parity-hardening-design.md); auction `ext.debug` remains suppressed until its bounded capture/redaction contract is implemented   |
+| GPP decoding, CCPA, activity controls, complete LMT/COPPA scrubs   | Implemented policy components, auction wiring, and logical resource accounting; local checks are recorded separately                                                                      |
+| User-sync endpoints and cookie lifecycle                           | Signed handlers implemented; recorded Chromium same-site checks do not establish third-party-cookie acceptance or hosted readiness                                                       |
+| Debug response surface and diagnostic hardening                    | Permission-gated bounded capture and sanitized auction `ext.debug` projection implemented; local qualification evidence retains explicit limitations                                     |
+| Bidder discovery and priority flows                                | Generated source registration and all 14 selected flows implemented for controlled native use; new publications native-only and inactive by default, not full-catalog or guest readiness |
 | Deployment qualification                                           | Manifest is development/staging; production capability policy and hosted evidence remain separate                                                                                       |
 
-M1-M6 are milestones within the initial core-auction/privacy scope, not
-the entirety of the longer-term OpenRTB product. The
-[approved roadmap](roadmap.md#2-milestone-ownership) assigns the deferred
-work to M7-M20 without changing this snapshot's implemented capabilities;
-the [2026-10-26 scope correction](roadmap.md#2026-10-26-scope-correction)
-separates M7 foundation/priority acceptance from M20 full-catalog closure.
-The [2026-10-27 sequencing correction](roadmap.md#2026-10-27-post-pilot-bidder-expansion)
-places additional bidder waves under M7.7 after selected Trusted Server/publisher
-testing, before the parity program. Neither correction changes implemented capabilities.
+These capabilities are not the entirety of the longer-term OpenRTB product.
+The [approved roadmap](roadmap.md#2-capability-ownership) separates delivered
+foundations and priority flows from remaining resource qualification, Trusted
+Server embedding, publisher acceptance, shared parity, and catalog closure.
+The [scope correction](roadmap.md#2026-10-26-scope-correction) separates
+priority acceptance from full-catalog closure; the
+[sequencing correction](roadmap.md#2026-10-27-post-pilot-bidder-expansion)
+places additional bidder waves after selected Trusted Server/publisher testing
+and before the shared-parity program.
 
-### Planned Extension Order
+### Extension Priorities
 
-The next priority is M7's foundations and full selected-flow acceptance for
-all 14 priority bidders, including Sharethrough, Rubicon and APS, with
-automatic build-time registration and parameter/schema/resource qualification
-requirements intact. After M7.5 embedding and selected M7.6 testing, M7.7 expands
-the bidder set through reviewed demand-led waves before M8 onward. Residual
-full-catalog migration/closure belongs to M20 and does not gate M7 or the
-finite M7.7 queue. Current schema/resource/promotion safeguards remain mandatory.
-Operators will continue to enable/disable already compiled, baked-eligible
-bidders through runtime config without rebuilding; new bidder code or baked metadata still requires
-a rebuild. Generated registration is planned, not the current implementation.
+Bidder foundations and all 14 priority selected flows, including Sharethrough,
+Rubicon, and APS, are delivered under the
+[controlled-native contract](superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md).
+Complete worst-case schema resource certification and affected guest readiness
+remain resource-qualification work. After Trusted Server embedding and selected
+publisher-pilot testing, reviewed demand-led waves expand bidder coverage before
+the shared-parity program. Residual full-catalog migration remains separate.
+Current schema, privacy, endpoint, and activation safeguards remain mandatory.
+Runtime config can enable/disable compiled, baked-eligible bidders without
+rebuilding; new bidder code or baked metadata still requires a rebuild.
 
-M8-M11 then prioritize stored requests/accounts, shared currency/multibid/UID
-projection, creative caching, and full video delivery including the video
-endpoint and ad-pod workflows. M12-M19 own the remaining FPD, floors and
-adjustments, AMP/native, privacy/transparency, compressed ingress,
-hooks/modules, metrics/analytics, and browser compatibility work. See the
-roadmap for dependencies and completion criteria; this overview does not
-claim those future interfaces or endpoints exist today.
+The shared-parity priorities are stored requests/accounts, currency/multibid/UID
+projection, creative caching, and full video delivery, including the video
+endpoint and ad-pod workflows. Remaining capabilities cover FPD, floors and
+adjustments, AMP/native, privacy/transparency, compressed ingress, hooks/modules,
+metrics/analytics, and browser privacy compatibility. See the roadmap for
+dependencies and completion criteria; those future interfaces and endpoints
+are not claimed as implemented here.
 
 The [product vision](../vision.md#two-delivery-modes) makes direct in-binary
 integration with IAB Tech Lab Trusted Server a first-class goal alongside
 the standalone HTTP service. `auctioneer-exchange::run_auction` is an existing
 reusable engine boundary; the Trusted Server host bridge and its integration
 evidence are explicitly owned by
-[M7.5](roadmap.md#7-trusted-server-embedding-milestone), before the video/parity
+[Trusted Server embedding](roadmap.md#7-trusted-server-embedding-capability), before the video/parity
 program and without requiring full catalog closure. Embedding must preserve
 normalization, privacy, deadlines, and resource accounting rather than
 create a second auction implementation.
@@ -153,11 +155,11 @@ processor, not a durable auction-history or user-profile service.
 
 ## 3. Components and Crates
 
-The workspace currently contains 15 packages: six portable libraries,
+The workspace currently contains 16 packages: six portable libraries,
 `auctioneer-core`, four hosting adapters, two shared schema libraries, one operator
-CLI and one build-time catalogue library. Integration tests belong to their
-owning packages. These are build and dependency boundaries within one system,
-not 15 independently deployed services.
+CLI, one build-time catalogue library, and one procedural-macro package.
+Integration tests belong to their owning packages. These are build and
+dependency boundaries within one system, not independently deployed services.
 
 ### Portable Libraries
 
@@ -189,6 +191,7 @@ guards the separation.
 | [`auctioneer-gvl-schema`](../crates/auctioneer-gvl-schema/src/lib.rs)       | Shared GVL archive/index schema and validation for build/runtime/refresh tooling                                                                                                      |
 | [`auctioneer-cli`](../crates/auctioneer-cli/src/main.rs)                    | Config validation/selection, EdgeZero operator tooling and qualification; bidder reference inspection, GVL refresh, reference-evidence checks and OpenRTB catalogue generation/checks |
 | [`auctioneer-openrtb-catalogue`](../crates/auctioneer-openrtb-catalogue/)   | Pinned field-inventory extraction and build-time catalogue validation library; independent of the CLI and not an auction-time dependency                                              |
+| [`auctioneer-macros`](../crates/auctioneer-macros/src/lib.rs)               | Compile-time Rust declaration transformations, including OpenRTB field metadata; discovery and provenance remain build-script responsibilities                                         |
 
 A **provider adapter** connects Auctioneer to a hosting runtime. A **bidder
 implementation** translates an auction into a demand partner's protocol.
@@ -238,7 +241,7 @@ These libraries prevent tools and build scripts from importing the application
 just to understand a file.
 
 Crate boundaries follow ownership, portability, and build-time needs.
-They are not intended to mirror every feature. M4 extends the existing
+They are not intended to mirror every feature. Privacy enforcement extends the existing
 privacy, config, exchange, core, and runtime modules rather than creating
 separate GPP, CCPA, or activity-control workspace crates.
 
@@ -321,23 +324,29 @@ before handing calls to the fanout implementation.
 [`Bidder`](../crates/auctioneer-bidder/src/bidder.rs) separates `make_requests`
 from `make_bids`; the network operation lives between them. The current
 registry includes AppNexus, PubMatic, and a generic OpenRTB bidder
-implementation.
+implementation, alongside controlled-native priority implementations.
 Mocktioneer is enabled by the explicit `insecure-bidders` feature or by Axum's
 test-only dependency when running its default socket tests. Normal production
 builds do not enable it.
 This is not a claim of compatibility with the entire upstream bidder catalog.
 
-The current production factory selection still uses a central name match.
 [Automatic bidder registration](superpowers/specs/2026-09-27-bidder-registry-design.md)
-is an approved design direction, not implemented discovery. The
-[M7 catalog specification](superpowers/specs/2026-10-16-m7-bidder-catalog-design.md)
-refines it to adjacent `bidder.toml` declarations under
-`auctioneer-bidder/src/bidders/<bidder_key>/mod.rs` and conventional `create_bidder()`
-factories. Baked `implementation = "<bidder_key>"` bindings remain distinct from
-exact public names; all bidder implementations stay in the existing crate and
-public concrete types use `FooBidder`. Discovery will run during the build;
-runtime configuration enables or disables eligible compiled bidders.
-New implementations still require rebuilding, with no runtime plugin loading.
+is implemented by the [bidder build script](../crates/auctioneer-bidder/build.rs)
+and [discovery generator](../crates/auctioneer-config-schema/src/bidder_discovery.rs).
+Bidder-owned `src/bidders/<bidder_key>/bidder.toml` declarations accompany
+`mod.rs` and conventional `create_bidder()` factories. The build discovers
+implementations, validates metadata bindings, and generates factory selection;
+there is no hand-maintained central bidder-name list. Baked
+`implementation = "<bidder_key>"` bindings remain distinct from exact public
+names. A validated generated registry joins those names and factories, with
+native-only publication gates applied to both metadata and dispatch.
+All implementations stay in the existing bidder crate; public concrete types
+use `FooBidder`. Runtime config enables/disables eligible compiled bidders,
+but cannot lift baked safety vetoes. New implementations require rebuilding,
+not runtime plugin loading. See the
+[catalog specification](superpowers/specs/2026-10-16-bidder-catalog-design.md)
+and [native onboarding tests](../crates/auctioneer-core/tests/native_bidder_onboarding.rs)
+for the priority-flow contract and its retained qualifications.
 
 ### Response Assembly
 
@@ -351,8 +360,8 @@ stable ordering; completion order must not change bidder attribution.
 The handler serializes the response, checks write deadlines, and attaches
 egress ownership when the relevant gates/resources are installed. Completing
 `run_auction` or returning from the handler does not mean the provider has
-finished writing the response. The complete bounded path is an M3b
-integration requirement, not implied by this diagram.
+finished writing the response. The integrated bounded path still depends on
+installed resources and provider lifecycle fidelity, neither proved by this diagram.
 
 ## 5. Privacy Architecture
 
@@ -377,15 +386,15 @@ conservative permission row rather than inventing a consent grant.
 An unusable consent string does not necessarily mean dropping every bid:
 the configured purpose rules still distinguish bidding from identifiers.
 
-### M4 Policy Extension
+### Independent Privacy Policies
 
-The [M4 design](superpowers/specs/2026-09-26-m4-privacy-design.md) extends
+The [privacy enforcement design](superpowers/specs/2026-09-26-privacy-enforcement-design.md) extends
 the same architecture with independent GDPR, CCPA, activity, LMT, and COPPA
 state. Disabling GDPR must not disable those other policies. Decisions
 combine monotonically: a later policy or bidder implementation must not
 restore removed identifiers, geo, FPD, or transaction IDs.
 
-M4 introduces bounded GPP envelope/source selection, section-2 TCF and
+Privacy enforcement includes bounded GPP envelope/source selection, section-2 TCF and
 section-6 USP handling, legacy projection, the activity evaluator, retained
 TCF disclosed-vendor membership, and the remaining scrub matrix. Its
 parser-limit rejection and Unicode activity matching have focused regression
@@ -405,9 +414,9 @@ with one margin applied to every shape. Six prepaid phase reservations cover
 config, ingress, privacy, projection, outbound construction, and response work.
 Checks include simultaneous representations and request-dependent amplification
 before projection and targeting. This logical accounting does not intercept the
-allocator or prove physical memory safety under the current over-ceiling rows.
+allocator or prove physical memory safety under the current over-ceiling WASM rows.
 
-M5 replaces the earlier permissive sync API stub with endpoint-specific
+User sync uses endpoint-specific
 privacy decisions. `/cookie_sync` checks the host cookie and each selected
 syncer; `/setuid` has a narrower callback permission path, and `/getuids`
 reads the stored UID map without writing it. These paths reuse the TCF,
@@ -445,15 +454,14 @@ overrides are applied at push time to keys already present in the source;
 they are not a live, per-instance policy override channel. Boot health
 credentials are a separate provider-specific input.
 
-These layers are not interchangeable. M3b requires runtime policy to stay
-within the installed boot envelope; that envelope's installation is still
-pending in the default entry points. Field-specific merge rules preserve
-omitted versus explicit values; aliases, per-account
-settings, bidder kill switches, sampling, and timeouts are resolved rather
+These layers are not interchangeable. Bounded fanout requires runtime policy to
+stay within the boot envelope installed by the default adapter entry points.
+Field-specific merge rules preserve omitted versus explicit values; aliases,
+per-account settings, bidder kill switches, sampling, and timeouts are resolved rather
 than applied by mutating the shared bidder registry.
 
 Invalid or unavailable runtime configuration is not permission to switch
-off privacy. The M3b resolver distinguishes permitted missing configuration
+off privacy. The runtime-config resolver distinguishes permitted missing configuration
 from extraction, integrity, parsing, and validation failures and uses
 explicit error responses. Missing config defaults only when the separately
 baked `allow_missing_config` permits it; its checked-in value is false.
@@ -518,17 +526,18 @@ runtime requirements without making the auction libraries Tokio-specific.
 | Fastly Compute     | `wasm32-wasip1`          | [main.rs](../crates/auctioneer-adapter-fastly/src/main.rs)   |
 | Spin               | `wasm32-wasip2`          | [lib.rs](../crates/auctioneer-adapter-spin/src/lib.rs)       |
 
-The manifest separates required capabilities from optional/degraded ones.
-A shared Rust interface is not proof of identical runtime guarantees.
-For example, response-egress capabilities are declared optional/best-effort
-in this snapshot. Normalized-header checks also cannot reconstruct framing
-information a provider's raw HTTP parser has already removed.
+The manifest requires ingress admission and outbound cache bypass. Other
+consumed capabilities, including degraded response-egress behavior, are
+documented in provider limit profiles rather than duplicated as optional
+manifest rows. A shared Rust interface is not proof of identical runtime
+guarantees. Normalized-header checks also cannot reconstruct framing information
+a provider's raw HTTP parser has already removed.
 
 Provider limitations must be documented and tested at that boundary, not
 hidden behind success at the portable unit-test layer. They do not prevent
-independent auction-policy work such as M4. Production readiness is a
+independent auction-policy work such as privacy enforcement. Production readiness is a
 separate evidence and release decision using the existing EdgeZero deployment
-tooling, not a compiled milestone label or an extra signing scheme.
+tooling, not a compiled capability label or an extra signing scheme.
 
 ## 8. Resource and State Lifetimes
 
@@ -573,8 +582,8 @@ The distinction between available components and the active path matters:
   dispatched. A raw sink rejection creates a pre-fanout error, not a slot.
 
 The lifetime/budget model is integrated and has allocation and cancellation
-regressions plus passing local feature/cross-target acceptance. It is not a
-whole-isolate physical memory guarantee: current rows
+regressions and dated local feature/cross-target evidence. It is not a
+whole-isolate physical memory guarantee: current WASM rows
 still exceed their declared ceilings, and provider capabilities remain distinct.
 
 ### Time and Memory
@@ -587,7 +596,7 @@ budget; a bidder timeout alone does not prove the whole auction expired.
 
 Byte caps alone are insufficient: parsing, request clones, bidder output,
 compressed/uncompressed buffers, accumulated bidder results, and final
-serialization can coexist. M3b models these costs in the boot envelope,
+serialization can coexist. Bounded fanout models these costs in the boot envelope,
 per-request budgets, and concurrency classes. Claims of a whole-runtime
 memory bound require evidence for all live allocations, not just a bounded
 `Content-Length` or final `Vec` size.
@@ -597,7 +606,7 @@ to the response-completion lifecycle, not just the handler's stack frame.
 Refusals, auxiliary routes, and pre-handler errors need bounded response
 paths too; overload must not create an unlimited error-response queue.
 The detailed limits and outstanding integration requirements stay in the
-M3b plan and source rather than being duplicated as constants here.
+bounded fanout plan and source rather than being duplicated as constants here.
 
 ### State Ownership
 
@@ -644,12 +653,17 @@ caller identifiers or bypass endpoint policy.
 | One bidder times out or returns invalid data                | Bidder-local error/non-bid result; preserve other completed results                                            |
 | Broken fanout contract or application invariant             | Request-level internal failure, not fabricated bids/results                                                    |
 | Malformed/unusable consent under the existing GDPR contract | Bounded warning and conservative permission decisions; not an unconditional HTTP error                         |
-| M4 GPP parsing-limit violation                              | Terminal input error, distinct from within-limit format warnings; never falls back to less restrictive consent |
+| GPP parsing-limit violation                                  | Terminal input error, distinct from within-limit format warnings; never falls back to less restrictive consent |
 
-Avoid raw consent, user identifiers, URLs with sensitive parameters, or
-bidder bodies in diagnostics. Fanout public errors use fixed categories;
-the debug response surface remains off until its redaction contract ships.
-The document describes technical enforcement, not legal certification.
+Do not expose raw consent, user identifiers, URLs with sensitive parameters,
+or unfiltered bidder bodies in diagnostics. Fanout public errors use fixed
+categories. Auction debug capture requires an explicit request plus account
+and bidder permission; it retains only bounded sanitized projections, not a
+raw traffic transcript. Endpoint origins, allowlisted headers, and fixed error
+categories replace sensitive metadata; unsupported or over-limit body projections
+are omitted. See [debug capture](../crates/auctioneer-exchange/src/debug/capture.rs)
+and [body projection](../crates/auctioneer-bidder/src/debug_projection.rs).
+This describes technical enforcement, not legal certification.
 
 ## 10. Routes and Operations
 
@@ -686,19 +700,15 @@ EdgeZero secret store per request, with rotation and no unsigned fallback.
 Signing protects issued state, not ownership of callback UIDs, account
 authorization, consent or replay. See [key provisioning](deployment/usersync-cookie-keys.md).
 Its acceptance depends on browser policy and context, which a native response
-test cannot prove. See [operator setup](../README.md#user-sync-operator-setup-m5).
+test cannot prove. See [operator setup](../README.md#user-sync-operator-setup).
 
-M5 does not own bidder-catalog migration: the
-[2026-10-26 scope correction](roadmap.md#2026-10-26-scope-correction)
-assigns foundations and all 14 priority flows to M7, and remaining full-catalog
-migration/closure initially to M20. The 2026-10-27 sequencing correction brings
-post-pilot bidder expansion into M7.7; M20 retains residual migration and
-terminal closure. Nor does M5 inject stored `buyeruid` values into
-auction bidder requests (owned by M9).
-Full analytics/metrics delivery is also not implied by the current health
-counters, warnings,
-and request logging; the full engine/integrations are owned by M18. Deployment
-qualification follows the manifest capability policy and provider evidence.
+User sync does not own bidder-catalog migration or inject stored `buyeruid`
+values into auction bidder requests; auction UID ingestion remains shared
+auction-foundation work. The [roadmap](roadmap.md#2-capability-ownership)
+separates controlled-native priority delivery, post-pilot bidder expansion,
+and residual catalog closure. Current health counters, warnings, and request
+logging do not imply full metrics/analytics delivery. Deployment qualification
+still requires the manifest capability policy and provider evidence.
 
 ## 11. Verification and Extension Guide
 
@@ -733,5 +743,5 @@ Use the existing ownership boundaries when extending the system:
 | Refresh vendor/CMP reference data | Refresh tool + schema/build validation + artifact rollout                                   | Network fetches inside privacy evaluation              |
 
 For exact behavior, continue from this map into the master design and the
-owning milestone document. Update this overview when ownership, public
+owning capability document. Update this overview when ownership, public
 entry points, state lifetimes, or implemented capability status changes.

@@ -1,5 +1,7 @@
 # EdgeZero PR #275 Update
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 ## Source
 
 On October 30, 2026, the authenticated GitHub PR API reported
@@ -30,7 +32,7 @@ Its recorder and distinct-configuration set introduce retained SDK owners;
 the observation handle retains numeric statistics after callback exit, not
 configuration keys. These allocations are not evidence of a complete funded
 outbound bound. Complete opaque-host resource accounting remains unsupported,
-and the existing M7-R0 correspondence/readiness blockers remain open.
+and the existing resource qualification correspondence/readiness blockers remain open.
 Spin extracts its unchanged visible-response-head normalization into a helper;
 its header fidelity remains BestEffort.
 

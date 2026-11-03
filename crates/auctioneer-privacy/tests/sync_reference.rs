@@ -98,7 +98,7 @@ mod tests {
         );
         let approved_designs = BTreeSet::from([
             "docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md",
-            "docs/superpowers/specs/2026-09-30-m5-usersync-design.md",
+            "docs/superpowers/specs/2026-09-30-usersync-design.md",
             "docs/superpowers/specs/2026-09-29-gpp-envelope-module-design.md",
         ]);
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

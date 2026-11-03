@@ -1,8 +1,10 @@
 # Catalog Count And Usersync Storage Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-19
-Branch: `m7-bidder-catalog`, based on `e1437d53`
-Scope: M7 Task 10 and the request-local storage needed to honor its charges.
+Branch: `bidder-catalog`, based on `e1437d53`
+Scope: bidder catalog Task 10 and the request-local storage needed to honor its charges.
 
 ## Independent Owners
 
@@ -141,7 +143,7 @@ test accepts `-- --exact --nocapture` to print all numeric rows. For build
 guard controls, filter `build_failure_harness` with
 `sync_config_child_build_catalog_`; its existing bounded child driver owns
 compilation, timeout failure and fixture/target cleanup. Local invocation
-logs use `/private/tmp/m7-counts-*`; they are diagnostic scratch, not
+logs use `/private/tmp/bidder-catalog-counts-*`; they are diagnostic scratch, not
 committed qualification artifacts.
 
 ## Verification Boundary
@@ -149,8 +151,8 @@ committed qualification artifacts.
 The complete compatibility, work/cache/concurrency and target-resource schema
 qualification remains open. This increment neither cuts over the strict live
 registry join nor promotes another bidder. Ordered shared info/auction/sync
-indexes and their comparison-count acceptance remain M7 Task 11, beyond this
-request-local allocation repair. R0 absolute fit and provider facts remain
+indexes and their comparison-count acceptance remain bidder catalog Task 11, beyond this
+request-local allocation repair. resource qualification absolute fit and provider facts remain
 explicit readiness blockers; no historical evidence is recertified here.
 
 The pre-existing GVL deletion notices and `proc-macro-error2` future-compiler

@@ -1,5 +1,7 @@
 # Library-Owned Regex Layout API Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Use TDD and separate specification/quality review before committing the verified checkpoint.
 
 **Goal:** Implement the two approved shallow layout queries as one replayable
@@ -154,7 +156,7 @@ build script's data-only compiler/target record; no serving code.
 
 ## Task 5: Regression, Review And Checkpoint
 
-**Files:** this plan, the approved spec status, qualification notes, master M7
+**Files:** this plan, the approved spec status, qualification notes, master bidder catalog
 Task 3 status and `ISSUES.md`.
 
 - [x] Run focused new controls, compiler patch replay, current feature closure,
@@ -174,7 +176,7 @@ Task 3 status and `ISSUES.md`.
 - [x] Update documentation/issue status with precise implemented and remaining
   scope. No new branch, crate, live test or deployment readiness claim.
 
-Publish the verified patch and consumers together on the existing M7 branch;
+Publish the verified patch and consumers together on the existing bidder catalog branch;
 Git records the publishing commit and remote receipt.
 
 ## Verification Record
@@ -223,7 +225,7 @@ Implemented and verified on 2026-10-28:
   or deployment qualification.
 
 These observations do not establish complete heap/work, selected guest layouts,
-physical fit, serving admission or completed M7 qualification.
+physical fit, serving admission or completed bidder catalog qualification.
 
 ### Reproduction
 

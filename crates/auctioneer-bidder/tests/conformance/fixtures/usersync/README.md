@@ -117,7 +117,7 @@ compatibility limits. The utility does not port these codecs or the reference
 implementation, and its operation-field boundary test does not prove consumer
 coverage.
 
-The M7 automatic-selection policy adds a separate design case, driven by
+The bidder catalog automatic-selection policy adds a separate design case, driven by
 `usersync_choose.rs`: disabled automatic additions cannot reserve a shared
 family or consume shuffle draws, while explicitly requested disabled identities
 retain their diagnostic and family-attempt behavior. The original 25 chooser

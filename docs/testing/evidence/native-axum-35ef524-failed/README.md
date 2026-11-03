@@ -25,7 +25,7 @@ A new committed harness/profile and fresh measured run are required.
 
 Safe files below are byte-identical to the private capture. No traffic bodies,
 debug, configuration, credentials or raw process logs are retained. Historical
-captures are unchanged; hosted execution and deployment qualification remain M7.6.
+captures are unchanged; hosted execution and deployment qualification remain publisher pilot.
 
 | File | SHA-256 |
 | --- | --- |

@@ -245,7 +245,7 @@ pub fn counter_scope_handle() -> &'static str {
 }
 
 /// Dedicated health-boot error type — the admission stack's boot error
-/// belongs to a later milestone and this path must not depend on it.
+/// belongs to a later capability and this path must not depend on it.
 #[derive(Debug, thiserror::Error)]
 pub enum HealthBootError {
     /// A different policy or counter scope was already installed. A

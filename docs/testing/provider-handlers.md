@@ -2,11 +2,11 @@
 
 ## Scope
 
-This is **offline preparation**, not hosted acceptance. M6 supplies the harness,
+This is **offline preparation**, not hosted acceptance. diagnostic qualification supplies the harness,
 isolated artifact handoff, refusal tests, bounded bidder process and this runbook.
 All credentialed Cloudflare/Fastly/Spin execution, corrupt-config writes,
-selected-deployment Q2-D and publisher rollout remain **unexecuted in M7.6**,
-after M7.5 and the selected bidder migration wave/host setup. Full bidder catalog
+selected-deployment Q2-D and publisher rollout remain **unexecuted in publisher pilot**,
+after Trusted Server embedding and the selected bidder migration wave/host setup. Full bidder catalog
 closure and video parity are not additional prerequisites.
 
 No command in the harness deploys, contacts a hosted service or writes a provider
@@ -229,7 +229,7 @@ command so deployment cannot rebuild from an unrelated target/source. It retains
 variables/triggers and verifies the copied digest/features. Missing, stale,
 wrong-profile, wrong-feature/source and digest-mismatched artifacts fail.
 
-Before M7.6 deployment, use structured TOML operations to prepare the isolated
+Before publisher pilot deployment, use structured TOML operations to prepare the isolated
 application manifest selecting that exact staged Spin manifest/component and the
 dedicated app name/KV label. Keep its digest in the private handoff. Provision
 the actual KV linkage and health/UID variable providers for that app; the
@@ -313,7 +313,7 @@ are not declared release members. Do not relax the member checks to accommodate
 platform-specific hidden files.
 
 `stage-fastly` reports `sdk_verification: required_at_deploy`; its local preflight
-does not replace the SDK verifier. Actual M7.6 deployment must use the matching
+does not replace the SDK verifier. Actual publisher pilot deployment must use the matching
 application CLI and `--application-release` so the Rust SDK verifier runs again
 on the exact loaded manifests/package. Never upload a package directly to evade
 managed release/resource-link checks. Do not use `--package` passthrough.
@@ -349,7 +349,7 @@ local HTTP/TLS behavior, connection refusal, timeout and sanitized transport
 classification, not deployed dispatch. The fixture returns one fixed safe banner
 bid; no real bidder traffic is used.
 
-In M7.6 expose a supervised fixture at the approved HTTPS origin through an
+In publisher pilot expose a supervised fixture at the approved HTTPS origin through an
 authorized HTTPS reverse proxy/tunnel, or pass the test-only key/cert paths to
 the fixture's TLS listener. It still binds loopback; the approved proxy supplies
 external reachability. Provision valid trust chains, do not disable certificate
@@ -361,7 +361,7 @@ counter baseline and must be observed explicitly.
 
 ## Deferred Commands
 
-**M7.6 only, after explicit authorization. Do not execute in M6.** Arguments
+**publisher pilot only, after explicit authorization. Do not execute in diagnostic qualification.** Arguments
 below come from pinned SDK `crates/edgezero-cli/src/args.rs`, adapter CLI sources
 and committed Auctioneer manifests, not guessed provider flags. Build the actual
 `auctioneer-cli` binary from the recorded source/pin in an isolated target directory.
@@ -412,7 +412,7 @@ rejects malformed input and regenerates a correct `BlobEnvelope.sha256`.
 Rejected push, parse failure before installation or a well-formed re-enveloped
 push is **not deployed-handler corruption evidence**.
 
-Before any M7.6 write, obtain explicit operator authorization naming the approved
+Before any publisher pilot write, obtain explicit operator authorization naming the approved
 provider account/application/service/version, physical binding/store ID and
 exact consumed root/key. Names/IDs belong in the private authorization record;
 evidence contains their digests, never credentials. Prove the binding is dedicated
@@ -516,7 +516,7 @@ pending and do not write anything.
 
 Every row in [`cases.json`](fixtures/provider-handlers/cases.json) remains pending
 for **each** Cloudflare/Fastly/Spin deployment. Execute only selected authorized
-targets in M7.6; unrelated providers do not gate that publisher's pilot.
+targets in publisher pilot; unrelated providers do not gate that publisher's pilot.
 Use the prepared `WORK/banner-request.json` with sequential numeric case IDs and
 the selected passthrough factory. Derive staging account/debug permissions through typed config;
 never turn privacy enforcement off or put live identifiers/consent into fixtures.
@@ -551,7 +551,7 @@ Bound every forward build/deploy/probe/rollback command with a supervised proces
 deadline and capped private stdout/stderr. The Rust supervisor drops inherited
 credentials and handles process-group INT/TERM/KILL termination, escalating after
 100 ms with a 1.2-second signal-escalation budget plus bounded reader/monitor joins.
-It is for offline tooling only in M6. Do not use its
+It is for offline tooling only in diagnostic qualification. Do not use its
 default scrubbed environment as an improvised credentialed deploy driver. Live
 execution needs a reviewed least-privilege operator environment and independent
 provider recovery; killing a local CLI does not undo an accepted remote deploy.
@@ -568,6 +568,6 @@ Keep restoration material and authorization private. Invalidate evidence after
 any changed source, feature, fixture, config, package, manifest, SDK or deployment.
 Task15 owns the Q2-E/publisher runbook. Selected actual deployment Q2-D, resource
 guarantees, selected bidder consent/identity/targeting/creative acceptance and
-bounded pilot/rollback remain separate M7.6 obligations. Do not mark live
+bounded pilot/rollback remain separate publisher pilot obligations. Do not mark live
 acceptance, real bidder support or production qualification executed from this
 offline handoff.

@@ -1,5 +1,7 @@
 # EdgeZero Outbound Adoption Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Current integration: [the subsequent PR #275 update](../../testing/evidence/edgezero-pr275-update-20261030.md)
 advances the workspace to `9fe6c56c`. The completed adoption and evidence below
 remain the historical `0a04ddb0` migration, not a recertification of that evidence.
@@ -196,7 +198,7 @@ workload limit, ceiling, budget coefficient or historical artifact is changed.
 - [x] Record exact verified commands and any remaining SDK/provider limitations
   in ISSUES.md and the SDK update record. State whether each outbound requirement
   is retained, changed or unverified. Do not recertify historical observations.
-- [x] Commit and push the verified repair round. Keep M7's schema qualification,
+- [x] Commit and push the verified repair round. Keep bidder catalog's schema qualification,
   priority activation and unrelated bidder-layout work separate and explicit.
 
 ## Local Verification Record
@@ -256,7 +258,7 @@ The broader guest CI command selecting exchange/privacy `--all-targets` did
 not pass. Cloudflare encountered the unchanged
 `auctioneer-exchange/tests/run_auction/main.rs` import of native-only
 `test_support::serving_catalog`; Fastly and Spin encountered the unchanged
-`construction_bound.rs:1015` Option-style call on `JsonField`. Those M7 test
+`construction_bound.rs:1015` Option-style call on `JsonField`. Those bidder catalog test
 portability/setup blockers are recorded in ISSUES.md. They are not a successful
 guest test build, a new SDK API failure, or permission to skip CI coverage.
 Only production guest checks are green. Hosted runtime acceptance was not run.
@@ -264,14 +266,14 @@ Only production guest checks are green. Hosted runtime acceptance was not run.
 The existing proc-macro-error2 future-incompatibility warning remains tracked;
 no dependency patch or suppression was added. Complete outbound allocator
 qualification, the new SDK-owner correspondence proof, absolute WASM fit,
-selected-validator admission and full M7 completion remain open. Local passing
+selected-validator admission and full bidder catalog completion remain open. Local passing
 tests do not turn Unsupported/BestEffort facts into Native guarantees or
 recertify historical qualification artifacts.
 
 ### Publication
 
 Migration commit `d7a5e85928d960cde2b12e56966fb7c83d196004` was pushed to
-`origin/m7-bidder-catalog`. After the commit, the exact
+`origin/bidder-catalog`. After the commit, the exact
 `report_uses_normalized_baked_inputs_and_all_runtime_owned_terms` CLI test
 rebuilt and passed (1 passed, 0 failed), confirming that the reporter binds
 the published source state rather than relying on the pre-commit build.

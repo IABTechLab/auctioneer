@@ -11,49 +11,49 @@
     {
       "id": "wide_positive_sid",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 5.2 widens positive SID range beyond signed int8."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 5.2 widens positive SID range beyond signed int8."},
       "input": {"raw": "128", "reference_file": "reference.json", "reference_case": "sid_15"},
       "expected": {"reference_valid": false, "auctioneer_valid": true, "auctioneer_values": [128], "auctioneer_raw": "128"}
     },
     {
       "id": "mixed_sentinel_rejected",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 5.2 permits only standalone exact -1. Upstream signed-int8 splitting accepts the mixed list."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 5.2 permits only standalone exact -1. Upstream signed-int8 splitting accepts the mixed list."},
       "input": {"raw": "-1,2", "reference_file": "reference.json", "reference_case": "sid_08"},
       "expected": {"reference_valid": true, "auctioneer_valid": false, "auctioneer_status": 400}
     },
     {
       "id": "nonpositive_sid_rejected",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 5.2 restricts numeric SID domain; see source parse_sid cases for each accepted reference spelling."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 5.2 restricts numeric SID domain; see source parse_sid cases for each accepted reference spelling."},
       "input": {"raw_values": ["0", "-2", "-01", "+2", "-1,-1"]},
       "expected": {"reference_valid": true, "auctioneer_valid": false, "auctioneer_status": 400}
     },
     {
       "id": "inactive_section_two",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 5.2 requires SID 2 membership to select envelope TCF; both pinned sync extraction helpers select present section 2 independently of applicability."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 5.2 requires SID 2 membership to select envelope TCF; both pinned sync extraction helpers select present section 2 independently of applicability."},
       "input": {"reference_file": "reference.json", "reference_case": "cookie_inactive_tcf_in_envelope_default_0", "legacy_consent": "legacyConsent"},
       "expected": {"reference_selected_consent": "CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA", "auctioneer_selected_consent": "legacyConsent"}
     },
     {
       "id": "setuid_missing_section_fallback",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 5.2 retains legacy consent when active GPP section 2 is absent; pinned setuid discards it after a SID-derived nonambiguous signal."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 5.2 retains legacy consent when active GPP section 2 is absent; pinned setuid discards it after a SID-derived nonambiguous signal."},
       "input": {"reference_file": "reference.json", "reference_case": "setuid_sid_missing_tcf_no_fallback", "query_utf8": "gpp_sid=2&gdpr_consent=legacyConsent"},
       "expected": {"reference_extraction_error": true, "auctioneer_extraction_error": false, "auctioneer_selected_consent": "legacyConsent", "permission_grant_claimed": false}
     },
     {
       "id": "invalid_legacy_json_overridden_by_sid",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design section 5.2 defers malformed legacy signal until SID precedence; upstream typed *int JSON decoding fails before extraction."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design section 5.2 defers malformed legacy signal until SID precedence; upstream typed *int JSON decoding fails before extraction."},
       "input": {"reference_file": "reference.json", "reference_case": "cookie_sentinel_cannot_override_json_string_default_0", "body_utf8": "{\"gdpr\":\"bad\",\"gpp_sid\":\"-1\"}"},
       "expected": {"reference_stage": "json", "reference_extraction_error": true, "auctioneer_extraction_error": false, "auctioneer_signal": 0}
     },
     {
       "id": "extraction_before_activity",
       "operation": "auctioneer_divergence",
-      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-m5-usersync-design.md"], "notes": "Auctioneer design sections 5.3 and 9: unresolved invalid legacy GDPR is a Auctioneer extraction error before activity. Reference wire.json/setuid_activity_before_invalid_gdpr returns activity denial first."},
+      "provenance": {"kind": "auctioneer_design", "paths": ["docs/superpowers/specs/2026-09-30-usersync-design.md"], "notes": "Auctioneer design sections 5.3 and 9: unresolved invalid legacy GDPR is a Auctioneer extraction error before activity. Reference wire.json/setuid_activity_before_invalid_gdpr returns activity denial first."},
       "input": {"query_utf8": "bidder=fake_sync&account=activity-deny&gdpr=2", "activity_allowed": false},
       "expected": {"reference_status": 451, "auctioneer_status": 400, "auctioneer_set_cookie_present": false}
     }

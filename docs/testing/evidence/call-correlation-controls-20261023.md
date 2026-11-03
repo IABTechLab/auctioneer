@@ -2,7 +2,7 @@
 
 Scope: the correlation portion of Task 14, using Rust 1.98.1 and the existing
 locked dependencies. This is not completion of the diagnostic channel, bidder
-migration, schema qualification or M7-R0 readiness.
+migration, schema qualification or resource qualification readiness.
 
 ## Ownership
 

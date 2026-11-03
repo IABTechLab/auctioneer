@@ -1,21 +1,23 @@
 # GDPR Scrub Classification Design
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 **Status (2026-10-11):** sourced membership and compiled rules, the live
 per-object mutator, prepaid construction costs and the bounded core audit
-consumer are implemented in M4. Full native and alternate-feature checks,
+consumer are implemented in privacy enforcement. Full native and alternate-feature checks,
 strict native/WASM lint, executed WASI depth/cleanup proofs, vendor packages,
 compiler mutations and charged-handler failure tests pass. Independent code
 reviews found no confirmed blocker. The implementation is committed and pushed
-as `c2b00a2`, inherited by verified M5 `9ff017f` and M6 `6177742` source
+as `c2b00a2`, inherited by verified user sync `9ff017f` and diagnostic qualification `6177742` source
 integrations. This status is not human
 merge approval or hosted certification.
 Current results and limitations are in the
 [execution record](../sdd/2026-10-11-gdpr-scrub-classification.md).
 Execution is governed by the
 [implementation plan](../plans/2026-10-09-gdpr-scrub-classification.md).
-**Implementation base:** M4, in `.claude/worktrees/m4-privacy`; M5 and M6 inherit
-the verified change. M3b remains the conservative foundation, not a second
-implementation target. Copies of these documents on M3b describe follow-on work.
+**Implementation base:** privacy enforcement, in `.claude/worktrees/privacy-enforcement`; user sync and diagnostic qualification inherit
+the verified change. bounded fanout remains the conservative foundation, not a second
+implementation target. Copies of these documents on bounded fanout describe follow-on work.
 **Scope:** preserve reviewed user/device context without weakening ID, geo,
 FPD, activity, CCPA/LMT, COPPA, transaction-ID, or shadow protections.
 
@@ -39,7 +41,7 @@ globally scanned for concealed personal data. No legal certification is claimed.
 
 ## Evidence And Execution Base
 
-The reviewed M4 implementation exists at `78f57b7`:
+The reviewed privacy enforcement implementation exists at `78f57b7`:
 
 - `crates/auctioneer-exchange/src/split/mod.rs` materializes survivor projections
   and consumes each into a typed request before validating it.
@@ -47,9 +49,9 @@ The reviewed M4 implementation exists at `78f57b7`:
 - `src/scrub/composition_tests.rs` contains independent 256-decision and shadow oracles.
 - Core prepays resource reservations before its asynchronous config/body work.
 
-These are chronological M4 baseline facts, not claims that the same code was
-present on M3b. The classified rules, audit consumer and resource-cost contract
-below are now implemented in the M4 worktree. Recheck branch heads and the
+These are chronological privacy enforcement baseline facts, not claims that the same code was
+present on bounded fanout. The classified rules, audit consumer and resource-cost contract
+below are now implemented in the privacy enforcement worktree. Recheck branch heads and the
 plan's execution evidence rather than treating design approval as qualification.
 
 ## Standards And Policy
@@ -85,7 +87,7 @@ struct Disclosure {
 }
 ```
 
-Preserve M4's union:
+Preserve privacy enforcement's union:
 
 ```text
 deny_ids = !pass_id || !transmit_ufpd || ccpa || lmt || coppa
@@ -279,7 +281,7 @@ restricted boundaries. Unknown subtrees are removed whole and counted once.
 `Map::retain` may mutate its values, but must not preserve a container wholesale
 merely because its name is allowed.
 
-Keep M4's owning-restriction shadow semantics: typed Geo wins over a conflicting
+Keep privacy enforcement's owning-restriction shadow semantics: typed Geo wins over a conflicting
 shadow only when geo is restricted; shadow-only Geo uses the same rules. TID-only
 denial touches only the exact TID locations; FPD touches only its owned branches.
 No ID-only general typed-container precedence or normalization of unrelated
@@ -361,7 +363,7 @@ handling and a proven abort before over-depth descent.
 
 Distinguish three allowances: admitted input, normalized input including bounded
 implicit/header additions, and survivor projection including FPD/supplement
-expansion. Derive those additions with checked arithmetic and preserve M4's
+expansion. Derive those additions with checked arithmetic and preserve privacy enforcement's
 aggregate projection receipt. Do not reset a full budget per extension/bidder
 or reject a valid normalized request by reusing only its original parser cap.
 
@@ -401,7 +403,7 @@ Thread the same descriptor through BootEnvelope, installed boot derivation,
 diagnostic re-derivation, reservations, all four adapters and their proof tests.
 Prepay the new terms before allocating audit/scratch state. Include them exactly
 once in disjoint phase reservations and total/per-auction derivation. Retained
-per-bidder vectors remain part of M4's full lifetime proof; measure 1/2/max
+per-bidder vectors remain part of privacy enforcement's full lifetime proof; measure 1/2/max
 survivors and independent input sizes. Sequential construction is a focused
 alternative if the retained lifetime cannot fit, not permission to weaken caps.
 
@@ -452,7 +454,7 @@ Admission arithmetic is checked; only diagnostic counters saturate.
 
 ### Error And Deadline Precedence
 
-**Decision:** retain M4's validation-first precedence. Resolve the original tmax
+**Decision:** retain privacy enforcement's validation-first precedence. Resolve the original tmax
 early if needed to obtain a deadline, but do not skip survivor projection/
 validation because it has already expired. An expired allowed survivor with
 malformed FPD still yields code 15. Privacy-blocked/sampled/capped candidates
@@ -515,7 +517,7 @@ compile-failure and cross-crate integration. Names describe behavior, not phases
 Required evidence:
 
 1. Every rule/shape and all four ID/geo combinations; all 256 composed tuples
-   against M4's independent expected-wire oracle.
+   against privacy enforcement's independent expected-wire oracle.
 2. Presence and absence for every scoped standard field, especially dnt/lmt,
    all ten previously prose-only Device fields, Geo context and interstitial
    constraints; malformed context objects/array elements are removed.
@@ -551,8 +553,8 @@ contract. Borrowed-validation probes from the previous design are historical
 evidence, not qualification of this architecture.
 
 Acceptance requires reviewed offline differences, the live-path tests, funded
-costs and real audit consumption on M4, then verified propagation to M5/M6.
-M3b production code is not expanded to duplicate this implementation.
+costs and real audit consumption on privacy enforcement, then verified propagation to user sync/diagnostic qualification.
+bounded fanout production code is not expanded to duplicate this implementation.
 
 ## Alternatives And Residual Risks
 

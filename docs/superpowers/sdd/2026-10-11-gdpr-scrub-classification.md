@@ -1,19 +1,21 @@
 # Classified Disclosure Verification
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-11
-Branch: `m4-privacy`, worktree `.claude/worktrees/m4-privacy`
+Branch: `privacy-enforcement`, worktree `.claude/worktrees/privacy-enforcement`
 Implementation base: `3f0f7f5aeb01d96742e0dd2012f179887ee474bc`
 Implementation commit: `c2b00a2a86a564301bd51ac9582055542b08010e`, pushed to
-`origin/m4-privacy` and verified against the remote head.
+`origin/privacy-enforcement` and verified against the remote head.
 Status: local implementation qualification passed and published; verified
-source integrations published as M5 `9ff017f` and M6 `6177742`.
+source integrations published as user sync `9ff017f` and diagnostic qualification `6177742`.
 Ready for code review, not an invented human merge approval.
 
 This record covers the classified-scrub cutover and construction funding
 amendments committed above, not the implementation base alone.
 The [design](../specs/2026-10-09-gdpr-scrub-classification-design.md) and
 [plan](../plans/2026-10-09-gdpr-scrub-classification.md) govern the scope.
-The older [M4 verification](../plans/2026-09-28-m4-verification.md) is
+The older [privacy enforcement verification](../plans/2026-09-28-privacy-enforcement-verification.md) is
 chronological baseline evidence, not proof of this cutover.
 
 ## Changes
@@ -121,38 +123,38 @@ establish JavaScript-host or provider runtime behavior.
 
 ## Downstream Integration
 
-M5 `9ff017f` merges the implementation into `aa10b26`; M6 `6177742` carries
+user sync `9ff017f` merges the implementation into `aa10b26`; diagnostic qualification `6177742` carries
 that verified source into `b5b1ad3`. Both source-integration commits were pushed
 and compared against remote branch heads. Subsequent publication metadata is
 documentation-only. Main and its unrelated `.playwright-mcp/` remain untouched.
 
-Conflict resolution preserves M5 sync routes, auxiliary work and distinct GVL
-populations, together with M4's normalized wire/nodes, actual construction
+Conflict resolution preserves user-sync routes, auxiliary work and distinct GVL
+populations, together with privacy enforcement's normalized wire/nodes, actual construction
 descriptor, retained address destinations and audit lifetime. All four installed
-envelope proofs use independent M5 baselines plus explicit M4 deltas. The synthetic
-projection fixture additionally funds M5's auxiliary peak; no production cap,
+envelope proofs use independent user sync baselines plus explicit privacy enforcement deltas. The synthetic
+projection fixture additionally funds user sync's auxiliary peak; no production cap,
 resource factor, archive or SDK pin was raised or changed.
 
 | Executed Combined-State Check                                                                        | Result                                                                                    |
 | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| M5 locked workspace/all-targets, conformance feature, excluding config harness crate                 | 2,466 passed, 0 failed, 7 ignored; 186 target summaries                                   |
-| M5 same sweep with insecure-bidders + conformance                                                    | 2,475 passed, 0 failed, 7 ignored; 186 target summaries                                   |
-| M5 config library/codegen/disclosure/usersync/archive/safety targets, without isolated build harness | 232 default and 233 insecure-bidders passed                                               |
-| M5 strict workspace/all-target lint, both feature selections                                         | Passed                                                                                    |
-| M5 strict all-target conformance lint for CF unknown-unknown, Fastly WASIp1 and Spin WASIp2          | Passed with the installed native-host toolchain                                           |
-| M5 exhaustive model compiler mutation, explicitly ignored harness                                    | 1 passed; 6 ordinary rows filtered; actual disposable source mutations                    |
-| M5 catalogue import, raw fixtures, roster and batch gates                                            | Passed; 99 raw fixtures/40 files, 139 roster members; raw/roster rejection cases executed |
-| M6 core/exchange/runtime library baseline                                                            | 705 passed                                                                                |
-| M6 admission, audit, config degradation, probe and usersync integration baseline                     | 54 passed                                                                                 |
-| M6 response seal compiler probes and real Axum sockets                                               | 2 + 16 passed                                                                             |
-| M6 source/build/workflow/script comparison against M5 `9ff017f`                                      | Empty; M6-specific changes remain documentation-only                                      |
-| M6 format, raw-fixture, roster and batch checks                                                      | Passed                                                                                    |
+| user sync locked workspace/all-targets, conformance feature, excluding config harness crate                 | 2,466 passed, 0 failed, 7 ignored; 186 target summaries                                   |
+| user sync same sweep with insecure-bidders + conformance                                                    | 2,475 passed, 0 failed, 7 ignored; 186 target summaries                                   |
+| user sync config library/codegen/disclosure/usersync/archive/safety targets, without isolated build harness | 232 default and 233 insecure-bidders passed                                               |
+| user sync strict workspace/all-target lint, both feature selections                                         | Passed                                                                                    |
+| user sync strict all-target conformance lint for CF unknown-unknown, Fastly WASIp1 and Spin WASIp2          | Passed with the installed native-host toolchain                                           |
+| user sync exhaustive model compiler mutation, explicitly ignored harness                                    | 1 passed; 6 ordinary rows filtered; actual disposable source mutations                    |
+| user sync catalogue import, raw fixtures, roster and batch gates                                            | Passed; 99 raw fixtures/40 files, 139 roster members; raw/roster rejection cases executed |
+| diagnostic qualification core/exchange/runtime library baseline                                                            | 705 passed                                                                                |
+| diagnostic qualification admission, audit, config degradation, probe and usersync integration baseline                     | 54 passed                                                                                 |
+| diagnostic qualification response seal compiler probes and real Axum sockets                                               | 2 + 16 passed                                                                             |
+| diagnostic qualification source/build/workflow/script comparison against user sync `9ff017f`                                      | Empty; diagnostic qualification-specific changes remain documentation-only                                      |
+| diagnostic qualification format, raw-fixture, roster and batch checks                                                      | Passed                                                                                    |
 
-The fresh M5 passes do not re-execute the expensive isolated config-build
-harness or vendor guest drivers; those M4 executions remain separately recorded
-above, not new M5/M6 claims. M5/M6 vendor packages, hosted handlers, remote CI,
-physical-isolate measurements and new M6 behavior are not qualified by propagation.
-The M6 plan records its verified foundation separately from unchecked debug/Q2/
+The fresh user sync passes do not re-execute the expensive isolated config-build
+harness or vendor guest drivers; those privacy enforcement executions remain separately recorded
+above, not new user sync/diagnostic qualification claims. user sync/diagnostic qualification vendor packages, hosted handlers, remote CI,
+physical-isolate measurements and new diagnostic qualification behavior are not qualified by propagation.
+The diagnostic qualification plan records its verified foundation separately from unchecked debug/Q2/
 hosted tasks. Automatic bidder registration remains an approved, unimplemented
 design, not a consequence of this cutover.
 

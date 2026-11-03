@@ -39,7 +39,7 @@
 
 # Deliberately malformed input, `const &[u8]`, and node-count probes
 # whose charge is hand-counted against the literal bytes. See the
-# module-level note in the file. M4 also probes duplicate object keys
+# module-level note in the file. privacy enforcement also probes duplicate object keys
 # and an opaque numeric token outside Value's floating-point range;
 # json! cannot represent either wire shape faithfully. Three proprietary-source
 # probes additionally require duplicate unknown keys, an escaped recognized key,
@@ -121,7 +121,7 @@ crates/auctioneer-exchange/tests/bidder_response_node_budget.rs 1
 # All valid and typed-invalid response-envelope fixtures use json! serialization.
 crates/auctioneer-bidder/tests/response_envelopes.rs 1
 
-# M5 transport configuration envelopes are const &str fixtures with pinned
+# user sync transport configuration envelopes are const &str fixtures with pinned
 # digests. The surrounding store document and ordinary requests use json!.
 crates/auctioneer-adapter-axum/tests/usersync_transport.rs 2
 

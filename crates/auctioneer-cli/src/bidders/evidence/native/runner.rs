@@ -1,4 +1,4 @@
-//! Closed M7 native test plans. No caller-supplied executable, filter or feature set.
+//! Closed bidder catalog native test plans. No caller-supplied executable, filter or feature set.
 
 use super::Refusal;
 use crate::bidders::evidence::conformance::runner as controls;

@@ -1,9 +1,9 @@
 # Schema Compiler Qualification
 
 **2026-10-30 delivery amendment:** AG approved
-[controlled-native acceptance](../superpowers/specs/2026-10-30-m7-controlled-native-completion-design.md)
+[controlled-native acceptance](../superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md)
 using tested reservations, enforced limits and real handler/allocation/stress
-checks. Complete worst-case certification remains unproven and moves to M7-R0.
+checks. Complete worst-case certification remains unproven and moves to resource qualification.
 The inspection feature still refuses serving; normal native builds now compile
 the selected validators for separately funded native admission. New guest
 publications remain excluded. The checkpoint narrative below predates this
@@ -22,16 +22,16 @@ and explicitly refuses application startup and serving admission.
 
 ## Shipped Qualification Scope
 
-The [2026-10-29 amendment](../superpowers/specs/2026-10-29-m7-shipped-schema-qualification-design.md)
-scopes new M7 serving/resource acceptance to the complete generated shipped
+The [2026-10-29 amendment](../superpowers/specs/2026-10-29-shipped-schema-qualification-design.md)
+scopes new bidder catalog serving/resource acceptance to the complete generated shipped
 closure `S`, including planned priority and existing published bindings,
 aliases, references and shared helpers in each adapter/feature lane. Existing
 full-source correctness, compatibility, integrity and component controls below
 remain intact; do not repin their 261-schema counts to a smaller cohort.
 Their historical whole-catalog investigations are not an instruction to prove
-every unshipped backend before finishing M7. Required shipped-path bounds
+every unshipped backend before finishing bidder catalog. Required shipped-path bounds
 remain mandatory, measurements stay observations, and newly needed engine
-surfaces belong to their M7.7 wave or residual M20 publication gate.
+surfaces belong to their bidder expansion wave or residual remaining catalog closure publication gate.
 
 ### Selected Source And Generated Membership
 
@@ -91,9 +91,9 @@ override, schema change or historical evidence repinning was used.
 
 Reconcile the five selected regex owners with the locked constructor policy
 before extending nested literal/backend proofs. Unselected strategies do not
-create new M7 obligations; any owner actually required by the selected cohort
+create new bidder catalog obligations; any owner actually required by the selected cohort
 still does. Target readiness and authorized hosted observations retain their
-separate M7-R0/M7.6 owners.
+separate resource qualification/publisher pilot owners.
 
 ### Selected Schema Link Probes
 
@@ -128,7 +128,7 @@ run in ordered mixed-input sequences. No expected outcome is recomputed from
 the candidate validator. Four secure-lane schemas lack cases in this particular
 capture; the development lane adds one more. The report names them rather than
 claiming complete parameter semantics. Their owner-local controls and remaining
-branch coverage retain their M7 obligation.
+branch coverage retain their bidder catalog obligation.
 
 Artifact bytes and static declarations include the CLI, JSON parser and
 observation runtime. They are observations, not retained-program or runtime
@@ -244,7 +244,7 @@ reported separately, not installed as the production owner representation.
 
 These observations do not prove CPU/work limits, complete call frames,
 constructor peak/work, code/data residency, other schema state, allocator/RSS
-behavior or target/application fit. Those remain M7 obligations where required
+behavior or target/application fit. Those remain bidder catalog obligations where required
 by the shipped set. No measured peak becomes a production descriptor, and no
 serving schema or limit changes in this checkpoint.
 
@@ -416,7 +416,7 @@ The full shared harness passes 220 controls, and all 16 source-import isolation
 controls pass. Strict targeted Clippy passes for the bidder harness in both
 feature lanes and for the workflow controls. These checks are not the complete
 261-schema source suite or actual adapter-application acceptance; those broader
-claims remain open with their existing milestone owners.
+claims remain open with their existing capability owners.
 
 ## Selected Inline Cache Layouts
 
@@ -510,7 +510,7 @@ Independent review found no remaining correctness issue in this boundary.
 
 Actual application correspondence, remaining required semantics, native code
 sections, constructor/evaluation bounds, nonzero C/I/V descriptors, funded
-registry/schema admission and priority onboarding remain M7 work. No dependency,
+registry/schema admission and priority onboarding remain bidder catalog work. No dependency,
 compiler patch, engine, schema, workload limit or serving binding changed in
 this probe increment.
 
@@ -580,7 +580,7 @@ Reports deliberately remain `Unqualified`, with
 `application_artifact_correspondence = not_established`. Private inline slots
 close only one premise of the conditional construction models. Complete
 initialization/search work, machine-stack frames, target heap composition,
-nonzero C/I/V descriptors and prepaid registry/schema admission remain M7 work.
+nonzero C/I/V descriptors and prepaid registry/schema admission remain bidder catalog work.
 
 ## Non-Serving Application Staging
 
@@ -1254,7 +1254,7 @@ table at this pin; no captured expectations are invented for them. The selected
 shipped-family control. This does not
 qualify the other 247 schemas, every branch of the fourteen schemas, work/cache/
 allocation bounds, guest execution, resource descriptors, live parameter
-validation or M7/R0 readiness. All 261 markers remain linked in four artifacts;
+validation or bidder catalog/resource qualification readiness. All 261 markers remain linked in four artifacts;
 that link coverage is distinct from native compatibility coverage. Original
 schemas, compiler patch, workloads, thresholds and historical observations are
 unchanged. Dated verification records below distinguish each capture expansion.
@@ -1274,7 +1274,7 @@ its `-text` rule was added. None of these REDs is a compile error or zero-match 
 Rust 1.98.1, locked/offline resolution and two jobs are used throughout. The
 full secure bidder/schema invocation passes 256 tests: 159 library, 55 linked/
 capture controls, 18 compiler controls and 24 inventory controls, with no failures
-or ignored tests. Its log is `/private/tmp/m7-schema-reference-full-secure.log`.
+or ignored tests. Its log is `/private/tmp/bidder-catalog-schema-reference-full-secure.log`.
 The linked control reports `source_blobs=3`, `accepted=29`, `schema_rejected=59`,
 `json_rejected=2`, `total=90`. The existing isolated cold/repeat allocator controls
 also pass; they remain finite observations, not new all-path bounds.
@@ -1282,13 +1282,13 @@ also pass; they remain finite observations, not new all-path bounds.
 The same four targets with `--features insecure-bidders` pass 267 tests: 170
 library, 55 linked/capture controls, 18 compiler controls and 24 inventory controls,
 again with no failures or ignored tests. The log is
-`/private/tmp/m7-schema-reference-full-insecure.log`; it records the same exact
+`/private/tmp/bidder-catalog-schema-reference-full-insecure.log`; it records the same exact
 source-blob and case counts. Both invocations link all 261 callbacks into the
 native and three guest artifacts; only the native artifact executes these cases.
 
 The complete CLI import target passes five tests, including all nine protected
 checkout paths and its unprotected conversion control. The log is
-`/private/tmp/m7-schema-reference-import-final.log`. The source checkout is supplied
+`/private/tmp/bidder-catalog-schema-reference-import-final.log`. The source checkout is supplied
 explicitly as `AUCTIONEER__BIDDER__SOURCE_DIR`; this path grants no provider/network
 access, and only the existing local reference/Unix socket controls require host
 permissions.
@@ -1298,12 +1298,12 @@ schema_build_controls --test schema_compiler_controls --test
 schema_source_inventory -- --nocapture` and `cargo test --offline --locked -j2
 -p auctioneer-cli --test bidders_import`. RED logs use the `probe-red`, `owner-red`,
 `witness-red`, `shape-red` and `checkout-red` suffixes under
-`/private/tmp/m7-schema-reference-*.log`.
+`/private/tmp/bidder-catalog-schema-reference-*.log`.
 
 Final cross-workspace checks also pass:
 
-- `cargo clippy --offline --locked -j2 --workspace --all-targets --features insecure-bidders,conformance-suite -- -D warnings` (log `/private/tmp/m7-schema-reference-workspace-clippy.log`). This is host all-target lint coverage, not guest execution.
-- `cargo test --offline --locked -j2 -p auctioneer-core --test ci_workflows`: 103 passed, no failures or ignored tests (log `/private/tmp/m7-schema-reference-ci-workflows.log`). The existing protected native step still runs the linked compiler controls with an explicit source checkout.
+- `cargo clippy --offline --locked -j2 --workspace --all-targets --features insecure-bidders,conformance-suite -- -D warnings` (log `/private/tmp/bidder-catalog-schema-reference-workspace-clippy.log`). This is host all-target lint coverage, not guest execution.
+- `cargo test --offline --locked -j2 -p auctioneer-core --test ci_workflows`: 103 passed, no failures or ignored tests (log `/private/tmp/bidder-catalog-schema-reference-ci-workflows.log`). The existing protected native step still runs the linked compiler controls with an explicit source checkout.
 - Workspace formatting, direct formatting of the embedded probe source, `git diff --check`, and the raw-JSON gate (168 fixtures across 50 files).
 
 Existing GVL deletion and dependency future-incompatibility warnings remain.
@@ -1324,32 +1324,32 @@ the existing four named targets and bidder library pass 278 tests: 159 library,
 The command is the original `cargo test --offline --locked -j2 -p auctioneer-bidder
 --lib --test schema_build_controls --test schema_compiler_controls --test
 schema_source_inventory -- --nocapture`; the log is
-`/private/tmp/m7-priority-schema-secure.log`. The linked driver reports exactly
+`/private/tmp/bidder-catalog-priority-schema-secure.log`. The linked driver reports exactly
 `source_blobs=11`, `accepted=79`, `schema_rejected=146`, `json_rejected=11`,
 `total=236` and all per-family counts match the independent literal table.
 
 The same invocation with `--features insecure-bidders` passes 289 tests:
 170 library, 77 linked/capture, 18 compiler and 24 inventory controls, with the
 same source-blob and verdict counts. Both runs have zero failures or ignored
-tests. Its log is `/private/tmp/m7-priority-schema-insecure.log`.
+tests. Its log is `/private/tmp/bidder-catalog-priority-schema-insecure.log`.
 
 The full CLI import target passes five tests, including the real protected-
 checkout positive control and refusal to repair altered staging files
-(`/private/tmp/m7-priority-schema-import.log`). The core workflow target passes
+(`/private/tmp/bidder-catalog-priority-schema-import.log`). The core workflow target passes
 104 tests, preserving the existing required schema-control command and source
-checkout (`/private/tmp/m7-priority-schema-ci.log`).
+checkout (`/private/tmp/bidder-catalog-priority-schema-ci.log`).
 
 Independent spec and quality reviews approved this scoped increment. The first
 strict lint pass then reported ten test-helper style diagnostics. Binding-name,
 import, range-type and positive-result assertion cleanup added no suppression
 or behavioral change. All fifteen capture-owner tests and the family-membership
-test passed again afterward (`/private/tmp/m7-priority-schema-final-owner.log`
-and `/private/tmp/m7-priority-schema-final-membership.log`). The complete 278/289
+test passed again afterward (`/private/tmp/bidder-catalog-priority-schema-final-owner.log`
+and `/private/tmp/bidder-catalog-priority-schema-final-membership.log`). The complete 278/289
 runs above preceded that lint-only cleanup.
 
 Final `cargo clippy --offline --locked -j2 --workspace --all-targets --features
 insecure-bidders,conformance-suite -- -D warnings` passes
-(`/private/tmp/m7-priority-schema-clippy-final.log`), as do workspace formatting,
+(`/private/tmp/bidder-catalog-priority-schema-clippy-final.log`), as do workspace formatting,
 diff checks and the unchanged 168-fixture/50-file raw-JSON gate. Existing GVL
 deletion and dependency future-incompatibility diagnostics remain visible;
 neither is suppressed or claimed fixed here.
@@ -1429,7 +1429,7 @@ The identical six-target invocation with `--features insecure-bidders` passed
 350 tests: 215 library tests and the same 135 integration controls. It also
 linked all four artifacts and drove all 300 native cases with fourteen
 immutable source witnesses. No test in either slice was ignored. The recorded
-logs are `/private/tmp/m7-schema-pattern-source-{secure,insecure}.log`.
+logs are `/private/tmp/bidder-catalog-schema-pattern-source-{secure,insecure}.log`.
 
 After those full runs, lint cleanup strengthened the lexical-input assertion to
 require `Syntax` for `nil` and `Eof` for the empty string. The complete seventeen
@@ -1636,11 +1636,11 @@ check failed its new control by accepting a module as `wasm32-wasip2`. Separatel
 the full four-artifact link test failed when `LinkReport` still supplied `None`
 instead of measurements. These REDs compiled and executed real assertions; none
 is a compilation error or zero-match run. The logs are
-`/private/tmp/m7-artifact-{reader,format,integration}-red.log`.
+`/private/tmp/bidder-catalog-artifact-{reader,format,integration}-red.log`.
 
 The final secure invocation passes 272 tests: 159 library, 71 linked, 18 compiler
 and 24 inventory controls, with no failures or ignored tests
-(`/private/tmp/m7-artifact-secure-verified.log`). This includes all 15 reader
+(`/private/tmp/bidder-catalog-artifact-secure-verified.log`). This includes all 15 reader
 controls, target-format checks, real four-artifact builds, the existing
 cold/repeat allocation controls, and all 90 captured cases with three immutable
 source blobs verified. The source checkout was explicitly supplied through
@@ -1649,7 +1649,7 @@ the observed numbers above are unchanged by the final lint-clean refactor.
 
 The feature-enabled invocation passes 283 tests: 170 library, 71 linked,
 18 compiler and 24 inventory controls, with no failures or ignored tests
-(`/private/tmp/m7-artifact-insecure-verified.log`). It produces the same guest
+(`/private/tmp/bidder-catalog-artifact-insecure-verified.log`). It produces the same guest
 measurements, verifies three source blobs and dispatches all 90 captured cases.
 These results use `cargo test --offline --locked -j2 -p auctioneer-bidder --features
 insecure-bidders --lib --test schema_build_controls --test schema_compiler_controls
@@ -1662,14 +1662,14 @@ conversion and sum overflow, exact/one-over admission, custom-page refusal,
 truncation and semantically invalid code. Nested invalid cases carry correct
 enclosing lengths so framing errors cannot mask their semantic checks.
 The production normal/build dependency tree still excludes the candidate,
-UUID helper and WASM parser (`/private/tmp/m7-artifact-production-dependencies.log`).
+UUID helper and WASM parser (`/private/tmp/bidder-catalog-artifact-production-dependencies.log`).
 No new dependencies, captured fixtures, feature gates, production inputs, workload limits
 or budget coefficients are introduced by this measurement step.
 
 Final checks also pass:
 
-- Strict workspace all-target Clippy with `insecure-bidders,conformance-suite` and `-D warnings` (`/private/tmp/m7-artifact-workspace-clippy-verified.log`), after fixing style errors without adding lint suppressions.
-- Core `ci_workflows`: 103 passed, no failures or ignored tests (`/private/tmp/m7-artifact-ci-workflows.log`). The existing required native control target executes the reader; no new test target or workflow is needed.
+- Strict workspace all-target Clippy with `insecure-bidders,conformance-suite` and `-D warnings` (`/private/tmp/bidder-catalog-artifact-workspace-clippy-verified.log`), after fixing style errors without adding lint suppressions.
+- Core `ci_workflows`: 103 passed, no failures or ignored tests (`/private/tmp/bidder-catalog-artifact-ci-workflows.log`). The existing required native control target executes the reader; no new test target or workflow is needed.
 - Workspace formatting, `git diff --check`, and the raw-JSON fixture gate (168 fixtures across 50 files).
 
 Spec review approved the bounded measurement contract. Code-quality review
@@ -3342,7 +3342,7 @@ examples; cheaper fresh-cache construction can favor PikeVM, and memory is not
 uniformly smaller. Keep serving and the approved engine contract unchanged.
 Next qualification work must prove actual ownership/work, including the format
 hook's one-call cache lifetime, and complete the catalog/target descriptors.
-This experiment does not close those gates or M7.
+This experiment does not close those gates or bidder catalog.
 
 The [comparison plan](../superpowers/plans/2026-10-27-schema-matcher-comparison.md)
 records protocol revisions and reproduction commands. The frozen

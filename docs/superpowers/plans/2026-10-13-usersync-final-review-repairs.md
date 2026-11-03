@@ -1,5 +1,7 @@
 # User Sync Final Review Repairs Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use `superpowers:subagent-driven-development` or `superpowers:executing-plans`; keep write sets disjoint and run mutations only in temporary source copies.
 
 **Goal:** Close the remaining user-sync review defects and make the real build-failure harness complete with bounded, actionable failures.
@@ -75,7 +77,7 @@ existing CI selection if necessary, `ISSUES.md`, and the verification record.
 - [x] Review each patch against the spec and for code quality; update `ISSUES.md` and qualification evidence with actual outcomes.
 - [x] Commit and push verified repair rounds without attribution trailers. Do not mark an unexecuted or still-stalled harness complete.
 
-Repair commit `b49c823` was pushed to `origin/m5-usersync`, including the
+Repair commit `b49c823` was pushed to `origin/user-sync`, including the
 already-local peer regression commits. The remote branch was checked after
 the successful push; no history rewrite was used.
 
@@ -103,5 +105,5 @@ departed leaders must not leave workers behind, and daemon compiler wrappers
 must not move workers outside the owned group. Target reuse intentionally
 requires overlapping owners; serialized fixtures retain immediate cleanup.
 
-See [the verification record](2026-09-30-m5-verification.md#final-user-sync-review-repairs-october-13)
+See [the verification record](2026-09-30-usersync-verification.md#final-user-sync-review-repairs-october-13)
 for exact commands, provenance checks and remaining qualification boundaries.

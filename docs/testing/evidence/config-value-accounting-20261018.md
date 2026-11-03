@@ -1,5 +1,7 @@
 # Auxiliary Config Value Accounting
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local names are descriptive. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-18
 SDK: `bc300ace5ca1ffe7060594a7bdb01c1da80de305`
 
@@ -50,7 +52,7 @@ than the production constants as their oracle.
 The second command includes 18 unchanged real-SDK extraction/allocation
 controls, seven actual handler allocation tests and two resource integration
 tests. Parent reruns independently reproduced both test totals. Logs:
-`/private/tmp/r0-config-node-*.log` and `/private/tmp/r0-parent-config-*.log`.
+`/private/tmp/resource-qualification-config-node-*.log` and `/private/tmp/resource-qualification-parent-config-*.log`.
 
 ## Remaining Boundaries
 

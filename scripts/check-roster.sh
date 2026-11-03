@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Roster gate for §9 of the M3b plan.
+# Roster gate for §9 of the bounded fanout plan.
 #
 # §9 is the ONE authoritative test roster. Two different properties can
 # be wrong about it, and a gate that checks only the first passes a
@@ -22,10 +22,10 @@
 # itself failed (a masked failure must never read as either verdict).
 set -euo pipefail
 
-plan=${1:-docs/superpowers/plans/2026-07-10-m3b-multi-adapter-production-fanout.md}
+plan=${1:-docs/superpowers/plans/2026-07-10-multi-adapter-production-fanout.md}
 [ -r "$plan" ] || { echo "cannot read $plan" >&2; exit 3; }
 
-start=$(grep -n '^9\. \*\*Tests (land with M3b-2' "$plan" | head -1 | cut -d: -f1) || true
+start=$(grep -n '^9\. \*\*Tests (land with Fanout-2' "$plan" | head -1 | cut -d: -f1) || true
 [ -n "${start:-}" ] || { echo "section 9 heading not found" >&2; exit 3; }
 end=$(awk -v s="$start" 'NR>s && /^1[0-9]\. \*\*|^## /{print NR; exit}' "$plan")
 [ -n "${end:-}" ] || { echo "section 9 end not found" >&2; exit 3; }
@@ -41,14 +41,14 @@ awk -v s="$start" -v e="$end" 'NR>=s && NR<e' "$plan" >"$body"
 declared=$(grep -oE '\+[0-9]+ total' "$body" | head -1 | grep -oE '[0-9]+') || true
 [ -n "${declared:-}" ] || { echo "declared total not found" >&2; exit 3; }
 
-m3b2=$(grep -oE '[0-9]+ land with M3b-2' "$body" | head -1 | awk '{print $1}') || true
-m3b10=$(grep -oE '[0-9]+ land with M3b-10' "$body" | head -1 | awk '{print $1}') || true
-if [ -z "${m3b2:-}" ] || [ -z "${m3b10:-}" ]; then
+fanout2=$(grep -oE '[0-9]+ land with Fanout-2' "$body" | head -1 | awk '{print $1}') || true
+fanout10=$(grep -oE '[0-9]+ land with Fanout-10' "$body" | head -1 | awk '{print $1}') || true
+if [ -z "${fanout2:-}" ] || [ -z "${fanout10:-}" ]; then
   echo "numeric landing split not found" >&2
   exit 3
 fi
-sum=$(( m3b2 + m3b10 ))
-echo "landing split: M3b-2 $m3b2 + M3b-10 $m3b10 = $sum"
+sum=$(( fanout2 + fanout10 ))
+echo "landing split: Fanout-2 $fanout2 + Fanout-10 $fanout10 = $sum"
 echo "declared total: $declared"
 
 if [ "$sum" -ne "$declared" ]; then

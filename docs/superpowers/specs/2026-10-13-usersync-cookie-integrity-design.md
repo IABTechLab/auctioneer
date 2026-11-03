@@ -1,8 +1,8 @@
 # User Sync Cookie Integrity Design
 
 Date: 2026-10-13
-Status: Approved by AG and implemented; local evidence in the M5 verification record
-Owner: M5
+Status: Approved by AG and implemented; local evidence in the user sync verification record
+Owner: user sync
 
 ## Scope And Trust
 
@@ -17,7 +17,7 @@ public browser callback accepting an unverified identifier under its
 existing privacy and activity gates. Signing does not authenticate account
 selection, grant consent, encrypt IDs, prevent deletion, or prevent replay
 of an intact signed cookie. Host identity-cookie imports remain unverified
-identity hints. M9 must not upgrade any of these hints into user/account
+identity hints. shared auction foundations must not upgrade any of these hints into user/account
 authorization or a proof of consent.
 
 Callback authentication needs an independently reviewed issuer/bidder
@@ -141,7 +141,7 @@ key-store cancellation/deadline limits, redacted diagnostic assertions,
 complete-field size boundaries and real-browser acceptance. Measure complete
 handler allocation paths; compiling a provider is not live deployment proof.
 
-This approved M5 addendum supersedes the earlier signing exclusion and
+This approved user sync addendum supersedes the earlier signing exclusion and
 unsigned production-cookie wire contract. Encryption and authenticated
 callback UID ownership remain outside this integrity boundary.
 

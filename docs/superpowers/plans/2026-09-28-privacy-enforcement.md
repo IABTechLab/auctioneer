@@ -1,0 +1,201 @@
+# privacy enforcement Auction Privacy Implementation Plan
+
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Complete privacy enforcement auction privacy without weakening GDPR enforcement GDPR rules or waiting for unrelated provider certification.
+
+**Architecture:** Parse and normalize privacy once, evaluate independent policies, and scrub each bidder-owned request after projection and before adapter construction. Reuse the existing config, privacy, exchange, and runtime crates. Pure parsing and transformation tasks can land independently; final activation must use the corrected bounded fanout admission, bounded construction, and resource accounting paths.
+
+**Tech Stack:** Rust 1.95.0, existing serde configuration/OpenRTB models, the bounded TCF parser, proptest, native and existing WASM builds. The selected internal GPP module and Unicode simple-fold dependency require the qualification described below; do not implement an unreviewed substitute codec or ASCII-only folding.
+
+**Design:** [privacy enforcement design](../specs/2026-09-26-privacy-enforcement-design.md), including its eleven compatibility decisions, and the privacy enforcement portions of the [master spec](../specs/2026-05-21-auctioneer-openrtb-server-design.md).
+
+## Execution Boundaries
+
+- Work in `.claude/worktrees/privacy-enforcement`; starting HEAD is `ba0ddd7`.
+- Preserve pre-existing edits to the privacy enforcement design, `README.md`, and `docs/architecture.md`. Do not stage unrelated work or copy uncommitted bounded fanout changes.
+- The first implementation checkpoint is Tasks 1-2: strict USP parsing and complete scrub primitives. This is tested foundation work, not a claim that CCPA/activity enforcement is active or that privacy enforcement is finished.
+- Tasks 3-7 can proceed independently of provider certification. Before Tasks 8-10, incorporate reviewed, committed bounded fanout fixes affecting shared interfaces, with a clean integration strategy that preserves this worktree's changes.
+- bounded fanout owns live scheduler/sink wiring, ingress lease lifetime, bounded request/response construction, deadline/error behavior, and correction of the retained-node charge. privacy enforcement must not treat currently passing helper tests as proof these paths are integrated.
+- No new signing, plugin loading, bidder registry redesign, sync routes, or US-state policy support is part of this plan.
+- Each task follows red/green tests, spec review, then code-quality review. Commit checkpoints are optional until requested; never include pre-existing unrelated changes.
+
+## Verification Conventions
+
+Run commands from this worktree. Reuse only its target directory:
+
+```sh
+export CARGO_TARGET_DIR=/private/tmp/auctioneer-privacy-enforcement-baseline-target
+```
+
+Use `--locked --offline` for commands below once any deliberately qualified dependency has been fetched and locked. Do not update dependencies incidentally. A compile failure for a missing new API is a valid first red check, but add behavioral regression tests as well.
+
+- [x] Fresh starting baseline: `cargo test -p auctioneer-privacy --lib --locked --offline` passed 217 tests, one ignored, on 2026-09-28.
+- [x] Independent spec and plan review findings resolved (2026-09-28); the four spec clarifications were re-reviewed, and the plan was approved.
+
+## Task 1: Strict, Allocation-Free USP Value
+
+**Files:**
+
+- Create: `crates/auctioneer-privacy/src/usp.rs` (value validation, not source selection).
+- Modify: `crates/auctioneer-privacy/src/lib.rs` (export the value API).
+- Tests: unit/property tests alongside the new module.
+
+- [x] Add tests for absent/empty, all 27 combinations of `Y/N/-`, and a nonempty malformed value returning a closed error. The parser contract is `Usp::parse(Option<&str>) -> Result<Option<Usp>, UspParseError>`; `None` and `Some("")` both yield `Ok(None)`.
+- [x] Add exact-length/version/ASCII tests: reject wrong version, every invalid byte in each flag slot, extra suffix, whitespace, lowercase, Unicode, and a valid prefix with trailing data. Only index 2 controls `sale_opt_out()`. Include `1NYN` (true), `1YNY` (false), and `1Y-Y` (false).
+- [x] Run `cargo test -p auctioneer-privacy --lib usp --locked --offline`; verify the expected missing-API or behavior failure. Red: E0432 for missing `Usp`/`UspParseError`.
+- [x] Implement an immutable value with private storage and no heap allocation. Inspect bytes only after length validation. Return a fixed diagnostic with no input string in `Display`/`Debug` errors. Do not attach policy, configuration, warnings, GPP selection, or no-sale matching to this parser.
+- [x] Add arbitrary-string property coverage: accepted nonempty values have four bytes, leading `1`, and allowed flags; malformed input never panics or becomes an absent value.
+- [x] Run the focused tests and full privacy library suite. Review spec compliance and code quality before marking this task complete. Both reviews passed; 228 library tests passed, one ignored, including 11 new USP tests.
+
+## Task 2: Complete Request Scrub Primitives
+
+**Files:**
+
+- Modify: `crates/auctioneer-exchange/src/scrub/mod.rs`.
+- Create: `crates/auctioneer-exchange/src/scrub/composition_tests.rs` if needed to keep the existing test module readable.
+
+- [x] Add serialized-output tests for user FPD, combined CCPA/LMT, COPPA full geo, and TID removal. Use a request populated with every spec section 8 field, multiple impressions, both EID locations, all six device identifiers, and unrelated extension/context data.
+- [x] Test typed values and supported field names inserted into flattened `other` maps: a typed clear must not leave an equivalent serialized field. Carry forward GDPR enforcement's removal of unclassified user maps on identifier denial and geo extras/extensions on geo denial; preserve unrelated vendor data elsewhere. Check untyped `user.kwarray` and both typed/flattened representations of `imp.ext.tid`. Review added five direct geo-container-shadow regressions.
+- [x] Run `cargo test -p auctioneer-exchange --lib scrub --locked --offline` and record the red result. The later full-library run independently confirmed all five new geo-shadow regressions fail before their fix; see the verification record.
+- [x] Implement the missing primitives by composing the existing ID/IP/geo operations. Keep existing GDPR behavior, rounding, invalid-IP handling, and IP keep-bit boundaries. FPD removes user data/keywords/kwarray/ext.data as well as identifiers; CCPA/LMT does not remove this broader FPD by itself. COPPA replaces only existing geo objects with `Geo::default()`, preserving `{}` versus absence.
+- [x] Expose a crate-internal transformation input for the complete scrub decisions, without reading config or resolving privacy inside `scrub/mod.rs`. Route the current GDPR wrapper through it with all new-policy flags inactive, avoiding dead code and preserving current live behavior. Independent conditions combine removals; no early-return branch may suppress a stronger policy.
+- [x] Add tests for every policy combination, idempotence, missing objects, sibling/original isolation, COPPA dominance, and preservation of ordinary request/imp IDs. Direct composition tests do not count as live auction activation. All 256 decision combinations are covered.
+- [x] Run the focused suite and `cargo test -p auctioneer-exchange --test privacy_enforcement --locked --offline`. Complete spec and quality review. Both reviews passed after the geo/extension shadow fixes; 39 scrub tests, eight privacy-enforcement tests, and all 165 exchange package tests passed. See the verification record for red/green evidence.
+
+## Task 3: Retain Bounded Disclosed-Vendors Membership
+
+**Files:**
+
+- Modify: `crates/auctioneer-privacy/src/tcf.rs`.
+- Modify tests: `crates/auctioneer-privacy/tests/tcf_property.rs`, `crates/auctioneer-privacy/tests/tcf_hostile_input.rs`, and existing `tests/common/tc_encode_segments.rs` helpers as needed.
+
+- [x] Add bitfield and range membership tests, IDs 0/1/65535, a hole inside a set, empty membership, both segment positions, and reuse of a parser after a failed parse. Assert DV membership never populates core consent or LI sets.
+- [x] Run `cargo test -p auctioneer-privacy --lib tcf --locked --offline` and observe the missing retained-set failure. Red: exit 101 for the missing `disclosed_vendors` field/API; green: 65 matching tests passed.
+- [x] Change the existing bounded DV framing walk to retain `VendorBitSet` in `TcfString`; use its word-wise range operations and charge work before mutation. Do not parse the string a second time or change deterministic error ordering, overlap rejection, GCL/GVL gates, or authorization algorithms.
+- [x] Add a reduced-budget negative control and run all TCF hostile/property tests. Record the incremental retained allocation for Task 10; do not claim live admission accounting is complete before that task. Hostile/property: 23 + 3 passed; range and bitfield mutation-before-charge negative controls failed as expected. Each of `TcfParser` and `TcfString` adds 8,192 inline bytes, not heap nodes.
+- [x] Review and run `cargo test -p auctioneer-privacy --locked --offline`. Independent spec and code-quality reviews passed; full privacy suite: 262 passed, one ignored. Parent privacy/exchange regression: 427 passed, one ignored; strict scoped Clippy and changed-file rustfmt passed. See the verification record for memory measurements and remaining live-accounting work.
+
+## Task 4: Qualify Parsers and Capture Reference Fixtures
+
+**Files:**
+
+- Create: `crates/auctioneer-privacy/tests/data/privacy/README.md` (provenance and intentional differences).
+- Create: `crates/auctioneer-privacy/tests/data/privacy/` fixture files and `crates/auctioneer-privacy/tests/privacy_reference.rs`.
+- Modify only after qualification: `Cargo.toml`, `Cargo.lock`, `crates/auctioneer-privacy/Cargo.toml` and the consuming config crate manifest if needed.
+
+- [x] Inspect the initial `iab_gpp` 0.1.2 candidate. The source/header audit rejects direct adoption; see the [verification record](2026-09-28-privacy-enforcement-verification.md#gpp-candidate-audit).
+- [x] Select a replacement approach explicitly: on 2026-09-29 the user chose an internal reference-based envelope module that can later move into its own crate. The [module design](../specs/2026-09-29-gpp-envelope-module-design.md) passed independent spec review and self-review; implementation is authorized and tracked in the [parser subplan](2026-09-29-gpp-envelope-module.md).
+- [x] Review the module design, refine the parser implementation steps, and qualify it against spec section 5.5: bounded header decoding before expansion/allocation, unsupported opaque IDs, raw section slicing, empty payloads, and separate format/limit errors. Preserve the `DBADNb` header regression (expected IDs 2/6/7; initial candidate returns 2/6/5), both documented padding forms, and an isolated parser-only test suite. Keep Auctioneer policy and TCF/USP interpretation outside the extractable module. Independent reviews approved; 35 isolated tests and the full privacy package passed. Full-package cross-target qualification remains below.
+- [x] Verify the simple-fold library against Go Unicode simple-fold equality; record Unicode data and Go toolchain versions. Test Kelvin/K/k equivalence and sharp-s/ss non-equivalence, including aliases and mixed-case component types. Exhaustive scalar comparison, config canonicalization, and live alias tests passed; see the verification record.
+- [x] Generate overlapping behavior fixtures from upstream commit `d7f8515b86258688304b0d9b6668c6a0e258bc9e` with go-gpp v0.2.0. Record inputs, configs, outputs, and all eleven explicit Auctioneer decisions (including negative-coordinate/repeated-scrub differences); never substitute local upstream HEAD or fabricated reference outputs. Generated 964 policy cases and Go Unicode 15 simple-fold orbits; a second generation compared byte-identically. USP, scrub, selection, no-sale, and activity assertions now cover the complete corpus.
+- [x] Add failing Rust fixture assertions for GPP source precedence, USP, activities, and scrubs. Keep intentionally divergent outputs separately named from parity cases. Source, USP, no-sale, activity, and scrub assertions cover all 964 pinned reference cases.
+- [x] Verify dependency feature trees and native/WASM buildability before accepting pins. Native workspace tests and foundation/privacy/adapter checks passed for Cloudflare `wasm32-unknown-unknown`, Fastly `wasm32-wasip1`, and Spin `wasm32-wasip2`. The all-target normal-feature privacy tree adds no runtime/network dependency. Full CI feature/conformance acceptance is tracked separately under Task 11.
+
+## Task 5: Typed Privacy Configuration and Overlays
+
+**Files:**
+
+- Modify: `crates/auctioneer-config/src/types.rs`, `crates/auctioneer-config/build_support.rs`, `crates/auctioneer-config/build_codegen.rs`.
+- Modify: `crates/auctioneer-core/src/config/mod.rs`, `crates/auctioneer-core/src/config/runtime.rs`, `crates/auctioneer-core/src/config/resolve.rs`.
+- Modify: `crates/auctioneer-config/tests/codegen.rs`, `crates/auctioneer-config/tests/baked_defaults_golden.rs`, `crates/auctioneer-core/tests/resolve_runtime_config.rs`, `crates/auctioneer-core/tests/config_reference_examples.rs`.
+- Modify: `crates/auctioneer-cli/src/config_source.rs` only if needed to keep push validation on the shared DTO contract.
+
+- [x] Write failing baked/runtime tests for host `ccpa.enforce`/`lmt.enforce`, account CCPA `enabled`/trusted-channel tri-states, and `privacy.allowactivities` for all eight names.
+- [x] Define effective activity configuration in the config layer, not the privacy evaluator or GVL schema. Include required `allow`, optional condition, optional default, and ordered rules. Share validation where build/runtime dependencies permit; parity-test unavoidable DTO duplication. Reject unknown activities, fields/conditions, and component types; canonicalize type values using qualified simple folding.
+- [x] Test absent versus explicit false/unset, activity field-by-field inheritance, rule-array replacement, and `rules=[]` clearing. Do not append or merge rules by index. Validate rule count 128, combined condition entries 128, component name UTF-8 length 128, and effective merged limits. Implementer reported 78 focused tests passed, including exhaustive scalar folding and Arc-sharing checks; broad verification remains below.
+- [x] Run focused tests red, implement lowering/validation/merge, then run config/core tests. The full native workspace passed 1,480 tests, including all 56 config child builds; the later privacy/exchange/core run passed 867 tests, including the new DTO/runtime parity target. Avoid resetting accepted runtime config or introducing a second signature path on invalid input. Same-fixture emitted-Rust value equivalence remains separately identified in the coverage map.
+- [x] Keep CCPA/LMT defaults off, activities allowed, and existing GDPR config unchanged. Review the exported shape before Task 6. Independent spec and code-quality reviews approved the Task 5 configuration changes; package, harness, and final strict Clippy runs passed.
+
+## Task 6: Complete Activity Evaluator
+
+**Files:**
+
+- Modify: `crates/auctioneer-privacy/src/activity.rs`, `crates/auctioneer-privacy/src/auction_context.rs`, `crates/auctioneer-privacy/src/sync/mod.rs`.
+- Modify tests: `crates/auctioneer-privacy/tests/stub_invariants.rs`, `crates/auctioneer-privacy/tests/privacy_reference.rs`.
+
+- [x] Add all eight activities and explicitly named bidder/analytics/rtd/general components; update existing callers together rather than guessing that Module means analytics or Global is a wildcard.
+- [x] Write red tests for first matching rule, allow-before-deny and reverse, AND clauses/OR entries, empty lists/omitted condition, default true/false, no match, and Unicode alias/type comparisons. No core-name fallback for aliases. Missing-API red followed by five passing tests, including all 864 recorded Go activity cases.
+- [x] Implement a pure evaluator over borrowed effective config. No per-bidder rule cloning, GPP conditions, deny-override pass, ASCII-only comparison, or hidden endpoint activation. Account rules remain Arc-shared even on GDPR-off paths; independent reviews and full privacy-package verification passed.
+- [x] Run `cargo test -p auctioneer-privacy --locked --offline`; replace stub-specific assertions only for newly implemented behavior, keeping deferred sync routes unavailable. Fresh privacy suite: 331 passed, one ignored. Spec and quality reviews approved; the avoidable temporary Arc allocation was removed and direct sharing assertions cover all GDPR resolution shapes.
+
+## Task 7: Normalize Sources and Independent Policy State
+
+**Files:**
+
+- Create: `crates/auctioneer-privacy/src/gpp/mod.rs`, `crates/auctioneer-privacy/src/ccpa.rs`.
+- Modify: `crates/auctioneer-privacy/src/resolve.rs`, `crates/auctioneer-privacy/src/signal.rs`, `crates/auctioneer-privacy/src/auction_context.rs`, `crates/auctioneer-privacy/src/error.rs`, `crates/auctioneer-privacy/src/warnings.rs`, `crates/auctioneer-privacy/src/lib.rs`.
+- Create: `crates/auctioneer-privacy/tests/privacy_normalization.rs`.
+
+- [x] Write the GPP-1 through GPP-5 and CCPA-1 through CCPA-4 decision matrices before implementation. Separate envelope format, hard-limit, section absence, empty, invalid, and valid states.
+- [x] Add a normalized, validated no-sale value whose constructor checks the exchange-provided namespace. Exact case-sensitive names, singleton `*` only, duplicates collapse, nonparticipating registered/resolved aliases allowed, including validated disabled identities in `dropped_alias_names`. Preserve existing alias-validation errors and reject host aliases with unknown bases. Return fixed `PrivacyError` for invalid lists even with disabled CCPA or invalid USP.
+- [x] Implement the qualified bounded GPP wrapper: 256 KiB raw, 4 KiB header, 64 entries, IDs 1..65535, 524288 charged operations; borrow opaque payloads. Limits/overflow are terminal 400 before construction, not warnings/fallback. Preserve the original GPP and SID values.
+- [x] Implement source selection from spec section 5: active section 2 empty/invalid is authoritative; absent envelope/section may use legacy; inactive TCF is not authorization-parsed. Active section 6 empty/absent falls back, but nonempty invalid does not. Conflict warnings cannot disable selected CCPA enforcement. Validate and clear invalid nonempty legacy USP even when CCPA is disabled.
+- [x] Refactor the GDPR resolver so GDPR-off/out-of-scope/NSP returns only permissive GDPR permissions. Continue normalization and retain independent activity/CCPA/LMT/COPPA state using one authorization time and at most one TCF parse. LMT uses prepared request state; COPPA has no override.
+- [x] Expose a cohesive per-bidder decision and bounded warning outputs without a bidder-registry dependency. Preserve source provenance and section-specific warning reasons, scopes, and ordering from design section 9; test simultaneous legacy/GPP errors. No raw consent strings or parser errors in diagnostics.
+- [x] Run `cargo test -p auctioneer-privacy --locked --offline`. Replace only temporary GDPR enforcement GPP-stub expectations, adding negative controls for authoritative invalid TCF and terminal bounds. Review the public error/options boundary before exchange work. Independent reviews approved; the complete privacy/exchange/core run passed 856 tests, one ignored, including strengthened restriction and authoritative-consent controls.
+
+## Task 8: Integrate Live Fetch Gates and Scrubs
+
+**Files:**
+
+- Modify: `crates/auctioneer-exchange/src/run/mod.rs`, `crates/auctioneer-exchange/src/split/mod.rs`, `crates/auctioneer-exchange/src/context.rs`, `crates/auctioneer-exchange/src/scrub/mod.rs`, `crates/auctioneer-exchange/src/error.rs`.
+- Modify: `crates/auctioneer-exchange/tests/privacy_enforcement.rs`, `crates/auctioneer-core/tests/privacy_wire_signal_400.rs`.
+
+- [x] Reconcile reviewed committed bounded fanout interface changes before editing shared execution paths. The committed `d1f1bde..4d830f0` delta is imported. Live handler tests now verify bounded adapter construction, the installed wave scheduler, and admission/phase-receipt lifetime. Independent spec and quality reviews approved; see the live resource integration evidence.
+- [x] Add red adapter-call counters and outbound capture for activity/GDPR denial before construction, allowed sibling bidders, all-denied responses, aliases, multi-request bidders, and independent policies under GDPR-off and NSP. Initial result: 3 passed, 28 expected integration failures; initial live wiring: all 31 passed. Review regressions and final gate remain below.
+- [x] Validate no-sale against the full resolved namespace and pass the validated result plus narrow NSP options to privacy resolution. Do not apply an account sentinel NSP exemption.
+- [x] Connect the cohesive decision to the Task 2 transformation input after FPD/buyeruid projection and before adapter serialization. Preserve prepared ATT behavior, decision immutability, and original/sibling isolation. Denied activity takes reason precedence; emit one 10017/seat-status-300 exclusion per bidder, not duplicate GDPR and activity rows. Review fixes place gates before denied-bidder FPD and cache decisions once per requested identity through scrubbing; both reviews approved.
+- [x] Capture serialized bodies and headers for every scrub field. Include no raw-IP/header resurrection, missing-object controls, multiple impressions, overlapping policy decisions, and CCPA exemptions not bypassing COPPA/LMT/GDPR/activity. All 35 exchange acceptance tests and real-handler Generic/AppNexus/PubMatic scrub/allow controls passed.
+- [x] Run exchange and core privacy handler tests; helper-level green alone is not acceptance. The final combined run passed 867 tests, including every exchange capture and handler regression; Task 8's shared-resource prerequisite is now integrated and independently reviewed.
+
+## Task 9: Bidder Legacy Projection and Response Warnings
+
+**Files:**
+
+- Modify: bidder-local projection in `crates/auctioneer-exchange/src/split/mod.rs` and `crates/auctioneer-exchange/src/run/mod.rs`.
+- Modify: `crates/auctioneer-exchange/src/response.rs`, `crates/auctioneer-exchange/tests/privacy_enforcement.rs`.
+- Modify core privacy response tests as required by their existing mapper.
+
+- [x] Write red GPP-capable/noncapable bidder capture tests for missing/empty/populated legacy fields, active/inactive sections, present-empty SID downgrade, and invalid USP sanitation.
+- [x] Backfill only missing legacy fields from active supported sections per the design; preserve original GPP/SID and never use backfilled fields to recompute local permissions. Empty section 6 produces neither backfill nor conflict. Invalid nonempty selected USP is never injected.
+- [x] Map format/conflict warnings once per request with stable field/reason deduplication, while hard no-sale/GPP limits remain 400 with zero adapter calls/sends. Preserve existing response visibility rules and diagnostics privacy. Exact warning and zero-send controls passed through the real handler; no raw consent or USP appears in diagnostics.
+- [x] Run exchange capture tests and core request/response tests. Review projection ordering against each existing adapter, including adapters constructing multiple requests. Independent reviews approved; the final 867-test run and strict Clippy passed.
+
+## Task 10: Resource Accounting and Hostile Inputs
+
+**Files:**
+
+- Modify: `crates/auctioneer-runtime/src/budget.rs`, bounded fanout live request-construction/accounting call sites, and privacy GPP/TCF wrappers.
+- Create: `crates/auctioneer-privacy/tests/gpp_hostile_input.rs`, `crates/auctioneer-privacy/tests/privacy_resource_limits.rs`.
+- Extend: `crates/auctioneer-exchange/tests/node_charge.rs` and actual handler admission/resource tests.
+
+- [x] First integrate the corrected bounded fanout accounting basis. The live path now uses the 384-byte node estimate, measured phase factors, and checked per-auction prepayment. It does not claim physical-isolate memory safety or change the intentional over-ceiling warning policy.
+- [x] Correct the retained-node measurement prerequisite: replace the 64-byte estimate with a measured 384-byte charge, remove the deep-nesting exemption, and assert a checked 20% margin for all ten shapes including nested forests. Runtime and all four adapter budget evidence rows reflect the correction without changing caps or boot policy. This was the measurement prerequisite; subsequent live integration is verified below.
+- [x] Wire the installed node limit into account discovery and typed ingress parsing. Live dispatch tests cover exact boundaries, disabled-account precedence, no sends on rejection, and permit release. Review-driven regressions preserve opaque raw extensions, numeric syntax, duplicate keys, and trailing-data errors. The bounded token pass leaves JSON validation to Serde; this is not general byte-reservation accounting.
+- [x] Bound final-response buffer construction with the existing `CappedWriter` and fallible reservation. Allocation guards cover oversized and escaped output, exact limits, zero cap, allocation failure, and capacity overflow. Errors remain terminal and no truncated bytes are returned. Independent spec and quality reviews approved this response-only prerequisite.
+- [x] Review survivor-only materialization: grouping and identity decisions now precede sampling/capping and FPD construction; all 218 exchange tests pass. Independent spec and quality reviews approved. The 256 KiB dense-alias guard exposes a typed-clone factor shortfall that remains part of the following accounting task, not a completed memory proof.
+- [x] Add the shared per-auction reservation primitive: checked aggregate accounting, non-cloneable RAII leases, and separate target-width buffer-layout checks. The initial 93 runtime tests, strict Clippy, and all three WASM checks passed; independent spec/quality reviews approved. Subsequent live phase charges and terminal handler mapping are verified below; the final runtime suite contains 103 tests.
+- [x] Measure and charge DV storage, decoded headers, selected strings, bounded warnings, shared activity configuration, scratch, and simultaneous original/projected/serialized request representations. Config, ingress, privacy, projection, outbound, and response receipts are prepaid and held through serialization. Live projection/response amplification is checked before copies; exhaustion is terminal `503 overloaded\n`. Allocation guards and independent spec/quality reviews passed; final portability acceptance remains below.
+- [x] Add at/over-limit tests for every cap, reduced injected operation budgets, 64-to-65 sections with unchanged restrictive TCF and granting legacy consent, hostile ranges, malformed unused payloads, concurrent auctions, and disabled-policy controls. Parser, handler, sink, ledger, and allocation targets now exercise these boundaries; the coverage map identifies the assertions.
+- [x] Property-test GPP, TCF, and normalization independently: no panic, unbounded expansion, warning growth, raw diagnostic payloads, or fallback grant after terminal GPP errors. The native workspace run passed the new hostile normalization target and existing parser/TCF properties. These tests distinguish syntax warnings and terminal input limits; the separate live-resource tests below establish terminal reservation refusal.
+- [x] Exercise failed live memory reservations, including concurrent auctions and disabled-policy controls. Handler tests verify each prepaid phase refuses before config/body reads or sends, cancellation releases receipts, concurrent auctions have independent ledgers, and an inflated injected budget cannot increase capacity. Runtime refusal stays separate from syntax warnings and input-limit 400 responses.
+- [x] Run privacy/runtime/exchange/core suites and allocation/budget evidence on corrected live paths. The fresh default workspace plus corrected fixture reruns resolve all failures; the alternate-feature workspace passed 1,353 tests. Live allocation, concurrency, cancellation, projection amplification, and response parsing/targeting guards passed. Independent resource and outbound spec/quality reviews approved; Task 11 retains final feature/portability acceptance.
+
+## Task 11: Cross-Target Acceptance and Operator Documentation
+
+**Files:**
+
+- Modify: `docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md`, `docs/superpowers/specs/2026-09-26-privacy-enforcement-design.md`.
+- Modify: `README.md`, `docs/architecture.md` without replacing pre-existing edits.
+- Modify: `.github/workflows/test.yml` only if the existing matrix does not exercise new code.
+- Create: `docs/superpowers/plans/2026-09-28-privacy-enforcement-verification.md` (matrix evidence and remaining limitations).
+
+- [x] Keep the master privacy enforcement status/divergence table synchronized with all approved section 12 decisions, including hard GPP limits, empty USPV1 fallback, CCPA channel/account/host precedence, and Unicode activity matching. The final status records completed local integration and distinguishes broader design requirements and hosted qualification.
+- [x] Add executable baked/runtime configuration examples and document the new ceilings/rejections. Remove only implemented privacy-stub documentation and preserve user sync route deferrals. Configuration examples, same-source policy controls, and current-App sync-route rejection tests passed; the master API/warning descriptions now reflect privacy enforcement rather than retired GDPR enforcement stubs.
+- [x] Complete ACT-2's same-fixture value comparison through emitted Rust and runtime lowering. A hermetic child build executes generated host/account values and actual runtime resolution from the same nondefault TOML. It covers all eight activities, defaults/empty arrays, ordered rules, all component types, duplicate/Unicode/escaped names, CCPA tristates, and host switches. Poisoned inherited-override regression and independent spec/quality reviews passed; no test-only production API was added.
+- [x] Run formatting, focused strict Clippy, and workspace tests. Default and insecure-bidders workspace selections, config's alternate-feature selection, all three adapter WASM checks/conformance builds, 76 native conformance tests, and CI's full pinned OpenRTB round-trip corpus passed. See the verification record for exact scopes and counts; no provider packaging/deployment claim is made.
+- [x] Produce evidence for every design matrix row GPP/TCF/CCPA/ACT/SCRUB/ATT/E2E/RES/PORT/SYNC, including captured outbound bytes and pinned reference provenance. The final local matrix passed default/alternate tests, config parity, 76 native conformance tests, all three strict Clippy selections, and all three WASM check/conformance builds. The coverage map and verification record preserve exact scopes, initial fixture failures/reruns, and hosted-CI limitations; no new provider approval requirement was added.
+- [x] Final independent review: no live auction stub, no weakened unrelated GDPR enforcement tests, full resource-accounting integration, and no accidental sync endpoint activation. Resource, outbound, and final integration reviews approved; the conditional fresh matrix passed. A final documentation review closed its ordering, ownership, correlation, deadline, and current-versus-proposed API findings. privacy enforcement implementation/local acceptance is complete, with bounded fanout-first merge order and hosted CI/provider qualification kept separate.

@@ -55,9 +55,9 @@ mod tests {
     }
 
     #[test]
-    fn prepare_does_not_emit_consent_warnings_in_m1() {
+    fn prepare_does_not_emit_consent_warnings() {
         // Consent parsers live in auctioneer-privacy. prepare() never
-        // populates warnings in M1, even for a malformed us_privacy
+        // populates consent warnings, even for a malformed us_privacy
         // that would later become an InvalidPrivacyConsent warning
         // emitted by PrivacyContext::resolve.
         let req = parse(serde_json::json!({

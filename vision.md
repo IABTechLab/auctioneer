@@ -1,6 +1,6 @@
 # Auctioneer Product Vision
 
-Updated: 2026-10-02
+Updated: 2026-11-02
 
 Auctioneer is an OpenRTB-native auction engine for publishers and publisher-serving
 platforms. The product goal is one Rust implementation that can run as an
@@ -74,36 +74,39 @@ not require runtime plugins or executable code downloads.
 
 ## Delivery Priorities
 
-The [approved roadmap](docs/roadmap.md) preserves the initial M1-M6 scope and
-sets the next priorities:
+The [approved roadmap](docs/roadmap.md) preserves the core auction, privacy,
+user-sync, and diagnostic-hardening contracts and sets these priorities:
 
-1. A complete, tested bidder catalog, with truthful capability tracking.
-2. Direct in-binary Trusted Server integration under M7.5, with an initial
-   selected-bidder banner/display publisher flow.
-3. Shared parity foundations and complete video delivery, including caching
-   and long-form/ad-pod workflows.
-4. Remaining FPD, auction-value rules, AMP/native, privacy/transparency,
-   compression, extensibility, and observability surfaces.
+- Preserve the delivered controlled-native flows for all 14 priority bidders,
+  with truthful capability tracking and explicit resource/guest limitations.
+- Deliver direct in-binary Trusted Server integration for selected banner/display
+  flows, then hosted acceptance and a limited-bidder publisher pilot.
+- Expand bidder coverage through reviewed demand-led waves after that test path;
+  reconcile residual full-catalog migration separately.
+- Deliver shared parity foundations and complete video support, including stored
+  requests/accounts, currency/multibid/identity, caching, and long-form/ad-pod workflows.
+- Complete remaining FPD, auction-value rules, AMP/native, privacy/transparency,
+  compression, extensibility, observability, and browser privacy compatibility.
 
-M7.5 owns the embedded Trusted Server integration and needs a separately
-reviewed contract and plan. It can be developed alongside bidder migration
-using the existing library entry point; it does not require waiting for the
-complete catalog or video support. This does not expand M6 into an integration
-implementation milestone or claim embedding is already complete.
+Trusted Server embedding needs a separately reviewed contract and plan. It can
+use the existing library entry point and selected bidders without waiting for
+the complete catalog or video support. Existing signed user sync, bounded
+diagnostic projection, and controlled-native bidder delivery do not establish
+embedding completion, worst-case resource certification, or hosted readiness.
 
 A publisher does not need every bidder or media format to begin testing.
-For a banner/display publisher with its selected bidders implemented, M6 is
-the target controlled-pilot checkpoint. Earlier functional tests can run on
-the existing auction/privacy/sync foundation. Native, AMP, or other required
-features move the pilot checkpoint to their owning milestones. A direct
-Trusted Server banner/display pilot targets M7.5, including its reviewed
-embedding integration and host-flow acceptance evidence.
+Diagnostic qualification is the local/staging hardening checkpoint, not a live
+publisher pilot. Earlier functional tests can use the existing auction/privacy/sync
+foundation. Trusted Server embedding owns in-binary integration and host-flow
+acceptance; publisher-pilot work owns hosted execution, selected-deployment
+qualification, and live rollout/rollback. Native, AMP, or other required features
+remain dependencies of their owning capabilities rather than implied support.
 
 ## Success Measures
 
 - A publisher can execute an auction, receive valid bids, apply targeting,
   render an eligible creative, and verify the configured demand path.
-- An embedded host can invoke the same engine without a Auctioneer service hop,
+- An embedded host can invoke the same engine without an Auctioneer service hop,
   with conformance tests demonstrating policy and result equivalence.
 - Consent-denied data does not reach bidders, and privacy/reference-data
   failures produce the documented conservative outcomes.
@@ -125,5 +128,5 @@ product. Technical privacy enforcement is not a claim of legal certification.
 
 The [architecture](docs/architecture.md) records current capabilities and
 ownership. The [master design](docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md)
-and milestone specifications define exact behavior. This document describes
+and capability specifications define exact behavior. This document describes
 the product direction, not implementation completion or deployment approval.

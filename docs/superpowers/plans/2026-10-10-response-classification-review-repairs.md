@@ -1,8 +1,10 @@
 # Response Classification Review Repairs
 
-**Goal:** Close the verified October 10 review findings on M3b without importing
-the follow-on M4 scrub redesign. Commit and push each verified repair round,
-then propagate through M4, M5, and M6.
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+**Goal:** Close the verified October 10 review findings on bounded fanout without importing
+the follow-on privacy enforcement scrub redesign. Commit and push each verified repair round,
+then propagate through privacy enforcement, user sync, and diagnostic qualification.
 
 **Architecture:** Keep the existing bounded response parser and consume parsed
 bids by value. Classify each bid independently through one shared classifier;
@@ -27,8 +29,8 @@ build.
 - [x] Test the classifier directly and exercise mixed responses through the real
       exchange, checking winning bids, error entries, and media targeting.
 - [x] Classify against post-FPD, privacy-scrubbed request context; test format
-      additions/removals and retain sequential bounded materialization in M3b.
-- [x] Cross-link the conservative M3b Geo catch-all behavior to the M4 disclosure
+      additions/removals and retain sequential bounded materialization in bounded fanout.
+- [x] Cross-link the conservative bounded fanout Geo catch-all behavior to the privacy enforcement disclosure
       design in `scrub.rs` and the master specification. Name lost context explicitly.
 - [x] Verify and commit/push this round.
 
@@ -53,13 +55,13 @@ build.
 
 - [x] Independently review the implementation and evidence, fixing confirmed
       remaining issues before claiming closure.
-- [x] Merge and verify M3b into M4, preserving M4-owned privacy composition.
-- [x] Merge and verify M4 into M5, preserving usersync and the renamed master spec.
-- [x] Merge and verify M5 into M6, preserving M6's planned hardening contracts.
+- [x] Merge and verify bounded fanout into privacy enforcement, preserving privacy enforcement-owned privacy composition.
+- [x] Merge and verify privacy enforcement into user sync, preserving usersync and the renamed master spec.
+- [x] Merge and verify user sync into diagnostic qualification, preserving diagnostic qualification's planned hardening contracts.
 - [x] Run affected downstream tests and push each branch. Report precise heads,
       verification limitations, and the final merge recommendation.
 
-## M3b Conformance Baseline
+## bounded fanout Conformance Baseline
 
 - The Round 2 transport-name premise was rejected after inspection:
   `transport_error_yields_other_code_999_statuscode_100` accurately asserts the
@@ -76,26 +78,26 @@ build.
   harness, not provider runtime timing/cancellation. Wave unit regressions also
   live under `entry_deadline`. Historical roster counts are not revised here.
 
-## M4 Integration Adaptation
+## privacy enforcement Integration Adaptation
 
 - Retain the composed, privacy-scrubbed `PerBidderRequest` already passed to
-  response decoding; do not introduce M3b's sequential reconstruction helper.
+  response decoding; do not introduce bounded fanout's sequential reconstruction helper.
 - Retain sealed outbound requests and exchange-owned encoding finalization.
   Fanout entry tests receive already-finalized gzip bodies and assert no timer
   creation or submission; the wave composer cannot finalize encoding at all.
-- Retain neutral `TransportErrorKind::Initial` and its fixed message on M4's
+- Retain neutral `TransportErrorKind::Initial` and its fixed message on privacy enforcement's
   bounded path. The explicit row is named
   `transport_error_yields_initial_code_4_statuscode_100_on_bounded_wave` and pins
-  code 4 / statuscode 100 without restoring M3b's `BadServerResponse` category.
-- Retain boot-aware preparation and scope-sized metadata on M4. The new
+  code 4 / statuscode 100 without restoring bounded fanout's `BadServerResponse` category.
+- Retain boot-aware preparation and scope-sized metadata on privacy enforcement. The new
   real-ingress test verifies the installed eight-impression cap end to end.
 - Adapt the sparse allocation sweep to grouping and survivor projection while
-  preserving M4's prepaid projection and response reservations.
+  preserving privacy enforcement's prepaid projection and response reservations.
 - Give the response-charge fixture matching impression context before its
   measurement window. Require the negative node-count guard to report the
   actual node-budget error, not an unrelated classification failure.
 
-## M4 Verification Evidence (2026-10-10)
+## privacy enforcement Verification Evidence (2026-10-10)
 
 - Final native workspace run with the same features and config exclusion:
   1,976 passed, zero failed, six ignored. Strict workspace Clippy passed with
@@ -106,20 +108,20 @@ build.
   correctness issue. Provider packaging and the config subprocess matrix were
   not rerun on this merge.
 
-## M5 Verification Evidence (2026-10-10)
+## user sync Verification Evidence (2026-10-10)
 
-- Rebuild project artifacts and both compile-probe caches against the M5
-  worktree; do not reuse stale generated configuration from another milestone.
+- Rebuild project artifacts and both compile-probe caches against the user sync
+  worktree; do not reuse stale generated configuration from another capability.
 - Final native workspace run: 2,287 passed, zero failed, six ignored. Ordinary
   config library/integration targets, including usersync configuration and
   callback validation: 195 passed, zero failed. The subprocess build-failure
   matrix and provider packaging were not rerun.
 - Strict workspace Clippy, formatting, diff checks, raw-fixture, roster and
-  batch-API gates passed. The impression-limit fixture derives M5's additional
+  batch-API gates passed. The impression-limit fixture derives user sync's additional
   auxiliary allowance from the real profile and baked-config charge; production
   limits and parse/allocation factors are unchanged.
 
-## M3b Verification Evidence (2026-10-10)
+## bounded fanout Verification Evidence (2026-10-10)
 
 - Regression-first runs reproduced four adapter failures, mixed-response bid
   loss, the ignored funded impression cap, nine spent-deadline failures, and
@@ -141,13 +143,13 @@ build.
   payments failed or the spending limit needs increasing. Hosted CI is not a
   green result; this round does not certify provider runtime behavior.
 
-## M6 Integration And Verification (2026-10-10)
+## diagnostic qualification Integration And Verification (2026-10-10)
 
 - The merged production code, tests, workflows, scripts and Cargo manifests
-  match the verified M5 tree. Existing M6 hardening documents remain intact;
+  match the verified user sync tree. Existing diagnostic qualification hardening documents remain intact;
   its debug spec and Task 6 now cover both fatal error vectors and bid-local
   errors in successful responses, preserving valid bids and exactly-once
-  diagnostics. This does not claim M6 debug is implemented.
+  diagnostics. This does not claim diagnostic qualification debug is implemented.
 - Fresh native workspace verification: 2,287 passed, zero failed, six ignored.
   Ordinary config library/integration verification: 195 passed, zero failed.
   Strict native workspace Clippy passed with all targets and `-D warnings`.
@@ -157,7 +159,7 @@ build.
 - The retained logs show successful verification, not an OOM-killed container.
   Hosted checks still fail before starting due to the repository account's
   billing/spending-limit condition; this remains separate from local evidence.
-- Verified and pushed integration ancestry is M3b -> M4 -> M5 -> M6; main was
+- Verified and pushed integration ancestry is bounded fanout -> privacy enforcement -> user sync -> diagnostic qualification; main was
   not modified. The confirmed findings from this review are closed. This is
   not a hosted-green or provider-packaging sign-off; those checks remain
   explicit verification limitations rather than claims of success.

@@ -76,7 +76,7 @@ cargo test --locked -p auctioneer-core --lib config::
 
 Cargo filters can succeed with zero tests. Check the dispatched names/count;
 use `-- --list` when selecting a new filter. A fast filtered pass is not a
-package checkpoint or milestone acceptance. Core/CLI unit binaries also have
+package checkpoint or capability acceptance. Core/CLI unit binaries also have
 process/socket controls; `--lib` alone does not mean every case is cheap.
 
 For supported maintenance commands, the CLI's existing archive-independent
@@ -249,7 +249,7 @@ secure-default package controls, workspace/features, conformance, all adapter
 guest builds/execution and resource/evidence gates. In particular, workspace
 feature unification is not a substitute for secure-default package tests.
 Neither an edit loop nor a native-only pass qualifies guest resource fit,
-hosted deployments or the complete milestone. No CI step is removed by this
+hosted deployments or the complete capability. No CI step is removed by this
 local workflow.
 
 Workflow configuration is reviewed directly, not duplicated in Rust snapshot

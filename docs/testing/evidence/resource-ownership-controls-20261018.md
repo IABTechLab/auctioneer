@@ -1,8 +1,10 @@
 # Resource Ownership Controls
 
-Date: 2026-10-18. Starting code baseline: `e9293a366199` on the existing M7 PR.
-This is progress on the R0 audit/proof work, not allocation remediation,
-permission to reduce a charge, target qualification or R0 completion.
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
+Date: 2026-10-18. Starting code baseline: `e9293a366199` on the existing bidder catalog PR.
+This is progress on the resource qualification audit/proof work, not allocation remediation,
+permission to reduce a charge, target qualification or resource qualification completion.
 
 Later source changes are recorded separately: the
 [config-value correction](config-value-accounting-20261018.md) replaces the
@@ -202,10 +204,10 @@ head was queried on this date and remains
 `f6c708ccb5be19ba9fa92575db3c08c0f17e0d72`. No newer dependency revision is
 available from that PR to supply the currently missing facts. Exact contract,
 enforcement and negative acceptance requirements are now recorded separately
-for EdgeZero and Auctioneer in the R0 specification's section 5.4.
+for EdgeZero and Auctioneer in the resource qualification specification's section 5.4.
 
 No live deployment was contacted or mutated. Hosted qualification remains
-M7.6. The existing canonical source audit retains its recorded baseline;
+publisher pilot. The existing canonical source audit retains its recorded baseline;
 neither this evidence nor the selector changes constitute review checkpoint D.
 
 ## Execution Authorization Update

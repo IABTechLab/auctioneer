@@ -3,7 +3,7 @@
 ## Scope
 
 AG approved bidder-owned endpoint declarations and continued with the proposed
-typed-binding refinement on 2026-10-24. This is a shared M7 prerequisite, not
+typed-binding refinement on 2026-10-24. This is a shared bidder catalog prerequisite, not
 endpoint approval, factory promotion or completed catalog delivery.
 
 Keep the existing endpoint builder, destination policy, runtime metadata shape
