@@ -356,4 +356,4 @@ These are explanatory, already-scaled ledger entries, not additional summands. N
 
 The audit freezes no projected savings. A concrete package must name exact changed owners, independent bounds, ordered deltas and residual gaps. AG must approve its immutable review commit before production ownership, admission or workload changes. Host facts, Fastly stack proof and the selected Spin dispatch remain independent prerequisites.
 
-See [source investigation and rejected shortcuts](evidence/resource-envelope-audit-20261018.md) and the [implementation plan](../superpowers/plans/2026-10-17-m7-r0-wasm-resource-envelope.md).
+See [source investigation and rejected shortcuts](evidence/resource-envelope-audit-20261018.md) and the [implementation plan](../superpowers/plans/2026-10-17-resource-envelope.md).

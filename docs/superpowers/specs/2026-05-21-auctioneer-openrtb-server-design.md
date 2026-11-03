@@ -1,8 +1,10 @@
 # Auctioneer OpenRTB Server Design on EdgeZero
 
-## M3b Review Contract (2026-10-05)
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
 
-For M3b, the [current review corrections](../plans/2026-07-10-m3b-multi-adapter-production-fanout.md#current-review-corrections-2026-10-05)
+## bounded fanout Review Contract (2026-10-05)
+
+For bounded fanout, the [current review corrections](../plans/2026-07-10-multi-adapter-production-fanout.md#current-review-corrections-2026-10-05)
 supersede conflicting historical formulas and coordination descriptions
 below. In particular, bidder/alias identifiers have a 64-byte UTF-8 limit;
 request copies charge syntactic-node heap and preflight repeated supplement
@@ -22,8 +24,8 @@ of batch driver EOF after the final slot, Axum declared-length response
 EOF validation and preservation of adapter-selected platform metadata.
 Application decoder/resource caps and provider capability classifications are unchanged;
 revision-specific records below remain historical. The current inherited
-source is merged M5 (`main` at `b01c309`), whose Cargo manifest and lockfile
-pin `28038cce26a499499fd4e050387d4d02e35fa7c7`. M6 conflict resolution
+source is merged user sync (`main` at `b01c309`), whose Cargo manifest and lockfile
+pin `28038cce26a499499fd4e050387d4d02e35fa7c7`. diagnostic qualification conflict resolution
 preserves that source and dependency pin without upgrading the SDK.
 The SDK revision discussed in this historical record centralizes future-based
 outbound batches and
@@ -67,7 +69,7 @@ shared wire key, bidder entries first. Config allocation acceptance exercises
 production resolution and measures peak live overlap, not only final retention.
 Escaped targeting-prefix diagnostics retain their byte bound. Root map
 validation does not capture the rejected maps in diagnostic parameters.
-See [the review-fix checklist](../plans/2026-10-06-m3b-review-fixes.md).
+See [the review-fix checklist](../plans/2026-10-06-production-fanout-review-fixes.md).
 
 The 2026-10-08 review additionally requires `PassID=false` to clear the
 flattened `User.other` and `UserExt.other` maps: unclassified user fields must not carry identifiers
@@ -92,71 +94,71 @@ before configuration work. Borrowed bidder responses expose body comparison,
 not extractable raw bytes or rebudgeting. Object FPD patches normalize absent,
 null or scalar targets before applying nested null deletions. Cloudflare's
 response handoff funds the source Rust buffer, Rust copy and JavaScript copy.
-See [the final repair and qualification tasks](../plans/2026-10-06-m3b-final-review-fixes.md)
+See [the final repair and qualification tasks](../plans/2026-10-06-production-fanout-final-review-fixes.md)
 for verification evidence and separate Auctioneer/EdgeZero owners. Hosted tests
 and calibrated deployment limits remain explicit selected-target release
 gates, not claims implied by local compilation. Credentialed live execution
-and selected actual deployment Q2-D now belong to M7.6, not M6 completion.
+and selected actual deployment Q2-D now belong to publisher pilot, not diagnostic qualification completion.
 
-**Status:** Design — rev 81 body; historical M3b sections current through the
+**Status:** Design — rev 81 body; historical bounded fanout sections current through the
 round-173 review (2026-09-18). Self-review 2026-09-18: the "round-75"
-stamp was ~98 rounds stale and read as if the M3b contracts here had
-never been revisited; they have, repeatedly. The M3b-owned sections
+stamp was ~98 rounds stale and read as if the bounded fanout contracts here had
+never been revisited; they have, repeatedly. The bounded fanout-owned sections
 (§5.2 fan-out, §5.3 limits, the capability/prerequisite boundaries)
-are the ones this stamp now covers — non-M3b sections remain at rev 81
+are the ones this stamp now covers — non-bounded fanout sections remain at rev 81
 and are NOT implied current by it.
-**M6 contract correction (2026-10-05):** sections 5.6, 9.1, the related
-config/debug/precedence acceptance rows, and the M6 milestone definition
-now defer to the [M6 hardening design](2026-10-05-m6-parity-hardening-design.md).
-That document defines new work, not a claim that M6 debug has shipped.
-**User-approved execution scope correction (2026-10-15):** M6 retains offline
+**diagnostic qualification contract correction (2026-10-05):** sections 5.6, 9.1, the related
+config/debug/precedence acceptance rows, and the diagnostic qualification capability definition
+now defer to the [diagnostic qualification hardening design](2026-10-05-diagnostics-and-qualification-design.md).
+That document defines new work, not a claim that diagnostic qualification debug has shipped.
+**User-approved execution scope correction (2026-10-15):** diagnostic qualification retains offline
 provider harness/artifact handoff/refusal tests and runbooks, complete native
 Q2-A/B/C, reusable Q2-E and all debug/config work. Credentialed real
 Cloudflare/Fastly/Spin handler execution, authorized isolated corrupt-config
 injection/recovery, selected actual deployment Q2-D and the live limited-bidder
-pilot move to [M7.6](../../roadmap.md#8-limited-bidder-publisher-pilot-and-hosted-acceptance),
-after M7.5 plus the selected publisher bidder migration wave/host setup, not
-full M7 catalog closure or video parity. M6 is local/staging acceptance only;
+pilot move to [publisher pilot](../../roadmap.md#8-limited-bidder-publisher-pilot-and-hosted-acceptance),
+after Trusted Server embedding plus the selected publisher bidder migration wave/host setup, not
+full bidder catalog catalog closure or video parity. diagnostic qualification is local/staging acceptance only;
 selected-target safety/privacy/credential/creative-rendering requirements
-remain mandatory before real traffic. Historical milestone references below
+remain mandatory before real traffic. Historical capability references below
 do not override this split or establish execution evidence.
 **User-approved bidder scope correction (2026-10-26):** the
 [roadmap correction](../../roadmap.md#2026-10-26-scope-correction) assigns
 foundations and full selected-flow acceptance for all 14 priority bidders,
-including Sharethrough/Rubicon/APS, to M7. All priority-local branch and
-schema/resource requirements remain. M20 retains terminal closure gates;
-M7 completion does not await them. The
+including Sharethrough/Rubicon/APS, to bidder catalog. All priority-local branch and
+schema/resource requirements remain. remaining catalog closure retains terminal closure gates;
+bidder catalog completion does not await them. The
 [2026-10-27 sequencing correction](../../roadmap.md#2026-10-27-post-pilot-bidder-expansion)
-adds M7.7 demand-led bidder expansion after selected M7.5/M7.6 Trusted
-Server/publisher testing and before M8 onward, with residual migration under
-M20. This changes ownership, not behavior/security, the complete source inventory or default/full
+adds bidder expansion demand-led bidder expansion after selected Trusted Server embedding/publisher pilot Trusted
+Server/publisher testing and before stored requests and accounts onward, with residual migration under
+remaining catalog closure. This changes ownership, not behavior/security, the complete source inventory or default/full
 bidder-checker semantics, and claims no new implementation or qualification.
 Historical reviews, appendices and evidence retain their original scope and
 do not override this correction.
 **Date:** 2026-05-21
-**Scope:** Initial core-auction and privacy milestones; later product scope is assigned in the approved roadmap
+**Scope:** Initial core-auction and privacy capabilities; later product scope is assigned in the approved roadmap
 
-> **Execution status — M1/M2 done; M3a MERGED (PR #10); M3b IN
-> PROGRESS on `m3b-fanout` (M3b-9, M3b-1a and the round-145 EdgeZero
+> **Execution status — foundations/auction core done; GDPR fanout MERGED (PR #10); bounded fanout IN
+> PROGRESS on `bounded-fanout` (Fanout-9, Fanout-1a and the round-145 EdgeZero
 > pin synchronization to `120dd2aa` landed — round-166 #7: that is the
-> PRIOR reference-state sync, NOT task M3b-11, which is still pending
+> PRIOR reference-state sync, NOT task Fanout-11, which is still pending
 > and will move the pin to the PR head; the repository remains pinned
 > to `120dd2aa`; remaining upstream gates are raw-ingress
 > head limits / framing validation and response-egress completion —
-> round-144 #8 refresh of the round-22 M5 note).** M1 (foundations) and M2 (auction
-> core) shipped. M3 was split into M3a + M3b in round-20. **M3a is
+> round-144 #8 refresh of the round-22 user sync note).** foundations (foundations) and auction core (auction
+> core) shipped. GDPR enforcement was split into GDPR fanout + bounded fanout in round-20. **GDPR fanout is
 > MERGED (PR #10)** — privacy resolver, config overlays, Axum
 > production fanout, DevFanout conformance across all four adapters;
 > the round-157 #6 correction retires the stale "current in-review"
-> wording that contradicted the MERGED status two lines above. M3b
+> wording that contradicted the MERGED status two lines above. bounded fanout
 > tracks multi-adapter production fanout, fail-loud config, and
 > bounded body cap; its OUTBOUND prerequisites are LANDED at the
-> pinned `120dd2aa` (see the M3b plan's prerequisite checklist —
+> pinned `120dd2aa` (see the bounded fanout plan's prerequisite checklist —
 > the raw-ingress items remain ABSENT, and the response-egress items
 > are IMPLEMENTED-BUT-NOT-CERTIFIABLE — BestEffort on all four
 > adapters at head `4790a140`, which is not a certifiable guarantee,
 > so Prereq 9 stays open; self-review 2026-09-18 corrects the earlier
-> "absent" for those rows). The historical M2
+> "absent" for those rows). The historical auction core
 > platform-readiness prerequisites from earlier drafts (Cloudflare
 >
 > - Spin wrapper adapter conformance) are RESOLVED against the
@@ -168,38 +170,38 @@ do not override this correction.
 >   records of those snapshots);
 >   `cargo check --target
 wasm32-unknown-unknown -p auctioneer-adapter-cloudflare` and the
->   Spin equivalent pass. (Round-66 M1 — the earlier "Historical
->   (pre-round-22 M5)" prerequisites block that claimed the pinned
+>   Spin equivalent pass. (Round-66 foundations — the earlier "Historical
+>   (pre-round-22 user sync)" prerequisites block that claimed the pinned
 >   `run_app` takes `manifest_src: &str` and that the CF/Spin wrappers
 >   do not compile was FALSE against `9e661ae` and has been removed; the
 >   current API takes no such argument and both wrappers build. See §14
 >   for the authoritative wrapper status.)
 >
-> **Target-readiness matrix** (round-70 M6 / round-66 M1 — single
+> **Target-readiness matrix** (round-70 diagnostic qualification / round-66 foundations — single
 > source of truth across the spec; resolves the §13 / §14 /
 > top-of-spec inconsistencies):
 >
-> | Target     | Wrapper-ready                        | Dev-ready (M2 dev)    | Behavior-complete (M2 release)                                                                                                                                                               | Production-complete (M2 prod)                                                                                                          |
+> | Target     | Wrapper-ready                        | Dev-ready (auction core dev)    | Behavior-complete (auction core release)                                                                                                                                                               | Production-complete (auction core prod)                                                                                                          |
 > | ---------- | ------------------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-> | Axum       | ✓ today                              | ✓ post-dev-primitives | ✓ outbound client + app clock landed at `120dd2aa` (M3b-2b consumes them)                                                                                                                    | ✗ until raw-ingress head limits / framing validation and response-egress completion exist (Unsupported on every adapter at `120dd2aa`) |
+> | Axum       | ✓ today                              | ✓ post-dev-primitives | ✓ outbound client + app clock landed at `120dd2aa` (Fanout-2b consumes them)                                                                                                                    | ✗ until raw-ingress head limits / framing validation and response-egress completion exist (Unsupported on every adapter at `120dd2aa`) |
 > | Cloudflare | ✓ today                              | ✓ post-dev-primitives | ✓ same (round-143 #7)                                                                                                                                                                        | ✗ same                                                                                                                                 |
-> | Fastly     | ✓ today                              | ✓ post-dev-primitives | ✓ (round-143 #7) — batch dispatch-before-harvest landed at `120dd2aa`; outbound rows are BestEffort by design (observation-time elapsed, documented deviations) per the M3b capability model | ✗ — blocked on the same raw-ingress + response-egress rows as every target                                                             |
+> | Fastly     | ✓ today                              | ✓ post-dev-primitives | ✓ (round-143 #7) — batch dispatch-before-harvest landed at `120dd2aa`; outbound rows are BestEffort by design (observation-time elapsed, documented deviations) per the bounded fanout capability model | ✗ — blocked on the same raw-ingress + response-egress rows as every target                                                             |
 > | Spin       | ✓ today (`unsafe_code` scope landed) | ✓ post-dev-primitives | ✓ same, outbound-deadlines BestEffort                                                                                                                                                        | ✗ same                                                                                                                                 |
 >
-> Round-66 M1: all four wrappers build against the pinned `9e661ae`
+> Round-66 foundations: all four wrappers build against the pinned `9e661ae`
 > today (no `manifest_src` fix is needed — the API loads the manifest
 > internally; Spin's `#[http_service]` `unsafe_code` allow-scope is
 > already in place). Fastly (round-144 #8 refresh): the serialized
 > `ProxyClient::send` gap is CLOSED — EdgeZero's batch API
 > dispatches every slot before harvesting (BestEffort by design:
 > serial harvest, observation-time elapsed); behavior-complete on
-> Fastly rides that contract, documented in the M3b capability
+> Fastly rides that contract, documented in the bounded fanout capability
 > model.
 >
-> **M2 _development_ on Axum, Cloudflare, Fastly (serialized fan-out per round-72 L5), and Spin can proceed**
+> **auction core _development_ on Axum, Cloudflare, Fastly (serialized fan-out per round-72 L5), and Spin can proceed**
 > (post-wrapper-fix) using four development-only impls
 > distributed across `auctioneer-core` and `auctioneer-adapter-cloudflare`
-> (round-34 finding M2 + round-35 finding M1 + round-62 L2 — corrects
+> (round-34 finding auction core + round-35 finding foundations + round-62 L2 — corrects
 > the earlier "all four in `auctioneer-core`" claim; the Cloudflare shims
 > live in `auctioneer-adapter-cloudflare` because they need `worker::*`,
 > which the library crates and `auctioneer-core` cannot depend on):
@@ -211,26 +213,26 @@ wasm32-unknown-unknown -p auctioneer-adapter-cloudflare` and the
 >    `auctioneer-core`).
 > 3. **`worker::Date`-backed dev `Clock` shim for Cloudflare Workers**
 >    (wall = `Date::now()`, monotonic = wall-clock delta — sufficient
->    for M2 dev though not strictly monotonic; in
+>    for auction core dev though not strictly monotonic; in
 >    `auctioneer-adapter-cloudflare` per §1.2 + §14 prereq block).
 > 4. **Dev `Rng`** — **target-specific** seed source per §14 (Axum/Spin
 >    seed from `SystemTime` in `auctioneer-core`; Cloudflare seeds from
 >    `worker::Date::now()` XOR `Math.random()` in
 >    `auctioneer-adapter-cloudflare` because Workers has no
->    `std::time::SystemTime`; round-61 M1 + round-62 L2). Earlier
+>    `std::time::SystemTime`; round-61 foundations + round-62 L2). Earlier
 >    "seeded from `std::time` entropy" was Cloudflare-incompatible.
 >
-> With these four, plus the **M1.5 adapter wrapper conformance task**
-> (round-69 M2 — Cloudflare + Spin `manifest_src` fixes + Spin
-> `unsafe_code` lint scope; see §14 M1.5), all of Axum, Cloudflare,
+> With these four, plus the **adapter wrapper conformance adapter wrapper conformance task**
+> (round-69 auction core — Cloudflare + Spin `manifest_src` fixes + Spin
+> `unsafe_code` lint scope; see §14 adapter wrapper conformance), all of Axum, Cloudflare,
 > Fastly (serialized fan-out per round-72 L5), and Spin actually run
-> M2 in development (round-73 L4 — Fastly added; matches the
-> target-readiness matrix above and §14 M2-dev prereq line). M2 **production / behavior-complete release** is blocked
+> auction core in development (round-73 L4 — Fastly added; matches the
+> target-readiness matrix above and §14 auction core-dev prereq line). auction core **production / behavior-complete release** is blocked
 > until EdgeZero publishes the native primitives — under the dev impls
 > Fastly fan-out runs serialized, the Cloudflare `Clock` shim is
 > wall-clock-derived (not truly monotonic), and the `BidderFanout`
-> conformance suite (§11.2) does not yet pass. Subsequent milestones
-> build on M2 and inherit the same caveat (round-33 finding M3).
+> conformance suite (§11.2) does not yet pass. Subsequent capabilities
+> build on auction core and inherit the same caveat (round-33 finding GDPR enforcement).
 
 ---
 
@@ -252,10 +254,10 @@ Later phases (out of scope, see §13): stored requests; AMP/video/native
 endpoints; price floors; bid adjustments; currency conversion; creative caching;
 hooks/modules; analytics; full metrics; the remaining bidder catalog. The
 [approved roadmap's 2026-10-26 scope correction](../../roadmap.md#2026-10-26-scope-correction)
-assigns this later scope through M20: M7 owns foundations and all 14 priority
+assigns this later scope through remaining catalog closure: bidder catalog owns foundations and all 14 priority
 flows. The [2026-10-27 correction](../../roadmap.md#2026-10-27-post-pilot-bidder-expansion)
-places additional bidder waves in M7.7 after M7.5/M7.6 Trusted Server/publisher
-testing; M20 retains residual migration and full-catalog closure.
+places additional bidder waves in bidder expansion after Trusted Server embedding/publisher pilot Trusted Server/publisher
+testing; remaining catalog closure retains residual migration and full-catalog closure.
 
 ### 1.1 Reference baseline
 
@@ -298,7 +300,7 @@ re-verified.
 ### 1.2 Design principles
 
 - **EdgeZero integration is confined to `auctioneer-core` and the four
-  `auctioneer-adapter-*` crates** (round-43 M5 — earlier "EdgeZero in
+  `auctioneer-adapter-*` crates** (round-43 user sync — earlier "EdgeZero in
   auctioneer-core only / adapter crates unchanged" wording contradicted
   the rev 48 plan for a `worker::Date` dev clock shim in
   `auctioneer-adapter-cloudflare`). Every **library** crate
@@ -313,7 +315,7 @@ re-verified.
   these crates are _for_), and (b) **target-specific host-primitive
   shims** when the EdgeZero target lacks a native impl — concretely,
   the dev `Clock` shim for Cloudflare Workers in
-  `auctioneer-adapter-cloudflare` (top-of-spec, M2 development). When
+  `auctioneer-adapter-cloudflare` (top-of-spec, auction core development). When
   EdgeZero ships native `Clock`/`Rng`/fan-out, those shims go away
   and the adapter crates return to "wiring only."
 - **Single-threaded async — precise statement.** **Portable core
@@ -353,7 +355,7 @@ re-verified.
   tests** (fast, no I/O, per-function); cross-crate and runtime-relevant
   behavior ships **integration tests** (including end-to-end against
   Mocktioneer). TDD: tests are written before the implementation they
-  cover, and a milestone (§14) is "done" only when both layers (§11.1,
+  cover, and a capability (§14) is "done" only when both layers (§11.1,
   §11.2) are green — neither layer optional.
 
 ---
@@ -365,12 +367,12 @@ auctioneer (workspace)
 ├── crates/auctioneer-openrtb      OpenRTB 2.6 + auction extension types (serde).
 ├── crates/auctioneer-gvl-schema   GVL manifest + vendor-list validators (round-43 B4; no build.rs, no auctioneer deps).
 ├── crates/auctioneer-config       Config types + build.rs codegen (DATA ONLY).
-├── crates/auctioneer-runtime      Host-environment seams: Clock, Rng, body_caps (round-65 M5).
+├── crates/auctioneer-runtime      Host-environment seams: Clock, Rng, body_caps (round-65 user sync).
 ├── crates/auctioneer-bidder       `Bidder` trait, registry, 4 reference adapters.
 ├── crates/auctioneer-privacy      TCF v2 / CCPA / GPP / activity gate + scrubbing.
 ├── crates/auctioneer-exchange     Auction engine: fan-out, collection, targeting.
 ├── crates/auctioneer-core         EdgeZero `app!` + handlers + primitive bindings.
-└── crates/auctioneer-adapter-*    axum / cloudflare / fastly / spin — wiring-only except temporary target-specific dev shims (round-43 M5 + round-61 L2 — Cloudflare carries the `worker::Date`-backed dev `Clock` + dev `Rng` until EdgeZero ships native primitives; see §1.2).
+└── crates/auctioneer-adapter-*    axum / cloudflare / fastly / spin — wiring-only except temporary target-specific dev shims (round-43 user sync + round-61 L2 — Cloudflare carries the `worker::Date`-backed dev `Clock` + dev `Rng` until EdgeZero ships native primitives; see §1.2).
 ```
 
 ### 2.1 Dependency graph (explicit "depends on", acyclic)
@@ -379,11 +381,11 @@ auctioneer (workspace)
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `auctioneer-openrtb`    | `serde` + **`serde_json`** (`RawValue` passthrough, §3.1; round-43 L8) + `url` (URL parsing for site default) + `publicsuffix` (eTLD+1) + `ipnetwork` (IANA IP classification for client IP sanitization). `prepare()` (§3.2) needs URL/eTLD/IP-classification capabilities — no longer "serde only" (round-29 finding H2). All deps are pure-Rust, no I/O, no runtime-specific code; the crate stays WASM-portable and EdgeZero-free.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | none                                                                                      |
 | `auctioneer-gvl-schema` | `serde` + `serde_json` + `serde_path_to_error` + `time` (round-43 B4 — NEW crate holding `validate_gvl_json` / `validate_manifest` + their DTOs. Extracted from `auctioneer-config` so the GVL refresh tool can depend on the validator WITHOUT depending on `auctioneer-config`, whose `build.rs` fails on a stale archive — the cycle that would otherwise make a broken archive unrepairable. Has **no `build.rs`** and no auctioneer deps, so it always builds.)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | none                                                                                      |
-| `auctioneer-config`     | **`auctioneer-gvl-schema`** (round-43 B4 — in BOTH `[dependencies]` and `[build-dependencies]`; a build-dep on a sibling path crate is legal and cycle-free because that sibling has no build script. Replaces the round-26 `include!("src/gvl_schema_shared.rs")` workaround), `serde` + `serde_json` (host/account settings use typed overlays, §9.1; no generic deletion-patch engine); `toml` + `brotli` + `hex` + `sha2` + `time` in `build.rs` only (round-43 B4/B9 — brotli powers the compressed-bundle gate, sha2+hex the archive digest pin, time the freshness SLA). **Declares `insecure-bidders = []` feature** (round-75 M1 — its `build.rs` reads `CARGO_FEATURE_INSECURE_BIDDERS` to gate the syncer-URL HTTPS check per §6 + §8.6; forwarded in from `auctioneer-bidder` via `insecure-bidders = ["auctioneer-config/insecure-bidders"]`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | none                                                                                      |
-| `auctioneer-runtime`    | **`time`** (`OffsetDateTime` for the `Clock` trait return type, §5.7; round-43 L8 — `Clock::now() -> time::OffsetDateTime` was undocumented in the dep row); **`http`** (round-71 M6 — `body_caps::match_route(method, path, &RouteTable)` takes `&http::Method`; pure-Rust, WASM-portable; the only `http` types used are `Method` and possibly `StatusCode` for the ingress hook return shape, no I/O surface); **`async-trait`** (round-15 M4 — M3 adds a separate `Timer` trait next to `Clock` at `auctioneer-runtime/src/timer.rs`, using `#[async_trait(?Send)]` so `dyn Timer` is object-safe alongside the existing `dyn Clock`; `Clock` itself is untouched).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | none                                                                                      |
-| `auctioneer-privacy`    | `auctioneer-openrtb`, `auctioneer-config`, **`auctioneer-gvl-schema`** (round-43 B4 — the runtime lowering path in `Gvl::load_from_json` calls the shared validator directly rather than through `auctioneer_config::gvl_schema`), `auctioneer-runtime` (round-88 LOW / round-104 H9 — an M2 carryover; **M3 privacy still takes no Clock DEPENDENCY**, but `PrivacyContext::resolve` now RECEIVES `now: time::OffsetDateTime` as a passed VALUE (the six-arg form, round-99 B1) for the GCL authenticity checks — CMP `deleted_date <= now` and GCL expiry; round-109 H5: the GVL VENDOR `deleted_date` is ALSO parsed now — at validation in `auctioneer-gvl-schema` (RFC 3339 via the shared helper; malformed fails validation, build-gate and runtime alike) onto the runtime `Vendor.deleted_date: Option<OffsetDateTime>`; the earlier "opaque/unparsed" contract is retired. The two deletions stay DISTINCT artifacts with the same comparator: GVL-vendor deletion drives Task 9 AUTHORIZATION denial via `Vendor::is_deleted_at(now)`, GCL-CMP deletion drives Task 8 consent-USABILITY, both `deleted_date <= now`), (round-91 L6 — **no `serde` and no `serde_json` for GVL**: loading delegates to the shared `auctioneer_gvl_schema::validate_gvl_json` parse and lowers `ValidatedGvl` into plain runtime structs with no serde derives), **`lru`** + **`once_cell`** (round-40 H3 — lazy-parse `GvlStore`), **`time`** (round-88 LOW — used for the TCF **core-segment** `Created`/`LastUpdated` timestamps and manifest freshness; **round-109 H5: the GVL vendor `deleted_date` is parsed too** (the round-104 H9 "stays opaque" note is retired) — the parse lives in `auctioneer-gvl-schema`'s validator, so THIS crate consumes the already-parsed `Option<OffsetDateTime>` on the lowered `Vendor` and compares it in `is_deleted_at(now)`), **`log`** (round-91 L6 — GVL cache-load errors ONLY; the per-vendor deleted-vendor runtime WARN is REMOVED — round-90 H4 moved deleted-vendor observability to a BUILD-TIME `cargo:warning` aggregate in `build.rs`, so `log` no longer carries deleted-vendor lines). Round-43 B4: `serde_path_to_error` moves OUT of this row — it now lives on `auctioneer-gvl-schema`, which owns the validator that uses it. Pure-Rust, WASM-portable, no I/O. | none                                                                                      |
-| `auctioneer-bidder`     | `auctioneer-openrtb`, `auctioneer-config`, **`serde`** + **`serde_json`** (round-65 L6 — typed `make_requests` / `make_bids` adapter params + `RawValue` passthrough; was implicit via `auctioneer-openrtb` re-export but should be a direct dep) + `url` + `percent-encoding` (for `EndpointBuilder`, §5.4 — adapter-owned URL assembly with safe macro encoding and `host_allowlist` validation; round-30 finding M3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | none                                                                                      |
-| `auctioneer-exchange`   | `auctioneer-openrtb`, `auctioneer-config`, `auctioneer-runtime`, `auctioneer-bidder`, `auctioneer-privacy`, **`async-trait`** (round-65 L6 — the dyn-safe `BidderFanout` trait at §5.2 uses `#[async_trait(?Send)]`; was named in §2.1 prose but missing from this row), **`flate2` with `default-features = false, features = ["rust_backend"]`** (round-63 M3 — pure-Rust `miniz_oxide` backend; WASM-portable, no C/zlib dependency; needed by the outbound gzip path at §5.2 + bidder `endpoint_compression = "gzip"` per round-22 H2 / round-25 M6). Compression-level fixed at `Compression::default()` (level 6) for byte-stable snapshot tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | none                                                                                      |
+| `auctioneer-config`     | **`auctioneer-gvl-schema`** (round-43 B4 — in BOTH `[dependencies]` and `[build-dependencies]`; a build-dep on a sibling path crate is legal and cycle-free because that sibling has no build script. Replaces the round-26 `include!("src/gvl_schema_shared.rs")` workaround), `serde` + `serde_json` (host/account settings use typed overlays, §9.1; no generic deletion-patch engine); `toml` + `brotli` + `hex` + `sha2` + `time` in `build.rs` only (round-43 B4/B9 — brotli powers the compressed-bundle gate, sha2+hex the archive digest pin, time the freshness SLA). **Declares `insecure-bidders = []` feature** (round-75 foundations — its `build.rs` reads `CARGO_FEATURE_INSECURE_BIDDERS` to gate the syncer-URL HTTPS check per §6 + §8.6; forwarded in from `auctioneer-bidder` via `insecure-bidders = ["auctioneer-config/insecure-bidders"]`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | none                                                                                      |
+| `auctioneer-runtime`    | **`time`** (`OffsetDateTime` for the `Clock` trait return type, §5.7; round-43 L8 — `Clock::now() -> time::OffsetDateTime` was undocumented in the dep row); **`http`** (round-71 diagnostic qualification — `body_caps::match_route(method, path, &RouteTable)` takes `&http::Method`; pure-Rust, WASM-portable; the only `http` types used are `Method` and possibly `StatusCode` for the ingress hook return shape, no I/O surface); **`async-trait`** (round-15 privacy enforcement — GDPR enforcement adds a separate `Timer` trait next to `Clock` at `auctioneer-runtime/src/timer.rs`, using `#[async_trait(?Send)]` so `dyn Timer` is object-safe alongside the existing `dyn Clock`; `Clock` itself is untouched).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | none                                                                                      |
+| `auctioneer-privacy`    | `auctioneer-openrtb`, `auctioneer-config`, **`auctioneer-gvl-schema`** (round-43 B4 — the runtime lowering path in `Gvl::load_from_json` calls the shared validator directly rather than through `auctioneer_config::gvl_schema`), `auctioneer-runtime` (round-88 LOW / round-104 H9 — an auction core carryover; **GDPR enforcement privacy still takes no Clock DEPENDENCY**, but `PrivacyContext::resolve` now RECEIVES `now: time::OffsetDateTime` as a passed VALUE (the six-arg form, round-99 B1) for the GCL authenticity checks — CMP `deleted_date <= now` and GCL expiry; round-109 H5: the GVL VENDOR `deleted_date` is ALSO parsed now — at validation in `auctioneer-gvl-schema` (RFC 3339 via the shared helper; malformed fails validation, build-gate and runtime alike) onto the runtime `Vendor.deleted_date: Option<OffsetDateTime>`; the earlier "opaque/unparsed" contract is retired. The two deletions stay DISTINCT artifacts with the same comparator: GVL-vendor deletion drives Task 9 AUTHORIZATION denial via `Vendor::is_deleted_at(now)`, GCL-CMP deletion drives Task 8 consent-USABILITY, both `deleted_date <= now`), (round-91 L6 — **no `serde` and no `serde_json` for GVL**: loading delegates to the shared `auctioneer_gvl_schema::validate_gvl_json` parse and lowers `ValidatedGvl` into plain runtime structs with no serde derives), **`lru`** + **`once_cell`** (round-40 H3 — lazy-parse `GvlStore`), **`time`** (round-88 LOW — used for the TCF **core-segment** `Created`/`LastUpdated` timestamps and manifest freshness; **round-109 H5: the GVL vendor `deleted_date` is parsed too** (the round-104 H9 "stays opaque" note is retired) — the parse lives in `auctioneer-gvl-schema`'s validator, so THIS crate consumes the already-parsed `Option<OffsetDateTime>` on the lowered `Vendor` and compares it in `is_deleted_at(now)`), **`log`** (round-91 L6 — GVL cache-load errors ONLY; the per-vendor deleted-vendor runtime WARN is REMOVED — round-90 H4 moved deleted-vendor observability to a BUILD-TIME `cargo:warning` aggregate in `build.rs`, so `log` no longer carries deleted-vendor lines). Round-43 B4: `serde_path_to_error` moves OUT of this row — it now lives on `auctioneer-gvl-schema`, which owns the validator that uses it. Pure-Rust, WASM-portable, no I/O. | none                                                                                      |
+| `auctioneer-bidder`     | `auctioneer-openrtb`, `auctioneer-config`, **`serde`** + **`serde_json`** (round-65 L6 — typed `make_requests` / `make_bids` adapter params + `RawValue` passthrough; was implicit via `auctioneer-openrtb` re-export but should be a direct dep) + `url` + `percent-encoding` (for `EndpointBuilder`, §5.4 — adapter-owned URL assembly with safe macro encoding and `host_allowlist` validation; round-30 finding GDPR enforcement)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | none                                                                                      |
+| `auctioneer-exchange`   | `auctioneer-openrtb`, `auctioneer-config`, `auctioneer-runtime`, `auctioneer-bidder`, `auctioneer-privacy`, **`async-trait`** (round-65 L6 — the dyn-safe `BidderFanout` trait at §5.2 uses `#[async_trait(?Send)]`; was named in §2.1 prose but missing from this row), **`flate2` with `default-features = false, features = ["rust_backend"]`** (round-63 GDPR enforcement — pure-Rust `miniz_oxide` backend; WASM-portable, no C/zlib dependency; needed by the outbound gzip path at §5.2 + bidder `endpoint_compression = "gzip"` per round-22 H2 / round-25 diagnostic qualification). Compression-level fixed at `Compression::default()` (level 6) for byte-stable snapshot tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | none                                                                                      |
 | `auctioneer-core`       | all of the above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `edgezero-core` (`app!`, extractors, `RequestContext`, fan-out + host-primitive bindings) |
 
 **`auctioneer-exchange` is EdgeZero-free (review findings 2, 3).** The auction
@@ -402,24 +404,24 @@ only** — never adapter instances. The bidder _registry_ is assembled in
 ### 2.2 Endpoints (registered in `edgezero.toml`)
 
 **Phase-1 final route inventory.** All eight routes are registered in
-the phase-1 build (round-41 M1: the earlier "seven" number predated the
-M3a Task 4a `/_auctioneer/health/gvl` endpoint that round-40 H2 added). The
-`Milestone` column tags when each handler is _reachable_ (round-45 M4 —
-earlier rounds split sync ownership into M5 per §14; the route table
-now mirrors that). Routes ship when their milestone ships —
-earlier-milestone `edgezero.toml` excludes the not-yet-ready sync
+the phase-1 build (round-41 foundations: the earlier "seven" number predated the
+GDPR fanout Task 4a `/_auctioneer/health/gvl` endpoint that round-40 H2 added). The
+`Capability` column tags when each handler is _reachable_ (round-45 privacy enforcement —
+earlier rounds split sync ownership into user sync per §14; the route table
+now mirrors that). Routes ship when their capability ships —
+earlier-capability `edgezero.toml` excludes the not-yet-ready sync
 registrations rather than registering 501-stubs.
 
-| Method | Path                   | Handler                               | Milestone                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Method | Path                   | Handler                               | Capability                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------ | ---------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/openrtb2/auction`    | `auctioneer_core::handlers::auction`      | **M2**                                                                                                                                                                                                                                                                                                                                                                                                         |
-| GET    | `/status`              | `auctioneer_core::handlers::status`       | **M2**                                                                                                                                                                                                                                                                                                                                                                                                         |
-| GET    | `/info/bidders`        | `auctioneer_core::handlers::info_bidders` | **M2**                                                                                                                                                                                                                                                                                                                                                                                                         |
-| GET    | `/info/bidders/{name}` | `auctioneer_core::handlers::info_bidder`  | **M2**                                                                                                                                                                                                                                                                                                                                                                                                         |
-| GET    | `/_auctioneer/health/gvl`  | `auctioneer_core::handlers::health_gvl`   | **M3a** (round-40 H4 — Task 4a. Round-50 H4 auth contract: **fail-closed**. The route returns **401** unless the adapter installed a `HealthAccessPolicy` at boot; `Token` requires a matching `Authorization: Bearer <t>`; `UnauthenticatedAcknowledged` (deploy opt-in `allow_unauthenticated_health = true`) serves without a token, in which case deployers SHOULD also restrict `/_auctioneer/*` at ingress.) |
-| POST   | `/cookie_sync`         | `auctioneer_core::handlers::cookie_sync`  | **M5** (round-40 H1 — 40 here is a milestone-review round number, not a review round of this document)                                                                                                                                                                                                                                                                                                         |
-| GET    | `/setuid`              | `auctioneer_core::handlers::setuid`       | **M5**                                                                                                                                                                                                                                                                                                                                                                                                         |
-| GET    | `/getuids`             | `auctioneer_core::handlers::getuids`      | **M5**                                                                                                                                                                                                                                                                                                                                                                                                         |
+| POST   | `/openrtb2/auction`    | `auctioneer_core::handlers::auction`      | **auction core**                                                                                                                                                                                                                                                                                                                                                                                                         |
+| GET    | `/status`              | `auctioneer_core::handlers::status`       | **auction core**                                                                                                                                                                                                                                                                                                                                                                                                         |
+| GET    | `/info/bidders`        | `auctioneer_core::handlers::info_bidders` | **auction core**                                                                                                                                                                                                                                                                                                                                                                                                         |
+| GET    | `/info/bidders/{name}` | `auctioneer_core::handlers::info_bidder`  | **auction core**                                                                                                                                                                                                                                                                                                                                                                                                         |
+| GET    | `/_auctioneer/health/gvl`  | `auctioneer_core::handlers::health_gvl`   | **GDPR fanout** (round-40 H4 — Task 4a. Round-50 H4 auth contract: **fail-closed**. The route returns **401** unless the adapter installed a `HealthAccessPolicy` at boot; `Token` requires a matching `Authorization: Bearer <t>`; `UnauthenticatedAcknowledged` (deploy opt-in `allow_unauthenticated_health = true`) serves without a token, in which case deployers SHOULD also restrict `/_auctioneer/*` at ingress.) |
+| POST   | `/cookie_sync`         | `auctioneer_core::handlers::cookie_sync`  | **user sync** (round-40 H1 — 40 here is a capability-review round number, not a review round of this document)                                                                                                                                                                                                                                                                                                         |
+| GET    | `/setuid`              | `auctioneer_core::handlers::setuid`       | **user sync**                                                                                                                                                                                                                                                                                                                                                                                                         |
+| GET    | `/getuids`             | `auctioneer_core::handlers::getuids`      | **user sync**                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 The demo handlers in the current `edgezero.toml` (`root`, `echo`, `stream`,
 `headers`, `echo_json`, `proxy_demo`) are removed.
@@ -463,27 +465,27 @@ field-by-field type list; authoritative starting set):
 
 | Location                | Typed fields the server reads/writes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BidRequest.ext.prebid` | `aliases`, `aliasgvlids`, `targeting` (`ExtRequestTargeting`), `debug`, `channel`, `nosale`, `bidderparams` (merged into imp.ext.bidder per §5.1 step 7), `returnallbidstatus` (gates `seatnonbid`, Appendix E.6). **Typed pass-through (round-trip only, no behavior in phase 1):** `multibid` (round-22 M8; reference multi-bid limits clamp + reference auction handling bid limiting deferred), `data` and `data.eidpermissions` (round-24 H2 / round-25 L8; request-level first-party-data resolution deferred), `bidderconfig` (round-24 H2 / round-25 L8; upstream bidder-FPD application deferred). The per-imp `imp.ext.prebid.imp` merge is the only FPD path that takes effect (§5.1 step 7). |
-| `Imp.ext`               | `tid` (transaction id; scrubbed when `transmitTid` denied, Appendix C.2); `bidder` (top-level map name → `RawValue` params — **written** by the exchange when hoisting per §5.1 step 7); legacy `<bidder>` (top-level map at `imp.ext.<bidderName>` — **read** by the exchange; supplemented with request-level `bidderparams` per §5.1 step 7, finding M6 round-26)                                                                                                                                                                                                                                                                                                                                     |
-| `Imp.ext.prebid`        | `bidder` (map name → `RawValue` params); `imp` (map bidder-name → bidder-specific FPD merged into the bidder-scoped `Imp` at §5.1 step 7 — round-21 finding M3); `storedrequest` (parsed; stored-requests are a later phase)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `BidRequest.ext.prebid` | `aliases`, `aliasgvlids`, `targeting` (`ExtRequestTargeting`), `debug`, `channel`, `nosale`, `bidderparams` (merged into imp.ext.bidder per §5.1 step 7), `returnallbidstatus` (gates `seatnonbid`, Appendix E.6). **Typed pass-through (round-trip only, no behavior in phase 1):** `multibid` (round-22 stored requests and accounts; reference multi-bid limits clamp + reference auction handling bid limiting deferred), `data` and `data.eidpermissions` (round-24 H2 / round-25 L8; request-level first-party-data resolution deferred), `bidderconfig` (round-24 H2 / round-25 L8; upstream bidder-FPD application deferred). The per-imp `imp.ext.prebid.imp` merge is the only FPD path that takes effect (§5.1 step 7). |
+| `Imp.ext`               | `tid` (transaction id; scrubbed when `transmitTid` denied, Appendix C.2); `bidder` (top-level map name → `RawValue` params — **written** by the exchange when hoisting per §5.1 step 7); legacy `<bidder>` (top-level map at `imp.ext.<bidderName>` — **read** by the exchange; supplemented with request-level `bidderparams` per §5.1 step 7, finding diagnostic qualification round-26)                                                                                                                                                                                                                                                                                                                                     |
+| `Imp.ext.prebid`        | `bidder` (map name → `RawValue` params); `imp` (map bidder-name → bidder-specific FPD merged into the bidder-scoped `Imp` at §5.1 step 7 — round-21 finding GDPR enforcement); `storedrequest` (parsed; stored-requests are a later phase)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `Bid.ext.prebid`        | `targeting`, `type`, `meta`, `bidid`, `dealpriority`, `dealtiersatisfied`, `targetbiddercode`; plus top-level `origbidcpm`, `origbidcur`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `Site.ext`              | `amp` (0/1; set during implicit-field fill, §5.1 step 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `Publisher.ext.prebid`  | `parentAccount` (consulted during account resolution, §9.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `Regs` (native 2.6)     | `gdpr`, `us_privacy`, `gpp`, `gpp_sid`, `coppa`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `Regs.ext`              | `dsa`, `gpc` (`Sec-GPC` propagation, §5.2 / round-18 M6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `Regs.ext`              | `dsa`, `gpc` (`Sec-GPC` propagation, §5.2 / round-18 diagnostic qualification)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `User` (native 2.6)     | `consent`, `eids`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `User.ext`              | `data`; `eids` (deleted by `scrub_gdpr_id` per Appendix C.2 — round-26 finding M6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `User.ext`              | `data`; `eids` (deleted by `scrub_gdpr_id` per Appendix C.2 — round-26 finding diagnostic qualification)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `Device` (native 2.6)   | `lmt`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `Device.ext`            | `atts` (iOS App Tracking Transparency; read-only — drives the iOS LMT override per §7.5 / §5.1 step 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `Source` (native 2.6)   | `tid`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `Source.ext`            | `schain`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 - **Validation:** `BidRequest::validate()` returns structured **errors only**
-  (no warnings; round-33 finding M4): ≥1 imp; each imp ≥1 media type and
+  (no warnings; round-33 finding privacy enforcement): ≥1 imp; each imp ≥1 media type and
   unique id; **exactly one of `site` / `app` / `dooh` is present** (matches
   Upstream reference auction handling; round-18 finding H1); `tmax` sanity. **Consent-string
   well-formedness is NOT checked here and NOT in `prepare()`** (round-37
-  H3 + round-38 M2): it lives in `auctioneer-privacy`'s
+  H3 + round-38 auction core): it lives in `auctioneer-privacy`'s
   `PrivacyContext::resolve` (§7.7) for the auction path and
   `resolve_sync_privacy` (§7.8) for the sync endpoints. `validate()` does
   not look at consent strings.
@@ -511,14 +513,14 @@ pub struct RequestHeaders<'a> {
 
 pub struct NormalizedBidRequest {
     inner:    BidRequest,                    // private; consumed by prepare()
-    warnings: Vec<NonFatalWarning>,          // round-26 M5 + round-37 H3 —
+    warnings: Vec<NonFatalWarning>,          // round-26 user sync + round-37 H3 —
                                              // non-fatal warnings raised
                                              // during prepare ONLY (e.g. a
                                              // future implicit-fill warning).
                                              // Consent-syntax warnings are
                                              // emitted by PrivacyContext
                                              // (§7.7), NOT by prepare.
-                                             // Currently empty in M1; the
+                                             // Currently empty in foundations; the
                                              // field is kept so the engine's
                                              // surfacing path (below) is
                                              // already wired when prepare-
@@ -536,19 +538,19 @@ impl NormalizedBidRequest {
 pub fn prepare(
     req: BidRequest,
     headers: &RequestHeaders<'_>,
-    limits: &PrepareLimits,   // round-125 #5 (M3b): carries
+    limits: &PrepareLimits,   // round-125 #5 (bounded fanout): carries
                               // max_impressions_per_auction from the
                               // boot envelope; over-limit requests are
                               // rejected as BadInput before per-imp
-                              // work. M3a call sites migrate in
-                              // M3b-2's mechanical pass; until then
-                              // the M3a two-argument form is the
+                              // work. GDPR fanout call sites migrate in
+                              // Fanout-2's mechanical pass; until then
+                              // the GDPR fanout two-argument form is the
                               // shipped shape.
 ) -> Result<NormalizedBidRequest, ValidationError>;
 ```
 
 `struct PrepareLimits { pub max_impressions: u16 }` (round-126 #9 —
-the M3b envelope-derived input; `ValidationError` gains
+the bounded fanout envelope-derived input; `ValidationError` gains
 `TooManyImpressions { actual, limit }`, wire body
 `Invalid request: too many impressions (<n> > <limit>)\n`).
 
@@ -560,13 +562,13 @@ per-imp work** — it precedes implicit fill, so an over-limit request
 does zero per-imp allocation):
 
 1. **Implicit-field fill** from `headers` (matches reference auction handling;
-   round-17 H1 + round-18 M5 + round-20 M5/M6 + round-22 H1; **only fill
+   round-17 H1 + round-18 user sync + round-20 user sync/diagnostic qualification + round-22 H1; **only fill
    when empty, never overwrite client-supplied values, except for the IP
    sanitization sub-rule below**):
    - **Site default** — when `app == nil && dooh == nil`: **always
      materialize a `site` object** (even when `headers.referer` is
      missing — matches reference auction handling;
-     round-29 finding M5). Populate each of `site.page`, `site.domain`,
+     round-29 finding user sync). Populate each of `site.page`, `site.domain`,
      `site.publisher.domain` from `headers.referer` **only if both the
      header is non-empty AND the corresponding field is currently empty**;
      `site.ext.amp = 0` is set whenever absent. When `referer` is missing,
@@ -575,7 +577,7 @@ does zero per-imp allocation):
      eTLD-stripped) and `site.publisher.domain` (= eTLD+1). The
      materialized empty `site` is enough to pass validation; downstream
      enrichment (page/domain/publisher.domain) is best-effort.
-   - **Client IP** (round-34 finding M5 — exact rules, matches upstream
+   - **Client IP** (round-34 finding user sync — exact rules, matches upstream
      reference HTTP context extraction):
      1. **Sanitize first**: if `device.ip` / `device.ipv6` is non-empty
         but unparseable / in IANA private/reserved/loopback/link-local
@@ -610,7 +612,7 @@ does zero per-imp allocation):
      fires iff the resulting `regs.ext.gpc == "1"` — so a `Sec-GPC: 1`
      header reliably propagates, regardless of the body value.
    - **`at` defaults to `1`** (first-price) when **absent OR `0`**
-     (round-31 finding M3 — matches reference auction handling, which treats
+     (round-31 finding GDPR enforcement — matches reference auction handling, which treats
      `AT == 0` as unset). The default is a hard-coded constant.
    - **iOS LMT override** — `device.lmt` set per §7.5 / iOS 14+ ATT
      based on `device.ext.atts` already in the request (read-only).
@@ -657,9 +659,9 @@ move that §7.6 already records): aliases are resolved by the
 **HANDLER**, before `AuctionContext` construction, and carried on
 `AuctionPlan` — the handler order is wire-signal fatal gate →
 `prepare` → `resolve_aliases(&normalized, registry)` →
-`AuctionPlan::new_m3a(...)` → context build → `run_auction(&req,
+`AuctionPlan::new_with_sampling(...)` → context build → `run_auction(&req,
 &ctx, &plan, &mut audit)`, and `run_auction` reads `plan.aliases` rather than
-re-resolving (M3a Task 13 Steps 1a/2; the ordering is pinned by the
+re-resolving (GDPR fanout Task 13 Steps 1a/2; the ordering is pinned by the
 Task 13 handler-order test). The pre-round-37 text placing
 resolution inside `run_auction` step 7 is retired.
 
@@ -727,11 +729,11 @@ sink is a plain struct; tests construct one directly).
   eligible siblings. All adapters share standard `bid.mtype` and named-type
   classification against the matching post-FPD, privacy-scrubbed impression;
   reviewed legacy hints must agree with standard hints. Construction and response
-  decoding receive the same bidder context and host `tmax`. M3b reconstructs one
+  decoding receive the same bidder context and host `tmax`. bounded fanout reconstructs one
   context at a time during response processing within its sequential working-copy
   allowance, rather than retaining a full request for each bidder through fanout.
   Adapter-specific capability exclusions remain local.
-- **`BidderRequestInfo`** (round-27 finding M3) — context passed to
+- **`BidderRequestInfo`** (round-27 finding GDPR enforcement) — context passed to
   `make_requests` so an adapter has stable, typed access to non-`BidRequest`
   fields it might need without reaching for global state. Phase-1 contract:
   ```rust
@@ -776,7 +778,7 @@ sink is a plain struct; tests construct one directly).
   `endpoint_compression` (per round-22 finding H2; `"gzip"` or unset —
   Pubmatic's `bidder-info` sets `endpointCompression: gzip`), `gvl_vendor_id`,
   `capabilities`, `maintainer`, `syncer` config, `openrtb.gpp_supported`,
-  `debug.allow` (bidder-level debug gate; round-24 finding M5 — when
+  `debug.allow` (bidder-level debug gate; round-24 finding user sync — when
   `false`, bidder HTTP debug entries are suppressed even when account
   `debug_allow` is true, and a `BidderLevelDebugDisabled` warning (code
   **10003**) is recorded in `ext.warnings[bidder]`; matches upstream
@@ -785,17 +787,17 @@ sink is a plain struct; tests construct one directly).
   When `endpoint_compression == "gzip"`, the exchange gzip-encodes outbound
   bodies and sets `Content-Encoding: gzip` (matches reference bidder request/response processing).
 
-**Disabled-bidder + alias semantics** (round-24 M3 + round-25 M3/M4;
+**Disabled-bidder + alias semantics** (round-24 GDPR enforcement + round-25 GDPR enforcement/privacy enforcement;
 matches reference request validation / reference auction handling):
 
 - A bidder named in `imp.ext.prebid.bidder.<name>` whose `BidderInfo.
 disabled == true` is **removed from that imp with a warning**
   `BidderTemporarilyDisabled` (numeric code 6, but **severity = warning**,
-  not fatal — round-25 finding M3; appears in `ext.warnings[<bidder>]`).
+  not fatal — round-25 finding GDPR enforcement; appears in `ext.warnings[<bidder>]`).
 - If an imp ends up with **zero remaining bidders** after disabled-bidder
   removal, the request is **rejected** with `AuctionError::BadInput(...)`
   → `400 Invalid request: imp <impid> has no valid bidders`.
-- **Alias validation** (registry-dependent, round-25 finding M4 —
+- **Alias validation** (registry-dependent, round-25 finding privacy enforcement —
   rejected at §5.1 step 7 with `AuctionError::BadInput(...)` → `400`):
   - **Unknown base bidder** in `ext.prebid.aliases` → `Invalid request:
 alias <alias> targets unknown bidder <base>`.
@@ -832,13 +834,13 @@ The `auction` handler in `auctioneer-core` receives a `RequestContext`, construc
 the host-primitive implementations, **resolves host config**, **resolves
 the account**, **calls `auctioneer_openrtb::prepare(req, headers, &limits)`** (a
 single gate covering implicit fill + validate + normalize, §3.2;
-`limits` from the boot envelope — round-126 #9; the M3a-shipped
-two-argument form migrates in M3b-2's mechanical pass), and
+`limits` from the boot envelope — round-126 #9; the GDPR fanout-shipped
+two-argument form migrates in Fanout-2's mechanical pass), and
 delegates to **`auctioneer_exchange::run_auction`** (§5.8) — the same
 reusable library function any trusted-server caller invokes. **Steps
 6–11 below execute inside `run_auction`; steps 1–5** (capture, body
 read, parse, host resolution, account resolution, prepare) **and step
-12** (serialize) are the caller's responsibility (round-44 M1 —
+12** (serialize) are the caller's responsibility (round-44 foundations —
 renumbered after round-43 H1 inserted host as step 3). The `prepare()`
 gate is the single point where a `NormalizedBidRequest` can be
 constructed (round-28 H1) — a trusted-server caller cannot skip
@@ -849,16 +851,16 @@ type-enforced (§3.2) so privacy and adapter behavior cannot diverge
 between call sites.
 
 1. **Capture `request_start = clock.now_monotonic()`** — anchor for the
-   whole-auction deadline (§5.3). Round-117 P0-1 (M3b): once EdgeZero
+   whole-auction deadline (§5.3). Round-117 P0-1 (bounded fanout): once EdgeZero
    Prereq 10 lands, the capture happens in EDGEZERO INGRESS before the
    bounded body read (so slow-upload time is inside tmax) and arrives
    via `RequestContext`; the handler statement below then reads the
    injected instant rather than sampling a second one. Until that
    prerequisite, per round-82 review Low: the capture
    must be the first executable statement of the `#[action]` handler
-   (M3b override — round-123 #14: once EdgeZero's ingress seam lands,
-   admission AND this capture both move pre-routing per M3b Prereq 10;
-   the statement below describes the M3a/dev shape)
+   (bounded fanout override — round-123 #14: once EdgeZero's ingress seam lands,
+   admission AND this capture both move pre-routing per bounded fanout Prereq 10;
+   the statement below describes the GDPR fanout/dev shape)
    after `clock_handle(&ctx)` (extractor plumbing that returns an
    `Arc` handle with no wall-clock cost). `rng_handle(&ctx)`, fanout
    resolution, config load, and every other setup happens **after**
@@ -903,9 +905,9 @@ Encoding of type <encoding> is not supported`** (exact upstream
       and have no place to intercept the body before EdgeZero's
       `into_core_request` materializes it). The hook is what
       auctioneer actually needs from EdgeZero for
-      production-completion — **identified during M2 design, but its
-      implementation/release owner is M3b Task M3b-10** (round-80 M2;
-      M3b-1..9 stay behavior-complete without it) — alongside the fan-out
+      production-completion — **identified during auction core design, but its
+      implementation/release owner is bounded fanout Task Fanout-10** (round-80 auction core;
+      Fanout-1..9 stay behavior-complete without it) — alongside the fan-out
       / clock / entropy primitives (open item 14). Required shape:
 
       - EdgeZero exposes a per-route ingress policy hook on `App`
@@ -919,7 +921,7 @@ Encoding of type <encoding> is not supported`** (exact upstream
         classification is REGISTRATION-owned; the hook consumes
         `Matched(RouteId) | MethodNotAllowed { allowed } | NotFound`
         and NEVER re-matches — `body_caps::match_route` survives only
-        as the M3a/dev-path fallback where no registration ran;
+        as the GDPR fanout/dev-path fallback where no registration ran;
         round-74 H1 — the framing is NORMALIZED by
         the adapter because the platform parser consumes the raw
         framing headers before the hook, so the hook cannot re-derive
@@ -936,8 +938,8 @@ on_exceeded, on_success })`, where a bounded read that crosses
           path-only, which would (a) give `GET /openrtb2/auction`
           the 256 KiB auction cap even though it's the wrong
           method, and (b) hand out the 32 KiB `/cookie_sync` cap
-          in M2-M4 builds where that route doesn't exist yet). The
-          accessor is now method + path + milestone-scoped:
+          in auction core-privacy enforcement builds where that route doesn't exist yet). The
+          accessor is now method + path + capability-scoped:
 
           ```rust
           // auctioneer-runtime::body_caps
@@ -955,23 +957,23 @@ on_exceeded, on_success })`, where a bounded read that crosses
           pub fn match_route(
               method: &http::Method,
               path: &str,
-              active_routes: &RouteTable,    // milestone-scoped
+              active_routes: &RouteTable,    // capability-scoped
           ) -> RouteMatch;
           ```
 
-          The `RouteTable` is constructed from the milestone's
-          `edgezero.toml` registration set (M2: four auction-shaped
-          routes; M3a adds `/_auctioneer/health/gvl` (five); M5:
+          The `RouteTable` is constructed from the capability's
+          `edgezero.toml` registration set (auction core: four auction-shaped
+          routes; GDPR fanout adds `/_auctioneer/health/gvl` (five); user sync:
           adds `/cookie_sync`, `/setuid`, `/getuids` for the
-          full eight per round-42 M1 sweep). The accessor
+          full eight per round-42 foundations sweep). The accessor
           never returns a per-route cap for a route that isn't
           actually wired in the current build — so `POST
-/cookie_sync` in an M2 build returns `NotFound { cap_bytes:
+/cookie_sync` in an auction core build returns `NotFound { cap_bytes:
 4096 }`, NOT `Matched { route_id: "cookie_sync",
-cap_bytes: 32768 }`. This closes the milestone-scope
+cap_bytes: 32768 }`. This closes the capability-scope
           loophole.
 
-        - **Content-Encoding rejection** (round-66 M2 + round-69 M3
+        - **Content-Encoding rejection** (round-66 auction core + round-69 GDPR enforcement
           — applies uniformly across ALL three `RouteMatch` arms,
           not just `/openrtb2/auction` and `/cookie_sync`): if
           Content-Encoding is non-empty, `Reject(400, "Invalid
@@ -983,7 +985,7 @@ supported\n")` (Appendix F canonical body, round-69 L4
           body read. Same body on `Matched`, `MethodNotAllowed`,
           and `NotFound` arms — uniform handling closes the
           /missing + `Content-Encoding: gzip` ambiguity (round-69
-          M3): always 400 with the Content-Encoding body, never
+          GDPR enforcement): always 400 with the Content-Encoding body, never
           404/405, because the encoding rejection short-circuits
           before the route-match-based status mapping.
         - **Per-arm body-cap + dispatch behavior** (round-69 H1 —
@@ -1001,13 +1003,13 @@ body)`. Otherwise: if `Content-Length` is missing OR
               256 KiB): `Invalid request: request size exceeded
 max size of 262144 bytes.\n`.
             - `route_id == "cookie_sync"` (`POST /cookie_sync`,
-              32 KiB; only reachable in M5+ builds per round-69
+              32 KiB; only reachable in user sync builds per round-69
               H1): `cookie_sync request size exceeded max size of
 32768 bytes.\n`.
             - **Non-body routes** (`route_id ∈ {"status",
-"info_bidders", "info_bidder", "getuids"}`; M2 ships
-              `status`, `info_bidders`, `info_bidder`; M5+ adds
-              `getuids`; round-71 M5 — these routes have
+"info_bidders", "info_bidder", "getuids"}`; auction core ships
+              `status`, `info_bidders`, `info_bidder`; user sync adds
+              `getuids`; round-71 user sync — these routes have
               `cap_bytes: 4096` since they don't read a body in
               the happy path): same 4 KiB cap rule. If
               `Content-Length` ≤ 4 KiB OR absent (bounded read
@@ -1023,11 +1025,11 @@ size exceeded max size of 4096 bytes.\n")` — same
             If the body check passes, dispatch returns
             `Reject(405, "")` with no body.
           - **`NotFound { cap_bytes: 4096 }`** (e.g. `POST
-/missing`, OR `POST /cookie_sync` in an M2-M4 build
+/missing`, OR `POST /cookie_sync` in an auction core-privacy enforcement build
             where the route isn't wired): same 4 KiB cap and 4
             KiB default oversize body. If the body check passes,
             dispatch returns `Reject(404, "")` with no body.
-          - **Content-Encoding precedence** (round-69 M3 —
+          - **Content-Encoding precedence** (round-69 GDPR enforcement —
             Content-Encoding rejection above wins over
             method/route mapping; a `POST /missing` with
             `Content-Encoding: gzip` returns 400 with the
@@ -1051,7 +1053,7 @@ usize::MAX)` (Axum) / `req.bytes()` (Cloudflare) /
         Spin added to match the body-materialization list in
         §12 open item 14). That defeats layer-2's "before
         allocation" intent on adversarial traffic.
-      - **Interim posture until EdgeZero ships the hook** (M2
+      - **Interim posture until EdgeZero ships the hook** (auction core
         development only): auctioneer relies solely on layer 1
         (platform runtime limits — Cloudflare 100MiB / Fastly /
         Spin / reverse proxy on Axum) plus layer 3 (auctioneer-core
@@ -1085,28 +1087,28 @@ usize::MAX)` (Axum) / `req.bytes()` (Cloudflare) /
    responsibility** (open item 14 / §13 prereq list); auctioneer's
    share of the work is:
    - **`auctioneer-runtime::body_caps::match_route` accessor** (round-69
-     H1 + round-70 M2 — corrects stale `for_path` references) ships in
-     M1 (round-65 M5) — the cap table EdgeZero's hook will read
+     H1 + round-70 auction core — corrects stale `for_path` references) ships in
+     foundations (round-65 user sync) — the cap table EdgeZero's hook will read
      from.
    - **auctioneer-core ingress hook registration** — round-71 H2: the
-     CANONICAL owner is **M3b Task M3b-10** (production-completion,
-     blocked on EdgeZero Prereq 5), NOT M2. The earlier "ships in M2"
+     CANONICAL owner is **bounded fanout Task Fanout-10** (production-completion,
+     blocked on EdgeZero Prereq 5), NOT auction core. The earlier "ships in auction core"
      note was aspirational: registration cannot ship until EdgeZero
      publishes the INGRESS hook API — still absent at `12965da2`
      (round-137: PR 275 landed the OUTBOUND foundation and an
      all-route admission seam, but the route-aware
      classification / grant-transfer / parser-cap surfaces this
-     hook needs remain the open G1/G16 residue). M2
+     hook needs remain the open G1/G16 residue). auction core
      ships only the `match_route` accessor (above); the hook that
-     consumes it is M3b-10's deliverable. (This is the single owner —
-     the §14 production-complete boundary and M3a's non-goals both
-     defer to M3b-10.)
-   - Until EdgeZero ships the hook (Prereq 5) and M3b-10 lands, the
+     consumes it is Fanout-10's deliverable. (This is the single owner —
+     the §14 production-complete boundary and GDPR fanout's non-goals both
+     defer to Fanout-10.)
+   - Until EdgeZero ships the hook (Prereq 5) and Fanout-10 lands, the
      adapter does not pre-cap; layer 1 (platform) + layer 3
      (auctioneer-core post-buffer cap) are the operational defenses, and
      the development banner records the gap.
 
-   §11.2 ingress tests (round-65 M3 — Axum-only end-to-end since
+   §11.2 ingress tests (round-65 GDPR enforcement — Axum-only end-to-end since
    that's the only adapter target with handler-level integration
    coverage; see Cross-target test scope below): when EdgeZero
    ships the hook, the Axum integration suite asserts:
@@ -1139,15 +1141,15 @@ usize::MAX)` (Axum) / `req.bytes()` (Cloudflare) /
    resolve the typed account overlay. For syntax-valid, within-budget input,
    account-disabled → **503** before full parse/prepare. Malformed runtime
    account data is already a whole-blob loader failure, not a separately
-   fetched `MalformedAcct` outcome. M6 section 7 pins competing-error tests.
+   fetched `MalformedAcct` outcome. diagnostic qualification section 7 pins competing-error tests.
 4. **Parse** → `openrtb::BidRequest`. auctioneer accepts **OpenRTB 2.6
    only**; 2.5-style legacy fields under `regs.ext.*` /
    `user.ext.*` are not upconverted (§3). Failure → `400 Invalid
 request: <err>` (Appendix F).
 5. **Prepare** — call `auctioneer_openrtb::prepare(req, headers,
-&limits)` (§3.2; round-127 — the three-argument M3b form, step 0
-   being the impressions-limit check; M3a's two-argument call is the
-   shipped shape until M3b-2's mechanical migration). This single function performs implicit-field fill +
+&limits)` (§3.2; round-127 — the three-argument bounded fanout form, step 0
+   being the impressions-limit check; GDPR fanout's two-argument call is the
+   shipped shape until Fanout-2's mechanical migration). This single function performs implicit-field fill +
    validate + 2.6 privacy gate + channel validation, producing a
    `NormalizedBidRequest` (consent-syntax warnings are NOT done here —
    they live in `PrivacyContext::resolve`, §7.7 / round-37 H3). Both
@@ -1183,7 +1185,7 @@ Invalid request: <err>` (Appendix F).
    missing keys are filled for existing bidder entries. (b) hoist
    `imp.ext.prebid.bidder.{name}` to `imp.ext.bidder`; (c) **also merge
    bidder-specific FPD from `imp.ext.prebid.imp.{name}`** into the
-   bidder-scoped `Imp` (round-17 finding M6). **The bidder-specific
+   bidder-scoped `Imp` (round-17 finding diagnostic qualification). **The bidder-specific
    FPD lookup uses object indexing on
    `imp.ext.prebid.imp.<bidder-name>`, NOT a JSON Pointer
    `/ext/prebid/imp/<bidder-name>`** — since `BidderName` is a free
@@ -1235,7 +1237,7 @@ Invalid request: <err>` (Appendix F).
      (open item; recorded in §15) — when added, that feature applies a
      bidder-adjusted reduction here, not the cap.
    - **Execution deadline** = the host-capped `AuctionDeadline.deadline_at`
-     (§5.3), which the M3b fan-out composes ONCE PER CALL
+     (§5.3), which the bounded fanout fan-out composes ONCE PER CALL
      (min with the bidder timeout) as a `MonotonicInstant` on the
      ONE application clock (`ctx.monotonic_clock()`, the same clock
      `request_start` is read from) and passes as an ABSOLUTE
@@ -1264,33 +1266,33 @@ Invalid request: <err>` (Appendix F).
 
 ### 5.2 Outbound fan-out (EdgeZero fan-out primitive)
 
-> **M3 adapter-tier note (round-19 C4; round-36 H5 Spin
+> **GDPR enforcement adapter-tier note (round-19 C4; round-36 H5 Spin
 > correction).** The pinned EdgeZero proxy layer is not
 > uniformly async across adapters. Fastly's
 > `pending_request.wait()` blocks and cannot be dropped mid-
 > await to cancel. Spin's HTTP body reader is async, but its
 > drop-cancellation guarantees are unverified in the pinned
-> shim — until M3b Task M3b-4 confirms drop-cancellability
+> shim — until bounded fanout Task Fanout-4 confirms drop-cancellability
 > (round-20 correction), Spin behaves the same as Fastly for
-> M3 planning purposes. In M3a the live
+> GDPR enforcement planning purposes. In GDPR fanout the live
 > `EdgeZeroFanout` (mid-fanout deadline + per-call timeout +
 > per-bidder cancellation) ships **only on Axum**, which installs
 > `RaceTimersStrategy`. **Cloudflare, Fastly, and Spin all install
-> `DelegateToDevStrategy` under M3a** (`EdgeZeroFanout` construction
+> `DelegateToDevStrategy` under GDPR fanout** (`EdgeZeroFanout` construction
 > is present so tests type-check, but it delegates to `DevFanout`
 > semantics: no per-call cancellation; deadline honored at outer
 > batch grain only) — this matches the canonical per-adapter table
-> below. The **M3b per-adapter spike (M3b Task M3b-3 for Cloudflare;
-> M3b-4 Spin, M3b-5 Fastly)** — NOT any M3a Task 11 step (Task 11
+> below. The **bounded fanout per-adapter spike (bounded fanout Task Fanout-3 for Cloudflare;
+> Fanout-4 Spin, Fanout-5 Fastly)** — NOT any GDPR fanout Task 11 step (Task 11
 > starts after Task 9.5 and has no Step 0a; round-65 L1 corrects a
 > dangling reference) — investigates whether Cloudflare's outbound
 > primitive is drop-cancellable enough to earn a live race strategy in
-> M3b; nothing in M3a flips Cloudflare live. Bucket B conformance tests under the
+> bounded fanout; nothing in GDPR fanout flips Cloudflare live. Bucket B conformance tests under the
 > three delegating adapters are documented `#[ignore]`d — not a bug,
-> a milestone-gated deferral. Production-shipping a live race on
+> a capability-gated deferral. Production-shipping a live race on
 > Cloudflare/Fastly/Spin requires upstream EdgeZero to expose a
 > drop-cancellable nonblocking outbound primitive, confirmed
-> per-adapter in M3b.
+> per-adapter in bounded fanout.
 
 EdgeZero **may** later provide a native fan-out primitive that issues many
 concurrent outbound HTTP calls in a single await. **Round-36 H5 canonical
@@ -1299,7 +1301,7 @@ implementation lands as a `FanoutStrategy` trait selected per adapter, with
 Axum installing `RaceTimersStrategy` (biased three-arm race over the pinned
 `ProxyClient::send`) and Cloudflare / Fastly / Spin installing
 `DelegateToDevStrategy` until per-adapter cancellation primitives land in
-M3b. See M3a Task 9.5 for the strategy shape; §5.2 continues to describe the
+bounded fanout. See GDPR fanout Task 9.5 for the strategy shape; §5.2 continues to describe the
 `BidderFanout` trait that auctioneer-exchange consumes, but the production
 CONSTRUCTION now flows through the strategy install path, not a hypothetical
 a hypothetical direct client call. The batch illustration below shows the
@@ -1333,12 +1335,12 @@ let deadline = Deadline::at_instant(composed_at);
 // Each adapter has already produced a BidderHttpRequest (method, url,
 // headers, body) via its make_requests. The exchange maps that 1:1 to
 // an OutboundRequest — preserving the adapter's exact method, URL, and
-// raw body bytes (round-23 finding M3). Round-109 B2 — ONE owner for
+// raw body bytes (round-23 finding GDPR enforcement). Round-109 B2 — ONE owner for
 // compression + entity headers: `auctioneer_bidder::finalize_for_transport`
 // (§4.1), called by the EXCHANGE once per accepted call before
 // BidderCall construction (not inside the adapter — round-24 H1; not
-// inside the fanout drive — the M3a-era in-drive application is
-// retired at M3b-2). Gzip is applied there when the bidder's
+// inside the fanout drive — the GDPR fanout-era in-drive application is
+// retired at Fanout-2). Gzip is applied there when the bidder's
 // `BidderInfo.endpoint_compression` (read by the exchange at finalize
 // time — round-150 #6) is set, writing through the bounded
 // CappedWriter. There is NOTHING to overwrite: `Content-Length`,
@@ -1356,7 +1358,7 @@ let deadline = Deadline::at_instant(composed_at);
 // `Upgrade`, `Proxy-Connection`,
 // `Keep-Alive` — are RESERVED header names the sink REJECTS at push
 // time (case-insensitive), so adapters cannot supply stale entity
-// metadata, override routing, or smuggle conflicting framing at all (supersedes round-25 M6's
+// metadata, override routing, or smuggle conflicting framing at all (supersedes round-25 diagnostic qualification's
 // rewrite-on-apply rule); the finalizer APPENDS exactly TWO into its
 // byte pool reserve — `Content-Encoding` (when gzip applied) and
 // `Sec-GPC` (when gpc == "1") — and never a Content-Length.
@@ -1367,7 +1369,7 @@ let deadline = Deadline::at_instant(composed_at);
 // writer, Content-Encoding + Sec-GPC appended into the byte pool reserve)
 // BEFORE constructing the BidderCall. The transport conversion is a
 // pure 1:1 mapping on auctioneer's side: no re-compression, no header
-// filtering, no Content-Length computation here (the round-25 M6
+// filtering, no Content-Length computation here (the round-25 diagnostic qualification
 // strip-and-rewrite loop this snippet used to show is RETIRED —
 // construction-time reserved-header rejection made it dead). EdgeZero
 // then runs its OWN framing pass (`normalize_for_dispatch`) that
@@ -1560,18 +1562,18 @@ async fn run_wave(
         keys.push((index, deadline, decode));
         reqs.push(request);
     }
-    // ⚠ ROUND-163 #1 — AWAITING THE M3b-0 REWRITE. The batch API has
+    // ⚠ ROUND-163 #1 — AWAITING THE Fanout-0 REWRITE. The batch API has
     // moved twice since this illustration was written; at head
     // `3d87d5bc` `collect()` fails with `OutboundBatchFailure
     // { error, slots }`, which PRESERVES completed slots, so neither
     // neither this batch loop nor a naive `.await?` expresses the
-    // contract. M3b-0 replaces this block.
+    // contract. Fanout-0 replaces this block.
     // ⚠ ROUND-159 #1 — PIN-SCOPED: this call is the contract at the
     // PINNED EdgeZero `120dd2aa`. At head `61457d7d`
     // `OutboundHttpClient::send_all` is HARD-REMOVED in favour of
     // `start_batch_until(..) -> OutboundBatch` (`next()` / `cancel()`
     // / ordered `collect()`). This algorithm is therefore correct
-    // ONLY for the pinned revision; the M3b plan's P0 banner owns the
+    // ONLY for the pinned revision; the bounded fanout plan's P0 banner owns the
     // rebase, which is a SEMANTIC redesign (completed slots stay
     // terminal; unresolved-at-cutoff slots become
     // `Timeout(selected_cause)`; `None` at cutoff is not a contract
@@ -1841,18 +1843,18 @@ Properties the exchange relies on:
   timing, never a auctioneer claim); Fastly then harvests serially in input
   order, so its per-slot `elapsed` is observation-time; supersedes the old
   `ProxyClient::send` + `wait()` serialization problem.
-  **Bounded concurrency (round-43 B1, REVISED round-105 B8).** M3b's
+  **Bounded concurrency (round-43 B1, REVISED round-105 B8).** bounded fanout's
   StreamGate caps simultaneously-live body streams per isolate at the
   ENVELOPE-DERIVED `max_active_body_streams`. **Round-153 #7 — every
   per-target NUMBER below is ILLUSTRATIVE, not a certified default:
-  the M3b plan's 2a.FINAL gates all four target envelopes on the §8
+  the bounded fanout plan's 2a.FINAL gates all four target envelopes on the §8
   native measurements and on the Cloudflare table's pending
   rederivation, so these figures show the SHAPE of the derivation and
   will be replaced by the measured values.** The fixed "6 on
   Cloudflare" promise is retired: with GuestDecoded per-stream charges
   (~6 MB each) six streams cannot fit the 128 MB isolate alongside the
   GVL and auction terms, so the CF worked row derives **2**
-  (concurrent, never serialized — the M3b plan's worked table funds it
+  (concurrent, never serialized — the bounded fanout plan's worked table funds it
   by lowering the CF default `max_calls` to 12; Cloudflare's own
   6-connection window remains the PLATFORM ceiling the envelope value
   may never exceed) — and 6 on
@@ -1863,7 +1865,7 @@ Properties the exchange relies on:
   model and is retired, as the 32 before it was). Round-123 #14 corrects the queueing claim:
   the upstream batch is ONE atomic dispatch and queues NOTHING inside
   auctioneer's gate. Bounded concurrency is auctioneer's own WAVE-LEASE
-  scheduler (M3b plan §3, round-123 #4): `StreamGate::acquire_wave(k)`
+  scheduler (bounded fanout plan §3, round-123 #4): `StreamGate::acquire_wave(k)`
   grants k permits all-or-nothing FIFO (no partial hold, so no
   hold-and-wait deadlock; no gate bypass, so the cap is real), the
   fanout dispatches exactly one batch of k per lease, and
@@ -1876,9 +1878,9 @@ Properties the exchange relies on:
   a call starved into a late wave times out against the SAME composed
   `min(bidder, auction)` instant it always had — the surfaced cause is
   whichever source won AT COMPOSITION, equality ⇒ `Bidder` (round-129
-  #8 aligns this sentence with the M3a Task 9.5 rule; the earlier
+  #8 aligns this sentence with the GDPR fanout Task 9.5 rule; the earlier
   blanket `Timeout(AuctionDeadline)` claim is retired). This is bounded concurrency, not serialization. (Rounds 41-42 briefly
-  labelled CF/Fastly/Spin `M3b-partial` on the belief that a 24 MiB
+  labelled CF/Fastly/Spin `bounded fanout-partial` on the belief that a 24 MiB
   decoder reservation forced 1-stream admission; round-43 B1
   established that reservation was a self-imposed Brotli-window
   policy rather than a platform constraint, and the label is
@@ -1923,8 +1925,8 @@ struct BidderCall {
                                               // the exchange reads
                                               // `BidderInfo.endpoint_compression`
                                               // at finalize time BEFORE this
-                                              // struct exists (the M3a field
-                                              // is deleted in M3b-2b)
+                                              // struct exists (the GDPR fanout field
+                                              // is deleted in Fanout-2b)
     timeout:             Duration,            // per-bidder; the FANOUT composes
                                               // it with the auction deadline
                                               // into the facade's
@@ -1942,12 +1944,12 @@ struct BidderCall {
 enum Compression { Gzip }                     // consumed by `finalize_for_transport`
                                               // (§4.1 `TransportFinalize.compression`)
 
-/// Implementation distinction (M4 integration): independent transport and
+/// Implementation distinction (privacy enforcement integration): independent transport and
 /// decoded response-cap overlays are NOT current runtime configuration fields.
 /// The implemented call shape is above; `narrow_to_call` in the wave scheduler
 /// lowers the installed decoded cap while leaving its transport cap unchanged.
 ///
-/// Retained design requirement from rounds 30-34, not delivered by M4:
+/// Retained design requirement from rounds 30-34, not delivered by privacy enforcement:
 /// independent caps flow from baked host defaults through runtime host,
 /// account, and per-bidder overlays into AuctionPlan.budgets: ResolvedBudgets,
 /// then a per-call ResponseBodyPolicy. Each configured cap must be in
@@ -1963,8 +1965,8 @@ enum Compression { Gzip }                     // consumed by `finalize_for_trans
 /// .now_monotonic())` for remaining time and hands `deadline_at` itself to
 /// `Deadline::at_instant`. `source` records how the underlying budget was
 /// derived. Round-148 #1: `deadline_at` is a `MonotonicInstant`
-/// (`web_time::Instant`, EdgeZero's own instant type) — the M2/M3a
-/// `Duration` field is retired by the plan's M3b-2b.0 migration.
+/// (`web_time::Instant`, EdgeZero's own instant type) — the auction core/GDPR fanout
+/// `Duration` field is retired by the plan's Fanout-2b.0 migration.
 struct AuctionDeadline { deadline_at: MonotonicInstant, source: TmaxSource }
 enum   TmaxSource { Request, HostDefault, CappedByHost }
 
@@ -1978,7 +1980,7 @@ enum   TmaxSource { Request, HostDefault, CappedByHost }
 /// wait is EXCLUDED (attributed to no bidder), and passthrough decode
 /// time is added locally for Ok slots; for a call that EXPIRES
 /// BEFORE DISPATCH, `elapsed` is the synthesized wait
-/// (now − fanout_entry_at at emission). The M3b plan's facade block
+/// (now − fanout_entry_at at emission). The bounded fanout plan's facade block
 /// defines all four outcome classes.
 struct BidderCallResult {
     result:  Result<BidderHttpResponse, FanoutError>,
@@ -1988,31 +1990,31 @@ struct BidderCallResult {
 /// Per-call failure. Maps to `ext.errors[bidder]` codes (Appendix G) and to
 /// `seatnonbid` statuscodes (Appendix E.6) per upstream's reference no-bid reason mapping.
 ///
-/// **Round-26 H4 correction**: `TimeoutCause` ships in **M3a** Task 11,
-/// not M3b. M3a's Axum `EdgeZeroFanout` needs the discriminator to raise
+/// **Round-26 H4 correction**: `TimeoutCause` ships in **GDPR fanout** Task 11,
+/// not bounded fanout. GDPR fanout's Axum `EdgeZeroFanout` needs the discriminator to raise
 /// the global `ext.errors.prebid` code-12 entry when the whole-auction
-/// deadline elapsed (spec §5.2 line 1309). M2 callers see the plain
-/// `Timeout` variant; from M3a on the wire enum is
-/// `Timeout(TimeoutCause::Bidder | TimeoutCause::AuctionDeadline)`. Pre-M3a
+/// deadline elapsed (spec §5.2 line 1309). auction core callers see the plain
+/// `Timeout` variant; from GDPR fanout on the wire enum is
+/// `Timeout(TimeoutCause::Bidder | TimeoutCause::AuctionDeadline)`. Pre-GDPR fanout
 /// crates that pattern-match on `FanoutError::Timeout` will need to be
 /// updated by Task 11.
-/// Round-39 H3 canonical shape (retires the round-17 M5
+/// Round-39 H3 canonical shape (retires the round-17 user sync
 /// draft which listed only `Unreachable` as a bare variant
-/// and had `OversizeResponse` unstructured). M3b's typed
+/// and had `OversizeResponse` unstructured). bounded fanout's typed
 /// error surface splits transport errors into a
 /// `TransportError { kind: TransportErrorKind }` struct so
 /// classifier variants can vary independently from wire
 /// codes; the round-39 B7 fix additionally forbids Debug
 /// derivation to prevent internal-detail leak into
-/// `ext.errors`. See M3b Task M3b-2 "Typed error surface"
+/// `ext.errors`. See bounded fanout Task Fanout-2 "Typed error surface"
 /// for the full shape.
 enum FanoutError {
-    Timeout(TimeoutCause),                          // code 1   → seatnonbid 101 (M3a Task 11)
+    Timeout(TimeoutCause),                          // code 1   → seatnonbid 101 (GDPR fanout Task 11)
     OversizeResponse { source: OversizeSource },    // code 4   → seatnonbid 100 (round-39 H3: structured)
     BadServerResponse,                              // code 4   → seatnonbid 100
     Other(String),                                  // code 999 → seatnonbid 100 (uncategorised)
     Transport(TransportError),                      // varies — see TransportErrorKind mapping
-    UnsupportedContentEncoding { actual: String },  // code 4   → seatnonbid 100 (M3b M4)
+    UnsupportedContentEncoding { actual: String },  // code 4   → seatnonbid 100 (bounded fanout privacy enforcement)
     /// Round-101 H10 / round-102 B6 — stage + ownership, ONE contract:
     /// `Raw` = crossed `max_outbound_raw_bytes` DURING construction
     /// (`CappedWriter`, pre-fanout): an ADAPTER-SIDE preparation
@@ -2021,7 +2023,7 @@ enum FanoutError {
     /// positional `BidderCallResult` slot. `Encoded` = the FINAL
     /// encoded body crossed `max_outbound_request_bytes` in
     /// `finalize_for_transport` at the exchange's finalize step
-    /// (round-108 B2 — M3b retires the in-drive
+    /// (round-108 B2 — bounded fanout retires the in-drive
     /// `prepare_outbound_request`) — a PER-CALL
     /// error in the positional results. Multi-request bidders are
     /// PARTIAL by design: each call fails or proceeds independently.
@@ -2033,7 +2035,7 @@ enum FanoutError {
     // Round-102 B6: the enum CONTINUES — the earlier split into a
     // separate `_FanoutErrorContinued` was a doc artifact; these are
     // variants of FanoutError itself:
-    TooManyEncodingLayers { actual: usize },        // code 4   → seatnonbid 100 (M3b M4)
+    TooManyEncodingLayers { actual: usize },        // code 4   → seatnonbid 100 (bounded fanout privacy enforcement)
     DecoderFailure { layer: ContentCoding, source: String },  // code 4 → seatnonbid 100
 }
 enum OversizeSource { Transport, Decoded,
@@ -2061,7 +2063,7 @@ enum TransportErrorKind {
 /// non-fatal to the batch.
 enum FanoutInternalError {
     NoOutboundCapability,   // ctx.http_client() returned None
-    /// M3b round-129 #2: the batch facade violated its positional
+    /// bounded fanout round-129 #2: the batch facade violated its positional
     /// contract — `send_bounded_all` returned `EmptyBatch` for a batch
     /// the fanout built non-empty, or `Ok(out)` with
     /// `out.len() != calls.len()`. Batch-fatal like the other
@@ -2090,16 +2092,16 @@ and need no such attribute. `auctioneer-exchange` therefore depends on the
 `async-trait` crate — a build-time proc-macro, not an EdgeZero or
 runtime-specific dependency, so the crate stays pure (§2.1).
 
-**Body-source API (round-40 H4, re-based round-130 #7).** The M3b
+**Body-source API (round-40 H4, re-based round-130 #7).** The bounded fanout
 fan-out transport is BUFFERED: facade `Ok` values carry the complete
 collected body under `ResponseMode::Buffered { max_bytes }`, and
 per-call failures are each slot's typed `Err` (the earlier
 "stream items are typed `Result<Bytes, TypedBodyError>`" phrasing
-described the round-36 requirements shape, which the M3b plan's
+described the round-36 requirements shape, which the bounded fanout plan's
 alignment section now maps onto upstream's buffered vocabulary;
 streaming survives only on non-fanout raw-body paths).
 
-**Consolidated M3b facade facts (round-127, replacing scattered
+**Consolidated bounded fanout facade facts (round-127, replacing scattered
 amendments):** `ProxyClientApi` — with single-call `send_bounded` and
 the positional per-call-policy batch `send_bounded_all` — is the
 AUCTIONEER-OWNED facade trait (implemented by
@@ -2147,7 +2149,7 @@ enum BodySource {
 The admission gate memory formula charges the canonical
 FIVE-param `per_stream_bytes(max_transport, max_decoded,
 max_brotli_wbits, max_brotli_layers, guest_decoder_bound_bytes)`
-(round-107 H6 / round-134 #6 — the M3b-2 signature: the mode
+(round-107 H6 / round-134 #6 — the Fanout-2 signature: the mode
 parameter is RETIRED, the layer count is an explicit input, and
 `guest_decoder_bound_bytes: u64` is the adapter-reported in-guest
 bound, 0 where none exists) per active stream. Every stream charges
@@ -2158,8 +2160,8 @@ per-stream cost derives from upstream's audited 16 MiB fixed
 decoder charge plus the WBITS-22 ring, `MAX_BROTLI_LAYERS = 1` —
 ≈ 20.77 MiB per stream (round-140 #1: the earlier window+512 KiB
 model undercharged by ~16 MiB), not a flat 24 MiB).
-Full mechanics live in M3b Task M3b-2, whose admission /
-memory-proof track follows the M3b plan's **round-98 design**
+Full mechanics live in bounded fanout Task Fanout-2, whose admission /
+memory-proof track follows the bounded fanout plan's **round-98 design**
 (try-acquire `AdmissionGate` + isolate-wide `StreamGate` bounded
 waves + one validated `ResolvedIsolateLimits` charging decoder state PER
 ACTIVE STREAM — the per-stream accounting this section requires);
@@ -2252,19 +2254,19 @@ is the only code that touches the EdgeZero fan-out API: it maps `BidderCall`
 → `OutboundRequest`, drives the batch handle, maps `OutboundSlotResult` back.
 `auctioneer-exchange` itself stays EdgeZero-free.
 
-**The M2/M3a interim `BidderFanout` (`ProxyClient` + `join_all`) is
+**The auction core/GDPR fanout interim `BidderFanout` (`ProxyClient` + `join_all`) is
 HISTORICAL** (round-150 #8): its "known semantic gaps" list is moved
-to the M3b historical appendix §9, because the native primitive is
+to the bounded fanout historical appendix §9, because the native primitive is
 PUBLISHED at the pinned EdgeZero (`120dd2aa`: `send_all`,
 `Deadline::at_instant`, dual response caps, per-slot elapsed) and the
-production `EdgeZeroFanout` in `auctioneer-core` is the one path M3b
+production `EdgeZeroFanout` in `auctioneer-core` is the one path bounded fanout
 implements. What survives of that section is the normative two-budget
 contract below.
 
 **Two independent response budgets (round-28 H4; standalone
 since round-150 #8).** The historic `max_bidder_response_bytes`
 is a single value covering "the response body auctioneer consumes,"
-which conflates transport bytes with decoded bytes. Under M3b,
+which conflates transport bytes with decoded bytes. Under bounded fanout,
 the BOUNDED COLLECT honours TWO orthogonal limits (round-134 #6
 — enforced DURING the adapter's read loop per the
 bounded-buffering contract, never collect-then-check):
@@ -2313,7 +2315,7 @@ audit), `flate2` state for
 the remaining layers, and chunk staging — ≈ 20.77 MiB total at
 the shipped 256 KiB budgets. A deployer raising
 `max_brotli_wbits` toward 24 trades concurrency for a larger
-window, visible at boot. M3b Task M3b-7 runs the worst-case
+window, visible at boot. bounded fanout Task Fanout-7 runs the worst-case
 allocator harness on the RawCompressed path (Axum, native —
 the one target where a counting global allocator is reliable);
 GuestDecoded adapters (Cloudflare, and Fastly/Spin when they
@@ -2332,7 +2334,7 @@ means the sender gzip-ped first, then deflate-ped; the
 receiver decodes deflate FIRST (undo the last-applied coding),
 then gzip. Upper bound of 3 layers
 (`FanoutError::TooManyEncodingLayers` beyond that).
-M3a Task 12 stays deferred to M3b; the M3b prereq 2 spells out
+GDPR fanout Task 12 stays deferred to bounded fanout; the bounded fanout prereq 2 spells out
 the full contract.
 
 The production `BidderFanout` must pass the `BidderFanout` conformance
@@ -2349,18 +2351,18 @@ advisory pending load testing (open item 10):
 
 | Limit                        | Default                                  | Enforcement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MAX_AUCTION_BODY`           | 256 KiB                                  | **embedded constant** (NOT host-config; round-20 finding M4 — the body is read before host config is resolved); `Body::into_bytes_bounded`; oversize → `400`                                                                                                                                                                                                                                                                                                                                                                          |
+| `MAX_AUCTION_BODY`           | 256 KiB                                  | **embedded constant** (NOT host-config; round-20 finding privacy enforcement — the body is read before host config is resolved); `Body::into_bytes_bounded`; oversize → `400`                                                                                                                                                                                                                                                                                                                                                                          |
 | `MAX_COOKIESYNC_BODY`        | 32 KiB                                   | **embedded constant** (same reason); bounded read; oversize → `400`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `max_bidder_response_bytes`  | 256 KiB                                  | Host-config value carried as `BidderCall.max_response_bytes`. The current wave scheduler narrows the boot policy's decoded ceiling by this cap; the transport ceiling remains the boot value. Independent host/account/bidder overlays for both response caps remain the explicit design requirement in §5.2, not supported runtime keys.                                                                                                                                                                                             |
 | `max_outbound_raw_bytes`     | 256 KiB                                  | round-100 H6 / round-102 H13 / round-107 H6 — cap on an adapter-built outbound body, enforced DURING construction by the §4.1 `OutboundRequestSink` (`push_request` hands the adapter a `CappedWriter`; the earlier `OutboundLimits` parameter + `bounded_json_body` shape is superseded by the sink, which is the sole `BidderHttpRequest` constructor); over-cap → `OversizeRequest { stage: Raw }`, an adapter-side PRE-FANOUT per-bidder `ext.errors` entry (code 5), never a positional slot. Host-config value → boot envelope. |
 | `max_outbound_request_bytes` | 256 KiB                                  | round-100 H6 — cap on the FINAL ENCODED outbound body (post-serialization + compression; gzip expansion counted); over-cap → per-call `FanoutError::OversizeRequest` (code 5). Host-config value → boot envelope.                                                                                                                                                                                                                                                                                                                     |
 | `response_write_deadline_ms` | 10 000 ms                                | The current `EgressDeadline` is anchored at request admission/start, not egress entry; config and auction work consume its allowance before permit queueing, bounded serialization, and transmission. It is distinct from tmax. Host-config value, codegen range `100..=120_000`, NOT account/runtime-overlayable; carried on `ResolvedIsolateLimits`.                                                                                                                                                                                |
-| `max_bidders_per_auction`    | 50                                       | applied after alias resolution, over bidders in registry order (§5.9 — lexicographic over base names ∪ request-defined alias names ∪ config alias names participating in this auction): the first N are kept; each bidder past N is dropped with a non-fatal warning per the contract below (round-72 M3)                                                                                                                                                                                                                             |
-| `max_outbound_requests`      | 100                                      | cap on total `OutboundRequest`s, counted in §5.9 registry order then per-bidder request order. Round-106 B6: enforced AT CONSTRUCTION by the auction-global `CallBudget` shared by every per-bidder `OutboundRequestSink` (§4.1) — `push_request` past the budget returns `CallBudgetExhausted` before any body is built (the M2 materialize-then-drop truncation is retired); the bidder gets a non-fatal warning — the auction still proceeds (partial-bidder semantics below)                                                      |
+| `max_bidders_per_auction`    | 50                                       | applied after alias resolution, over bidders in registry order (§5.9 — lexicographic over base names ∪ request-defined alias names ∪ config alias names participating in this auction): the first N are kept; each bidder past N is dropped with a non-fatal warning per the contract below (round-72 GDPR enforcement)                                                                                                                                                                                                                             |
+| `max_outbound_requests`      | 100                                      | cap on total `OutboundRequest`s, counted in §5.9 registry order then per-bidder request order. Round-106 B6: enforced AT CONSTRUCTION by the auction-global `CallBudget` shared by every per-bidder `OutboundRequestSink` (§4.1) — `push_request` past the budget returns `CallBudgetExhausted` before any body is built (the auction core materialize-then-drop truncation is retired); the bidder gets a non-fatal warning — the auction still proceeds (partial-bidder semantics below)                                                      |
 | `bidder_timeout`             | per-bidder (`BidderInfo`)                | folded into the per-call composed absolute deadline (`min(fanout_entry_at + timeout, auction deadline_at)`) — NEVER `OutboundRequest::timeout()`, which re-anchors at dispatch (round-137 #3 / round-147 #1)                                                                                                                                                                                                                                                                                                                          |
-| `tmax`                       | validated vs `tmax_max` / `tmax_default` | absolute monotonic deadline anchored at `request_start` (§5.1 step 1); the M3b fan-out composes one absolute `MonotonicInstant` per call on the application clock and passes `Deadline::at_instant(..)` (round-135 #5 retired the relative `after(remaining)` form; round-147 #1 retired the bridge/projection and the `Deadline::at` name); advisory only under the interim impl                                                                                                                                                     |
+| `tmax`                       | validated vs `tmax_max` / `tmax_default` | absolute monotonic deadline anchored at `request_start` (§5.1 step 1); the bounded fanout fan-out composes one absolute `MonotonicInstant` per call on the application clock and passes `Deadline::at_instant(..)` (round-135 #5 retired the relative `after(remaining)` form; round-147 #1 retired the bridge/projection and the `Deadline::at` name); advisory only under the interim impl                                                                                                                                                     |
 
-**`max_bidders_per_auction` warning contract** (round-72 M3 — was
+**`max_bidders_per_auction` warning contract** (round-72 GDPR enforcement — was
 missing while `max_outbound_requests` had a full contract right
 below; the two share the same code and message-shape pattern):
 Each bidder dropped past the cap is recorded under
@@ -2380,7 +2382,7 @@ the normal post-fanout path AND the tmax-expired short-circuit
 the emission on the short-circuit would silently drop the cap
 signal whenever tmax happens to expire before fanout starts.
 
-**`max_outbound_requests` partial-bidder semantics** (round-14 finding M4;
+**`max_outbound_requests` partial-bidder semantics** (round-14 finding privacy enforcement;
 message unified round-108 B1). For a multi-call bidder whose attempts are
 only partially over the budget: the bidder **remains live with the calls
 that fit**; the rejected attempts' imp ids do **not** produce `seatnonbid`
@@ -2391,7 +2393,7 @@ EXACTLY "`N` outbound request attempt(s) rejected by
 attempts actually made past the budget; an adapter that stops at its first
 rejection yields N = 1. The pre-round-108 "truncated by" wording described
 the retired materialize-then-drop enforcement and is replaced — this
-string is THE one message, identical in the M3b plan); `responsetimemillis[<bidder>]` reflects only the
+string is THE one message, identical in the bounded fanout plan); `responsetimemillis[<bidder>]` reflects only the
 calls that ran. Bidders entirely beyond the cap are dropped with the same
 warning shape but no `responsetimemillis` entry.
 
@@ -2414,7 +2416,7 @@ effective_budget` (a `MonotonicInstant`; round-154 #9: `checked_add`
   `DEADLINE_FAR_FUTURE` — the same ONE policy the fan-out's per-call
   composition uses), where `request_start =
 clock.now_monotonic()` is captured at handler entry (§5.1 step 1; under
-  M3b it is `ctx.request_start()`, the same instant type). This **absolute
+  bounded fanout it is `ctx.request_start()`, the same instant type). This **absolute
   monotonic instant** means preprocessing time (parse, validation, privacy,
   split, adapter request build) is counted against tmax along with the
   fan-out. The exchange's expired-budget short-circuit reads `remaining =
@@ -2428,7 +2430,7 @@ deadline_at.saturating_duration_since(clock.now_monotonic())`; the
   the response is built_, an omitted request `tmax` is echoed as the
   resolved default (`tmax_default`), **not as `0`**. auctioneer applies the
   same convention: `ext.tmaxrequest` is the post-default request tmax
-  in milliseconds (round-19 finding M4).
+  in milliseconds (round-19 finding privacy enforcement).
 
 A small-but-positive budget is honored as-is — bidders that miss it produce
 timeout signals on three distinct surfaces (Appendix G + Appendix E.6):
@@ -2441,7 +2443,7 @@ timeout signals on three distinct surfaces (Appendix G + Appendix E.6):
 - `ext.prebid.seatnonbid[...].statuscode` — **101** (`Error-Timeout`) for each
   imp the timed-out bidder would have bid on.
 
-**How the three surfaces interact** (round-13 finding M4):
+**How the three surfaces interact** (round-13 finding privacy enforcement):
 
 - **code 12 is an auction-wide marker, alone.** It is emitted at most once
   per auction, in `ext.errors.prebid`. It does **not** produce per-imp
@@ -2492,12 +2494,12 @@ Applies to bidder fan-out (syncer-URL safety is §8.6).
      (path/query templating + macro substitution per the rules below).
   2. The exchange runs `validate_endpoint(url, bidder_info)` on every
      `BidderHttpRequest` _after_ `make_requests` returns and _before_
-     the call reaches the fan-out (§5.2). (M3b override — round-124
-     #8: under the M3b sink, validation moves INSIDE the sink's
+     the call reaches the fan-out (§5.2). (bounded fanout override — round-124
+     #8: under the bounded fanout sink, validation moves INSIDE the sink's
      reservation transaction via the exchange-owned
      `EndpointValidator` handle passed at sink construction, so an
      invalid endpoint never consumes a committed call slot; this
-     post-`make_requests` pass describes the M2/M3a shape and remains
+     post-`make_requests` pass describes the auction core/GDPR fanout shape and remains
      the semantic authority for WHAT is validated.) **Round-118 F01 — the
      validated URL is the ONLY destination the transport may contact:
      every bounded transport (Prereqs 2-3) MUST disable automatic
@@ -2595,25 +2597,25 @@ Applies to bidder fan-out (syncer-URL safety is §8.6).
   destinations. Used only for local testing (e.g. Mocktioneer against
   `http://127.0.0.1`).
 
-  **Feature ownership and propagation** (round-63 M2 + round-72 H2 —
+  **Feature ownership and propagation** (round-63 auction core + round-72 H2 —
   Cargo features are package-scoped, so the spec must name where the
   feature lives and how it reaches every gate that needs it. The
   workspace today has only `auctioneer-core` + four adapter crates per
   the root `Cargo.toml` — `auctioneer-bidder` / `auctioneer-exchange` /
   `auctioneer-privacy` / `auctioneer-openrtb` / `auctioneer-config` /
-  `auctioneer-runtime` are M1 deliverables that haven't been added to
+  `auctioneer-runtime` are foundations deliverables that haven't been added to
   the workspace yet, so the entire forwarding chain below is an
-  **M2 wiring deliverable**, not something runnable today):
-  - **Canonical declaration** (M2 deliverable): `auctioneer-bidder`
+  **auction core wiring deliverable**, not something runnable today):
+  - **Canonical declaration** (auction core deliverable): `auctioneer-bidder`
     owns the feature (`auctioneer-bidder/Cargo.toml` declares
     `insecure-bidders = []`). This crate owns `EndpointBuilder` +
     `validate_endpoint` (§5.4), which are the primary
     outbound-safety gates the feature relaxes.
   - **Forwarding features** propagate the flag to every other
     crate whose code needs the `#[cfg(feature =
-"insecure-bidders")]` relaxation (all M2 wiring):
+"insecure-bidders")]` relaxation (all auction core wiring):
     - **`auctioneer-config/Cargo.toml`**: `insecure-bidders = []`
-      (round-75 M1 — Cargo features are package-scoped, and
+      (round-75 foundations — Cargo features are package-scoped, and
       `auctioneer-config`'s `build.rs` (§6) runs the syncer-URL
       template-validation pass; without this declaration the
       build script never sees `CARGO_FEATURE_INSECURE_BIDDERS`
@@ -2626,7 +2628,7 @@ Applies to bidder fan-out (syncer-URL safety is §8.6).
       rule as §5.4 runtime; round-71 H1).
     - `auctioneer-bidder/Cargo.toml`: extend the canonical
       declaration to forward into config: `insecure-bidders =
-["auctioneer-config/insecure-bidders"]` (round-75 M1 —
+["auctioneer-config/insecure-bidders"]` (round-75 foundations —
       auctioneer-bidder depends on auctioneer-config per the dep graph
       §2.1, so this forwarding chain reaches the build script).
     - `auctioneer-exchange/Cargo.toml`: `insecure-bidders = ["auctioneer-
@@ -2643,8 +2645,8 @@ bidders"]` (the sync URL validator §8.6 reuses the same
 auctioneer-adapter-<target>` reaches every gate, including
       auctioneer-config's build.rs.
   - **Current workspace state and runnable commands** (round-72 H2 +
-    round-73 M2 — documents what works TODAY vs what becomes runnable
-    when M2 wires the chain; the round-72 H2 claim "none of them
+    round-73 auction core — documents what works TODAY vs what becomes runnable
+    when auction core wires the chain; the round-72 H2 claim "none of them
     carry `[features]`" was too broad — Cloudflare's, Fastly's, and
     Spin's adapter `Cargo.toml`s do declare target/runtime
     `[features]` blocks, just not `insecure-bidders`): the
@@ -2657,25 +2659,25 @@ auctioneer-adapter-<target>` reaches every gate, including
     runnable today** — the package that will own the feature
     (`auctioneer-bidder`) has not been added to the workspace yet. The
     forwarding chain above (canonical declaration + forwarding
-    through exchange, core, adapters) is a **M2 wiring
+    through exchange, core, adapters) is a **auction core wiring
     deliverable**; the rounds 66/70/71 attempts to point the
     local-test command at `auctioneer-adapter-axum` / `auctioneer-core` /
     `auctioneer-bidder` were each wrong because none of those packages
-    declare the `insecure-bidders` feature today. Until M2 adds `auctioneer-bidder` to the workspace with
+    declare the `insecure-bidders` feature today. Until auction core adds `auctioneer-bidder` to the workspace with
     `insecure-bidders = []`, the local-test command is a
-    placeholder — see CI commands below for the M2-and-later
+    placeholder — see CI commands below for the auction core-and-later
     form.
   - **No workspace-wide feature aggregation**: Cargo's "workspace
     features" RFC is unstable and inconsistently supported across
     Compute@Edge / Spin toolchains. The forwarding chain above
     works on stable Cargo today.
-  - **CI commands** (round-63 M2 + round-64 M3 — one off, one on,
+  - **CI commands** (round-63 auction core + round-64 GDPR enforcement — one off, one on,
     both enforced; the OFF check now uses `cargo build` so there
     are actual release artifacts to inspect — `cargo check`
     produces no rlib/wasm output for grep):
     - Production / default — **per-target release builds with the
       proper target triple AND each adapter's actual feature set**
-      (round-64 M3 + round-65 M4 + round-66 H1 — corrects the
+      (round-64 GDPR enforcement + round-65 privacy enforcement + round-66 H1 — corrects the
       earlier blanket `--features default`: not every adapter
       Cargo.toml declares a `default` feature, and the per-adapter
       `[features]` sets differ). The exact commands are:
@@ -2685,7 +2687,7 @@ auctioneer-adapter-<target>` reaches every gate, including
       - `cargo build --release -p auctioneer-adapter-cloudflare
 --target wasm32-unknown-unknown` (its default features
         include `cloudflare`, which is what the wasm32 build
-        needs — round-62 M1).
+        needs — round-62 foundations).
       - `cargo build --release -p auctioneer-adapter-fastly
 --target wasm32-wasip1` (uses the crate's own default
         features).
@@ -2694,33 +2696,33 @@ auctioneer-adapter-<target>` reaches every gate, including
         features).
         All four must succeed against the workspace's actual
         adapter wrappers. **Gate progression** (round-66 H1 +
-        round-70 M4 — corrects the earlier "wait for ingress hook"
-        claim; wrapper conformance is M1.5 and has NO EdgeZero
+        round-70 privacy enforcement — corrects the earlier "wait for ingress hook"
+        claim; wrapper conformance is adapter wrapper conformance and has NO EdgeZero
         primitive dependency, while the ingress hook was IDENTIFIED
-        during M2 design but its implementation/release owner is
-        **M3b Task M3b-10** — production-completion only, and
-        M3b-1..9 stay behavior-complete without it, round-79 M2):
-      - **M1+ library `cargo check`** matrix (round-68 H1) runs
-        on every PR from M1 onward; doesn't touch adapter
+        during auction core design but its implementation/release owner is
+        **bounded fanout Task Fanout-10** — production-completion only, and
+        Fanout-1..9 stay behavior-complete without it, round-79 auction core):
+      - **foundations library `cargo check`** matrix (round-68 H1) runs
+        on every PR from foundations onward; doesn't touch adapter
         wrappers.
-      - **M1.5 adapter wrapper conformance** lands the
+      - **adapter wrapper conformance adapter wrapper conformance** lands the
         Cloudflare + Spin `manifest_src` fixes and the Spin
-        `unsafe_code` lint scope (see §14 M1.5). This is
+        `unsafe_code` lint scope (see §14 adapter wrapper conformance). This is
         independent of any EdgeZero primitive (the wrappers just
         need to call the pinned `run_app` signature correctly).
-      - **M1.5+ adapter-wrapper + `auctioneer-core` `cargo check`**
-        matrix becomes mandatory once M1.5 ships — every PR.
-      - **M2 production-complete release-artifact gate**
+      - **adapter wrapper conformance adapter-wrapper + `auctioneer-core` `cargo check`**
+        matrix becomes mandatory once adapter wrapper conformance ships — every PR.
+      - **auction core production-complete release-artifact gate**
         (per-target `cargo build --release` + `cargo expand
 --release -p auctioneer-bidder` snapshot test) runs on
-        release tags only and becomes mandatory at M2
+        release tags only and becomes mandatory at auction core
         production-complete. The EdgeZero ingress hook (open
-        item 14) is NOT part of this build gate and NOT M1.5 — it was
-        identified during M2 design, but its implementation/release
-        owner is M3b Task M3b-10 (round-80 M2).
+        item 14) is NOT part of this build gate and NOT adapter wrapper conformance — it was
+        identified during auction core design, but its implementation/release
+        owner is bounded fanout Task Fanout-10 (round-80 auction core).
         Then a static-analysis check via `cargo expand --release
 -p auctioneer-bidder` snapshot test in §11.2 — strengthened per
-        round-70 M8 since "no `cfg(...)` blocks survive" is a weak
+        round-70 stored requests and accounts since "no `cfg(...)` blocks survive" is a weak
         assertion (inactive `cfg` blocks naturally disappear from
         expansion regardless of source correctness; the test was
         mostly verifying Cargo behavior). The §11.2 snapshot now
@@ -2730,7 +2732,7 @@ auctioneer-adapter-<target>` reaches every gate, including
          insecure path (`allow_insecure_scheme`,
          `validate_insecure_endpoint`, etc.) AND **no** literal
          string matching `http://127.0.0.1`, `http://[::1]`, or
-         `http://localhost` (round-72 M4 — IPv6 loopback included
+         `http://localhost` (round-72 privacy enforcement — IPv6 loopback included
          so the snapshot contract matches the runtime allowlist
          in §5.4 / §8.6)
          in the expanded source. Both items pinned to the actual
@@ -2747,13 +2749,13 @@ auctioneer-adapter-<target>` reaches every gate, including
          appear in unrelated strings) and guards against the
          regression where the feature gate is forgotten on a new
          insecure code path.
-    - Local testing — **M2+ command, not runnable today** (round-70
+    - Local testing — **auction core command, not runnable today** (round-70
       H1 + round-71 H2 + round-72 H2 — successive attempts to point
       this at `-p auctioneer-adapter-axum`, `-p auctioneer-core`, then `-p
 auctioneer-bidder` all failed because none of those packages
       declare the feature in the current workspace; the workspace
       members are just `auctioneer-core` + four adapter crates per the
-      root `Cargo.toml`). The M2 form, once `auctioneer-bidder` is
+      root `Cargo.toml`). The auction core form, once `auctioneer-bidder` is
       added to the workspace with `insecure-bidders = []` and the
       forwarding chain is wired through `auctioneer-exchange` →
       `auctioneer-core` → `auctioneer-adapter-axum`:
@@ -2794,11 +2796,11 @@ this feature`). The adapter's `[features]` block, where
         it exists, declares only the target-runtime feature
         (`cloudflare` / `fastly` / `spin`), not `insecure-
 bidders`.
-        The local-test deliverable rides in with M2 wiring; M1
+        The local-test deliverable rides in with auction core wiring; foundations
         acceptance does not require it.
 
 - `validate_endpoint(url, bidder_info)` runs on every `BidderHttpRequest`
-  before it reaches the fan-out. Explicit rules (round-31 finding M2 —
+  before it reaches the fan-out. Explicit rules (round-31 finding auction core —
   these enforce the §5.4 primary guarantee even when adapters bypass
   `EndpointBuilder`):
   - **Fixed-host endpoint** (`host_allowlist == None`): the final URL's
@@ -2811,7 +2813,7 @@ bidders`.
     cargo feature is enabled — §5.4 `allow_insecure`).
   - **If the final host is an IP literal** (round-71 H1 — feature-on
     exception added so `insecure-bidders` can actually reach
-    Mocktioneer per §5.4 / round-70 M7): default builds reject any
+    Mocktioneer per §5.4 / round-70 bidder catalog): default builds reject any
     IANA private / loopback / link-local IP literal, and reject
     `localhost` and its common aliases (`127.0.0.1.nip.io`, etc.).
     With `#[cfg(feature = "insecure-bidders")]` enabled, the
@@ -2833,18 +2835,18 @@ caller, not by `run_auction`):**
 
 - Body parse failure / oversize → `400` (caller's bounded read, §5.1
   steps 1–2).
-- Account errors — **endpoint-specific** (round-18 finding M7):
+- Account errors — **endpoint-specific** (round-18 finding bidder catalog):
   - **Auction:** disabled account → `503` (code 7 `AccountDisabled`).
   - **Sync endpoints (`/cookie_sync`, `/setuid`):** disabled account →
     the existing `400` account-disabled body.
-  - Independently fetched malformed-account mappings are M8 design work,
-    not M6 runtime-blob outcomes. Malformed account data inside the current
+  - Independently fetched malformed-account mappings are stored requests and accounts design work,
+    not diagnostic qualification runtime-blob outcomes. Malformed account data inside the current
     single blob fails through the host-config loader before account selection.
 - Malformed runtime blob / effective host config → `500` (§9.1); transient
   config-store failures retain the existing `503` with Retry-After.
 - **`prepare()` `ValidationError`** (round-33 finding L7 — this is
   caller-domain, not engine-domain): `prepare(req, headers, &limits)`
-  (§3.2 / §5.1 step 5; the M3b three-argument form — M3a shipped the
+  (§3.2 / §5.1 step 5; the bounded fanout three-argument form — GDPR fanout shipped the
   two-argument shape) returns a structured `ValidationError` for structural /
   normalization failure → caller emits `400` with a `text/plain` body
   in the upstream `Invalid request: <err>` format (Appendix F).
@@ -2885,16 +2887,16 @@ defined in Appendix G; HTTP body formats are defined in Appendix F.
 
 ### 5.6 Debug surface & redaction
 
-Auction `ext.debug` stays suppressed through M5, with no debug-denial
-warnings during that suppression window. M6 enables it only with the
-complete [M6 hardening contract](2026-10-05-m6-parity-hardening-design.md),
+Auction `ext.debug` stays suppressed through user sync, with no debug-denial
+warnings during that suppression window. diagnostic qualification enables it only with the
+complete [diagnostic qualification hardening contract](2026-10-05-diagnostics-and-qualification-design.md),
 sections 3-6; this document does not claim it is already implemented.
 
 - **Requested:** OR of `test == 1`, `ext.prebid.debug == 1` or boolean
   `true`, the first decoded `?debug=1`, and a single
   `X-Auctioneer-Debug: 1` header. Query/header parsing is bounded and does
   not provide a force-enable path; exact invalid/duplicate rules are in
-  M6 section 3. The engine combines normalized body signals with the
+  diagnostic qualification section 3. The engine combines normalized body signals with the
   caller flag so direct calls do not accidentally lose a body request.
 - **Account gate:** requested + account `debug_allow == false` yields
   one 10002 warning under `ext.warnings.prebid[]`, omits `ext.debug`,
@@ -2911,7 +2913,7 @@ sections 3-6; this document does not claim it is already implemented.
   HTTP-call arrays use observable alias keys and positional fanout order,
   with fixed safe error categories and existing per-call timing. Body
   strings are sanitized decoded projections, never raw fallback text.
-  The complete field/omission schema is pinned in M6 section 4.
+  The complete field/omission schema is pinned in diagnostic qualification section 4.
 - **Redaction:** separate request/response allowlists; native and legacy
   consent, IPs, IDs/IFA/EIDs/device hashes, precise geo, demographics,
   transaction IDs, credentials, cookies, arbitrary extension/text values,
@@ -2922,7 +2924,7 @@ sections 3-6; this document does not claim it is already implemented.
 - **Ownership:** `auctioneer-exchange::debug` owns gates and sanitized DTOs;
   capture after privacy/adapter projection, preserve unique metadata
   finalization and sealed bounded response parsing, and correlate through
-  existing fanout slots. M6 section 5 defines exact stages.
+  existing fanout slots. diagnostic qualification section 5 defines exact stages.
 - **Resources:** fixed per-body/call/auction caps, an explicit prepaid
   response-charge term, bounded parsing/writing, fallible reservation, and
   deterministic omission. Before HTTP output, discard the whole debug
@@ -2936,8 +2938,8 @@ sections 3-6; this document does not claim it is already implemented.
 ### 5.7 Host-environment primitives — Clock & Rng
 
 EdgeZero owns host-environment access. Beyond the fan-out primitive (§5.2),
-the design needs two more, both **assumed to be EdgeZero primitives** (M2
-**production-complete** prerequisites — see §14 and open item 13; M2
+the design needs two more, both **assumed to be EdgeZero primitives** (auction core
+**production-complete** prerequisites — see §14 and open item 13; auction core
 _development_ uses the dev-only impls described at the top of this spec):
 
 - **Clock** — exposes both a wall clock (`now`) and a monotonic source
@@ -2952,7 +2954,7 @@ _development_ uses the dev-only impls described at the top of this spec):
 Both are small traits in `auctioneer-runtime`:
 
 ```rust
-/// Round-148 #1 (M3b): ONE monotonic instant type across auctioneer and
+/// Round-148 #1 (bounded fanout): ONE monotonic instant type across auctioneer and
 /// EdgeZero. `web_time::Instant` is `std::time::Instant` on native
 /// targets and a `performance.now()`-backed instant on
 /// wasm32-unknown-unknown; EdgeZero's `edgezero_core::time::
@@ -2969,15 +2971,15 @@ pub trait Rng: Send + Sync { fn next_u64(&self) -> u64; }
 
 `now_monotonic` returns a `MonotonicInstant`; only differences and
 comparisons are meaningful (`saturating_duration_since`, `+ Duration`).
-The M2/M3a shape returned a `Duration` since an impl-defined epoch; that
-shape is RETIRED by the M3b-2b.0 migration (plan) because the fan-out
+The auction core/GDPR fanout shape returned a `Duration` since an impl-defined epoch; that
+shape is RETIRED by the Fanout-2b.0 migration (plan) because the fan-out
 hands the composed absolute instant to `Deadline::at_instant(..)`
 unchanged. `responsetimemillis` and any interval timing use this
 source — never `now()`.
 
-Round-149 #1 — ONE clock SOURCE under M3b, not just one instant type:
+Round-149 #1 — ONE clock SOURCE under bounded fanout, not just one instant type:
 `auctioneer-core` builds a request-scoped composite `RequestClock` (plan
-M3b-2b.0) whose monotonic half IS EdgeZero's injected
+Fanout-2b.0) whose monotonic half IS EdgeZero's injected
 `ctx.monotonic_clock()` and whose wall half is the boot-installed host
 clock; the same `Arc<RequestClock>` reaches `AuctionContext.clock` and
 `EdgeZeroFanout`, so `request_start`, deadline composition, the wave
@@ -2991,9 +2993,9 @@ path.
   primitives — the same single-seam pattern as `BidderFanout`.
 - **Tests** inject a fixed `FakeClock` and a seeded `Rng`, so cookie expiry,
   timestamps, shuffling, and `timesplit` rounding are fully deterministic.
-- **Cloudflare monotonic time** (round-36 M3 caveat RETIRED by
+- **Cloudflare monotonic time** (round-36 GDPR enforcement caveat RETIRED by
   round-150 #8): the `worker::Date`-delta `now_monotonic` shim is
-  replaced in M3b-2b.0 by `web_time::Instant::now()`
+  replaced in Fanout-2b.0 by `web_time::Instant::now()`
   (`performance.now()`-backed on wasm32-unknown-unknown, the same
   source EdgeZero's `MonotonicClock` uses), so timing-conformance
   assertions run unexempted on Cloudflare. The fully deterministic
@@ -3026,7 +3028,7 @@ privacy-per-bidder, fan-out, collect, targeting & winners). Steps 1–5
 (capture / Content-Encoding gate / body read, parse, **host
 resolution**, account resolution, **prepare** — the single gate that
 subsumes implicit-field fill + validate + normalize, §3.2 / round-28
-H1) and step 12 (serialize) are caller-owned (§5.1; round-44 M1
+H1) and step 12 (serialize) are caller-owned (§5.1; round-44 foundations
 corrected stale "steps 1-4 + step 11" numbering).
 
 ```rust
@@ -3043,7 +3045,7 @@ pub struct ResolvedAccount<'a> {
     pub config: &'a AccountConfig, // Embedded default when source = DefaultFallback.
 }
 pub enum AccountSource { Provided, DefaultFallback, Configured }
-// `Configured` (round-69 H1 — added to match M3a Task 14): the account
+// `Configured` (round-69 H1 — added to match GDPR fanout Task 14): the account
 // matched a `[accounts.<id>]` entry in the single-TOML `AuctioneerAppConfig`.
 
 #[non_exhaustive]   // external crates cannot construct via field-literal
@@ -3072,7 +3074,7 @@ pub struct AuctionContext<'a> {
     /// field order matches the real struct + constructor: added
     /// immediately before `debug_requested`, after `rng`.**
     pub gvl_store:        &'a GvlStore,
-    /// Round-106 B2 (M3a rounds 98–105): the baked Global CMP List
+    /// Round-106 B2 (GDPR fanout rounds 98–105): the baked Global CMP List
     /// (`auctioneer_privacy::gcl::Gcl`, from `Gcl::baked()`) and the
     /// wall-clock instant (`clock.now()`, captured by the handler).
     /// `PrivacyContext::resolve(req, account, host, gvl_store, gcl,
@@ -3087,7 +3089,7 @@ pub struct AuctionContext<'a> {
                                    // The caller computes the union — query/header
                                    // sources are caller-domain (§5.6).
     /// Round-81 H1 — the real struct also carries these two fields
-    /// (they exist in the M2 code today); `with_request_start`
+    /// (they exist in the auction core code today); `with_request_start`
     /// defaults them, `with_request_start_ext` sets them explicitly.
     pub features:                ExchangeFeatures,
     pub bidder_timeout_override: &'a BTreeMap<BidderName, u32>,
@@ -3098,7 +3100,7 @@ pub struct AuctionContext<'a> {
 /// per-bidder budgets, or the disabled-bidder set. Those live
 /// on `AuctionPlan` (defined in
 /// `crates/auctioneer-exchange/src/plan.rs`), a sibling handle
-/// that **the HANDLER constructs (round-69 H1 / M3a Task 13 —
+/// that **the HANDLER constructs (round-69 H1 / GDPR fanout Task 13 —
 /// after resolving the disabled set + aliases) and passes into
 /// `run_auction` as a sibling `&plan` argument**; `run_auction`
 /// reads `plan.aliases` rather than re-resolving. (Earlier spec
@@ -3113,10 +3115,10 @@ pub struct AuctionContext<'a> {
 ///
 /// `AuctionPlan` is `#[non_exhaustive]` so downstream crates
 /// cannot construct it via a `Self { .. }` field literal — every
-/// call site MUST go through `AuctionPlan::new_m3a(aliases,
-/// disabled_bidders, bidder_sample_rates)` (M3a — 3 args, no
-/// budgets) or `AuctionPlan::new_m3b(aliases, disabled_bidders,
-/// budgets, bidder_sample_rates)` (M3b — 4 args). Round-43 M1:
+/// call site MUST go through `AuctionPlan::new_with_sampling(aliases,
+/// disabled_bidders, bidder_sample_rates)` (GDPR fanout — 3 args, no
+/// budgets) or `AuctionPlan::new_with_response_budgets(aliases, disabled_bidders,
+/// budgets, bidder_sample_rates)` (bounded fanout — 4 args). Round-43 foundations:
 /// both signatures corrected here to match the definitions
 /// below; the round-39 H3 `bidder_sample_rates` addition never
 /// reached this doc comment. Field-literal construction is
@@ -3156,17 +3158,17 @@ pub struct AuctionContext<'a> {
 ///   2. handler resolves `aliases` via `resolve_aliases(&req,
 ///      &registry, &disabled_bidders, &host_aliases)`
 ///      (round-69 H1 — argument order is
-///      `(req, registry, disabled, host_aliases)`, matching M3a
+///      `(req, registry, disabled, host_aliases)`, matching GDPR fanout
 ///      Tasks 16/18; `disabled` is computed in step 1 above, so
 ///      it precedes the host-alias argument).
-///   3. handler resolves `budgets` (M3b only) via
+///   3. handler resolves `budgets` (bounded fanout only) via
 ///      `resolve_budgets(...)` — the per-bidder map keyed by
 ///      base bidder name; alias entries are NOT keys, they
 ///      resolve through `aliases` at lookup time.
 ///   4. `AuctionPlan::new_*(aliases, disabled_bidders, [budgets,]
 ///      bidder_sample_rates)` returns the constructed handle
-///      (round-81 M1 — `new_m3a` is 3-arg: `aliases,
-///      disabled_bidders, bidder_sample_rates`; `new_m3b` is 4-arg,
+///      (round-81 foundations — `new_with_sampling` is 3-arg: `aliases,
+///      disabled_bidders, bidder_sample_rates`; `new_with_response_budgets` is 4-arg,
 ///      inserting `budgets` before `bidder_sample_rates`).
 ///   5. handler passes `&plan` alongside `&ctx` into
 ///      `run_auction`. Downstream code (split, fanout, response
@@ -3175,20 +3177,20 @@ pub struct AuctionContext<'a> {
 pub struct AuctionPlan {
     pub aliases:              ResolvedAliases,
     pub disabled_bidders:     BTreeSet<BidderName>,
-    /// M3b Task M3b-2 populates this. Under M3a the field is
+    /// bounded fanout Task Fanout-2 populates this. Under GDPR fanout the field is
     /// `ResolvedBudgets::default()` (empty map).
     pub budgets:              ResolvedBudgets,
     /// Round-39 H3: per-request sample-rate map (Task 17).
-    /// M3a canonical field. Empty for tests that don't sample.
+    /// GDPR fanout canonical field. Empty for tests that don't sample.
     pub bidder_sample_rates:  BTreeMap<BidderName, f64>,
-    // future fields added as milestones need them
+    // future fields added as capabilities need them
 }
 
 impl AuctionPlan {
-    /// M3a constructor. Round-39 H3: takes `bidder_sample_rates`
+    /// GDPR fanout constructor. Round-39 H3: takes `bidder_sample_rates`
     /// (Task 17). Callers that don't sample pass
     /// `BTreeMap::new()`.
-    pub fn new_m3a(
+    pub fn new_with_sampling(
         aliases: ResolvedAliases,
         disabled_bidders: BTreeSet<BidderName>,
         bidder_sample_rates: BTreeMap<BidderName, f64>,
@@ -3200,8 +3202,8 @@ impl AuctionPlan {
         }
     }
 
-    /// M3b constructor: adds resolved per-bidder budgets.
-    pub fn new_m3b(
+    /// bounded fanout constructor: adds resolved per-bidder budgets.
+    pub fn new_with_response_budgets(
         aliases: ResolvedAliases,
         disabled_bidders: BTreeSet<BidderName>,
         budgets: ResolvedBudgets,
@@ -3225,7 +3227,7 @@ impl<'a> AuctionContext<'a> {
     /// per TC string via `gvl_store.get(spec, list)`.
     /// Round-81 H1 / round-106 B2 — CANONICAL final argument order:
     /// `gvl_store, gcl, now` sit immediately before `debug_requested`
-    /// (after `rng`), preserving the M2 `fanout, clock, rng` ordering.
+    /// (after `rng`), preserving the auction core `fanout, clock, rng` ordering.
     /// This is the ONE signature (eleven args); every call site and
     /// fixture uses exactly this. The handler passes `Gcl::baked()`
     /// and `clock.now()`.
@@ -3299,7 +3301,7 @@ pub async fn run_auction(
   `response.ext.debug`** by `run_auction` itself, including redaction. One
   source of truth: a caller cannot forget to inject debug or to redact it.
 - `run_auction` performs §5.1 **steps 6–11** (privacy preprocess, split,
-  privacy-per-bidder, fan-out, collect, targeting, winners; round-45 M1
+  privacy-per-bidder, fan-out, collect, targeting, winners; round-45 foundations
   — corrects stale "5–10" numbering after round-43 H1 inserted host
   resolution as step 3). It does **not** read the request body, parse
   JSON, **resolve host config** (step 3, caller-owned), **resolve the
@@ -3323,11 +3325,11 @@ pub async fn run_auction(
 at request receipt:
 
 - **EdgeZero handler** (`auctioneer-core`): receives `request_start` and
-  the admission grant FROM THE INGRESS SEAM (round-128 #7 / M3b
+  the admission grant FROM THE INGRESS SEAM (round-128 #7 / bounded fanout
   Prereq 10: ingress captures `request_start = clock.now_monotonic()`
   before any body byte and injects it into the context; the handler
   takes the grant via `ctx.take_ingress_grant()` and
-  downcast-verifies it — under M3a's shipped shape, with no ingress
+  downcast-verifies it — under GDPR fanout's shipped shape, with no ingress
   seam, the handler itself captures `request_start` at handler entry,
   before any preprocessing),
   rejects non-empty inbound `Content-Encoding` (§5.1 step 1), reads the
@@ -3338,15 +3340,15 @@ at request receipt:
   malformed → `500`), **resolves the account** from `config_store`
   (§9.1) into a `ResolvedAccount`, builds a `RequestHeaders` view from
   the inbound HTTP headers, **calls `auctioneer_openrtb::prepare(req,
-headers, &limits)`** (the M3b three-argument form; M3a shipped the
+headers, &limits)`** (the bounded fanout three-argument form; GDPR fanout shipped the
   two-argument shape) to produce `NormalizedBidRequest` (implicit fill +
   validate + normalize are one type-safe gate — round-28 H1 /
   round-29 H1), computes `debug_requested` from the _normalized_
   request (Deref) plus bounded caller-side signals (`?debug=1`,
-  `X-Auctioneer-Debug: 1`, M6 design §3),
-  **builds the `AuctionPlan`** via `AuctionPlan::new_m3a(aliases,
-disabled_bidders, bidder_sample_rates)` (round-81 M1 — the
-  three-arg M3a constructor; `bidder_sample_rates` is `BTreeMap::new()`
+  `X-Auctioneer-Debug: 1`, diagnostic qualification design §3),
+  **builds the `AuctionPlan`** via `AuctionPlan::new_with_sampling(aliases,
+disabled_bidders, bidder_sample_rates)` (round-81 foundations — the
+  three-arg GDPR fanout constructor; `bidder_sample_rates` is `BTreeMap::new()`
   until Task 17) after resolving aliases + reading the
   overlay's disabled-bidder set (round-37 B1 — plan construction
   is handler-owned, happens before `AuctionContext` construction,
@@ -3367,10 +3369,10 @@ Gcl::baked(), clock.now(), debug_requested)` (round-81 H1 /
   `prepare(req, headers, &limits)`** (mandatory — the only callable
   path that produces a `NormalizedBidRequest`; implicit fill cannot
   be skipped; the trusted-server caller supplies its own
-  `PrepareLimits`, M3a's two-argument call being the shipped shape
-  until M3b-2),
+  `PrepareLimits`, GDPR fanout's two-argument call being the shipped shape
+  until Fanout-2),
   computes `debug_requested`, **builds the `AuctionPlan`** via
-  `AuctionPlan::new_m3a(...)` (round-37 B1), builds the context
+  `AuctionPlan::new_with_sampling(...)` (round-37 B1), builds the context
   with `with_request_start(..., gvl_store: &GvlStore, gcl: &Gcl,
 now: OffsetDateTime, ...)` (its own GCL handle + wall-clock
   instant — round-106 B2),
@@ -3387,7 +3389,7 @@ analogous `run_cookie_sync` / `run_setuid` in `auctioneer-exchange` or a sibling
 point factoring is deferred** (round-41 L6 — earlier wording read like
 the sync endpoints themselves were deferred, which they aren't). The
 `/cookie_sync` / `/setuid` / `/getuids` _handlers_ ARE in phase-1 scope
-(§13) and ship in M5 (§14); they just run as `auctioneer-core` handlers, not
+(§13) and ship in user sync (§14); they just run as `auctioneer-core` handlers, not
 through a reusable library function. A trusted-server caller that wants
 to invoke the sync flow programmatically (without going through EdgeZero)
 is out of phase 1 unless that becomes a requirement. The auction
@@ -3399,7 +3401,7 @@ phase 1.
 A request alias declared in `ext.prebid.aliases` (e.g. `"myalias":
 "appnexus"`) maps to a base bidder. The alias is a first-class **observable
 identity**: it appears in every user-facing field of the response while the
-**base adapter** runs the I/O. Matches upstream (round-14 finding M3).
+**base adapter** runs the I/O. Matches upstream (round-14 finding GDPR enforcement).
 
 | Field                                   | Identity used |
 | --------------------------------------- | ------------- |
@@ -3423,7 +3425,7 @@ Phase 1 supports request-defined aliases; host/config-declared aliases
 appear in `/info/bidders` (§8.1) but request-defined ones do not (they are
 auction-local, §8.1).
 
-**Alias position in registry order** (round-40 M2). The phrase
+**Alias position in registry order** (round-40 auction core). The phrase
 "registry order" — used by `max_bidders_per_auction` (§5.3),
 `max_outbound_requests` (§5.3), winner tie-breaking (Appendix E.4), and
 deterministic serialization (Appendix E.7) — refers to a **single
@@ -3466,7 +3468,7 @@ clarity:
   its own per-bidder warning slot and `responsetimemillis`).
 - **Tie-breaking** on equal bid price uses this same ordering: the
   earlier entry (lexicographically smaller name) wins the auction
-  (Appendix E.4 / round-26 finding M2). Aliases participate as
+  (Appendix E.4 / round-26 finding auction core). Aliases participate as
   first-class names in this comparison.
 
 `/info/bidders` (§8.1) is unaffected — it lists only registered base
@@ -3492,7 +3494,7 @@ guarantees rest on this).
     `data/gvl.json`)** a versioned IAB Global Vendor List **archive**:
     per-`(spec, vendorListVersion)` blobs under `spec2/` / `spec3/`
     plus a `manifest.json` that SHA-256-pins each entry, refreshed by
-    the `crates/auctioneer-refresh-gvl-archive` tool (see the M3a plan Task 4 /
+    the `crates/auctioneer-refresh-gvl-archive` tool (see the GDPR fanout plan Task 4 /
     Task 4a-v24 for the manifest schema, the fetch-and-pin-at-execution
     refresh, and its `gvl_archive.lock` advisory-lock + crash-recovery
     protocol). The old single-blob `data/gvl.json` + `gvl_raw()`
@@ -3500,7 +3502,7 @@ guarantees rest on this).
     `GvlStore`.
   - `data/host-defaults.toml` — host config defaults.
   - `data/account-defaults.toml` — the embedded default-account config (§9.1).
-    **⚠ M3b-1d FOLDS BOTH INTO `auctioneer.toml` under explicit
+    **⚠ Fanout-1d FOLDS BOTH INTO `auctioneer.toml` under explicit
     namespaces (round-194 #1).** They become its `[baked.host]` and
     `[baked.account]` tables, today's contents move under
     `[runtime]`, and the two `data/` files are deleted — so one file
@@ -3510,14 +3512,14 @@ guarantees rest on this).
     extracts `[runtime]` and pushes that, so the blob schema,
     `AuctioneerAppConfig` and `resolve.rs` are unchanged and no deployed
     blob is invalidated. See §6.1 for the full proposal. **This row
-    and the M3b plan's M3b-1d must change in ONE commit**; until
+    and the bounded fanout plan's Fanout-1d must change in ONE commit**; until
     that task lands the two `data/` files above are accurate.
   - `data/eea-countries.txt` — EEA list for the geo-aware GDPR default.
 - **`build.rs`** parses these → generates Rust into `OUT_DIR`: **data tables
   only** — bidder data table (name → endpoint, macros, `host_allowlist`,
-  **`endpoint_compression`** (round-23 finding M2), GVL vendor id,
+  **`endpoint_compression`** (round-23 finding auction core), GVL vendor id,
   capabilities, syncer config, `gpp_supported`, `disabled`, **`debug.allow`**
-  (round-25 finding M5; defaults to **`true`** when missing from the
+  (round-25 finding user sync; defaults to **`true`** when missing from the
   bidder-info TOML, matching reference bidder request/response processing)), host-config and
   default-account defaults, GVL lookup tables, EEA set. `auctioneer-config`
   `include!`s the generated file and exposes typed accessors. A `gzip`
@@ -3526,7 +3528,7 @@ guarantees rest on this).
   `auctioneer-bidder`.
 - Plain `build.rs`; generated code satisfies the workspace clippy gate via
   scoped `#![allow]`s.
-- **`insecure-bidders` feature gate in `build.rs`** (round-75 M1 —
+- **`insecure-bidders` feature gate in `build.rs`** (round-75 foundations —
   the build script honors the same scheme-relaxation rule as §5.4 /
   §8.6 runtime gates; without this gate on `auctioneer-config`, the §8.6
   feature-on codegen fixture cannot compile cleanly even though the
@@ -3548,7 +3550,7 @@ guarantees rest on this).
 
 ### 6.1 Runtime overlay — `auctioneer.toml` + `[stores.config]`
 
-> **⚠ PROPOSED (M3b-1d) — ONE CONFIG FILE. This section describes
+> **⚠ PROPOSED (Fanout-1d) — ONE CONFIG FILE. This section describes
 > the CURRENT two-file arrangement; the proposal below replaces it,
 > and the two must change in ONE commit.**
 >
@@ -3709,7 +3711,7 @@ guarantees rest on this).
 > **What does NOT move.** `runtime-bootstrap.toml` stays separate.
 > Its one key, `allow_missing_config`, decides what to do when the
 > store holds NO blob; folding it into the pushed source would be
-> circular. Three M3b values are likewise consumed before any store
+> circular. Three bounded fanout values are likewise consumed before any store
 > read exists (`max_config_fetch_ms` bounds the fetch;
 > `terminal_response_permits` and `refusal_write_deadline_ms` are
 > process-globals installed while `configure`, `build_app` and the
@@ -3758,7 +3760,7 @@ Every configurable knob has **two layers** and one merge rule:
    `[stores.config].default` (declared in `edgezero.toml`). Deployer
    pushes via `auctioneer-cli config push --adapter <name>`; typed schema
    is `auctioneer_core::config::AuctioneerAppConfig`.
-   **⚠ AFTER M3b-1d (round-198 #1): the PAYLOAD is `auctioneer.toml`'s
+   **⚠ AFTER Fanout-1d (round-198 #1): the PAYLOAD is `auctioneer.toml`'s
    `[runtime]` SUBTREE, not the whole file.** `auctioneer.toml` is the
    single SOURCE document and carries `[baked.host]`,
    `[baked.account]` and `[runtime]`; the CLI's wrapper type
@@ -3782,16 +3784,16 @@ codegen-driven never appear.
 
 - `[auction]` — resource limits: `default_tmax_ms`, `max_tmax_ms`,
   `max_bidders_per_auction`, `max_outbound_requests`,
-  `max_bidder_response_bytes`, and (round-101 B5, M3b)
+  `max_bidder_response_bytes`, and (round-101 B5, bounded fanout)
   `max_outbound_raw_bytes` + `max_outbound_request_bytes`. Each
   overrides its counterpart in `HostConfig.resource_limits`; under
-  M3b's boot envelope the outbound-cap overrides clamp DOWNWARD only.
+  bounded fanout's boot envelope the outbound-cap overrides clamp DOWNWARD only.
   Round-109 H3: `response_write_deadline_ms` is deliberately NOT in
   this overlay DTO — it is host-baked only; an overlay carrying the
   key is rejected as unknown.
 
 - `[aliases]` — the root-level runtime host-alias overlay map
-  (round-103 H7: entry count is bounded by the M3b envelope's
+  (round-103 H7: entry count is bounded by the bounded fanout envelope's
   `max_aliases`, default 64; an overlay with MORE entries is REJECTED
   at config validation — fail-loud, never silently truncated).
 - `[targeting]` — `prefix` (overrides `AccountConfig.targeting_prefix`
@@ -3809,13 +3811,13 @@ codegen-driven never appear.
   `endpoint_compression` when `gzip_outbound = false`;
   `returnallbidstatus` falls back to the feature default when the
   request omits it). Non-USD currency handling is intentionally NOT
-  a runtime knob in M2 — the response builder hardcodes `cur =
+  a runtime knob in auction core — the response builder hardcodes `cur =
 "USD"` and the wire shape carries no per-seat currency column, so
   admitting foreign-currency bids would emit mis-labelled prices.
-  M3 fx wires currency-aware bundles + revisits the toggle.
+  GDPR enforcement fx wires currency-aware bundles + revisits the toggle.
 - `[bidders.<name>]` — per-bidder overrides: `enabled` (kill-switch;
-  M2 logs a warning if the baked `BidderInfo.disabled` bit doesn't
-  match, M3 wires the request-scoped registry overlay), `timeout_ms`
+  auction core logs a warning if the baked `BidderInfo.disabled` bit doesn't
+  match, GDPR enforcement wires the request-scoped registry overlay), `timeout_ms`
   (overrides `BidderInfo.bidder_timeout_ms` via
   `AuctionContext.bidder_timeout_override`; the exchange's timeout
   resolution chain is `alias override → base-bidder override →
@@ -3823,7 +3825,7 @@ baked BidderInfo → bidder_visible_tmax_ms` — a request-declared
   alias inherits the base bidder's `timeout_ms` when the alias has
   no override of its own), `sample_rate`
   (`#[validate(range(min=0.0,max=1.0))]`; value is validated +
-  stored, sampler wires in M3). Unlisted bidders default to enabled.
+  stored, sampler wires in GDPR enforcement). Unlisted bidders default to enabled.
   Every entry runs through `BidderOverrides::validate()` via a
   custom validator on the map (validator 0.20 does not descend into
   `BTreeMap` values automatically).
@@ -3834,14 +3836,14 @@ scope creep):
 - Bidder catalog (endpoints, media types, macros) — codegen from
   TOML.
 - ~~GDPR / CCPA / LMT enforcement flags — spec-defined, TOML.~~
-  **Amended round-21 H3 for M3a.** GDPR enforcement flags DO live
-  in `auctioneer.toml` under M3a as the `[gdpr]` host overlay + the
+  **Amended round-21 H3 for GDPR fanout.** GDPR enforcement flags DO live
+  in `auctioneer.toml` under GDPR fanout as the `[gdpr]` host overlay + the
   `[accounts.<id>.gdpr]` per-account overlays. Baked TOML remains
   the source of the DEFAULT values (conservative "everything
   off"); `auctioneer.toml` overlays turn enforcement on for a specific
   deployment. This is the same overlay-over-baked pattern
   `auctioneer.toml` uses for auction limits and status body. CCPA /
-  LMT stay TOML-only until M4.
+  LMT stay TOML-only until privacy enforcement.
 - Deployment identity strings (env name, region, build id) — vendor
   platforms already expose these; env vars or `option_env!` do the
   job with no store round-trip.
@@ -3855,9 +3857,9 @@ EXIST in the parsed tree" (`edgezero-core/src/app_config.rs`), and
 `auctioneer.toml` currently has **ZERO uncommented keys** —
 `grep -cE '^[a-z_]+ *=' auctioneer.toml` returns 0. So
 `AUCTIONEER__AUCTION__DEFAULT_TMAX_MS=1500` is silently ignored. This is
-a SHIPPED defect in this document, not a consequence of the M3b-1d
+a SHIPPED defect in this document, not a consequence of the Fanout-1d
 proposal.
-**⚠ ROUND-197 #1 — M3b-1d DOES NOT "FIX" IT, AND AN EARLIER
+**⚠ ROUND-197 #1 — Fanout-1d DOES NOT "FIX" IT, AND AN EARLIER
 REVISION HERE OVERSTATED WHAT THE FOLD BUYS.** It said the folded
 file would carry live values and that `AUCTIONEER__BAKED__HOST__...`
 would affect the build. Both are wrong, and the plan's later
@@ -3894,18 +3896,18 @@ fold, and it reaches the key only once `default_tmax_ms` is
 uncommented, per the overlay rule above)
 bakes the override into the pushed blob. A true per-instance
 runtime overlay would need the edge platforms' env surface at
-request time and is not an M3a capability.
+request time and is not an GDPR fanout capability.
 
-**Handler read path — M3a behaviour** (round-26 H5 scope tag —
+**Handler read path — GDPR fanout behaviour** (round-26 H5 scope tag —
 earlier "runtime path never 500s" was a pre-fail-loud statement
-that contradicts §9.1 and M3b Task M3b-1). Every handler that
+that contradicts §9.1 and bounded fanout Task Fanout-1). Every handler that
 today reads `auctioneer_config::host_default()` /
 `account_default()` calls
 `AppConfig::<AuctioneerAppConfig>::from_store(&ctx, "auctioneer_runtime",
-None)`. Under M3a as ORIGINALLY SPECIFIED, every extractor error
+None)`. Under GDPR fanout as ORIGINALLY SPECIFIED, every extractor error
 degraded to `AuctioneerAppConfig::default()` with a WARN.
 **Execution amendment (Task 15 review + post-review rounds 1-3):
-the shipped M3a contract is stricter, per route.** On the auction
+the shipped GDPR fanout contract is stricter, per route.** On the auction
 and `/info/*` routes: `EdgeError::Internal` (envelope parse / SHA
 mismatch / unknown version) and `EdgeError::BadRequest` (invalid
 or overlong store key — reachable through the binding's
@@ -3916,23 +3918,23 @@ HTTP 503 + `Retry-After`. Only the umbrella
 `EdgeError::ConfigOutOfDate` (missing blob / deserialize /
 validate, indistinguishable at the pinned EdgeZero) still
 degrades with the WARN — that residual fail-open is the recorded
-`dev-complete` gap the promotion barrier exists for, and M3b's
+`dev-complete` gap the promotion barrier exists for, and bounded fanout's
 total match over the landed `StoreExtractionReason` taxonomy
 (round-141 #2) closes it. Round-117 P2-11: under
-M3b, `MissingKey` does NOT unconditionally default — a
+bounded fanout, `MissingKey` does NOT unconditionally default — a
 `runtime.bootstrap` TOML (an IMMUTABLE boot-time file baked with
 the deploy, schema: `[runtime] allow_missing_config: bool`,
 default false; precedence: bootstrap file only, no env, no store
 — it is what decides how store errors are treated, so it cannot
 itself come from the store) must set `allow_missing_config =
 true` for a missing key to default silently; otherwise
-`MissingKey` joins the fail-loud arm. The M3b plan's Task M3b-1
+`MissingKey` joins the fail-loud arm. The bounded fanout plan's Task Fanout-1
 carries the full schema and the config-inventory row. `/status` alone keeps the
 permissive degrade on EVERY class (it is a liveness probe and
-carries the milestone header regardless). The rationale for the
+carries the capability header regardless). The rationale for the
 tightening: a corrupt pushed blob silently disabling GDPR was a
 privacy fail-open, unacceptable even at dev-complete. This is deliberate
-FOR M3a: the pinned EdgeZero (`docs/outbound-http-spec`, verified
+FOR GDPR fanout: the pinned EdgeZero (`docs/outbound-http-spec`, verified
 at the `fcefdde3`-era alignment; pin now `12965da2`, where the
 categorized-store-error DESIGN exists but the code still) does NOT
 distinguish the three failure classes auctioneer needs for a
@@ -3945,19 +3947,19 @@ Other classes DO have distinct EdgeZero signals today
 `SecretError::NotFound`, `SecretError::Unavailable`) but they
 are collapsed into `EdgeError::internal` / `service_unavailable`
 by the pinned `From` impls, and auctioneer does not yet unwrap
-them. 500'ing on the umbrella `ConfigOutOfDate` under M3a would
+them. 500'ing on the umbrella `ConfigOutOfDate` under GDPR fanout would
 kill `curl -X POST /openrtb2/auction` against a fresh checkout
-(round-27 M1 correction to the earlier "every store failure
+(round-27 foundations correction to the earlier "every store failure
 becomes ConfigOutOfDate" claim, which was too broad).
 
-**M3b supersedes this behaviour — against the REAL landed
+**bounded fanout supersedes this behaviour — against the REAL landed
 taxonomy (round-141 #2: `EdgeError::StoreExtraction { reason:
 StoreExtractionReason }`, a sixteen-variant `#[non_exhaustive]`
 enum at the candidate EdgeZero head; the `StoreAppConfigError`
 variant roster that stood here is HISTORY — the earlier "no
 upstream design exists" framing is false now, and around the
 privacy fail-closed path a stale taxonomy is dangerous).** The
-handler match is TOTAL per the M3b plan's round-140 #4 mapping:
+handler match is TOTAL per the bounded fanout plan's round-140 #4 mapping:
 `MissingBlob` → the `allow_missing_config` rule;
 `BackendUnavailable` / `SecretBackendUnavailable` /
 `DeadlineExceeded` → **`RuntimeConfigError::ConfigStoreUnavailable`**
@@ -3981,7 +3983,7 @@ and retrying cannot fix it. The split exists so `/status` can
 report `store_key_rejected` distinctly from `malformed_config`
 (§6.1); without it both faults collapse to one code and an
 operator cannot tell a corrupt blob from a refused key. **This
-paragraph and the M3b plan's M3b-1c change in ONE commit.**
+paragraph and the bounded fanout plan's Fanout-1c change in ONE commit.**
 
 **`EdgeError::BadRequest` — the store REJECTING the bound key —
 maps to `RuntimeConfigError::StoreKeyRejected`, and its disposition
@@ -3997,13 +3999,13 @@ the transient treatment would be wrong. **The ONE exception is
 reaches no privacy or auction decision. The variant exists to let
 `/status` name that fault distinctly; on every other route it
 behaves as `MalformedHost` does, which is why this is a REPORTING
-split and not a policy change. Round-33 M2 refresh: `AuctionError` variants
-were removed by v32 M4 (config loading occurs before
+split and not a policy change. Round-33 auction core refresh: `AuctionError` variants
+were removed by v32 privacy enforcement (config loading occurs before
 `run_auction`, so auction-level variants are unreachable
 here); the canonical route error is the core-owned
 `RuntimeConfigError` from `crates/auctioneer-core/src/config/
-runtime.rs`. The M3a "runtime path never 500s"
-guarantee holds only for M3a; M3b intentionally 500s on
+runtime.rs`. The GDPR fanout "runtime path never 500s"
+guarantee holds only for GDPR fanout; bounded fanout intentionally 500s on
 malformed / broken-deployment paths so operators see the
 error rather than have privacy policy silently disabled.
 Note: no `AuthFailure` variant — the pinned upstream lacks a
@@ -4011,7 +4013,7 @@ typed auth-failure signal on both `SecretError` and
 `ConfigStoreError`; permission-denied surfaces as
 `SecretError::Internal` and lands in the malformed-family arm
 (`StoreExtractionReason::InvalidSecretValue` /
-`BackendFailure` → 500) under M3b (round-141 #2).
+`BackendFailure` → 500) under bounded fanout (round-141 #2).
 
 Round-120 status, SUPERSEDED round-141 #2: the gap this
 paragraph recorded (G4 — "no upstream design yet") is CLOSED in
@@ -4020,15 +4022,15 @@ sixteen-variant `#[non_exhaustive]`
 `StoreExtractionReason` landed, and this section's contract is
 the round-140 #4 total mapping over it. What remains
 prereq-gated is only the ATOMIC pin move that makes the enum
-importable, plus the G4-residue distinctions the M3b plan's
+importable, plus the G4-residue distinctions the bounded fanout plan's
 matrix tracks.
 
-**Push-time is the fail-fast surface** (M3a AND M3b).
+**Push-time is the fail-fast surface** (GDPR fanout AND bounded fanout).
 `auctioneer-cli config push` runs
 `run_typed_preflight::<AuctioneerAppConfig>` before writing, so a
 schema-invalid blob never reaches the store; `auctioneer-cli config
 push --dry-run` produces the same diff without writing.
-Operators inspect the WARN log (M3a) or 500 response (M3b) at
+Operators inspect the WARN log (GDPR fanout) or 500 response (bounded fanout) at
 any regression to trace which push (or env-overlay) mis-fired,
 then re-push with a corrected blob.
 
@@ -4062,19 +4064,19 @@ A pure parsing + decision crate, behavior-compatible with the pinned baseline
 (activities / scrubbing); GPP precedence and error rules in **Appendix D**.
 
 **Compatibility constraints (round-42 H2 canonical,
-retires round-41 M1's "≤ 24 publisher restrictions"
+retires round-41 the foundational "≤ 24 publisher restrictions"
 figure — the TCF wire encodes the restriction count in
 a 12-bit field per IAB Tech Lab TCF specification, so
 the wire ceiling is 4,095 records, not 24. The 24-bit
 `PurposeConsent` bitfield inside each restriction record
 was the source of the round-41 confusion):**
 
-The M3a Task 4/5/6 landing enforces these input caps:
+The GDPR fanout Task 4/5/6 landing enforces these input caps:
 
 - **Publisher restrictions ≤ 2,048 per TC string.** The
   TCF wire's 12-bit count field allows up to 4,095;
   auctioneer's decoded ceiling is set at 2,048 as an
-  implementation limit that fits the M3a resolver's
+  implementation limit that fits the GDPR fanout resolver's
   allocation budget. TC strings encoding more are
   rejected with
   `TcfParseError::TooManyPublisherRestrictions`.
@@ -4091,9 +4093,9 @@ The M3a Task 4/5/6 landing enforces these input caps:
 
 Legitimate TC strings from all conformant CMPs fit
 inside these bounds. The word "full-fidelity" is
-retired; auditors reading this heading know the M3a
+retired; auditors reading this heading know the GDPR fanout
 resolver rejects some technically-parseable strings
-that exceed the practical envelope. Future milestones
+that exceed the practical envelope. Future capabilities
 may loosen these caps if a CMP starts emitting values
 outside them.
 
@@ -4105,7 +4107,7 @@ outside them.
    **GPP SID overrides `regs.gdpr` entirely.**
 2. Else `regs.gdpr` if set: `0` → `No`, `1` → `Yes`, **any other
    value** → hard `Err(PrivacyError::InvalidRegsGdpr)` (round-46
-   M1 — the privacy crate returns `PrivacyError`, NOT
+   foundations — the privacy crate returns `PrivacyError`, NOT
    `AuctionError`, since `AuctionError` lives in `auctioneer-exchange`
    and a privacy→exchange edge is a Cargo cycle; the exchange
    boundary maps it to `AuctionError::BadInput` → `400` via
@@ -4211,7 +4213,7 @@ consulted for the privacy gate (otherwise an `app` request could claim
 enforcement — upstream derives this key from the trusted request type). On
 `/openrtb2/auction` the key is inventory-derived: `dooh` present → `dooh`;
 else `app` → `app`; else → `web`. `amp`/`video` are ROUTE-derived by their
-dedicated endpoints (M5+), never from the request body. A request may carry
+dedicated endpoints (user sync), never from the request body. A request may carry
 only one distribution-channel object (§3.2), so conflicting
 `site`/`app`/`dooh` is a `prepare()` 400 and unreachable here.
 
@@ -4241,17 +4243,17 @@ only one distribution-channel object (§3.2), so conflicting
     (`TooManyTrailingSegments`), and any other type — the obsolete
     type 2 (Allowed Vendors/OOB) included
     (`UnknownSegmentType`). Validated trailing CONTENTS are discarded
-    (DV membership is retained starting M4 for special-purpose
+    (DV membership is retained starting privacy enforcement for special-purpose
     disclosure enforcement; publisher-TC enforcement is a later
-    milestone). The 64 KiB `MAX_INPUT_LEN` cap is measured on the CORE
+    capability). The 64 KiB `MAX_INPUT_LEN` cap is measured on the CORE
     substring.
 - **Stricter-than-upstream core-segment validations (round-89 H3 — these
   are OBSERVABLE divergences from upstream, which performs none of them;
   each is enumerated in §15 with its exact error):**
   - **Policy-version cutoff:** a `tcfPolicyVersion < 4` string whose
     core `Created` is on/after 2023-10-01 → reject
-    (`PolicyVersionTooOldForCreated`) — round-90 M6: the cutoff is
-    `< 4` (all pre-v4 policy versions), matching the M3a plan's Task 3
+    (`PolicyVersionTooOldForCreated`) — round-90 diagnostic qualification: the cutoff is
+    `< 4` (all pre-v4 policy versions), matching the GDPR fanout plan's Task 3
     rule; the earlier "`== 3`" wording here under-specified it. upstream
     accepts it.
   - **Timestamp equality + day-truncation:** the core `Created` and
@@ -4260,15 +4262,15 @@ only one distribution-channel object (§3.2), so conflicting
   - **`IsServiceSpecific == 0` rejected** unconditionally
     (`NotServiceSpecific`).
   - The 64 KiB `MAX_INPUT_LEN` core cap and the decoded/range caps (the
-    M3a plan's Task 3 "Caps derived from wire-format capacity" table —
-    round-90 M6: NOT spec Appendix D, which is the GPP precedence/error
+    GDPR fanout plan's Task 3 "Caps derived from wire-format capacity" table —
+    round-90 diagnostic qualification: NOT spec Appendix D, which is the GPP precedence/error
     section) also reject strings upstream would accept.
 - Decoded model exposes `PurposeAllowed(id)`, `PurposeLITransparency(id)`,
   `VendorConsent(id)`, `VendorLegitInterest(id)`, `SpecialFeatureOptIn(id)`,
   `PurposeOneTreatment()`, `CheckPubRestriction(purpose, type, vendor)`,
   policy version (GVL spec version 2 vs 3).
 - **TCF v2.4 (present in the published IAB TCF specification; round-69
-  M1 — do not cite PR #443's merge state, which is not the source of
+  foundations — do not cite PR #443's merge state, which is not the source of
   truth) removes the legacy Special-Purpose-only-vendor
   Legitimate-Interest workaround** — a vendor declaring ONLY special purposes (no regular
   purposes) no longer needs to also assert the Vendor
@@ -4281,7 +4283,7 @@ only one distribution-channel object (§3.2), so conflicting
   `PurposeId 1..=24`) are unchanged from v2.3 (round-88 B1 — `MAX_SEGMENTS`
   no longer applies since auctioneer parses core-only).
 - **Empty / malformed consent** (round-48 H1 + round-52 H1+H2 +
-  round-53 M3 + round-73 H1 — endpoint + signal split per §7.1's
+  round-53 GDPR enforcement + round-73 H1 — endpoint + signal split per §7.1's
   two-signal taxonomy: auction paths key off `auction_geo_signal` /
   `gdpr_enforced`; sync paths key off `sync_permissions_signal` /
   `gdpr_permissions_enabled`. The two can diverge on the same
@@ -4318,7 +4320,7 @@ Yes` (matches reference UID-write handling); Ambiguous + normalized Yes
     - `/setuid` → `400` from the permission path **only when ALL of**
       `host_vendor_id != 0` AND `sync_permissions_signal == Yes`
       AND `gdpr_permissions_enabled` AND activity already allowed
-      (round-53 H2 + round-58 M1 — full preconditions; the
+      (round-53 H2 + round-58 foundations — full preconditions; the
       permission path runs in §8.3 step 11 AFTER activity at step
       10, so `syncUser`-denied wins with 451, not 400 — matches
       reference UID-write handling). Otherwise `200` (host_vendor_id ==
@@ -4378,7 +4380,7 @@ list)` GVL is unavailable (or the TC string declares a policy version
   (§7.1), and (b) usersync `SkipWhen.gpp_sid` — **exact-string match** of
   the raw request `gpp_sid` against each configured skip-string (not
   parsed-section membership; matches upstream, Appendix B.3 step 9; round-15
-  finding M5). It does **not** feed config-driven activity rules: upstream
+  finding user sync). It does **not** feed config-driven activity rules: upstream
   v4's activity conditions match only `componentName` / `componentType`
   (Appendix C.1) — there is no GPP condition in activity config. GPP
   therefore gates GDPR and usersync skip, not activities directly.
@@ -4408,7 +4410,7 @@ list)` GVL is unavailable (or the TC string declares a policy version
   bidder/alias exactly, including validated aliases dropped only for disablement.
   Unknown names and mixed wildcard lists are `400` even when CCPA is disabled
   or USP is malformed. Only `["*"]` exempts all; exemptions do not affect other
-  policies. See the [M4 design](2026-09-26-m4-privacy-design.md) for the complete
+  policies. See the [privacy enforcement design](2026-09-26-privacy-enforcement-design.md) for the complete
   validation and source-selection contract.
 - **LMT:** `ShouldEnforce = lmt.enforce && device.lmt == 1` — host
   `lmt.enforce` (default `false`) gates the request-wide scrub; the iOS
@@ -4416,7 +4418,7 @@ list)` GVL is unavailable (or the TC string declares a policy version
   Upstream in `prepare()` step 1 (§3.2). Matches upstream's
   `EnabledPolicyEnforcer{Enabled: cfg.LMT.Enforce}`.
 
-  **iOS ATT → `device.lmt` mapping table** (round-34 finding M4 — the
+  **iOS ATT → `device.lmt` mapping table** (round-34 finding privacy enforcement — the
   normative rule, only applied when `app` is set and
   `device.os.eq_ignore_ascii_case("ios")`):
 
@@ -4482,7 +4484,7 @@ analytics, rtd, general}, name }`.
   ///   unusable-consent cases (missing/malformed TCF, unavailable
   ///   GVL) yield the ENFORCED-BUT-EMPTY row plus a warning —
   ///   never allow-all (round-50 B2).
-  /// M4: normalized source selection precedes independent policy resolution.
+  /// privacy enforcement: normalized source selection precedes independent policy resolution.
   /// Options carry a narrow GDPR exemption and validated NoSale identities;
   /// neither bypasses activity, CCPA, LMT, COPPA, or terminal input limits.
   /// The result owns the context and borrows legacy-projection inputs from req.
@@ -4495,7 +4497,7 @@ analytics, rtd, general}, name }`.
   PrivacyContext::allow_all_no_scrub() -> PrivacyContext
   /// **Round-50 B2 (SECURITY): unavailable `(spec, list)` FAILS
   /// CLOSED.** The predecessor `default_permissions_with_warning`
-  /// yielded M2-permissive (allow-all) purpose resolution, which
+  /// yielded auction core-permissive (allow-all) purpose resolution, which
   /// handed bidders IDs and precise geo that no consent record
   /// supported whenever the archive lagged a GVL revision. When
   /// enforcement is active and the CMP-declared GVL is absent,
@@ -4523,7 +4525,7 @@ analytics, rtd, general}, name }`.
   /// `gvl_unavailable(&EffectiveEnforcement, ..)` signature is
   /// withdrawn — `EffectiveEnforcement` was never defined.
   /// Out-of-scope traffic skips GDPR authorization/GVL selection only.
-  /// M4 still normalizes sources and resolves every independent policy.
+  /// privacy enforcement still normalizes sources and resolves every independent policy.
   PrivacyContext::take_warnings(&mut self) -> Vec<NonFatalWarning>  // §7.7
   PrivacyContext::permissions(core_name, bidder) -> AuctionPermissions
   PrivacyContext::activity_allow(activity, component) -> bool
@@ -4545,7 +4547,7 @@ warnings** during §5.1 step 6:
 - Selected TCF syntax failure emits code 10001 with source-specific scope:
   `user.consent` for legacy, `regs.gpp` with a fixed section-2 message for
   active GPP. Empty/invalid authoritative section 2 does not retry granting
-  legacy consent. Inactive TCF is not authorization-parsed. Existing M3
+  legacy consent. Inactive TCF is not authorization-parsed. Existing GDPR enforcement
   authenticity and authorization checks still apply to the selected source.
 - Invalid nonempty legacy USP emits code 10001 at `regs.us_privacy`, even
   when CCPA is disabled, and is cleared before adapter construction. An
@@ -4560,7 +4562,7 @@ warnings** during §5.1 step 6:
   ordering and provenance. USP conflict warnings do not disable enforcement.
   Invalid `nosale` is independently a terminal HTTP 400, not a warning.
 
-The [M4 design, section 9](2026-09-26-m4-privacy-design.md#9-errors-observability-and-resources)
+The [privacy enforcement design, section 9](2026-09-26-privacy-enforcement-design.md#9-errors-observability-and-resources)
 defines warning order, deduplication, scopes, and fixed text. Diagnostics do
 not interpolate raw consent strings or parser errors. The legacy OpenRTB 2.5
 privacy fields remain rejected by `prepare()` before this stage (§3).
@@ -4570,25 +4572,25 @@ privacy fields remain rejected by `prepare()` before this stage (§3).
 `NormalizedBidRequest.warnings()` (cloned, §3.2) when populating
 `ext.warnings.prebid[]`. The structural-test convenience constructor
 `allow_all_no_scrub` emits no warnings and is not a live-auction bypass.
-GDPR permissions retain Appendix A.4 semantics; independent M4 policies
+GDPR permissions retain Appendix A.4 semantics; independent privacy enforcement policies
 continue to apply even when GDPR itself is disabled or out of scope.
 
 ### 7.8 Sync-endpoint privacy API — `resolve_sync_privacy`
 
 The Rust struct/callback block in this section records the historical
-design sketch, not the current M5 signatures. The live API is the typed
+design sketch, not the current user sync signatures. The live API is the typed
 `SyncPrivacyInput` / `SyncPrivacyContext` in
 [`auctioneer-privacy::sync`](../../../crates/auctioneer-privacy/src/sync/mod.rs), with
 closed extraction errors and host, candidate, and `/setuid` permission
-methods. In particular, the M2-M4 allow-all callbacks are not used by
+methods. In particular, the auction core-privacy enforcement allow-all callbacks are not used by
 registered sync handlers. The endpoint decision rules below remain the
-behavioral contract unless an M5 clarification explicitly supersedes them.
+behavioral contract unless an user sync clarification explicitly supersedes them.
 
 `PrivacyContext::resolve` is auction-shaped (takes a `&BidRequest`),
-which does not fit `/cookie_sync` and `/setuid` (round-37 M4 — those
+which does not fit `/cookie_sync` and `/setuid` (round-37 privacy enforcement — those
 endpoints carry query/body fields, not a `BidRequest`). Sync endpoints
 have **endpoint-specific hard-error and permission policies** (round-57
-M1 — corrects the earlier blanket "malformed consent → hard 400"
+foundations — corrects the earlier blanket "malformed consent → hard 400"
 claim, which was wrong after round-47 H1 + round-53 H2 narrowed both
 endpoints separately):
 
@@ -4640,7 +4642,7 @@ pub struct SyncPrivacyInput<'a> {
     ///     `gdpr` when GPP did not already provide a signal). Otherwise
     ///     `resolve_sync_privacy` returns `Err(MalformedConsent { scope:
     ///     "gdpr" })` and the caller emits the endpoint-specific 400
-    ///     body (round-44 M5 / round-45 M2).
+    ///     body (round-44 user sync / round-45 auction core).
     pub gdpr:        GdprSignalIn,
     pub consent:     Option<&'a str>,   // TCF v2 string (gdpr_consent)
     pub us_privacy:  Option<&'a str>,   // US-Privacy 4-char
@@ -4650,14 +4652,14 @@ pub struct SyncPrivacyInput<'a> {
                                         // exact-string matching, NOT
                                         // parsed-section membership
                                         // (Appendix B.3 step 9 / round-15
-                                        // M5). Caller passes the raw query
+                                        // user sync). Caller passes the raw query
                                         // / body value; the API never
                                         // re-stringifies a parsed list.
     pub account:     &'a AccountConfig,
     pub host:        &'a HostConfig,
     /// Which sync endpoint is calling. Affects multiple policies —
     /// implementers must NOT collapse the two endpoints to a single
-    /// path (round-47 H1 + round-52 H2 + round-53 M4 — earlier
+    /// path (round-47 H1 + round-52 H2 + round-53 privacy enforcement — earlier
     /// "only affects malformed-TCF policy" comment was incomplete).
     /// Endpoint-specific behaviors:
     /// 1. **Empty consent** (round-60 L2 — taxonomy-correct phrasing):
@@ -4666,7 +4668,7 @@ pub struct SyncPrivacyInput<'a> {
     ///      `normalized_request_signal == Yes`) — reference cookie-sync handling
     ///    - /setuid 400s only when `parsed_request_signal == Yes`
     ///      — reference UID-write handling.
-    /// 2. **Malformed non-empty TCF** (round-57 M2 — full
+    /// 2. **Malformed non-empty TCF** (round-57 auction core — full
     ///    precondition list; earlier "when host_vendor_id != 0"
     ///    short-form omitted three of the four conditions and
     ///    could mislead implementers into building the wrong
@@ -4722,7 +4724,7 @@ pub enum GdprSignalIn {
 pub enum SyncEndpoint { CookieSync, SetUid }   // round-47 H1
 
 pub enum SyncPrivacyError {
-    /// **Request-extraction** consent errors only (round-55 M3 —
+    /// **Request-extraction** consent errors only (round-55 GDPR enforcement —
     /// narrowed after round-53 H2 moved malformed non-empty TCF to
     /// the downstream permission path):
     /// - `scope: "gdpr"` — `GdprSignalIn::Invalid(_)` AND GPP/SID
@@ -4737,12 +4739,12 @@ pub enum SyncPrivacyError {
     ///   on /setuid **only when ALL of** host_vendor_id != 0 AND
     ///   normalized_request_signal == Yes AND
     ///   gdpr_permissions_enabled AND activity already allowed —
-    ///   round-58 M1; see SyncPrivacyInput::endpoint doc for the
+    ///   round-58 foundations; see SyncPrivacyInput::endpoint doc for the
     ///   full precondition list).
     /// - `scope: "gdpr_consent"` (alt) — malformed TCF on /setuid
     ///   is NOT raised here; see §8.3 step 11.
     /// USP malformation is NOT an error here (silently cleared,
-    /// round-41 M3). GPP / `gpp_sid` malformation uses their own
+    /// round-41 GDPR enforcement). GPP / `gpp_sid` malformation uses their own
     /// variants below.
     MalformedConsent { scope: &'static str },   // → 400
     MalformedGpp,                               // → 400 (envelope or section)
@@ -4753,7 +4755,7 @@ pub enum SyncPrivacyError {
 /// Identifies a syncer slot to the per-syncer decision method. The
 /// caller resolves bidder-name → BidderInfo + Syncer config from the
 /// build-time registry (§6) and passes them in. round-38 H1 + round-39
-/// M3.
+/// GDPR enforcement.
 ///
 /// **No request aliases on sync endpoints.** Unlike `/openrtb2/auction`,
 /// neither `/cookie_sync` (Appendix B.1) nor `/setuid` (Appendix B.4)
@@ -4780,7 +4782,7 @@ pub enum SyncDecision {
 }
 
 pub struct SyncPrivacyContext<'a> {
-    // === §7.8.1 signal taxonomy (round-51 M2 + round-54 H1 — these
+    // === §7.8.1 signal taxonomy (round-51 auction core + round-54 H1 — these
     // fields ship as part of the API surface; the earlier "kept for
     // back-compat" notes referred to gdpr_signal / gdpr_enforced
     // which are aliases for normalized_request_signal /
@@ -4811,7 +4813,7 @@ pub struct SyncPrivacyContext<'a> {
                                              // AlwaysAllow (reference GDPR permission evaluation).
 
     // Back-compat aliases for §8.2 step 5 prose written before the
-    // taxonomy was named (round-51 M2). Implementations may expose
+    // taxonomy was named (round-51 auction core). Implementations may expose
     // these as `Deref`-style getters that return the corresponding
     // taxonomy field above.
     pub gdpr_signal:               Signal,   // alias for normalized_request_signal
@@ -4883,7 +4885,7 @@ pub fn resolve_sync_privacy<'a>(input: SyncPrivacyInput<'a>)
 Semantic contracts:
 
 - **Hard rejection vs clear-and-continue — per-field split** (round-41
-  M3 + round-46 H1 — matches reference cookie-sync handling behavior;
+  GDPR enforcement + round-46 H1 — matches reference cookie-sync handling behavior;
   earlier "TCF/USP/GPP all hard-400" was too strict):
   - **Legacy `gdpr` field malformed** (`GdprSignalIn::Invalid(_)`) —
     decision is **deferred until after GPP/SID precedence runs**
@@ -4897,7 +4899,7 @@ Semantic contracts:
     depends on a _different_ field's value.
   - **TCF v2 malformed** (non-empty `gdpr_consent` that fails parse)
     — **gated on `normalized_request_signal` per §7.8.1, then split
-    by endpoint** (round-47 H1 + round-48 H1 + round-56 M2 —
+    by endpoint** (round-47 H1 + round-48 H1 + round-56 auction core —
     "effective GDPR signal" wording dropped here; the gate is the
     normalized signal because the permissions builder normalizes
     Ambiguous via host `default_value` at reference GDPR permission evaluation BEFORE
@@ -4905,7 +4907,7 @@ Semantic contracts:
     `HostCookiesAllowed` / `BidderSyncAllowed` short-circuiting to
     `true` before parsing when the normalized signal `!= SignalYes`
     at, with parsing deferred to `allowSync`):
-    - **If `normalized_request_signal` is NOT Yes** (round-51 H1+M2 +
+    - **If `normalized_request_signal` is NOT Yes** (round-51 H1+auction core +
       round-52 H1 — keyed off the **normalized** signal because the
       permissions builder normalizes Ambiguous via host
       `default_value` at reference GDPR permission evaluation _before_ deciding whether to
@@ -4924,7 +4926,7 @@ Semantic contracts:
       (round-52 H1 — earlier "parsed Ambiguous → silent ignore" was
       wrong).
     - **If `normalized_request_signal == Yes` AND
-      `gdpr_permissions_enabled`** (round-56 M2 — uses §7.8.1
+      `gdpr_permissions_enabled`** (round-56 auction core — uses §7.8.1
       taxonomy throughout; the earlier mixed "effective GDPR signal
       IS Yes" wording conflated two distinct gates). The
       malformed-TCF policy below differs from the empty-consent
@@ -4947,7 +4949,7 @@ Semantic contracts:
         - **Permission-time block — malformed non-empty TCF can be
           400 (NOT 451) ONLY when activity already allowed and
           parsing actually runs; NEVER from request extraction**
-          (round-52 H1 + round-53 H2 + round-59 M1 — upstream
+          (round-52 H1 + round-53 H2 + round-59 foundations — upstream
           reference UID-write handling only copies and emptiness-checks
           `gdpr_consent` at extraction; TCF parsing happens
           exclusively inside `HostCookiesAllowed`; parse errors
@@ -4992,7 +4994,7 @@ Yes`) → permissions builder returns an allow-all permission result
           decisions blocked); only the per-bidder gate differs
           between the two `host_vendor_id` paths. The **top-level
           JSON `status`** field is always derived from the request
-          cookie's live-sync count per Appendix B.2 (round-71 M9 —
+          cookie's live-sync count per Appendix B.2 (round-71 shared auction foundations —
           corrects earlier "reflects host_cookie_sync_allowed"
           phrasing; status = "ok" iff ≥1 live sync, else
           "no_cookie", regardless of the host or per-bidder
@@ -5033,7 +5035,7 @@ Ambiguous` AND `normalized_request_signal == Yes`)** — i.e.
       - `host_vendor_id != 0` + `!gdpr_permissions_enabled` → 200
         (permissions builder returns an allow-all permission result, reference GDPR permission evaluation).
   - **Endpoint discriminator** (round-47 H1 + round-52 H2 + round-53
-    M4 — see the full enumeration in the `SyncPrivacyInput::endpoint`
+    privacy enforcement — see the full enumeration in the `SyncPrivacyInput::endpoint`
     field doc-comment above). `SyncPrivacyInput` gains
     `pub endpoint: SyncEndpoint` with variants `CookieSync` and
     `SetUid`. The discriminator affects **three** distinct
@@ -5074,7 +5076,7 @@ Yes` + `gdpr_permissions_enabled`;
   - `/setuid` (round-53 H1 — narrowed; earlier wording leaked the
     /cookie_sync chooser ladder onto /setuid): uses
     `activity_allow(syncUser, Component::bidder(name))` for the
-    activity gate (round-31 M4), then a narrower
+    activity gate (round-31 privacy enforcement), then a narrower
     **`setuid_allowed(SyncerLookup{...})`** that consults **only**
     the host-cookie GDPR result (from `HostCookiesAllowed`, see
     §8.3 step 11) plus the syncer's `enabled` flag — NOT
@@ -5101,7 +5103,7 @@ string prevents…` body; `BlockedByDisabledUsersync` → **`400`**
       (`HostCookiesAllowed` returns false on empty consent per
       reference TCF permission evaluation → reference UID-write handling `BlockedByPrivacy`).
   - **Malformed (non-empty) TCF** (round-47 H1 + round-48 H1 +
-    round-49 H2 + round-58 M1 — full preconditions, not the
+    round-49 H2 + round-58 foundations — full preconditions, not the
     earlier shorthand):
     - /cookie_sync → **`200` + empty `bidder_status`** via
       per-syncer privacy denial (per-syncer privacy evaluation at
@@ -5130,28 +5132,28 @@ Yes` → `200` (parse skipped, reference TCF permission evaluation).
 plumbing, and GDPR/CCPA/GPP signal logic; only their inputs and
 error-policy differ.
 
-**Milestone ownership** (round-39 M1 + round-40 H1 — pinned, no
+**Capability ownership** (round-39 foundations + round-40 H1 — pinned, no
 hand-off contradiction with §14):
 
-- **M2-M4 historical baseline:** an unreachable, permissive sync API
+- **auction core-privacy enforcement historical baseline:** an unreachable, permissive sync API
   stub kept downstream crates compiling; no user-sync routes or UID
   cookie lifecycle were active. Its `SyncerLookup` and allow-all
-  callbacks are not a current M5 API or permission claim.
-- **M5 contract:** `resolve_sync_privacy` uses real TCF/USP/GPP parsing,
+  callbacks are not a current user sync API or permission claim.
+- **user sync contract:** `resolve_sync_privacy` uses real TCF/USP/GPP parsing,
   GVL-backed GDPR decisions, exact raw-SID `SkipWhen` comparison, and
   endpoint-specific host/candidate/`setuid` permissions. The narrower
   `/setuid` path does not run the `/cookie_sync` chooser ladder. The
-  typed M5 inputs and errors replace the old stub types where needed;
+  typed user sync inputs and errors replace the old stub types where needed;
   neither API-signature preservation nor permissive compatibility
-  wrappers are required. M5 also owns the `uids` codec and merge,
+  wrappers are required. user sync also owns the `uids` codec and merge,
   `/cookie_sync` / `/setuid` / `/getuids` routes, URL safety, and cookie
   write/eviction rules (Appendix B). Their presence in a worktree does
   not establish hosted-provider or real-browser qualification.
 
 The historical stub's sole job was to let `auctioneer-privacy` compile and
-unit-test before M5; it must not be exposed by a registered sync route.
+unit-test before user sync; it must not be exposed by a registered sync route.
 
-### 7.8.1 Signal taxonomy (round-51 M2)
+### 7.8.1 Signal taxonomy (round-51 auction core)
 
 Earlier rounds collapsed several distinct concepts under the phrase
 "effective GDPR signal," which led to category errors (notably treating
@@ -5187,13 +5189,13 @@ false` is NOT a signal value** — it only affects this boolean;
 
 ```rust
 pub struct SyncPrivacyContext<'a> {
-    pub parsed_request_signal:    Signal,   // round-51 M2 — wire-only
-    pub normalized_request_signal: Signal,  // round-51 M2 + round-71 H3 +
+    pub parsed_request_signal:    Signal,   // round-51 auction core — wire-only
+    pub normalized_request_signal: Signal,  // round-51 auction core + round-71 H3 +
                                             // round-72 H1 — (a.k.a.
                                             // sync_permissions_signal per
                                             // §7.1); wire + RAW host
                                             // default_value; NEVER geo
-    pub gdpr_permissions_enabled: bool,     // round-51 M2 — host.enabled
+    pub gdpr_permissions_enabled: bool,     // round-51 auction core — host.enabled
                                             // AND normalized == Yes
                                             // AND channel enabled
     pub gdpr_signal:              Signal,   // alias for
@@ -5212,7 +5214,7 @@ pub struct SyncPrivacyContext<'a> {
 ```
 
 The hard-400 contracts in §7.8 split by endpoint (round-52 H2 +
-round-53 M3 — corrects earlier "key off parsed_request_signal"
+round-53 GDPR enforcement — corrects earlier "key off parsed_request_signal"
 blanket which was true for /setuid but not /cookie_sync):
 
 - **Empty consent**:
@@ -5237,7 +5239,7 @@ All handlers are `#[action]` functions wired through `edgezero_core::app!`.
 User-sync schemas in **Appendix B**. `auctioneer-core` constructs the production
 `BidderFanout` / `Clock` / `Rng` and passes them into the library crates.
 
-For M5, the [user-sync design](2026-09-30-m5-usersync-design.md) sections
+For user sync, the [user-sync design](2026-09-30-usersync-design.md) sections
 3 and 9 refine handler integration and browser response headers. The three
 sync endpoints plus `OPTIONS /cookie_sync` use manifest-declared aux routes,
 the generated EdgeZero App, one validated config snapshot, and
@@ -5257,7 +5259,7 @@ and the aux admission class do not perform those checks automatically.
 | Endpoint                   | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `POST /openrtb2/auction`   | §5; response Appendix E.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `GET /status`              | **HEALTHY:** `204 No Content` with empty body when `host.status_response` is unset/empty; `200` with the configured body when non-empty. **DEGRADED (runtime config unloadable, malformed or unfunded):** ALWAYS `200`, never `204` and never `500`, with the baked `status_response` (if any) plus a final line `config: degraded (<code>)`. **Every answer carries `x-auctioneer-config-status: ok \| degraded` and the milestone stamp.** The closed snake_case codes are `malformed_config \| store_key_rejected \| store_unavailable \| unfunded_extraction`; the fourth is the [approved R0 initialization boundary](2026-10-17-m7-r0-wasm-resource-envelope-design.md#42-approval-and-scope-enforcement). `RuntimeConfigError::detail` is never published. The degraded path also covers malformed merged host data, since `resolved_host` is infallible. |
+| `GET /status`              | **HEALTHY:** `204 No Content` with empty body when `host.status_response` is unset/empty; `200` with the configured body when non-empty. **DEGRADED (runtime config unloadable, malformed or unfunded):** ALWAYS `200`, never `204` and never `500`, with the baked `status_response` (if any) plus a final line `config: degraded (<code>)`. **Every answer carries `x-auctioneer-config-status: ok \| degraded` and the capability stamp.** The closed snake_case codes are `malformed_config \| store_key_rejected \| store_unavailable \| unfunded_extraction`; the fourth is the [approved resource qualification initialization boundary](2026-10-17-resource-envelope-design.md#42-approval-and-scope-enforcement). `RuntimeConfigError::detail` is never published. The degraded path also covers malformed merged host data, since `resolved_host` is infallible. |
 | `GET /info/bidders`        | Configured bidder names; honors `enabledonly`, `baseadaptersonly` (each must be `true` or `false` — any other value → `400`, matches reference bidder-list handling; round-20 finding L7).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `GET /info/bidders/{name}` | That bidder's `BidderInfo`; `404` if unknown. The special name `all` returns the aggregate (all bidders keyed by name; matches reference bidder-detail handling).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
@@ -5288,7 +5290,7 @@ reference bidder-detail handling — it checks the endpoint prefix only, not eve
 **`/info/bidders/all`** returns a JSON object mapping every configured
 bidder name → its detail object above. **Disabled (non-whitelabel) bidders
 are included** with `status: "DISABLED"` (matches upstream
-reference bidder-detail handling; round-17 finding M8). Active entries may also include
+reference bidder-detail handling; round-17 finding stored requests and accounts). Active entries may also include
 a `dooh` capabilities block when the bidder declares one.
 
 `404` if the name is neither `all`, a bidder, nor an alias. `/info/bidders`
@@ -5300,7 +5302,7 @@ TOML declares one, no config aliases.
 ### 8.2 `POST /cookie_sync`
 
 Behavior-compatible with the baseline (Appendix B.1–B.3). Bounded body (§5.3).
-**Explicit ordered pipeline** (round-37 H1 + round-38 M3 + round-42 H1
+**Explicit ordered pipeline** (round-37 H1 + round-38 GDPR enforcement + round-42 H1
 — now lists every resolution step that earlier prose left implicit):
 
 1. **Body read, bounded** per §5.3 (`MAX_COOKIESYNC_BODY` = 32 KiB);
@@ -5328,15 +5330,15 @@ not be read` (Appendix F); disabled account → **`400`** body
    `account is disabled, please reach out to the prebid server host`.
    On clean lookup, embedded default-account fallback is used for an
    absent / `"unknown"` id (§9.1).
-6. **Decode `uids` cookie** and apply **host-cookie import** (round-22 M5
+6. **Decode `uids` cookie** and apply **host-cookie import** (round-22 user sync
    - round-24 L7): if the host cookie's `cookie_name` is present on
      the request _and_ the in-memory `uids` cookie has no entry under
      the host `family` key, copy the host cookie's value into that
      family slot — fill-if-empty, never overwrite (matches upstream
      reference UID-cookie handling).
 7. **`resolve_sync_privacy`** (§7.8, with `endpoint:
-SyncEndpoint::CookieSync`). Per-field error policy (round-41 M3 +
-   round-47 H1 + round-48 H1 + round-49 H1+H2 + round-52 M4 — uses
+SyncEndpoint::CookieSync`). Per-field error policy (round-41 GDPR enforcement +
+   round-47 H1 + round-48 H1 + round-49 H1+H2 + round-52 privacy enforcement — uses
    §7.8.1 taxonomy):
    - **Empty consent**: 400 when **`parsed_request_signal == Yes`
      OR (`parsed_request_signal == Ambiguous` AND
@@ -5360,27 +5362,27 @@ channel_enabled`): `Ok(_)` but two **separate** gates fail
        - Per-syncer `sync_allowed(...)` returns `BlockedByPrivacy`
          regardless of `host_vendor_id` (matches reference bidder-sync permission at reference cookie-sync handling + reference syncer selection).
          Net response: `200` with empty `bidder_status` (per-bidder
-         gate blocked all candidates) — round-16 M5.
+         gate blocked all candidates) — round-16 user sync.
      - **`!gdpr_permissions_enabled`** (host disabled, regardless of
        signal): permissions builder returns an allow-all permission result (reference GDPR permission evaluation); TCF parsing skipped entirely; same as the "silently
        ignored" branch above.
    - **Malformed GPP / `gpp_sid`** → `Err(_)` → **`400`** (hard
      rejection on both endpoints).
    - **Malformed `us_privacy`** → silently cleared, no error
-     (round-41 M3).
+     (round-41 GDPR enforcement).
    - **Malformed legacy `gdpr`** → deferred GPP-precedence rule
      (round-46 H1).
 8. **Host-cookie GDPR gate** uses
    `SyncPrivacyContext::host_cookie_sync_allowed`: blocked → response
    shape per Appendix F (`200`; `bidder_status` empty + JSON `status`
-   unchanged, round-16 M5); not blocked → continue.
+   unchanged, round-16 user sync); not blocked → continue.
 9. **Resolve `filterSettings` + `limit`** (Appendix B.1): coerce
    `filterSettings.{iframe,image}.filter ∈ {"include","exclude"}`,
    `bidders ∈ "*" | [string]`; cap `limit` at account `max_limit`,
    default to account `default_limit` when absent. Malformed
    `filterSettings` shape → **`400`** with the **raw the parser error message
    from the per-branch parser**, written through reference plain-text error output
-   (round-48 M3 + round-49 M3 — matches reference cookie-sync handling / reference cookie-sync handling fixtures). Body is the
+   (round-48 GDPR enforcement + round-49 GDPR enforcement — matches reference cookie-sync handling / reference cookie-sync handling fixtures). Body is the
    parser's exact error string + trailing newline,
    `Content-Type: text/plain; charset=utf-8`, no "Invalid request:"
    prefix and **no synthesized `error parsing filtersettings:`
@@ -5410,7 +5412,7 @@ produces a 4xx; the response is always `200` once we reach step 10.
 ### 8.3 `GET /setuid`
 
 Behavior-compatible (Appendix B.4–B.6). **Explicit ordered pipeline**
-(round-37 H1 + round-38 M3 + round-42 H1+M2 + round-43 H1+H2+M3+L7 —
+(round-37 H1 + round-38 GDPR enforcement + round-42 H1+auction core + round-43 H1+H2+GDPR enforcementL7 —
 opt-out moved before bidder/f validation; us_privacy dropped from the
 query parse since B.4 doesn't carry it; error bodies pinned to the
 exact reference UID-write handling strings):
@@ -5435,12 +5437,12 @@ exact reference UID-write handling strings):
    validation so an opted-out user gets `401` even when their request
    has malformed `bidder`/`f`, matching reference UID-write handling's
    `ReadCookie` / `AllowSyncs()` precedence at line): opt-out →
-   **`401` with no body and no `Content-Type` header** (round-46 M2 —
+   **`401` with no body and no `Content-Type` header** (round-46 auction core —
    matches reference UID-write handling, which writes the status only); no `uids` read, no
    host-cookie import, no account/privacy resolution, no bidder/`f`
    validation.
 4. **`bidder` parameter validation** (round-42 H1 — was implicit
-   before; round-43 M3 — exact upstream wording; round-44 L6 —
+   before; round-43 GDPR enforcement — exact upstream wording; round-44 L6 —
    case-insensitive lookup): missing/empty `bidder` → **`400`** body
    `"bidder" query param is required` (matches reference UID-write handling). For the registry lookup, the raw `bidder` value is
    **ASCII-lowercased** before matching (matches reference UID-write handling — `strings.ToLower` before chooser/registry lookup).
@@ -5449,7 +5451,7 @@ exact reference UID-write handling strings):
    case-folded value not in the registry → **`400`** body `The
 bidder name provided is not supported by Prebid Server` (matches
    Upstream reference UID-write handling).
-5. **`f` parameter validation** (round-42 H1 + round-43 M3 + round-46
+5. **`f` parameter validation** (round-42 H1 + round-43 GDPR enforcement + round-46
    L5 — case-insensitive matching): if `f` is present, **ASCII-case-
    insensitive** match against `"i"` (image) / `"b"` (blank HTML)
    (matches reference UID-write handling Unicode simple-fold equality —
@@ -5460,26 +5462,26 @@ query param is invalid. must be "b" or "i"` (matches upstream).
    query `account`, typed overlay from the same validated snapshot
    per §9.1. Missing/empty differs from literal named `"unknown"`.
    Whole-blob validation already ran; no separate malformed-account fetch
-   occurs in M6. Disabled → **`400`** body
+   occurs in diagnostic qualification. Disabled → **`400`** body
    `account is disabled, please reach out to the prebid server host`
    (Appendix F).
 7. **Resolve syncer for `bidder`** (round-42 H1): look up
    `BidderInfo` + `SyncerConfig` for `bidder` from the build-time
    registry to construct `SyncerLookup` (§7.8). The syncer's
    `enabled` flag is consulted in step 11 below via `setuid_allowed`
-   (round-46 L6 + round-55 M4 + round-56 M3 — corrects stale
+   (round-46 L6 + round-55 privacy enforcement + round-56 GDPR enforcement — corrects stale
    `sync_allowed`; /setuid uses the narrower `setuid_allowed`
    callback that consults host-cookie GDPR + `enabled` only,
    never the /cookie_sync chooser ladder), not here.
 8. **Decode `uids` cookie** and apply **host-cookie import** with the
    fill-if-empty rule (§8.2 step 6 / round-24 L7).
 9. **`resolve_sync_privacy`** (§7.8, with `endpoint:
-SyncEndpoint::SetUid`; round-47 H1 + round-52 M4 — uses §7.8.1
-   taxonomy). Per-field error policy (round-41 M3 + round-43 M3 +
-   round-44 M5 + round-45 M2 + round-46 H1+M4 + round-52 H1+H2):
+SyncEndpoint::SetUid`; round-47 H1 + round-52 privacy enforcement — uses §7.8.1
+   taxonomy). Per-field error policy (round-41 GDPR enforcement + round-43 GDPR enforcement +
+   round-44 user sync + round-45 auction core + round-46 H1+privacy enforcement + round-52 H1+H2):
    - **Malformed legacy `gdpr`** (`GdprSignalIn::Invalid(raw)`) AND
      GPP/SID did not resolve the signal → body `the gdpr query
-param must be either 0 or 1. You gave <raw>` (round-44 M5 +
+param must be either 0 or 1. You gave <raw>` (round-44 user sync +
      round-46 H1 — exact reference UID-write handling). If GPP/SID
      resolved the signal, `Invalid` is silently ignored.
    - **Empty consent** under **`parsed_request_signal == Yes`**
@@ -5493,7 +5495,7 @@ signal equals 1`. `parsed_request_signal == Ambiguous` +
      earlier "request-extraction 400" claim; reference UID-write handling only _copies_ `gdpr_consent` and checks emptiness at
      extraction, never parses it there — parsing happens inside
      `HostCookiesAllowed`). The body `gdpr_consent was invalid.
-<parser error>` (round-46 M4) is therefore emitted from the
+<parser error>` (round-46 privacy enforcement) is therefore emitted from the
      **permission path** in step 11, not from `resolve_sync_privacy`
      directly. Outcomes per `host_vendor_id` (matches reference GDPR permission evaluation + reference TCF permission evaluation):
      - `host_vendor_id == 0` → host-cookie GDPR permission wrapper skips
@@ -5501,7 +5503,7 @@ signal equals 1`. `parsed_request_signal == Ambiguous` +
        ignored; request continues to step 12 → **`200`**.
      - `host_vendor_id != 0` AND `normalized_request_signal == Yes`
        AND `gdpr_permissions_enabled` AND **step-10 activity
-       already allowed the request** (round-59 M2 — fourth
+       already allowed the request** (round-59 auction core — fourth
        precondition matters because this step runs AFTER step 10;
        syncUser-denied wins with 451) → `HostCookiesAllowed`
        parses TCF and returns the parse error; caller emits
@@ -5512,16 +5514,16 @@ signal equals 1`. `parsed_request_signal == Ambiguous` +
        parsed when normalized signal is Yes per round-52 H1);
        request continues to step 12 → **`200`**.
      - **`syncUser`-denied at step 10** → **`451`** empty body
-       (round-59 M2 — wins over the permission-path 400 above;
+       (round-59 auction core — wins over the permission-path 400 above;
        matches §15 row + round-54 H3).
        `resolve_sync_privacy` itself does NOT emit a malformed-TCF
        `Err` for /setuid — the decision lives in the permission path.
    - **Malformed `gpp_sid`** → body `invalid gpp_sid encoding, must
 be a csv list of integers` (the specified section-ID error response).
    - **Malformed GPP** → body `error parsing GPP header, header must
-have type=3` (round-45 M2).
+have type=3` (round-45 auction core).
      The /setuid call passes `us_privacy: None` (B.4 has no us_privacy
-     field), so the round-41 M3 "USP silently cleared" case is vacuous
+     field), so the round-41 GDPR enforcement "USP silently cleared" case is vacuous
      here. **Ordering relative to activity (step 10)** (round-50 L2 +
      round-54 H3 + round-55 H2 — corrected after round-53 H2 moved
      malformed-TCF to permission-path): only **request-extraction**
@@ -5565,7 +5567,7 @@ disabled` (Appendix F; intentional divergence per §15 row
 13. **Response** per `f` (`i` → 1×1 PNG, `b` → empty HTML, absent →
     syncer default; round-17 L9).
 
-**Error precedence** (round-42 H1 + round-43 H1+H2 + round-47 M2 —
+**Error precedence** (round-42 H1 + round-43 H1+H2 + round-47 auction core —
 stale "gdpr-coercion (1)" removed; gdpr coercion is no longer a 400
 gate at step 1 per round-46 H1, so it can't short-circuit). Earlier
 steps short-circuit later ones: query-parse (1, structural-only,
@@ -5587,14 +5589,14 @@ Order (round-43 H1 — host config resolution made explicit):
 2. **Host opt-out cookie check** (round-37 H1 / §8.5; matches upstream
    reference UID-read handling). If the host opt-out cookie matches, return **`200`
    with body `{}`** (NOT `{"buyeruids": {}}` and NOT `401`) without
-   reading `uids` or running host-cookie import — round-45 M3:
+   reading `uids` or running host-cookie import — round-45 GDPR enforcement:
    Upstream's response struct has `Buyeruids` tagged
    `json:"buyeruids,omitempty"`, so an empty map is _omitted_ from
    the serialized output, leaving just `{}`. The `401` opt-out path
    applies only to `/setuid` and `/cookie_sync`.
 3. Otherwise, read the `uids` cookie, **run host-cookie import to merge
    the host cookie into the in-memory `uids`** (matches upstream's
-   reference UID-read handling / reference UID-cookie handling, round-15 finding M3 —
+   reference UID-read handling / reference UID-cookie handling, round-15 finding GDPR enforcement —
    observable in `buyeruids` / round-27 finding L5), and return
    `{"buyeruids": {syncerKey: uid}}`. No privacy gating beyond opt-out,
    no writes to the response cookie.
@@ -5604,8 +5606,8 @@ Order (round-43 H1 — host config resolution made explicit):
 In `auctioneer-core`. Uses `Clock` (§5.7) for all expiry math.
 
 - **Host opt-out cookie check — runs before `uids` decoding** (round-26
-  H2 + round-27 L5 + round-40 M3; matches reference UID-cookie handling):
-  `host_cookie.optout_cookie` is **optional** (§9 / round-40 M3 —
+  H2 + round-27 L5 + round-40 GDPR enforcement; matches reference UID-cookie handling):
+  `host_cookie.optout_cookie` is **optional** (§9 / round-40 GDPR enforcement —
   matches reference configuration validation default-empty). When **omitted** or set to
   `{name: "", value: ""}`, the opt-out feature is disabled — no
   endpoint ever short-circuits on a host opt-out cookie. When
@@ -5615,7 +5617,7 @@ In `auctioneer-core`. Uses `Clock` (§5.7) for all expiry math.
   Endpoint behavior under host opt-out:
   - `/setuid` → **`401`** (matches activity / cookie-`optout` flow).
   - `/cookie_sync` → **`401`**.
-  - `/getuids` → **`200`** with body `{}` (round-45 M3 — upstream
+  - `/getuids` → **`200`** with body `{}` (round-45 GDPR enforcement — upstream
     reference UID-read handling uses `Buyeruids json:"buyeruids,omitempty"` so an
     empty map is omitted from the serialized output, NOT
     `{"buyeruids": {}}`; opted-out cookies yield an empty UID map,
@@ -5625,7 +5627,7 @@ In `auctioneer-core`. Uses `Clock` (§5.7) for all expiry math.
 - **Inner payload:** padded base64-URL of JSON `{ "tempUIDs": { "<syncerKey>": {
 "uid": "<id>", "expires": "<RFC3339>" } }, "optout": <bool> }`. Cookie name
   `uids`. Production wire is `v1.<key-id>.<payload>.<mac>` under the
-  [M5 integrity addendum](2026-10-13-usersync-cookie-integrity-design.md).
+  [user sync integrity addendum](2026-10-13-usersync-cookie-integrity-design.md).
   Authenticate before decoding; invalid/unsigned state is 400, not a fresh
   cookie. Missing cookies remain fresh state, and host opt-out still wins.
 - Per-entry TTL **14 days** (independent of the cookie's `Expires`).
@@ -5707,7 +5709,7 @@ below get the same care as bidder endpoints (§5.4):
   happen at runtime.
 
   1. **Template construction** (per request, after the host-config
-     merge of §9.1 — round-43 M4; earlier "once, when the syncer is
+     merge of §9.1 — round-43 privacy enforcement; earlier "once, when the syncer is
      first assembled" wording cached runtime config in violation of
      the per-request merge rule). In auctioneer's redirect-back URL
      template, resolve the **config macros** from the per-request
@@ -5742,7 +5744,7 @@ below get the same care as bidder endpoints (§5.4):
 - **Scheme** — resolved syncer URLs must be `https://`. The
   `insecure-bidders` build feature (§5.4) relaxes this with the
   **exact same host-rule set** as the bidder endpoint validator
-  (round-70 M7 — was vague "local Mocktioneer syncer only";
+  (round-70 bidder catalog — was vague "local Mocktioneer syncer only";
   pinned now so the feature on/off behavior is testable):
   - Allowed insecure host (literal authority): `127.0.0.1`,
     `[::1]`, or `localhost`. Any other private-range IP literal
@@ -5760,12 +5762,12 @@ below get the same care as bidder endpoints (§5.4):
     `config_store` host override cannot bypass the build-time
     feature gate.
   - **Paired tests in §11.2 — split between codegen (build-time)
-    and runtime surfaces** (round-71 M8 — earlier wording conflated
+    and runtime surfaces** (round-71 stored requests and accounts — earlier wording conflated
     "fails codegen + validate_endpoint with code 5"; codegen
     failures have no runtime code, and code 5 is for auction
     bidder outbound validation, not sync URL emission):
     - **Codegen tests** (build-time, `build.rs` snapshot — exact
-      cargo commands per round-75 M1; auctioneer-config owns the
+      cargo commands per round-75 foundations; auctioneer-config owns the
       build script so the feature must reach its package, not
       auctioneer-bidder's):
       - **Feature OFF** (`cargo build -p auctioneer-config`): a
@@ -5795,11 +5797,11 @@ auctioneer-config --features insecure-bidders` with a
       fails at codegen above, never at runtime with a per-bidder
       error code.
 - **Authority safety — same rules as §5.4 `validate_endpoint`** (round-33
-  finding M6): syncer URLs must satisfy every primary outbound-safety
+  finding diagnostic qualification): syncer URLs must satisfy every primary outbound-safety
   check just like bidder endpoints. Specifically: (a) **no authority
   macros** — `{{...}}` may only appear in the path/query of a syncer
   URL, never in the scheme or host. (b) **IP-literal authority rule —
-  default build vs `insecure-bidders`** (round-71 M7 — same exception
+  default build vs `insecure-bidders`** (round-71 bidder catalog — same exception
   as §5.4 / round-71 H1, so the relaxation is uniform across bidder
   endpoints AND syncer URLs): default builds reject any
   private/loopback/link-local IP literal in the authority and reject
@@ -5825,7 +5827,7 @@ auctioneer-config --features insecure-bidders` with a
 
 Host config (embedded defaults, optional `config_store` override):
 
-- **`status_response`** — optional host string (round-68 M4 — was
+- **`status_response`** — optional host string (round-68 privacy enforcement — was
   referenced by §8.1 + Appendix F /status rows without a definition):
   - **Default**: empty (matches reference configuration validation
     `StatusResponse: ""`).
@@ -5833,11 +5835,11 @@ Host config (embedded defaults, optional `config_store` override):
     an absent/null optional overlay inherits the baked value. An explicit
     empty string sets an empty banner. Any string value (including
     whitespace) is treated as the literal response body.
-  - **Validation**: round-117 P0-2 (M3b) — capped at **4096 bytes**
-    (the M3b memory proof charges every config-derived string, and an
+  - **Validation**: round-117 P0-2 (bounded fanout) — capped at **4096 bytes**
+    (the bounded fanout memory proof charges every config-derived string, and an
     unbounded operator string inside a whole-isolate envelope is a
     contradiction; validate() rejects longer values at push time —
-    M3a shipped uncapped, so the cap lands with M3b-1's validation
+    GDPR fanout shipped uncapped, so the cap lands with Fanout-1's validation
     pass). Within the cap, no shape constraint — the bytes
     are emitted verbatim per the §8.1 + Appendix F rows. A
     `status_response` containing CR/LF or non-UTF8 bytes is the
@@ -5868,7 +5870,7 @@ Host config (embedded defaults, optional `config_store` override):
     not enough), **`store_unavailable`** (transient backend
     failure), **`unfunded_extraction`** (boot funding is absent or the
     App's captured SDK extraction caps exceed the installed normalized caps).
-    The latter is the [approved R0 initialization boundary](2026-10-17-m7-r0-wasm-resource-envelope-design.md#42-approval-and-scope-enforcement):
+    The latter is the [approved resource qualification initialization boundary](2026-10-17-resource-envelope-design.md#42-approval-and-scope-enforcement):
     refuse before any store read, keep bounded liveness, and permit recovery
     through a newly configured funded App. Missing bindings keep their existing
     policy because they perform no extraction.
@@ -5890,7 +5892,7 @@ Host config (embedded defaults, optional `config_store` override):
     **The fail-closed 500 rule below is UNCHANGED for every route
     that does** — that rule exists to stop a request being answered
     under config nobody can vouch for, and a liveness probe cannot
-    cause that harm. Implemented by **M3b-1c** in the M3b plan;
+    cause that harm. Implemented by **Fanout-1c** in the bounded fanout plan;
     `corrupt_blob_keeps_status_answering()` keeps passing unchanged,
     which is the regression guard that this exception did not widen.
 
@@ -5956,8 +5958,8 @@ HostConfig` is INFALLIBLE — it returns a `HostConfig`, not a
   bypass per-purpose enforcement; they do NOT bypass the activity-
   control framework (§7.6) — that gate runs separately.
 - `ccpa.enforce`, `lmt.enforce`.
-- `host_cookie.*` — **required vs optional split** (round-40 M3 +
-  round-42 M3 — auctioneer hardening; reference configuration validation defaults
+- `host_cookie.*` — **required vs optional split** (round-40 GDPR enforcement +
+  round-42 GDPR enforcement — auctioneer hardening; reference configuration validation defaults
   `cookie_name` and `family` to empty strings, auctioneer rejects empty.
   See §15 row "Host-cookie required fields"):
   - **Required (auctioneer hardening).** `cookie_name` identifies a separate
@@ -5998,18 +6000,18 @@ Account config: `disabled` (bool, account-level enablement; matches upstream's
 
 ### 9.1 Config resolution semantics
 
-**Current through M6:** embedded defaults plus one typed runtime
+**Current through diagnostic qualification:** embedded defaults plus one typed runtime
 `AuctioneerAppConfig` blob, loaded through EdgeZero's existing extractor.
-The [M6 hardening design](2026-10-05-m6-parity-hardening-design.md)
+The [diagnostic qualification hardening design](2026-10-05-diagnostics-and-qualification-design.md)
 sections 7-8 define residual acceptance and update behavior. The historical
 separate `host` / `account/{id}` storage and generic JSON deletion-patch
 examples are retired, not compatibility paths. Independent account storage
-and its failure/merge policy belong to M8.
+and its failure/merge policy belong to stored requests and accounts.
 
 - **Runtime source and trust.** The existing push path validates and
   signs/encapsulates typed runtime settings. Each config-consuming request
   resolves one validated snapshot through the existing binding/extractor;
-  host and account resolution reuse that snapshot. M6 adds neither a second
+  host and account resolution reuse that snapshot. diagnostic qualification adds neither a second
   loader nor another runtime signing protocol.
 - **Typed overlays.** Absent optional fields inherit baked defaults.
   Serialized JSON `null` on an optional field or optional block also means
@@ -6059,7 +6061,7 @@ and its failure/merge policy belong to M8.
   discovery, auction account-disabled maps to 503 / code 7;
   `/cookie_sync` and `/setuid` map it to their existing 400 body.
   The separately fetched `MalformedAcct` / code-10 500/400 mappings are
-  reserved for the M8 account-store design, not reachable M6 blob outcomes.
+  reserved for the stored requests and accounts account-store design, not reachable diagnostic qualification blob outcomes.
 - **Snapshots and ceilings.** Permissions, debug gates, aliases, resource
   clamps, and response decoration use the same request snapshot. Later
   requests load again; runtime changes cannot expand boot-funded ceilings
@@ -6069,7 +6071,7 @@ and its failure/merge policy belong to M8.
   and invalid/outage/deletion/recovery behavior, not instantaneous provider
   propagation. Provider cache/refresh bounds require separately recorded
   EdgeZero/provider evidence; an unspecified propagation bound does not
-  block unrelated M6 behavioral work.
+  block unrelated diagnostic qualification behavioral work.
 
 ---
 
@@ -6082,21 +6084,21 @@ and its failure/merge policy belong to M8.
 | Malformed runtime blob, including account overlays                                                                                                                                            | `500` (§9.1; `MalformedHost`, no per-bidder code)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Auction: account disabled                                                                                                                                                                     | `503` (§9.1; code 7 `AccountDisabled`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Sync: account disabled after valid config resolution                                                                                                                                          | `400` (§9.1; endpoint-specific)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Independently fetched malformed account record                                                                                                                                                | Reserved for M8; not a reachable M6 runtime-blob outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Independently fetched malformed account record                                                                                                                                                | Reserved for stored requests and accounts; not a reachable diagnostic qualification runtime-blob outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Malformed host config override                                                                                                                                                                | `500` (§9.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Bidder transport/parse error                                                                                                                                                                  | non-fatal → `ext.errors`, other bidders proceed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Auction with no bids / all failed                                                                                                                                                             | `200` — shape per case, Appendix E.5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | No outbound capability available                                                                                                                                                              | `500`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `cookie_sync`: missing consent under `parsed_request_signal == Yes` OR (`Ambiguous` + `normalized_request_signal == Yes`) (round-52 H2; §7.8.1 taxonomy) / bad `gpp` / bad `gpp_sid`          | `400`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `cookie_sync`: malformed non-empty TCF consent under `normalized_request_signal == Yes` + `gdpr_permissions_enabled` (round-47 H1 + round-48 H1 + round-49 H2 + round-52 H1+M4 + round-59 L3) | **`200`** with empty `bidder_status`. **Host gate** depends on `host.gdpr.host_vendor_id`: `0` → host gate allows (matches host-cookie GDPR permission wrapper); non-zero → host gate fails. **Per-bidder gate** (`sync_allowed`) fails on malformed TCF regardless of `host_vendor_id`, so `bidder_status` is empty in both cases (matches reference cookie-sync handling). **/setuid behavior** on the same input requires the full precondition list (round-59 L3 — earlier "0 → 200; non-zero → 400" shortcut omitted activity): `host_vendor_id == 0` → 200; `host_vendor_id != 0` AND activity allowed → 400 body `gdpr_consent was invalid. <parser error>`; `host_vendor_id != 0` AND activity denied → 451 empty body (matches §15 + round-54 H3). |
+| `cookie_sync`: malformed non-empty TCF consent under `normalized_request_signal == Yes` + `gdpr_permissions_enabled` (round-47 H1 + round-48 H1 + round-49 H2 + round-52 H1+privacy enforcement + round-59 L3) | **`200`** with empty `bidder_status`. **Host gate** depends on `host.gdpr.host_vendor_id`: `0` → host gate allows (matches host-cookie GDPR permission wrapper); non-zero → host gate fails. **Per-bidder gate** (`sync_allowed`) fails on malformed TCF regardless of `host_vendor_id`, so `bidder_status` is empty in both cases (matches reference cookie-sync handling). **/setuid behavior** on the same input requires the full precondition list (round-59 L3 — earlier "0 → 200; non-zero → 400" shortcut omitted activity): `host_vendor_id == 0` → 200; `host_vendor_id != 0` AND activity allowed → 400 body `gdpr_consent was invalid. <parser error>`; `host_vendor_id != 0` AND activity denied → 451 empty body (matches §15 + round-54 H3). |
 | `cookie_sync`: `normalized_request_signal != Yes` OR `!gdpr_permissions_enabled` + malformed TCF consent (round-48 H1 + round-52 H1)                                                          | **`200`** normal response — TCF never parsed when normalized signal is not Yes (or when host disables GDPR); the malformed value is silently ignored on both /cookie_sync and /setuid                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `cookie_sync`: malformed `us_privacy` only (round-41 M3)                                                                                                                                      | **NOT** `400` — silently cleared, request continues (matches reference cookie-sync handling)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `cookie_sync`: host cookie GDPR-blocked                                                                                                                                                       | `200`; JSON top-level `status` is still `"ok"` or `"no_cookie"` (per request-cookie live-sync state, never `"StatusBlockedByPrivacy"` — that is upstream's _internal_ chooser status, not the JSON value); `bidder_status` is empty (round-16 finding M5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `cookie_sync`: malformed `us_privacy` only (round-41 GDPR enforcement)                                                                                                                                      | **NOT** `400` — silently cleared, request continues (matches reference cookie-sync handling)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `cookie_sync`: host cookie GDPR-blocked                                                                                                                                                       | `200`; JSON top-level `status` is still `"ok"` or `"no_cookie"` (per request-cookie live-sync state, never `"StatusBlockedByPrivacy"` — that is upstream's _internal_ chooser status, not the JSON value); `bidder_status` is empty (round-16 finding user sync)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `cookie_sync`: user opted out                                                                                                                                                                 | `401`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `setuid`: missing/unknown `bidder`, bad `gpp_sid`, malformed GPP, unresolved `Invalid` legacy `gdpr` value, empty `gdpr_consent` under **`parsed_request_signal == Yes`**                     | `400` (request-extraction errors; round-56 L4 — narrowed to spell out the actual triggers per §8.3 step 9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `setuid`: malformed non-empty TCF consent — **permission-path 400**, NOT request-extraction (round-56 L4)                                                                                     | `400` body `gdpr_consent was invalid. <parser error>` **only when** `host_vendor_id != 0` AND `normalized_request_signal == Yes` AND `gdpr_permissions_enabled` AND activity allowed (round-53 H2 + round-54 H3 — runs in §8.3 step 11 after activity, so `syncUser`-denied wins with 451); otherwise 200 (host_vendor_id==0 short-circuit) or 451 (activity-denied wins) per the matrices in §7.8 / §11.1.                                                                                                                                                                                                                                                                                                                                                 |
 | `setuid`: empty `gdpr_consent` under `parsed_request_signal == Ambiguous` + `normalized_request_signal == Yes` (round-56 H1)                                                                  | `host_vendor_id == 0` → `200`; `host_vendor_id != 0` + `gdpr_permissions_enabled` → `451` body `gdpr_consent string prevents…`; `host_vendor_id != 0` + `!gdpr_permissions_enabled` → `200`. NOT a request-extraction 400 — empty consent at parsed-Ambiguous flows through the host-cookie permission path.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `setuid`: disabled syncer (`SyncDecision::BlockedByDisabledUsersync`, round-39 M2)                                                                                                            | `400` body `The bidder syncer is disabled` (Appendix F)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `setuid`: disabled syncer (`SyncDecision::BlockedByDisabledUsersync`, round-39 auction core)                                                                                                            | `400` body `The bidder syncer is disabled` (Appendix F)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `setuid`: `syncUser` denied                                                                                                                                                                   | `451` empty body (Appendix F)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `setuid`: GDPR host cookie blocked (`SyncDecision::BlockedByPrivacy`)                                                                                                                         | `451` body `The gdpr_consent string prevents…` (Appendix F)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ~~`setuid`: blocked by regulation scope~~ — **NOT APPLICABLE** (round-53 H1)                                                                                                                  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | /setuid does not invoke the /cookie_sync chooser ladder, so `SkipWhen.gpp_sid` never fires there (§7.8 endpoint mapping / §8.3 step 11 — matches reference UID-write handling which only checks host-cookie GDPR). Earlier rev mistakenly listed this as a /setuid outcome. |
@@ -6109,7 +6111,7 @@ Canonical body formats and content types in **Appendix F**.
 ## 11. Testing
 
 Two layers, **both required** (§1.2). TDD: tests are written before the
-implementation they cover. A milestone (§14) is "done" only when every
+implementation they cover. A capability (§14) is "done" only when every
 component it ships has green unit tests **and** the corresponding
 integration tests are green.
 
@@ -6119,18 +6121,18 @@ integration tests are green.
   invariants** (§3.2: validate, **rejects requests carrying legacy
   `regs.ext.gdpr` / `regs.ext.us_privacy` / `user.ext.consent`**,
   **rejects `ext.prebid.channel.name == ""`**, **no consent-string
-  warnings emitted here** (round-37 H3 + round-38 M2 — consent warnings
+  warnings emitted here** (round-37 H3 + round-38 auction core — consent warnings
   are emitted by `PrivacyContext::take_warnings()`, §7.7, and asserted
   in the GDPR / CCPA / GPP unit tests below); **no alias normalization,
   no `cur` defaulting** — aliases resolve in `run_auction` **step 7**
-  (§5.1; round-44 M2 — corrects stale "step 6" after round-43 H1
+  (§5.1; round-44 auction core — corrects stale "step 6" after round-43 H1
   renumbering));
   `validate()` cases. Fixtures from reference server
   `endpoints/openrtb2/sample-requests/valid-whole/*.json`.
 - **Adapters** — `make_requests` / `make_bids` with fixture pairs (pure;
   the trait is synchronous so no mocking is needed).
 - **GDPR** — Appendix A truth tables as a test matrix; TCF v2 string vectors.
-- **`PrivacyContext::take_warnings()`** (round-37 H3 + round-38 M2) —
+- **`PrivacyContext::take_warnings()`** (round-37 H3 + round-38 auction core) —
   malformed TCF / US-Privacy / GPP each emit a `NonFatalWarning { code:
 10001 InvalidPrivacyConsent, scope }`, returned by `take_warnings()`
   in a single drain; subsequent calls return empty (consume-on-build).
@@ -6164,7 +6166,7 @@ integration tests are green.
         still fails on parse error, bidder-sync GDPR permission at
         reference cookie-sync handling). Net: 200, `bidder_status` empty;
         top-level `status` derived from the request cookie's
-        live-sync count per Appendix B.2 (round-71 M9 — was
+        live-sync count per Appendix B.2 (round-71 shared auction foundations — was
         incorrectly "reflects host gate true").
       - `endpoint: SyncEndpoint::CookieSync` + `host_vendor_id != 0`
         → `Ok(_)`, `host_cookie_sync_allowed == false`; `sync_allowed
@@ -6178,7 +6180,7 @@ integration tests are green.
         observable response from the /setuid HANDLER (not from
         `resolve_sync_privacy` directly) depends on whether the
         §8.3 step-10 activity check already allowed the request
-        (round-59 M2 — fourth precondition explicit):
+        (round-59 auction core — fourth precondition explicit):
         - **Activity allowed** → step-11 permission path returns
           the parse error → caller emits **`400`** body
           `gdpr_consent was invalid. <parser error>` (round-53 H2
@@ -6190,8 +6192,8 @@ integration tests are green.
           (`Ok(_)` with `host_cookie_sync_allowed == false`); the
           400-vs-451 split is purely in the caller's
           activity-vs-permission ordering. This matches the §11.2
-          E2E ordering-regression fixture (round-58 M2).
-    - **/setuid empty-consent matrix** (round-54 M4 + round-55 H1 +
+          E2E ordering-regression fixture (round-58 auction core).
+    - **/setuid empty-consent matrix** (round-54 privacy enforcement + round-55 H1 +
       round-55 L5 — taxonomy fix: `parsed_request_signal` enum
       values are Yes / No / Ambiguous, NOT "Absent"; that's
       `GdprSignalIn::Absent` from the wire-coercion layer):
@@ -6203,7 +6205,7 @@ default_value="1"` (normalized Yes) + empty `gdpr_consent`
         reference UID-write handling keying off the parsed signal). Falls
         into the host-cookie permission path; outcome depends on
         `host_vendor_id` AND `gdpr_permissions_enabled` (round-55
-        H1 — corrects round-54 M4's blanket 200):
+        H1 — corrects round-54 privacy enforcement's blanket 200):
         - `host_vendor_id == 0` → host-cookie GDPR permission wrapper
           short-circuits to true (reference GDPR permission evaluation) → **`200`** with
           cookie written.
@@ -6220,7 +6222,7 @@ default_value="1"` (normalized Yes) + empty `gdpr_consent`
       - `gdpr.enabled=false` + any consent state → **`200`**
         (matches reference GDPR permission evaluation an allow-all permission result) regardless of
         `host_vendor_id`.
-    - **/cookie_sync empty-consent matrix** (round-54 M4 —
+    - **/cookie_sync empty-consent matrix** (round-54 privacy enforcement —
       round-52 H2 explicitly covers `parsed Ambiguous +
 normalized Yes`; the upstream test that pins this is
       reference cookie-sync handling fixtures):
@@ -6236,7 +6238,7 @@ normalized Yes`; the upstream test that pins this is
   - Malformed `gpp_sid` / GPP → `Err(_)` on both endpoints (mapped to
     400 by callers).
   - **Malformed `us_privacy` → `Ok(_)` with USP silently cleared**
-    (round-41 M3 — matches upstream). Request continues; CCPA enforcement
+    (round-41 GDPR enforcement — matches upstream). Request continues; CCPA enforcement
     derived from the bad string is skipped; no warning emitted on the
     sync path.
   - `sync_allowed` per-syncer covering Appendix B.3 steps 6-9: a
@@ -6244,20 +6246,20 @@ normalized Yes`; the upstream test that pins this is
 Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
     `SkipWhen.gpp_sid` exact-string match against a raw `"2,6"` request
     sid (skip set `["2,6"]` matches; `["2"]` does NOT — Appendix B.3 step
-    9 / round-15 M5) → `BlockedByRegulationScope`.
+    9 / round-15 user sync) → `BlockedByRegulationScope`.
   - `host_cookie_sync_allowed` mirrors auction host-syncer GDPR decision.
-  - M2 stub: `sync_allowed → Allowed`, **`setuid_allowed → Allowed`**
+  - auction core stub: `sync_allowed → Allowed`, **`setuid_allowed → Allowed`**
     (round-57 L3 — was missing; matches the canonical stub text in
-    §7.8 + §14 per round-55 M4), `host_cookie_sync_allowed = true`.
+    §7.8 + §14 per round-55 privacy enforcement), `host_cookie_sync_allowed = true`.
 - **CCPA / GPP** — 4-char parsing + `ShouldEnforce`; GPP section decode;
   precedence + error table (Appendix D); legacy downgrade fills-empty-only.
 - **Activities & scrubbing** — rule order/abstain; Appendix C scrub matrix
   (every row a test case).
-- **`PrivacyContext::allow_all_no_scrub()`** (round-35 finding M3) — M2
+- **`PrivacyContext::allow_all_no_scrub()`** (round-35 finding GDPR enforcement) — auction core
   stub: returns a context where every `activity_allow` is `true`, every
   bidder's `AuctionPermissions` is `AllowAll`, `ccpa_should_enforce` is
   `false`, and `scrub::apply` is a no-op. Unit tests assert these
-  invariants explicitly so M3/M4 implementations cannot accidentally
+  invariants explicitly so GDPR enforcement/privacy enforcement implementations cannot accidentally
   weaken the stub.
 - **Auction output building blocks** — price-bucket table, every rounding
   mode (incl. seeded `timesplit`), targeting keys + truncation, winner
@@ -6268,13 +6270,13 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   an `allow_insecure` flag** (the relaxation is compiled out, §5.4); syncer
   URL macro escaping and the two-phase template validation (§8.6);
   **inbound `Content-Encoding` rejected before body read with `400`**
-  (round-25 finding H2); **`EndpointBuilder` coverage** (round-30 M3):
+  (round-25 finding H2); **`EndpointBuilder` coverage** (round-30 GDPR enforcement):
   `{{.AccountID}}` resolves to `ResolvedAccount.id` (not raw
   `site.publisher.id`); `{{.PublisherID}}` resolves to the raw publisher
   id; `host_allowlist` membership enforced for host-varying endpoints;
   path/query macro values percent-encoded; path-traversal sequences
   (`..`, `%2e%2e`, `..`, etc.) in macro values rejected.
-  **Fixed-host substitution rejection** (round-32 finding M4): a
+  **Fixed-host substitution rejection** (round-32 finding privacy enforcement): a
   fixed-host bidder (`host_allowlist == None`) whose `make_requests`
   returns a `BidderHttpRequest.url` with a _different_ but otherwise
   valid HTTPS host (no macros, no traversal, public IP) is rejected by
@@ -6285,9 +6287,9 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   private-IP authority, hard-coded `localhost` authority, authority-level
   macros). This is the unit-test layer; the matching end-to-end handler
   coverage lives in §11.2 under _Sync URL safety integration_ (round-33
-  M6 + round-34 L7 + round-35 M4 + round-36 M1).
+  diagnostic qualification + round-34 L7 + round-35 privacy enforcement + round-36 foundations).
 - **Outbound gzip via finalization** — round-110 B3 (REPLACES the
-  round-25 M6 transport-side strip-and-rewrite test, retired with that
+  round-25 diagnostic qualification transport-side strip-and-rewrite test, retired with that
   behavior): when the bidder's `endpoint_compression` is `gzip` (read
   from `BidderInfo` by the exchange at finalize time — round-150 #6),
   `finalize_for_transport` compresses through the bounded writer and
@@ -6302,8 +6304,8 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   suppresses HTTP-call entries for that bidder in `ext.debug.httpcalls`
   even when account `debug_allow` is true; emits a
   `BidderLevelDebugDisabled` warning (code 10003) in
-  `ext.warnings[<bidder>]` (§5.6 / round-25 finding M5).
-- **Account-level debug gate** (round-40 L6 + round-42 L5 — M6+ test):
+  `ext.warnings[<bidder>]` (§5.6 / round-25 finding user sync).
+- **Account-level debug gate** (round-40 L6 + round-42 L5 — diagnostic qualification test):
   request asks for debug (`test=1` / `ext.prebid.debug=1` / `?debug=1`)
   AND account `debug_allow == false` → response carries **exactly one
   `AccountLevelDebugDisabled` warning (code 10002) under
@@ -6311,12 +6313,12 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   any per-bidder slot — §5.6); `ext.debug` is omitted from the
   response. Independence of 10002 and 10003 is asserted: a request
   that triggers 10002 (account-level deny) produces no 10003 (no
-  bidder reached the debug-capture step). M2-M5 suppression window:
+  bidder reached the debug-capture step). auction core through user sync suppression window:
   the warning is **silent** — no 10002 emitted under
   `ext.warnings.prebid[]` even when account `debug_allow == false`
-  (round-33 H2 + round-34 M3), so this test runs only from M6.
+  (round-33 H2 + round-34 GDPR enforcement), so this test runs only from diagnostic qualification.
 - **Debug redaction** — `ext.debug` masking; emitted only when requested
-  _and_ `debug_allow`. M6 sections 3-6 and 9 define the complete safe
+  _and_ `debug_allow`. diagnostic qualification sections 3-6 and 9 define the complete safe
   projection, signal/gate/warning, capture-lifetime, wire, hostile-input,
   resource, deadline, and output-omission tests; a shallow masking test
   alone is not acceptance.
@@ -6324,7 +6326,7 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   `responsetimemillis` under `FakeClock`; shuffling / `timesplit` under a
   seeded `Rng`; `gen_range` unbiased over many draws.
 - **`prepare()` implicit-fill — explicit risky-case coverage** (round-33
-  finding M5; **note**: §11.1 is the unit-test layer — the same scenarios
+  finding user sync; **note**: §11.1 is the unit-test layer — the same scenarios
   exercised end-to-end against the handler live in §11.2 under outbound
   safety, round-34 finding L7):
   - **Sec-GPC: 1 overrides body**: header `Sec-GPC: 1` + request body
@@ -6346,14 +6348,14 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
     no-change-when-missing case.
 - **`uids` cookie** — encode / decode / expiry / optout; UA-rule cookie
   attributes; max-size eviction + `PriorityBidderEjector` ordering.
-- **Config resolution** — §9.1 and M6 sections 7-9: one validated typed
+- **Config resolution** — §9.1 and diagnostic qualification sections 7-9: one validated typed
   runtime blob, host/account overlays, and limited tri-state privacy
   fall-through. Disabled account maps to auction 503 / sync 400 after
   structural-budget checks. Malformed data anywhere in the blob maps to
   config 500 before application opt-out/account work; transient store
   faults keep 503/Retry-After. Probe degradation remains separately tested.
 - **Typed host/account overlay suite.** Core sibling preservation and
-  effective-value validation remain existing regression requirements; M6
+  effective-value validation remain existing regression requirements; diagnostic qualification
   extends deep sibling combinations and all relevant endpoint consumers:
   - A partial nested GDPR override preserves user_sync, host_cookie,
     unrelated privacy settings, and resource-limit defaults.
@@ -6366,7 +6368,7 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   - An absent optional cookie domain inherits; removal is not synthesized
     from null. Future deletion policy requires its own owning design.
   - Identical defaults plus typed overrides resolve deterministically.
-  - M6 tests update, invalid/integrity-failing blob, unavailable store,
+  - diagnostic qualification tests update, invalid/integrity-failing blob, unavailable store,
     deletion under both compiled bootstrap policies, and recovery.
   - No per-request lookup of separate host/account store keys is added.
 - **Config codegen** — snapshot tests on `build.rs` output.
@@ -6374,7 +6376,7 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   (request / host-default / capped); deadline anchoring at `request_start`;
   the `remaining == 0` short-circuit (before fan-out); the three timeout
   surfaces (code 1 / code 12 / statuscode 101).
-- **Adapter-visible TMax vs execution deadline split** (round-28 M5;
+- **Adapter-visible TMax vs execution deadline split** (round-28 user sync;
   §5.1 step 9): a fixture adapter captures the outbound
   `BidRequest.TMax` it receives and asserts the **defaulted-not-capped**
   rule across four input cases: absent (`0`/None) → `tmax_default`;
@@ -6393,8 +6395,8 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
 - **`run_auction` reuse (§5.8)** — invoke `run_auction` **directly**
   (without going through any EdgeZero handler) to prove the trusted-server
   entry-point contract: same fixtures produce identical `BidResponse`.
-- **Sync URL safety integration** (round-33 M6 + round-34 L7 + round-35
-  M4 + round-36 M1 + round-51 L5 — emission is /cookie_sync-only per
+- **Sync URL safety integration** (round-33 diagnostic qualification + round-34 L7 + round-35
+  privacy enforcement + round-36 foundations + round-51 L5 — emission is /cookie_sync-only per
   §8.6): syncer URLs go through the same rejection matrix as
   `validate_endpoint` — non-HTTPS, private-IP literal authority,
   `localhost` authority, authority-level macros, request-derived
@@ -6426,13 +6428,13 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   `resolve_aliases(&normalized, registry)` at handler entry and ride
   `AuctionPlan.aliases`; `run_auction` consumes `plan.aliases` at
   step 7, where the `ext.prebid.bidderparams` merging also happens
-  (round-44 M2 — same step; the old "step 6" reference predated the
+  (round-44 auction core — same step; the old "step 6" reference predated the
   round-43 H1 renumbering). Tests cover **alias validation failures**
   (unknown base, disabled base, no-op alias, unknown `aliasgvlids`
   entry, `aliasgvlids < 1`) producing `AuctionError::BadInput` → `400`
-  with the documented `Invalid request: <err>` body (round-25 finding M4),
+  with the documented `Invalid request: <err>` body (round-25 finding privacy enforcement),
   and **disabled-bidder removal** producing a `BidderTemporarilyDisabled`
-  (code 6) warning per-imp (round-25 finding M3). The observable identity
+  (code 6) warning per-imp (round-25 finding GDPR enforcement). The observable identity
   contract (§5.9) — `seatbid.seat`, `ext.errors`, `ext.warnings`,
   `ext.responsetimemillis`, targeting suffix, `debug.httpcalls`,
   `seatnonbid.seat` — is all keyed by alias name; the base adapter's code
@@ -6440,21 +6442,21 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
 - **Determinism** — Appendix E.7: identical input + mocks + `FakeClock` +
   fixed `Rng` seed → byte-identical `BidResponse` across runs and targets
   (snapshot files).
-- **User-sync flow** _(M5+ only — round-41 M5)_ — `/cookie_sync`
+- **User-sync flow** _(user sync only — round-41 user sync)_ — `/cookie_sync`
   candidate selection end-to-end (Appendix B.3 evaluate ladder);
-  `/setuid` formats + cookie attributes (Appendix B.5–B.6). M2-M4
+  `/setuid` formats + cookie attributes (Appendix B.5–B.6). auction core-privacy enforcement
   builds do not expose sync routes (§7.8 / §14 H1).
-- **Endpoint handlers** _(scope varies by milestone — round-41 M5 +
-  round-68 M6)_ — M2 ships and tests `/openrtb2/auction`, `/status`
+- **Endpoint handlers** _(scope varies by capability — round-41 user sync +
+  round-68 diagnostic qualification)_ — auction core ships and tests `/openrtb2/auction`, `/status`
   (both `204` default + `200` configured branches per Appendix F /
-  round-67 M3), `/info/bidders` (200 success + 400 bad-query bodies
-  per Appendix F / round-68 M6 — pinned to the reference bidder-list handling exact-byte strings, no trailing newline, no
+  round-67 GDPR enforcement), `/info/bidders` (200 success + 400 bad-query bodies
+  per Appendix F / round-68 diagnostic qualification — pinned to the reference bidder-list handling exact-byte strings, no trailing newline, no
   `Content-Type` on the 400 path), and `/info/bidders/{name}` (200
   bidder-detail + 404 unknown + the `all` aggregate path) through
   the Axum dev server with realistic requests; assertions on
   status, headers, content type, and body shape (Appendix F).
-  **M5+ adds the three sync routes** — `/cookie_sync`, `/setuid`,
-  `/getuids` — to this list. M2 acceptance does NOT require the
+  **user sync adds the three sync routes** — `/cookie_sync`, `/setuid`,
+  `/getuids` — to this list. auction core acceptance does NOT require the
   sync routes to be wired or to pass any tests (they don't yet
   exist in the build).
   **Intentional scope (round-36 L4):** handler-level integration coverage —
@@ -6466,15 +6468,15 @@ Privacy`; syncer `enabled=false` → `BlockedByDisabledUsersync`;
   library types (§2.1 / §5.8) — once the auction engine plus its handler
   pre/post-steps pass on Axum, the other targets inherit correctness from
   the shared library; only host-primitive seams (fan-out, clock, entropy)
-  vary. M6 prepares the offline provider harness/artifact handoff/refusal
+  vary. diagnostic qualification prepares the offline provider harness/artifact handoff/refusal
   tests and runbooks. Credentialed live-handler integration for
-  Cloudflare/Spin/Fastly executes in M7.6 after M7.5; shared-library/native
+  Cloudflare/Spin/Fastly executes in publisher pilot after Trusted Server embedding; shared-library/native
   correctness is not provider lifecycle or selected-target pilot proof.
-- **Route registration** _(scope varies by milestone — round-42 M1
-  recount)_ — M2 registers and dispatches the four auction-shaped
+- **Route registration** _(scope varies by capability — round-42 foundations
+  recount)_ — auction core registers and dispatches the four auction-shaped
   routes (`/openrtb2/auction`, `/status`, `/info/bidders`,
-  `/info/bidders/{name}`); M3a adds `/_auctioneer/health/gvl` (Task
-  4a) for five; M5 adds the three sync routes
+  `/info/bidders/{name}`); GDPR fanout adds `/_auctioneer/health/gvl` (Task
+  4a) for five; user sync adds the three sync routes
   (`/cookie_sync`, `/setuid`, `/getuids`) and asserts all eight
   dispatch.
 - **Multi-target build** — explicit package/feature matrix
@@ -6492,7 +6494,7 @@ wasm32-wasip1` — both targets must succeed since these crates
   - **`auctioneer-adapter-cloudflare`**: `cargo check -p
 auctioneer-adapter-cloudflare --target wasm32-unknown-unknown`
     using the default features (which include `cloudflare`, the
-    crate's only feature per its `Cargo.toml`; round-62 M1 —
+    crate's only feature per its `Cargo.toml`; round-62 foundations —
     earlier "with the `worker` feature enabled" was wrong:
     `worker` is the wasm32-target dependency crate, NOT a Cargo
     feature. Equivalent explicit form: `--features cloudflare`).
@@ -6504,64 +6506,64 @@ auctioneer-adapter-fastly --target wasm32-wasip1` (Compute@Edge
     WASI target).
   - **`auctioneer-adapter-spin`**: `cargo check -p auctioneer-adapter-spin
 --target wasm32-wasip2` (Spin WASI target — round-155 #8: the
-    pinned EdgeZero builds Spin on `wasm32-wasip2`; the M3b-4 target
+    pinned EdgeZero builds Spin on `wasm32-wasip2`; the Fanout-4 target
     move updates this command, `edgezero.toml`, `spin.toml`, the CI
     matrix and the README together. Fastly stays on `wasm32-wasip1`).
   - **`auctioneer-core`**: `cargo check -p auctioneer-core` on all four
     adapter-relevant targets (host + wasm32-unknown-unknown +
     wasm32-wasip1 + wasm32-wasip2), since it carries the EdgeZero `app!`
     integration that each adapter wires.
-    This is the **per-milestone** cross-target gate (round-67 M4 +
-    round-68 H1 — milestone-scoped: M1 has no EdgeZero wiring per §14,
-    so requiring adapter wrappers to compile in M1 is incompatible with
-    the M1 deliverables). Three distinct gates apply:
-  - **M1+ library `cargo check` matrix** — the six library crates
+    This is the **per-capability** cross-target gate (round-67 privacy enforcement +
+    round-68 H1 — capability-scoped: foundations has no EdgeZero wiring per §14,
+    so requiring adapter wrappers to compile in foundations is incompatible with
+    the foundations deliverables). Three distinct gates apply:
+  - **foundations library `cargo check` matrix** — the six library crates
     (`auctioneer-openrtb`, `auctioneer-config`, `auctioneer-runtime`,
     `auctioneer-privacy`, `auctioneer-bidder`, `auctioneer-exchange`) on both
-    wasm targets. Runs on every PR from M1 onward. The three M1
-    crates (openrtb, config, runtime) ship in M1 (round-70 L11 —
+    wasm targets. Runs on every PR from foundations onward. The three foundations
+    crates (openrtb, config, runtime) ship in foundations (round-70 L11 —
     typo corrected, "two" → "three"); the rest are
-    skeleton-only until M2 but the deny-list and target-portability
+    skeleton-only until auction core but the deny-list and target-portability
     checks still run.
-  - **M1.5+ adapter wrapper + auctioneer-core `cargo check` matrix** —
+  - **adapter wrapper conformance adapter wrapper + auctioneer-core `cargo check` matrix** —
     `auctioneer-adapter-{axum,cloudflare,fastly,spin}` on their target
     triples PLUS `auctioneer-core` on host + both wasm targets. Runs
-    only after **M1.5 wrapper conformance** (round-67 H1) lands —
+    only after **adapter wrapper conformance wrapper conformance** (round-67 H1) lands —
     the wrappers must align with the `Cargo.lock`-pinned EdgeZero
     `run_app` signatures (round-72 L1 — under `9e661ae` those take NO
     `manifest_src`: Cloudflare `run_app(req, env, ctx)`, Spin
     `run_app(req)`; the manifest is loaded internally), and Spin's
     `#[http_service]` `unsafe_code` lint conflict must be resolved.
-    Including this gate in M1 was the earlier inconsistency.
-  - **M2-production release-artifact gate** — the per-target
+    Including this gate in foundations was the earlier inconsistency.
+  - **auction core-production release-artifact gate** — the per-target
     `cargo build --release` matrix from §5.4 (Axum host triple,
     Cloudflare `wasm32-unknown-unknown`, Fastly `wasm32-wasip1`,
     Spin `wasm32-wasip2`), gated by the **triple-assertion `cargo
 expand --release -p auctioneer-bidder` snapshot test** described
-    in the next bullet (round-70 M8 + round-71 L10 — earlier
+    in the next bullet (round-70 stored requests and accounts + round-71 L10 — earlier
     "asserts no cfg blocks survive" was the weak form that just
     verifies Cargo behavior; the gate uses the strengthened
     function-name + literal absence + feature-on positive
     assertions). Runs on release tags only, becomes mandatory at
-    M2 production-complete.
+    auction core production-complete.
     Handler-level integration tests remain Axum-only by design
     (previous bullet). Each gate is enforced as a CI script — a
     `cargo check` or `cargo build --release` that misses any cell
     counts as a failed cross-target gate at the corresponding
-    milestone.
-- **Ingress hook contract tests — milestone-scoped** _(round-65
+    capability.
+- **Ingress hook contract tests — capability-scoped** _(round-65
   H1+H2 + round-66 L5 + round-68 H2 — split because /cookie_sync
-  doesn't exist as a wired route until M5 per §14)_. Once EdgeZero
+  doesn't exist as a wired route until user sync per §14)_. Once EdgeZero
   ships the per-route ingress policy hook (open item 14), an
   Axum-only end-to-end suite asserts:
-  - **Ingress E2E subset — auction + default routes (owner: M3b Task
-    M3b-10; the auction/default-route BEHAVIOR was identified during M2
-    design, but these ingress-hook tests land with M3b-10, round-80 M2)**:
-    - **Content-Encoding rejection** (round-66 M2 + round-69 L4):
+  - **Ingress E2E subset — auction + default routes (owner: bounded fanout Task
+    Fanout-10; the auction/default-route BEHAVIOR was identified during auction core
+    design, but these ingress-hook tests land with Fanout-10, round-80 auction core)**:
+    - **Content-Encoding rejection** (round-66 auction core + round-69 L4):
       non-empty `Content-Encoding` on `/openrtb2/auction` → 400
       with the exact body `Invalid request: Content-Encoding of
 type <encoding> is not supported\n` (trailing `\n`
-      canonical per Appendix F + round-68 M5; matches upstream
+      canonical per Appendix F + round-68 user sync; matches upstream
       reference auction handling / plain-text error output); no body-read metrics
       recorded.
     - **Content-Length over cap** on `/openrtb2/auction` → 400
@@ -6583,26 +6585,26 @@ type <encoding> is not supported\n` (trailing `\n`
       empty body. The 256 KiB auction cap does **not** apply to
       a `GET` request against `/openrtb2/auction`.
     - **Content-Encoding precedence on unmatched/wrong-method**
-      (round-69 M3): `POST /missing` with `Content-Encoding:
+      (round-69 GDPR enforcement): `POST /missing` with `Content-Encoding:
 gzip` → 400 with the Content-Encoding body, NOT 404.
       `GET /openrtb2/auction` with `Content-Encoding: gzip` →
       400 with the Content-Encoding body, NOT 405. Asserts the
       hook's "encoding rejection before route-mapping" order.
-    - **`POST /cookie_sync` in an M2-M4 build** → 400 (NotFound
+    - **`POST /cookie_sync` in an auction core-privacy enforcement build** → 400 (NotFound
       with 4 KiB cap) when body > 4 KiB, OR 404 empty body
       otherwise; **NOT** the 32 KiB `/cookie_sync` cap or 200
       handler response (round-69 H1 — the route isn't wired
-      until M5, so `match_route` returns `NotFound`). The 32 KiB
-      cap only becomes reachable in M5+ per the M5+ subset
+      until user sync, so `match_route` returns `NotFound`). The 32 KiB
+      cap only becomes reachable in user sync per the user sync subset
       below.
     - All assertions verify against the values
       `auctioneer-runtime::body_caps::match_route` returns for the
       auction route (`Matched { cap_bytes: 262144 }`), the
       4 KiB default (`MethodNotAllowed` / `NotFound`), and
-      milestone-scope arms (round-69 H1).
-  - **M5+ subset — `/cookie_sync` ingress**:
+      capability-scope arms (round-69 H1).
+  - **user sync subset — `/cookie_sync` ingress**:
     - **Content-Encoding rejection** on `/cookie_sync` → 400 with
-      the same exact body as the auction case (round-68 M3 —
+      the same exact body as the auction case (round-68 GDPR enforcement —
       intentional divergence row added to §15 because upstream
       reference cookie-sync handling does NOT reject inbound compression; auctioneer
       unifies the cap+encoding rule across all body routes for
@@ -6612,14 +6614,14 @@ gzip` → 400 with the Content-Encoding body, NOT 404.
     - **Missing Content-Length + body > 32 KiB** on `/cookie_sync`
       → 400 (bounded read).
     - **Chunked + body > 32 KiB** on `/cookie_sync` → 400.
-      These ride in with /cookie_sync handler wiring per §14 M5 —
-      M2 acceptance does NOT require them.
+      These ride in with /cookie_sync handler wiring per §14 user sync —
+      auction core acceptance does NOT require them.
   - Cloudflare/Fastly/Spin have build-only evidence in this historical
     acceptance scope. Retain all current offline per-adapter ingress and
-    conformance checks in M6; real deployed-handler ingress execution is
-    deferred to M7.6, not proved by compilation or offline contracts.
-- **`insecure-bidders` feature-gate snapshot test** *(round-65 M4
-  - round-66 L5 + round-70 M8 — strengthened from "no cfg blocks
+    conformance checks in diagnostic qualification; real deployed-handler ingress execution is
+    deferred to publisher pilot, not proved by compilation or offline contracts.
+- **`insecure-bidders` feature-gate snapshot test** *(round-65 privacy enforcement
+  - round-66 L5 + round-70 stored requests and accounts — strengthened from "no cfg blocks
     survive" (weak — that's just Cargo's natural behavior) to a
     triple-assertion form that proves the feature gate actually
     works both ways)*:
@@ -6628,7 +6630,7 @@ auctioneer-bidder` against the committed snapshot asserts: no
     function whose name matches the insecure path
     (`allow_insecure_scheme`, `validate_insecure_endpoint`,
     etc.); no literal string matching `http://127.0.0.1`,
-    `http://[::1]`, or `http://localhost` (round-72 M4 — IPv6
+    `http://[::1]`, or `http://localhost` (round-72 privacy enforcement — IPv6
     loopback added; matches the runtime allowlist).
   * **(2) `--features insecure-bidders` expansion** — same
     crate, with the feature on, MUST contain those function
@@ -6638,7 +6640,7 @@ auctioneer-bidder` against the committed snapshot asserts: no
     (no feature) passes; guards against removing a feature
     breaking non-feature code paths.
     Snapshots for (1) and (2) are committed; any unexpected diff
-    fails CI. Paired with the round-65 M4 per-target
+    fails CI. Paired with the round-65 privacy enforcement per-target
     release-build matrix above (Axum host triple, Cloudflare
     wasm32-unknown-unknown, Fastly wasm32-wasip1, Spin wasm32-wasip2) so
     insecure literals never reach a release artifact.
@@ -6669,7 +6671,7 @@ auctioneer-bidder` against the committed snapshot asserts: no
     host-cookie blocked → the pinned `gdpr_consent string prevents…`
     message (Appendix F).
   - **`/setuid` activity-vs-permission-path TCF ordering** (round-58
-    M2): an end-to-end fixture with **`syncUser` denied AND
+    auction core): an end-to-end fixture with **`syncUser` denied AND
     `host_vendor_id != 0` AND `normalized_request_signal == Yes` AND
     `gdpr_permissions_enabled` AND malformed non-empty
     `gdpr_consent`** asserts the response is **`451` empty body**,
@@ -6684,14 +6686,14 @@ auctioneer-bidder` against the committed snapshot asserts: no
   - **Debug signal/gate divergence** — no query/header/body signal bypasses
     account or compiled base-bidder permissions. Pin OR, boolean/integer,
     duplicate/malformed signal, alias, early-return, redaction, resource,
-    and exact wire behavior using M6 sections 3-6.
+    and exact wire behavior using diagnostic qualification sections 3-6.
   - **Cookie opt-out precedence** — after a valid runtime snapshot and
     bounded request extraction, opted-out + disabled account, invalid
     filterSettings, or empty required consent returns **401**. An invalid
     runtime blob instead fails **500 before application opt-out**, even if
     the invalid field is inside a different account. This replaces the
     unreachable separately malformed-account fixture.
-  - **Auction error precedence** — M6 section 7's current pipeline matrix:
+  - **Auction error precedence** — diagnostic qualification section 7's current pipeline matrix:
     invalid runtime blob → config 500; transient store failure → 503 with
     Retry-After; valid config + invalid JSON/node overflow → request 400
     before account discovery; within-budget body + disabled account →
@@ -6702,8 +6704,8 @@ auctioneer-bidder` against the committed snapshot asserts: no
     host settings; omitted/null optional overlays inherit, arrays replace
     whole, and invalid effective values fail whole-blob loader validation.
     No RFC 7396 deletion cases or separate account fetch are implied.
-  - **Residual inventory and updates** — the M6 design section 9 identifies
-    existing M4/M5 regressions versus new work. Section 8 pins snapshot and
+  - **Residual inventory and updates** — the diagnostic qualification design section 9 identifies
+    existing privacy enforcement/user sync regressions versus new work. Section 8 pins snapshot and
     update/failure/recovery evidence, separately from provider cache freshness.
 
 Observability: lightweight structured logging via EdgeZero middleware; the
@@ -6715,7 +6717,7 @@ full metrics engine is a later phase.
 
 | #   | Item                                     | Why deferred / what to revisit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **EdgeZero fan-out primitive**           | Proposed API in §5.2; shape not final. **M2 production-complete prerequisite** (§14); M2 _development_ uses the interim `ProxyClient` + `join_all` impl. Bind the production `BidderFanout` impl when published.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 1   | **EdgeZero fan-out primitive**           | Proposed API in §5.2; shape not final. **auction core production-complete prerequisite** (§14); auction core _development_ uses the interim `ProxyClient` + `join_all` impl. Bind the production `BidderFanout` impl when published.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 2   | **tmax enforcement**                     | Real whole-auction deadline via the fan-out `.deadline()` (§5.2). Confirm when the EdgeZero API is final; interim impl is advisory only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | 3   | **Currency**                             | MVP assumes USD; non-USD seatbids dropped. Revisit at the currency-conversion phase.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 4   | **GPP sections 3, 7–12**                 | Passed through, not decoded (matches upstream v4). Revisit when upstream adds enforcement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -6727,9 +6729,9 @@ full metrics engine is a later phase.
 | 10  | **Resource-limit defaults**              | §5.3 numbers advisory; revisit after load testing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 11  | **`reportAnalytics` / inert activities** | `reportAnalytics` plumbed but inert until the analytics phase; `enrichUfpd` / `transmitUniqueRequestIds` inert as in upstream v4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 12  | **Geo-aware vs host default mismatch**   | upstream uses the geo-aware default only for `EnforceGDPR` and the raw host default inside permissions normalization. auctioneer replicates this.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 13  | **EdgeZero clock & entropy primitives**  | `Clock` / `Rng` (§5.7) are assumed EdgeZero primitives, like fan-out. **M2 production-complete prerequisite** (§14); M2 _development_ uses the dev `Clock` / `Rng` impls (top-of-spec). Confirm APIs when published.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| 14  | **EdgeZero ingress policy hook**         | **SUPERSEDED (round-143 #7): the `Decision` / `FramingState` / `BoundedReadPolicy` shape in this row is HISTORY — the LANDED contract at `120dd2aa` is EdgeZero's `RouteResolution` / `IngressHead` / `AdmissionDecision` / `IngressGrant` with STRING route classes, wired pre-body in all four adapters (M3b plan Prereq 10 + Task M3b-10 own the live text; only raw-ingress head limits / framing validation remain Unsupported).** Historical row: A per-route ingress policy hook on EdgeZero's `App` that runs **before** `into_core_request` materializes the body (round-65 H2 + round-66 M2 — also covers Content-Encoding rejection, not body caps alone). Required because every current EdgeZero adapter reads the body unconditionally — Axum `to_bytes(_, usize::MAX)`, Cloudflare `req.bytes()`, Fastly `read_to_end`, Spin `req.into_body().await` (round-72 L6 — Spin added to the list; matches §5.1's body-materialization paragraph) — so auctioneer's pre-body-read rejections (non-empty Content-Encoding per §5.1, per-route 400 caps 256 KiB / 32 KiB / 4 KiB) are otherwise enforced AFTER allocation. Shape (round-72 B2 — the round-70 `Continue { bounded_read: Option<usize> }` result was insufficient: the adapter's bounded read must know the route-specific 400 body when it crosses the cap, and a chunked/lengthless request on the wrong-method/unmatched arms must return 405/404 AFTER a within-cap read — neither expressible by a bare `Option<usize>`): the EdgeZero-owned callback type names NO auctioneer type — `Fn(method: &Method, path: &str, headers: &HeaderMap, framing: &FramingState, resolution: &RouteResolution) -> Decision` (round-77 H1 — `RouteTable` lives in `auctioneer-runtime`, so it can NOT appear in the type EdgeZero accepts; round-134 #6 — the fifth parameter is EdgeZero's own `RouteResolution { Matched(RouteId) | MethodNotAllowed { allowed } | NotFound }`: a bare `Option<RouteId>`conflated 404 with 405 and forced a re-match, and`allowed`is what the 405 arm names in the`Allow`header; the four-argument form is RETIRED); auctioneer's implementation`fn decide(method: &Method, path: &str, headers: &HeaderMap, framing: &FramingState, resolution: &RouteResolution, routes: &RegisteredRoutes) -> Decision`resolves`Matched`through the boot-built`RouteId → RouteMatch` map (`RegisteredRoutes`is auctioneer-core-owned, adapter-CONSTRUCTED from the zip of edgezero.toml handler wiring and RouteTable policy rows — round-134 #1) instead of re-matching, and the adapter bridges the two with a closure that CAPTURES the`RegisteredRoutes`and calls`decide`. `Decision = Reject(Rejection) \| Dispatch \| BoundedRead(BoundedReadPolicy)`, `Rejection = { status: u16, body: BoundedRejectionBody, allow: Option<SmallVec<[Method; 4]>> }`(round-130 #7 replacement edit — the 256-byte static-class render buffer, the round-72`String`shape corrected IN PLACE; round-136 #5 —`allow`is the typed 405 carrier: the runtime Allow set comes from`RouteResolution::MethodNotAllowed`and EdgeZero renders the header, since a 'static headers list could never name runtime methods),`BoundedReadPolicy = { max_bytes: usize, on_exceeded: Rejection, on_success: OnSuccess }`, and `OnSuccess = Dispatch \| Reject(Rejection)`. So a bounded read that crosses `max_bytes`yields the exact route-specific 400`on_exceeded`, and a within-cap read yields `on_success`(Dispatch for Matched, or the 405/404 Rejection for MethodNotAllowed/NotFound). The hook consumes the registration-issued`RouteResolution`(round-134 #6 —`body_caps::match_route`survives only as the M3a/dev-path fallback), and owns Content-Encoding rejection, Content-Length pre-check, and the bounded-read policy for missing Content-Length / chunked. Hook contract covers: Content-Encoding rejection AND **malformed/ambiguous framing rejection (round-73 H2)** AND Content-Length pre-check AND bounded-read fallback AND unmatched-path/wrong-method 404/405 with the 4 KiB default cap applied first (round-67 H2 — closes the "POST huge body to /missing" gap that exists in current EdgeZero's`RouterService`ordering). **Framing validation is fail-closed, in TWO layers (round-73 H2 / round-74 H1 / round-75 B2).** The hook receives a NORMALIZED`FramingState { Length(u64) \| Chunked \| None \| Malformed }`from the adapter (which parses`Content-Length`into`u64`— portable on 32-bit`wasm32`). **Layer A — a RAW-boundary guarantee EdgeZero must provide (round-75 B2):** a `FramingState`derived from the PARSED request is INSUFFICIENT for anti-smuggling, because the platform parser resolves rather than rejects the dangerous shapes — the pinned`hyper-1.10.1`accepts`Content-Length`+`Transfer-Encoding`as chunked and SUPPRESSES the`Content-Length`before building the`HeaderMap`, so the CL+TE ambiguity reaches the hook as plain `Chunked`. EdgeZero must therefore guarantee, at the raw parser boundary, STRICT REJECTION of CL+TE / conflicting-or-duplicate `Content-Length` / non-`chunked`or repeated`Transfer-Encoding`/ illegal chunked framing with a fail-closed 400 **before the ingress hook is invoked** (the default accept-as-chunked is unacceptable; round-77 B2/B3 — the earlier "raw framing provenance handed to the hook" alternative is removed, because a normalized`HeaderMap`cannot re-derive the raw framing shapes and auctioneer must not re-implement the parser). Because EdgeZero rejects these before calling the hook, these failures carry the ADAPTER's own body — the exact auctioneer framing body does NOT apply (assert 400 status only), and there is no rejection-body-ownership question. **Layer B (at the hook):**`FramingState::Malformed`→ 400 with the single canonical`Invalid request: malformed or ambiguous request framing\n`body — asserted via a SYNTHETIC contract test, since a strict parser (Hyper) rejects malformed/overflow single`Content-Length`before the app (round-75 M1). **Per-target raw-framing scope (round-78 H1):** the hook API + normalized`FramingState`is a GLOBAL prerequisite, but strict raw-boundary rejection is a PER-TARGET conformance capability (a managed wasm runtime may not permit replacing its raw parser) — Axum's is the M3b-10/Axum production gate, and Cloudflare/Fastly/Spin's is each target's M6 gate. **Milestone ownership (round-78 M2 — resolves the dual-milestone contradiction with §13's "M3b-10 owns it"):** this hook requirement was IDENTIFIED during the M2 design pass, but its current implementation/release owner is **M3b Task M3b-10** (production-completion), NOT M2 — the historical "M2 production-complete prerequisite" phrasing is retired. Behavior-complete (M3b-1..9) does not depend on it; interim development relies on platform-runtime limits + the auctioneer-core embedded read (round-64 H1's three-layer scheme). **Round-128 #7 — M3b consolidation:** the M3b plan's Prereq 10 (the consolidated ingress seam) SUPERSEDES parts of this shape: admission is a SEPARATE pre-decide callback whose grant crosses the boundary in the EdgeZero-owned move-safe`IngressGrant` container (`ctx.take_ingress_grant()`, exactly-once); ingress captures `request_start`before any body byte; parser-level header caps (h1 buffer bound + h2`http2_max_header_list_size`) reject before `decide`can run; the bounded body read runs under the ingress lease and the boot-owned`max_ingress_read_ms`(expiry cancels the read and answers 408`request timeout\n`); (`Rejection.body`'s bounded render is now stated inline in the shape above). `Decision` and its table above are otherwise unchanged — the admission callback precedes it and no Decision variant carries a guard. |
-| 15  | **upstream YAML → TOML conversion tool** | auctioneer's baked host/account/bidder config is **TOML** (unified with the runtime `auctioneer.toml` override layer per §9.1 — none of it is OpenRTB, so the wire stays JSON while config follows the Rust-native convention). upstream reference server ships bidder configs as **YAML**, so porting a new adapter's config from upstream currently means a hand-conversion. A one-shot operator-facing `yaml→toml` conversion CLI is **deferred to a future milestone**; auctioneer's own baked configs are already TOML, so nothing in M2/M3 depends on it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 13  | **EdgeZero clock & entropy primitives**  | `Clock` / `Rng` (§5.7) are assumed EdgeZero primitives, like fan-out. **auction core production-complete prerequisite** (§14); auction core _development_ uses the dev `Clock` / `Rng` impls (top-of-spec). Confirm APIs when published.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 14  | **EdgeZero ingress policy hook**         | **SUPERSEDED (round-143 #7): the `Decision` / `FramingState` / `BoundedReadPolicy` shape in this row is HISTORY — the LANDED contract at `120dd2aa` is EdgeZero's `RouteResolution` / `IngressHead` / `AdmissionDecision` / `IngressGrant` with STRING route classes, wired pre-body in all four adapters (bounded fanout plan Prereq 10 + Task Fanout-10 own the live text; only raw-ingress head limits / framing validation remain Unsupported).** Historical row: A per-route ingress policy hook on EdgeZero's `App` that runs **before** `into_core_request` materializes the body (round-65 H2 + round-66 auction core — also covers Content-Encoding rejection, not body caps alone). Required because every current EdgeZero adapter reads the body unconditionally — Axum `to_bytes(_, usize::MAX)`, Cloudflare `req.bytes()`, Fastly `read_to_end`, Spin `req.into_body().await` (round-72 L6 — Spin added to the list; matches §5.1's body-materialization paragraph) — so auctioneer's pre-body-read rejections (non-empty Content-Encoding per §5.1, per-route 400 caps 256 KiB / 32 KiB / 4 KiB) are otherwise enforced AFTER allocation. Shape (round-72 B2 — the round-70 `Continue { bounded_read: Option<usize> }` result was insufficient: the adapter's bounded read must know the route-specific 400 body when it crosses the cap, and a chunked/lengthless request on the wrong-method/unmatched arms must return 405/404 AFTER a within-cap read — neither expressible by a bare `Option<usize>`): the EdgeZero-owned callback type names NO auctioneer type — `Fn(method: &Method, path: &str, headers: &HeaderMap, framing: &FramingState, resolution: &RouteResolution) -> Decision` (round-77 H1 — `RouteTable` lives in `auctioneer-runtime`, so it can NOT appear in the type EdgeZero accepts; round-134 #6 — the fifth parameter is EdgeZero's own `RouteResolution { Matched(RouteId) | MethodNotAllowed { allowed } | NotFound }`: a bare `Option<RouteId>`conflated 404 with 405 and forced a re-match, and`allowed`is what the 405 arm names in the`Allow`header; the four-argument form is RETIRED); auctioneer's implementation`fn decide(method: &Method, path: &str, headers: &HeaderMap, framing: &FramingState, resolution: &RouteResolution, routes: &RegisteredRoutes) -> Decision`resolves`Matched`through the boot-built`RouteId → RouteMatch` map (`RegisteredRoutes`is auctioneer-core-owned, adapter-CONSTRUCTED from the zip of edgezero.toml handler wiring and RouteTable policy rows — round-134 #1) instead of re-matching, and the adapter bridges the two with a closure that CAPTURES the`RegisteredRoutes`and calls`decide`. `Decision = Reject(Rejection) \| Dispatch \| BoundedRead(BoundedReadPolicy)`, `Rejection = { status: u16, body: BoundedRejectionBody, allow: Option<SmallVec<[Method; 4]>> }`(round-130 #7 replacement edit — the 256-byte static-class render buffer, the round-72`String`shape corrected IN PLACE; round-136 #5 —`allow`is the typed 405 carrier: the runtime Allow set comes from`RouteResolution::MethodNotAllowed`and EdgeZero renders the header, since a 'static headers list could never name runtime methods),`BoundedReadPolicy = { max_bytes: usize, on_exceeded: Rejection, on_success: OnSuccess }`, and `OnSuccess = Dispatch \| Reject(Rejection)`. So a bounded read that crosses `max_bytes`yields the exact route-specific 400`on_exceeded`, and a within-cap read yields `on_success`(Dispatch for Matched, or the 405/404 Rejection for MethodNotAllowed/NotFound). The hook consumes the registration-issued`RouteResolution`(round-134 #6 —`body_caps::match_route`survives only as the GDPR fanout/dev-path fallback), and owns Content-Encoding rejection, Content-Length pre-check, and the bounded-read policy for missing Content-Length / chunked. Hook contract covers: Content-Encoding rejection AND **malformed/ambiguous framing rejection (round-73 H2)** AND Content-Length pre-check AND bounded-read fallback AND unmatched-path/wrong-method 404/405 with the 4 KiB default cap applied first (round-67 H2 — closes the "POST huge body to /missing" gap that exists in current EdgeZero's`RouterService`ordering). **Framing validation is fail-closed, in TWO layers (round-73 H2 / round-74 H1 / round-75 B2).** The hook receives a NORMALIZED`FramingState { Length(u64) \| Chunked \| None \| Malformed }`from the adapter (which parses`Content-Length`into`u64`— portable on 32-bit`wasm32`). **Layer A — a RAW-boundary guarantee EdgeZero must provide (round-75 B2):** a `FramingState`derived from the PARSED request is INSUFFICIENT for anti-smuggling, because the platform parser resolves rather than rejects the dangerous shapes — the pinned`hyper-1.10.1`accepts`Content-Length`+`Transfer-Encoding`as chunked and SUPPRESSES the`Content-Length`before building the`HeaderMap`, so the CL+TE ambiguity reaches the hook as plain `Chunked`. EdgeZero must therefore guarantee, at the raw parser boundary, STRICT REJECTION of CL+TE / conflicting-or-duplicate `Content-Length` / non-`chunked`or repeated`Transfer-Encoding`/ illegal chunked framing with a fail-closed 400 **before the ingress hook is invoked** (the default accept-as-chunked is unacceptable; round-77 B2/B3 — the earlier "raw framing provenance handed to the hook" alternative is removed, because a normalized`HeaderMap`cannot re-derive the raw framing shapes and auctioneer must not re-implement the parser). Because EdgeZero rejects these before calling the hook, these failures carry the ADAPTER's own body — the exact auctioneer framing body does NOT apply (assert 400 status only), and there is no rejection-body-ownership question. **Layer B (at the hook):**`FramingState::Malformed`→ 400 with the single canonical`Invalid request: malformed or ambiguous request framing\n`body — asserted via a SYNTHETIC contract test, since a strict parser (Hyper) rejects malformed/overflow single`Content-Length`before the app (round-75 foundations). **Per-target raw-framing scope (round-78 H1):** the hook API + normalized`FramingState`is a GLOBAL prerequisite, but strict raw-boundary rejection is a PER-TARGET conformance capability (a managed wasm runtime may not permit replacing its raw parser) — Axum's is the Fanout-10/Axum production gate, and Cloudflare/Fastly/Spin's is each target's diagnostic qualification gate. **Capability ownership (round-78 auction core — resolves the dual-capability contradiction with §13's "Fanout-10 owns it"):** this hook requirement was IDENTIFIED during the auction core design pass, but its current implementation/release owner is **bounded fanout Task Fanout-10** (production-completion), NOT auction core — the historical "auction core production-complete prerequisite" phrasing is retired. Behavior-complete (Fanout-1..9) does not depend on it; interim development relies on platform-runtime limits + the auctioneer-core embedded read (round-64 H1's three-layer scheme). **Round-128 #7 — bounded fanout consolidation:** the bounded fanout plan's Prereq 10 (the consolidated ingress seam) SUPERSEDES parts of this shape: admission is a SEPARATE pre-decide callback whose grant crosses the boundary in the EdgeZero-owned move-safe`IngressGrant` container (`ctx.take_ingress_grant()`, exactly-once); ingress captures `request_start`before any body byte; parser-level header caps (h1 buffer bound + h2`http2_max_header_list_size`) reject before `decide`can run; the bounded body read runs under the ingress lease and the boot-owned`max_ingress_read_ms`(expiry cancels the read and answers 408`request timeout\n`); (`Rejection.body`'s bounded render is now stated inline in the shape above). `Decision` and its table above are otherwise unchanged — the admission callback precedes it and no Decision variant carries a guard. |
+| 15  | **upstream YAML → TOML conversion tool** | auctioneer's baked host/account/bidder config is **TOML** (unified with the runtime `auctioneer.toml` override layer per §9.1 — none of it is OpenRTB, so the wire stays JSON while config follows the Rust-native convention). upstream reference server ships bidder configs as **YAML**, so porting a new adapter's config from upstream currently means a hand-conversion. A one-shot operator-facing `yaml→toml` conversion CLI is **deferred to a future capability**; auctioneer's own baked configs are already TOML, so nothing in auction core/GDPR enforcement depends on it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ---
 
@@ -6753,27 +6755,27 @@ framework + 4 reference adapters; `/status`, `/info/bidders`,
   `NormalizedBidRequest` (§3.2), usable from EdgeZero handlers and
   trusted-server callers without modification**; the four
   `auctioneer-adapter-*` crates **unchanged once EdgeZero ships the required
-  primitives** (fan-out, clock, entropy, **ingress body-cap hook** — round-21 finding M4 + round-65 H2). Round-150 #8:
+  primitives** (fan-out, clock, entropy, **ingress body-cap hook** — round-21 finding privacy enforcement + round-65 H2). Round-150 #8:
   the fan-out and clock primitives are landed at `120dd2aa`; Fastly runs
   the production `EdgeZeroFanout` with dispatch-before-harvest and
   BestEffort deadlines (§5.2), not an interim impl.
 
 **Assumes** EdgeZero ships the fan-out, clock, entropy, **and ingress
-policy hook** primitives (round-66 M3 — ingress hook added to the
+policy hook** primitives (round-66 GDPR enforcement — ingress hook added to the
 executive summary so the prereq list is complete) — these are
 **production-complete prerequisites** (round-35 finding L5 + round-65 H2
 
-- round-66 M2/M3 — ingress hook covers Content-Encoding rejection and
+- round-66 auction core/GDPR enforcement — ingress hook covers Content-Encoding rejection and
   per-route body caps; see §12 open item 14 for the full hook contract).
-  **The ingress policy hook specifically was IDENTIFIED during M2 design,
-  but its implementation/release owner is M3b Task M3b-10 (round-79 M2);
-  M3b-1..9 remain behavior-complete without it.**
-  M2 _development_ on Axum, Cloudflare, Fastly (serialized fan-out per round-72 L5), and Spin proceeds without them via
+  **The ingress policy hook specifically was IDENTIFIED during auction core design,
+  but its implementation/release owner is bounded fanout Task Fanout-10 (round-79 auction core);
+  Fanout-1..9 remain behavior-complete without it.**
+  auction core _development_ on Axum, Cloudflare, Fastly (serialized fan-out per round-72 L5), and Spin proceeds without them via
   the dev-only impls in `auctioneer-core` + `auctioneer-adapter-cloudflare`
   (top-of-spec execution-status note); only behavior-complete release is
   blocked.
 
-**Deferred beyond the initial M1-M6 scope:** stored requests; AMP/video
+**Deferred beyond the initial foundations through diagnostic qualification scope:** stored requests; AMP/video
 endpoints and complete native workflows;
 price floors; bid adjustments; currency conversion; creative caching;
 hooks/modules; analytics; full metrics engine; GPP sections 3 & 7–12
@@ -6783,65 +6785,65 @@ reference auction handling reads it under account `PrivacySandbox.TopicsDomain`)
 `/cookie_sync` `receive-cookie-deprecation` partitioned cookie (upstream
 reference cookie-sync handling under account `privacy.privacysandbox.cookiedeprecation`),
 and the `account.privacy.privacysandbox` config surface;
-**`ext.prebid.multibid` bid-limiting** (round-23 M5; upstream validates,
+**`ext.prebid.multibid` bid-limiting** (round-23 user sync; upstream validates,
 rebuilds, and clamps `maxBids` in reference multi-bid limits / reference auction handling); **DSA
-mutation/validation and SChain merge/validation** (round-23 M6); **inbound
-request gzip** (round-23 L8 / round-24 M6: rejected with `400`);
+mutation/validation and SChain merge/validation** (round-23 diagnostic qualification); **inbound
+request gzip** (round-23 L8 / round-24 diagnostic qualification: rejected with `400`);
 **request-level FPD subsystem** (round-24 H2: `ext.prebid.data`,
 `data.eidpermissions`, `ext.prebid.bidderconfig` — typed pass-through
 only; the per-imp `imp.ext.prebid.imp` merge of §5.1 step 7 is the only
 FPD path that takes effect). All listed as intentional divergences in
 §15 until a later phase opens them.
 
-These deferrals now have explicit milestone ownership in the
-[approved roadmap](../../roadmap.md#2-milestone-ownership), as amended by the
+These deferrals now have explicit capability ownership in the
+[approved roadmap](../../roadmap.md#2-capability-ownership), as amended by the
 [2026-10-26 scope correction](../../roadmap.md#2026-10-26-scope-correction):
-M7 delivers foundations and all 14 priority selected flows. The
-[AG-approved 2026-10-30 native amendment](2026-10-30-m7-controlled-native-completion-design.md)
+bidder catalog delivers foundations and all 14 priority selected flows. The
+[AG-approved 2026-10-30 native amendment](2026-10-30-controlled-native-bidders-completion-design.md)
 now permits controlled-native delivery with enforced schema/input/work limits,
 frozen tested reservations, allocation/stress acceptance and actual generated-App
-onboarding. Complete worst-case schema resource certification belongs to M7-R0;
+onboarding. Complete worst-case schema resource certification belongs to resource qualification;
 guest deployment readiness remains blocked. This supersedes the static
 proof-before-activation requirement below, not privacy, source correctness,
 workload, deployment ceilings or the additive accounting equation. The earlier
-[2026-10-29 qualification amendment](2026-10-29-m7-shipped-schema-qualification-design.md)
+[2026-10-29 qualification amendment](2026-10-29-shipped-schema-qualification-design.md)
 scopes serving/resource acceptance to their complete shipped closure, including
 existing bindings and shared helpers, rather than speculative resource proofs
 for every unshipped source schema. Required shipped-path bounds remain;
-measurements are not worst-case proofs. M7.7 owns newly reachable schema/engine
-surfaces before the corresponding expansion wave and M20 owns residual universal
-catalog closure. Existing source-wide correctness/provenance controls, M7-R0
-fit requirements and M7.6 deployment acceptance remain unchanged. The
+measurements are not worst-case proofs. bidder expansion owns newly reachable schema/engine
+surfaces before the corresponding expansion wave and remaining catalog closure owns residual universal
+catalog closure. Existing source-wide correctness/provenance controls, resource qualification
+fit requirements and publisher pilot deployment acceptance remain unchanged. The
 [2026-10-27 correction](../../roadmap.md#2026-10-27-post-pilot-bidder-expansion)
-adds M7.7 bidder expansion after M7.5 direct Trusted Server embedding and
-selected M7.6 publisher testing; M20 retains residual migration and full-catalog
-closure. M8-M11 prioritize the shared foundations, creative
-caching, and end-to-end video support; M12-M19 complete the remaining shared
+adds bidder expansion bidder expansion after Trusted Server embedding direct Trusted Server embedding and
+selected publisher pilot publisher testing; remaining catalog closure retains residual migration and full-catalog
+closure. stored-request, auction, cache and video delivery work prioritize the shared foundations, creative
+caching, and end-to-end video support; first-party data through browser privacy compatibility complete the remaining shared
 parity surfaces. Scheduling a feature does not make it implemented or remove
 its current intentional divergence.
 
 ---
 
-## 14. Implementation Milestones
+## 14. Implementation Capabilities
 
-The implementation plan breaks this spec into ordered milestones so
+The implementation plan breaks this spec into ordered capabilities so
 compliance-sensitive behavior never lands before the auction core.
 
-**Prerequisite for M2 onward (review finding 1 + round-61 M1 + round-66
-M3 — full dev-primitive set, not just fan-out; ingress hook listed as a
-production-complete prereq even though M2 dev can run without it).**
-M2's fan-out step depends on EdgeZero's fan-out primitive; M2+ depend
+**Prerequisite for auction core onward (review finding 1 + round-61 foundations + round-66
+GDPR enforcement — full dev-primitive set, not just fan-out; ingress hook listed as a
+production-complete prereq even though auction core dev can run without it).**
+auction core's fan-out step depends on EdgeZero's fan-out primitive; auction core depend
 on the clock and entropy primitives (§5.7); the **EdgeZero ingress
-policy hook** (§12 open item 14 / round-65 H2 / round-66 M2 — covers
+policy hook** (§12 open item 14 / round-65 H2 / round-66 auction core — covers
 Content-Encoding rejection AND
-per-route body caps before the body is materialized). M1 has no such
+per-route body caps before the body is materialized). foundations has no such
 dependency and starts immediately. If the native primitives are not
-yet published when M2 begins, **M2 development is unblocked only when
+yet published when auction core begins, **auction core development is unblocked only when
 ALL four fallback host-primitives are in place** (matches the
 top-of-spec execution-status note); the ingress hook is
-production-complete-only, not M2 dev-blocking — **it was identified in
-M2 design, but its implementation/release owner is M3b Task M3b-10
-(round-79 M2), and M3b-1..9 stay behavior-complete without it** —
+production-complete-only, not auction core dev-blocking — **it was identified in
+auction core design, but its implementation/release owner is bounded fanout Task Fanout-10
+(round-79 auction core), and Fanout-1..9 stay behavior-complete without it** —
 because the §5.1 three-layer scheme (platform limits + auctioneer-core
 embedded read) covers the development window:
 
@@ -6854,10 +6856,10 @@ embedded read) covers the development window:
    `std::time::Instant::now()`. Lives in `auctioneer-core`.
 3. **Cloudflare `Clock` shim** — `worker::Date::now()` for wall;
    monotonic derived from a wall-clock delta (NOT strictly monotonic;
-   sufficient for M2 dev). Lives in `auctioneer-adapter-cloudflare`
+   sufficient for auction core dev). Lives in `auctioneer-adapter-cloudflare`
    because it depends on `worker::*` — see §1.2 adapter-shim
    exception.
-4. **Dev `Rng`** — **target-specific** (round-61 M1 — earlier "seeded
+4. **Dev `Rng`** — **target-specific** (round-61 foundations — earlier "seeded
    from std::time entropy" was Cloudflare-incompatible):
    - Axum / wasi targets: seeded from `std::time::SystemTime::now()`
      nanoseconds (in `auctioneer-core`).
@@ -6870,7 +6872,7 @@ embedded read) covers the development window:
      `std::time::SystemTime::now().duration_since(UNIX_EPOCH)` (round-73
      L5 — pinned; the `fastly` SDK exposes `std::time::SystemTime` on
      Compute@Edge via its WASI runtime, so the same source as Spin
-     works; `fastly::time::Instant::now()` was the round-61 M1 guess
+     works; `fastly::time::Instant::now()` was the round-61 foundations guess
      but is not the actual API — the SDK uses `std::time` directly).
      The seed nanos feed the same `xorshift64*` algorithm as the
      other dev-Rng impls. Fastly is not production-ready under the
@@ -6879,7 +6881,7 @@ embedded read) covers the development window:
      case.
 
 With all four in place, **all of Axum, Cloudflare, Fastly (serialized), and Spin actually
-run M2 in development**. Fastly is not production-ready, and no target
+run auction core in development**. Fastly is not production-ready, and no target
 is behavior-complete, until the native primitives land and the
 `BidderFanout` conformance suite (§11) passes — Fastly fan-out remains
 serialized, the Cloudflare `Clock` shim remains wall-clock-derived (not
@@ -6887,7 +6889,7 @@ truly monotonic), and the dev `Rng` instances are runtime-seeded
 (non-deterministic without test injection) until EdgeZero ships the
 native `Rng` primitive.
 
-**Adapter wrapper conformance is a separate M2-dev prerequisite**
+**Adapter wrapper conformance is a separate auction core-dev prerequisite**
 (round-67 H1 — top-of-spec execution-status note already added; this
 paragraph cross-references for §14 readers). Before any of the four
 dev primitives ship, each `auctioneer-adapter-*/src/lib.rs` (or `main.rs`)
@@ -6901,7 +6903,7 @@ where the workspace compiles against them — history: `56796415`,
 **internally** (via the `#[app]` proc-macro plumbing) and take **no**
 `manifest_src` argument — the auctioneer wrappers already call them with
 exactly those signatures and `cargo check --target wasm32-...`
-succeeds on both crates (**round-65 M2 — the pre-`2277072` API took
+succeeds on both crates (**round-65 auction core — the pre-`2277072` API took
 `manifest_src: &str` first; that requirement was carried stale into
 earlier drafts of this note and would REGRESS the working wrappers if
 followed, so it is removed**). The Spin wrapper's only real adaptation
@@ -6909,60 +6911,60 @@ is already in place: a file-scoped `#![cfg_attr(target_arch =
 "wasm32", allow(unsafe_code, reason = ...))]` reconciling the
 workspace `unsafe_code = "deny"` lint with the **`#[http_service]`**
 macro's expanded `unsafe extern "C"` component export (earlier drafts
-said `#[http_component]` — also corrected). M1 acceptance does not
-require any wrapper fix (M1 has no EdgeZero wiring); M2 acceptance is
+said `#[http_component]` — also corrected). foundations acceptance does not
+require any wrapper fix (foundations has no EdgeZero wiring); auction core acceptance is
 already met on all four adapters:
 
-- M2 Axum and M2 Fastly development proceeds once the four dev
+- auction core Axum and auction core Fastly development proceeds once the four dev
   primitives are in place (wrappers build unchanged).
-- M2 Cloudflare and M2 Spin wrappers ALSO build unchanged under the
-  `9e661ae` pin — the M1.5 "adapter wrapper conformance" transition
+- auction core Cloudflare and auction core Spin wrappers ALSO build unchanged under the
+  `9e661ae` pin — the adapter wrapper conformance "adapter wrapper conformance" transition
   below is, under this pin, a no-op for the `run_app` call shape (the
   Spin `allow(unsafe_code)` scope is the only surviving deliverable,
   and it has landed).
 
-1. **M1 — Foundations.** Deliverables, named explicitly (round-66 M4 —
-   added a bulletable enumeration so each item is unmissable in M1
+1. **foundations — Foundations.** Deliverables, named explicitly (round-66 privacy enforcement —
+   added a bulletable enumeration so each item is unmissable in foundations
    acceptance):
-   - `auctioneer-openrtb` types + `prepare(req, headers)` (the M1 shape;
-     M3b-2 adds the third `&PrepareLimits` argument) + `validate()`.
+   - `auctioneer-openrtb` types + `prepare(req, headers)` (the foundations shape;
+     Fanout-2 adds the third `&PrepareLimits` argument) + `validate()`.
    - `auctioneer-config` + `build.rs` codegen for 4 reference bidders.
    - **`auctioneer-runtime`**: `Clock`, `Rng` traits + `FakeClock` /
      seeded `Rng` for tests, **AND `body_caps::match_route(method,
-path, &RouteTable) -> RouteMatch` accessor** (round-65 M5 +
-     round-66 M4 + round-71 M4 — return type corrected from stale
+path, &RouteTable) -> RouteMatch` accessor** (round-65 user sync +
+     round-66 privacy enforcement + round-71 privacy enforcement — return type corrected from stale
      `Option<usize>` to the round-69 H1 enum; `RouteMatch = Matched
 { route_id, cap_bytes } | MethodNotAllowed { cap_bytes } |
-NotFound { cap_bytes }`). Made an explicit M1 bullet so the
+NotFound { cap_bytes }`). Made an explicit foundations bullet so the
      round-65 H2 ingress hook can wire to it on day one.
    - No EdgeZero wiring.
 
    Detailed scope: `auctioneer-openrtb` types + **`prepare(req,
-headers)` + `validate()`** (round-32 finding M2 — `prepare()` is
+headers)` + `validate()`** (round-32 finding auction core — `prepare()` is
    the sole construction gate for `NormalizedBidRequest` and is
-   required by every M2 call site, so it ships in M1 alongside the
+   required by every auction core call site, so it ships in foundations alongside the
    types it produces: implicit-field fill, 2.6 privacy rejection,
    channel validation, `at == 0` defaulting, Sec-GPC reconciliation
    — **no consent-syntax parsing here**, round-37 H3 / §3.2 step 6
-   — those warnings ship in M3/M4 inside `PrivacyContext::resolve`
+   — those warnings ship in GDPR enforcement/privacy enforcement inside `PrivacyContext::resolve`
    per §7.7); `auctioneer-config` + `build.rs` codegen for the 4
    reference bidders; `auctioneer-runtime` (`Clock`, `Rng` traits +
    `FakeClock` / seeded `Rng` for tests; **`body_caps::match_route(
 method, path, &RouteTable) -> RouteMatch`** method + route-match
-   - milestone-scoped cap accessor (round-65 M5 + round-69 H1 +
-     round-70 M2 — corrects stale `for_path` reference) — exported in
-     M1 so the EdgeZero ingress hook (open item 14) can read it once
+   - capability-scoped cap accessor (round-65 user sync + round-69 H1 +
+     round-70 auction core — corrects stale `for_path` reference) — exported in
+     foundations so the EdgeZero ingress hook (open item 14) can read it once
      published; the cap table encodes §5.3's `MAX_AUCTION_BODY` =
      256 KiB, `MAX_COOKIESYNC_BODY` = 32 KiB, default 4 KiB; the
-     `RouteTable` parameter lets callers scope to the milestone's
+     `RouteTable` parameter lets callers scope to the capability's
      active route set per round-69 H1). No EdgeZero wiring.
-     **M1.5 — Adapter wrapper conformance.** A small mechanical milestone
-     (round-67 H1 + round-69 M2 — formalized so the M1→M2 transition has
+     **adapter wrapper conformance — Adapter wrapper conformance.** A small mechanical capability
+     (round-67 H1 + round-69 auction core — formalized so the foundations→auction core transition has
      a named place to live; earlier rounds defined the work as a "prereq
-     note" but §14 still jumped straight from M1 to M2). Deliverables,
+     note" but §14 still jumped straight from foundations to auction core). Deliverables,
      each a no-behavior-change wrapper fix:
 
-- **`auctioneer-adapter-cloudflare`**: **round-65 M2 — NO `manifest_src`
+- **`auctioneer-adapter-cloudflare`**: **round-65 auction core — NO `manifest_src`
   change.** Under the `Cargo.lock`-pinned EdgeZero SHA `9e661ae`
   (authoritative pin at §2; earlier drafts said `2277072`, superseded
   round-19), `edgezero_adapter_cloudflare::run_app::<auctioneer_core::App>
@@ -6973,7 +6975,7 @@ method, path, &RouteTable) -> RouteMatch`** method + route-match
   `manifest_src` first argument or an `include_str!(".../edgezero.toml")`
   (both belonged to the pre-`2277072` API and would fail to compile
   against the current pin).
-- **`auctioneer-adapter-spin`**: **round-65 M2 — NO `manifest_src`
+- **`auctioneer-adapter-spin`**: **round-65 auction core — NO `manifest_src`
   change.** `edgezero_adapter_spin::run_app::<auctioneer_core::App>(req)`
   likewise takes only the request. The one real deliverable — already
   landed — is the file-scoped `#![cfg_attr(target_arch = "wasm32",
@@ -6985,41 +6987,41 @@ allow(unsafe_code, reason = ...))]` that reconciles the workspace
 - **No-op for Axum and Fastly**: their wrappers already build today
   per round-67 verification; no work needed.
 
-Gate: M1.5 ships before M2 begins. Once M1.5 is green, the §11.2
-M1.5+ adapter-wrapper + `auctioneer-core` `cargo check` matrix
-activates per round-68 H1. M1.5 has no EdgeZero primitive
+Gate: adapter wrapper conformance ships before auction core begins. Once adapter wrapper conformance is green, the §11.2
+adapter wrapper conformance adapter-wrapper + `auctioneer-core` `cargo check` matrix
+activates per round-68 H1. adapter wrapper conformance has no EdgeZero primitive
 dependency (the wrappers just need to call the correct EdgeZero
-signature); the four dev primitives remain M2 work, and the ingress
-hook — identified in M2 design — has its implementation/release owner
-in **M3b Task M3b-10** (round-79 M2; M3b-1..9 behavior-complete without
+signature); the four dev primitives remain auction core work, and the ingress
+hook — identified in auction core design — has its implementation/release owner
+in **bounded fanout Task Fanout-10** (round-79 auction core; Fanout-1..9 behavior-complete without
 it).
 
-2. **M2 — Auction core, no privacy logic (privacy stub in place).** A
+2. **auction core — Auction core, no privacy logic (privacy stub in place).** A
    `PrivacyContext::allow_all_no_scrub()` constructor lives in
-   `auctioneer-privacy` from M2 onward (round-34 finding H1 — `run_auction`
-   always executes §5.1 steps 6 and 8, so milestone-gating the _steps_
+   `auctioneer-privacy` from auction core onward (round-34 finding H1 — `run_auction`
+   always executes §5.1 steps 6 and 8, so capability-gating the _steps_
    would diverge from the engine contract; instead, the _context_ is a
    permissive stub that grants all activities, allows every bidder
-   through, and performs no scrubbing). M2-M4's **historical sync
+   through, and performs no scrubbing). auction core-privacy enforcement's **historical sync
    privacy stub** existed only to keep dependent crates compiling;
-   no sync routes or `uids` cookie lifecycle were exposed. M5 replaces
+   no sync routes or `uids` cookie lifecycle were exposed. user sync replaces
    that stub with typed normalization and endpoint-specific permissions
-   (§7.8), not compatibility-preserving allow-all callbacks. M3 swaps in real **GDPR** (and starts emitting TCF v2
-   syntax warnings via `take_warnings()` per §7.7); M4 swaps in **CCPA,
+   (§7.8), not compatibility-preserving allow-all callbacks. GDPR enforcement swaps in real **GDPR** (and starts emitting TCF v2
+   syntax warnings via `take_warnings()` per §7.7); privacy enforcement swaps in **CCPA,
    GPP, activity controls, scrubbing, and the corresponding US-Privacy
-   and GPP syntax warnings**. **M5 supplies the full
+   and GPP syntax warnings**. **user sync supplies the full
    `resolve_sync_privacy`** — real GDPR vendor decisions, exact raw-SID
-   `SkipWhen` matching, and per-syncer privacy decisions. M2 stub-mode assertions are narrow
+   `SkipWhen` matching, and per-syncer privacy decisions. auction core stub-mode assertions are narrow
    (round-37 L7 — earlier "no warnings emitted" was too broad now that
    consent warnings live in `PrivacyContext`, not `prepare`): under the
    stub, `PrivacyContext::take_warnings()` returns empty (TCF/USP/GPP
-   parsers are inert in M2); `NormalizedBidRequest.warnings()` may be
+   parsers are inert in auction core); `NormalizedBidRequest.warnings()` may be
    non-empty if a future prepare-time warning is added, but is empty in
-   M1; no bidder is dropped by privacy; all FPD is preserved. M3
-   narrows the GDPR slice; M4 finishes the auction-path rest; M5
+   foundations; no bidder is dropped by privacy; all FPD is preserved. GDPR enforcement
+   narrows the GDPR slice; privacy enforcement finishes the auction-path rest; user sync
    ships separate host, candidate, and narrower `/setuid` permission
    methods; `/setuid` consults host-cookie GDPR and disabled-syncer
-   policy without the `/cookie_sync` chooser ladder. M5
+   policy without the `/cookie_sync` chooser ladder. user sync
    finishes the sync-path rest.
    `Bidder` trait + 4 adapters;
    `auctioneer-exchange` with `BidderFanout` and the reusable `run_auction`
@@ -7036,31 +7038,31 @@ it).
    `max_bidders_per_auction`, `max_outbound_requests`, `bidder_timeout`,
    tmax effective-budget resolution + deadline anchoring + `remaining
 == 0` short-circuit — must be in place when handlers and adapters
-   land; **debug surface is disabled in M2** (round-33 finding H2 +
-   round-34 finding M3): the `ext.debug` path is suppressed until M6
+   land; **debug surface is disabled in auction core** (round-33 finding H2 +
+   round-34 finding GDPR enforcement): the `ext.debug` path is suppressed until diagnostic qualification
    ships the §5.6 redaction module; until then `run_auction` never
    populates `response.ext.debug` even if the request asks for it, and
-   **no warning is emitted** during the M2–M5 suppression window
+   **no warning is emitted** during the auction core–user sync suppression window
    (reusing code 10002 `AccountLevelDebugDisabled` would falsely
    implicate the account's `debug_allow`; silent omission is honest
-   until M6 wires the real gate). Targeting / price
+   until diagnostic qualification wires the real gate). Targeting / price
    granularity / winner selection (Appendix E); **deterministic
-   serialization (Appendix E.7) ships with the response builder in M2,
-   NOT M6** (round-40 M4 — snapshot Mocktioneer E2E is part of M2 and
+   serialization (Appendix E.7) ships with the response builder in auction core,
+   NOT diagnostic qualification** (round-40 privacy enforcement — snapshot Mocktioneer E2E is part of auction core and
    requires byte-stable output; deterministic sort over §5.9 registry
    order, sorted `ext.*` maps, sorted `seatbid` by seat). `/openrtb2/
 auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
    thin shim over `run_auction`. E2E against Mocktioneer, exercising
    both the handler path and a direct `run_auction` call (proving
    trusted-server reuse) with **snapshot `BidResponse` assertions**
-   enabled by the M2-resident deterministic output.
-3. **M3 — GDPR auction gate.** Split into **M3a + M3b** (round-20
+   enabled by the auction core-resident deterministic output.
+3. **GDPR enforcement — GDPR auction gate.** Split into **GDPR fanout + bounded fanout** (round-20
    scope re-decision — the reviewer's two successive "not ready to
    implement" verdicts on rounds 18/19 identified issues that
-   cannot be closed inside auctioneer alone; the split lets M3a ship
-   the executable slice while M3b tracks upstream EdgeZero
+   cannot be closed inside auctioneer alone; the split lets GDPR fanout ship
+   the executable slice while bounded fanout tracks upstream EdgeZero
    prerequisites).
-   - **M3a — GDPR auction gate (privacy + Axum production +
+   - **GDPR fanout — GDPR auction gate (privacy + Axum production +
      DevFanout).** `auctioneer-privacy` GDPR/TCF v2 (Appendix A);
      wire `AuctionPermissions` into the auction split/drop logic.
      Config overlays for host + per-account GDPR via single-TOML
@@ -7070,15 +7072,15 @@ auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
      ships fully green on Axum only. `PrivacyContext::resolve`
      reads `user.consent` **only when GPP section 2 is NOT in scope**
      (round-76 B1): when `regs.gpp_sid` contains section 2, the
-     section-2 (TCFEU2) consent is authoritative and M3 has no decoder,
-     so M3 marks consent UNUSABLE (`consent_usable = false` →
+     section-2 (TCFEU2) consent is authoritative and GDPR enforcement has no decoder,
+     so GDPR enforcement marks consent UNUSABLE (`consent_usable = false` →
      `default_permissions()`, `PassID: false`) rather than reading the
-     possibly-overridden `user.consent` (GPP TCFEU2 decoding stays M4
-     per D.1). The M3a-committed config path
+     possibly-overridden `user.consent` (GPP TCFEU2 decoding stays privacy enforcement
+     per D.1). The GDPR fanout-committed config path
      silently degrades on config-store parse errors (this matches
-     M2's `.unwrap_or_default()` shape at `auction.rs:261`) —
-     fail-loud config semantics move to M3b once EdgeZero exposes
-     typed error variants. **Round-25 H8 (round-29 M3 name
+     auction core's `.unwrap_or_default()` shape at `auction.rs:261`) —
+     fail-loud config semantics move to bounded fanout once EdgeZero exposes
+     typed error variants. **Round-25 H8 (round-29 GDPR enforcement name
      refresh):** the full mapping table (`MissingKey` /
      `EnvelopeParse` / `EnvelopeSha` / `TypedDeserialize` /
      `Validation` / `MissingStoreBinding` / `MissingSecret` /
@@ -7086,9 +7088,9 @@ auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
      `UnknownVersion` / `MissingSecretBinding` /
      `SecretValidation` → `RuntimeConfigError::MalformedHost` /
      `RuntimeConfigError::ConfigStoreUnavailable` /
-     silent-default) lives in M3b Prereq 1 and Task M3b-1.
-     Round-32 M4: the canonical route error is
-     `RuntimeConfigError` (core-owned, per M3b Task M3b-1). The
+     silent-default) lives in bounded fanout Prereq 1 and Task Fanout-1.
+     Round-32 privacy enforcement: the canonical route error is
+     `RuntimeConfigError` (core-owned, per bounded fanout Task Fanout-1). The
      obsolete `AuctionError::MalformedHost` /
      `AuctionError::ConfigStoreUnavailable` variants are removed
      — config loading happens BEFORE `run_auction`, so
@@ -7098,7 +7100,7 @@ auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
      exposed an auth signal, and `Parse`/`CorruptEnvelope` split
      into the more precise
      `EnvelopeParse`/`EnvelopeSha`/`TypedDeserialize`.
-   - **M3b — Multi-adapter production fanout + fail-loud config +
+   - **bounded fanout — Multi-adapter production fanout + fail-loud config +
      bounded buffered fan-out (round-143 #7: the outbound client,
      typed reasons, store-extraction taxonomy, string-class ingress
      and application clock are LANDED at `120dd2aa` — upstream-gated
@@ -7107,15 +7109,15 @@ auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
      (BestEffort on all four at head `4790a140` — implemented but not
      certifiable, so still gating; self-review 2026-09-18 corrects the
      blanket "Unsupported" here); the
-     M3b plan's compatibility matrix is the live status, and the
+     bounded fanout plan's compatibility matrix is the live status, and the
      prerequisite items (i)-(iv) further below are HISTORICAL).** Round-43
-     B1: the round-42 B4 `M3b-partial` label was withdrawn on the
+     B1: the round-42 B4 `bounded fanout-partial` label was withdrawn on the
      claim that "with the WBITS-20 ceiling every adapter admits
      bounded concurrent fanout (6 streams on CF/Fastly/Spin, 32 on
      Axum)". Round-47 B4 RETIRES that claim: the canonical window
      is **WBITS-22** (round-44 B2 — WBITS-20 would reject a
      default-configured encoder). **Round-96: the admission + memory
-     proof is now DESIGN-READY** — the M3b plan's round-98 design
+     proof is now DESIGN-READY** — the bounded fanout plan's round-98 design
      (portable try-acquire `AdmissionGate` before body
      materialization, isolate-wide `StreamGate` bounding live
      response streams, one validated `ResolvedIsolateLimits` with per-stream
@@ -7125,7 +7127,7 @@ auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
      EdgeZero outbound prerequisite — the BUFFERED batch
      (round-131 #8: the streaming phrasing here is replaced; upstream
      fan-out is buffered-only)**; the spec certifies bounded
-     concurrent fanout once M3b-2 implements that design against the
+     concurrent fanout once Fanout-2 implements that design against the
      landed primitive. Ships (once unblocked):
      `EdgeZeroFanout` wave-lease dispatch with composed absolute
      deadlines / per-call timeout on Cloudflare, Fastly, and Spin;
@@ -7138,8 +7140,8 @@ auction`, `/status`, `/info/bidders` wired in `auctioneer-core` as a
      single-cap `Buffered.max_bytes = max(transport, decoded)` is
      replaced under the G5 facade swap before the behavior-complete
      transport-cap item closes.
-     **EdgeZero prerequisites (each gates only its consuming M3b
-     tasks — round-116 P3, matching the M3b plan's per-task rule)**:
+     **EdgeZero prerequisites (each gates only its consuming bounded fanout
+     tasks — round-116 P3, matching the bounded fanout plan's per-task rule)**:
      (i) typed, categorized store-extraction errors — LANDED at
      the candidate head as `EdgeError::StoreExtraction { reason:
 StoreExtractionReason }` with a distinguishable missing-blob
@@ -7153,10 +7155,10 @@ StoreExtractionReason }` with a distinguishable missing-blob
      [`edgezero-adapter-axum/src/proxy.rs:61`](https://github.com/IABTechLab/edgezero/blob/9e661ae/crates/edgezero-adapter-axum/src/proxy.rs#L61)
      and Spin's buffered-then-decompressed path at
      [`edgezero-adapter-spin/src/proxy.rs:48`](https://github.com/IABTechLab/edgezero/blob/9e661ae/crates/edgezero-adapter-spin/src/proxy.rs#L48)
-     (round-27 M1 correction — the pinned code path is
+     (round-27 foundations correction — the pinned code path is
      `response.bytes()`, not `body.collect()`) — must enforce
      `ResponseMode::Buffered { max_bytes }` DURING the read per
-     the M3b dual-cap ownership rows, never an unbounded collect
+     the bounded fanout dual-cap ownership rows, never an unbounded collect
      followed by a size check; the decoded-cap row carries
      round-27 H5's requirement that gzip/brotli compression
      bombs cannot amplify a small transport read; (iii)
@@ -7169,73 +7171,73 @@ StoreExtractionReason }` with a distinguishable missing-blob
        primitive lands — Fastly production-fanout coverage
        definitionally waits on (iv).
    - **Production-complete boundary (round-57 B-m; round-70 H1 — the
-     ingress hook now has a named owner).** Neither M3a alone NOR "M3
+     ingress hook now has a named owner).** Neither GDPR fanout alone NOR "GDPR enforcement
      as currently scoped through behavior-complete" is
      production-complete under the pinned EdgeZero
      (`docs/outbound-http-spec` @ `12965da2` — round-138: the gaps
      below were established at `9e661ae`/`fcefdde3` and remain
      UNIMPLEMENTED in code, though several are now design-agreed
-     per the M3b plan's compatibility matrix): M3a
+     per the bounded fanout plan's compatibility matrix): GDPR fanout
      fails OPEN on a malformed GDPR config and enforces
      `max_bidder_response_bytes` only AFTER the adapter buffers the
-     whole body, and M3b's fanout/fail-loud/bounded-buffering work plus the
+     whole body, and bounded fanout's fanout/fail-loud/bounded-buffering work plus the
      §12-item-14 per-route **ingress hook** are all
      EdgeZero-upstream-gated. **⚠ ROUND-182 #9 — THAT IS NO LONGER
      TRUE OF BEHAVIOUR, ONLY OF CERTIFICATION.** At the pinned
-     revision the outbound prerequisites are LANDED (see the M3b
-     plan's prerequisite checklist); M3b's fanout IMPLEMENTATION
+     revision the outbound prerequisites are LANDED (see the bounded fanout
+     plan's prerequisite checklist); bounded fanout's fanout IMPLEMENTATION
      waits on auctioneer-side work — the batch rebase, the pin move and
      the roster reconciliation — not on upstream. What remains
      upstream-gated is PRODUCTION CERTIFICATION: raw-ingress
      guarantees are Unsupported and the response-egress rows are
      BestEffort. Any reference below to `12965da2` is a superseded
-     pin (the current one is named at the top of this document). **Behavior-complete = M3a + M3b
-     tasks M3b-1..9 **PLUS M3b-0 and M3b-11** (round-180 #4 — those
+     pin (the current one is named at the top of this document). **Behavior-complete = GDPR fanout + bounded fanout
+     tasks Fanout-1..9 **PLUS Fanout-0 and Fanout-11** (round-180 #4 — those
      two were added after this formula was written and are NOT
-     optional: M3b-0 rebases the outbound contract off an upstream
-     method that no longer exists, and M3b-11 moves the pin that
+     optional: Fanout-0 rebases the outbound contract off an upstream
+     method that no longer exists, and Fanout-11 moves the pin that
      makes the batch API present. Without them the final gate could
-     certify code targeting a removed API and an old pin. M3b-10
-     remains excluded, as every "M3b-1..9 behavior-complete without
+     certify code targeting a removed API and an old pin. Fanout-10
+     remains excluded, as every "Fanout-1..9 behavior-complete without
      it" statement in this spec says. **ROUND-184 #8 — THIS FORMULA
      IS NOW COMPLETE AND AGREES WITH THE PLAN'S DAG AND GATE.** The
-     round-183 plan briefly added a SECOND pin task (M3b-12) that
+     round-183 plan briefly added a SECOND pin task (Fanout-12) that
      adopted upstream's G18–G22 lifecycle contracts, which this
      formula did not name — so spec and plan disagreed on what
      behavior-complete required. Upstream then landed those contracts
      on the same revision as the batch API (`351698c9`), the two pin
-     tasks COLLAPSED back into M3b-11, and the formula above is
-     correct as written: M3b-0 + M3b-1..9 + M3b-11, with M3b-11
+     tasks COLLAPSED back into Fanout-11, and the formula above is
+     correct as written: Fanout-0 + Fanout-1..9 + Fanout-11, with Fanout-11
      carrying both the batch migration and the lifecycle adoption in
-     one atomic commit. There is no M3b-12; the promotion-barrier
-     unit that briefly shared that number is M3b-13, and it is a
+     one atomic commit. There is no Fanout-12; the promotion-barrier
+     unit that briefly shared that number is Fanout-13, and it is a
      PRODUCTION-gate unit, excluded from behavior-complete like
-     M3b-10) (gate: M3b-8, EXECUTED LAST —
-     after M3b-9 lands;
+     Fanout-10) (gate: Fanout-8, EXECUTED LAST —
+     after Fanout-9 lands;
      round-95 H2: task numbers are identifiers, not execution order,
-     and the gate certifies all of M3b-1..9 including M3b-9's runtime
+     and the gate certifies all of Fanout-1..9 including Fanout-9's runtime
      alias validation). Production-complete additionally
-     requires the ingress hook, owned by M3b Task M3b-10 — **blocked
+     requires the ingress hook, owned by bounded fanout Task Fanout-10 — **blocked
      on EdgeZero Prereqs 5 AND 10 for IMPLEMENTATION, plus Prereq 9
      for PRODUCTION CERTIFICATION (round-171 #3: this line named only
      Prereq 5, which would let a reader claim the production
-     milestone with the egress-completion and ingress-seam
-     prerequisites still open; the M3b plan's ledger carries the same
-     three-way split)** — a distinct PRODUCTION-release gate.** M3
+     capability with the egress-completion and ingress-seam
+     prerequisites still open; the bounded fanout plan's ledger carries the same
+     three-way split)** — a distinct PRODUCTION-release gate.** GDPR enforcement
      becomes production-deployable ONLY once those prerequisites land
-     and M3b-10 is green. **Round-75 H2 — the production label is
-     per-target: for AXUM, M3b-10's raw-wire E2E suite + synthetic
+     and Fanout-10 is green. **Round-75 H2 — the production label is
+     per-target: for AXUM, Fanout-10's raw-wire E2E suite + synthetic
      `decide` contract tests green; for Cloudflare / Fastly / Spin, a
      passing BUILD is NOT enough** — compilation establishes nothing
      about the managed runtime's parser behaviour, pre-allocation
      capping, cancellation, or framing normalization, so a production
      label on those targets requires EdgeZero adapter conformance +
-     deployed runtime probes (execution now owned by M7.6). Until then the
+     deployed runtime probes (execution now owned by publisher pilot). Until then the
      production GDPR-gate label applies to Axum only; the wasm adapters are build-verified,
-     not production-claimed. Until any of this lands M3a is explicitly
+     not production-claimed. Until any of this lands GDPR fanout is explicitly
      the **dev-complete** slice, not a production GDPR gate.
      **Current release rule (2026-10-03 integration):** compiled
-     milestone stamps and Auctioneer-owned promotion commands have been
+     capability stamps and Auctioneer-owned promotion commands have been
      removed. `/status` reports `x-auctioneer-config-status`, not an
      artifact certification label. A PRODUCTION deploy goes through
      EdgeZero's production-deploy tooling
@@ -7243,19 +7245,19 @@ StoreExtractionReason }` with a distinguishable missing-blob
      promotion tooling of its own, and the repo's raw deploy commands
      are dev/staging-only. Deployment qualification follows the
      manifest's provider capability policy and runtime evidence.
-     Earlier milestone-label descriptions in this document are
+     Earlier capability-label descriptions in this document are
      historical acceptance categories, not current runtime APIs or
      an additional signing scheme.
      **Round-75 B1 / round-76 B2 — the production-complete label states
-     that M3 treats GDPR-via-GPP-section-2 CONSENT as UNUSABLE** (round-72
+     that GDPR enforcement treats GDPR-via-GPP-section-2 CONSENT as UNUSABLE** (round-72
      H2's "GPP-only exclusion" was wrong — it missed the fail-OPEN
      mixed/conflicting case). Because GPP section 2 (TCFEU2) is the
      authoritative GDPR consent source that WINS over `user.consent`
-     (§7.4 / Appendix D.1) and M3 has no GPP decoder, M3 must NOT read
+     (§7.4 / Appendix D.1) and GDPR enforcement has no GPP decoder, GDPR enforcement must NOT read
      `user.consent` when `regs.gpp_sid` contains section 2 — otherwise a
      stale legacy `user.consent` that grants could override an
      authoritative GPP denial (a fail-OPEN privacy violation). So
-     whenever section 2 is in scope M3 sets `consent_usable = false` and
+     whenever section 2 is in scope GDPR enforcement sets `consent_usable = false` and
      returns the `default_permissions()` row (**`PassID: false`
      unconditionally**; `AllowBidRequest`/`PassGeo` denied where the
      operator enforces P2/SF1) — this is the SAME unusable-consent
@@ -7265,17 +7267,17 @@ StoreExtractionReason }` with a distinguishable missing-blob
      non-standard publisher, disabled channel, `Signal::No` — is
      allow-all and never reaches this row). The guarantee is no ID leaks
      from a stale legacy consent. Full GPP section-2 EXTRACTION + the
-     `user.consent`-vs-GPP conflict warning that would let M3 HONOUR
-     (not just nullify) section-2 consent lands in **M4** (GPP decoding).
-     A production-complete M3 release must document that it nullifies
+     `user.consent`-vs-GPP conflict warning that would let GDPR enforcement HONOUR
+     (not just nullify) section-2 consent lands in **privacy enforcement** (GPP decoding).
+     A production-complete GDPR enforcement release must document that it nullifies
      section-2 GDPR consent (not that it "denies all section-2
-     traffic"); it is not a scope reduction (GPP was always M4).
-4. **M4 — CCPA, GPP, activities, the NON-GDPR scrub rows.**
+     traffic"); it is not a scope reduction (GPP was always privacy enforcement).
+4. **privacy enforcement — CCPA, GPP, activities, the NON-GDPR scrub rows.**
    Appendix C + D; full `PrivacyContext`; LMT/COPPA. **Round-49 H4:
    the two GDPR scrub rows (`scrub_gdpr_id` on `PassID=false`,
-   `scrub_geo_and_device_ip` on `PassGeo=false`) ship in M3, not
-   M4** — M3 is the GDPR gate and must enforce, not merely decide.
-   M4 owns the remainder of the Appendix C.2 matrix
+   `scrub_geo_and_device_ip` on `PassGeo=false`) ship in GDPR enforcement, not
+   privacy enforcement** — GDPR enforcement is the GDPR gate and must enforce, not merely decide.
+   privacy enforcement owns the remainder of the Appendix C.2 matrix
    (`scrub_user_fpd`, the CCPA row, LMT/COPPA, `scrub_tid`) plus the
    activity model that drives them.
    **2026-09-29 status: implemented and locally verified, not yet merged.** Strict USP,
@@ -7289,84 +7291,84 @@ StoreExtractionReason }` with a distinguishable missing-blob
    bounds outbound construction, and rejects excess projection/response
    amplification before allocation. Allocation and cancellation regressions
    cover the corrected retained-node and overlapping-state charges. See the
-   [verification record](../plans/2026-09-28-m4-verification.md). The
-   [M4 design](2026-09-26-m4-privacy-design.md) and
-   [implementation plan](../plans/2026-09-28-m4-privacy.md) define the reviewed
-   contract and acceptance evidence. This closes M4's local integration,
+   [verification record](../plans/2026-09-28-privacy-enforcement-verification.md). The
+   [privacy enforcement design](2026-09-26-privacy-enforcement-design.md) and
+   [implementation plan](../plans/2026-09-28-privacy-enforcement.md) define the reviewed
+   contract and acceptance evidence. This closes privacy enforcement's local integration,
    not overall provider production qualification or the broader design's
    unimplemented response-cap overlays. Logical accounting is not a physical-OOM
-   guarantee; over-ceiling boot still warns. Merge M3b before M4 into `main`.
-5. **M5 — User-sync.** **First milestone where sync endpoints are
+   guarantee; over-ceiling boot still warns. Merge bounded fanout before privacy enforcement into `main`.
+5. **user sync — User-sync.** **First capability where sync endpoints are
    reachable** (round-40 H1). Ships: `uids` cookie module (§8.5);
-   host-cookie import merge (§8.2 / round-22 M5); the
+   host-cookie import merge (§8.2 / round-22 user sync); the
    `/cookie_sync` / `/setuid` / `/getuids` route wiring + handler
    pipelines (§8.2-§8.4); candidate-selection ladder (Appendix B.3);
    cookie-write + eviction (`PriorityBidderEjector`, Appendix B.6);
    syncer-URL safety integration (§8.6); and the **real
    `resolve_sync_privacy`** (§7.8) — TCF v2 / US-Privacy / GPP parsing,
    GDPR vendor decisions, `SkipWhen.gpp_sid` exact-string matching,
-   `BidderSyncAllowed`, per-syncer decisions — replacing M2's permissive
+   `BidderSyncAllowed`, per-syncer decisions — replacing auction core's permissive
    stub with no API-surface change.
-6. **M6 — Parity hardening.** The [M6 hardening design](2026-10-05-m6-parity-hardening-design.md) is the executable contract for:
+6. **diagnostic qualification — Parity hardening.** The [diagnostic qualification hardening design](2026-10-05-diagnostics-and-qualification-design.md) is the executable contract for:
    bounded safe debug projections and enablement; typed-overlay sibling
    cases and current whole-blob/structural-budget error precedence; one
    snapshot per request with update/invalid/outage/deletion/recovery tests;
    an explicit existing-versus-new parity inventory; offline shared-handler
    harness/artifact handoff/refusal tests and runbooks for Cloudflare/Spin/Fastly;
-   and explicit Q2 deployment-resource qualification under M6 design section
+   and explicit Q2 deployment-resource qualification under diagnostic qualification design section
    10.1. Q2 requires repeatable release
    load tooling, cold/warm and maximum-admitted memory/latency evidence, tuned
    funded profiles, overload recovery and a rollout/rollback runbook. Native
-   acceptance (Q2-A/B/C) and reusable Q2-E are M6 implementation deliverables.
+   acceptance (Q2-A/B/C) and reusable Q2-E are diagnostic qualification implementation deliverables.
    Credentialed real provider execution, authorized corrupt-config
-   injection/recovery and selected actual deployment Q2-D execute in M7.6
-   after M7.5 plus the selected bidder migration wave/host setup; that
+   injection/recovery and selected actual deployment Q2-D execute in publisher pilot
+   after Trusted Server embedding plus the selected bidder migration wave/host setup; that
    deployment must pass Q2-D before its live limited-bidder publisher pilot.
-   M6 local/staging acceptance alone does not establish live-pilot readiness.
-   Q1/Q3/Q4 SDK controls remain EdgeZero-owned, and Q2 does not block M3b's
+   diagnostic qualification local/staging acceptance alone does not establish live-pilot readiness.
+   Q1/Q3/Q4 SDK controls remain EdgeZero-owned, and Q2 does not block bounded fanout's
    implementation merge.
-   Separate account storage/deletion policy remains M8.
+   Separate account storage/deletion policy remains stored requests and accounts.
    Provider propagation/production capability claims
    remain per-target evidence, not a reason to block unrelated behavioral
    implementation. No new routing or signing path is added.
    Outbound/SSRF/resource invariants and deterministic snapshot tests remain
-   existing regression requirements, not scope postponed to M6. All current
-   multi-target compile checks remain per-milestone; passing a build does
+   existing regression requirements, not scope postponed to diagnostic qualification. All current
+   multi-target compile checks remain per-capability; passing a build does
    not prove live handler or provider conformance behavior.
-   The [M6 implementation plan](../plans/2026-10-07-m6-parity-hardening.md)
+   The [diagnostic qualification implementation plan](../plans/2026-10-07-diagnostics-and-qualification.md)
    sequences the final foundation inheritance, debug/config acceptance and
    Q2 tooling/evidence without adding bidder-catalog scope.
 
-### 14.1. Roadmap Beyond M6
+### 14.1. Roadmap Beyond diagnostic qualification
 
-M1-M6 retain their initial-scope requirements except the explicitly
+foundations through diagnostic qualification retain their initial-scope requirements except the explicitly
 user-approved 2026-10-15 transfer of credentialed live execution/pilot
-acceptance to M7.6. The
+acceptance to publisher pilot. The
 [approved roadmap's 2026-10-26 scope correction](../../roadmap.md#2026-10-26-scope-correction)
-extends milestone ownership through M20: bidder foundations and full
-14-priority selected-flow acceptance (M7), direct Trusted Server embedding (M7.5),
-limited-bidder publisher pilot and hosted acceptance (M7.6), additional
-demand-led bidder waves (M7.7) under the
+extends capability ownership through remaining catalog closure: bidder foundations and full
+14-priority selected-flow acceptance (bidder catalog), direct Trusted Server embedding (Trusted Server embedding),
+limited-bidder publisher pilot and hosted acceptance (publisher pilot), additional
+demand-led bidder waves (bidder expansion) under the
 [2026-10-27 correction](../../roadmap.md#2026-10-27-post-pilot-bidder-expansion), then
-stored requests/accounts (M8), currency, multibid, auction UID projection and
-the [global strict/reference-compatible protocol mode](../../roadmap.md#m9-global-protocol-mode)
-(M9), creative caching (M10), and full video support (M11).
-M7's [controlled-native amendment](2026-10-30-m7-controlled-native-completion-design.md)
+stored requests/accounts (stored requests and accounts), currency, multibid, auction UID projection and
+the [global strict/reference-compatible protocol mode](../../roadmap.md#shared-auction-foundations-global-protocol-mode)
+(shared auction foundations), creative caching (creative caching), and full video support (video delivery).
+bidder catalog's [controlled-native amendment](2026-10-30-controlled-native-bidders-completion-design.md)
 uses tested resource reservations and enforced admission, not complete
-worst-case resource proofs. M7-R0 retains those proofs and absolute WASM fit;
+worst-case resource proofs. resource qualification retains those proofs and absolute WASM fit;
 neither native acceptance nor a compiled guest artifact waives them.
 The planned mode defaults to strict; compatibility cannot weaken privacy,
 security or resource/deadline protections. It does not change current behavior.
 Remaining FPD, floors/adjustments, AMP/native, privacy
 and transparency, compression, hooks, telemetry, and browser compatibility
-are assigned to M12-M19. M20 owns residual full-catalog migration and closure,
-not an M7 completion prerequisite. New implementation needs a separately reviewed
-specification and plan; M6 is not a catch-all for these new features. M7.6
+are assigned to first-party data through browser privacy compatibility. remaining catalog closure owns residual full-catalog migration and closure,
+not an bidder catalog completion prerequisite. New implementation needs a separately reviewed
+specification and plan; diagnostic qualification is not a catch-all for these new features. publisher pilot
 executes retained harness/runbook contracts under the roadmap's actionable
 prerequisites, cases, evidence and invalidation rules, without needing a new
 implementation specification merely for deferred execution. Its selected
-bidder migration wave and M7.5 integration/host setup are prerequisites;
-M20 full-catalog closure and video parity are not. All selected-target
+bidder migration wave and Trusted Server embedding integration/host setup are prerequisites;
+remaining catalog closure full-catalog closure and video parity are not. All selected-target
 safety/privacy/credential/creative-rendering checks remain before real traffic.
 
 Catalog migration and shared feature parity are separate completion claims.
@@ -7376,8 +7378,8 @@ baked-eligible bidder does not require a rebuild; new code or baked metadata
 does. Full video requires creative delivery and ad-pod integration, not only
 acceptance of `imp.video`.
 
-Each milestone is independently testable and leaves the workspace green.
-**A milestone is "done" only when both unit tests (§11.1) and integration
+Each capability is independently testable and leaves the workspace green.
+**A capability is "done" only when both unit tests (§11.1) and integration
 tests (§11.2) for everything it ships are green — neither layer optional.**
 
 ---
@@ -7388,13 +7390,13 @@ This spec targets behavior-compatibility with the pinned baseline, but a few
 departures are deliberate. They are listed here so "behavior-compatible" is
 never read as "byte-identical to upstream."
 
-The [M4 design, section 12](2026-09-26-m4-privacy-design.md#12-explicit-compatibility-decisions)
-records the complete M4 decisions against upstream commit
-`d7f8515b86258688304b0d9b6668c6a0e258bc9e`. In particular, M4 requires active
+The [privacy enforcement design, section 12](2026-09-26-privacy-enforcement-design.md#12-explicit-compatibility-decisions)
+records the complete privacy enforcement decisions against upstream commit
+`d7f8515b86258688304b0d9b6668c6a0e258bc9e`. In particular, privacy enforcement requires active
 SID membership for section selection/backfill, leaves unsupported payloads
 opaque, rejects hard GPP bounds instead of falling back, independently
 validates no-sale, removes both EID representations, and does not let USP
-conflict warnings disable enforcement. It retains M3's floor-based negative
+conflict warnings disable enforcement. It retains GDPR enforcement's floor-based negative
 coordinate rounding instead of the reference's truncation-toward-zero drift.
 Unicode simple folding, the account-wide CCPA fallback, and empty section-6
 fallback are compatibility corrections, not new divergences. DV retention
@@ -7407,28 +7409,28 @@ does not introduce any new permission-granting rule.
 | Currency                                                                                                   | single-currency USD; non-USD seatbids dropped with a `DisabledCurrencyConversion` warning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | full currency conversion                                                                                                                                                                                                                                                                                                                                      | Conversion is a later phase (open item 3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `allow_insecure`                                                                                           | build-time cargo feature (`insecure-bidders`), never in production                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | n/a                                                                                                                                                                                                                                                                                                                                                           | Prevents a runtime config mistake enabling insecure outbound targets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Sync URL scheme                                                                                            | HTTPS only in default builds (the `insecure-bidders` feature relaxes this for local testing)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | accepts HTTP                                                                                                                                                                                                                                                                                                                                                  | Edge-deployed defensive default                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Debug override                                                                                             | Conservative: must be both **requested** _and_ account-permitted (`debug_allow`); no header/query override path that bypasses the account gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | A debug-override path can force-enable response debug + bidder HTTP calls beyond account gates (reference auction policy, reference bidder request/response processing)                                                                                                                                                                                       | Avoid a side channel that leaks consent / IP / tokens past operator policy (round-15 finding M6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Debug override                                                                                             | Conservative: must be both **requested** _and_ account-permitted (`debug_allow`); no header/query override path that bypasses the account gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | A debug-override path can force-enable response debug + bidder HTTP calls beyond account gates (reference auction policy, reference bidder request/response processing)                                                                                                                                                                                       | Avoid a side channel that leaks consent / IP / tokens past operator policy (round-15 finding diagnostic qualification)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `responsetimemillis[bidder]`                                                                               | Post-batch synchronous approximation: `make_requests` + `max(call elapsed)` + `make_bids` (§5.2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Streaming per-call: bid response conversion runs as each response arrives, overlapping with in-flight calls (reference bidder request/response processing)                                                                                                                                                                                                    | Simpler batch model; over-counts overlap by ~milliseconds (round-16 finding H2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Outbound `Sec-GPC` source                                                                                  | Forwarded iff **`regs.ext.gpc == "1"`**; `regs.ext.gpc` is populated by `prepare()` from a `"1"`-valued inbound `Sec-GPC` header _or_ a client-supplied JSON value (single source of truth — round-29 finding M4). Any other value is ignored.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Forwarded from the _original_ HTTP `Sec-GPC` header only; JSON `regs.ext.gpc` does not trigger header propagation (reference auction handling, reference bidder request/response processing)                                                                                                                                                                  | Simpler — one signal channel. Observable on the JSON-only edge case (client sets `regs.ext.gpc=1` without sending the header): auctioneer forwards, upstream doesn't (round-28 finding M3 / round-29 M4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Outbound `Sec-GPC` source                                                                                  | Forwarded iff **`regs.ext.gpc == "1"`**; `regs.ext.gpc` is populated by `prepare()` from a `"1"`-valued inbound `Sec-GPC` header _or_ a client-supplied JSON value (single source of truth — round-29 finding privacy enforcement). Any other value is ignored.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Forwarded from the _original_ HTTP `Sec-GPC` header only; JSON `regs.ext.gpc` does not trigger header propagation (reference auction handling, reference bidder request/response processing)                                                                                                                                                                  | Simpler — one signal channel. Observable on the JSON-only edge case (client sets `regs.ext.gpc=1` without sending the header): auctioneer forwards, upstream doesn't (round-28 finding GDPR enforcement / round-29 privacy enforcement)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Privacy Sandbox                                                                                            | **Not implemented in phase 1**: no `Sec-Browsing-Topics` enrichment, no `/cookie_sync` `receive-cookie-deprecation` partitioned cookie, no `account.privacy.privacysandbox` config surface (round-21 finding H2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Both implemented (reference auction handling, reference cookie-sync handling)                                                                                                                                                                                                                                                                                 | Deferred to a dedicated Privacy-Sandbox phase to avoid shipping a partial implementation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | CMP authenticity (round-99 B1/B2/B3)                                                                       | `TcfString.cmp_id` is validated against the bundled Global CMP List: unknown CMP, CMP with `deleted_date <= now`, or a GCL past its freshness window (`now >= fetched_at + cache_max_age_secs` — the upstream RFC 9111 lifetime EXACTLY, no floor; round-100 B2) ⇒ consent UNUSABLE (fail-closed to the Appendix A.4 default row; codes 10001/10019). The GCL ships in the GVL archive (manifest `gcl` object: path/sha256/last_updated/fetched_at/cache_max_age_secs), refreshed by the same weekly transaction, validated by `validate_gcl_json`, baked via `auctioneer_config::baked_gcl_json()`, lowered once into a boot-initialized `Gcl` static, and consumed by `PrivacyContext::resolve(req, account, host, gvl_store, gcl, now)`                                                                                                                                                                                                                                                                                  | reference consent parser never consults the GCL; any `cmp_id` is accepted                                                                                                                                                                                                                                                                                     | The TCF requires TC strings to originate from registered CMPs, and the current spec invalidates strings from deleted CMPs once `deletedDate` passes; accepting unauthentic strings would over-grant processing. Stricter-than-upstream, fail-closed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Account lookup ordering                                                                                    | After earlier framework ingress/admission succeeds: one validated config snapshot and host clamp → bounded body read → syntactic JSON/node check → raw account identity and typed overlay → typed parse/prepare → auction. Config failure wins over application account/body faults; JSON syntax or node-budget 400 wins over account-disabled; a within-budget body naming a disabled account gets 503 before typed preparation. Separate MalformedAcct fetch failures are M8, not current blob behavior.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Reference account discovery precedes full request preparation                                                                                                                                                                                                                                                                                                 | Preserve account-before-typed-validation behavior without spending unbounded structural work on account discovery; M6 section 7 pins the competing-fault matrix.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `multibid` bid limiting                                                                                    | **Parsed/typed only** in phase 1 (round-22 M8 / round-23 M5); no validation, no warning code 10006, no rebuild, no per-bidder bid limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | upstream validates + rebuilds (reference auction handling), clamps `maxBids` (reference multi-bid limits), applies limiting (reference auction handling)                                                                                                                                                                                                      | Bid-limiting is targeting-adjacent and deferred together with the other targeting deferrals                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| DSA / SChain                                                                                               | **Typed pass-through only** in phase 1 (round-23 finding M6): `regs.ext.dsa` and `source.ext.schain` round-trip losslessly, but no account-DSA writer, response-DSA validation, schain merge, or schain validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | upstream mutates request DSA from account privacy config (reference auction processing), validates response DSA, applies bidder schains (reference auction policy)                                                                                                                                                                                            | Both are large privacy-adjacent surfaces deferred to a dedicated phase; passing through preserves client-supplied values without claiming enforcement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Account lookup ordering                                                                                    | After earlier framework ingress/admission succeeds: one validated config snapshot and host clamp → bounded body read → syntactic JSON/node check → raw account identity and typed overlay → typed parse/prepare → auction. Config failure wins over application account/body faults; JSON syntax or node-budget 400 wins over account-disabled; a within-budget body naming a disabled account gets 503 before typed preparation. Separate MalformedAcct fetch failures are stored requests and accounts, not current blob behavior.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Reference account discovery precedes full request preparation                                                                                                                                                                                                                                                                                                 | Preserve account-before-typed-validation behavior without spending unbounded structural work on account discovery; diagnostic qualification section 7 pins the competing-fault matrix.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `multibid` bid limiting                                                                                    | **Parsed/typed only** in phase 1 (round-22 stored requests and accounts / round-23 user sync); no validation, no warning code 10006, no rebuild, no per-bidder bid limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | upstream validates + rebuilds (reference auction handling), clamps `maxBids` (reference multi-bid limits), applies limiting (reference auction handling)                                                                                                                                                                                                      | Bid-limiting is targeting-adjacent and deferred together with the other targeting deferrals                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| DSA / SChain                                                                                               | **Typed pass-through only** in phase 1 (round-23 finding diagnostic qualification): `regs.ext.dsa` and `source.ext.schain` round-trip losslessly, but no account-DSA writer, response-DSA validation, schain merge, or schain validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | upstream mutates request DSA from account privacy config (reference auction processing), validates response DSA, applies bidder schains (reference auction policy)                                                                                                                                                                                            | Both are large privacy-adjacent surfaces deferred to a dedicated phase; passing through preserves client-supplied values without claiming enforcement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Request-level FPD (`ext.prebid.data`, `data.eidpermissions`, `ext.prebid.bidderconfig`)                    | **Typed pass-through only** in phase 1 (round-24 finding H2); the per-imp `imp.ext.prebid.imp` merge (§5.1 step 7) is the only FPD path that takes effect. Privacy scope's "full fidelity" applies to GDPR/TCF/CCPA/GPP/activities/scrubbing — **not** to request-level FPD resolution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | upstream extracts/resolves bidder-level FPD before splitting (reference auction processing), resolves request-level first-party-data extensions, and applies bidder FPD later (reference auction policy)                                                                                                                                                      | Request-level FPD is a substantial sub-system deferred to a dedicated FPD phase                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Inbound request compression                                                                                | **Not supported in phase 1 on ANY body route — auction AND `/cookie_sync`** (round-23 L8 / round-24 M6 / round-28 L6 / round-29 L6 / round-68 M3 — scope broadened to match the round-68 H2 ingress hook: a non-empty `Content-Encoding` header on either `/openrtb2/auction` or `/cookie_sync` is rejected with `400` body `Invalid request: Content-Encoding of type <encoding> is not supported\n` (round-69 L4 — body string includes the trailing `\n` canonically per Appendix F); exact upstream plain-text error output wording on auction, auctioneer extends the same rule to /cookie_sync).                                                                                                                                                                                                                                                                                                                                                                                                                      | upstream handles request gzip with size caps and explicit unsupported-encoding errors on auction (reference auction handling); upstream does NOT reject `Content-Encoding` on `/cookie_sync` — it would accept a gzip body there                                                                                                                              | Edge body limits already bound size; deferring inbound decompression on auction matches upstream, and **extending the same rejection to /cookie_sync** is a deliberate defense-in-depth hardening — the ingress hook applies one uniform Content-Encoding rule to every body route, so a future compressed-body decoder lands once for all routes (round-68 M3 — observable on a /cookie_sync request that carries `Content-Encoding: gzip`: auctioneer → 400, upstream → tries to decompress).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Inbound request compression                                                                                | **Not supported in phase 1 on ANY body route — auction AND `/cookie_sync`** (round-23 L8 / round-24 diagnostic qualification / round-28 L6 / round-29 L6 / round-68 GDPR enforcement — scope broadened to match the round-68 H2 ingress hook: a non-empty `Content-Encoding` header on either `/openrtb2/auction` or `/cookie_sync` is rejected with `400` body `Invalid request: Content-Encoding of type <encoding> is not supported\n` (round-69 L4 — body string includes the trailing `\n` canonically per Appendix F); exact upstream plain-text error output wording on auction, auctioneer extends the same rule to /cookie_sync).                                                                                                                                                                                                                                                                                                                                                                                                                      | upstream handles request gzip with size caps and explicit unsupported-encoding errors on auction (reference auction handling); upstream does NOT reject `Content-Encoding` on `/cookie_sync` — it would accept a gzip body there                                                                                                                              | Edge body limits already bound size; deferring inbound decompression on auction matches upstream, and **extending the same rejection to /cookie_sync** is a deliberate defense-in-depth hardening — the ingress hook applies one uniform Content-Encoding rule to every body route, so a future compressed-body decoder lands once for all routes (round-68 GDPR enforcement — observable on a /cookie_sync request that carries `Content-Encoding: gzip`: auctioneer → 400, upstream → tries to decompress).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Cookie-sync priority groups                                                                                | auctioneer consults host _and_ account `cookie_sync.priority_groups` unconditionally when cooperative is enabled (Appendix B.3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | upstream uses account `priority_groups` only under a specific account cookie-sync condition (reference cookie-sync handling)                                                                                                                                                                                                                                  | Simpler precedence; if strict parity is needed later, gate behind an account flag (round-23 finding L9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| /setuid eviction priority source                                                                           | auctioneer uses the **same composed list** as /cookie_sync — i.e. account `cookie_sync.priority_groups` when `Some(_)`, else host `user_sync.priority_groups` (Appendix B.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | upstream /setuid eviction uses only host `UserSync.PriorityGroups` (reference UID-write handling), independent of any account override                                                                                                                                                                                                                        | Symmetric with /cookie_sync — same composed list drives candidate ordering AND eviction (round-31 finding M4); avoids a confusing split where two adjacent flows consult different sources                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| /setuid eviction priority source                                                                           | auctioneer uses the **same composed list** as /cookie_sync — i.e. account `cookie_sync.priority_groups` when `Some(_)`, else host `user_sync.priority_groups` (Appendix B.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | upstream /setuid eviction uses only host `UserSync.PriorityGroups` (reference UID-write handling), independent of any account override                                                                                                                                                                                                                        | Symmetric with /cookie_sync — same composed list drives candidate ordering AND eviction (round-31 finding privacy enforcement); avoids a confusing split where two adjacent flows consult different sources                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Outbound HTTP                                                                                              | EdgeZero fan-out primitive                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Concurrent HTTP requests                                                                                                                                                                                                                                                                                                                                      | Platform; not observable in responses                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `/cookie_sync` opt-out vs application policy ordering                                                      | After a valid runtime snapshot and bounded request extraction, host opt-out returns 401 before account state, consent evaluation, and filterSettings interpretation. Invalid data anywhere in the runtime blob instead fails config 500 before application opt-out.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Reference request/account/privacy/filter interpretation and opt-out ordering differs                                                                                                                                                                                                                                                                          | Current fixtures cover opted-out + disabled account, bad filter, or missing consent; malformed whole-blob precedence is tested separately. No independently malformed-account record is implied before M8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `/cookie_sync` opt-out vs application policy ordering                                                      | After a valid runtime snapshot and bounded request extraction, host opt-out returns 401 before account state, consent evaluation, and filterSettings interpretation. Invalid data anywhere in the runtime blob instead fails config 500 before application opt-out.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Reference request/account/privacy/filter interpretation and opt-out ordering differs                                                                                                                                                                                                                                                                          | Current fixtures cover opted-out + disabled account, bad filter, or missing consent; malformed whole-blob precedence is tested separately. No independently malformed-account record is implied before stored requests and accounts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/setuid` request-extraction-error vs activity ordering                                                    | **Request-extraction errors caught by `resolve_sync_privacy` (step 9) → 400 run _before_ `syncUser` activity → 451 (step 10)** (§8.3, round-37 H1 + round-41 H2 + round-45 L7 + round-50 L2 + round-54 H3 — narrowed again after round-53 H2 moved malformed-TCF off the privacy-parse path). The 400-eligible **request-extraction** errors are: bad GPP envelope/section, bad `gpp_sid` encoding, an `Invalid(_)` legacy `gdpr` value that GPP/SID didn't override (round-46 H1), and empty `gdpr_consent` under **`parsed_request_signal == Yes`** (round-52 H2; matches reference UID-write handling). **Malformed non-empty TCF is NOT a request-extraction error** (round-53 H2) — it's decided downstream in the **permission path** (step 11) by `HostCookiesAllowed`, which runs AFTER activity (step 10). So `syncUser`-denied + malformed non-empty TCF → 451 (activity wins). Malformed TCF when `normalized_request_signal != Yes` is silently ignored on /setuid (round-52 H1) and does NOT block at all. | upstream checks the `syncUser` activity first (reference UID-write handling), then calls reference GDPR signal resolution to parse consent                                                                                                                                                                                                                    | Structural-error-first principle: a 400 indicates a malformed request that the operator can fix; a 451 indicates a policy outcome on a well-formed request. Surfacing the 400 first (when it comes from request extraction) makes operator debugging easier. Observable on requests that are both `syncUser`-denied AND would 400 by the request-extraction rules above (e.g. `syncUser`-denied + empty consent under `parsed_request_signal == Yes`: auctioneer → 400, upstream → 451). For `syncUser`-denied + malformed non-empty TCF: auctioneer → 451 (matches upstream; permission-path decision runs after activity). (round-41 H2 + round-54 H3)                                                                                                                                                                                                                                                                                                                                 |
-| `/setuid` disabled-syncer rejection                                                                        | **auctioneer emits `SyncDecision::BlockedByDisabledUsersync` → `400 The bidder syncer is disabled`** even on `/setuid` (§8.3 pipeline step 11, Appendix F, round-39 M2 + round-41 M4 + round-45 L7 + round-55 M4 — uses `setuid_allowed` per round-54 H1, NOT `sync_allowed`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | reference UID-write handling fetches the syncer directly without going through the `chooser` path that emits `StatusBlockedByDisabledUsersync`; a disabled syncer on `/setuid` produces a different upstream response shape                                                                                                                                   | auctioneer intentionally unifies the disabled-syncer check across `/cookie_sync` and `/setuid` — /cookie_sync via `sync_allowed(SyncerLookup{...})` (chooser ladder), /setuid via the narrower `setuid_allowed(SyncerLookup{...})` (host-cookie GDPR + `enabled` only). Both return `SyncDecision::BlockedByDisabledUsersync` for `enabled == false`, so the same operator-visible rejection applies on both endpoints — symmetric with the /setuid eviction-priority unification (above row). Tests cover both endpoints with shared fixtures (round-41 M4)                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `/setuid` disabled-syncer rejection                                                                        | **auctioneer emits `SyncDecision::BlockedByDisabledUsersync` → `400 The bidder syncer is disabled`** even on `/setuid` (§8.3 pipeline step 11, Appendix F, round-39 auction core + round-41 privacy enforcement + round-45 L7 + round-55 privacy enforcement — uses `setuid_allowed` per round-54 H1, NOT `sync_allowed`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | reference UID-write handling fetches the syncer directly without going through the `chooser` path that emits `StatusBlockedByDisabledUsersync`; a disabled syncer on `/setuid` produces a different upstream response shape                                                                                                                                   | auctioneer intentionally unifies the disabled-syncer check across `/cookie_sync` and `/setuid` — /cookie_sync via `sync_allowed(SyncerLookup{...})` (chooser ladder), /setuid via the narrower `setuid_allowed(SyncerLookup{...})` (host-cookie GDPR + `enabled` only). Both return `SyncDecision::BlockedByDisabledUsersync` for `enabled == false`, so the same operator-visible rejection applies on both endpoints — symmetric with the /setuid eviction-priority unification (above row). Tests cover both endpoints with shared fixtures (round-41 privacy enforcement)                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `/setuid` chooser-ladder scope                                                                             | **auctioneer /setuid does NOT invoke `BidderSyncAllowed` or `SkipWhen.gpp_sid`** (§8.3 step 11, round-52 H3 — narrowed; earlier wording incorrectly applied the chooser ladder). /setuid step 11 only consults host-cookie GDPR (from step 9) + disabled-syncer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | reference UID-write handling only invokes the host-cookie GDPR check, not the chooser ladder (reference syncer selection is /cookie_sync-only)                                                                                                                                                                                                                | This is parity, not a divergence — both auctioneer and upstream restrict the chooser ladder to /cookie_sync. The row exists to dispel the earlier "regulation-scope matches upstream /setuid" claim which was wrong. /setuid's `BidderSyncAllowed`-equivalent decision happens implicitly through `HostCookiesAllowed` instead. Tests cover: `SkipWhen.gpp_sid` matching request → /cookie_sync blocks, /setuid proceeds; `BidderSyncAllowed=false` → /cookie_sync blocks per-syncer, /setuid blocks only through the host-cookie path (round-52 H3)                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Host-cookie required fields                                                                                | `host_cookie.cookie_name` and `host_cookie.family` are required non-empty strings; the name also cannot be `uids` (§9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Pinned upstream defaults both to empty strings                                                                                                                                                                                                                                                                                                                | Operator hardening: an empty name cannot identify a host identity cookie to import, and an empty family cannot identify its UID slot. Auctioneer's writable cookie remains the separately fixed `uids` cookie. Invalid baked config fails generation; invalid runtime config fails push/load rather than silently disabling host identity import.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| TCF core-segment strict validation (round-89 H3 / round-90 M6)                                             | auctioneer REJECTS: (a) `tcfPolicyVersion < 4` with core `Created` on/after 2023-10-01 (`PolicyVersionTooOldForCreated` — round-90 M6: `< 4`, all pre-v4 versions, not just `== 3`); (b) core `Created != LastUpdated` or either not day-truncated (`CreatedLastUpdatedMismatch` / `TimestampNotDayTruncated`); (c) `IsServiceSpecific == 0` (`NotServiceSpecific`); (d) a CORE segment over 64 KiB / over the decoded/range caps (the M3a plan's Task 3 caps table — round-90 M6: NOT spec Appendix D, which is GPP). §7.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | reference consent parser `Parse` performs NONE of these — it accepts stale-policy, unequal-timestamp, non-service-specific, and larger strings                                                                                                                                                                                                                | Standards-defensible fail-closed hardening on the privacy input boundary; each is an observable rejection where upstream would accept. Real-world CMP strings satisfy all of them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| TCF core-segment strict validation (round-89 H3 / round-90 diagnostic qualification)                                             | auctioneer REJECTS: (a) `tcfPolicyVersion < 4` with core `Created` on/after 2023-10-01 (`PolicyVersionTooOldForCreated` — round-90 diagnostic qualification: `< 4`, all pre-v4 versions, not just `== 3`); (b) core `Created != LastUpdated` or either not day-truncated (`CreatedLastUpdatedMismatch` / `TimestampNotDayTruncated`); (c) `IsServiceSpecific == 0` (`NotServiceSpecific`); (d) a CORE segment over 64 KiB / over the decoded/range caps (the GDPR fanout plan's Task 3 caps table — round-90 diagnostic qualification: NOT spec Appendix D, which is GPP). §7.2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | reference consent parser `Parse` performs NONE of these — it accepts stale-policy, unequal-timestamp, non-service-specific, and larger strings                                                                                                                                                                                                                | Standards-defensible fail-closed hardening on the privacy input boundary; each is an observable rejection where upstream would accept. Real-world CMP strings satisfy all of them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | TCF flexible-purpose legal basis (round-89 B1 / round-90 LOW)                                              | A flexible purpose is authorized on its **DEFAULT basis only** absent a publisher restriction (`purposes` ⇒ consent, `legIntPurposes` ⇒ LI); a restriction switches it (Appendix A.2). The GVL validator rejects a purpose with no/dual default and Purpose 1 in `flexiblePurposes`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | **reference server at pinned commit `d7f8515` (reference TCF legal-basis evaluation) evaluates BOTH consent and legitimate-interest and ORs them when there is NO publisher restriction** — so a flex purpose (which reference consent parser's consent authorization/legitimate-interest authorization both report established) is allowed via EITHER basis. | **This is a DELIBERATE enforcement divergence from upstream (round-90 LOW — reference TCF legal-basis evaluation ORs both bases; auctioneer does not).** Fail-closed on the authorization boundary: a consent-default flex purpose is NOT LI-authorized (and vice versa) without an explicit publisher restriction, avoiding over-granting under the wrong legal basis per the IAB vendor-list contract. Standards-defensible and observably stricter than upstream on a flex purpose whose one declared TCF basis is absent but the alternate is present.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | GVL policy-version cross-check is ASYMMETRIC (execution-ratified)                                          | When the CMP-declared `(spec, list)` GVL is present, auctioneer fails closed only when the TC string's `tcfPolicyVersion` is **greater than** the bundled blob's (`policy > gvl.tcf_policy_version()`), not on any inequality. An older string against a newer list stays usable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | upstream performs no policy-version cross-check at all, so this is stricter than upstream in the newer-string direction and equal in the older-string direction                                                                                                                                                                                               | **The plan's original round-86 B3 rule was strict equality; execution proved it unshippable.** The live bundled spec-3 archive declares policy 5 while TCF v2.2 CMPs emit policy-4 strings, so `!=` marks EVERY v2.2 request unusable — a production-wide fail-closed on legitimate traffic (it also failed eight landed Task 8 tests). The asymmetric form still fails closed in the genuinely unsafe direction (a string claiming a policy the list PREDATES cannot be interpreted against it) while preserving normal forward compatibility. Emits warning 10018 and routes to the A.4 default row exactly like the missing-blob branch.                                                                                                                                                                                                                                                                                                                                      |
-| Disclosed Vendors segment: presence REQUIRED, contents deferred (round-88 B1 / round-90 H5 / round-108 H5) | auctioneer semantically interprets and RETAINS only CORE contents (round-115 L4 wording — trailing-segment STRUCTURAL contents are decoded for framing validation), and enforces the STRICT trailing set (round-110 B2): exactly `{DV}` or `{DV, PublisherTC}`, both framing-validated (bounded decode; DV bitfield/range completeness — round-109 B1; PubTC 57+2N-bit layout); empty/duplicate/unknown/obsolete-type-2/extra/incomplete segments → the §7.2 rejection taxonomy → consent unusable, fail-closed; validated trailing contents stay unretained.                                                                                                                                                                                                                                                                                                                                                                                                                                                               | reference consent parser core-segment parsing truncates at the first `.` and accepts a core-only string — the current official TCF specification (May 2026) makes the Disclosed Vendors segment MANDATORY, and disclosure is load-bearing for special-purpose-only vendors                                                                                    | **Round-108 H5 corrects the round-90 "M3 blast radius is nil" claim, which was too strong: a structurally invalid (core-only) string's core was still treated as usable authorization input.** Now: presence is validated in M3 (a structurally invalid string fails closed — observably STRICTER than reference consent parser, recorded as a deliberate divergence); the segment's structural FRAMING is decoded and validated in M3 while its semantic vendor membership is neither retained nor consulted until M4 (round-114 M3 — the earlier "remain unread" wording contradicted the framing validation, which necessarily reads structural contents), so special-purpose disclosure-membership enforcement stays M4-scoped (§7.3) — when M4 lands it MUST parse the segment (or re-derive membership from the raw string) before authorizing an undisclosed vendor for special purposes. Deleted vendors remain denied (round-90 B1 / round-108 M8 timestamp semantics). |
+| Disclosed Vendors segment: presence REQUIRED, contents deferred (round-88 B1 / round-90 H5 / round-108 H5) | auctioneer semantically interprets and RETAINS only CORE contents (round-115 L4 wording — trailing-segment STRUCTURAL contents are decoded for framing validation), and enforces the STRICT trailing set (round-110 B2): exactly `{DV}` or `{DV, PublisherTC}`, both framing-validated (bounded decode; DV bitfield/range completeness — round-109 B1; PubTC 57+2N-bit layout); empty/duplicate/unknown/obsolete-type-2/extra/incomplete segments → the §7.2 rejection taxonomy → consent unusable, fail-closed; validated trailing contents stay unretained.                                                                                                                                                                                                                                                                                                                                                                                                                                                               | reference consent parser core-segment parsing truncates at the first `.` and accepts a core-only string — the current official TCF specification (May 2026) makes the Disclosed Vendors segment MANDATORY, and disclosure is load-bearing for special-purpose-only vendors                                                                                    | **Round-108 H5 corrects the round-90 "GDPR enforcement blast radius is nil" claim, which was too strong: a structurally invalid (core-only) string's core was still treated as usable authorization input.** Now: presence is validated in GDPR enforcement (a structurally invalid string fails closed — observably STRICTER than reference consent parser, recorded as a deliberate divergence); the segment's structural FRAMING is decoded and validated in GDPR enforcement while its semantic vendor membership is neither retained nor consulted until privacy enforcement (round-114 GDPR enforcement — the earlier "remain unread" wording contradicted the framing validation, which necessarily reads structural contents), so special-purpose disclosure-membership enforcement stays privacy enforcement-scoped (§7.3) — when privacy enforcement lands it MUST parse the segment (or re-derive membership from the raw string) before authorizing an undisclosed vendor for special purposes. Deleted vendors remain denied (round-90 B1 / round-108 stored requests and accounts timestamp semantics). |
 
 Everything else aims for observable parity with the baseline; remaining gaps
 are tracked as out-of-scope phases (§13) or open items (§12).
@@ -7546,7 +7548,7 @@ A full-enforced purpose downgrades to basic for any bidder in
 - Auction consequences: `AllowBidRequest=false` → bidder dropped;
   `PassID=false` → `scrub_gdpr_id`; `PassGeo=false` →
   `scrub_geo_and_device_ip`.
-- Sync endpoints (round-48 H1 + round-52 H1+H2+M4 — uses §7.8.1
+- Sync endpoints (round-48 H1 + round-52 H1+H2+privacy enforcement — uses §7.8.1
   signal taxonomy):
   - **`normalized_request_signal != Yes`** (or
     `!gdpr_permissions_enabled`): TCF never parsed; malformed
@@ -7558,7 +7560,7 @@ A full-enforced purpose downgrades to basic for any bidder in
       - /setuid → `400` only when `parsed_request_signal == Yes`
         (matches reference UID-write handling); `Ambiguous` + normalized Yes
         falls into the host-cookie permission path.
-    - **Malformed (non-empty) TCF** (round-58 M1 — full precondition
+    - **Malformed (non-empty) TCF** (round-58 foundations — full precondition
       list, not the earlier "host_vendor_id != 0" shorthand):
       - /setuid → `400` body `gdpr_consent was invalid. <parser
 error>` **only when ALL of** host_vendor_id != 0 AND
@@ -7580,7 +7582,7 @@ error>` **only when ALL of** host_vendor_id != 0 AND
 
 # Appendix B — `/cookie_sync` & `/setuid` Schemas
 
-**M5 effective bounds and scope.** `/cookie_sync` accepts at most 32 KiB of
+**user sync effective bounds and scope.** `/cookie_sync` accepts at most 32 KiB of
 uncompressed body data and the current handler caps its JSON parse at 4,096
 nodes. `/setuid` accepts at most 32 KiB of encoded query and 32 parameters,
 counting duplicates. Current adapter request-target profiles allow 33 KiB
@@ -7592,20 +7594,20 @@ list, 128 UTF-8 bytes per name, 32 priority groups, and 256 priority
 entries. URLs are capped at 32 KiB each, response bodies at 256 KiB, and
 Set-Cookie field values at 4 KiB, including the signed envelope and attributes.
 A logical unlimited candidate or cookie
-setting does not disable those hard caps. M5 does not migrate the full
+setting does not disable those hard caps. user sync does not migrate the full
 bidder catalog or inject stored `buyeruid` into auction bidder requests.
 Credentialed CORS is exact-origin and begins only after valid runtime config
 resolution; it does not override endpoint privacy decisions or guarantee
 third-party cookie acceptance. Auctioneer-owned sync responses are `no-store`.
 
-**Issued-cookie integrity is M5 scope.** The approved
+**Issued-cookie integrity is user sync scope.** The approved
 [integrity addendum](2026-10-13-usersync-cookie-integrity-design.md) supersedes
 the unsigned production wire contract: authenticate `v1.key-id.payload.mac`
 before UID decoding, load one bounded atomic keyring from the existing
 EdgeZero secret store, sign transactional writes, and explicitly expire
 deletions. Inner JSON/reference fixtures still qualify payload semantics.
 Signing does not prove ownership of a callback UID, grant consent, authenticate
-accounts, encrypt identifiers or prevent replay. M9 identity projection must
+accounts, encrypt identifiers or prevent replay. shared auction foundations identity projection must
 continue treating those identifiers as unverified hints.
 
 ## B.1 `POST /cookie_sync` request
@@ -7678,14 +7680,14 @@ absent or exactly empty (`gdpr=`) -> `Absent`; any other nonempty value,
 including whitespace, -> `GdprSignalIn::Invalid(<raw>)`. Empty acceptance
 is specific to the query surface: a JSON string `""` in `/cookie_sync`
 remains invalid. The handler does **NOT** emit `400`
-at the query-parse surface (round-46 H1 + round-47 M2 — corrects
+at the query-parse surface (round-46 H1 + round-47 auction core — corrects
 earlier "/setuid 400s on the wire" wording); the decision is deferred
 to `resolve_sync_privacy`, which only rejects malformed legacy `gdpr`
 when GPP/SID did not already resolve the signal (matches upstream
 reference UID-write handling). If `resolve_sync_privacy` returns
 `Err(MalformedConsent { scope: "gdpr" })`, the caller emits **`400`**
 with body `the gdpr query param must be either 0 or 1. You gave
-<raw>` (round-44 M5).
+<raw>` (round-44 user sync).
 
 ## B.2 `/cookie_sync` response
 
@@ -7707,7 +7709,7 @@ with body `the gdpr query param must be either 0 or 1. You gave
 `debug[]` only when request `debug=true`. Content type
 `application/json; charset=utf-8`.
 
-**Byte-exact body contract** (round-51 M3 — matches upstream
+**Byte-exact body contract** (round-51 GDPR enforcement — matches upstream
 reference cookie-sync handling JSON response encoding,
 pinned by reference cookie-sync handling fixtures): the body is the JSON
 above **plus a single trailing `\n`** appended by the reference's
@@ -7736,10 +7738,10 @@ allow/block lists when matching.
 6. `syncUser` activity denied → `StatusBlockedByPrivacy`.
 7. `BidderSyncAllowed` (GDPR) false → `StatusBlockedByPrivacy`.
 8. Syncer `enabled == false` → `StatusBlockedByDisabledUsersync`.
-9. `SkipWhen` (GDPR in scope OR an **exact-string match** of the raw request `gpp_sid` against any configured skip-string — _not_ parsed-section membership) → `StatusBlockedByRegulationScope`. Configured skip values are stored as strings (matches reference bidder metadata syncer config + reference syncer selection exact comparison; round-15 finding M5).
+9. `SkipWhen` (GDPR in scope OR an **exact-string match** of the raw request `gpp_sid` against any configured skip-string — _not_ parsed-section membership) → `StatusBlockedByRegulationScope`. Configured skip values are stored as strings (matches reference bidder metadata syncer config + reference syncer selection exact comparison; round-15 finding user sync).
 10. else → `StatusOK`.
 
-Candidate ordering (round-22 finding M4 — matches upstream
+Candidate ordering (round-22 finding privacy enforcement — matches upstream
 reference bidder syncer selection):
 
 - **Requested non-empty, cooperative OFF:** `shuffle(requested)` **only**
@@ -7751,7 +7753,7 @@ reference bidder syncer selection):
 - **Requested empty, cooperative ON:** `shuffle(requested = ∅)` ++
   `shuffle(priority_group[0])` ++ `shuffle(priority_group[1])`… ++
   `shuffle(available)` — **priority groups always precede `available`**
-  (round-30 finding M4; matches reference bidder syncer selection).
+  (round-30 finding privacy enforcement; matches reference bidder syncer selection).
 - **Requested empty, cooperative OFF:** `shuffle(available)` only.
 
 Shuffles use the injected `Rng` (§5.7); dedup by bidder name. **`limit`
@@ -7760,7 +7762,7 @@ counts chosen (StatusOK) syncers only**: rejected/disqualified candidates
 quota — the loop continues until `chosen.len() == limit` or candidates
 are exhausted (matches upstream's `Limit` semantics; round-13 finding L8).
 
-**Priority-group composition** (round-26 M7 + round-27 finding M4 —
+**Priority-group composition** (round-26 bidder catalog + round-27 finding privacy enforcement —
 explicit precedence and presence semantics):
 
 - The field type that resolves into the composed list is `Option<Vec<...>>`,
@@ -7806,7 +7808,7 @@ fresh state. The missing cookie is fresh state. `optout=true` →
 all UIDs dropped. Attributes: `Path=/`, `Expires = now + host_cookie.ttl_days`
 (default 90d), `Domain` when configured, `Secure` + `SameSite=None` per the
 UA rule (§8.5), no `HttpOnly`. Empty writes use `Max-Age=0` and a past
-expiry. Complete fields have a 4-KiB ceiling. The M5 integrity addendum
+expiry. Complete fields have a 4-KiB ceiling. The user sync integrity addendum
 defines key provisioning/rotation and the unverified-UID trust boundary.
 
 ## B.6 Max-size eviction (`PriorityBidderEjector`)
@@ -7824,7 +7826,7 @@ via the bidder registry — matches reference UID eviction (round-22 L11):
 1. Drop the **oldest non-priority** UID (priority = a syncer key whose
    owning bidder name appears in the **composed priority-group list
    from §B.3** — `Option<Vec<...>>` with account `Some(_)`
-   wholesale-replacing host; round-28 finding M4 corrects an earlier
+   wholesale-replacing host; round-28 finding privacy enforcement corrects an earlier
    stale reference to `user_sync.priority_groups`).
 2. If only priority UIDs remain, drop from the **lowest** priority group
    (oldest within the group if it has several).
@@ -7849,7 +7851,7 @@ behavioral reference, not ASCII-only lowercasing or full folding. Activity keys
 and field names remain case-sensitive; component type values canonicalize.
 Missing `allow` or unknown activity/condition/type is a config error. Runtime
 rules replace the inherited array (including `[]` clearing); absent fields
-inherit. M4 limits are 128 rules per activity, 128 combined condition entries
+inherit. privacy enforcement limits are 128 rules per activity, 128 combined condition entries
 per rule, and 128 UTF-8 bytes per name, plus existing global config limits.
 
 ## C.2 Auction scrub matrix (per bidder-scoped request)
@@ -7865,7 +7867,7 @@ per rule, and 128 UTF-8 bytes per name, plus existing global config limits.
 | LMT (`host.lmt.enforce && device.lmt=1`) or COPPA (`regs.coppa=1`) | Identifier/demographic/EID removal plus IP/geo scrub; COPPA also removes all four user-FPD branches and empties existing user/device Geo objects as `{}`, while LMT-only rounds and retains permitted user FPD                                                                                                                                                                                                                                                                                                                                            |
 | `transmitTid` denied                                               | `scrub_tid` (`source.tid` + `imp.ext.tid`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
-The M4 [classified disclosure design](2026-10-09-gdpr-scrub-classification-design.md)
+The privacy enforcement [classified disclosure design](2026-10-09-gdpr-scrub-classification-design.md)
 defines one compiled per-object rule inventory, shared by typed slots and
 flattened occurrences. Either ID denial or Geo restriction closes unknown
 fields and opaque extensions throughout user/device, Geo, EID/UID, supported
@@ -7905,23 +7907,23 @@ For GDPR `PassGeo=false`, coarsen both `device.geo` and `user.geo`.
 Preserve reviewed `country`, `region`, `regionfips104`, `city`, `metro`,
 `utcoffset`, `type`, `ipservice` and `lastfix` with valid shapes. Coarsen
 coordinates and remove `zip`, original `accuracy`, unknown fields and opaque
-`Geo.ext`. This supersedes the conservative M3b blanket `Geo.other.clear()`
+`Geo.ext`. This supersedes the conservative bounded fanout blanket `Geo.other.clear()`
 behavior. COPPA still replaces existing Geo objects with `{}` and does not
 fabricate absent objects. Geo-only denial retains typed-Geo precedence over a
 same-field flattened shadow; ID-only denial does not remove valid shadow Geo
 merely because typed Geo exists.
 
 Geo rounding = lat/lon to 2 decimals (round-half-up, toward +∞;
-round-51 M2 — applied over the already-parsed `f64`, so at an
+round-51 auction core — applied over the already-parsed `f64`, so at an
 unrepresentable exact half the binary value decides, e.g. `1.005`
 scales to `100.4999…` and rounds to `1.00`). IP masking keeps
 `account.privacy.ipv4/ipv6.anon_keep_bits` bits via CIDR.
 The coordinate transform returns an optional result: non-finite input,
 intermediate overflow and invalid/non-finite output are removed, never passed
-through or re-emitted as JSON null. This is an intentional change from M3b.
+through or re-emitted as JSON null. This is an intentional change from bounded fanout.
 Policies compose as the union of removals; an activity branch cannot skip
 CCPA/LMT IP/geo scrubbing, and COPPA full removal dominates rounding. Preserve
-ordinary request/imp IDs and unrelated context/extensions. See M4 section 12
+ordinary request/imp IDs and unrelated context/extensions. See privacy enforcement section 12
 for the pinned reference's different negative-coordinate rounding.
 This rounding rule is Auctioneer's privacy policy, not an OpenRTB requirement:
 [OpenRTB Geo](https://github.com/InteractiveAdvertisingBureau/openrtb2.x/blob/main/2.6.md#objectgeo)
@@ -7935,7 +7937,7 @@ Auctioneer retains `-1.238 -> -1.24` and the explicit tie rule `-1.125 -> -1.12`
 
 ## D.1 Precedence
 
-For M4 value selection, a section is eligible only when present in a valid
+For privacy enforcement value selection, a section is eligible only when present in a valid
 envelope and active in `gpp_sid`. An inactive payload cannot select or backfill
 consent. Empty/invalid active TCF remains authoritative; empty USPV1 differs
 as specified below. Missing/empty SID retains legacy GDPR scope resolution.
@@ -7943,47 +7945,47 @@ as specified below. Missing/empty SID retains legacy GDPR scope resolution.
 | Signal                   | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GDPR applies             | non-empty `gpp_sid` → section 2 present ⇒ `Yes`, absent ⇒ `No`; **`regs.gdpr` ignored**. Else `regs.gdpr`. Else `Ambiguous`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| GDPR consent             | GPP section 2 value if present; else `user.consent`. **This row is the FULL (M4) precedence.** **M3 behaviour (round-15 H4 / round-76 B1 — corrected):** M3 has no GPP decoder, and GPP section 2 WINS over `user.consent` (§7.4), so when `regs.gpp_sid` contains **section 2** M3 does NOT fall back to `user.consent` — it marks consent UNUSABLE (`consent_usable = false` → `default_permissions()`, `PassID: false`), so a possibly-overridden legacy `user.consent` can never grant. M3 reads `user.consent` ONLY when section 2 is absent. The wire-signal path already consults `regs.gpp_sid`, so "GDPR applies" is correct in M3. Full GPP section-2 extraction + the legacy-vs-GPP conflict warning that would let M3 HONOUR section-2 consent ship in M4. (This is NOT "misclassify as no-consent"; it is deliberate fail-closed nullification of an undecodable authoritative signal.) |
-| US-Privacy               | Nonempty GPP USPV1 value **only if section 6 ∈ `gpp_sid`**; else `regs.us_privacy`. Empty/absent active section 6 falls back without a value-conflict warning or backfill; nonempty invalid/whitespace USP does not fall back. Both nonempty and different → GPP wins + non-fatal warning, without disabling CCPA. **M4**, not M3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Conflict (legacy vs GPP) | non-fatal validation warning; GPP value used. **This row is M4 (round-77 H2).** It requires decoding the GPP section value to compare it against the legacy field, which M3 has no decoder for. **M3 emits NO legacy-vs-GPP _value_ conflict warning**; the only conflict M3 raises is the structural `regs.gpp_sid`-vs-`regs.gdpr` routing conflict (Appendix D.1 "GDPR applies" row / §7.6), which is section-id routing, not string decode.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| GDPR consent             | GPP section 2 value if present; else `user.consent`. **This row is the FULL (privacy enforcement) precedence.** **GDPR enforcement behaviour (round-15 H4 / round-76 B1 — corrected):** GDPR enforcement has no GPP decoder, and GPP section 2 WINS over `user.consent` (§7.4), so when `regs.gpp_sid` contains **section 2** GDPR enforcement does NOT fall back to `user.consent` — it marks consent UNUSABLE (`consent_usable = false` → `default_permissions()`, `PassID: false`), so a possibly-overridden legacy `user.consent` can never grant. GDPR enforcement reads `user.consent` ONLY when section 2 is absent. The wire-signal path already consults `regs.gpp_sid`, so "GDPR applies" is correct in GDPR enforcement. Full GPP section-2 extraction + the legacy-vs-GPP conflict warning that would let GDPR enforcement HONOUR section-2 consent ship in privacy enforcement. (This is NOT "misclassify as no-consent"; it is deliberate fail-closed nullification of an undecodable authoritative signal.) |
+| US-Privacy               | Nonempty GPP USPV1 value **only if section 6 ∈ `gpp_sid`**; else `regs.us_privacy`. Empty/absent active section 6 falls back without a value-conflict warning or backfill; nonempty invalid/whitespace USP does not fall back. Both nonempty and different → GPP wins + non-fatal warning, without disabling CCPA. **privacy enforcement**, not GDPR enforcement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Conflict (legacy vs GPP) | non-fatal validation warning; GPP value used. **This row is privacy enforcement (round-77 H2).** It requires decoding the GPP section value to compare it against the legacy field, which GDPR enforcement has no decoder for. **GDPR enforcement emits NO legacy-vs-GPP _value_ conflict warning**; the only conflict GDPR enforcement raises is the structural `regs.gpp_sid`-vs-`regs.gdpr` routing conflict (Appendix D.1 "GDPR applies" row / §7.6), which is section-id routing, not string decode.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## D.2 GPP error behavior (review finding 6)
 
-For M4 auctions, recoverable envelope syntax/unsupported-version errors and
+For privacy enforcement auctions, recoverable envelope syntax/unsupported-version errors and
 terminal limits are distinct. The malformed-envelope fallback below applies
 only within bounds. Exceeding 256 KiB raw GPP, a 4 KiB encoded header, 64
 section entries, section ID 65535, or 524288 charged header operations, or
 checked decode overflow, is `PrivacyError::GppLimitExceeded` mapped to `400`
 before adapter construction, even if enforcement is disabled or legacy consent
 would grant. Fixed diagnostic: `regs.gpp exceeds privacy parsing limits`.
-Reservation exhaustion separately follows M3b's terminal resource error path.
+Reservation exhaustion separately follows bounded fanout's terminal resource error path.
 An active section-2 value that is empty or invalid remains authoritative and
 cannot reactivate a legacy grant; this differs from an absent section or a
-recoverably malformed envelope. M4 design sections 5 and 9 specify provenance,
-warning scopes/order, and all exact boundary cases. Sync semantics remain M5.
+recoverably malformed envelope. privacy enforcement design sections 5 and 9 specify provenance,
+warning scopes/order, and all exact boundary cases. Sync semantics remain user sync.
 
 | Input                                                                        | Auction (`/openrtb2/auction`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Sync (`/cookie_sync`, `/setuid`) |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| Malformed `gpp` string                                                       | **M4 auction behaviour (round-77 H2):** non-fatal `regs.gpp` well-formedness warning (code 10001); **only section-decoded values** (the TCFEU2 consent string, the USPV1 value) fall back to legacy fields. **`gpp_sid` itself remains trusted** — it is a separate `regs.gpp_sid` field, parsed independently. So malformed `gpp` with `gpp_sid=[2]` still puts GDPR in scope (§7.1). **M3 auction behaviour:** M3 has no GPP decoder, so it emits **NO malformed-`gpp` well-formedness warning** (`regs.gpp` is passed through un-decoded) — and because `gpp_sid=[2]` puts section 2 in scope, M3 marks consent UNUSABLE (`consent_usable = false`) rather than falling back to `user.consent` (see the D.2 M3 note below). | `400`                            |
-| Malformed / non-numeric `gpp_sid`                                            | **`400`** (round-22 finding M6 — `regs.gpp_sid` is a typed integer array; non-numeric JSON fails _parse_, not validation, so this is a hard parse error in auctioneer's typed path, matching upstream's pre-unmarshal failure)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `400`                            |
+| Malformed `gpp` string                                                       | **privacy enforcement auction behaviour (round-77 H2):** non-fatal `regs.gpp` well-formedness warning (code 10001); **only section-decoded values** (the TCFEU2 consent string, the USPV1 value) fall back to legacy fields. **`gpp_sid` itself remains trusted** — it is a separate `regs.gpp_sid` field, parsed independently. So malformed `gpp` with `gpp_sid=[2]` still puts GDPR in scope (§7.1). **GDPR enforcement auction behaviour:** GDPR enforcement has no GPP decoder, so it emits **NO malformed-`gpp` well-formedness warning** (`regs.gpp` is passed through un-decoded) — and because `gpp_sid=[2]` puts section 2 in scope, GDPR enforcement marks consent UNUSABLE (`consent_usable = false`) rather than falling back to `user.consent` (see the D.2 GDPR enforcement note below). | `400`                            |
+| Malformed / non-numeric `gpp_sid`                                            | **`400`** (round-22 finding diagnostic qualification — `regs.gpp_sid` is a typed integer array; non-numeric JSON fails _parse_, not validation, so this is a hard parse error in auctioneer's typed path, matching upstream's pre-unmarshal failure)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `400`                            |
 | Unsupported section id in `gpp_sid` (3, 7–12)                                | passed through; not decoded; usable for `SkipWhen.gpp_sid` matching                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | same                             |
 | `gpp_sid` names a section absent from the (successfully) parsed `gpp` string | **SID still drives the signal** — e.g. `gpp_sid=[2]` with no section 2 in `gpp` still puts GDPR in scope (§7.1, matches upstream's `GetGDPR`). Only the per-section _value_ falls back: TCFEU2 consent → `user.consent`; USPV1 → `regs.us_privacy`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | same                             |
 | Section present in `gpp` but its id absent from `gpp_sid`                    | section ignored (not "active")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | same                             |
 
-**M3 behaviour note (round-76 B1).** The "TCFEU2 consent string falls
-back to `user.consent`" outcomes above are the FULL (M4) behaviour. In
-M3 there is no GPP decoder and section 2 is authoritative (§7.4), so
+**GDPR enforcement behaviour note (round-76 B1).** The "TCFEU2 consent string falls
+back to `user.consent`" outcomes above are the FULL (privacy enforcement) behaviour. In
+GDPR enforcement there is no GPP decoder and section 2 is authoritative (§7.4), so
 whenever `gpp_sid` contains **section 2** — including the malformed-`gpp`
-and section-absent-from-`gpp` rows — M3 does NOT fall back to
+and section-absent-from-`gpp` rows — GDPR enforcement does NOT fall back to
 `user.consent`; it sets `consent_usable = false` (→ `default_permissions()`,
 `PassID: false`). The fallback-to-`user.consent` for TCFEU2 lands with
-the M4 GPP decoder. (`gpp_sid` parse errors → `400` are unchanged; USPV1
-/ section 6 is separate and M4.)
+the privacy enforcement GPP decoder. (`gpp_sid` parse errors → `400` are unchanged; USPV1
+/ section 6 is separate and privacy enforcement.)
 
 These outcomes are pinned to the behavioral baseline: `/cookie_sync`
 rejects invalid GPP envelopes or section-ID encoding with `400`;
 `/setuid` rejects invalid section-ID encoding with `400` and applies the
-specified GPP-versus-legacy signal precedence. M5 verifies absent `gpp`,
+specified GPP-versus-legacy signal precedence. user sync verifies absent `gpp`,
 `gpp_sid` without `gpp`, and fallback behavior using pinned reference
 fixtures, not source-function correspondence.
 
@@ -8023,9 +8025,9 @@ All presets use precision 2.
 `ext.prebid.targeting.pricegranularity` accepts a preset string or a custom
 object `{ precision, ranges: [{min, max, increment}] }`. Custom:
 **`precision` is optional — defaults to `2`** (matches reference configuration defaults;
-round-19 finding M6), allowed range `0..=15`; ranges ordered by strictly
+round-19 finding diagnostic qualification), allowed range `0..=15`; ranges ordered by strictly
 increasing `max`; every `increment > 0`. Range `min` defaulting per the
-previous-range rule (§E.3 / round-18 M8). Optional
+previous-range rule (§E.3 / round-18 stored requests and accounts). Optional
 `mediatypepricegranularity` overrides per banner/video/native.
 
 Retained custom ranges must have finite nonnegative bounds and positive normal
@@ -8075,7 +8077,7 @@ Prefix from `ext.prebid.targeting.prefix` → account `targeting_prefix` →
   the bid is the overall imp winner.
 - **Per-bidder key** = `prefix + suffix + "_" + bidder` — emitted when
   `includebidderkeys`, or when `alwaysincludedeals` and the bid has a deal.
-- **Defaults (round-17 M7 + round-18 M8).** When `ext.prebid.targeting` is
+- **Defaults (round-17 bidder catalog + round-18 stored requests and accounts).** When `ext.prebid.targeting` is
   present but `includewinners` / `includebidderkeys` are unset, both
   default to `true` (matches reference configuration defaults). Price granularity
   defaults to `med` (§E.1) with `precision` defaulted to `2`. For custom
@@ -8169,7 +8171,7 @@ Unlike upstream (unspecified map iteration order), auctioneer is fully determini
 - Bidders are processed in **registry order** as defined in §5.9
   (single lexicographic sort over base names ∪ request-defined alias
   names ∪ config alias names participating in this auction; round-40
-  M2). Fan-out `calls`, winner tie-breaking, and per-bidder iteration
+  auction core). Fan-out `calls`, winner tie-breaking, and per-bidder iteration
   all use this ordering.
 - `seatbid` is serialized **sorted by `seat`**.
 - The `ext.errors`, `ext.warnings`, and `ext.responsetimemillis` maps are
@@ -8186,34 +8188,34 @@ inside the `200` JSON body's `ext`.
 
 | Case                                                                                                                                                                                                                        | Status                               | Content-Type                                                                | Body                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Auction inbound `Content-Encoding` non-empty (gzip/br/etc.)                                                                                                                                                                 | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: Content-Encoding of type <encoding> is not supported\n` (round-68 M5 — trailing `\n` appended by reference auction handling writer). Exact reference auction handling / plain-text error output wording (round-29 finding L6, corrects round-28's approximation). Checked _before_ body read (round-25 finding H2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `/cookie_sync` inbound `Content-Encoding` non-empty (gzip/br/etc.)                                                                                                                                                          | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: Content-Encoding of type <encoding> is not supported\n` (intentional divergence per §15, same body as the auction row above). The admitted handler checks all encoding values _before_ the declared-length check and body read; M5's runtime config extraction may precede these application checks. This is not supplied by route registration or the aux admission hook.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Unmatched path OR wrong-method with non-empty `Content-Encoding`                                                                                                                                                            | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: Content-Encoding of type <encoding> is not supported\n` (round-69 M3 — Content-Encoding rejection short-circuits the route-mapping in the ingress hook, so `POST /missing` with `Content-Encoding: gzip` returns 400, NOT 404; `GET /openrtb2/auction` with `Content-Encoding: gzip` returns 400, NOT 405).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Auction body unreadable                                                                                                                                                                                                     | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: <err>\n` (round-68 M5 — trailing `\n` from reference auction handling writer)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Auction body oversize (Content-Length over 256 KiB OR bounded stream exceeds cap)                                                                                                                                           | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: request size exceeded max size of 262144 bytes.\n` (round-68 M5 — exact bytes; trailing `\n`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `/cookie_sync` body oversize (Content-Length over 32 KiB OR bounded stream exceeds cap)                                                                                                                                     | `400`                                | `text/plain; charset=utf-8`                                                 | `cookie_sync request size exceeded max size of 32768 bytes.\n` (round-68 M5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Default 4 KiB cap exceeded (unmatched path, `/status` with body, etc.)                                                                                                                                                      | `400`                                | `text/plain; charset=utf-8`                                                 | `request size exceeded max size of 4096 bytes.\n` (round-68 M5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Auction inbound `Content-Encoding` non-empty (gzip/br/etc.)                                                                                                                                                                 | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: Content-Encoding of type <encoding> is not supported\n` (round-68 user sync — trailing `\n` appended by reference auction handling writer). Exact reference auction handling / plain-text error output wording (round-29 finding L6, corrects round-28's approximation). Checked _before_ body read (round-25 finding H2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `/cookie_sync` inbound `Content-Encoding` non-empty (gzip/br/etc.)                                                                                                                                                          | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: Content-Encoding of type <encoding> is not supported\n` (intentional divergence per §15, same body as the auction row above). The admitted handler checks all encoding values _before_ the declared-length check and body read; user sync's runtime config extraction may precede these application checks. This is not supplied by route registration or the aux admission hook.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Unmatched path OR wrong-method with non-empty `Content-Encoding`                                                                                                                                                            | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: Content-Encoding of type <encoding> is not supported\n` (round-69 GDPR enforcement — Content-Encoding rejection short-circuits the route-mapping in the ingress hook, so `POST /missing` with `Content-Encoding: gzip` returns 400, NOT 404; `GET /openrtb2/auction` with `Content-Encoding: gzip` returns 400, NOT 405).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Auction body unreadable                                                                                                                                                                                                     | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: <err>\n` (round-68 user sync — trailing `\n` from reference auction handling writer)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Auction body oversize (Content-Length over 256 KiB OR bounded stream exceeds cap)                                                                                                                                           | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: request size exceeded max size of 262144 bytes.\n` (round-68 user sync — exact bytes; trailing `\n`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `/cookie_sync` body oversize (Content-Length over 32 KiB OR bounded stream exceeds cap)                                                                                                                                     | `400`                                | `text/plain; charset=utf-8`                                                 | `cookie_sync request size exceeded max size of 32768 bytes.\n` (round-68 user sync)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Default 4 KiB cap exceeded (unmatched path, `/status` with body, etc.)                                                                                                                                                      | `400`                                | `text/plain; charset=utf-8`                                                 | `request size exceeded max size of 4096 bytes.\n` (round-68 user sync)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Auction JSON parse failure                                                                                                                                                                                                  | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: <err>\n` (round-70 L9 — trailing `\n` from reference auction handling writer, matches the body-oversize row)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Auction validation failure                                                                                                                                                                                                  | `400`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: <err>\n` (one line per error, each line ends with `\n`; round-70 L9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Auction: invalid runtime blob, including account data                                                                                                                                                                       | `500`                                | `text/plain; charset=utf-8`                                                 | `Malformed host configuration`; whole-blob extraction/validation precedes application account/body work (§9.1). Separate account-record failure mappings are M8 design work.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Auction: invalid runtime blob, including account data                                                                                                                                                                       | `500`                                | `text/plain; charset=utf-8`                                                 | `Malformed host configuration`; whole-blob extraction/validation precedes application account/body work (§9.1). Separate account-record failure mappings are stored requests and accounts design work.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Auction: account disabled                                                                                                                                                                                                   | `503`                                | `text/plain; charset=utf-8`                                                 | `Invalid request: <err>\n` (round-70 L9 — trailing `\n`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Auction: admission full (M3b — the Prereq-10 INGRESS lease try-acquire refuses, pre-body, pre-routing-dispatch; round-126 #8 retires the "first handler action" phrasing — handler-first survives only as the dev fallback) | `503`                                | `text/plain; charset=utf-8`                                                 | `overloaded\n` (round-98 M9 — the exact overload wire shape; auctioneer-owned, no upstream analogue since upstream has no admission gate — §15 divergence note)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `/status`, `/info/bidders`, `/info/bidders/{name}`: aux gate full (M3b — `aux_gate` try-acquire `None`; the FIRST action on every config-consuming non-auction route, so overload PRECEDES every other rejection)           | `503`                                | `text/plain; charset=utf-8`                                                 | `overloaded\n` (round-100 B5 — same shape as the auction row)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Auction: egress-wait deadline expired (M3b, round-107 B2 — the auction COMPLETED but no egress permit became available within the response-write deadline; the typed response is dropped un-serialized)                     | `503`                                | `text/plain; charset=utf-8`                                                 | `overloaded\n` (same wire shape as admission-full — both are isolate-capacity overload; auctioneer-owned, §15 divergence note)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Sync: invalid runtime blob, including account data                                                                                                                                                                          | `500`                                | `text/plain; charset=utf-8`                                                 | `Malformed host configuration`; even an opted-out request cannot bypass current blob validation (§9.1). Separate account-record failure mappings are M8 design work.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Auction: admission full (bounded fanout — the Prereq-10 INGRESS lease try-acquire refuses, pre-body, pre-routing-dispatch; round-126 #8 retires the "first handler action" phrasing — handler-first survives only as the dev fallback) | `503`                                | `text/plain; charset=utf-8`                                                 | `overloaded\n` (round-98 shared auction foundations — the exact overload wire shape; auctioneer-owned, no upstream analogue since upstream has no admission gate — §15 divergence note)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `/status`, `/info/bidders`, `/info/bidders/{name}`: aux gate full (bounded fanout — `aux_gate` try-acquire `None`; the FIRST action on every config-consuming non-auction route, so overload PRECEDES every other rejection)           | `503`                                | `text/plain; charset=utf-8`                                                 | `overloaded\n` (round-100 B5 — same shape as the auction row)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Auction: egress-wait deadline expired (bounded fanout, round-107 B2 — the auction COMPLETED but no egress permit became available within the response-write deadline; the typed response is dropped un-serialized)                     | `503`                                | `text/plain; charset=utf-8`                                                 | `overloaded\n` (same wire shape as admission-full — both are isolate-capacity overload; auctioneer-owned, §15 divergence note)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Sync: invalid runtime blob, including account data                                                                                                                                                                          | `500`                                | `text/plain; charset=utf-8`                                                 | `Malformed host configuration`; even an opted-out request cannot bypass current blob validation (§9.1). Separate account-record failure mappings are stored requests and accounts design work.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Sync: account disabled                                                                                                                                                                                                      | `400`                                | `text/plain; charset=utf-8`                                                 | `account is disabled, please reach out to the prebid server host` (upstream wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Auction success (incl. all-bidders-failed)                                                                                                                                                                                  | `200`                                | `application/json` (no charset)                                             | `BidResponse`; per-bidder issues in `ext.errors` / `ext.warnings`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| any ingress route — admitted header caps exceeded (M3b)                                                                                                                                                                     | `431`                                | `text/plain; charset=utf-8`                                                 | `too many header bytes\n` (round-125 #10; HTTP/1.x wire shape — an HTTP/2 field-section breach is a protocol-level stream reset per RFC 9113 §4.3, no body is sent — round-128 #3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| any ingress route — request-target over `max_request_target_bytes` (M3b)                                                                                                                                                    | `414`                                | `text/plain; charset=utf-8`                                                 | `uri too long\n` (round-130 #6; HTTP/1.x wire shape via the static class — on HTTP/2 the oversized :path/:authority is rejected at header decode as a stream reset, no body)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| any ingress route — ingress-read deadline expired (M3b)                                                                                                                                                                     | `408`                                | `text/plain; charset=utf-8`                                                 | `request timeout\n` (round-125 #10)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| any ingress route — admitted header caps exceeded (bounded fanout)                                                                                                                                                                     | `431`                                | `text/plain; charset=utf-8`                                                 | `too many header bytes\n` (round-125 #10; HTTP/1.x wire shape — an HTTP/2 field-section breach is a protocol-level stream reset per RFC 9113 §4.3, no body is sent — round-128 #3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| any ingress route — request-target over `max_request_target_bytes` (bounded fanout)                                                                                                                                                    | `414`                                | `text/plain; charset=utf-8`                                                 | `uri too long\n` (round-130 #6; HTTP/1.x wire shape via the static class — on HTTP/2 the oversized :path/:authority is rejected at header decode as a stream reset, no body)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| any ingress route — ingress-read deadline expired (bounded fanout)                                                                                                                                                                     | `408`                                | `text/plain; charset=utf-8`                                                 | `request timeout\n` (round-125 #10)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `GET /status` — default (`host.status_response` empty)                                                                                                                                                                      | `204`                                | _(none)_                                                                    | empty body                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `GET /status` — configured (`host.status_response` non-empty)                                                                                                                                                               | `200`                                | _(none)_                                                                    | the exact bytes of `host.status_response`; no synthesized `Content-Type`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `GET /status` — **DEGRADED: runtime config unloadable, malformed or unfunded**                                                                                                                                              | `200` — **never `204`, never `500`** | _(none)_                                                                    | The baked `host.status_response` bytes (empty if unset), followed by `config: degraded (<code>)\n`, where `<code>` is one of `malformed_config`, `store_key_rejected`, `store_unavailable`, `unfunded_extraction`. Refused store contents are unavailable and never echoed. A single `\n` separator precedes the diagnostic only when the baked banner is non-empty and does not already end in `\n`. `RuntimeConfigError::detail` is never published. See §6.1 and the approved R0 initialization boundary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `GET /status` — **every answer, all three rows above**                                                                                                                                                                      | _(as above)_                         | _(as above)_                                                                | header `x-auctioneer-config-status: ok \| degraded`, plus the milestone stamp header. The header is the machine-readable channel and is the ONLY degraded signal on the `204` shape                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `GET /status` — **DEGRADED: runtime config unloadable, malformed or unfunded**                                                                                                                                              | `200` — **never `204`, never `500`** | _(none)_                                                                    | The baked `host.status_response` bytes (empty if unset), followed by `config: degraded (<code>)\n`, where `<code>` is one of `malformed_config`, `store_key_rejected`, `store_unavailable`, `unfunded_extraction`. Refused store contents are unavailable and never echoed. A single `\n` separator precedes the diagnostic only when the baked banner is non-empty and does not already end in `\n`. `RuntimeConfigError::detail` is never published. See §6.1 and the approved resource qualification initialization boundary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `GET /status` — **every answer, all three rows above**                                                                                                                                                                      | _(as above)_                         | _(as above)_                                                                | header `x-auctioneer-config-status: ok \| degraded`, plus the capability stamp header. The header is the machine-readable channel and is the ONLY degraded signal on the `204` shape                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `GET /info/bidders` success                                                                                                                                                                                                 | `200`                                | `application/json`                                                          | JSON array of bidder names per section 8.1; no trailing newline                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `GET /info/bidders` bad query (`enabledonly` / `baseadaptersonly` not `true`/`false`)                                                                                                                                       | `400`                                | _(none)_                                                                    | `Invalid value for 'enabledonly' query param, must be of boolean type` or `Invalid value for 'baseadaptersonly' query param, must be of boolean type`; no trailing newline                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `GET /info/bidders/{name}` success                                                                                                                                                                                          | `200`                                | `application/json`                                                          | bidder-detail JSON per section 8.1; no trailing newline                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `GET /info/bidders/{name}` unknown bidder                                                                                                                                                                                   | `404`                                | _(none)_                                                                    | empty body (round-68 M6 — matches upstream; the special `all` name returns the aggregate, never 404)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `GET /info/bidders/{name}` unknown bidder                                                                                                                                                                                   | `404`                                | _(none)_                                                                    | empty body (round-68 diagnostic qualification — matches upstream; the special `all` name returns the aggregate, never 404)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `cookie_sync` request error                                                                                                                                                                                                 | `400`                                | `text/plain; charset=utf-8`                                                 | Raw parser error message plus a trailing newline; no `Invalid request:` prefix. Examples: `JSON parsing failed: <err>`; `error parsing filtersettings.iframe: invalid bidders type. must either be a string '*' or a string array`; `error parsing filtersettings.image: invalid filter value '…'. must be either 'include' or 'exclude'`; `GDPR signal should be integer 0 or 1`. Empty consent under `parsed_request_signal == Yes` or (`Ambiguous` + `normalized_request_signal == Yes`), and invalid `gpp`/`gpp_sid`, use their documented parser error messages (section 7.8.1).                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `cookie_sync` user opted out                                                                                                                                                                                                | `401`                                | `text/plain; charset=utf-8`                                                 | `User has opted out\n`; also sets `X-Content-Type-Options: nosniff`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `cookie_sync` success                                                                                                                                                                                                       | `200`                                | `application/json; charset=utf-8`                                           | Appendix B.2 shape, JSON plus trailing `\n`; raw `<`/`>`/`&` in syncer URLs are emitted unescaped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -8227,7 +8229,7 @@ inside the `200` JSON body's `ext`.
 | `setuid` max-size eviction with sole non-priority UID                                                                                                                                                                       | `200`                                | _(none)_                                                                    | `Warning: ..., cookie not updated`; no trailing newline or `Content-Type`; Appendix B.6 step 3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `setuid` single UID still too large after eviction (Appendix B.6 step 4)                                                                                                                                                    | `400`                                | _(none)_                                                                    | empty body; abandon the cookie write after eviction cannot fit the new UID within `host_cookie.max_cookie_size_bytes`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `getuids` success                                                                                                                                                                                                           | `200`                                | `text/plain; charset=utf-8`                                                 | `{"buyeruids":{<key>:<uid>,…}}` for a non-empty map; `{}` when empty, with `buyeruids` omitted. JSON is followed by a trailing newline; Auctioneer sets the documented content type explicitly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Malformed host config override                                                                                                                                                                                              | `500`                                | `text/plain; charset=utf-8`                                                 | `Malformed host configuration` (round-44 M3 — fixed body; **no Appendix G numeric code** — host failure is a fail-fast plain-text response, not a structured per-bidder error).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Malformed host config override                                                                                                                                                                                              | `500`                                | `text/plain; charset=utf-8`                                                 | `Malformed host configuration` (round-44 GDPR enforcement — fixed body; **no Appendix G numeric code** — host failure is a fail-fast plain-text response, not a structured per-bidder error).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Resolver refuses config extraction without installed funding or with oversized captured caps                                                                                                                                | `500`                                | `text/plain; charset=utf-8`                                                 | `Unfunded configuration extraction`; `Cache-Control: no-store`, no `Retry-After`, and no store read. `/status` alone retains the degraded liveness disposition above. Earlier admission/static refusals retain their own statuses. This is initialization failure, not a transient backend failure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Internal fault                                                                                                                                                                                                              | `500`                                | `text/plain; charset=utf-8`                                                 | generic message (no internal detail)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
@@ -8252,10 +8254,10 @@ codes defined below and verified against the pinned behavioral baseline. Errors 
 | 1    | Timeout                   | a bidder call exceeded its timeout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 2    | BadInput                  | malformed request, params, or imp                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 4    | BadServerResponse         | bidder returned an unparseable response                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 5    | FailedToRequestBids       | Two failure points share this code (round-32 finding M3): (a) the adapter's `make_requests` failed to generate any outbound HTTP request; (b) the exchange's `validate_endpoint` (§5.4) rejected an adapter-generated outbound request as invalid or out of policy (off-allowlist host, non-HTTPS, private-IP literal, fixed-host mismatch). (c) round-100 H6 / round-102 H13 — `OversizeRequest`: `stage: Raw` (construction-time via `CappedWriter`) is an adapter-side PRE-FANOUT per-bidder entry; `stage: Encoded` (final encoded body in `finalize_for_transport` — round-108 B2; the M3a-era in-drive `prepare_outbound_request` is retired at M3b-2) is a positional per-call result. All are _adapter-side_ failures — the bidder never reaches the fan-out. **Not** raw fan-out transport failure; DNS / refused / no-such-host surface as code 999 (§5.2 `FanoutError::Unreachable`) with `seatnonbid` 103. |
-| 6    | BidderTemporarilyDisabled | bidder disabled by config. **Numeric code is in the error block, but severity is _warning_** — appears in `ext.warnings[<bidder>]`, not `ext.errors` (round-25 finding M3; matches reference diagnostic severity warning severity).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 7    | AccountDisabled           | account resolution succeeded but the resolved account carries `disabled = true`. Endpoint-specific HTTP mapping (round-15 M1 — earlier drafts omitted this row): auction → `503`; `/cookie_sync` and `/setuid` → `400`. `AuctionError::AccountDisabled(String)` at `auctioneer-exchange/src/error.rs` (M3 Task 14).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 10   | MalformedAcct             | Reserved for independently fetched account-record failures under M8; invalid data in the current runtime blob is MalformedHost, not code 10 (§9.1).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 5    | FailedToRequestBids       | Two failure points share this code (round-32 finding GDPR enforcement): (a) the adapter's `make_requests` failed to generate any outbound HTTP request; (b) the exchange's `validate_endpoint` (§5.4) rejected an adapter-generated outbound request as invalid or out of policy (off-allowlist host, non-HTTPS, private-IP literal, fixed-host mismatch). (c) round-100 H6 / round-102 H13 — `OversizeRequest`: `stage: Raw` (construction-time via `CappedWriter`) is an adapter-side PRE-FANOUT per-bidder entry; `stage: Encoded` (final encoded body in `finalize_for_transport` — round-108 B2; the GDPR fanout-era in-drive `prepare_outbound_request` is retired at Fanout-2) is a positional per-call result. All are _adapter-side_ failures — the bidder never reaches the fan-out. **Not** raw fan-out transport failure; DNS / refused / no-such-host surface as code 999 (§5.2 `FanoutError::Unreachable`) with `seatnonbid` 103. |
+| 6    | BidderTemporarilyDisabled | bidder disabled by config. **Numeric code is in the error block, but severity is _warning_** — appears in `ext.warnings[<bidder>]`, not `ext.errors` (round-25 finding GDPR enforcement; matches reference diagnostic severity warning severity).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 7    | AccountDisabled           | account resolution succeeded but the resolved account carries `disabled = true`. Endpoint-specific HTTP mapping (round-15 foundations — earlier drafts omitted this row): auction → `503`; `/cookie_sync` and `/setuid` → `400`. `AuctionError::AccountDisabled(String)` at `auctioneer-exchange/src/error.rs` (GDPR enforcement Task 14).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 10   | MalformedAcct             | Reserved for independently fetched account-record failures under stored requests and accounts; invalid data in the current runtime blob is MalformedHost, not code 10 (§9.1).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 12   | TmaxTimeout               | the whole-auction `tmax` deadline elapsed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 14   | FailedToUnmarshal         | bidder response decode failure                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 15   | InvalidImpFirstPartyData  | bidder-scoped FPD merge changes/deletes the original impression ID or produces an invalid `Imp` (§5.1 step 7; round-20 finding H1). Fatal — auction maps to `500` via the non-`BadInput` exchange-error rule in reference auction handling.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -8267,17 +8269,17 @@ codes defined below and verified against the pinned behavioral baseline. Errors 
 | 10999 | Unknown                        | uncategorized warning                                                                                                                                                                                                                                                                                                                                                                   |
 | 10001 | InvalidPrivacyConsent          | malformed TCF / GPP / US-Privacy string ignored (§7)                                                                                                                                                                                                                                                                                                                                    |
 | 10002 | AccountLevelDebugDisabled      | debug requested but account `debug_allow` is false (§5.6)                                                                                                                                                                                                                                                                                                                               |
-| 10003 | BidderLevelDebugDisabled       | Debug requested and account-permitted, but the finalized call's compiled base has debug_allow false; suppress alias-keyed HTTP entries and emit once per observable bidder name (§5.6; M6 section 3).                                                                                                                                                                                   |
+| 10003 | BidderLevelDebugDisabled       | Debug requested and account-permitted, but the finalized call's compiled base has debug_allow false; suppress alias-keyed HTTP entries and emit once per observable bidder name (§5.6; diagnostic qualification section 3).                                                                                                                                                                                   |
 | 10004 | DisabledCurrencyConversion     | a non-USD seatbid was dropped (currency conversion deferred)                                                                                                                                                                                                                                                                                                                            |
 | 10013 | InvalidUserEIDs                | invalid `user.eids` entry dropped                                                                                                                                                                                                                                                                                                                                                       |
 | 10014 | InvalidUserUIDs                | invalid user uid dropped                                                                                                                                                                                                                                                                                                                                                                |
 | 10015 | TooLongTargetingPrefix         | targeting prefix too long → fell back to `hb` (Appendix E.3)                                                                                                                                                                                                                                                                                                                            |
 | 10016 | TooShortTargetingPrefix        | `truncate_target_attribute` below the 12-char minimum                                                                                                                                                                                                                                                                                                                                   |
 | 10017 | BidderBlockedByPrivacySettings | bidder dropped by a `fetchBids` / privacy gate (§5.1 step 8 — privacy-per-bidder)                                                                                                                                                                                                                                                                                                       |
-| 10018 | GvlVersionUnavailable          | the CMP-declared `(spec, vendor_list_version)` GVL revision is not in the bundled archive (or its policy version disagrees with the TC string), so consent is unusable and the request fails closed to the Appendix A.4 default row (§7 — round-86 M10; also drives the `/_auctioneer/health/gvl` counter)                                                                                  |
+| 10018 | GvlVersionUnavailable          | the CMP-declared `(spec, vendor_list_version)` GVL revision is not in the bundled archive (or its policy version disagrees with the TC string), so consent is unusable and the request fails closed to the Appendix A.4 default row (§7 — round-86 creative caching; also drives the `/_auctioneer/health/gvl` counter)                                                                                  |
 | 10019 | GclStale                       | the bundled Global CMP List is past its freshness window (`now >= gcl.expires_at`, derived from the manifest's `fetched_at` + upstream cache lifetime), so CMP authenticity cannot be established — consent is unusable and the request fails closed to the Appendix A.4 default row (§7 CMP-authenticity contract, round-99 B3; the deployment must be rebuilt via the weekly refresh) |
 
-M3b additionally allocates code 10020 (`OutboundBudgetClamp`) for funded-envelope
+bounded fanout additionally allocates code 10020 (`OutboundBudgetClamp`) for funded-envelope
 response-cap clamping. It must not reuse privacy deployment codes or feed the
 stale-GCL health counter. Health observes only auction-owned privacy warnings.
 Code 10021 (`InvalidPriceGranularity`) reports the nonfatal targeting fallback

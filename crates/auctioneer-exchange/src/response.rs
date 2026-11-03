@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 
 /// A single error/warning row. The wire shape is
 /// `{code, message}` — the code is a raw `u32` so any code value
-/// can be emitted without adding a new variant to M1's `WarningCode`
+/// can be emitted without adding a new variant to the foundational `WarningCode`
 /// enum (which only covers 10001 / 10999).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorEntry {
@@ -308,7 +308,7 @@ fn assemble_ext(
         );
     }
     ext_obj.insert("prebid".into(), serde_json::Value::Object(prebid_obj));
-    // M2 NEVER emits ext.debug.
+    // Bounded diagnostics are attached separately by the exchange capture path.
     Ok(ext_obj)
 }
 
@@ -606,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn debug_field_never_emitted_in_m2() {
+    fn base_response_does_not_emit_debug() {
         let input = ResponseInput {
             bidder_visible_tmax_ms: 750,
             auction_timestamp_ms: 1_700_000_000_000,
@@ -619,6 +619,9 @@ mod tests {
         };
         let resp = build_response(input).expect("build_response infallible on typed inputs");
         let raw = serde_json::to_string(resp.ext.as_ref().unwrap()).unwrap();
-        assert!(!raw.contains("\"debug\""), "M2 must NEVER emit ext.debug");
+        assert!(
+            !raw.contains("\"debug\""),
+            "the base response builder must not inject ext.debug"
+        );
     }
 }

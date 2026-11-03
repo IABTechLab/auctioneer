@@ -1,7 +1,9 @@
 # Privacy Wire And Config Review Repairs
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-12
-Worktree: `.claude/worktrees/m4-privacy`
+Worktree: `.claude/worktrees/privacy-enforcement`
 Starting revision: `3fdd10a`
 
 ## Scope And Sequence
@@ -69,7 +71,7 @@ local repair round. The concurrent `ISSUES.md` edit is outside this commit.
 
 ## Verification
 
-Each suite has a separate log under `/tmp/auctioneer-m4-review-20261012.F1QlfO`.
+Each suite has a separate log under `/tmp/auctioneer-privacy-enforcement-review-20261012.F1QlfO`.
 Counts below are completed result summaries, not `running N tests` headers.
 
 | Check                                              | Result                                                                                                                                             |
@@ -138,8 +140,8 @@ expected 134,881,903. The constant was restored with no remaining runtime diff.
 The earlier attempt that hit a partially edited compiler is excluded from
 mutation evidence, as is the incomplete first model-tree log.
 
-Fresh follow-up logs are under `/tmp/auctioneer-m4-review-followup-20261012.1myKpO`;
-the compiler red/green logs use `/tmp/auctioneer-m4-model-tree-20261012-*`.
+Fresh follow-up logs are under `/tmp/auctioneer-privacy-enforcement-review-followup-20261012.1myKpO`;
+the compiler red/green logs use `/tmp/auctioneer-privacy-enforcement-model-tree-20261012-*`.
 Secure config passed 228 tests across nine targets. Core library, workflow and
 real-extraction targets passed 334 tests across three targets. These targeted
 runs, not the preceding full-workspace totals, apply to this follow-up.

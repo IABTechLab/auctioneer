@@ -1,5 +1,7 @@
 # Local Development And Test Ownership Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** use superpowers:subagent-driven-development or
 > superpowers:executing-plans for this approved slice.
 
@@ -21,7 +23,7 @@ changing acceptance or production behavior.
    Do not create command aliases/another runner or change CI/profiles.
 5. Verify case inventory, library suites, affected integration consumers,
    `test_isolation`, strict Clippy and formatting. Record evidence and honest
-   timing scope, inspect diff, commit and push the M7 branch.
+   timing scope, inspect diff, commit and push the bidder catalog branch.
 
 Isolation-sensitive binaries, build watches, resource identity, immutable
 captures and CI feature/guest matrices are intentionally unchanged. Further
@@ -33,4 +35,4 @@ Implementation and checks are complete. The 36 original cases remain,
 four unnecessary binaries are removed, and the fixture implementation has
 one test-support owner. See the [executed checks and timing boundary](../../testing/evidence/local-development-test-ownership-20261030.md)
 for the 1,929 passing scoped tests, strict lint, layout controls and unchanged
-full-acceptance requirements. This does not complete M7.
+full-acceptance requirements. This does not complete bidder catalog.

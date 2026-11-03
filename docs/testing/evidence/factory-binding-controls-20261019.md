@@ -1,8 +1,10 @@
 # Factory And Metadata Feature Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-19
-Branch: `m7-bidder-catalog`, based on `f1f17343`
-Scope: the declaration/feature reconciliation part of M7 Task 6.
+Branch: `bidder-catalog`, based on `f1f17343`
+Scope: the declaration/feature reconciliation part of bidder catalog Task 6.
 
 ## Contract
 
@@ -96,14 +98,14 @@ The bidder scopes use `--lib --test discovery_codegen
 --test insecure_bidders_snapshot`; discovery's native Unix-socket controls run
 with local filesystem/socket permissions, not deployed provider access.
 Core uses `--lib --test ci_workflows`. Log files are
-`/private/tmp/m7-factory-bidder-{secure,insecure}.log`,
-`/private/tmp/m7-factory-config.log` and
-`/private/tmp/m7-factory-core-{secure,insecure}.log`.
+`/private/tmp/bidder-catalog-factory-bidder-{secure,insecure}.log`,
+`/private/tmp/bidder-catalog-factory-config.log` and
+`/private/tmp/bidder-catalog-factory-core-{secure,insecure}.log`.
 
 The final native child target used
 `cargo test --offline --locked -j2 -p auctioneer-bidder
 --test factory_binding_build -- --nocapture` and finished in 50.77 seconds.
-Its log is `/private/tmp/m7-factory-build-final.log`. Three initial executable
+Its log is `/private/tmp/bidder-catalog-factory-build-final.log`. Three initial executable
 passes cover off/on/off; the fourth is the restored final executable. The
 child's all-declarations views are independent of the outer test binary's
 enabled feature mode. Expected live membership selects only the exact feature
@@ -113,10 +115,10 @@ Guest commands use `cargo check --offline --locked -j2 -p auctioneer-bidder --li
 --target <ABI>`, separately with and without `--features insecure-bidders`,
 for `wasm32-unknown-unknown`, `wasm32-wasip1` and `wasm32-wasip2`. They verify
 compilation with the host/build dependency split, not linking or execution.
-Logs are `/private/tmp/m7-factory-<ABI>-{secure,insecure}.log`. Final lint is
+Logs are `/private/tmp/bidder-catalog-factory-<ABI>-{secure,insecure}.log`. Final lint is
 `cargo clippy --workspace --all-targets --offline --locked -j2
 --features insecure-bidders,conformance-suite -- -D warnings`, recorded in
-`/private/tmp/m7-factory-clippy-verified.log`. The earlier local Clippy failures
+`/private/tmp/bidder-catalog-factory-clippy-verified.log`. The earlier local Clippy failures
 were repaired without adding lint exemptions. Existing GVL deletion notices
 and the tracked `proc-macro-error2` future-compiler warning remain.
 
@@ -126,4 +128,4 @@ independently reran the complete repaired target and final lint. No complete
 workspace test run, fresh hosted CI run or deployed-provider test is claimed.
 
 This record does not qualify schema compatibility, full catalog resource costs,
-physical WASM memory, hosted deployment behavior or M7 completion.
+physical WASM memory, hosted deployment behavior or bidder catalog completion.

@@ -1045,7 +1045,7 @@ mod tests {
 
     #[test]
     fn gpp_sid_section2_without_envelope_uses_legacy_consent() {
-        // M4 can decode GPP. SID still selects scope, but a missing
+        // privacy enforcement can decode GPP. SID still selects scope, but a missing
         // envelope permits the documented legacy fallback.
         let req = with_consent(
             BidRequest {

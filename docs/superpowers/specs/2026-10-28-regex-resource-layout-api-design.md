@@ -4,11 +4,11 @@ Status: implemented and verified after AG's written approval on 2026-10-28. The
 [implementation plan](../plans/2026-10-28-regex-resource-layout-api.md) tracks
 execution and exact verification scope. Approval covers this API and its
 replayable dependency patch, not
-complete M7 qualification or serving admission.
+complete bidder catalog qualification or serving admission.
 
 ## 1. Purpose And Choice
 
-M7 currently derives conservative layouts for private regex metadata and lacks
+bidder catalog currently derives conservative layouts for private regex metadata and lacks
 the selected strategy's concrete inline layout. Mirroring private Rust structs
 or treating private newtypes as their public fields would introduce unsupported
 ABI assumptions. Existing approximate `memory_usage()` methods are not complete
@@ -156,7 +156,7 @@ Still required after this API:
   layout numbers or guest compilation alone cannot substitute for execution.
 
 This patch alone cannot produce a usable complete resource descriptor, enable
-schema validation, complete M7/M7-R0 or qualify a deployment. A compile-only
+schema validation, complete bidder catalog/resource qualification or qualify a deployment. A compile-only
 guest check proves API availability, not a selected strategy's observed layout.
 
 ## 6. Replayable Vendor Patch

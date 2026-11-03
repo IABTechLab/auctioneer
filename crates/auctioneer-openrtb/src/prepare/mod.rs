@@ -2,10 +2,9 @@
 //! + 2.6 privacy checks.
 //!
 //! **No consent-string parsing here.**
-//! Consent warnings come from `PrivacyContext::resolve` in `auctioneer-privacy`
-//! from M3+. `prepare()` always returns a `NormalizedBidRequest` with an
-//! empty `warnings` vec in M1; the field is wired up so the `run_auction`
-//! surfacing path is already ready when M3 starts populating it.
+//! Consent warnings come from privacy resolution in `auctioneer-privacy`.
+//! `prepare()` returns a `NormalizedBidRequest` with an empty warnings vector;
+//! the exchange surfaces downstream privacy warnings separately.
 
 mod checks;
 mod implicit_fill;

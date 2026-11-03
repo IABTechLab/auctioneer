@@ -592,12 +592,12 @@ mod tests {
         });
     }
 
-    /// M2 unconditionally drops non-USD bids (no fx path; response
+    /// auction core unconditionally drops non-USD bids (no fx path; response
     /// `cur` is hardcoded to "USD"). Regression guard so a future
     /// re-introduction of `strict_currency_usd_only` cannot silently
     /// admit mixed-currency bids into a USD-labelled response.
     #[test]
-    fn non_usd_currency_always_dropped_in_m2() {
+    fn non_usd_response_bids_are_dropped() {
         block_on(async {
             let host = baked_host();
             let account = baked_account();
@@ -608,7 +608,7 @@ mod tests {
             let resp = drive_with(&host, &account, ExchangeFeatures::default(), eur_body).await;
             assert!(
                 resp.seatbid.is_empty(),
-                "EUR bid must be dropped (M2 has no fx path)",
+                "EUR bid must be dropped (auction core has no fx path)",
             );
             let raw = serde_json::to_string(resp.ext.as_ref().unwrap()).unwrap();
             assert!(

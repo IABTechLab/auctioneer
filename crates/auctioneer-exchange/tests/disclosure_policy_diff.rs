@@ -1,6 +1,6 @@
 //! Offline acceptance of reviewed differences, never a live dual-engine path.
 //! Goldens below are synthetic `json!` inputs and independently authored outputs.
-//! The frozen comparator is committed M4 source, not the changing working tree.
+//! The frozen comparator is committed privacy enforcement source, not the changing working tree.
 //!
 //! Cutover must revise old country-only Geo expectations in
 //! `scrub::tests::denied_geo_removes_unclassified_fields_and_extensions`,

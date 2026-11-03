@@ -57,7 +57,7 @@ Design: [bidder endpoint bindings](../specs/2026-10-24-bidder-endpoint-bindings-
       and allocation controls, importer controls, strict lint, format and raw-JSON
       gates. Serialize Cargo with offline/locked resolution and two jobs.
 - [x] Obtain spec then quality review, fix concrete findings and rerun owners.
-      Update bidder rules and the M7 integration plan, commit and push this slice.
+      Update bidder rules and the bidder catalog integration plan, commit and push this slice.
 - [x] Continue TTD's separately reviewed protocol integration with a refusing
       stub red and candidate green. Empty definitions and remaining delivery/schema
       requirements stay explicit; this shared slice does not satisfy them.
@@ -115,7 +115,7 @@ Final verification completed on 2026-10-24:
   executed against providers.
 - Cloudflare `wasm32-unknown-unknown`, Fastly `wasm32-wasip1` and Spin
   `wasm32-wasip2` library checks passed. These are compilation checks, not
-  hosted execution, deployment qualification or a resolution of R0 blockers.
+  hosted execution, deployment qualification or a resolution of resource qualification blockers.
 - Formatting, whitespace and the unchanged 172-fixture/52-file raw-JSON gate
   passed. No Cargo dependency/lockfile, JSON schema/capture or workflow changed.
 

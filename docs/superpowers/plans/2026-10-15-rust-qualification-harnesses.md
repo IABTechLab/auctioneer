@@ -1,8 +1,10 @@
 # Rust Qualification Harnesses Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
-**Goal:** Replace both JavaScript M6 harnesses and their non-browser fixtures/tests with behavior-preserving Rust commands in `auctioneer-cli`.
+**Goal:** Replace both JavaScript diagnostic qualification harnesses and their non-browser fixtures/tests with behavior-preserving Rust commands in `auctioneer-cli`.
 
 **Architecture:** Reuse the current qualification evaluator and schemas. Split common bounded process/IO/HTTP infrastructure, native resource orchestration and provider preparation/offline controls into CLI-local modules. Keep real fixture child processes and fail-closed cleanup; no new crate or live-provider execution.
 
@@ -21,13 +23,13 @@
 - Create `crates/auctioneer-cli/src/qualification/harness/providers/`: typed offline evaluation, preparation/build/source receipts, Spin/Fastly handoffs, SDK verification and recovery controls.
 - Create `crates/auctioneer-cli/tests/qualification_harness.rs` and narrowly scoped integration support as needed: real CLI, fixture/process/socket and migration completeness controls.
 - Modify `.github/workflows/test.yml` and `crates/auctioneer-core/tests/ci_workflows.rs`: exact Cargo harness checks, no Node/yq dependency for non-browser controls.
-- Update current `docs/testing/{resource-qualification,provider-handlers}.md`, M6 spec/plan and `ISSUES.md`; retain dated capture records unchanged.
+- Update current `docs/testing/{resource-qualification,provider-handlers}.md`, diagnostic qualification spec/plan and `ISSUES.md`; retain dated capture records unchanged.
 - Delete the five replaced `.mjs` files only after coverage owners pass. Keep browser scripts/tests.
 
 ## Task 1: Freeze Contracts and Porting Inventory
 
 - [x] Read both scripts, provider fixture and all tests, including dynamically generated cases; record each test family's Rust owner and required refusal category.
-- [x] Review this design/plan against the current source and user-approved migration boundary. Resolve review findings without changing M6 scope or criteria.
+- [x] Review this design/plan against the current source and user-approved migration boundary. Resolve review findings without changing diagnostic qualification scope or criteria.
 - [x] Commit and push the migration design, plan and initial inventory before source implementation.
 
 ## Task 2: Bounded IO and Supervised Processes
@@ -94,7 +96,7 @@
 - [x] Run all 45 rows through the Rust harness. Preserve failures and diagnose without relaxing criteria. Retain only safe bounded evidence and hashes.
 - [x] Independently review identities, actual ordinary dispatch/decode/GVL overlap, lifecycle evidence and local-vs-overall outcomes.
 - [x] Run workspace/secure-default/feature/WASM/CI scopes proportionate to dependency changes and all new Rust harness controls, plus preserved browser checks.
-- [x] Record exact commands/results/ignores and M7.6 limits, then commit/push the final verified round and confirm clean/synchronized Git state.
+- [x] Record exact commands/results/ignores and publisher pilot limits, then commit/push the final verified round and confirm clean/synchronized Git state.
 
 ## Task 10: Review Boundary Repairs
 
@@ -122,7 +124,7 @@ threshold, SDK pin or historical capture is changed.
   retain defensive fixture-protocol checks with explicit ownership comments.
 - [x] Run CLI/all-target, secure native, conformance, focused Axum and strict lint
   checks; review the integrated patch, update ISSUES and the execution record,
-  commit and push. Live provider and deployment qualification remain M7.6.
+  commit and push. Live provider and deployment qualification remain publisher pilot.
 
 ## Execution Record
 
@@ -133,9 +135,9 @@ and verified. Native all-target tests passed 2,923 with four ignored markers;
 four conformance binaries passed 77 and Axum transport/profile tests passed 52.
 Strict all-target CLI Clippy and formatting/fixture guards passed. The source
 fixes, intentional canonical PAX subset, failures, negative controls and exact
-scope are in the [boundary verification record](../../testing/evidence/m6-verification-20261015.md#qualification-boundary-repair).
+scope are in the [boundary verification record](../../testing/evidence/diagnostics-qualification-verification-20261015.md#qualification-boundary-repair).
 No threshold, SDK pin or retained capture changed. Live provider acceptance and
-new deployment/resource qualification remain separate M7.6 work.
+new deployment/resource qualification remain separate publisher pilot work.
 
 ### Post-Cutover Guard Review
 
@@ -146,7 +148,7 @@ integration owner for all retained evidence indexes and profile bindings.
 Seventeen distinct guard mutations fail behaviorally in an isolated source copy.
 The final CLI matrix passes 378 tests, config passes 42 in each feature state,
 CI guards pass 75, and strict CLI/config lint passes in both modes. See the
-[follow-up verification record](../../testing/evidence/m6-verification-20261015.md#qualification-guard-follow-up)
+[follow-up verification record](../../testing/evidence/diagnostics-qualification-verification-20261015.md#qualification-guard-follow-up)
 for commands, retained failures, exact scopes and the historical digest limitation.
 No criteria, runtime behavior, SDK pin or retained capture changed; this is not
 a new measured or live-provider qualification.
@@ -185,7 +187,7 @@ preflight/deadline and handled-signal exit exceptions. Both are corrected above.
 The corrected whole-pair re-review approved the design and plan with no further
 actionable findings. This approves the migration contract, not implementation.
 
-The user approved replacing both harnesses with Rust in M6. JavaScript remains
+The user approved replacing both harnesses with Rust in diagnostic qualification. JavaScript remains
 only for browser checks; external provider CLI runtimes remain provider-owned.
 No implementation or new measurement is claimed by this initial document.
 
@@ -353,7 +355,7 @@ recovery bids, 32 fixture calls, and unchanged evidence. Logs are
 This verifies the repair, not a relabeling of the earlier executable. A newly
 committed source, release build and predeclared profile must rerun all 45 rows
 and the separate frozen control. Criteria and populations remain unchanged;
-live-provider acceptance remains M7.6.
+live-provider acceptance remains publisher pilot.
 
 ### Repaired Rust Profile Predeclaration
 
@@ -390,7 +392,7 @@ evidence. The [safe capture and scope](../../testing/evidence/native-axum-rust-d
 retain exact JSON and hashes, not binaries or raw bodies/logs. An unrelated
 project's Docker test was active near run start; no compiler was observed at
 preflight or the later check. No Auctioneer build or source edits ran during traffic.
-This is shared-host local evidence, not dedicated-host benchmarking or M7.6.
+This is shared-host local evidence, not dedicated-host benchmarking or publisher pilot.
 
 Independent read-only review approved the new capture, explicit frozen result
 and safe retained copies, finding no actionable issue. It verified identities,
@@ -457,7 +459,7 @@ was built and selected from structured Cargo compiler-artifact output. Viceroy
 loader control also passed. These are local guest/emulator checks, not deployed
 generated-App, raw-ingress, response-egress or production qualification.
 
-The [final verification record](../../testing/evidence/m6-verification-20261015.md#rust-harness-migration)
+The [final verification record](../../testing/evidence/diagnostics-qualification-verification-20261015.md#rust-harness-migration)
 lists commands/scopes, counts, ignored-control drivers, the failed workspace
 attempt, name-only lint repair, safe capture and pending SDK/live boundaries.
 All substantive implementation, evidence and native repair rounds were already
@@ -466,11 +468,11 @@ record. All original measurements and the first Rust control failure remain
 unchanged. No threshold, fixture population, privacy policy or deployed binding
 was relaxed or modified to close the migration.
 
-Local M6 implementation and migration verification are complete. Remote CI is
+Local diagnostic qualification implementation and migration verification are complete. Remote CI is
 not green: the latest inspected test job has no assigned runner or steps and
 reports account billing/spending refusal. The recorded socket reset remains
 open/not reproduced, not a claimed fix. Six SDK attestations, selected-target
-live acceptance and publisher rollout remain M7.6 work.
+live acceptance and publisher rollout remain publisher pilot work.
 
 Final independent read-only reconciliation found no actionable issue in counts,
 links, revision boundaries, retained failures, historical browser evidence,

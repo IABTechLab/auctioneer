@@ -851,7 +851,7 @@ jobs:
       - name: Fetch dependencies (locked)
         run: cargo fetch --locked
 
-      # M1 foundation crates are pure-Rust and WASM-portable. The adapter
+      # Foundation crates are pure-Rust and WASM-portable. The adapter
       # itself is checked unconditionally alongside them: the conformance
       # build below is gated on `matrix.conformance`, so a row without a
       # conformance target would otherwise never compile its adapter and

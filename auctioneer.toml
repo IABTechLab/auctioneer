@@ -348,11 +348,11 @@ anon_keep_bits = 56
 # Appendix E.6 baseline is `false`; flip to `true` for auditability.
 # returnallbidstatus_default = false
 
-# Non-USD currency handling is NOT a runtime knob in M2: the response
+# Non-USD response handling is not a runtime knob: the response
 # builder hardcodes `cur = "USD"`, so any bid whose currency isn't USD
-# is dropped with a code-10004 warning. M3 wires currency-aware
-# bundles + fx; a `strict_currency_usd_only` toggle can come back
-# then when it has a meaningful `false` behavior.
+# is dropped with a code-10004 warning. Full response-currency conversion
+# requires currency-aware bundles; request-floor conversion does not change
+# this policy. A toggle needs a meaningful non-USD implementation first.
 
 # ==================================================================
 # [runtime.bidders.<name>] — per-bidder runtime overrides
@@ -441,7 +441,7 @@ anon_keep_bits = 56
 # fake_alias = "fake_bidder"
 
 # ==================================================================
-# [runtime.host_cookie] / [runtime.user_sync] — optional M5 host
+# [runtime.host_cookie] / [runtime.user_sync] — optional user sync host
 # overrides. Pushed values take effect on a subsequent request.
 # ==================================================================
 # [runtime.host_cookie]
@@ -535,7 +535,7 @@ anon_keep_bits = 56
 # default = false
 # [runtime.accounts.acct-42.privacy.allowactivities.transmitTid]
 # default = false
-# `syncUser` is consumed by M5 sync permission checks; other accepted
+# `syncUser` is consumed by user-sync permission checks; other accepted
 # activities include reportAnalytics, enrichUfpd, and
 # transmitUniqueRequestIds. Config alone does not activate their consumers.
 # COPPA always applies when regs.coppa is 1; there is no disable switch.

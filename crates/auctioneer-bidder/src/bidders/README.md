@@ -294,7 +294,7 @@ Do not treat metadata relocation as completed catalog delivery or qualification.
   invalid candidates, positive results, exact error attribution, immutability
   and boundary refusal. Assert nonzero expected fixture/test counts so a filter
   or operation rename cannot turn coverage into an empty loop.
-- Name tests for behavior, not a milestone. Run secure defaults and applicable
+- Name tests for behavior, not a capability. Run secure defaults and applicable
   feature builds separately. Source conformance, local tests and compilation
   do not establish complete resource qualification or live provider acceptance.
 

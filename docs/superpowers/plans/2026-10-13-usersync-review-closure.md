@@ -1,8 +1,10 @@
 # User Sync Review Closure Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` for the tasks below. Keep write sets disjoint and run mutation probes only in independent temporary source copies.
 
-**Goal:** Close the confirmed user-sync review defects, turn the privacy reference corpus into behavioral evidence, and implement the approved cookie-integrity boundary in M5.
+**Goal:** Close the confirmed user-sync review defects, turn the privacy reference corpus into behavioral evidence, and implement the approved cookie-integrity boundary in user sync.
 
 **Architecture:** Keep privacy in `auctioneer-privacy`, shared config validation in `auctioneer-config`, and HTTP/cookie integration in `auctioneer-core`. Use the existing EdgeZero handler, bounded secret-store, admission, clock, and egress paths. Signing protects issued cookie state; it does not authenticate a callback UID or substitute for consent.
 
@@ -50,7 +52,7 @@
 - [x] Port the non-ancestral flattened-JSON-map regression without its prohibited commit trailer. Do not rewrite historical commits.
 - [x] Remove or explain the redundant cookie minimum-length check while retaining a guard for bounded formatting work.
 - [x] Pin Fastly guest-build/execution steps in the CI contract and require the secure script to execute its selected test rather than accepting zero matches.
-- [x] Correct the unimplemented/disabled signing claim and update M5/master/roadmap ownership; preserve existing `ISSUES.md` edits for the publication commit below.
+- [x] Correct the unimplemented/disabled signing claim and update user sync/master/roadmap ownership; preserve existing `ISSUES.md` edits for the publication commit below.
 
 ## Task 5: Integration And Publication
 
@@ -58,8 +60,8 @@
 - [x] Compile/lint affected WASM adapters; distinguish existing guest artifacts from fresh builds and live-provider qualification.
 - [x] Document provider secret materialization/cancellation limits; a bounded accepted value is not universal host peak or interruption evidence.
 - [x] Run a fresh self-review of all changed boundaries; record red/green and mutation evidence with unique log paths.
-- [x] Commit the verified fixes without co-author/byline trailers and push `m5-usersync` after this repair round.
+- [x] Commit the verified fixes without co-author/byline trailers and push `user-sync` after this repair round.
 
 Published implementation and `ISSUES.md` repair statuses: `a1cbeb298fe540d64bd02794a8be33c17d8f12d0`.
-The [verification record](2026-09-30-m5-verification.md#cookie-integrity-and-review-closure-october-13)
+The [verification record](2026-09-30-usersync-verification.md#cookie-integrity-and-review-closure-october-13)
 contains fresh suite totals, mutation evidence and deployment qualifications.

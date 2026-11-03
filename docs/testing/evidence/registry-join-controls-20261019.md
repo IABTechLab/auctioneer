@@ -1,10 +1,12 @@
 # Compiled Registry Join Validation
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-19
 Initial join verification completed: 2026-10-20
 Incremental discovery preparation verified: 2026-10-21
-Branch: `m7-bidder-catalog`, based on `21eea5d1`
-Scope: noninstalled join validation and discovery controls from M7 Tasks 7-8.
+Branch: `bidder-catalog`, based on `21eea5d1`
+Scope: noninstalled join validation and discovery controls from bidder catalog Tasks 7-8.
 
 ## Boundary
 
@@ -80,23 +82,23 @@ was prohibited. The same command with local socket permissions passed; no test
 was ignored or weakened. The final child-build sequence completed in 64.48 s.
 Guest checks prove library compilation only, not guest execution or physical fit.
 
-Native logs are `/private/tmp/m7-registry-bidder-final-{secure,insecure}.log`,
-`m7-registry-bidder-secure.log`, `m7-registry-core.log` and
-`m7-registry-child-build.log` under the same directory. Guest logs use
-`m7-registry-<ABI>-{secure,insecure}.log` for `wasm32-unknown-unknown`,
+Native logs are `/private/tmp/bidder-catalog-registry-bidder-final-{secure,insecure}.log`,
+`bidder-catalog-registry-bidder-secure.log`, `bidder-catalog-registry-core.log` and
+`bidder-catalog-registry-child-build.log` under the same directory. Guest logs use
+`bidder-catalog-registry-<ABI>-{secure,insecure}.log` for `wasm32-unknown-unknown`,
 `wasm32-wasip1` and `wasm32-wasip2`. RED logs retain the `plan-red`,
 `generated-red-corrected`, `group-red` and `workflow-red` suffixes.
 
 Final lint command: `cargo clippy --workspace --all-targets --offline --locked
 -j2 --features insecure-bidders,conformance-suite -- -D warnings`, recorded in
-`/private/tmp/m7-registry-clippy-final.log`. Initial lint errors were repaired
+`/private/tmp/bidder-catalog-registry-clippy-final.log`. Initial lint errors were repaired
 without exemptions. Existing GVL deletion notices and the tracked
 `proc-macro-error2` future-compiler warning remain. Spec and quality review
 approved only this preparatory slice after the feature-group and evidence-link
 corrections; both reviews were static, with the parent running verification.
 
 No complete workspace test run, hosted CI result, deployed-provider execution,
-schema qualification, funded live-catalog cutover, R0 readiness or M7 completion
+schema qualification, funded live-catalog cutover, resource qualification readiness or bidder catalog completion
 is claimed by this record.
 
 ## Incremental Discovery Preparation, October 21
@@ -180,12 +182,12 @@ reported zero passed, one failed and seven filtered tests, not a compiler or
 infrastructure failure. The source was then restored to its original SHA-256
 `535f6e401e493df145fb0dd4633277b21dec312a3fe5292b20ac63e02b29a534`.
 
-Logs: `/private/tmp/m7-incremental-build-green.log`,
-`m7-incremental-ci-missing-step-red.log` and `m7-incremental-ci-green.log` under
-the same directory; the mutation log is `m7-incremental-root-tracking-red.log`.
-The clean rerun is `m7-incremental-build-restored.log`; broader bidder results
-are `m7-incremental-bidder-{secure,features}.log`.
-Strict lint is recorded in `m7-incremental-workspace-clippy-final.log`.
+Logs: `/private/tmp/bidder-catalog-incremental-build-green.log`,
+`bidder-catalog-incremental-ci-missing-step-red.log` and `bidder-catalog-incremental-ci-green.log` under
+the same directory; the mutation log is `bidder-catalog-incremental-root-tracking-red.log`.
+The clean rerun is `bidder-catalog-incremental-build-restored.log`; broader bidder results
+are `bidder-catalog-incremental-bidder-{secure,features}.log`.
+Strict lint is recorded in `bidder-catalog-incremental-workspace-clippy-final.log`.
 Its initial run correctly rejected helpers missing explicit test-only module
 gates and ordinary style issues. The repair uses the repository's existing
 test policy, smaller functions, private path storage, checked counters/time/
@@ -195,10 +197,10 @@ The final post-refactor command reran both complete build targets: eight passed
 in each, with no failures or ignored tests. Its factory workspace ran fifteen
 children in 56.343 s; discovery ran sixteen in 93.624 s. Their sampled logical
 high-waters stayed 752,750,542 and 696,544,233 bytes, respectively. The record is
-`m7-incremental-build-final.log`. The follow-up static review confirmed all
+`bidder-catalog-incremental-build-final.log`. The follow-up static review confirmed all
 thirteen successful stages, both missing-input refusals and five existing
 factory refusal/recovery cases remained intact.
 Static spec review required retaining the full serving
 lifecycle acceptance as open; subsequent quality review found no concrete
 defects. No complete workspace test execution, hosted CI, guest execution,
-resource qualification, bidder promotion or R0 readiness is inferred.
+resource qualification, bidder promotion or resource qualification readiness is inferred.

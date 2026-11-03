@@ -5,8 +5,8 @@
 //!
 //! The boot envelope's over-ceiling diagnostic is a WARNING rather than
 //! a refusal, by deliberate policy: the declared caps say what
-//! production traffic is expected to need, and tuning them is a
-//! milestone of its own. That policy's whole safety margin is the
+//! production traffic is expected to need, and tuning them requires separate
+//! workload evidence. That policy's whole safety margin is the
 //! warning reaching an operator. If it is emitted into a process with
 //! no `log` sink, it is not a warning — it is silence, and the
 //! deployment looks indistinguishable from one whose envelope fits.

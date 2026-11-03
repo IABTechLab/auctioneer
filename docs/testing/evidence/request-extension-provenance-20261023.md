@@ -95,4 +95,4 @@ The HTTP integration cases separately prove null/absent/object admission and
 pre-dispatch refusal of wrong-shaped/duplicate extensions. The shared controls
 do not implement a production APS guard: its implementation and bidder-local
 raw-handler refusal control are still required. No full workspace execution,
-hosted acceptance or complete M7 gate is claimed by this increment.
+hosted acceptance or complete bidder catalog gate is claimed by this increment.

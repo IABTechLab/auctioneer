@@ -1,5 +1,7 @@
 # GDPR Scrub Classification Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Preserve reviewed context while closing denied ID/geo channels and
@@ -13,7 +15,7 @@ bounded JSON/resource utilities, colocated unit tests and existing native/WASM C
 **Design:** [GDPR Scrub Classification Design](../specs/2026-10-09-gdpr-scrub-classification-design.md).
 **Status (2026-10-11):** reviewed inventories, compiled rules, the production
 per-object mutator, construction-cost plumbing, plain core audit consumer and
-live `run_auction` integration are implemented in the M4 worktree. The temporary
+live `run_auction` integration are implemented in the privacy enforcement worktree. The temporary
 prototype has been removed; generated rules are live. Targeted native regression
 results are recorded below, separately from the chronological Tasks 1-3 baseline.
 The user supplied AG as the human reviewer; inventory metadata records
@@ -24,23 +26,23 @@ all three strict WASM checks, executed WASI depth/cleanup proofs, vendor package
 compiler mutations and real charged-handler failure tests now pass. The final
 alternate-feature workspace execution also passed. The atomic implementation
 commit `c2b00a2` is pushed and remote-verified. Verified source integrations are
-published as M5 `9ff017f` and M6 `6177742`. Current evidence and limits are recorded in the
+published as user sync `9ff017f` and diagnostic qualification `6177742`. Current evidence and limits are recorded in the
 [execution ledger](../sdd/2026-10-11-gdpr-scrub-classification.md); earlier sections
 retain chronological results rather than qualifying the amended costs.
-**Execution base:** `.claude/worktrees/m4-privacy`, aligned with merged M3b at
+**Execution base:** `.claude/worktrees/privacy-enforcement`, aligned with merged bounded fanout at
 `5cefb05` (merge of `origin/main` at `1ff1907`). The initial document review used
 `78f57b7`; it is not the execution head.
-Recheck actual head/dirty state before starting. M5/M6 inherit verified changes;
-M3b receives documentation only, not a duplicate production implementation.
+Recheck actual head/dirty state before starting. user sync/diagnostic qualification inherit verified changes;
+bounded fanout receives documentation only, not a duplicate production implementation.
 
 ---
 
 ## Decisions And Execution Rules
 
-This plan replaces the prior M3b-first/full-request-Value design. Do not implement
+This plan replaces the prior bounded fanout-first/full-request-Value design. Do not implement
 borrowed validation plus a second consuming decode, a separate Value privacy
 engine, an Arc/Mutex audit extension, or compatibility adapters with no production
-caller. Existing M4 typed scrub code is the production boundary to replace.
+caller. Existing privacy enforcement typed scrub code is the production boundary to replace.
 
 Retain validation-first deadline precedence: expired allowed survivors still
 validate FPD and can return code 15. Do not add a pre-materialization timeout
@@ -60,7 +62,7 @@ the specs and plans, rather than in a root-level agent bookkeeping directory.
 
 Use `serde_json::json!` for synthetic fixtures. Unit tests live with their code;
 separate binaries cover real wire paths, allocation, workflow and cross-crate
-behavior. Names describe behavior, not milestones. No unrelated refactors,
+behavior. Names describe behavior, not capabilities. No unrelated refactors,
 raised resource factors/ceilings, archive refresh, or dependency pin changes.
 If tooling/GVL freshness blocks a gate, record and stop that gate; do not bypass it.
 
@@ -72,7 +74,7 @@ tests authorize permissive fallback.
 
 ## File And Ownership Map
 
-All implementation paths are relative to M4. New files are marked `new`.
+All implementation paths are relative to privacy enforcement. New files are marked `new`.
 
 | Surface                     | Files                                                                                                                                                                                                                                                                           | Responsibility                                                                                                                   |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -90,20 +92,20 @@ All implementation paths are relative to M4. New files are marked `new`.
 
 The map names `handlers/mod.rs`, not the nonexistent `handlers.rs`. Resolve
 actual bootstrap/probe/adapter callers with `rg` before editing; do not transplant
-M3b's flatter module layout or sequential resource proof into M4.
+bounded fanout's flatter module layout or sequential resource proof into privacy enforcement.
 
 ## Task 1: Prove The Smaller Production Boundary
 
 **Files:** exchange `src/scrub/mod.rs`, a private test prototype, new
 `tests/projection_scrub_bound.rs`, existing construction/sparse/node guards.
 
-- [x] Add colocated tests around the actual M4 consume/decode/validate boundary
+- [x] Add colocated tests around the actual privacy enforcement consume/decode/validate boundary
       followed by per-object in-place mutation. Cover permitted untyped city/metro,
       malformed context objects, supported interstitial descendants, sparse SUA/
       brands, raw extensions, nulls, numeric forms and typed/shadow conflicts.
 - [x] Add a validation-precedence fixture: an expired allowed survivor with
       `{"banner":null}` FPD still returns code 15 and dispatches no calls. Also
-      test denied malformed FPD never materializes. Use existing M4 harness helpers.
+      test denied malformed FPD never materializes. Use existing privacy enforcement harness helpers.
 - [x] Run the newly added tests with `cargo test --locked -p auctioneer-exchange
 --lib scrub` and the relevant `--test privacy_policy_composition`/`--test tmax` binaries.
       Confirm the new named tests execute. Expected red is missing prototype
@@ -249,7 +251,7 @@ No missing/duplicate classifications, unresolved/cyclic children, shape mismatch
 or opaque-context loophole was found. The review did not certify the unfinished
 compiler, resource proofs or live enforcement.
 
-The broader current M4 native model/privacy/exchange sweep passed 830 tests
+The broader current privacy enforcement native model/privacy/exchange sweep passed 830 tests
 across 41 suites, with zero ignored tests. This is not hosted CI, WASM execution,
 full workspace qualification, or proof of the forthcoming live classified path.
 
@@ -316,7 +318,7 @@ consumers inherit them. The binary-only refresh package is a workspace member,
 not an unused dependency entry. Commands, source-relative paths and the refresh
 workflow use the new names. No archive refresh or dependency pin update ran.
 The committed SDD ledger moved to `docs/superpowers/sdd/`; root main and downstream
-milestone worktrees remain untouched. Independent read-only review verified the
+capability worktrees remain untouched. Independent read-only review verified the
 provenance repair, but did not certify the pending live scrub or resource proofs.
 
 ## Task 4: Implement One Per-Object Mutator And Plain Audit
@@ -361,7 +363,7 @@ The independent 256 composed typed/shadow wire oracle is in
 authored literals/goldens, not expectations derived from the new rule engine.
 This targeted checkpoint did not establish broad qualification or publication.
 The subsequent full native/strict-lint, target/package checks and published
-atomic cutover are recorded in Task 10 and the execution ledger; M5/M6 combined
+atomic cutover are recorded in Task 10 and the execution ledger; user sync/diagnostic qualification combined
 integration remains separate.
 
 - [x] Add decision/action tables for all rules/shapes, four ID/geo combinations,
@@ -385,7 +387,7 @@ integration remains separate.
 - [x] Keep Option/JsonField/Box sparse/null behavior and empty brands allocation-
       free. Remove unsupported RawValue extensions under restriction without
       disclosure parsing. No new raw-context exception.
-- [x] Handle denied scalars/collections in every representation; retain M4's
+- [x] Handle denied scalars/collections in every representation; retain privacy enforcement's
       Geo-only typed precedence, exact TID leaves and FPD-owned branches. TID-only
       never normalizes unrelated user/device or Source extension data.
 - [x] Replace finite transform helper with optional-result semantics: unchanged
@@ -534,7 +536,7 @@ exchange audit exports, cost-composition and tests.
 goldens and committed OpenRTB corpus inputs; `tests/support/frozen_scrub.rs`;
 existing wire tests and `src/scrub/classified_tests.rs`'s independent 256 oracle.
 
-- [x] Freeze the reviewed old M4 mutator with explicit source revision/provenance,
+- [x] Freeze the reviewed old privacy enforcement mutator with explicit source revision/provenance,
       never a production toggle. Run old/new on the same validated scoped request,
       decisions and real adapter serialization. The comparator pins committed
       revision `3f0f7f5aeb01d96742e0dd2012f179887ee474bc`; the independent 256
@@ -563,7 +565,7 @@ existing wire tests and `src/scrub/classified_tests.rs`'s independent 256 oracle
 outstanding semantic/resource/target evidence and reviewed offline differences.
 The live boundary is already replaced in the worktree; that implementation fact
 does not imply all prerequisite gates or the final review have completed.
-**Files:** M4 run/split/scrub/core callers, affected tests/master spec,
+**Files:** privacy enforcement run/split/scrub/core callers, affected tests/master spec,
 workflows, CI mutation tests and raw-fixture allowlist.
 
 - [x] Add all four resolved GDPR gates to core `response_gdpr_applies`, including
@@ -572,8 +574,8 @@ workflows, CI mutation tests and raw-fixture allowlist.
       adapter bodies through `run_auction`, explicitly not through HTTP. Presence
       controls cover Device/DNT/interstitial/context, EID descendants and unknowns.
 - [x] Retain/add alias and composed-restriction wire assertions in the existing
-      M4 privacy harness, separately from real-handler lifecycle audit tests.
-- [x] Complete the fresh full M4 privacy/native integration sweep; do not equate
+      privacy enforcement privacy harness, separately from real-handler lifecycle audit tests.
+- [x] Complete the fresh full privacy enforcement privacy/native integration sweep; do not equate
       the core direct-engine wire matrix with HTTP-handler matrix coverage.
 - [x] Change run_auction to require caller-owned mutable audit; update all real/
       test callers found with `rg -n -F 'run_auction(' crates`. Give the same plain
@@ -628,19 +630,19 @@ workflows, CI mutation tests and raw-fixture allowlist.
       dependencies must not enter deployed artifacts.
 - [x] Commit/push the atomic live cutover in `c2b00a2`; remote head verified.
 
-## Task 9: Propagate Verified M4 To M5 And M6
+## Task 9: Propagate Verified privacy enforcement To user sync And diagnostic qualification
 
 - [x] Verify clean worktrees/current remote heads before merging; keep concurrent
-      user changes. Merge M4 into M5 deliberately, retaining usersync/redirect,
+      user changes. Merge privacy enforcement into user sync deliberately, retaining usersync/redirect,
       dynamic bidder and auction work. No wholesale conflict-side selection.
-- [x] This mutator is auction-only: run M5 exchange/core/CLI and usersync suites,
+- [x] This mutator is auction-only: run user sync exchange/core/CLI and usersync suites,
       composed wire tests and retained-lifetime guards. It must not silently alter
       cookie-sync/redirect permission handling. Commit/push any adaptation.
-- [x] Merge verified M5 into M6, retain roster/evidence/Q2 requirements and run
+- [x] Merge verified user sync into diagnostic qualification, retain roster/evidence/Q2 requirements and run
       affected suites/resource gates. Do not claim provider qualification from
       scrub tests. Commit/push adaptations and final docs.
 - [x] Verify published source-integration heads and clean scoped source worktrees;
-      publish final owned evidence metadata separately. M3b may carry the
+      publish final owned evidence metadata separately. bounded fanout may carry the
       revised spec/plan as follow-on documentation; no production backport or main
       changes are required by this plan.
 
@@ -657,7 +659,7 @@ The expectation has been reconciled without removing denied-field assertions;
 the correction is not a passing full-workspace result. A fresh amended-cost
 run passed, followed by a fresh non-config workspace sweep and focused reruns
 after test-only style repairs. The alternate-feature workspace sweep also passed.
-The implementation is pushed as `c2b00a2`; combined-state M5/M6 integration is
+The implementation is pushed as `c2b00a2`; combined-state user sync/diagnostic qualification integration is
 verified and published as `9ff017f`/`6177742`. See the current execution ledger.
 
 - [x] Run:
@@ -675,7 +677,7 @@ verified and published as `9ff017f`/`6177742`. See the current execution ledger.
       Label compilation separately from executed resource/depth qualification.
 - [x] Rerun source/projection/work/destruction/error/retained-lifetime guards in
       native CI profiles, importer checks, catalogue/structural/workflow mutations and
-      offline goldens on M4. Task 9 records the completed combined-state reruns.
+      offline goldens on privacy enforcement. Task 9 records the completed combined-state reruns.
 - [x] Record Rust/serde/dependency pins, implementation base, commands, measured peaks/
       artifact sizes, accepted differences, failures and unavailable tools. Do not
       infer remote CI status or architecture qualification from old decoding probes.
@@ -703,9 +705,9 @@ downstream integration limits are recorded in the execution ledger.
 - [x] Core really consumes aggregate audit on all charged exits before release,
       with bounded static diagnostics and no asynchronous/shared audit state.
 - [x] Reviewed offline differences precede atomic cutover; native/WASM/package/
-      gate evidence is recorded and propagated to M5/M6.
+      gate evidence is recorded and propagated to user sync/diagnostic qualification.
 
-**Handoff:** local M4 implementation/review gates and the execution ledger are
+**Handoff:** local privacy enforcement implementation/review gates and the execution ledger are
 complete and the atomic implementation is pushed. Task 9's combined-state
-M5/M6 integrations are verified and published. Code review readiness
+user sync/diagnostic qualification integrations are verified and published. Code review readiness
 does not assert provider qualification, remote CI success or human merge approval.

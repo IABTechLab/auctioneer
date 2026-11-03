@@ -1,0 +1,48 @@
+# Editorial normalization (2026-11-02): branch naming is descriptive; commit identities and raw runner lines are unchanged.
+# RECERTIFICATION RECORD — branch gdpr-fanout @ 9d21225 (docs) / 1179c5a (code), 2026-09-04/05.
+# Rows 00-07 reconstructed from per-command log mtimes after the resume runner
+# truncated the live RESULTS file (logs themselves are the evidence; durations
+# derive from mtime deltas). Rows 08a onward are the runner's own lines.
+# 08 was split into 08a/08b mid-run: the harness is hermetic by design (children
+# pin features, scrub env; its cases document identical outcomes under either
+# workspace feature set), so it is certified once, in 07/16, and auctioneer-config's
+# feature-sensitive non-harness targets run as 08b.
+[05:47:44Z] EXIT=0  (00-fmt, 0s)
+[05:52:43Z] EXIT=0  (01-clippy, 299s)
+[05:56:02Z] EXIT=0  (02-clippy-insecure, 199s)
+[05:59:59Z] EXIT=0  (04-clippy-timing, 237s)
+[06:03:02Z] EXIT=0  (06-clippy-harness, 183s)
+[06:49:16Z] EXIT=0  (07-test-workspace, 2774s)  # 954 passed / 0 failed / 1 ignored
+[06:59:25Z] START 08a-test-insecure: cargo test --workspace --features insecure-bidders --exclude auctioneer-config
+[07:17:16Z] EXIT=0  (08a-test-insecure, 1071s)
+[07:17:16Z] START 08b-config-insecure: cargo test -p auctioneer-config --features insecure-bidders test-harness-override --lib --test codegen --test gvl_archive --test smoke --test url_safety
+[07:25:24Z] EXIT=0  (08b-config-insecure, 488s)
+[07:25:24Z] START 09-test-axum: cargo test -p auctioneer-axum-transport-tests
+[07:29:13Z] EXIT=0  (09-test-axum, 229s)
+[07:29:13Z] START 10-clippy-conf: cargo clippy -p auctioneer-core --all-targets --features conformance-suite -- -D warnings
+[07:32:42Z] EXIT=0  (10-clippy-conf, 209s)
+[07:32:42Z] START 11-test-conf: cargo test -p auctioneer-core --features conformance-suite
+[07:38:40Z] EXIT=0  (11-test-conf, 358s)
+[07:38:40Z] START 12-clippy-conf-ins: cargo clippy -p auctioneer-core --all-targets --features insecure-bidders conformance-suite -- -D warnings
+[07:41:56Z] EXIT=0  (12-clippy-conf-ins, 196s)
+[07:41:56Z] START 13-test-conf-ins: cargo test -p auctioneer-core --features insecure-bidders conformance-suite
+[07:51:07Z] EXIT=0  (13-test-conf-ins, 551s)
+[07:51:07Z] START 15-test-timing: cargo test -p auctioneer-privacy --features timing-tests --tests
+[07:53:36Z] EXIT=0  (15-test-timing, 149s)
+[07:53:36Z] START 16-test-harness: env RUSTFLAGS=-D warnings cargo test -p auctioneer-config --features test-harness-override --test build_failure_harness
+[08:27:31Z] EXIT=0  (16-test-harness, 2035s)
+[08:27:31Z] START 17-wasm-cf-check: cargo check --target wasm32-unknown-unknown -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config -p auctioneer-gvl-schema -p auctioneer-privacy -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core
+[08:33:55Z] EXIT=0  (17-wasm-cf-check, 384s)
+[08:33:55Z] START 18-wasm-cf-conf: cargo test --no-run --target wasm32-unknown-unknown -p auctioneer-adapter-cloudflare --features conformance-suite
+[08:34:54Z] EXIT=0  (18-wasm-cf-conf, 59s)
+[08:34:54Z] START 19-wasm-wasi-check: cargo check --target wasm32-wasip1 -p auctioneer-runtime -p auctioneer-openrtb -p auctioneer-config -p auctioneer-gvl-schema -p auctioneer-privacy -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core
+[08:38:27Z] EXIT=0  (19-wasm-wasi-check, 213s)
+[08:38:27Z] START 20-wasm-spin-conf: cargo test --no-run --target wasm32-wasip1 -p auctioneer-adapter-spin --features conformance-suite
+[08:42:33Z] EXIT=0  (20-wasm-spin-conf, 246s)
+[08:42:33Z] START 21-release-axum: cargo build --release -p auctioneer-adapter-axum
+[08:45:32Z] EXIT=0  (21-release-axum, 179s)
+[08:45:32Z] START 22-release-cf: cargo build --release -p auctioneer-adapter-cloudflare --target wasm32-unknown-unknown
+[08:47:55Z] EXIT=0  (22-release-cf, 143s)
+[08:47:55Z] START 23-release-wasi: cargo build --release --target wasm32-wasip1 -p auctioneer-adapter-fastly -p auctioneer-adapter-spin
+[08:50:33Z] EXIT=0  (23-release-wasi, 158s)
+MATRIX COMPLETE: the amended 21-command matrix exited 0

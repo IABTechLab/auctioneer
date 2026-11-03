@@ -1,10 +1,12 @@
 # Auxiliary Storage Controls
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local names are descriptive. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-18
 Starting code: `6d26d259`; SDK `bc300ace`.
 
 This is an unchanged-workload ownership repair, not an accounting reduction,
-all-route response bound, guest-memory measurement or R0 completion.
+all-route response bound, guest-memory measurement or resource qualification completion.
 
 ## Implemented
 
@@ -64,7 +66,7 @@ to keep local packaging products outside source snapshots. The unrelated dirty
 roadmap remains untouched. No deployed Auctioneer service was contacted or mutated;
 the vendor commands only built packages or performed a dry-run.
 
-Logs: `/private/tmp/r0-storage-{core-all,insecure-info,insecure-allocation,
+Logs: `/private/tmp/resource-qualification-storage-{core-all,insecure-info,insecure-allocation,
 clippy-core,cli-resources,conformance,adapter-conformance,
 fastly-build,spin-build,cloudflare-build,clippy-cloudflare,clippy-fastly,
 clippy-spin,conformance-link-cloudflare,conformance-link-fastly,

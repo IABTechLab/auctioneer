@@ -41,7 +41,7 @@ The current info bounds use the effective 256-identity validation ceiling and
 `1 + 256 * (6*64 + 4 + 228) = 157,697` aggregate bytes. The 228-byte detail
 bound includes current optional Mocktioneer metadata, alias ownership and
 the longer disabled status. These are current-source derivations, not universal
-limits for the future M7 catalog. Metadata or identity-ceiling changes must
+limits for the future bidder catalog catalog. Metadata or identity-ceiling changes must
 rederive them, not reuse these literals as allowances.
 
 ## Headers, Work And Populations

@@ -1,8 +1,8 @@
 //! `OpenRTB` 2.6 types + the `prepare(req, headers, limits)` gate.
 //!
 //! NOTE: no consent-string parsing here.
-//! Consent parsers live in `auctioneer-privacy` from M3+; `prepare()` does not
-//! touch TCF v2 / US-Privacy / GPP strings. The
+//! Consent parsers live in `auctioneer-privacy`; `prepare()` does not
+//! decode TCF v2 / US-Privacy / GPP strings. The
 //! `WarningCode::InvalidPrivacyConsent` variant is defined here (since
 //! `NonFatalWarning` is) but populated by `PrivacyContext::resolve` downstream.
 

@@ -455,7 +455,7 @@ mod tests {
             response_write_deadline_ms: 30_000,
             guest_decoder_bound_bytes: 0,
             aux_route_permits: 5,
-            // Covers sync work as well as M4's config-extraction floor.
+            // Covers sync work as well as privacy enforcement's config-extraction floor.
             aux_route_peak_bytes: 768 * 1_024 * 1_024,
             max_brotli_wbits: 22,
             max_brotli_layers: 1,

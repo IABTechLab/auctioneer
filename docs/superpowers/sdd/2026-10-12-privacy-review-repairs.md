@@ -1,10 +1,12 @@
 # Privacy Review Repairs Verification
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-10-12
-Branch: `m4-privacy`, worktree `.claude/worktrees/m4-privacy`
+Branch: `privacy-enforcement`, worktree `.claude/worktrees/privacy-enforcement`
 Repair base: `70c90424b253faf1d649f222ef808f3ca9ed7e4c`
 Implementation commit: `83b672a15639db8ecf01d0d47f74f005dc103766`, pushed to
-`origin/m4-privacy` and verified against the remote head.
+`origin/privacy-enforcement` and verified against the remote head.
 Status: technical repairs verified and published; two policy choices pending.
 
 This record covers the [repair plan](../plans/2026-10-12-privacy-review-repairs.md)
@@ -28,7 +30,7 @@ historical evidence, not a claim that every prior check was repeated today.
   CI and child Cargo invocations refer to the renamed binaries. The pinned
   reference JSON, reference generator and grouped snapshot have identical Git
   blob IDs before and after moving; reference expectations were not regenerated.
-- The older M4 design now points at classified disclosure and describes the
+- The older privacy enforcement design now points at classified disclosure and describes the
   reviewed Geo/context behavior and closed local resource acceptance correctly.
 - A read-only weekly/manual upstream digest check detects source drift without
   updating reviewed pins, catalogue membership, policy or human review metadata.
@@ -110,7 +112,7 @@ WASM lint compiles deployment/test code; it does not execute WASM tests or certi
 a provider deployment. This round does not repeat vendor packaging, WASI engine
 execution, all 61 isolated config-build cases, hosted CI or physical-isolate
 measurements. Earlier evidence for those checks is separate. Main and downstream
-milestones are not modified by this repair.
+capabilities are not modified by this repair.
 
 ## Policy Decisions Still Pending
 

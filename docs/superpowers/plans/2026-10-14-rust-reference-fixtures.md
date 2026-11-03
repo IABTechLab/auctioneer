@@ -1,5 +1,7 @@
 # Rust Reference Fixture Tooling Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use superpowers:subagent-driven-development or
 > superpowers:executing-plans for the bounded tasks below.
 
@@ -56,10 +58,10 @@ Files: `usersync/cookie.rs`, `usersync_handler_alloc.rs`,
 - [x] Review the complete diff against the approved boundary; check that no
       production dependencies or feature unification were added by the utility.
 - [x] Run affected tests, strict lint, formatting and fixture gates; update
-      `ISSUES.md` and the M5 verification record with actual results and limitations.
-- [x] Commit the completed repair, including documentation, and push M5.
+      `ISSUES.md` and the user sync verification record with actual results and limitations.
+- [x] Commit the completed repair, including documentation, and push user sync.
 
-Implementation and verification were published in `ef55516` on `m5-usersync`
+Implementation and verification were published in `ef55516` on `user-sync`
 on 2026-10-14. The verification record includes the repaired final-review
 negative control and the explicit source-archive qualification limit.
 
@@ -67,7 +69,7 @@ negative control and the explicit source-archive qualification limit.
 
 AG approved option 1 on 2026-10-14. Apply the updated ownership boundary in
 `docs/superpowers/specs/2026-10-14-rust-reference-fixtures-design.md` on the
-existing M5 worktree. This supersedes the original generic-schema and two-command
+existing user sync worktree. This supersedes the original generic-schema and two-command
 implementation above, not its immutable-capture or Rust-only requirements.
 
 - [x] Update `crates/auctioneer-reference-fixtures/tests/cli.rs`: staged captures use `validate --root`; prove the old command is rejected and staged pin files cannot override compiled-in pins. Run the explicit old-command test red before removing it.
@@ -77,7 +79,7 @@ implementation above, not its immutable-capture or Rust-only requirements.
 - [x] Update current README commands, the design, `ISSUES.md`, and verification record. Preserve historical verification results as historical. Record source/test line reduction and dropped CLI schema promises explicitly.
 - [x] Run utility/consumer suites, CLI negative controls, retained-guard mutations, strict lint, formatting and raw-fixture gates. Independently review the scoped diff.
 
-Publication: commit and push all reviewed changes together on `m5-usersync`.
+Publication: commit and push all reviewed changes together on `user-sync`.
 
 ## Consumer Ownership Follow-Up
 
@@ -91,6 +93,6 @@ reason to restore the deleted utility schema engine.
 - [x] Recheck the current allocation preflight and flattened-map guard, using source/tests rather than commit ancestry.
 - [x] Record the route flake as unreproduced, not fixed; add idle-gate diagnostics without changing process-global production state.
 
-Verification and publication follow the same reviewed M5 repair boundary.
+Verification and publication follow the same reviewed user sync repair boundary.
 The outstanding route investigation is tracked in `ISSUES.md`, separately
 from the controlled-clock determinism improvement.

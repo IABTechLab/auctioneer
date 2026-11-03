@@ -17,8 +17,8 @@
 mod tests {
     use auctioneer_config::{account_default, host_default};
 
-    /// Pre-existing defaults remain fixed; M4 adds outbound and funded
-    /// response/parse caps, and M5 adds explicit sync policy.
+    /// Pre-existing defaults remain fixed; privacy enforcement adds outbound and funded
+    /// response/parse caps, and user sync adds explicit sync policy.
     ///
     /// Raw strings, not `serde_json::json!`, here and for
     /// `ACCOUNT_SNAPSHOT`: both are compared with `assert_eq!` against
@@ -43,7 +43,7 @@ mod tests {
         r#""max_parsed_nodes":65536},"aliases":{}}"#,
     );
 
-    /// Pre-existing account defaults remain fixed; M5 adds sync policy.
+    /// Pre-existing account defaults remain fixed; user sync adds sync policy.
     const ACCOUNT_SNAPSHOT: &str = concat!(
         r#"{"disabled":false,"debug_allow":false,"bid_rounding":"down","#,
         r#""targeting_prefix":"hb","truncate_target_attribute":null,"#,

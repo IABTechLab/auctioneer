@@ -7,7 +7,7 @@
 # The harness ownership gate consumes this approved inventory table verbatim.
 /docs/superpowers/plans/2026-10-15-rust-qualification-harnesses.md
 # The roster gate consumes this historical declaration layout verbatim.
-/docs/superpowers/plans/2026-07-10-m3b-multi-adapter-production-fanout.md
+/docs/superpowers/plans/2026-07-10-multi-adapter-production-fanout.md
 
 # Original captures, schemas, manifests, and accounting snapshots are byte-pinned.
 /crates/auctioneer-bidder/tests/conformance/fixtures/reference/catalog/*.toml

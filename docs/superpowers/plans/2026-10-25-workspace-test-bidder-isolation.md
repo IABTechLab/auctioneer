@@ -1,5 +1,7 @@
 # Workspace Test Bidder Isolation Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use superpowers:executing-plans with disjoint implementation scopes and review checkpoints. Mark steps complete only after verification.
 
 **Goal:** Remove real-bidder coupling from shared workspace tests without replacing real provider evidence with fake-only success.
@@ -52,7 +54,7 @@
 - [x] Audit all four target-adapter test trees. Preserve real App/binary/provider conformance without new injection APIs; required conformance validation remains in the verification task.
 - [x] Run fresh focused and broader tests, strict Clippy, rustfmt and raw fixture controls with frozen inputs.
 - [x] Obtain independent coverage-preservation and architecture review; repair findings.
-- [x] Commit and push the verified round, reporting remaining M7 registry and readiness work separately.
+- [x] Commit and push the verified round, reporting remaining bidder catalog registry and readiness work separately.
 
 ### 6. Existing Model-Coverage Harness Repair
 
@@ -178,10 +180,10 @@ captures, CI workflows and production registry dispatch remain unchanged.
 ## Publication
 
 Implementation, harness repairs, issue disposition, design and verification
-record were committed as `b0114802` and pushed to `m7-bidder-catalog` for
+record were committed as `b0114802` and pushed to `bidder-catalog` for
 PR #21. This publication note follows that observed successful push. The
 remaining discovered serving-registry cutover, schema/resource acceptance and
-R0 readiness blockers are not closed by this test-isolation round.
+resource qualification readiness blockers are not closed by this test-isolation round.
 
 ## Follow-Up: Missed Owners And Serving Discovery
 
@@ -271,12 +273,12 @@ round's explicit 12-test result above remains historical, not a fresh claim.
 Guest compilation is not hosted execution or positive resource qualification.
 The debug-profile GVL cold-parse benchmark still reports above its stated
 10-ms target, and the existing third-party future-incompatibility warning
-remains; this cleanup does not close either issue or R0/catalog readiness.
+remains; this cleanup does not close either issue or resource qualification/catalog readiness.
 
 ## Authored GDPR Fixture Follow-Up
 
 The Rust-only guard missed concrete identities in five locally authored GDPR
-JSON/TOML fixtures. Keep working in the M7 worktree; do not update `main` or
+JSON/TOML fixtures. Keep working in the bidder catalog worktree; do not update `main` or
 rename immutable external captures. Preserve the real handler/GVL integration.
 
 - [x] Extend `auctioneer-bidder/tests/test_isolation.rs` to check the authored
@@ -379,7 +381,7 @@ owner-local HTTP tests, serving-path reuse or CI gate. Root main is untouched.
 No serving bidder manifest, parameter schema, external capture, workload
 limit, charge coefficient, SDK revision or compiler patch changed. Guest
 compilation is not hosted execution or positive resource qualification.
-R0/catalog/schema readiness and the existing dependency future-compatibility
+resource qualification/catalog/schema readiness and the existing dependency future-compatibility
 warning remain outside this repair.
 
 Publication is confirmed by Git after this record, not pre-attested here.
@@ -549,6 +551,6 @@ Separate locked/offline invocations on Rust 1.98.1 passed:
 
 The five source tests were not rerun as part of this helper-only follow-up;
 their prior explicit invocation is recorded in the preceding verification.
-Logs use /private/tmp/m7-shared-owner-*. No source capture, serving behavior,
+Logs use /private/tmp/bidder-catalog-shared-owner-*. No source capture, serving behavior,
 published definition, workload limit, charge coefficient or dependency pin
-changed. This scoped result is not complete M7 or hosted-readiness evidence.
+changed. This scoped result is not complete bidder catalog or hosted-readiness evidence.

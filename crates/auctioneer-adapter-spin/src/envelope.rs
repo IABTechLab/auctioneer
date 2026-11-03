@@ -129,7 +129,7 @@ const ISOLATE_TOTAL_BYTES: u64 = match AKAMAI_FUNCTIONS_PLATFORM.memory_ceiling(
 const CAP_256_KIB: u64 = 1 << 18;
 
 /// The response cap follows the serialized-output floor without lowering
-/// M4's existing 16 MiB cap. Typed assembly has its own auction charge.
+/// privacy enforcement's existing 16 MiB cap. Typed assembly has its own auction charge.
 const FINAL_RESPONSE_BYTES: u64 = {
     let floor = MAX_CALLS_U64 * CAP_256_KIB * ASSEMBLY_FACTOR;
     let existing_cap = 1_u64 << 24_u32;
@@ -468,8 +468,8 @@ const EGRESS_PERMITS: u32 = MAX_CONCURRENT_AUCTIONS;
 /// this rises with that concurrency — it tracks the same published
 /// fact as [`PLATFORM_CONCURRENT_CEILING`].
 ///
-/// Keep M5's 768 MiB reservation for checked user-sync/privacy work,
-/// not just M4's config-extraction and manifest floor. Boot validates
+/// Keep user sync's 768 MiB reservation for checked user-sync/privacy work,
+/// not just privacy enforcement's config-extraction and manifest floor. Boot validates
 /// the full aux-work peak, including the serialized baked configuration.
 /// This is an upper-bound reservation, not a measured resident heap peak.
 const AUX_ROUTE_PERMITS: u32 = 1;
@@ -578,11 +578,11 @@ pub const fn limits() -> ResolvedIsolateLimits {
         max_outbound_raw_bytes: CAP_256_KIB,
         max_transport_bytes: CAP_256_KIB,
         max_decoded_bytes: CAP_256_KIB,
-        // Keep M4's 256-byte parse floor and fund the independent node peak.
+        // Keep privacy enforcement's 256-byte parse floor and fund the independent node peak.
         // Both charges are configurable upward, never below their floors.
         response_parse_factor: MIN_RESPONSE_PARSE_FACTOR,
         response_node_peak_bytes: MIN_RESPONSE_NODE_PEAK_BYTES,
-        // The cap covers the serialized-output floor and retains M4's cap.
+        // The cap covers the serialized-output floor and retains privacy enforcement's cap.
         final_response_bytes: FINAL_RESPONSE_BYTES,
         egress_permits: EGRESS_PERMITS,
         response_write_deadline_ms: 30_000,
@@ -780,7 +780,7 @@ mod tests {
 
     fn normalization_wire_delta() -> u64 {
         let row = limits();
-        // Stage-2 M5 funded raw B. M4 adds domains, escaped headers, syntax, and 23N.
+        // Stage-2 user sync funded raw B. privacy enforcement adds domains, escaped headers, syntax, and 23N.
         let enrichment = row
             .inbound_request_bytes
             .checked_mul(2)
@@ -848,7 +848,7 @@ mod tests {
     }
 
     fn expected_required_bytes() -> u64 {
-        // Stage-2 M5 golden already includes auxiliary work and its pinned GVLs.
+        // Stage-2 user sync golden already includes auxiliary work and its pinned GVLs.
         10_259_037_696_u64
             .checked_add(
                 u64::from(limits().max_concurrent_auctions)

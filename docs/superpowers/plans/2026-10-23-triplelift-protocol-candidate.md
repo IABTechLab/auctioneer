@@ -1,5 +1,7 @@
 # Triplelift Protocol Candidate Implementation Plan
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 > **For agentic workers:** Use superpowers:subagent-driven-development and test-driven-development. Keep candidate code, source differences and serving acceptance distinct.
 
 **Goal:** Add the real source-backed Triplelift request/response protocol to the
@@ -163,7 +165,7 @@ target only where genuinely cross-cutting.
 - [x] Update `ISSUES.md` and priority/master-plan progress with exact evidence
       and remaining gaps.
 - [x] Commit and push the verified increment to the existing
-      M7 branch/PR; do not relabel readiness, pending approval or migration.
+      bidder catalog branch/PR; do not relabel readiness, pending approval or migration.
 
 ## Verified Implementation Scope
 
@@ -231,6 +233,6 @@ that the complete workspace test suite or hosted qualification was executed.
 ### Publication
 
 Implementation commit `268d5e99c85d4247143eb8a89c9fc7196aee8ed1` was pushed
-to `origin/m7-bidder-catalog` for [PR #21](https://github.com/IABTechLab/auctioneer/pull/21).
+to `origin/bidder-catalog` for [PR #21](https://github.com/IABTechLab/auctioneer/pull/21).
 This record follows the successful push; it is not additional test evidence.
-The public Triplelift definition remains unpromoted and M7 remains incomplete.
+The public Triplelift definition remains unpromoted and bidder catalog remains incomplete.

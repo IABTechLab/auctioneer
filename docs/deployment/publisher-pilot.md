@@ -1,12 +1,12 @@
 # Limited-Bidder Publisher Acceptance
 
 Status: reusable procedure; no publisher deployment or live rollout has been
-accepted by this document. Execution belongs to M7.6, after M7.5 and the selected
-bidder wave. M6 owns the native qualification tooling and this preparation.
+accepted by this document. Execution belongs to publisher pilot, after Trusted Server embedding and the selected
+bidder wave. diagnostic qualification owns the native qualification tooling and this preparation.
 
 ## Evidence Boundary
 
-Use the [resource qualification contract](../superpowers/specs/2026-10-05-m6-parity-hardening-design.md#101-deployment-resource-qualification-q2)
+Use the [resource qualification contract](../superpowers/specs/2026-10-05-diagnostics-and-qualification-design.md#101-deployment-resource-qualification-q2)
 and the [native runner](../testing/resource-qualification.md). Local acceptance
 and deployment qualification are separate results. A passing local run is not
 permission to send publisher traffic, certify a bidder, or assert a provider
@@ -61,7 +61,7 @@ Q1, Q3 and Q4 remain EdgeZero-owned controls, not new Auctioneer implementations
 | Q4 response delivery     | Actual driver deadline, cancellation, terminal ownership and provider handoff behavior. Application-set header limits exclude provider-added framing.            |
 
 Use the pinned SDK's capability/evidence records and the
-[foundation follow-up ownership](../superpowers/plans/2026-10-06-m3b-final-review-fixes.md).
+[foundation follow-up ownership](../superpowers/plans/2026-10-06-production-fanout-final-review-fixes.md).
 A required pending/unsupported guarantee keeps the selected deployment
 nonqualified, even when local application acceptance passes. Unrelated targets
 can remain pending without blocking development.
@@ -70,7 +70,7 @@ Before publisher traffic, verify the selected real bidders' credentials,
 parameters, aliases, supported non-video formats, timeout/failure behavior,
 consent/identity enforcement, targeting, and creative rendering. Check reference
 freshness and the real cookie-key rotation/access policy. Controlled mock responses
-do not close this work. Embedding acceptance remains M7.5.
+do not close this work. Embedding acceptance remains Trusted Server embedding.
 
 ## Preserve A Known-Good Pair
 
@@ -106,7 +106,7 @@ auctioneer-cli config push --adapter axum --manifest "$MANIFEST" --app-config "$
 The manifest must select the intended isolated binding/key. A local native push
 is already local-only. For a provider, select its approved deployment/binding
 and supported flags explicitly; never reuse a shared or production store for
-corruption tests. Do not run provider writes as part of M6.
+corruption tests. Do not run provider writes as part of diagnostic qualification.
 
 ## Stage And Observe
 
@@ -139,9 +139,9 @@ selected provider's recorded staging procedure instead.
 
 ## Selected-Target Execution Handoff
 
-M7.6 must bind a versioned workload driver and a real service-only meter to the
+publisher pilot must bind a versioned workload driver and a real service-only meter to the
 selected deployment. The native local runner is not a Cloudflare/Fastly/Spin
-resource meter. M6 does not claim to ship or execute a universal provider Q2-D
+resource meter. diagnostic qualification does not claim to ship or execute a universal provider Q2-D
 driver. If the selected driver/meter is unavailable, Q2-D remains pending.
 
 In the deployment record, store the exact executable/job revision and argument
@@ -153,7 +153,7 @@ identity, complete cold/warm/scenario windows and known limitations. It cannot
 substitute generator memory, sampled averages or guest-only memory for a required
 provider/process peak.
 
-After explicit M7.6 authorization, the parameterized execution/evaluation handoff
+After explicit publisher pilot authorization, the parameterized execution/evaluation handoff
 is:
 
 ```bash

@@ -1,11 +1,13 @@
 # Automatic Bidder Registration
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Date: 2026-09-27
 Status: Draft for user review; design direction approved
-Worktree: `.claude/worktrees/m4-privacy` (`m4-privacy` branch)
+Worktree: `.claude/worktrees/privacy-enforcement` (`privacy-enforcement` branch)
 
-M7 refinement (2026-10-16): the
-[catalog specification](2026-10-16-m7-bidder-catalog-design.md) carries this
+bidder catalog refinement (2026-10-16): the
+[catalog specification](2026-10-16-bidder-catalog-design.md) carries this
 unimplemented direction forward using the current `src/bidders/<bidder_key>/mod.rs`
 layout and adjacent `bidder.toml` declarations with `create_bidder()` factories.
 All bidder implementations remain in the existing `auctioneer-bidder` crate,
@@ -15,7 +17,7 @@ catalog/alias accounting,
 schema/protocol foundations, and explicit rejection of runtime aliases
 shadowing compiled public identities. Those refinements supersede the original
 flat-file discovery proposal, new-bidder defaults, and alias-shadowing
-behavior in this draft; the declaration and helper names below follow M7.
+behavior in this draft; the declaration and helper names below follow bidder catalog.
 Neither document claims that discovery has already shipped.
 
 ## 1. Purpose and Boundary
@@ -45,14 +47,14 @@ new integrations, as agreed. No new workspace crate, EdgeZero change,
 runtime plugin loader, admin registration API, or remote metadata store is
 part of this work.
 
-This is a focused architecture improvement, not a reduction of M4 privacy
-scope and not a new production-certification milestone.
+This is a focused architecture improvement, not a reduction of privacy enforcement privacy
+scope and not a new production-certification capability.
 
 ## 2. Baseline and Existing Behavior
 
 The inspected application baseline is
 `d1f1bde25b02169b8eba04ce0dca23061c757203`; worktree HEAD is `d7b0d88`,
-which adds the initial M4 design. Relevant sources:
+which adds the initial privacy enforcement design. Relevant sources:
 
 - [Master design](2026-05-21-auctioneer-openrtb-server-design.md), sections 2.1,
   5.9, 6, and 9.1: dependency boundaries, deterministic ordering, baked
@@ -73,7 +75,7 @@ which adds the initial M4 design. Relevant sources:
   initialization and observable catalog integration points.
 
 The master design already prohibits a config-to-bidder dependency cycle.
-This design preserves that boundary. The M7 refinement above now owns the
+This design preserves that boundary. The bidder catalog refinement above now owns the
 specific registration contract; implementation must update the master
 design's registry/code-generation descriptions and the architecture guide
 to distinguish generated factories from generated metadata.
@@ -132,7 +134,7 @@ not by making the config build script link application code.
 
 ### 5.1 Local Declarations
 
-M7 supersedes the original flat-file discovery proposal. Each implementation
+bidder catalog supersedes the original flat-file discovery proposal. Each implementation
 has an adjacent `bidder.toml` declaration under
 `crates/auctioneer-bidder/src/bidders/<bidder_key>/mod.rs`:
 
@@ -169,7 +171,7 @@ arbitrary Rust tokens are not declaration fields. A declared feature must exist 
 this crate's Cargo feature table; unknown features are errors, not silently
 disabled bidders.
 
-The deterministic source-directory-to-key mapping in M7 section 5.1 preserves
+The deterministic source-directory-to-key mapping in bidder catalog section 5.1 preserves
 source paths, prefixes digit-leading results with `bidder_`, and suffixes Rust
 keywords with `_bidder`; it never derives implementation keys from public names.
 

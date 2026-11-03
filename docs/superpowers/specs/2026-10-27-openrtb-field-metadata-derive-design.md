@@ -179,5 +179,5 @@ resource-profile controls without changing allowances to obtain a pass.
    production build support, retaining no alternate permissive fallback.
 
 Implementation and promotion require the written contract's review. This work
-does not resolve the separately tracked M7 schema/resource qualification or
+does not resolve the separately tracked bidder catalog schema/resource qualification or
 hosted-readiness blockers.

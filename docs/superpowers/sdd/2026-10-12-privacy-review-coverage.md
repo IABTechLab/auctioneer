@@ -1,11 +1,13 @@
 # Privacy Review Coverage Repairs
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Follow-up: [privacy wire and config review](2026-10-12-privacy-wire-config-review.md)
 repairs the node-cap clamp and replaces the four-owner raw-slot guard described
 in this historical round. Its fresh verification is recorded separately.
 
 Date: 2026-10-12
-Worktree: `.claude/worktrees/m4-privacy`
+Worktree: `.claude/worktrees/privacy-enforcement`
 Starting revision: `8fe8d9e`; peer feedback originally targeted `a6a869b`.
 
 ## Scope
@@ -28,7 +30,7 @@ override requires a nonzero resolved vendor ID. This is explicit Auctioneer
 policy tightening, not a normative IAB mandate or a legacy compatibility
 requirement. Other Basic allow rows remain valid, including vendor ID 0
 where permitted; GVL declarations and single-restriction basis remapping
-remain Full-only. Master §7.3 / Appendix A.3 and M4 §5.3 now specify the
+remain Full-only. Master §7.3 / Appendix A.3 and privacy enforcement §5.3 now specify the
 approved rules. Both algorithms use the same matching/conflict resolver;
 Basic alone adds the nonzero-ID guard to its LI override. Unit tests first
 failed on the old implementation, then passed after the policy change.

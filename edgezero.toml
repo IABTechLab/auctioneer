@@ -9,28 +9,28 @@ version = "0.1.0"
 kind = "http"
 entry = "crates/auctioneer-core"
 
-# Route ladder per the design spec §14 milestone block:
+# Registered application routes; behavioral contracts are in the design spec:
 #
-# M2 — auction core (no privacy logic; privacy stub in place):
+# Auction and operational routes:
 #   /openrtb2/auction   (POST)
 #   /status             (GET)
 #   /info/bidders       (GET)
 #   /info/bidders/{*}   (GET)
 #
-# M3 — privacy fidelity:
+# Privacy reference-data health:
 #   /_auctioneer/health/gvl (GET)  operator-only; fail-closed 401 unless
 #                               the adapter boot installed an access
 #                               policy — restrict /_auctioneer/* at the
 #                               ingress (docs/deployment/restrict-operational-endpoints.md)
 #
-# M5 — user-sync (first milestone where sync endpoints are reachable):
+# User-sync routes:
 #   /cookie_sync        (POST)
 #   /setuid             (GET)
 #   /getuids            (GET)
 #
 # See docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md
-# §14 plus docs/superpowers/plans/2026-06-24-m2-auction.md for the
-# M2 wiring (auction-only; sync routes deliberately NOT registered).
+# §14 and the user-sync design for route behavior. The registrations below
+# include both auction and sync handlers.
 
 # Capability contract. `required` carries ONLY the guarantees whose
 # absence should block deployment: a required row that any target

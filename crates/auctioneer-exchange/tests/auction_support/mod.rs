@@ -31,7 +31,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use time::macros::datetime;
 
-pub const ACCOUNT_ID: &str = "m4-publisher";
+pub const ACCOUNT_ID: &str = "fake_account";
 pub const CLIENT_V4: &str = "8.8.4.4";
 pub const CLIENT_V6: &str = "2001:4860:4860::8844";
 pub const CONSENT: &str =
@@ -192,7 +192,7 @@ impl BidderFanout for RecordingFanout {
                         200,
                         vec![],
                         serde_json::to_vec(&json!({
-                            "id": "m4-auction", "cur": "USD",
+                            "id": "fake_req01", "cur": "USD",
                             "seatbid": [{"seat": "fake_adapter", "bid": bids}]
                         }))
                         .unwrap(),
@@ -511,7 +511,7 @@ pub fn request(names: &[&str]) -> Value {
         .map(|name| ((*name).into(), json!({})))
         .collect();
     json!({
-        "id": "m4-auction", "cur": ["USD"], "tmax": 1000,
+        "id": "fake_req01", "cur": ["USD"], "tmax": 1000,
         "site": {"id": "site-context", "ext": {"data": {"section": "news"}}},
         "imp": [{"id": "imp-1", "banner": {"w": 300, "h": 250},
             "ext": {"bidder": bidders, "tid": "imp-tid", "data": {"slot": "top"}}}],

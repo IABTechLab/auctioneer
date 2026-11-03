@@ -25,7 +25,7 @@ add constraints; they must not weaken those rules.
 
 - Read the relevant implementation, specification, plan and existing tests
   before changing a contract. Check current code instead of relying on an old
-  review or milestone description.
+  review or capability description.
 - For substantial work, agree on the scope and design before implementation.
   Keep edits focused; record unresolved requirements rather than silently
   weakening acceptance criteria.

@@ -73,7 +73,7 @@ failure. Upstream warnings are nonfatal, not permission grants.
 The 22 row-level differences live in `extraction-divergences.json`, not an
 inline switch. Each entry names its exact reference case and operation,
 named reason, complete Auctioneer extraction expectation, rationale, and existing
-approved master/M5/GPP design paths. Its `reference` metadata identifies the
+approved master/user sync/GPP design paths. Its `reference` metadata identifies the
 frozen observations, not an upstream capture of the Auctioneer expectation.
 The consumer rejects duplicate/unknown case membership, missing reasons or
 rationales, missing/non-approved design paths, and expectations equal to the
@@ -93,7 +93,7 @@ and 22 differences; the recorded reference outputs remain immutable:
 | Reject nonpositive/noncanonical sentinel and plus spellings | `sid_07`, `sid_09`, `sid_10`, `sid_11`, `sid_12` | 5 |
 | Accept wider positive SIDs | `sid_15`, `sid_17` | 2 |
 
-The four invalid/conflicting USP source rows follow the approved M5 section
+The four invalid/conflicting USP source rows follow the approved user sync section
 5.2 selection policy: invalid selected USP clears without a hard error or
 fallback, and active GPP USP wins a legacy conflict. The upstream observations
 remain unchanged. Invalid legacy USP is observed before the reference's later

@@ -12,7 +12,7 @@ separate frozen-artifact control passed. Overall qualification remains
 unsupported, all six SDK attestations pending and publisher readiness false.
 The first Rust attempt and its failed separate control are retained, not
 relabeled. No hosted provider was contacted; selected deployment execution
-remains M7.6 work.
+remains publisher pilot work.
 
 ## Active Resource Protocol
 
@@ -154,7 +154,7 @@ closed `Options` tagged `kind: "native"`, with `port`, `body_cap`, `max_requests
 and `max_sockets`, and announces
 `{"ready":true,"protocol":1,"port":PORT}` on stdout. Controls and counters use
 that private NDJSON channel, never public HTTP control routes or a JS wrapper.
-Sixteen runtime aliases reach sixteen real adapter calls; no M7 bidder or private
+Sixteen runtime aliases reach sixteen real adapter calls; no bidder catalog bidder or private
 auction engine is substituted. Fixture counters observe received call IDs,
 expanded FPD fields and emitted encoded/decoded sizes. Merely sending FPD does
 not count as expansion. Encoded gzip padding uses a legal FEXTRA member.
@@ -387,4 +387,4 @@ Rollback means typed-push the prior config, restart the prior artifact with its
 recorded SDK settings, verify status/effective gates and rerun healthy recovery.
 A file rewrite alone is not rollback. A secure production artifact, actual SDK
 guarantees and deployment-specific rollout/monitoring/rollback remain separate
-M7.6 acceptance; this loopback artifact is never promoted as production-qualified.
+publisher pilot acceptance; this loopback artifact is never promoted as production-qualified.

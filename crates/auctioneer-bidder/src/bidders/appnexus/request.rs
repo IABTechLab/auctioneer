@@ -11,7 +11,7 @@ pub(super) fn make_requests(
     info: &BidderRequestInfo<'_>,
     sink: &mut OutboundRequestSink<'_>,
 ) -> Result<(), Vec<BidderError>> {
-    // `Imp.ext` is typed `Option<ImpExt>` per M1. The exchange's
+    // `Imp.ext` is typed `Option<ImpExt>` per foundations. The exchange's
     // per-imp split + bidder-param merge stage folds the resolved
     // params into `imp.ext.bidder` (Option<serde_json::Value>), so
     // the bidder reads them directly via typed accessors — no

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M3b-0 gate: no document may normatively state the REMOVED upstream
+# Fanout-0 gate: no document may normatively state the REMOVED upstream
 # batch contract. EdgeZero hard-removed `OutboundHttpClient::send_all`;
 # auctioneer's own `BidderFanout::send_all` is a different, surviving method,
 # which is why this allowlists by type path rather than by word.
@@ -10,7 +10,7 @@
 # Exit 0 = clean, 1 = stale references, >1 = the scan itself failed.
 set -euo pipefail
 
-plan=${1:-docs/superpowers/plans/2026-07-10-m3b-multi-adapter-production-fanout.md}
+plan=${1:-docs/superpowers/plans/2026-07-10-multi-adapter-production-fanout.md}
 spec=docs/superpowers/specs/2026-05-21-auctioneer-openrtb-server-design.md
 ledger=docs/superpowers/plans/2026-09-06-edgezero-outbound-spec-feedback.md
 roots=("$plan" "$spec" "$ledger")
@@ -23,7 +23,7 @@ done
 # never matches at all.
 occurrence="[A-Za-z_:.]*send""_all([^_A-Za-z0-9]|$)"
 # auctioneer's OWN exchange-facing trait method and its impl types, plus the
-# field-call form (`ctx.fanout.send_all(..)`) the M2 plan uses.
+# field-call form (`ctx.fanout.send_all(..)`) the auction core plan uses.
 #
 # `ProductionFanout` is the former name of `EdgeZeroFanout` and is kept
 # here deliberately: the plan documents under `docs/superpowers/plans/`
@@ -48,7 +48,7 @@ if [ "$scan_status" -gt 1 ]; then
 fi
 
 # The ledger's per-gap entries from '### G1 ' on are frozen history that
-# M3b-0 may not rewrite; its current-head summary ABOVE that line is in
+# Fanout-0 may not rewrite; its current-head summary ABOVE that line is in
 # scope. A path exclusion cannot express this, because the boundary is a
 # section rather than a file.
 b=""
@@ -99,9 +99,9 @@ if [ -n "$hits" ]; then
     case "$src" in
       *HARD-REMOVED*|*'is REMOVED'*|*'at the pinned EdgeZero'*|*'async fn send'*'_all('*) continue ;;
       # The migration describing ITSELF is the task's output, not a
-      # violation: the P0 banner, M3b-0's own body, this gate's
+      # violation: the P0 banner, Fanout-0's own body, this gate's
       # comments, the capability-rename rows, and the DAG cells that
-      # say M3b-11 is blocked BECAUSE the head removed the method.
+      # say Fanout-11 is blocked BECAUSE the head removed the method.
       *'hard-remove'*|*RETIRED*|*retired*|*RENAME*|*replaces*|*'CHANGED AT HEAD'*) continue ;;
       *'may be implemented from'*|*'capability-name migration'*|*'migrated from'*) continue ;;
       *'states the '*' contract normatively'*|*'Anchored with'*|*'so `BidderFanout'*) continue ;;
@@ -109,7 +109,7 @@ if [ -n "$hits" ]; then
       # An EXPLICIT, visible exemption. Some mentions are correct and
       # must survive the rebase: a PIN-SCOPED record of what
       # 120dd2aa published, this gate's own pattern list, and the
-      # blocked-reason cells that say WHY M3b-11 waits. Marking them
+      # blocked-reason cells that say WHY Fanout-11 waits. Marking them
       # at the site beats widening heuristics until the gate stops
       # catching real regressions.
       *'batch-rebase-ok'*) continue ;;

@@ -66,8 +66,8 @@ mod tests {
         per_call_timeout_expires_yields_bidder_cause,
         redirect_is_bad_server_response_and_never_parsed,
         results_preserve_input_order_when_calls_complete_out_of_order,
-        retry_on_transient_error_never_happens_m3_is_no_retry,
         single_call_success_returns_ok_and_elapsed_within_bounds,
+        transient_transport_errors_are_not_retried,
         transport_error_preserves_category_and_wire_codes, zero_calls_returns_empty_result_set,
     };
 
@@ -96,8 +96,8 @@ mod tests {
     }
 
     #[test]
-    fn retry_on_transient_error_never_happens_m3_is_no_retry_on_interim_bridge() {
-        retry_on_transient_error_never_happens_m3_is_no_retry(FanoutUnderTest::InterimBridge);
+    fn transient_transport_errors_are_not_retried_on_interim_bridge() {
+        transient_transport_errors_are_not_retried(FanoutUnderTest::InterimBridge);
     }
 
     #[test]
@@ -142,8 +142,8 @@ mod tests {
     }
 
     #[test]
-    fn retry_on_transient_error_never_happens_m3_is_no_retry_on_per_call_bridge() {
-        retry_on_transient_error_never_happens_m3_is_no_retry(FanoutUnderTest::PerCallBridge);
+    fn transient_transport_errors_are_not_retried_on_per_call_bridge() {
+        transient_transport_errors_are_not_retried(FanoutUnderTest::PerCallBridge);
     }
 
     #[test]
@@ -197,8 +197,8 @@ mod tests {
     }
 
     #[test]
-    fn retry_on_transient_error_never_happens_m3_is_no_retry_on_bounded_wave() {
-        retry_on_transient_error_never_happens_m3_is_no_retry(FanoutUnderTest::BoundedWave);
+    fn transient_transport_errors_are_not_retried_on_bounded_wave() {
+        transient_transport_errors_are_not_retried(FanoutUnderTest::BoundedWave);
     }
 
     #[test]

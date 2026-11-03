@@ -54,7 +54,7 @@ use futures::executor::block_on;
 use time::{OffsetDateTime, macros::datetime};
 
 pub const TEST_NOW: OffsetDateTime = datetime!(2026-09-30 12:00 UTC);
-pub const STORE_ERROR_CANARY: &str = "synthetic-backend-secret-m5";
+pub const STORE_ERROR_CANARY: &str = "synthetic-backend-secret-id";
 
 enum StoreValue {
     Blob(Option<ConfigValue>),

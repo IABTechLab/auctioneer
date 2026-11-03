@@ -1,9 +1,8 @@
 //! Final-step `prepare()` checks.
 //!
 //! No consent-string parsing here.
-//! Consent warnings live in `auctioneer-privacy` from M3+; M1's `prepare()`
-//! only does the legacy 2.5 privacy rejection and the channel-empty-name
-//! rejection.
+//! Consent warnings live in `auctioneer-privacy`. These checks reject legacy
+//! 2.5 privacy fields and explicitly empty channel names.
 
 use crate::types::bid_request::BidRequest;
 use crate::validate::ValidationError;

@@ -1330,12 +1330,12 @@ pub fn single_call_success_returns_ok_and_elapsed_within_bounds(target: FanoutUn
     );
 }
 
-/// M3 has no retry. A transient upstream failure is dispatched exactly
+/// GDPR enforcement has no retry. A transient upstream failure is dispatched exactly
 /// once and reported, never re-sent.
 ///
 /// # Panics
 /// When the conformance assertion fails.
-pub fn retry_on_transient_error_never_happens_m3_is_no_retry(target: FanoutUnderTest) {
+pub fn transient_transport_errors_are_not_retried(target: FanoutUnderTest) {
     let clock = fake_clock();
     let client = TestProxyClient::builder(&clock)
         .respond(BIDDER_A, 503_u16, b"upstream busy".to_vec())

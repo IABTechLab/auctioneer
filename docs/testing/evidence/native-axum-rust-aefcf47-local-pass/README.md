@@ -1,5 +1,7 @@
 # First Rust Native Capture
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 Source: `aefcf47459eba3781e147f90fb4290d33518ebee`. The profile was
 committed and pushed in `9a8ebef` before traffic. Its SHA-256 is
 `de3e68dcefebe00cbda66317858f8e9823a06d29fdd51dc0d813cedeb6343aa2`.
@@ -38,4 +40,4 @@ profile remain unchanged; their passing rows do not complete that follow-up.
 `SHA256SUMS` covers the retained files. Frozen executables remain only in the
 local evidence directory, with their digests in profile/runner metadata. No raw
 HTTP/config/consent bodies, logs, credentials or temporary stores are retained.
-No credentialed provider test was run; M7.6 execution remains separate.
+No credentialed provider test was run; publisher pilot execution remains separate.

@@ -401,7 +401,7 @@ pub const fn limits() -> ResolvedIsolateLimits {
         max_outbound_raw_bytes: MAX_OUTBOUND_RAW_BYTES,
         max_transport_bytes: MAX_RESPONSE_ENCODED_BYTES,
         max_decoded_bytes: MAX_DECODED_RESPONSE_BYTES,
-        // Keep M4's 256-byte parse floor and fund the independent node peak.
+        // Keep privacy enforcement's 256-byte parse floor and fund the independent node peak.
         // Both charges are configurable upward, never below their floors.
         response_parse_factor: MIN_RESPONSE_PARSE_FACTOR,
         response_node_peak_bytes: MIN_RESPONSE_NODE_PEAK_BYTES,
@@ -1317,7 +1317,7 @@ mod tests {
             u64::from(limits().max_concurrent_auctions) * derived.per_auction_peak,
             1_309_354_424 + 2 * (1_576_960 + 128 * 1024 + 0x0008_0000),
         );
-        // The response node charge is independent of the M4 byte charge.
+        // The response node charge is independent of the privacy enforcement byte charge.
         assert_eq!(
             u64::from(limits().max_outbound_requests)
                 * u64::from(limits().max_parsed_nodes)

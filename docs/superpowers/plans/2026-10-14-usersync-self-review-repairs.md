@@ -24,9 +24,9 @@
 
 ## Verification And Publication
 
-- [x] Update `docs/deployment/usersync-cookie-keys.md` and `ISSUES.md` with the actual defaults and repairs. Record fresh evidence and qualification limits in `docs/superpowers/plans/2026-09-30-m5-verification.md`.
+- [x] Update `docs/deployment/usersync-cookie-keys.md` and `ISSUES.md` with the actual defaults and repairs. Record fresh evidence and qualification limits in `docs/superpowers/plans/2026-09-30-usersync-verification.md`.
 - [x] Run core/reference `--all-targets`, Spin native tests, focused lint, formatting, and fixture gates. Confirm no captured reference artifact or production Rust source changed.
-- [x] Commit the whole repair round, including documents, and push `m5-usersync`.
+- [x] Commit the whole repair round, including documents, and push `user-sync`.
 
 ## Provenance Negative Controls: Round Five
 

@@ -1064,7 +1064,7 @@ fn validate_dv_framing(
 /// (`SegmentType(3) + PubPurposesConsent(24) +
 /// PubPurposesLITransparency(24) + NumCustomPurposes(6) + 2 × N
 /// custom bits`). Contents are validated then discarded; publisher-TC
-/// enforcement is a later milestone.
+/// enforcement is a later capability.
 fn validate_publisher_tc_framing(segment: &str, budget: &mut Budget) -> Result<(), TcfParseError> {
     if segment.len() > MAX_INPUT_LEN {
         return Err(pub_tc_malformed("segment longer than the 64 KiB raw cap"));

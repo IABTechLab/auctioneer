@@ -1,5 +1,7 @@
 # User Sync Review Repairs
 
+> Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
+
 **Goal:** Close the confirmed user-sync review findings on the final merged
 privacy baseline and the current EdgeZero PR #275 revision.
 
@@ -100,7 +102,7 @@ reserved-name rejection and stderr fallback were exercised locally.
 ## Publication
 
 The verified code and merged privacy baseline were committed and pushed as
-`de3778d5c0c5d86526edb6a3163c3426e4a04b07` to `origin/m5-usersync`,
+`de3778d5c0c5d86526edb6a3163c3426e4a04b07` to `origin/user-sync`,
 updating [PR #18](https://github.com/IABTechLab/auctioneer/pull/18), which targets
 `main`. Local and remote branch hashes matched after the push. No force push,
-deployment, downstream milestone mutation or remote-CI completion is claimed.
+deployment, downstream capability mutation or remote-CI completion is claimed.

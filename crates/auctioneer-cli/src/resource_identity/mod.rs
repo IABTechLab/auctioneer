@@ -30,7 +30,7 @@ pub struct BuildIdentity {
 }
 
 fn source_path(path: &Path) -> bool {
-    // Only non-Rust documentation and approved R0 records are evidence.
+    // Only non-Rust documentation and approved resource qualification records are evidence.
     // Rust owners remain source even when placed inside either evidence tree.
     path.extension() == Some(OsStr::new("rs"))
         || (!path.starts_with("docs")

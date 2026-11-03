@@ -1,6 +1,6 @@
 # EdgeZero Bounded Ingress And Config Update
 
-**Scope:** M3b only, based on Auctioneer `8a489821c5776295e1cc0e655a8ebdb73cde4531`.
+**Scope:** bounded fanout only, based on Auctioneer `8a489821c5776295e1cc0e655a8ebdb73cde4531`.
 Preserve existing Fastly local-config edits. No downstream merge or hosted deployment.
 
 **SDK:** [EdgeZero PR #275](https://github.com/IABTechLab/edgezero/pull/275),
@@ -32,7 +32,7 @@ PR #285 is unrelated and is not the dependency source.
 
 These supersede the earlier qualification ledger only for the concrete implementation
 boundaries above. They do not turn all Q1/Q3/Q4 items into unconditional provider guarantees.
-Q2 remains an explicit Auctioneer M6 requirement: tune and qualify the exact serving artifact,
+Q2 remains an explicit Auctioneer diagnostic qualification requirement: tune and qualify the exact serving artifact,
 including config residency and cold GVL parses. An over-ceiling warning is not acceptance.
 
 ## Verification Results
