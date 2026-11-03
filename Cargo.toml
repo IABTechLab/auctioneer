@@ -129,7 +129,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["std", "raw_value"] }
 # Native-only reference inventory/import; not a guest configuration loader.
 serde_yaml_ng = "=0.10.0"
-yaml-rust2 = { version = "=0.11.0", default-features = false }
+yaml-rust2 = { version = "=0.13.0", default-features = false }
 # Dotted-field-path retention for GVL/GCL schema errors
 # (`MalformedEntry { path }` diagnostics in auctioneer-gvl-schema).
 serde_path_to_error = "0.1"
