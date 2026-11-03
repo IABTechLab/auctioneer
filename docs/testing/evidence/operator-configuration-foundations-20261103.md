@@ -212,15 +212,71 @@ snapshot. CLI/store/typed-host callers are not switched. Temporary namespace
 folding, identity-set nodes and validation-error peaks still require Task 4
 funding before activation; no zero-allocation or ready-target claim is made.
 
+## Review Repairs
+
+The five inline review threads were checked against the staged implementation.
+These repairs do not activate the proposed policy reader or change resource
+charges, dependency pins or feature eligibility.
+
+- All 32 optional fields declared in `policy.rs` reject explicit null across
+  48 tested paths. Absent fields are omitted when serializing, and keyed purpose
+  maps serialize their numeric keys as strings for JSON/TOML round trips.
+  Reused legacy nested DTO leaves are outside this change; their strictness
+  remains part of the atomic policy cutover, not a completed guarantee.
+- `FieldOverride::Value` rejects a root value that serializes as null, including
+  optional, unit/newtype and non-finite cases. A one-pass serializer adapter
+  preserves compound values and legitimate nested nulls without another JSON
+  tree or a serialization prepass.
+- The existing generated-settings child suite now supplies real typed settings
+  for an implementation whose feature/factory is unavailable. Shared admission
+  refuses both enabled and disabled supplied entries before callbacks or factory
+  construction. Existing discovery eligibility is preserved, rather than
+  generating references to absent modules.
+- The 512-identity registry observations now have independent requested,
+  retained and peak regression ceilings. Populating every callback slot yields
+  the same complete allocation measurement as empty slots, with all 512 slots
+  checked, no factory calls and a positive control for callback observation.
+  These are requested-heap regression checks, not worst-case resource bounds.
+- The two currently rule-free bidder configuration views are explicit unit
+  structs. Their tests assert generated fieldwise projections independently;
+  they do not claim a semantic rejection rule that those views do not contain.
+
+Observed red controls included three policy failures (null acceptance,
+serialization of omitted fields and TOML map keys), three field-override
+failures (root null/newtype/null-producing floats), an empty allocation guard,
+and the unlinked-settings case with only its availability check removed. The
+last mutation dispatched all 25 child cases: 24 passed and only the new case
+failed. The original production guard was restored byte-for-byte before the
+green workflow run.
+
+| Final command selection | Executed result |
+| --- | --- |
+| `cargo test -p auctioneer-core --lib` | 670 passed, no failures, ignores or filtered cases. The configuration selection contains 195 cases, including 16 policy and 29 field-override cases. |
+| `cargo test -p auctioneer-bidder --lib` | 1,188 passed, no failures, 9 existing source-dependent cases ignored. |
+| `cargo test -p auctioneer-bidder --test catalog_alloc --test test_isolation -- --test-threads=1` | 8 allocation and 16 ownership/isolation cases passed. |
+| `.github/workflows/scripts/test/verify-schema-compiler-conformance.sh settings` | 19 outer and exactly 25 child cases passed, followed by dedicated generated-settings Clippy. One existing compiler owner, not a new duplicated child-build suite. |
+| Core library/test and bidder library/allocation Clippy with `-D warnings` | Passed after correcting test-only import/counter lints. No allowance or lint policy was changed. |
+
+Independent read-only specification and quality reviews found no remaining
+in-scope issues in the seven source/test files. Guest compilation/execution,
+hosted acceptance and complete resource qualification were not rerun for these
+repairs. Known GVL deletion and future-incompatibility notices remain.
+
+The maintainer reaffirmed one operator configuration document and one
+load/validate pipeline. Startup and runtime remain scopes of that document,
+not separate files, loaders or validators. Design section 9.1 records the
+required bounded, reload-free SDK path and its remaining review prerequisites.
+
 ## Required Before Cutover
 
 Tasks 4-10 remain uncompleted. In particular:
 
 - Review the exact startup-input and parser/storage reservations and snapshot
   retention/admission ownership under #128/#130 before numeric adoption.
-- Select a reviewed bounded authoring/startup owner or adequate SDK extension.
+- Extend the single SDK authoring/startup pipeline under a reviewed contract.
   It must bound the actual read, parsing, relevant environment materialization
-  and any retained copies, rather than just checking after allocation.
+  and retained copies without a second loader, reread or post-allocation-only
+  check.
 - Implement the complete pure context-based semantic validation/resolution path
   and connect its staged shared bidder subvalidator. CLI, store and typed-host
   admission must use that same path.

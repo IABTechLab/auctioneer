@@ -543,6 +543,39 @@ Auctioneer scan of the process environment. Diagnostics report fixed reason
 codes and reviewed field paths only; rejected values and secret locations are
 not copied into logs, error parameters, public status or config exports.
 
+### 9.1. One Configuration Loading Pipeline
+
+The maintainer reaffirmed one operator configuration and one load/validate flow
+on 2026-11-03. Keep the single authoring document with its startup and runtime
+scopes. Their different lifecycles do not introduce another operator file,
+another loader, a supported legacy format or an alternate validator. Compiled
+neutral product defaults are product data, not a second operator configuration.
+
+The EdgeZero pipeline must read the selected document under explicit bounds,
+apply the selected scalar overlay once, deserialize it once and invoke the
+shared context-based admission rules. Each validate, diff or push invocation
+uses this pipeline and reuses its accepted input rather than reopening its path
+or collecting ambient environment again. An internal prepared value is only
+a handoff within this pipeline, not a new configuration source or a
+cross-request cache. Runtime publication
+continues to emit the runtime projection of the same authoring document.
+
+The bounded operation must cover actual file/manifest reads and environment or
+binding materialization, not just a preliminary size check. Changing the file
+or environment after preparation must not substitute different data between
+validation and emission. Keep SDK envelope, store selection, secret handling,
+command flags and permanent/transient refusals intact, without new cryptography
+or raw-value diagnostics. The initial authoring read uses independent loader
+ceilings, not limits declared inside the document it is reading. Validate its
+startup intent before installing the domain or accessing the selected runtime
+source; publishing policy cannot redefine those established trust, source and
+admission facts.
+
+The pinned SDK does not yet expose this bounded, reload-free pipeline. Its
+extension and the exact startup/storage package remain prerequisites under
+#128/#130. This clarification does not approve numeric reservations, an
+unbounded SDK reread, an Auctioneer-specific parallel loader or serving cutover.
+
 ## 10. Trusted Server Integration
 
 Trusted Server owns its EdgeZero App, validated Settings, stores, secrets,

@@ -41,6 +41,9 @@ updated callers does not count as implementing their operator startup ports.
   schema reservations, resource floors or the additive budget equation.
 - No new cross-request store cache or last-known-good store behavior.
 - No unbounded startup read, post-allocation-only limit, or invented SDK hook.
+- One operator configuration document and one SDK load/validate pipeline;
+  startup/runtime are internal scopes, not separate files or loaders. Follow
+  design section 9.1 for the bounded, reload-free handoff.
 - No rewriting historical evidence, reference captures or attribution.
 - No raw config values, credentials, consent or store locations in diagnostics.
 - No handwritten source imports, new per-feature duplicate compiler owners,
@@ -322,8 +325,10 @@ record attached to #128/#130 before measurement, with repository evidence link.
   loading or a typed host Settings object establishes a bounded read.
   Trace CLI raw/typed reloads as well: a preliminary bounded read does not
   bound a later SDK whole-file reread or a second environment materialization.
-  Each actual read must use the approved boundary; a missing reusable SDK hook
-  stays an explicit prerequisite, not an assumed implementation.
+  The SDK pipeline must reuse the same accepted input within each command,
+  without reopening the file or resampling ambient environment. A missing
+  reusable SDK hook stays an explicit prerequisite, not an assumed
+  implementation or permission for an Auctioneer-specific parallel loader.
 - [ ] Freeze each proposed input cap, unit, parser/depth/value limit, deadline,
   retained storage allowance, owner and under/at/over test. Include startup
   file, scalar overlays, binding names/maps, health/token inputs and temporary
@@ -463,7 +468,10 @@ only in Task 8, atomically with removal of its build reader.
   file with the new type. Move shipped-file projection controls to Task 8's
   checkpoint. The branch remains unshippable until that checkpoint passes.
 - [ ] Wire existing validate/diff/push through the same explicit validation
-  context, not ambient installed boot globals. Where supported, those commands
+  context and single bounded loading pipeline, not ambient installed boot
+  globals. Exercise changed-file and changed-environment controls after input
+  preparation: validation and emission must still use the identical accepted
+  input. No second typed file load or cross-command cache. These commands
   validate startup as well as the projected policy. Preserve deployed secret
   metadata paths without adding a `runtime.` prefix to projected payload paths.
   Audit all secret metadata when policy fields move beneath `host`.
@@ -676,8 +684,8 @@ records subsequent test execution, the pinned SDK audit and registry growth.
 | --- | --- |
 | Pre-edit selected baselines | Executed; 176 parent test cases passed, with the existing child-only CLI probes driven by their parent cases. |
 | Strict operator authoring root | Implemented alongside the unchanged old reader; 12 root integration cases and 3 schema library cases pass. Spec and code-quality review approved; strict schema test lint passed. |
-| Explicit field override | Implemented test-first; 24 inline cases pass, including duplicate/escaped marker keys, strict clear shape and direct null refusal. Temporary parser allocations are not resource-qualified. |
-| Versioned policy model | Strict DTO implemented; 12 inline cases pass, including JSON/TOML opt-out leaf inheritance. Combined core configuration selection: 170 passed. Spec and code-quality reviews approved; post-fix strict test lint passed. Semantic admission is not implemented. |
-| Bidder-owned validation | Discovery and local callbacks implemented; bidder library 1,188 passed (9 existing source-dependent ignores), registry 21 and ownership 16 passed. Strict bidder lint passed. The once-owned settings contract passed 19 outer / 18 reconciled child cases, and discovery passed 38. Exact ABI controls and matched native construction observations completed; staging spec and quality reviews approved. Allocation target: all 6 cases passed; guest test compilation and strict guest library/allocation lint passed. No serving callback activation or resource admission. |
+| Explicit field override | Implemented test-first; 29 inline cases pass, including duplicate/escaped marker keys, strict clear shape, direct null refusal and rejection of programmatic null-producing roots. Temporary parser allocations are not resource-qualified. |
+| Versioned policy model | Staged DTO implemented; 16 inline cases pass, including JSON/TOML opt-out leaf inheritance and null/omission/value controls for all optional fields declared locally. Reused legacy nested DTO strictness remains part of cutover. Combined core configuration selection: 195 passed; full core library: 670 passed. Spec/quality reviews and strict test lint passed. Full semantic admission is not implemented. |
+| Bidder-owned validation | Discovery, local callbacks and the staged pure shared dispatcher are implemented; bidder library 1,188 passed (9 existing source-dependent ignores), registry 21 and ownership 16 passed. Strict bidder lint passed. The once-owned settings contract passed 19 outer / 25 reconciled child cases, including absent-feature settings refusal; discovery passed 38. Exact ABI controls and matched native construction observations completed; staging spec and quality reviews approved. Allocation target: 8 passed, including independent regression ceilings and populated callback slots. Earlier guest test compilation and strict guest library/allocation lint passed; guest checks were not rerun for these review repairs. No serving callback activation or resource admission. |
 | SDK bounded-input audit | Exact locked source confirmed through Cargo metadata. Store extraction has bounded reads; the TOML authoring loader and typed CLI rereads do not expose equivalent bounded-input hooks. This remains a Task 4 prerequisite, not an excuse for unbounded bootstrap. |
 | Serving/default/bootstrap/CLI cutover | Not started; the exact startup reservation gate is still outstanding. |

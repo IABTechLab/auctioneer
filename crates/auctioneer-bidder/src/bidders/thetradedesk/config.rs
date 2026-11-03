@@ -5,17 +5,17 @@
 use crate::{BidderConfigError, BidderConfigInput};
 use validator::{Validate, ValidationErrors};
 
-pub(super) struct Config<'a> {
-    _input: BidderConfigInput<'a>,
-}
+/// Explicitly rule-free: supply can be impression-owned, so this view neither
+/// invents a deployment requirement nor retains unused configuration input.
+pub(super) struct Config;
 
-impl<'a> From<BidderConfigInput<'a>> for Config<'a> {
-    fn from(input: BidderConfigInput<'a>) -> Self {
-        Self { _input: input }
+impl From<BidderConfigInput<'_>> for Config {
+    fn from(_input: BidderConfigInput<'_>) -> Self {
+        Self
     }
 }
 
-impl Validate for Config<'_> {
+impl Validate for Config {
     fn validate(&self) -> Result<(), ValidationErrors> {
         Ok(())
     }
@@ -31,21 +31,30 @@ pub(super) fn error(_: ValidationErrors) -> BidderConfigError {
 #[cfg(test)]
 mod tests {
     use crate::BidderConfigInput;
-    use auctioneer_config::{BidderSettings, types::BidderInfo};
+    use auctioneer_config::{BidderSettings, bidder_settings::thetradedesk, types::BidderInfo};
     use serde_json::json;
 
     #[test]
-    fn supply_is_not_deployment_required_and_empty_keeps_impression_fallback() {
+    fn typed_supply_preserves_absence_empty_and_host_fallback() {
         let definition = BidderInfo::default();
-        for values in [
-            json!({}),
-            json!({"supply_id":null}),
-            json!({"supply_id":""}),
-            json!({"supply_id":"fake_supply"}),
+        let parent: BidderSettings = serde_json::from_value(json!({
+            "implementation":"thetradedesk", "values":{"supply_id":"fake_parent"}
+        }))
+        .unwrap();
+        for (values, expected) in [
+            (json!({}), "fake_parent"),
+            (json!({"supply_id":null}), "fake_parent"),
+            (json!({"supply_id":""}), ""),
+            (json!({"supply_id":"fake_supply"}), "fake_supply"),
         ] {
             let supplied: BidderSettings =
                 serde_json::from_value(json!({"implementation":"thetradedesk", "values":values}))
                     .unwrap();
+            assert_eq!(
+                thetradedesk::resolve(supplied.as_thetradedesk(), parent.as_thetradedesk())
+                    .supply_id(),
+                Some(expected)
+            );
             for enabled in [false, true] {
                 for (requested, base) in [
                     (None, None),

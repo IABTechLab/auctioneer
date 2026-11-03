@@ -898,6 +898,59 @@ mod config_callbacks {
     }
 
     #[test]
+    fn shared_admission_rejects_settings_for_unlinked_factories() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let declarations: Vec<_> = bidder_declarations()
+            .iter()
+            .map(|row| BidderDeclaration {
+                key: row.key,
+                required_feature: if row.key == "fake_integer_probe" {
+                    Some("fake_disabled_feature")
+                } else {
+                    row.required_feature
+                },
+                has_settings: row.has_settings,
+            })
+            .collect();
+        let factories: Vec<_> = compiled_bidders()
+            .iter()
+            .filter(|row| row.key != "fake_integer_probe")
+            .map(|row| BidderRegistration {
+                key: row.key,
+                factory: row.factory,
+                config_validator: row.config_validator,
+            })
+            .collect();
+        let catalog = ValidatedRegistryPlan::validate(RegistryInputs {
+            infos: &[],
+            bindings: &[],
+            metadata_declarations: &[],
+            factory_declarations: &declarations,
+            factories: &factories,
+            aliases: &[],
+        })
+        .unwrap();
+        assert!(catalog.config_validator("fake_integer_probe").is_none());
+        assert_eq!(
+            catalog.factory_keys().collect::<Vec<_>>(),
+            vec!["fake_string_probe"]
+        );
+        for enabled in [false, true] {
+            let bidders = overrides(json!({
+                "fake_future":{"enabled":enabled, "settings":{
+                    "implementation":"fake_integer_probe", "values":{"primary_number":0_i64}
+                }}
+            }));
+            assert_eq!(
+                validate_bidder_configuration(&bidders, &BTreeMap::new(), &catalog),
+                Err(BidderConfigurationError::SettingsBinding)
+            );
+            assert!(observations().is_empty());
+        }
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
     fn shared_admission_rejects_settings_limits_before_any_callback() {
         let before = auctioneer_bidder::fake_synthetic::factory_calls();
         let catalog = public_plan(true, false);

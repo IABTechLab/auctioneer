@@ -117,7 +117,8 @@ mod tests {
         workspace.report();
     }
 
-    const EXPECTED_TESTS: [&str; 24] = [
+    const EXPECTED_TESTS: [&str; 25] = [
+        "config_callbacks::shared_admission_rejects_settings_for_unlinked_factories",
         "config_callbacks::shared_admission_visits_each_identity_once_with_fieldwise_alias_fallback",
         "config_callbacks::shared_admission_checks_disabled_and_shadowed_supplied_values",
         "config_callbacks::shared_admission_enforces_requiredness_only_for_known_enabled_identities",
@@ -158,7 +159,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -180,7 +181,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }

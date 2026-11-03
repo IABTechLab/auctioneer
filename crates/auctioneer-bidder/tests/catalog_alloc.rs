@@ -16,7 +16,11 @@ mod tests {
     use auctioneer_runtime::CatalogResourceCosts;
     use serde_json::{Value, json};
     use std::array;
+    #[cfg(not(target_arch = "wasm32"))]
+    use std::cell::Cell;
     use std::hint::black_box;
+    #[cfg(all(not(target_arch = "wasm32"), target_pointer_width = "64"))]
+    use std::panic::catch_unwind;
 
     #[cfg(not(target_arch = "wasm32"))]
     struct RegistryConstructionFixture {
@@ -31,6 +35,10 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     impl RegistryConstructionFixture {
         fn new(count: usize) -> Self {
+            Self::with_settings(count, false)
+        }
+
+        fn with_settings(count: usize, has_settings: bool) -> Self {
             use auctioneer_bidder::{BidderDeclaration, BidderRegistration, RegistryAlias};
             use auctioneer_config::types::{
                 BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
@@ -73,12 +81,12 @@ mod tests {
                 declarations.push(BidderDeclaration {
                     key: implementation,
                     required_feature: Some("fake_layout_feature"),
-                    has_settings: false,
+                    has_settings,
                 });
                 factories.push(BidderRegistration {
                     key: implementation,
                     factory: forbidden_factory,
-                    config_validator: None,
+                    config_validator: has_settings.then_some(observe_config_validation),
                 });
                 aliases.push(RegistryAlias {
                     name: child,
@@ -108,6 +116,110 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    thread_local! {
+        static CONFIG_VALIDATIONS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn observe_config_validation(
+        _input: auctioneer_bidder::BidderConfigInput<'_>,
+    ) -> Result<(), auctioneer_bidder::BidderConfigError> {
+        CONFIG_VALIDATIONS.set(CONFIG_VALIDATIONS.get().saturating_add(1));
+        Err(auctioneer_bidder::BidderConfigError {
+            field: "fake_field",
+            reason: "unexpected_validation_during_construction",
+        })
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), target_pointer_width = "64"))]
+    fn require_construction_regression_baseline(allocation: Measurement) {
+        // Frozen 512-identity requested-heap observations, not an exhaustive
+        // bound or a replacement for production resource qualification.
+        assert!(
+            allocation.requested_bytes <= 565_136,
+            "registry construction requested-byte regression"
+        );
+        assert!(
+            allocation.retained_bytes <= 130_368,
+            "registry construction retained-byte regression"
+        );
+        assert!(
+            allocation.peak_bytes <= 270_352,
+            "registry construction peak-byte regression"
+        );
+    }
+
+    #[test]
+    #[cfg(all(not(target_arch = "wasm32"), target_pointer_width = "64"))]
+    fn construction_regression_guard_rejects_each_independent_overrun() {
+        for (requested, retained, peak) in [
+            (565_137_usize, 130_368_usize, 270_352_usize),
+            (565_136, 130_369, 270_352),
+            (565_136, 130_368, 270_353),
+        ] {
+            let allocation = Measurement {
+                requested_bytes: requested,
+                retained_bytes: retained,
+                peak_bytes: peak,
+                ..Measurement::default()
+            };
+            assert!(catch_unwind(|| require_construction_regression_baseline(allocation)).is_err());
+        }
+    }
+
+    #[test]
+    #[cfg(all(not(target_arch = "wasm32"), target_pointer_width = "64"))]
+    fn populated_configuration_callbacks_preserve_the_construction_baseline() {
+        use auctioneer_bidder::{BidderConfigInput, ValidatedRegistryPlan};
+
+        assert_allocator_control();
+        CONFIG_VALIDATIONS.set(0);
+        let control_result = observe_config_validation(BidderConfigInput {
+            requested: None,
+            base: None,
+            definition: None,
+            enabled: false,
+        });
+        assert!(control_result.is_err());
+        assert_eq!(
+            CONFIG_VALIDATIONS.get(),
+            1,
+            "positive control for callback observation"
+        );
+        CONFIG_VALIDATIONS.set(0);
+
+        let empty_fixture = RegistryConstructionFixture::new(256);
+        let (empty_result, empty_allocation) = alloc_track::measure(|| {
+            ValidatedRegistryPlan::validate(black_box(empty_fixture.inputs()))
+        });
+        let empty_plan = empty_result.expect("empty callback baseline must validate");
+        assert!(empty_allocation.retained_bytes > 0);
+        require_construction_regression_baseline(empty_allocation);
+        drop(black_box(empty_plan));
+
+        let fixture = RegistryConstructionFixture::with_settings(256, true);
+        let (result, allocation) =
+            alloc_track::measure(|| ValidatedRegistryPlan::validate(black_box(fixture.inputs())));
+        let plan = result.expect("populated callbacks must preserve registry validation");
+        assert!(!allocation.invalid);
+        assert_eq!(plan.definitions().len(), 512);
+        assert_eq!(plan.factory_keys().len(), 256);
+        assert_eq!(
+            plan.definitions()
+                .filter(|entry| entry.config_validator().is_some())
+                .count(),
+            512
+        );
+        assert_eq!(CONFIG_VALIDATIONS.get(), 0);
+        assert_eq!(
+            allocation, empty_allocation,
+            "filling callback slots must not add hidden index allocations"
+        );
+        require_construction_regression_baseline(allocation);
+        drop(black_box(plan));
+    }
+
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn actual_registry_construction_peak_observation() {
@@ -119,7 +231,6 @@ mod tests {
         // bound or an assertion about every possible B-tree split regime.
         for count in [0_usize, 1, 11, 12, 13, 63, 64, 65, 127, 128, 129, 255, 256] {
             let fixture = RegistryConstructionFixture::new(count);
-            assert!(fixture.infos.len() <= 512);
             let inputs = fixture.inputs();
             let (result, allocation) =
                 alloc_track::measure(|| ValidatedRegistryPlan::validate(black_box(inputs)));
@@ -134,6 +245,10 @@ mod tests {
             } else {
                 assert!(allocation.allocation_calls > 0);
                 assert!(allocation.retained_bytes > 0);
+            }
+            #[cfg(target_pointer_width = "64")]
+            if count == 256 {
+                require_construction_regression_baseline(allocation);
             }
             // Fixture setup, reporting and final destruction are outside the
             // interval; the returned plan stays alive through measurement end.

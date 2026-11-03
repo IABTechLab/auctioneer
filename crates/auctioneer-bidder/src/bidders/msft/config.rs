@@ -4,17 +4,17 @@
 use crate::{BidderConfigError, BidderConfigInput};
 use validator::{Validate, ValidationErrors};
 
-pub(super) struct Config<'a> {
-    _input: BidderConfigInput<'a>,
-}
+/// Explicitly rule-free; strict shape/binding admission is shared, while source
+/// normalization belongs to request construction. No configuration is retained.
+pub(super) struct Config;
 
-impl<'a> From<BidderConfigInput<'a>> for Config<'a> {
-    fn from(input: BidderConfigInput<'a>) -> Self {
-        Self { _input: input }
+impl From<BidderConfigInput<'_>> for Config {
+    fn from(_input: BidderConfigInput<'_>) -> Self {
+        Self
     }
 }
 
-impl Validate for Config<'_> {
+impl Validate for Config {
     fn validate(&self) -> Result<(), ValidationErrors> {
         Ok(())
     }
@@ -30,21 +30,29 @@ pub(super) fn error(_: ValidationErrors) -> BidderConfigError {
 #[cfg(test)]
 mod tests {
     use crate::BidderConfigInput;
-    use auctioneer_config::{BidderSettings, types::BidderInfo};
+    use auctioneer_config::{BidderSettings, bidder_settings::msft, types::BidderInfo};
     use serde_json::json;
 
     #[test]
-    fn optional_signed_sources_keep_zero_null_and_independent_field_fallback() {
+    fn typed_signed_sources_preserve_values_and_independent_field_fallback() {
         let definition = BidderInfo::default();
         let base: BidderSettings = serde_json::from_value(json!({"implementation":"msft", "values":{"hb_source":i64::MIN, "hb_source_video":i64::MAX}})).unwrap();
-        for values in [
-            json!({}),
-            json!({"hb_source":null, "hb_source_video":null}),
-            json!({"hb_source":0_i64}),
-            json!({"hb_source_video":-7_i64}),
+        for (values, expected) in [
+            (json!({}), (i64::MIN, i64::MAX)),
+            (
+                json!({"hb_source":null, "hb_source_video":null}),
+                (i64::MIN, i64::MAX),
+            ),
+            (json!({"hb_source":0_i64}), (0, i64::MAX)),
+            (json!({"hb_source_video":-7_i64}), (i64::MIN, -7)),
         ] {
             let requested: BidderSettings =
                 serde_json::from_value(json!({"implementation":"msft", "values":values})).unwrap();
+            let resolved = msft::resolve(requested.as_msft(), base.as_msft());
+            assert_eq!(
+                (resolved.hb_source(), resolved.hb_source_video()),
+                (Some(expected.0), Some(expected.1))
+            );
             for enabled in [false, true] {
                 assert_eq!(
                     super::super::validate_config(BidderConfigInput {

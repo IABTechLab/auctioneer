@@ -23,6 +23,8 @@ pub enum FieldOverride<T> {
     #[default]
     Inherit,
     /// Replace the inherited setting with this value.
+    /// Null, unit and nonfinite roots cannot be serialized; nulls inside
+    /// compound values retain the inner type's serialization semantics.
     Value(T),
     /// Remove the inherited optional setting.
     Clear,
@@ -52,13 +54,211 @@ impl<T: Serialize> Serialize for FieldOverride<T> {
             Self::Inherit => Err(SerializeError::custom(
                 "an inherited override must be omitted by its container",
             )),
-            Self::Value(value) => value.serialize(serializer),
+            Self::Value(value) => value.serialize(NonNullSerializer(serializer)),
             Self::Clear => {
                 let mut map = serializer.serialize_map(Some(1))?;
                 map.serialize_entry("clear", &true)?;
                 map.end()
             }
         }
+    }
+}
+
+const NULL_OVERRIDE_VALUE_ERROR: &str = "an override value must not serialize as null";
+
+struct NonNullValue<'a, T: ?Sized>(&'a T);
+
+impl<T: ?Sized + Serialize> Serialize for NonNullValue<'_, T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(NonNullSerializer(serializer))
+    }
+}
+
+// Some and newtypes keep the root guard without losing serializer metadata.
+// Compound handles are forwarded unchanged so their nested nulls remain valid.
+struct NonNullSerializer<S>(S);
+
+impl<S: Serializer> Serializer for NonNullSerializer<S> {
+    type Ok = S::Ok;
+    type Error = S::Error;
+    type SerializeSeq = S::SerializeSeq;
+    type SerializeTuple = S::SerializeTuple;
+    type SerializeTupleStruct = S::SerializeTupleStruct;
+    type SerializeTupleVariant = S::SerializeTupleVariant;
+    type SerializeMap = S::SerializeMap;
+    type SerializeStruct = S::SerializeStruct;
+    type SerializeStructVariant = S::SerializeStructVariant;
+
+    fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_bool(v)
+    }
+
+    fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_i8(v)
+    }
+
+    fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_i16(v)
+    }
+
+    fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_i32(v)
+    }
+
+    fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_i64(v)
+    }
+
+    fn serialize_i128(self, v: i128) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_i128(v)
+    }
+
+    fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_u8(v)
+    }
+
+    fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_u16(v)
+    }
+
+    fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_u32(v)
+    }
+
+    fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_u64(v)
+    }
+
+    fn serialize_u128(self, v: u128) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_u128(v)
+    }
+
+    fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
+        if !v.is_finite() {
+            return Err(SerializeError::custom(NULL_OVERRIDE_VALUE_ERROR));
+        }
+        self.0.serialize_f32(v)
+    }
+
+    fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
+        if !v.is_finite() {
+            return Err(SerializeError::custom(NULL_OVERRIDE_VALUE_ERROR));
+        }
+        self.0.serialize_f64(v)
+    }
+
+    fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_char(v)
+    }
+
+    fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_str(v)
+    }
+
+    fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_bytes(v)
+    }
+
+    fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
+        Err(SerializeError::custom(NULL_OVERRIDE_VALUE_ERROR))
+    }
+
+    fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_some(&NonNullValue(value))
+    }
+
+    fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
+        Err(SerializeError::custom(NULL_OVERRIDE_VALUE_ERROR))
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
+        Err(SerializeError::custom(NULL_OVERRIDE_VALUE_ERROR))
+    }
+
+    fn serialize_unit_variant(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        variant: &'static str,
+    ) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_unit_variant(name, variant_index, variant)
+    }
+
+    fn serialize_newtype_struct<T: ?Sized + Serialize>(
+        self,
+        name: &'static str,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error> {
+        self.0.serialize_newtype_struct(name, &NonNullValue(value))
+    }
+
+    fn serialize_newtype_variant<T: ?Sized + Serialize>(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        variant: &'static str,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error> {
+        self.0
+            .serialize_newtype_variant(name, variant_index, variant, value)
+    }
+
+    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        self.0.serialize_seq(len)
+    }
+
+    fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
+        self.0.serialize_tuple(len)
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        name: &'static str,
+        len: usize,
+    ) -> Result<Self::SerializeTupleStruct, Self::Error> {
+        self.0.serialize_tuple_struct(name, len)
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        variant: &'static str,
+        len: usize,
+    ) -> Result<Self::SerializeTupleVariant, Self::Error> {
+        self.0
+            .serialize_tuple_variant(name, variant_index, variant, len)
+    }
+
+    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        self.0.serialize_map(len)
+    }
+
+    fn serialize_struct(
+        self,
+        name: &'static str,
+        len: usize,
+    ) -> Result<Self::SerializeStruct, Self::Error> {
+        self.0.serialize_struct(name, len)
+    }
+
+    fn serialize_struct_variant(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        variant: &'static str,
+        len: usize,
+    ) -> Result<Self::SerializeStructVariant, Self::Error> {
+        self.0
+            .serialize_struct_variant(name, variant_index, variant, len)
+    }
+
+    fn collect_str<T: ?Sized + fmt::Display>(self, value: &T) -> Result<Self::Ok, Self::Error> {
+        self.0.collect_str(value)
+    }
+
+    fn is_human_readable(&self) -> bool {
+        self.0.is_human_readable()
     }
 }
 
@@ -236,9 +436,9 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for OverrideMap<'de, A> {
 #[cfg(test)]
 mod tests {
     use super::FieldOverride;
-    use serde::{Deserialize, Serialize};
+    use serde::{Deserialize, Serialize, de::DeserializeOwned};
     use serde_json::{Value, error::Category, json};
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, fmt::Debug};
 
     #[derive(Debug, Deserialize, Serialize, PartialEq)]
     #[serde(deny_unknown_fields, bound(deserialize = "T: Deserialize<'de>"))]
@@ -517,9 +717,11 @@ mod tests {
 
     #[test]
     fn programmatic_values_retain_the_inner_serialization_semantics() {
+        let error = serde_json::to_value(FieldOverride::Value(None::<String>)).unwrap_err();
+        assert_eq!(error.classify(), Category::Data);
         assert_eq!(
-            serde_json::to_value(FieldOverride::Value(None::<String>)).unwrap(),
-            json!(null)
+            error.to_string(),
+            "an override value must not serialize as null"
         );
         assert_eq!(
             serde_json::to_value(FieldOverride::Value(json!({"clear": false}))).unwrap(),
@@ -527,6 +729,148 @@ mod tests {
         );
         assert!(FieldOverride::<String>::Inherit.is_inherit());
         assert!(!FieldOverride::Value(false).is_inherit());
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct Newtype<T>(T);
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    #[serde(transparent)]
+    struct Transparent<T>(T);
+
+    fn assert_null_serialization_rejected<T: Serialize>(value: T) {
+        let setting = FieldOverride::Value(value);
+        for error in [
+            serde_json::to_value(&setting).unwrap_err(),
+            serde_json::to_string(&setting).unwrap_err(),
+        ] {
+            assert_eq!(error.classify(), Category::Data);
+            assert_eq!(
+                error.to_string(),
+                "an override value must not serialize as null"
+            );
+        }
+    }
+
+    fn assert_json_round_trip<T>(value: T, expected: &Value)
+    where
+        T: Serialize + DeserializeOwned + Debug + PartialEq,
+    {
+        let setting = FieldOverride::Value(value);
+        let serialized = serde_json::to_value(&setting).unwrap();
+        assert_eq!(&serialized, expected);
+        assert_eq!(
+            serde_json::from_value::<FieldOverride<T>>(serialized).unwrap(),
+            setting
+        );
+        let wire = serde_json::to_string(&setting).unwrap();
+        assert_eq!(
+            serde_json::from_str::<FieldOverride<T>>(&wire).unwrap(),
+            setting
+        );
+    }
+
+    #[test]
+    fn programmatic_null_roots_are_rejected_without_echoing_values() {
+        #[derive(Serialize)]
+        struct PrivateUnit;
+
+        assert_null_serialization_rejected(None::<String>);
+        assert_null_serialization_rejected(Some(None::<String>));
+        assert_null_serialization_rejected(());
+        assert_null_serialization_rejected(PrivateUnit);
+        assert_null_serialization_rejected(json!(null));
+        assert_null_serialization_rejected(Some(json!(null)));
+    }
+
+    #[test]
+    fn programmatic_newtype_null_roots_are_rejected() {
+        assert_null_serialization_rejected(Newtype(None::<String>));
+        assert_null_serialization_rejected(Newtype(()));
+        assert_null_serialization_rejected(Transparent(None::<String>));
+        assert_null_serialization_rejected(Transparent(()));
+        assert_null_serialization_rejected(Some(Newtype(Some(Transparent(None::<String>)))));
+    }
+
+    #[test]
+    fn programmatic_nonfinite_float_roots_are_rejected() {
+        // JSON serializers turn these into null, even without serialize_none/unit.
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_null_serialization_rejected(value);
+            assert_null_serialization_rejected(Some(Newtype(value)));
+        }
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_null_serialization_rejected(value);
+            assert_null_serialization_rejected(Some(Transparent(value)));
+        }
+    }
+
+    #[test]
+    fn programmatic_optional_values_round_trip_without_losing_false_or_empty() {
+        for value in [false, true] {
+            assert_json_round_trip(Some(value), &json!(value));
+        }
+        for value in ["", "configured"] {
+            assert_json_round_trip(Some(value.to_owned()), &json!(value));
+        }
+        assert_json_round_trip(Some(Vec::<u32>::new()), &json!([]));
+        assert_json_round_trip(Some(BTreeMap::<String, bool>::new()), &json!({}));
+        assert_json_round_trip(Some(Some(false)), &json!(false));
+        assert_json_round_trip(Newtype(Some(false)), &json!(false));
+        assert_json_round_trip(Transparent(Some(String::new())), &json!(""));
+        for value in [0.0_f32, -1.5_f32, 1.25_f32] {
+            assert_json_round_trip(value, &json!(value));
+        }
+        for value in [0.0_f64, -1.5_f64, 1.25_f64] {
+            assert_json_round_trip(Some(Newtype(value)), &json!(value));
+        }
+    }
+
+    #[test]
+    fn programmatic_compound_values_keep_typed_nested_nulls() {
+        #[derive(Debug, Deserialize, Serialize, PartialEq)]
+        struct Nested {
+            optional: Option<String>,
+            unit: (),
+            wrapped: Newtype<Option<bool>>,
+        }
+
+        #[derive(Debug, Deserialize, Serialize, PartialEq)]
+        struct Pair(Option<String>, ());
+
+        #[derive(Debug, Deserialize, Serialize, PartialEq)]
+        enum Compound {
+            Newtype(Option<String>),
+            Tuple(Option<String>, ()),
+            Struct { optional: Option<String>, unit: () },
+            Unit,
+        }
+
+        assert_json_round_trip(
+            Nested {
+                optional: None,
+                unit: (),
+                wrapped: Newtype(None),
+            },
+            &json!({"optional": null, "unit": null, "wrapped": null}),
+        );
+        assert_json_round_trip(Some(vec![None, Some(false)]), &json!([null, false]));
+        assert_json_round_trip((None::<String>, ()), &json!([null, null]));
+        assert_json_round_trip(Pair(None, ()), &json!([null, null]));
+        assert_json_round_trip(
+            BTreeMap::from([("nullable".to_owned(), None::<String>)]),
+            &json!({"nullable": null}),
+        );
+        assert_json_round_trip(Compound::Newtype(None), &json!({"Newtype": null}));
+        assert_json_round_trip(Compound::Tuple(None, ()), &json!({"Tuple": [null, null]}));
+        assert_json_round_trip(
+            Compound::Struct {
+                optional: None,
+                unit: (),
+            },
+            &json!({"Struct": {"optional": null, "unit": null}}),
+        );
+        assert_json_round_trip(Compound::Unit, &json!("Unit"));
     }
 
     #[test]

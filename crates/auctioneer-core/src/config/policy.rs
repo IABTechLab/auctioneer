@@ -3,11 +3,17 @@
 //! Deserialization establishes shape, not semantic or resource admission.
 //! Only the planned shared validator and funded snapshot constructor may make
 //! this document usable by a handler; existing serving still uses its old DTO.
+//! Optional fields declared here reject null. Reused serving DTO leaves retain
+//! their existing contract pending the required atomic serving cutover.
 
-use std::{collections::BTreeMap, fmt};
+use std::{borrow::Borrow, collections::BTreeMap, fmt};
 
 use auctioneer_config::FloorCurrencyConfig;
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
+use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
+    de::Error as _,
+    ser::{Error as _, SerializeMap as _},
+};
 
 use super::{
     AccountCcpaOverride, AccountPrivacyOverride, AuctionConfig, BidderOverrides,
@@ -61,7 +67,11 @@ pub struct OperatorPolicy {
     #[serde(default)]
     pub features: FeatureFlags,
     /// Operator-provided floor-only conversion snapshot.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub floor_currency: Option<FloorCurrencyConfig>,
 }
 
@@ -78,20 +88,44 @@ pub struct HostPolicy {
     /// Requested auction limits; installed capacity remains independently authoritative.
     #[serde(default)]
     pub resource_limits: AuctionConfig,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gdpr: Option<HostGdprOverride>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub ccpa: Option<HostEnforcementOverride>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub lmt: Option<HostEnforcementOverride>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub host_cookie: Option<HostCookiePolicy>,
     /// Inherited or cleared means no service unless the explicit parent provides one.
     #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
     pub user_sync: FieldOverride<UserSyncPolicy>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub status_response: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub aliases: Option<BTreeMap<String, String>>,
 }
 
@@ -99,15 +133,31 @@ pub struct HostPolicy {
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HostCookiePolicy {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cookie_name: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub family: Option<String>,
     #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
     pub domain: FieldOverride<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub ttl_days: Option<i64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_cookie_size_bytes: Option<usize>,
     #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
     pub optout_cookie: FieldOverride<OptoutCookiePolicy>,
@@ -139,6 +189,47 @@ where
     T::deserialize(deserializer).map(Some)
 }
 
+fn deserialize_optional_u8_keyed_map<'de, D, V>(
+    deserializer: D,
+) -> Result<Option<BTreeMap<u8, V>>, D::Error>
+where
+    D: Deserializer<'de>,
+    V: Deserialize<'de>,
+{
+    let Some(value) = deserialize_u8_keyed_map(deserializer)? else {
+        return Err(D::Error::custom("an enforcement map must not be null"));
+    };
+    Ok(Some(value))
+}
+
+fn serialize_optional_u8_keyed_map<S, V>(
+    value: impl Borrow<Option<BTreeMap<u8, V>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    V: Serialize,
+{
+    let Some(entries) = value.borrow() else {
+        return Err(S::Error::custom(
+            "an absent enforcement map must be omitted",
+        ));
+    };
+    let mut map = serializer.serialize_map(Some(entries.len()))?;
+    for (key, entry) in entries {
+        map.serialize_entry(&EnforcementKey(*key), entry)?;
+    }
+    map.end()
+}
+
+struct EnforcementKey(u8);
+
+impl Serialize for EnforcementKey {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&self.0)
+    }
+}
+
 /// An explicitly configured service; it has no example-URL default.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -147,11 +238,23 @@ pub struct UserSyncPolicy {
     pub external_url: String,
     #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
     pub redirect_url: FieldOverride<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cooperative: Option<CooperativeOverride>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub priority_groups: Option<Vec<Vec<String>>>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allowed_origins: Option<Vec<String>>,
 }
 
@@ -159,27 +262,67 @@ pub struct UserSyncPolicy {
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AccountPolicy {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_transport_bytes: Option<u64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_decoded_bytes: Option<u64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub disabled: Option<bool>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub debug_allow: Option<bool>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cookie_sync: Option<AccountCookieSyncPolicy>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub bid_rounding: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub targeting_prefix: Option<String>,
     #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
     pub truncate_target_attribute: FieldOverride<usize>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gdpr: Option<AccountGdprPolicy>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub ccpa: Option<AccountCcpaOverride>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub privacy: Option<AccountPrivacyOverride>,
 }
 
@@ -201,17 +344,43 @@ pub struct AccountCookieSyncPolicy {
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AccountGdprPolicy {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub purpose_one_treatment: Option<AccountTreatmentPolicy>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub channel_enabled: Option<ChannelEnabledOverride>,
-    #[serde(default, deserialize_with = "deserialize_u8_keyed_map")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_u8_keyed_map",
+        serialize_with = "serialize_optional_u8_keyed_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub purposes: Option<BTreeMap<u8, PurposeEnforcementOverride>>,
-    #[serde(default, deserialize_with = "deserialize_u8_keyed_map")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_u8_keyed_map",
+        serialize_with = "serialize_optional_u8_keyed_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub special_features: Option<BTreeMap<u8, SpecialFeatureEnforcementOverride>>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub basic_enforcement_vendors: Option<Vec<String>>,
 }
 
@@ -229,7 +398,256 @@ pub struct AccountTreatmentPolicy {
 mod tests {
     use super::OperatorPolicy;
     use crate::config::override_value::FieldOverride;
-    use serde_json::json;
+    use serde_json::{Value, json};
+
+    fn ordinary_optional_host_cases() -> Vec<(String, Vec<Value>)> {
+        [
+            (
+                "/floor_currency",
+                vec![
+                    json!({"expires_at": 2_000_i64, "usd_per_unit": {"EUR": 1.25_f64}}),
+                    json!({"expires_at": 3_000_i64, "usd_per_unit": {}}),
+                ],
+            ),
+            ("/host/gdpr", vec![json!({"enabled": true}), json!({})]),
+            ("/host/ccpa", vec![json!({"enforce": true}), json!({})]),
+            ("/host/lmt", vec![json!({"enforce": false}), json!({})]),
+            (
+                "/host/host_cookie",
+                vec![
+                    json!({"domain": "example.test", "optout_cookie": {}}),
+                    json!({}),
+                ],
+            ),
+            (
+                "/host/status_response",
+                vec![json!("configured"), json!("")],
+            ),
+            (
+                "/host/aliases",
+                vec![json!({"fake_alias": "fake_bidder"}), json!({})],
+            ),
+            (
+                "/host/host_cookie/cookie_name",
+                vec![json!("uids"), json!("")],
+            ),
+            (
+                "/host/host_cookie/family",
+                vec![json!("fake_family"), json!("")],
+            ),
+            (
+                "/host/host_cookie/ttl_days",
+                vec![json!(90_i64), json!(0_i64)],
+            ),
+            (
+                "/host/host_cookie/max_cookie_size_bytes",
+                vec![json!(4096_usize), json!(0_usize)],
+            ),
+            (
+                "/host/host_cookie/optout_cookie/name",
+                vec![json!("optout"), json!("")],
+            ),
+            (
+                "/host/host_cookie/optout_cookie/value",
+                vec![json!("1"), json!("")],
+            ),
+            (
+                "/host/user_sync/cooperative",
+                vec![json!({"enabled_by_default": true}), json!({})],
+            ),
+            (
+                "/host/user_sync/priority_groups",
+                vec![json!([["fake_bidder"]]), json!([])],
+            ),
+            (
+                "/host/user_sync/allowed_origins",
+                vec![json!(["https://publisher.example.test"]), json!([])],
+            ),
+        ]
+        .into_iter()
+        .map(|(path, values)| (path.to_owned(), values))
+        .collect()
+    }
+
+    fn ordinary_optional_policy_cases() -> (Value, Vec<(String, Vec<Value>)>) {
+        let mut document = json!({
+            "schema_version": 1_u64,
+            "host": {"user_sync": {"external_url": "https://sync.example.test"}},
+            "account_defaults": {},
+            "accounts": {"fake_account": {}}
+        });
+        let mut cases = ordinary_optional_host_cases();
+        for scope in ["account_defaults", "accounts/fake_account"] {
+            for (field, values) in [
+                (
+                    "max_transport_bytes",
+                    vec![json!(4096_u64), json!(1024_u64)],
+                ),
+                ("max_decoded_bytes", vec![json!(8192_u64), json!(2048_u64)]),
+                ("disabled", vec![json!(true), json!(false)]),
+                ("debug_allow", vec![json!(false), json!(true)]),
+                (
+                    "cookie_sync",
+                    vec![
+                        json!({"default_limit": 5_i64, "default_coop_sync": true}),
+                        json!({}),
+                    ],
+                ),
+                ("bid_rounding", vec![json!("down"), json!("")]),
+                ("targeting_prefix", vec![json!("hb"), json!("")]),
+                ("gdpr", vec![json!({}), json!({"enabled": "unset"})]),
+                ("ccpa", vec![json!({"enabled": "unset"}), json!({})]),
+                (
+                    "privacy",
+                    vec![json!({"ipv4": {"anon_keep_bits": 24_u8}}), json!({})],
+                ),
+            ] {
+                cases.push((format!("/{scope}/{field}"), values));
+            }
+            for (field, values) in [
+                ("enabled", vec![json!("unset"), json!("disabled")]),
+                (
+                    "purpose_one_treatment",
+                    vec![json!({"enabled": true, "access_allowed": false}), json!({})],
+                ),
+                (
+                    "channel_enabled",
+                    vec![json!({"web": "enabled"}), json!({})],
+                ),
+                ("purposes", vec![json!({"1": {}}), json!({})]),
+                ("special_features", vec![json!({"1": {}}), json!({})]),
+                (
+                    "basic_enforcement_vendors",
+                    vec![json!(["fake_bidder"]), json!([])],
+                ),
+            ] {
+                cases.push((format!("/{scope}/gdpr/{field}"), values));
+            }
+        }
+
+        // Seed every earlier layer and sibling before changing one field at a time.
+        for (path, values) in &cases {
+            let (parent, field) = path.rsplit_once('/').unwrap();
+            document
+                .pointer_mut(parent)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert(field.to_owned(), values[0].clone());
+        }
+        assert_eq!(cases.len(), 48);
+        (document, cases)
+    }
+
+    #[test]
+    fn ordinary_optional_policy_fields_reject_explicit_null() {
+        let (base, cases) = ordinary_optional_policy_cases();
+        let _valid_before_state: OperatorPolicy = serde_json::from_value(base.clone()).unwrap();
+        let mut accepted_nulls = Vec::new();
+        for (path, _) in cases {
+            assert!(!base.pointer(&path).unwrap().is_null(), "{path}");
+            let mut document = base.clone();
+            *document.pointer_mut(&path).unwrap() = json!(null);
+            match serde_json::from_value::<OperatorPolicy>(document) {
+                Ok(_) => accepted_nulls.push(path),
+                Err(error) => assert!(error.is_data(), "{path}"),
+            }
+        }
+        assert!(
+            accepted_nulls.is_empty(),
+            "accepted explicit nulls: {accepted_nulls:?}"
+        );
+    }
+
+    #[test]
+    fn ordinary_optional_policy_fields_omit_absent_values_on_round_trip() {
+        let (base, cases) = ordinary_optional_policy_cases();
+        let _valid_before_state: OperatorPolicy = serde_json::from_value(base.clone()).unwrap();
+        let mut serialized_absences = Vec::new();
+        for (path, _) in cases {
+            let mut document = base.clone();
+            let (parent, field) = path.rsplit_once('/').unwrap();
+            let removed = document
+                .pointer_mut(parent)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(removed.is_some(), "before-state presence: {path}");
+            let policy: OperatorPolicy = serde_json::from_value(document).unwrap();
+            let serialized = serde_json::to_value(policy).unwrap();
+            if serialized.pointer(&path).is_some() {
+                serialized_absences.push(path);
+            } else {
+                let round_trip: OperatorPolicy =
+                    serde_json::from_value(serialized.clone()).unwrap();
+                assert_eq!(
+                    serde_json::to_value(round_trip).unwrap(),
+                    serialized,
+                    "{path}"
+                );
+            }
+        }
+        assert!(
+            serialized_absences.is_empty(),
+            "serialized absent fields: {serialized_absences:?}"
+        );
+    }
+
+    #[test]
+    fn ordinary_optional_policy_fields_preserve_concrete_values() {
+        let (base, cases) = ordinary_optional_policy_cases();
+        let _valid_before_state: OperatorPolicy = serde_json::from_value(base.clone()).unwrap();
+        for (path, values) in cases {
+            for value in values {
+                let mut document = base.clone();
+                *document.pointer_mut(&path).unwrap() = value.clone();
+                let policy: OperatorPolicy = serde_json::from_value(document).unwrap();
+                let serialized = serde_json::to_value(policy).unwrap();
+                let actual = serialized.pointer(&path).unwrap();
+                assert!(!actual.is_null(), "{path}");
+                // Shared serving DTOs may emit their own absent leaves inside objects.
+                if !value.is_object() {
+                    assert_eq!(actual, &value, "{path}");
+                }
+                let round_trip: OperatorPolicy =
+                    serde_json::from_value(serialized.clone()).unwrap();
+                assert_eq!(
+                    serde_json::to_value(round_trip).unwrap(),
+                    serialized,
+                    "{path}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_optional_enforcement_maps_keep_string_keys_in_toml() {
+        for scope in ["account_defaults", "accounts/fake_account"] {
+            for field in ["purposes", "special_features"] {
+                for value in [json!({}), json!({"1": {}})] {
+                    let (mut document, _) = ordinary_optional_policy_cases();
+                    let path = format!("/{scope}/gdpr/{field}");
+                    *document.pointer_mut(&path).unwrap() = value.clone();
+                    let policy: OperatorPolicy = serde_json::from_value(document).unwrap();
+                    let wire = toml::to_string(&policy).unwrap();
+                    let round_trip: OperatorPolicy = toml::from_str(&wire).unwrap();
+                    let serialized = serde_json::to_value(round_trip).unwrap();
+                    assert_eq!(
+                        serialized
+                            .pointer(&path)
+                            .unwrap()
+                            .as_object()
+                            .unwrap()
+                            .keys()
+                            .collect::<Vec<_>>(),
+                        value.as_object().unwrap().keys().collect::<Vec<_>>(),
+                        "{path}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn application_version_is_required_not_defaulted() {
