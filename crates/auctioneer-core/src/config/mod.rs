@@ -44,6 +44,7 @@ pub mod override_value;
 pub mod policy;
 pub mod resolve;
 pub mod runtime;
+pub mod validation;
 
 /// Structural registry failures carried by [`EffectiveConfigError::Registry`].
 pub use auctioneer_bidder::RegistryBuildError;

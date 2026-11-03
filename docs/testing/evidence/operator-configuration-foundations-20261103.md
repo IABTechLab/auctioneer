@@ -165,6 +165,53 @@ installed SDK version. Paths in the following table are relative to its root.
 This is source inspection, not execution of an SDK resource qualification suite.
 No SDK changes, new loader, alternate validator or dependency bump were made.
 
+## Shared Bidder Validation Checkpoint
+
+The later staged `config::validation::validate_bidder_configuration` accepts
+explicit caller-owned bidder/alias maps and a validated catalog. It completes
+shared structural, namespace and settings-binding checks before invoking an
+owner callback. A borrowed-key union prevents duplicate invocation across known
+enabled identities, configured aliases and explicit settings entries. Unknown
+request-local settings retain `definition = None` and `enabled = false`.
+
+The existing serving registry's `base_names()` includes compiled aliases and
+disabled definitions; the registry plan's canonical-base index is narrower.
+The subvalidator preserves the serving semantics, including exact-name host
+shadowing, nonrecursive host targets and immutable/ancestry activation gates.
+It does not introduce a stricter alias policy under the name of validation.
+
+An `Ok(())` control implementation produced 18 passing existing child cases
+and six failing new behavioral cases, with all 24 dispatched. An earlier
+attempt did not reach assertions because the test fixture tried to clone a
+non-Clone declaration; explicit field copying fixed the fixture, not production
+types. The successful negative control establishes shared-dispatch sensitivity;
+the failed compilation supplies no behavioral result.
+
+| Additional command selection | Executed result |
+| --- | --- |
+| `cargo test -p auctioneer-core --lib config::validation::` | 16 passed. |
+| `cargo test -p auctioneer-core --lib config::` | 186 passed, 475 filtered. |
+| `cargo test -p auctioneer-core --lib` | 661 passed, no failures, ignores or filtered cases after lint corrections. |
+| `.github/workflows/scripts/test/verify-schema-compiler-conformance.sh settings` | Passed: 19 outer cases, exact 24-child reconciliation and dedicated generated-settings Clippy. This preceded the core-only lint cleanup; the final core suite and test-build Clippy also passed. |
+| `cargo clippy -p auctioneer-core --lib --tests -- -D warnings` | Passed after fixing ignored-error bindings, a redundant method closure, shadowed names and test-helper/numeric lints. No lint allowance was added. |
+| `cargo test -p auctioneer-bidder --test test_isolation` | 16 passed, including ordinary modules, test ownership and fake-only shared identities. |
+| `cargo fmt --all -- --check` and `git diff --check` | Passed on the final source and documentation tree. |
+
+The six added synthetic cases exercise the actual shared function with generated
+fake settings: exact dispatch/fallback, disabled and shadowed supplied values,
+known-only requiredness, binding and size refusal before any callback, and fixed
+failure diagnostics in the presence of a credential-reference canary. The 18
+earlier child cases and their assertions remain. Independent read-only spec and
+code-quality reviews reported no findings in this staged slice.
+
+The pushed foundation/CI-repair commit `b41f57c` completed all 25 hosted checks
+successfully. That result does not cover these later local additions.
+
+This is not a complete `ConfigValidationContext`, policy resolver or admitted
+snapshot. CLI/store/typed-host callers are not switched. Temporary namespace
+folding, identity-set nodes and validation-error peaks still require Task 4
+funding before activation; no zero-allocation or ready-target claim is made.
+
 ## Required Before Cutover
 
 Tasks 4-10 remain uncompleted. In particular:
@@ -174,8 +221,8 @@ Tasks 4-10 remain uncompleted. In particular:
 - Select a reviewed bounded authoring/startup owner or adequate SDK extension.
   It must bound the actual read, parsing, relevant environment materialization
   and any retained copies, rather than just checking after allocation.
-- Implement one pure context-based semantic validation/resolution path and
-  connect discovered bidder validation to it. CLI, store and typed-host
+- Implement the complete pure context-based semantic validation/resolution path
+  and connect its staged shared bidder subvalidator. CLI, store and typed-host
   admission must use that same path.
 - Complete product-default separation, optional user-sync state, funded
   snapshots and the atomic build/bootstrap/CLI/native serving cutover.

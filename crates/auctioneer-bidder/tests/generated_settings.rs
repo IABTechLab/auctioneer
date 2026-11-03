@@ -117,7 +117,13 @@ mod tests {
         workspace.report();
     }
 
-    const EXPECTED_TESTS: [&str; 18] = [
+    const EXPECTED_TESTS: [&str; 24] = [
+        "config_callbacks::shared_admission_visits_each_identity_once_with_fieldwise_alias_fallback",
+        "config_callbacks::shared_admission_checks_disabled_and_shadowed_supplied_values",
+        "config_callbacks::shared_admission_enforces_requiredness_only_for_known_enabled_identities",
+        "config_callbacks::shared_admission_rejects_bindings_before_any_callback",
+        "config_callbacks::shared_admission_rejects_settings_limits_before_any_callback",
+        "config_callbacks::shared_admission_redacts_rejected_values_and_credential_references",
         "config_callbacks::supplied_values_are_independent_even_when_disabled_or_overridden",
         "config_callbacks::effective_requiredness_and_fieldwise_fallback_use_the_same_callback",
         "config_callbacks::missing_null_zero_empty_and_request_local_context_remain_distinct",
@@ -152,7 +158,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -174,7 +180,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }

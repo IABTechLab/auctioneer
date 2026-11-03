@@ -575,11 +575,371 @@ mod generated_endpoints {
 
 mod config_callbacks {
     use auctioneer_bidder::{
-        BidderConfigError, BidderConfigInput, BidderConfigValidator, BidderRegistration,
-        RegistryInputs, ValidatedRegistryPlan, bidder_declarations, compiled_bidders,
+        BidderConfigError, BidderConfigInput, BidderConfigValidator, BidderDeclaration,
+        BidderRegistration, RegistryInputs, ValidatedRegistryPlan, bidder_declarations,
+        compiled_bidders,
     };
-    use auctioneer_config::{BidderSettings, types::BidderInfo};
+    use auctioneer_config::{
+        BidderSettings,
+        types::{BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration},
+    };
+    use auctioneer_core::config::{
+        BidderOverrides,
+        validation::{BidderConfigurationError, validate_bidder_configuration},
+    };
     use serde_json::{Value, json};
+    use std::{cell::RefCell, collections::BTreeMap, mem};
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct Observation {
+        implementation: &'static str,
+        definition: Option<String>,
+        enabled: bool,
+        primary: Option<i64>,
+        secondary: Option<i64>,
+    }
+
+    thread_local! {
+        static OBSERVATIONS: RefCell<Vec<Observation>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn observations() -> Vec<Observation> {
+        OBSERVATIONS.with_borrow_mut(mem::take)
+    }
+
+    fn observe_integer(input: BidderConfigInput<'_>) -> Result<(), BidderConfigError> {
+        let resolved = auctioneer_config::bidder_settings::fake_integer_probe::resolve(
+            input
+                .requested
+                .and_then(BidderSettings::as_fake_integer_probe),
+            input.base.and_then(BidderSettings::as_fake_integer_probe),
+        );
+        OBSERVATIONS.with_borrow_mut(|seen| {
+            seen.push(Observation {
+                implementation: "fake_integer_probe",
+                definition: input.definition.map(|info| info.name.clone()),
+                enabled: input.enabled,
+                primary: resolved.primary_number(),
+                secondary: resolved.secondary_number(),
+            });
+        });
+        callback("fake_integer_probe")(input)
+    }
+
+    fn observe_string(input: BidderConfigInput<'_>) -> Result<(), BidderConfigError> {
+        OBSERVATIONS.with_borrow_mut(|seen| {
+            seen.push(Observation {
+                implementation: "fake_string_probe",
+                definition: input.definition.map(|info| info.name.clone()),
+                enabled: input.enabled,
+                primary: None,
+                secondary: None,
+            });
+        });
+        callback("fake_string_probe")(input)
+    }
+
+    fn public_plan(enabled: bool, disabled: bool) -> ValidatedRegistryPlan {
+        let infos = Box::leak(Box::new([
+            BidderInfo {
+                name: "fake_base".into(),
+                default_enabled: Some(enabled),
+                disabled,
+                ..BidderInfo::default()
+            },
+            BidderInfo {
+                name: "fake_text".into(),
+                default_enabled: Some(false),
+                ..BidderInfo::default()
+            },
+            BidderInfo {
+                name: "fake_plain".into(),
+                ..BidderInfo::default()
+            },
+        ]));
+        let bindings = [
+            BidderImplementationBinding {
+                bidder: "fake_base",
+                implementation: "fake_integer_probe",
+            },
+            BidderImplementationBinding {
+                bidder: "fake_text",
+                implementation: "fake_string_probe",
+            },
+            BidderImplementationBinding {
+                bidder: "fake_plain",
+                implementation: "fake_plain",
+            },
+        ];
+        let metadata = bindings.map(|row| BidderMetadataDeclaration {
+            bidder: row.bidder,
+            implementation: row.implementation,
+            required_feature: None,
+        });
+        let mut factories: Vec<_> = compiled_bidders()
+            .iter()
+            .map(|row| BidderRegistration {
+                key: row.key,
+                factory: row.factory,
+                config_validator: match row.key {
+                    "fake_integer_probe" => Some(observe_integer),
+                    "fake_string_probe" => Some(observe_string),
+                    _ => row.config_validator,
+                },
+            })
+            .collect();
+        factories.push(BidderRegistration {
+            key: "fake_plain",
+            factory: auctioneer_bidder::fake_synthetic::create_bidder,
+            config_validator: None,
+        });
+        let mut declarations: Vec<_> = bidder_declarations()
+            .iter()
+            .map(|row| BidderDeclaration {
+                key: row.key,
+                required_feature: row.required_feature,
+                has_settings: row.has_settings,
+            })
+            .collect();
+        declarations.push(BidderDeclaration {
+            key: "fake_plain",
+            required_feature: None,
+            has_settings: false,
+        });
+        ValidatedRegistryPlan::validate(RegistryInputs {
+            infos,
+            bindings: &bindings,
+            metadata_declarations: &metadata,
+            factory_declarations: &declarations,
+            factories: &factories,
+            aliases: &[],
+        })
+        .unwrap()
+    }
+
+    fn overrides(values: Value) -> BTreeMap<String, BidderOverrides> {
+        serde_json::from_value(values).unwrap()
+    }
+
+    #[test]
+    fn shared_admission_visits_each_identity_once_with_fieldwise_alias_fallback() {
+        assert!(observations().is_empty());
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let catalog = public_plan(true, false);
+        let bidders = overrides(json!({
+            "fake_base": {"settings": {"implementation":"fake_integer_probe", "values":{
+                "primary_number":7_i64, "secondary_number":11_i64
+            }}},
+            "fake_alias": {"settings": {"implementation":"fake_integer_probe", "values":{
+                "primary_number":0_i64
+            }}},
+            "fake_future": {"enabled":true, "settings": {"implementation":"fake_integer_probe", "values":{
+                "primary_number":17_i64, "secondary_number":19_i64
+            }}},
+            "fake_text": {"settings": {"implementation":"fake_string_probe", "values":{"token":"safe"}}}
+        }));
+        let aliases = BTreeMap::from([("fake_alias".into(), "fake_base".into())]);
+        validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap();
+        let mut seen = observations();
+        seen.sort_by_key(|row| (row.implementation, row.primary));
+        assert_eq!(
+            seen,
+            vec![
+                Observation {
+                    implementation: "fake_integer_probe",
+                    definition: Some("fake_base".into()),
+                    enabled: true,
+                    primary: Some(0),
+                    secondary: Some(11)
+                },
+                Observation {
+                    implementation: "fake_integer_probe",
+                    definition: Some("fake_base".into()),
+                    enabled: true,
+                    primary: Some(7),
+                    secondary: Some(11)
+                },
+                Observation {
+                    implementation: "fake_integer_probe",
+                    definition: None,
+                    enabled: false,
+                    primary: Some(17),
+                    secondary: Some(19)
+                },
+                Observation {
+                    implementation: "fake_string_probe",
+                    definition: Some("fake_text".into()),
+                    enabled: false,
+                    primary: None,
+                    secondary: None
+                },
+            ]
+        );
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn shared_admission_checks_disabled_and_shadowed_supplied_values() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let catalog = public_plan(false, false);
+        let aliases = BTreeMap::from([("fake_alias".into(), "fake_base".into())]);
+        let mut cases = 0_usize;
+        for field in ["primary_number", "secondary_number"] {
+            for bad_base in [false, true] {
+                let good = json!({"primary_number":0_i64, "secondary_number":23_i64});
+                let bad = json!({(field):-1_i64});
+                let (base, alias) = if bad_base { (bad, good) } else { (good, bad) };
+                let bidders = overrides(json!({
+                    "fake_base": {"enabled":false, "settings":{"implementation":"fake_integer_probe", "values":base}},
+                    "fake_alias": {"enabled":false, "settings":{"implementation":"fake_integer_probe", "values":alias}}
+                }));
+                assert!(observations().is_empty());
+                assert_eq!(
+                    validate_bidder_configuration(&bidders, &aliases, &catalog),
+                    Err(BidderConfigurationError::Bidder(BidderConfigError {
+                        field,
+                        reason: "invalid"
+                    }))
+                );
+                let seen = observations();
+                assert_eq!(seen.len(), 1);
+                assert!(!seen[0].enabled);
+                cases += 1;
+            }
+        }
+        assert_eq!(cases, 4);
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn shared_admission_enforces_requiredness_only_for_known_enabled_identities() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let aliases = BTreeMap::new();
+        for override_enabled in [None, Some(true)] {
+            let catalog = public_plan(override_enabled.is_none(), false);
+            let bidders = overrides(json!({"fake_base":{"enabled":override_enabled}}));
+            assert!(observations().is_empty());
+            assert_eq!(
+                validate_bidder_configuration(&bidders, &aliases, &catalog),
+                Err(BidderConfigurationError::Bidder(BidderConfigError {
+                    field: "primary_number",
+                    reason: "required"
+                }))
+            );
+            let seen = observations();
+            assert_eq!(seen.len(), 1);
+            assert!(seen[0].enabled);
+        }
+        let catalog = public_plan(true, false);
+        let bidders = overrides(
+            json!({"fake_base":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":0_i64}}}}),
+        );
+        assert_eq!(
+            validate_bidder_configuration(&bidders, &aliases, &catalog),
+            Err(BidderConfigurationError::Bidder(BidderConfigError {
+                field: "secondary_number",
+                reason: "required"
+            }))
+        );
+        assert_eq!(observations().len(), 1);
+
+        for (enabled, disabled, value) in [
+            (true, false, json!({"fake_base":{"enabled":false}})),
+            (false, false, json!({})),
+            (true, true, json!({"fake_base":{"enabled":true}})),
+        ] {
+            let catalog = public_plan(enabled, disabled);
+            validate_bidder_configuration(&overrides(value), &aliases, &catalog).unwrap();
+            assert!(observations().is_empty());
+        }
+        let catalog = public_plan(false, false);
+        let bidders = overrides(
+            json!({"fake_future":{"enabled":true, "settings":{"implementation":"fake_integer_probe", "values":{}}}}),
+        );
+        validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap();
+        assert_eq!(
+            observations(),
+            vec![Observation {
+                implementation: "fake_integer_probe",
+                definition: None,
+                enabled: false,
+                primary: None,
+                secondary: None,
+            }]
+        );
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn shared_admission_rejects_bindings_before_any_callback() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let catalog = public_plan(true, false);
+        let aliases = BTreeMap::from([("fake_alias".into(), "fake_base".into())]);
+        for name in ["fake_alias", "fake_base", "fake_plain"] {
+            let mut bidders = overrides(json!({
+                "fake_base":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":3_i64,"secondary_number":5_i64}}},
+                "fake_early":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":7_i64,"secondary_number":11_i64}}}
+            }));
+            bidders.insert(
+                name.into(),
+                BidderOverrides {
+                    settings: Some(settings("fake_string_probe", json!({"token":"safe"}))),
+                    ..BidderOverrides::default()
+                },
+            );
+            let error = validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap_err();
+            assert_eq!(error, BidderConfigurationError::SettingsBinding);
+            assert!(
+                observations().is_empty(),
+                "binding errors must precede callback dispatch"
+            );
+        }
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn shared_admission_rejects_settings_limits_before_any_callback() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let catalog = public_plan(true, false);
+        let bidders = overrides(json!({
+            "fake_base":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":3_i64,"secondary_number":5_i64}}},
+            "fake_text":{"enabled":false, "settings":{"implementation":"fake_string_probe", "values":{"token":"private_canary".repeat(2048)}}}
+        }));
+        let error =
+            validate_bidder_configuration(&bidders, &BTreeMap::new(), &catalog).unwrap_err();
+        assert_eq!(error, BidderConfigurationError::Structure);
+        assert!(observations().is_empty());
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
+
+    #[test]
+    fn shared_admission_redacts_rejected_values_and_credential_references() {
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let catalog = public_plan(false, false);
+        let canary = "fake_private_credential_location";
+        let aliases = BTreeMap::from([("fake_alias".into(), "fake_text".into())]);
+        let bidders = overrides(json!({
+            "fake_text":{"settings":{"implementation":"fake_string_probe", "values":{"token":canary}}},
+            "fake_alias":{"settings":{"implementation":"fake_string_probe", "values":{"token":""}}}
+        }));
+        let error = validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap_err();
+        assert_eq!(
+            error,
+            BidderConfigurationError::Bidder(BidderConfigError {
+                field: "token",
+                reason: "invalid"
+            })
+        );
+        let diagnostic = format!("{error:?} {error}");
+        for forbidden in [canary, "private", "credential", "fake_alias", "fake_text"] {
+            assert!(
+                !diagnostic.contains(forbidden),
+                "unexpected input in fixed diagnostic"
+            );
+        }
+        assert_eq!(observations().len(), 1);
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
+    }
 
     fn plan(factories: &[BidderRegistration]) -> ValidatedRegistryPlan {
         ValidatedRegistryPlan::validate(RegistryInputs {

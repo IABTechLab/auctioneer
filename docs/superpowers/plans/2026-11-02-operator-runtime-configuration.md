@@ -269,7 +269,7 @@ ordinary `mod.rs`/new `config.rs`. No request schema engine changes.
   behavior and do not invent ranges
   or deployment-required fields. An owner with no additional semantic rule
   records that explicitly rather than acquiring fabricated constraints.
-- [ ] Add one shared orchestration owner in core `config/validation.rs`.
+- [x] Add one shared orchestration owner in core `config/validation.rs`.
   After structural/binding admission, visit the settings-owning identity union
   once: known enabled definitions/configured aliases and all explicit settings
   entries. Settings-free identities have no callback and reject an incorrectly
@@ -302,6 +302,13 @@ ordinary `mod.rs`/new `config.rs`. No request schema engine changes.
   Run `--test test_isolation` after module wiring and test builds under Clippy.
 
 Checkpoint commit: `Register bidder-owned configuration validation`.
+
+The 2026-11-03 staged checkpoint adds the pure bidder subvalidator and its
+synthetic behavioral controls; see the
+[foundation evidence](../../testing/evidence/operator-configuration-foundations-20261103.md#shared-bidder-validation-checkpoint).
+This checkbox does not complete the full `ConfigValidationContext`, product
+resolution, snapshot funding or serving adoption. The existing CLI/store/host
+readers remain active until the later cutover group.
 
 ## Task 4: Freeze Startup And Snapshot Ownership Before Adoption
 
