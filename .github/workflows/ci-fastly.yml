@@ -108,7 +108,7 @@ jobs:
         run: bash .github/workflows/scripts/ci-fastly/measure-package.sh
 
       - name: Upload the built package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fastly-package
           path: pkg/auctioneer.tar.gz
