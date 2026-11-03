@@ -1,6 +1,8 @@
 # Contributing
 
-Auctioneer accepts focused contributions under Apache-2.0. Read
+Auctioneer is under heavy development and is not yet stable. We are not accepting outside contributions or pull requests at this time.
+
+The guidance below is for current project maintainers. Changes are made under Apache-2.0. Read
 [AGENTS.md](AGENTS.md), [crate conventions](crates/AGENTS.md) and
 [development and test ownership](docs/testing/development.md) before starting.
 
