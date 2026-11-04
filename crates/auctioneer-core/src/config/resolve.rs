@@ -12,15 +12,15 @@
 
 use crate::config::policy_account::AccountGdprFields;
 use crate::config::{
-    AccountOverride, AccountPrivacyOverride, AuctioneerAppConfig, ChannelEnabledOverride,
-    HostGdprOverride,
+    AccountOverride, AccountPrivacyOverride, AuctionConfig, AuctioneerAppConfig,
+    ChannelEnabledOverride, HostGdprOverride,
 };
 use crate::host_primitives::gates::boot_limits;
 use auctioneer_bidder::BidderName;
 use auctioneer_config_data::activity::merge_activities;
 use auctioneer_config_data::types::{
     AccountConfig, AccountGdprConfig, BidderInfo, ChannelEnabled, CooperativeConfig, HostConfig,
-    PurposeEnforcement, SpecialFeatureEnforcement, UserSyncConfig,
+    PurposeEnforcement, ResourceLimits, SpecialFeatureEnforcement, UserSyncConfig,
 };
 use auctioneer_exchange::{AccountSource, AuctionError, ExchangeFeatures, UNRESOLVED_ACCOUNT_ID};
 use auctioneer_runtime::aux_work::MAX_CATALOG_IDENTITIES;
@@ -153,36 +153,7 @@ fn widen_u32(funded: u32) -> usize {
 #[must_use]
 pub fn resolved_host(app: &AuctioneerAppConfig, baked: &HostConfig) -> HostConfig {
     let mut host = baked.clone();
-    if let Some(v) = app.auction.default_tmax_ms {
-        host.resource_limits.default_tmax_ms = v;
-    }
-    if let Some(v) = app.auction.max_tmax_ms {
-        host.resource_limits.max_tmax_ms = v;
-    }
-    if let Some(v) = app.auction.max_bidders_per_auction {
-        host.resource_limits.max_bidders_per_auction = v;
-    }
-    if let Some(v) = app.auction.max_outbound_requests {
-        host.resource_limits.max_outbound_requests = v;
-    }
-    if let Some(v) = app.auction.max_bidder_response_bytes {
-        host.resource_limits.max_bidder_response_bytes = v;
-    }
-    if let Some(v) = app.auction.max_outbound_raw_bytes {
-        host.resource_limits.max_outbound_raw_bytes = v;
-    }
-    if let Some(v) = app.auction.max_outbound_request_bytes {
-        host.resource_limits.max_outbound_request_bytes = v;
-    }
-    if let Some(v) = app.auction.max_transport_bytes {
-        host.resource_limits.max_transport_bytes = v;
-    }
-    if let Some(v) = app.auction.max_decoded_bytes {
-        host.resource_limits.max_decoded_bytes = v;
-    }
-    if let Some(v) = app.auction.max_parsed_nodes {
-        host.resource_limits.max_parsed_nodes = v;
-    }
+    apply_resource_overrides(&mut host.resource_limits, &app.auction);
     if let Some(v) = app.status.banner.as_ref() {
         host.status_response.clone_from(v);
     }
@@ -373,7 +344,7 @@ pub fn resolve_host(app: &AuctioneerAppConfig, baked: &HostConfig) -> HostConfig
     host
 }
 
-fn apply_host_gdpr_overlay(host: &mut HostConfig, gdpr: &HostGdprOverride) {
+pub(super) fn apply_host_gdpr_overlay(host: &mut HostConfig, gdpr: &HostGdprOverride) {
     if let Some(value) = gdpr.enabled {
         host.gdpr.enabled = value;
     }
@@ -427,6 +398,39 @@ fn apply_host_gdpr_overlay(host: &mut HostConfig, gdpr: &HostGdprOverride) {
                 }
             }
         }
+    }
+}
+
+pub(super) fn apply_resource_overrides(base: &mut ResourceLimits, requested: &AuctionConfig) {
+    if let Some(value) = requested.default_tmax_ms {
+        base.default_tmax_ms = value;
+    }
+    if let Some(value) = requested.max_tmax_ms {
+        base.max_tmax_ms = value;
+    }
+    if let Some(value) = requested.max_bidders_per_auction {
+        base.max_bidders_per_auction = value;
+    }
+    if let Some(value) = requested.max_outbound_requests {
+        base.max_outbound_requests = value;
+    }
+    if let Some(value) = requested.max_bidder_response_bytes {
+        base.max_bidder_response_bytes = value;
+    }
+    if let Some(value) = requested.max_outbound_raw_bytes {
+        base.max_outbound_raw_bytes = value;
+    }
+    if let Some(value) = requested.max_outbound_request_bytes {
+        base.max_outbound_request_bytes = value;
+    }
+    if let Some(value) = requested.max_transport_bytes {
+        base.max_transport_bytes = value;
+    }
+    if let Some(value) = requested.max_decoded_bytes {
+        base.max_decoded_bytes = value;
+    }
+    if let Some(value) = requested.max_parsed_nodes {
+        base.max_parsed_nodes = value;
     }
 }
 

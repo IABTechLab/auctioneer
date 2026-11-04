@@ -9,7 +9,7 @@ use core::num::ParseIntError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
-use validator::{Validate, ValidationErrors};
+use validator::{Validate, ValidateLength as _, ValidateRange, ValidationError, ValidationErrors};
 
 /// TCF enforcement-config key ranges. Purposes are the 10 standard
 /// consent purposes Prebid gates; special features are the 12-slot wire
@@ -378,14 +378,16 @@ fn validate_default_value(value: &str) -> Result<(), validator::ValidationError>
 // (`PurposeEnforcementOverride`) maps — the KEYS are `u8` in both. The
 // `validator` crate does not inspect `BTreeMap` keys, so a custom
 // validator does it (skipped when the field is `None`).
-fn validate_purpose_id_keys<V>(map: &BTreeMap<u8, V>) -> Result<(), validator::ValidationError> {
+pub(crate) fn validate_purpose_id_keys<V>(
+    map: &BTreeMap<u8, V>,
+) -> Result<(), validator::ValidationError> {
     if map.keys().any(|id| !PURPOSE_ID_RANGE.contains(id)) {
         return Err(validator::ValidationError::new("purpose_id_out_of_range"));
     }
     Ok(())
 }
 
-fn validate_special_feature_id_keys<V>(
+pub(crate) fn validate_special_feature_id_keys<V>(
     map: &BTreeMap<u8, V>,
 ) -> Result<(), validator::ValidationError> {
     if map.keys().any(|id| !SPECIAL_FEATURE_ID_RANGE.contains(id)) {
@@ -467,12 +469,12 @@ pub struct HostPurposeEnforcementOverride {
 pub struct AccountOverride {
     /// Account-scoped on-wire response cap; overrides the host default.
     #[serde(default)]
-    #[validate(range(min = 0x0000_0400_u64, max = 0x0640_0000_u64))]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
 
     /// Account-scoped post-decode response cap, independent of transport.
     #[serde(default)]
-    #[validate(range(min = 0x0000_0400_u64, max = 0x0640_0000_u64))]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
 
     #[serde(default)]
@@ -486,11 +488,11 @@ pub struct AccountOverride {
     pub cookie_sync: Option<AccountCookieSyncOverride>,
 
     #[serde(default)]
-    #[validate(length(min = 1_u64, max = 32_u64))]
+    #[validate(custom(function = "validate_bid_rounding"))]
     pub bid_rounding: Option<String>,
 
     #[serde(default)]
-    #[validate(length(min = 1_u64, max = 8_u64))]
+    #[validate(custom(function = "validate_targeting_prefix"))]
     pub targeting_prefix: Option<String>,
 
     /// Mirrors the top-level `TargetingConfig` range so the same
@@ -499,7 +501,7 @@ pub struct AccountOverride {
     /// `hb_<attr>_<bidder>` key-length invariant even for short bidder
     /// names; longer than 20 is the `OpenRTB` targeting-macro cap.
     #[serde(default)]
-    #[validate(range(min = 12_usize, max = 20_usize))]
+    #[validate(custom(function = "validate_targeting_truncation"))]
     pub truncate_target_attribute: Option<usize>,
 
     #[serde(default)]
@@ -720,13 +722,13 @@ pub struct AuctionConfig {
     /// envelope, not this attribute, is what stops a value from
     /// authorising memory nothing budgeted for.
     #[serde(default)]
-    #[validate(range(min = 0x0000_0400_u64, max = 0x0640_0000_u64))]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
 
     /// Runtime override for `HostConfig.resource_limits.max_decoded_bytes`.
     /// Clamped to the envelope's funded figure the same way.
     #[serde(default)]
-    #[validate(range(min = 0x0000_0400_u64, max = 0x0640_0000_u64))]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
 
     /// Runtime override for `HostConfig.resource_limits.max_parsed_nodes`.
@@ -743,14 +745,53 @@ pub struct TargetingConfig {
     /// Length capped so the resolved key length invariant
     /// still leaves room for the `_pb_<bidder>` suffix on legit bidders.
     #[serde(default)]
-    #[validate(length(min = 1_u64, max = 8_u64))]
+    #[validate(custom(function = "validate_targeting_prefix"))]
     pub prefix: Option<String>,
 
     /// Runtime override for `AccountConfig.truncate_target_attribute`.
     /// `None` → default (`MaxKeyLength = 20`).
     #[serde(default)]
-    #[validate(range(min = 12_usize, max = 20_usize))]
+    #[validate(custom(function = "validate_targeting_truncation"))]
     pub truncate_target_attribute: Option<usize>,
+}
+
+pub(crate) fn validate_response_cap(value: u64) -> Result<(), ValidationError> {
+    validate_scalar_range(value, 0x0000_0400_u64, 0x0640_0000_u64)
+}
+
+pub(crate) fn validate_targeting_truncation(value: usize) -> Result<(), ValidationError> {
+    validate_scalar_range(value, 12_usize, 20_usize)
+}
+
+fn validate_scalar_range<T>(value: T, min: T, max: T) -> Result<(), ValidationError>
+where
+    T: Copy + Serialize + ValidateRange<T>,
+{
+    if value.validate_range(Some(min), Some(max), None, None) {
+        return Ok(());
+    }
+    let mut error = ValidationError::new("range");
+    error.add_param("min".into(), &min);
+    error.add_param("max".into(), &max);
+    Err(error)
+}
+
+pub(crate) fn validate_bid_rounding(value: &str) -> Result<(), ValidationError> {
+    validate_scalar_length(value, 1_u64, 32_u64)
+}
+
+pub(crate) fn validate_targeting_prefix(value: &str) -> Result<(), ValidationError> {
+    validate_scalar_length(value, 1_u64, 8_u64)
+}
+
+fn validate_scalar_length(value: &str, min: u64, max: u64) -> Result<(), ValidationError> {
+    if value.validate_length(Some(min), Some(max), None) {
+        return Ok(());
+    }
+    let mut error = ValidationError::new("length");
+    error.add_param("min".into(), &min);
+    error.add_param("max".into(), &max);
+    Err(error)
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
@@ -764,7 +805,7 @@ pub struct StatusConfig {
     pub banner: Option<String>,
 }
 
-fn validate_status_banner(banner: &str) -> Result<(), validator::ValidationError> {
+pub(crate) fn validate_status_banner(banner: &str) -> Result<(), validator::ValidationError> {
     if banner.len() > MAX_STATUS_BANNER_BYTES {
         return Err(validator::ValidationError::new("status_banner_bytes"));
     }
@@ -800,11 +841,11 @@ pub struct BidderOverrides<Settings: Validate> {
     /// Observable-name response cap. An alias falls back per field to
     /// its base bidder, then the selected account and host defaults.
     #[serde(default)]
-    #[validate(range(min = 0x0000_0400_u64, max = 0x0640_0000_u64))]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
 
     #[serde(default)]
-    #[validate(range(min = 0x0000_0400_u64, max = 0x0640_0000_u64))]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
 
     /// Kill-switch for this bidder. `None` / `Some(true)` → bidder

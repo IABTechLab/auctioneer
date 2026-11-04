@@ -14,14 +14,17 @@ use serde::{
     de::Error as _,
     ser::{Error as _, SerializeMap as _},
 };
-use validator::{Validate, ValidationErrors};
+use validator::{Validate, ValidationError, ValidationErrors, ValidationErrorsKind};
 
 use crate::override_value::FieldOverride;
 use crate::source::{
     AccountCcpaOverride, AccountPrivacyOverride, AuctionConfig, BidderOverrides,
     ChannelEnabledOverride, CooperativeOverride, FeatureFlags, HostEnforcementOverride,
     HostGdprOverride, PurposeEnforcementOverride, SpecialFeatureEnforcementOverride,
-    deserialize_u8_keyed_map, validate_bidder_map,
+    deserialize_u8_keyed_map, validate_bid_rounding, validate_bidder_map,
+    validate_host_alias_overlay, validate_purpose_id_keys, validate_response_cap,
+    validate_special_feature_id_keys, validate_status_banner, validate_targeting_prefix,
+    validate_targeting_truncation,
 };
 use crate::types::TriState;
 
@@ -95,19 +98,58 @@ impl<Settings: Validate> Default for OperatorPolicy<Settings> {
 impl<Settings: Validate> Validate for OperatorPolicy<Settings> {
     fn validate(&self) -> Result<(), ValidationErrors> {
         let mut errors = ValidationErrors::new();
-        errors.merge_self("host", self.host.resource_limits.validate());
+        errors.merge_self("host", validate_host_policy(&self.host));
+        errors.merge_self(
+            "account_defaults",
+            validate_account_policy(&self.account_defaults),
+        );
+        if self
+            .accounts
+            .values()
+            .any(|account| validate_account_policy(account).is_err())
+        {
+            errors.add("accounts", ValidationError::new("account_override_invalid"));
+        }
         if let Err(error) = validate_bidder_map(&self.bidders) {
             errors.add("bidders", error);
         }
         if let Some(snapshot) = &self.floor_currency
             && let Err(code) = snapshot.validate()
         {
-            errors.add("floor_currency", validator::ValidationError::new(code));
+            errors.add("floor_currency", ValidationError::new(code));
         }
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
+        structural_validation_result(errors)
+    }
+}
+
+fn structural_validation_result(mut errors: ValidationErrors) -> Result<(), ValidationErrors> {
+    if errors.is_empty() {
+        return Ok(());
+    }
+    clear_validation_details(&mut errors);
+    Err(errors)
+}
+
+// Reused derives may retain rejected values; keep only their codes and field paths.
+fn clear_validation_details(errors: &mut ValidationErrors) {
+    let mut fields: Vec<_> = errors.errors().keys().cloned().collect();
+    fields.sort_unstable();
+    for field in fields {
+        if let Some(kind) = errors.errors_mut().get_mut(field.as_ref()) {
+            match kind {
+                ValidationErrorsKind::Struct(nested) => clear_validation_details(nested),
+                ValidationErrorsKind::List(entries) => {
+                    for nested in entries.values_mut() {
+                        clear_validation_details(nested);
+                    }
+                }
+                ValidationErrorsKind::Field(field_errors) => {
+                    for error in field_errors {
+                        error.params.clear();
+                        error.message = None;
+                    }
+                }
+            }
         }
     }
 }
@@ -119,17 +161,19 @@ impl<Settings: Validate> fmt::Debug for OperatorPolicy<Settings> {
 }
 
 /// Optional host policy requests over product defaults.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct HostPolicy {
     /// Requested auction limits; installed capacity remains independently authoritative.
     #[serde(default)]
+    #[validate(nested)]
     pub resource_limits: AuctionConfig,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(nested)]
     pub gdpr: Option<HostGdprOverride>,
     #[serde(
         default,
@@ -164,6 +208,22 @@ pub struct HostPolicy {
         skip_serializing_if = "Option::is_none"
     )]
     pub aliases: Option<BTreeMap<String, String>>,
+}
+
+// Root-only rules keep map keys and clear wrappers out of derive's value params.
+fn validate_host_policy(host: &HostPolicy) -> Result<(), ValidationErrors> {
+    let mut errors = host.validate().err().unwrap_or_default();
+    if let Some(banner) = &host.status_response
+        && let Err(error) = validate_status_banner(banner)
+    {
+        errors.add("status_response", error);
+    }
+    if let Some(aliases) = &host.aliases
+        && let Err(error) = validate_host_alias_overlay(aliases)
+    {
+        errors.add("aliases", error);
+    }
+    structural_validation_result(errors)
 }
 
 /// Cookie policy with explicit resets only on nullable effective fields.
@@ -296,7 +356,7 @@ pub struct UserSyncPolicy {
 }
 
 /// The same strict overlay type is used for account defaults and named accounts.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct AccountPolicy {
     #[serde(
@@ -304,12 +364,14 @@ pub struct AccountPolicy {
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
     #[serde(
         default,
@@ -334,12 +396,14 @@ pub struct AccountPolicy {
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(custom(function = "validate_bid_rounding"))]
     pub bid_rounding: Option<String>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(custom(function = "validate_targeting_prefix"))]
     pub targeting_prefix: Option<String>,
     #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
     pub truncate_target_attribute: FieldOverride<usize>,
@@ -348,19 +412,32 @@ pub struct AccountPolicy {
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(nested)]
     pub gdpr: Option<AccountGdprPolicy>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(nested)]
     pub ccpa: Option<AccountCcpaOverride>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_value",
         skip_serializing_if = "Option::is_none"
     )]
+    #[validate(nested)]
     pub privacy: Option<AccountPrivacyOverride>,
+}
+
+fn validate_account_policy(account: &AccountPolicy) -> Result<(), ValidationErrors> {
+    let mut errors = account.validate().err().unwrap_or_default();
+    if let FieldOverride::Value(value) = &account.truncate_target_attribute
+        && let Err(error) = validate_targeting_truncation(*value)
+    {
+        errors.add("truncate_target_attribute", error);
+    }
+    structural_validation_result(errors)
 }
 
 /// Nullable sync overrides preserve absence, clear, false, zero and empty groups.
@@ -421,6 +498,23 @@ pub struct AccountGdprPolicy {
     pub basic_enforcement_vendors: Option<Vec<String>>,
 }
 
+impl Validate for AccountGdprPolicy {
+    fn validate(&self) -> Result<(), ValidationErrors> {
+        let mut errors = ValidationErrors::new();
+        if let Some(purposes) = &self.purposes
+            && let Err(error) = validate_purpose_id_keys(purposes)
+        {
+            errors.add("purposes", error);
+        }
+        if let Some(features) = &self.special_features
+            && let Err(error) = validate_special_feature_id_keys(features)
+        {
+            errors.add("special_features", error);
+        }
+        structural_validation_result(errors)
+    }
+}
+
 /// Clearing either optional boolean restores the host's treatment fallback.
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -437,6 +531,446 @@ mod tests {
     type OperatorPolicy = super::OperatorPolicy<TestSettings>;
     use crate::override_value::FieldOverride;
     use serde_json::{Value, json};
+    use validator::Validate as _;
+
+    fn structural_policy(scope: &str, overlay: Value) -> OperatorPolicy {
+        let mut document = json!({
+            "schema_version": 1_u64,
+            "host": {},
+            "account_defaults": {},
+            "accounts": {"fake_private_account_canary": {}}
+        });
+        *document.pointer_mut(scope).unwrap() = overlay;
+        serde_json::from_value(document).expect("structural cases must deserialize first")
+    }
+
+    fn assert_structural_case(scope: &str, overlay: Value, valid: bool) {
+        structural_policy(scope, json!({}))
+            .validate()
+            .expect("the control passes before introducing one independent input");
+        assert_eq!(
+            structural_policy(scope, overlay).validate().is_ok(),
+            valid,
+            "scope: {scope}"
+        );
+    }
+
+    fn assert_fixed_structural_errors(value: &Value) {
+        match value {
+            Value::Object(fields) if fields.contains_key("code") => {
+                assert!(fields["code"].is_string());
+                assert_eq!(fields["params"], json!({}));
+                assert_eq!(fields["message"], json!(null));
+            }
+            Value::Object(fields) => {
+                for nested in fields.values() {
+                    assert_fixed_structural_errors(nested);
+                }
+            }
+            Value::Array(errors) => {
+                for error in errors {
+                    assert_fixed_structural_errors(error);
+                }
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                panic!("unexpected structural diagnostic shape")
+            }
+        }
+    }
+
+    #[test]
+    fn structural_host_resource_limits_reuse_existing_scalar_bounds() {
+        for (field, minimum, maximum) in [
+            ("default_tmax_ms", 1_u64, 30_000_u64),
+            ("max_tmax_ms", 1, 30_000),
+            ("max_bidders_per_auction", 1, 500),
+            ("max_outbound_requests", 1, 1_000),
+            ("max_bidder_response_bytes", 1_024, 0x0100_0000),
+            ("max_outbound_raw_bytes", 1_024, 0x0100_0000),
+            ("max_outbound_request_bytes", 1_024, 0x0100_0000),
+            ("max_transport_bytes", 1_024, 104_857_600),
+            ("max_decoded_bytes", 1_024, 104_857_600),
+            ("max_parsed_nodes", 1, 0x0010_0000),
+        ] {
+            for (value, valid) in [
+                (minimum - 1, false),
+                (minimum, true),
+                (maximum, true),
+                (maximum + 1, false),
+            ] {
+                assert_structural_case("/host", json!({"resource_limits": {field: value}}), valid);
+            }
+        }
+    }
+
+    #[test]
+    fn structural_specialized_checks_keep_literal_field_paths() {
+        for (overlay, expected) in [
+            (
+                json!({"host": {"status_response": "a".repeat(8_193)}}),
+                json!({"host": {"status_response": [{"code": "status_banner_bytes", "message": null, "params": {}}]}}),
+            ),
+            (
+                json!({"host": {"aliases": {format!("fake_{}", "a".repeat(60)): "fake_base"}}}),
+                json!({"host": {"aliases": [{"code": "host_alias_name_too_long", "message": null, "params": {}}]}}),
+            ),
+            (
+                json!({"account_defaults": {"truncate_target_attribute": 0_usize}}),
+                json!({"account_defaults": {"truncate_target_attribute": [{"code": "range", "message": null, "params": {}}]}}),
+            ),
+        ] {
+            let mut document = json!({"schema_version": 1_u64});
+            document
+                .as_object_mut()
+                .unwrap()
+                .extend(overlay.as_object().unwrap().clone());
+            let policy: OperatorPolicy = serde_json::from_value(document).unwrap();
+            let error = policy.validate().expect_err("specialized rule must reject");
+            assert_eq!(serde_json::to_value(error).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn structural_host_gdpr_checks_vendor_and_default_value_bounds() {
+        for (value, valid) in [(0_u32, true), (0xFFFF, true), (0x0001_0000, false)] {
+            assert_structural_case("/host", json!({"gdpr": {"host_vendor_id": value}}), valid);
+        }
+        for (value, valid) in [
+            ("0", true),
+            ("1", true),
+            ("", false),
+            ("fake_private_default", false),
+        ] {
+            assert_structural_case("/host", json!({"gdpr": {"default_value": value}}), valid);
+        }
+    }
+
+    #[test]
+    fn structural_host_gdpr_enforcement_keys_reuse_existing_ranges() {
+        for (field, last) in [("purposes", 10_u8), ("special_features", 12_u8)] {
+            for (id, valid) in [(0_u8, false), (1, true), (last, true), (last + 1, false)] {
+                assert_structural_case(
+                    "/host",
+                    json!({"gdpr": {"tcf2": {field: {id.to_string(): {}}}}}),
+                    valid,
+                );
+            }
+            assert_structural_case("/host", json!({"gdpr": {"tcf2": {field: {}}}}), true);
+        }
+    }
+
+    #[test]
+    fn structural_host_status_limit_counts_utf8_bytes() {
+        for (banner, valid) in [
+            (String::new(), true),
+            ("a".repeat(8_192), true),
+            ("a".repeat(8_193), false),
+            ("\u{e9}".repeat(4_096), true),
+            ("\u{e9}".repeat(4_097), false),
+        ] {
+            assert_structural_case("/host", json!({"status_response": banner}), valid);
+        }
+    }
+
+    #[test]
+    fn structural_host_alias_count_reuses_existing_limit() {
+        for (count, valid) in [(0_usize, true), (64, true), (65, false)] {
+            let aliases: serde_json::Map<String, Value> = (0..count)
+                .map(|index| (format!("fake_alias_{index}"), json!("fake_bidder")))
+                .collect();
+            assert_structural_case("/host", json!({"aliases": aliases}), valid);
+        }
+    }
+
+    #[test]
+    fn structural_host_alias_identity_limits_count_utf8_bytes() {
+        for (name, valid) in [
+            (format!("fake_{}", "a".repeat(59)), true),
+            (format!("fake_{}", "a".repeat(60)), false),
+            (format!("fake_a{}", "\u{e9}".repeat(29)), true),
+            (format!("fake_{}", "\u{e9}".repeat(30)), false),
+        ] {
+            for aliases in [
+                json!({name.clone(): "fake_bidder"}),
+                json!({"fake_alias": name}),
+            ] {
+                assert_structural_case("/host", json!({"aliases": aliases}), valid);
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_caps_are_checked_independently_in_both_scopes() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for field in ["max_transport_bytes", "max_decoded_bytes"] {
+                for (value, valid) in [
+                    (0_u64, false),
+                    (1_023, false),
+                    (1_024, true),
+                    (104_857_600, true),
+                    (104_857_601, false),
+                ] {
+                    for disabled in [false, true] {
+                        assert_structural_case(
+                            scope,
+                            json!({field: value, "disabled": disabled}),
+                            valid,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_string_lengths_reuse_character_bounds() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (field, maximum) in [("bid_rounding", 32_usize), ("targeting_prefix", 8_usize)] {
+                for (length, valid) in [
+                    (0_usize, false),
+                    (1, true),
+                    (maximum, true),
+                    (maximum + 1, false),
+                ] {
+                    for unit in ["a", "\u{e9}"] {
+                        assert_structural_case(scope, json!({field: unit.repeat(length)}), valid);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_truncation_checks_values_but_accepts_inherit_and_clear() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (value, valid) in [
+                (0_usize, false),
+                (11, false),
+                (12, true),
+                (20, true),
+                (21, false),
+            ] {
+                assert_structural_case(scope, json!({"truncate_target_attribute": value}), valid);
+            }
+            assert_structural_case(
+                scope,
+                json!({"truncate_target_attribute": {"clear": true}}),
+                true,
+            );
+            assert_structural_case(scope, json!({}), true);
+        }
+    }
+
+    #[test]
+    fn structural_account_gdpr_enforcement_keys_reuse_existing_ranges() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (field, last) in [("purposes", 10_u8), ("special_features", 12_u8)] {
+                for (id, valid) in [(0_u8, false), (1, true), (last, true), (last + 1, false)] {
+                    assert_structural_case(
+                        scope,
+                        json!({"gdpr": {field: {id.to_string(): {}}}}),
+                        valid,
+                    );
+                }
+                assert_structural_case(scope, json!({"gdpr": {field: {}}}), true);
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_privacy_ip_bounds_remain_family_specific() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (family, maximum) in [("ipv4", 32_u8), ("ipv6", 128_u8)] {
+                for (bits, valid) in [(0_u8, true), (maximum, true), (maximum + 1, false)] {
+                    assert_structural_case(
+                        scope,
+                        json!({"privacy": {family: {"anon_keep_bits": bits}}}),
+                        valid,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_activity_rule_count_reuses_existing_limit() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (count, valid) in [(0_usize, true), (128, true), (129, false)] {
+                assert_structural_case(
+                    scope,
+                    json!({"privacy": {"allowactivities": {
+                        "fetchBids": {"default": false, "rules": vec![json!({"allow": false}); count]}
+                    }}}),
+                    valid,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_activity_condition_limit_combines_names_and_types() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (names, kinds, valid) in [
+                (128_usize, 0_usize, true),
+                (127, 1, true),
+                (128, 1, false),
+                (0, 129, false),
+            ] {
+                assert_structural_case(
+                    scope,
+                    json!({"privacy": {"allowactivities": {
+                        "fetchBids": {"rules": [{"allow": false, "condition": {
+                            "componentName": vec!["fake_component"; names],
+                            "componentType": vec!["bidder"; kinds]
+                        }}]}
+                    }}}),
+                    valid,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn structural_account_activity_component_limit_counts_utf8_bytes() {
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            for (name, valid) in [
+                (format!("fake_{}", "a".repeat(123)), true),
+                (format!("fake_{}", "a".repeat(124)), false),
+                (format!("fake_{}", "\u{e9}".repeat(61)), true),
+                (format!("fake_{}", "\u{e9}".repeat(62)), false),
+            ] {
+                assert_structural_case(
+                    scope,
+                    json!({"privacy": {"allowactivities": {
+                        "fetchBids": {"rules": [{"allow": false, "condition": {"componentName": [name]}}]}
+                    }}}),
+                    valid,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn structural_gdpr_diagnostics_keep_existing_codes_without_raw_values() {
+        let error = structural_policy(
+            "/host",
+            json!({"gdpr": {
+                "default_value": "fake_private_default_canary",
+                "tcf2": {"purposes": {"0": {"vendor_exceptions": ["fake_private_vendor_canary"]}}}
+            }}),
+        )
+        .validate()
+        .expect_err("host GDPR checks must recurse");
+        let serialized = serde_json::to_value(error).unwrap();
+        assert_eq!(
+            serialized,
+            json!({"host": {"gdpr": {
+                "default_value": [{"code": "gdpr_default_value_must_be_0_or_1", "message": null, "params": {}}],
+                "tcf2": {"purposes": [{"code": "purpose_id_out_of_range", "message": null, "params": {}}]}
+            }}})
+        );
+        assert_fixed_structural_errors(&serialized);
+    }
+
+    #[test]
+    fn structural_account_map_diagnostics_do_not_retain_names_values_or_siblings() {
+        let policy: OperatorPolicy = serde_json::from_value(json!({
+            "schema_version": 1_u64,
+            "accounts": {
+                "fake_private_account_canary": {"privacy": {"allowactivities": {
+                    "fetchBids": {"rules": [{"allow": false, "condition": {
+                        "componentName": ["fake_private_component_canary".repeat(8)]
+                    }}]}
+                }}},
+                "fake_private_sibling_canary": {"max_transport_bytes": 1_024_u64}
+            }
+        }))
+        .unwrap();
+        let error = policy
+            .validate()
+            .expect_err("invalid named accounts must be checked");
+        let serialized = serde_json::to_value(error).unwrap();
+        assert_eq!(
+            serialized,
+            json!({
+                "accounts": [{"code": "account_override_invalid", "message": null, "params": {}}]
+            })
+        );
+        assert_fixed_structural_errors(&serialized);
+    }
+
+    #[test]
+    fn structural_nested_diagnostics_do_not_retain_rejected_maps_or_strings() {
+        for (scope, overlay) in [
+            (
+                "/host",
+                json!({"resource_limits": {"default_tmax_ms": 0_i64}}),
+            ),
+            (
+                "/host",
+                json!({"status_response": "fake_private_status_canary".repeat(400)}),
+            ),
+            (
+                "/host",
+                json!({"aliases": {"fake_private_alias_canary".repeat(8): "fake_private_base_canary"}}),
+            ),
+            (
+                "/account_defaults",
+                json!({"targeting_prefix": "fake_private_prefix_canary"}),
+            ),
+            (
+                "/account_defaults",
+                json!({"gdpr": {"special_features": {"13": {"vendor_exceptions": ["fake_private_vendor_canary"]}}}}),
+            ),
+            (
+                "/account_defaults",
+                json!({"privacy": {"allowactivities": {
+                    "fetchBids": {"rules": [{"allow": false, "condition": {
+                        "componentName": ["fake_private_component_canary".repeat(8)]
+                    }}]}
+                }}}),
+            ),
+        ] {
+            let error = structural_policy(scope, overlay)
+                .validate()
+                .expect_err("the invalid leaf must be rejected before inspecting diagnostics");
+            let serialized = serde_json::to_value(error).unwrap();
+            assert_fixed_structural_errors(&serialized);
+            assert!(!serialized.to_string().contains("fake_private_"));
+        }
+    }
+
+    #[test]
+    fn structural_validation_does_not_add_effective_policy_rules() {
+        assert_structural_case(
+            "/host",
+            json!({
+                "ccpa": {"enforce": false},
+                "lmt": {"enforce": false},
+                "host_cookie": {"cookie_name": "", "ttl_days": 0_i64, "max_cookie_size_bytes": 0_usize,
+                    "domain": {"clear": true}, "optout_cookie": {"clear": true}},
+                "user_sync": {"clear": true},
+                "status_response": ""
+            }),
+            true,
+        );
+        for scope in ["/account_defaults", "/accounts/fake_private_account_canary"] {
+            assert_structural_case(
+                scope,
+                json!({
+                    "disabled": false,
+                    "debug_allow": false,
+                    "bid_rounding": "fake_not_a_rounding_mode",
+                    "cookie_sync": {"default_limit": 0_i64, "max_limit": -1_i64,
+                        "default_coop_sync": false, "priority_groups": []},
+                    "gdpr": {"enabled": "unset", "purpose_one_treatment": {
+                        "enabled": {"clear": true}, "access_allowed": false}},
+                    "ccpa": {"enabled": "unset"}
+                }),
+                true,
+            );
+        }
+    }
 
     fn ordinary_optional_host_cases() -> Vec<(String, Vec<Value>)> {
         [

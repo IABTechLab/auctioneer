@@ -33,7 +33,7 @@ pub fn resolve_policy_account(
     account
 }
 
-fn merge_policy_account(base: &mut AccountConfig, overlay: &AccountPolicy) {
+pub(super) fn merge_policy_account(base: &mut AccountConfig, overlay: &AccountPolicy) {
     if let Some(value) = overlay.disabled {
         base.disabled = value;
     }
@@ -85,7 +85,7 @@ fn merge_policy_account(base: &mut AccountConfig, overlay: &AccountPolicy) {
     }
 }
 
-fn apply_optional_override<T: Clone>(base: &mut Option<T>, overlay: &FieldOverride<T>) {
+pub(super) fn apply_optional_override<T: Clone>(base: &mut Option<T>, overlay: &FieldOverride<T>) {
     match overlay {
         FieldOverride::Inherit => {}
         FieldOverride::Value(value) => *base = Some(value.clone()),

@@ -4,7 +4,7 @@
 
 **Goal:** Release one operator-neutral native executable that accepts different bounded, validated operator configurations without rebuilding, while establishing the shared contract for the remaining adapters and embedding host.
 
-**Architecture:** Keep product defaults in `auctioneer-config`; keep strict operator DTOs, pure resolution, startup validation and snapshot admission in `auctioneer-core`. Use the existing EdgeZero store/envelope and host services, and the existing additive resource model. Prepare foundations without changing serving, then cut defaults, policy loading, bootstrap, CLI and the native adapter over together.
+**Architecture:** Keep shared source/policy/effective models in `auctioneer-config`, compiled product data in `auctioneer-config-data`, and generated settings/endpoints in `auctioneer-bidder`. Core composes those models and owns semantic resolution, startup coordination, SDK integration and snapshot admission. Use the existing EdgeZero store/envelope, host services and additive resource model. Prepare foundations without changing serving, then cut defaults, policy loading, bootstrap, CLI and the native adapter over together.
 
 **Tech Stack:** Rust workspace, Serde, validator, existing TOML/JSON support, quote/syn for retained code generation, EdgeZero, existing resource and test-support APIs. No new workspace crate, config framework, third-party package or cryptographic scheme is planned. The bidder crate adds a workspace-inherited dependency on the already-used `validator` package for its local views.
 
@@ -71,18 +71,19 @@ compile-only pass or a filtered command that dispatched zero tests.
 
 ## File And Test Ownership
 
-Paths below are relative to the repository root. New paths are proposed;
-they are not claims that those modules or tests already exist.
+Paths below are relative to the repository root and incorporate the approved
+ownership amendment. Unimplemented startup/snapshot paths remain proposed;
+their presence here is not a claim of serving acceptance.
 
 | Owner | Existing files / planned changes |
 | --- | --- |
-| Product data and generation | Add `crates/auctioneer-config/data/product-defaults.toml`; modify `auctioneer-config/{build.rs,src/lib.rs}` and `auctioneer-config-schema/src/codegen/mod.rs`. Retain quote/syn, discovery, disclosure and public-reference generation. |
-| Effective sync state | Modify `auctioneer-config-schema/src/{types.rs,usersync.rs}` and their existing renderers; represent an unconfigured service explicitly. |
-| Strict authoring root | Modify `auctioneer-config-schema/src/lib.rs` and `tests/root_shape.rs`; the final generic root carries typed startup/runtime, not opaque operator subtrees. |
-| Operator policy DTO | Add `auctioneer-core/src/config/policy.rs` and `override_value.rs`; `mod.rs` reexports the public config contract instead of accumulating another large inline model. Private units remain inline. |
-| Resolution and validation | Modify `auctioneer-core/src/config/{mod.rs,resolve.rs,budgets.rs}`; add `validation.rs` for non-installing context-based semantic validation and `snapshot.rs` for admitted ownership. |
-| Bidder-owned policy validation | Add `auctioneer-bidder/src/config_validation.rs`; extend `src/bidders/mod.rs`, `src/registry/catalog.rs` and config-schema `src/bidder_discovery.rs`. Settings-owning executable bidders add local `config.rs`, ordinary module wiring and inline validator units; no central bidder-name list. |
-| Startup | Add `auctioneer-core/src/config/startup.rs`; modify `host_primitives/{bootstrap.rs,gates.rs,resource_profile.rs}`, `configure.rs` and `config/runtime.rs`. Keep provider reads out of core. |
+| Product data and generation | `auctioneer-config-data/data/product-defaults.toml`, `auctioneer-config-data/{build.rs,src/lib.rs}` and `auctioneer-config/src/codegen/mod.rs`. Retain quote/syn, discovery, disclosure and public-reference generation. |
+| Effective sync state | `auctioneer-config/src/{types.rs,usersync.rs}` and their existing renderers represent an unconfigured service explicitly. |
+| Strict authoring root | `auctioneer-config/src/lib.rs` and `tests/root_shape.rs`; the final generic root carries typed startup/runtime, not opaque operator subtrees. |
+| Operator policy DTO | `auctioneer-config/src/{source.rs,policy.rs,override_value.rs}` owns declarations and pure structural validation. Core aliases compose bidder-owned settings; no duplicate model. Private units remain inline. |
+| Resolution and validation | `auctioneer-core/src/config/{resolve.rs,policy_host.rs,policy_account.rs,budgets.rs,validation.rs}` owns non-installing context-based composition and semantic checks. `snapshot.rs` remains proposed for admitted ownership. |
+| Bidder-owned policy validation | `auctioneer-bidder/src/config_validation.rs`, `src/bidders/mod.rs`, `src/registry/catalog.rs` and `auctioneer-config/src/bidder_discovery.rs`. Settings-owning executable bidders use local `config.rs`, ordinary module wiring and inline validator units; no central bidder-name list. |
+| Startup | Shared input declarations belong in `auctioneer-config`; startup coordination belongs in proposed `auctioneer-core/src/config/startup.rs` with `host_primitives/{bootstrap.rs,gates.rs,resource_profile.rs}`, `configure.rs` and `config/runtime.rs`. Keep provider reads out of core. |
 | Accounting | Modify `auctioneer-runtime/src/{budget.rs,aux_work.rs}` and core's existing config-cost/funding owners. Preserve one derivation and independent product-default storage. |
 | Request consumers | Update `auctioneer-core/src/handlers/{auction.rs,cookie_sync.rs,setuid.rs,getuids.rs,sync_http.rs,usersync_keys.rs,probe_config.rs,status.rs,info_bidders.rs}`. Do not create a parallel route family. |
 | CLI | Modify `auctioneer-cli/src/{config_source.rs,application.rs}` and existing resource/evidence input owners; preserve config validate/diff/push/gc and maintenance-only features. |
@@ -90,7 +91,7 @@ they are not claims that those modules or tests already exist.
 | Public configuration integration | Extend core `tests/resolve_runtime_config.rs` for SDK store/host parity and `runtime_config_failclosed.rs` for refusals. Add ordinary submodules beneath `tests/resolve_runtime_config/` only as needed. Shared setup uses existing `test_support::config_store`; expected values stay with the cases. |
 | Global/allocator isolation | Keep `config_funding`, `config_peak_charge`, `boot_strict_parity`, `auction_config_retention` and sync allocation targets isolated. Use their existing processes/allocators, not a combined binary. |
 | Native artifact acceptance | Extend Axum `tests/boot_envelope.rs` and `tests/health_boot.rs`. Add one `tests/operator_configuration.rs` only for executable lifecycle/two-config acceptance, which cannot share an installed boot domain. |
-| Build rejection and neutrality | Extend config's existing `tests/build_failure_harness.rs` and its existing mandatory compiler owner. Rename `baked_defaults_snapshot.rs` to `product_defaults_snapshot.rs` at cutover, updating Cargo/CI callers. Do not add a second full child-build suite. |
+| Build rejection and neutrality | Extend config-data's existing `tests/build_failure_harness.rs` and its existing mandatory compiler owner. Rename `baked_defaults_snapshot.rs` to `product_defaults_snapshot.rs` at cutover, updating Cargo/CI callers. Do not add a second full child-build suite. |
 | Three-path CLI parity | Extend inline `config_source.rs` tests and core's opt-in test-support setup with fixed test cases, not a second validator. CLI tests call the actual store extraction and host snapshot constructor for equivalent inputs. |
 | Synthetic settings and discovery proof | Extend bidder `tests/generated_settings.rs`, `tests/support/generated_settings_contract.rs`, `tests/support/generated_exchange_settings.rs` and existing `tests/build_workspace/` setup. Use its actual synthetic generated settings and normal copied crate APIs; no production fake settings variant or source import. Keep the existing once-owned compiler job. |
 
@@ -109,7 +110,9 @@ record to add under `docs/testing/evidence/` using the implementation date.
   Use the SDK checkout resolved from Cargo metadata, not another local checkout.
   Read existing tests and list targets before changing schemas. Run one heavy
   Cargo job at a time; retain caches and incremental output.
-- [x] Record the actual pre-edit test names, dispatched counts and results:
+- [x] Record the actual pre-edit test names, dispatched counts and results.
+  This block records the original owners; the current owners are listed in the
+  ownership table and checkpoint evidence, not inferred from these old commands:
 
 ```sh
 cargo test --locked -p auctioneer-config-schema --test root_shape
@@ -156,7 +159,7 @@ Checkpoint commit: `Record operator configuration implementation baseline`.
   `floor_currency` scopes. Reject missing/wrong application versions, unknown
   nested fields, old flat policy roots and mixed old/new roots. The final
   authoring root rejects `baked` and strictly types both startup and runtime.
-- [ ] Introduce the new types without changing the deployed extractor's type
+- [x] Introduce the new types without changing the deployed extractor's type
   yet. Stage the new `OperatorPolicy` and dependency-neutral generic
   `OperatorConfigSource<Startup, Runtime>` alongside the old build-only root;
   do not change the old generic root's arity while build.rs still uses it.
@@ -165,16 +168,16 @@ Checkpoint commit: `Record operator configuration implementation baseline`.
   Reuse existing leaf types/validators, with `validator` for supported
   scalar/nested constraints and explicit checks for actual cross-field rules.
   Do not duplicate generated bidder settings or put native generators in core.
-- [ ] Implement a presence-aware field override with three semantic states:
+- [x] Implement a presence-aware field override with three semantic states:
   inherit, typed value, clear. Its deserializer must reject direct null; an
   `Option<T>` that silently maps null to absence is not sufficient. A clear
   object accepts exactly `clear = true`, no extra keys. Apply it only to the
   design's nullable-field whitelist, including clear of the complete sync
   service. Required/scalar/map fields do not acquire a generic patch mechanism.
-- [ ] Drive JSON and TOML controls for omission, value, clear, false clear,
+- [x] Drive JSON and TOML controls for omission, value, clear, false clear,
   extra key, wrong type and null. For generated bidder settings, independently
   preserve only owner-declared accepted nulls; do not apply the override union.
-- [ ] Add `ConfigValidationContext` with explicit borrowed product defaults,
+- [x] Add `ConfigValidationContext` with explicit borrowed product defaults,
   catalog eligibility and normalized resource/startup inputs. Semantic
   validation must not call global boot accessors. Two different valid contexts
   in one process must produce their respective decisions without installation.
@@ -185,15 +188,16 @@ Checkpoint commit: `Record operator configuration implementation baseline`.
 Use the proposed module owners for the new focused commands:
 
 ```sh
-cargo test --locked -p auctioneer-core --lib config::policy::tests::
-cargo test --locked -p auctioneer-core --lib config::override_value::tests::
+cargo test --locked -p auctioneer-config --no-default-features --features config-model --lib policy::tests::
+cargo test --locked -p auctioneer-config --no-default-features --features config-model --lib override_value::tests::
 cargo test --locked -p auctioneer-core --lib config::validation::tests::
 ```
 
-Required named controls include `application_version_is_required_under_valid_envelope`,
-`clear_rejects_false_null_and_extra_keys`, and
-`validation_uses_its_context_without_boot_installation`; the envelope control
-belongs in the existing store integration target, not a pretend Serde-only unit.
+Required controls include the existing `override_value::tests::toml_clear_marker_is_strict`,
+the per-field null/clear tests and
+`validation_uses_its_context_without_boot_installation`. The still-required
+`application_version_is_required_under_valid_envelope` belongs in the existing
+store integration target, not a pretend Serde-only unit.
 
 Checkpoint commit: `Add strict operator policy and reset semantics`.
 
@@ -216,15 +220,15 @@ core `config/{resolve.rs,budgets.rs,validation.rs}`.
   generated syntax tests and direct sync consumers together when activating it.
   Configured sync still requires an explicit valid external origin and current
   cookie/redirect/origin checks. Do not replace a configured URL with `""`.
-- [ ] Test host = product + host overlay; account = product + account_defaults
+- [x] Test host = product + host overlay; account = product + account_defaults
   + selected account. Removing a named account must not select it through the
   synthesized `unknown` fallback identity. Keep host-provided identity distinct.
-- [ ] Test each optional clear field with a nonempty/nondefault inherited
+- [x] Test each optional clear field with a nonempty/nondefault inherited
   before-state and literal expected effective result. Vary activity `default`
   and `rules` independently: parent false + child `rules = []` remains false.
   Empty arrays replace, omitted fields inherit, account treatment clears
   restore host fallback rather than permission.
-- [ ] Add account-default response caps to `budgets.rs`. Vary transport and
+- [x] Add account-default response caps to `budgets.rs`. Vary transport and
   decoded caps separately across bidder, alias base, named account,
   account_defaults, host, product/historical fallback and installed min.
   Validate invalid values before successful capacity-clamp/warning behavior.
@@ -299,7 +303,7 @@ ordinary `mod.rs`/new `config.rs`. No request schema engine changes.
   Bound/fund temporary `ValidationErrors` allocations and any added indexes
   in Task 4 before serving activation; callback purity is not zero-allocation.
 - [ ] Run focused bidder `--lib config_validation::`, core
-  `--lib config::validation::`, config-schema `--lib --features build-support
+  `--lib config::validation::`, config `--lib --features build-support
   bidder_discovery::` and the explicit bidder `--test generated_settings` owner.
   List and execute new cases, preserving each old guarantee and its features.
   Run `--test test_isolation` after module wiring and test builds under Clippy.
@@ -689,8 +693,9 @@ records subsequent test execution, the pinned SDK audit and registry growth.
 | Bidder-owned validation | Discovery, local callbacks and the staged pure shared dispatcher are implemented; bidder library 1,188 passed (9 existing source-dependent ignores), registry 21 and ownership 16 passed. Strict bidder lint passed. The once-owned settings contract passed 19 outer / 25 reconciled child cases, including absent-feature settings refusal; discovery passed 38. Exact ABI controls and matched native construction observations completed; staging spec and quality reviews approved. Allocation target: 8 passed, including independent regression ceilings and populated callback slots. Earlier guest test compilation and strict guest library/allocation lint passed; guest checks were not rerun for these review repairs. No serving callback activation or resource admission. |
 | SDK bounded-input audit | Exact locked source confirmed through Cargo metadata. Store extraction has bounded reads; the TOML authoring loader and typed CLI rereads do not expose equivalent bounded-input hooks. This remains a Task 4 prerequisite, not an excuse for unbounded bootstrap. |
 | Neutral product data / optional sync | Prepared without switching serving accessors. Existing exact defaults snapshots pass, and unconfigured services refuse before signing-key/registry work. Source/default separation remains unfinished until the reader cutover. |
-| Pure account and scoped-cap composition | Implemented without admission/boot installation: 16 account cases and 14 total budget cases remain in the passing core library. Host composition and the complete context-based validator remain unimplemented. |
+| Pure account and scoped-cap composition | Implemented without admission/boot installation: 16 account cases and 14 total budget cases remain in the passing core library. Explicit-context host composition and staged policy validation are now implemented; their reservation and serving adoption remain separate. |
 | Shared configuration ownership | Implemented under the approved amendment: shared models in config, compiled assets in config-data, settings/endpoints in bidder, and composition/SDK integration in core. All 698 baseline core case identities are preserved; native models, actual compiler consumers and WASI model execution pass. See the [ownership record](../../testing/evidence/configuration-model-ownership-20261103.md) for exact local checks and CI-only acceptance. |
+| Context-based policy foundation | Host composition uses supplied defaults/capacity; the staged validator uses supplied defaults, catalog, capacity and time. Typed children use nested validation; maps and explicit clears retain their specialized rules. Success is not snapshot/input/storage admission. See the [validation checkpoint](../../testing/evidence/operator-policy-validation-20261103.md) for actual execution and remaining cutover gates. |
 | Serving/default/bootstrap/CLI cutover | Not started; the exact startup reservation gate is still outstanding. |
 
 The maintainer subsequently requested one physical owner for shared configuration

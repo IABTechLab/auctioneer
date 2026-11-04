@@ -122,7 +122,8 @@ mod tests {
         fs::write(string_manifest, toml::to_string(&declaration).unwrap()).unwrap();
     }
 
-    const EXPECTED_TESTS: [&str; 26] = [
+    const EXPECTED_TESTS: [&str; 27] = [
+        "config_callbacks::complete_policy_validation_preserves_generated_settings_and_owner_refusals",
         "config_limits::aggregate_validation_delegates_structural_limits_with_fixed_redacted_errors",
         "config_callbacks::shared_admission_rejects_settings_for_unlinked_factories",
         "config_callbacks::shared_admission_visits_each_identity_once_with_fieldwise_alias_fallback",
@@ -165,7 +166,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -187,7 +188,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }

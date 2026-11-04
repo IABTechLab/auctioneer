@@ -130,17 +130,27 @@ enforcement off.
 
 Keep the existing crates and dependency direction:
 
-- `auctioneer-config-schema` keeps portable effective DTOs, bidder-owned schema
-  declarations and native build support. Native generators stay out of serving.
-- `auctioneer-config` owns a reviewed product-default artifact and its effective
+- `auctioneer-config` keeps portable source/policy/effective DTOs, shared pure
+  validation and optional native build support. It has no build script or
+  engine, bidder, SDK or compiled-data dependency.
+- `auctioneer-config-data` owns a reviewed product-default artifact and its effective
   values. Its build script no longer opens the operator authoring file or
   `runtime-bootstrap.toml`. Bidder/disclosure/GVL generation remains.
-- `auctioneer-core::config` owns the startup DTO, runtime DTO, semantic validation
-  and snapshot construction. CLI, standalone handlers and embedders use it.
+- `auctioneer-bidder` owns generated concrete settings and endpoint bindings,
+  alongside discovered bidder-local semantic validators.
+- `auctioneer-core::config` composes shared models with those settings and owns
+  semantic resolution, the SDK boundary and snapshot construction. CLI,
+  standalone handlers and embedders use that orchestration.
 - Adapters translate their deployment surfaces and supply actual resource and
   host-service facts. Core does not read provider environment variables.
 - `auctioneer-runtime` remains the sole resource derivation/validation owner.
   CLI diagnostics consume the same resolved inputs without installing globals.
+
+These package roles incorporate the maintainer-approved
+[ownership amendment](2026-11-03-configuration-model-ownership-design.md),
+implemented without increasing the package count. The starting-point section
+records the earlier package names; its historical build behavior is not the
+new serving contract.
 
 The following are proposed API roles, not existing APIs:
 
@@ -179,9 +189,9 @@ Keep `bidder.toml` as the source of typed settings declarations and generated
 borrowed accessors. Use one bidder-owned `validator::Validate` implementation
 for field constraints and custom cross-field validation. Do not add another TOML
 validation language, runtime schema compiler or duplicate settings DTO. The
-generated settings type is owned by `auctioneer-config`: Rust's orphan rules
-prevent a bidder from implementing the external `validator::Validate` trait
-directly for it. Use a bidder-local borrowed validation view instead, with
+generated settings aggregate is owned by `auctioneer-bidder` under the ownership
+amendment and already implements generated structural `Validate`. Keep that
+structural boundary and use a bidder-local borrowed semantic validation view, with
 `Validate` derive/custom rules, projected borrowed fields and the same
 pure semantic helpers as request construction. No settings clone, second
 config parse or bidder factory invocation is needed for this projection.
@@ -744,13 +754,13 @@ configuration implementation was started.
 ## 15. Source References
 
 - [Current authoring root](../../../auctioneer.toml),
-  [strict source wrapper](../../../crates/auctioneer-config-schema/src/lib.rs),
-  [build and generation owner](../../../crates/auctioneer-config/build.rs).
-- [Effective DTOs](../../../crates/auctioneer-config-schema/src/types.rs),
+  [strict source wrapper](../../../crates/auctioneer-config/src/lib.rs),
+  [build and generation owner](../../../crates/auctioneer-config-data/build.rs).
+- [Effective DTOs](../../../crates/auctioneer-config/src/types.rs),
   [runtime DTO and effective validation](../../../crates/auctioneer-core/src/config/mod.rs),
   [resolution](../../../crates/auctioneer-core/src/config/resolve.rs),
   [response-cap precedence](../../../crates/auctioneer-core/src/config/budgets.rs).
-- [Compiled bootstrap input](../../../crates/auctioneer-config/data/runtime-bootstrap.toml),
+- [Compiled bootstrap input](../../../crates/auctioneer-config-data/data/runtime-bootstrap.toml),
   [runtime loading and failure owner](../../../crates/auctioneer-core/src/config/runtime.rs),
   [App configuration/captured limits](../../../crates/auctioneer-core/src/configure.rs).
 - [Adapter resource profile](../../../crates/auctioneer-core/src/host_primitives/resource_profile.rs),

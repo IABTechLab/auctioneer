@@ -606,7 +606,10 @@ mod config_callbacks {
     };
     use auctioneer_core::config::{
         BidderOverrides,
-        validation::{BidderConfigurationError, validate_bidder_configuration},
+        validation::{
+            BidderConfigurationError, ConfigValidationContext, PolicyValidationError,
+            validate_bidder_configuration, validate_operator_policy,
+        },
     };
     use serde_json::{Value, json};
     use std::{cell::RefCell, collections::BTreeMap, mem};
@@ -740,6 +743,60 @@ mod config_callbacks {
 
     fn overrides(values: Value) -> BTreeMap<String, BidderOverrides> {
         serde_json::from_value(values).unwrap()
+    }
+
+    #[test]
+    fn complete_policy_validation_preserves_generated_settings_and_owner_refusals() {
+        assert!(observations().is_empty());
+        let before = auctioneer_bidder::fake_synthetic::factory_calls();
+        let catalog = public_plan(true, false);
+        let limits = auctioneer_core::test_support::boot_parity_fixture::profile_for_adapter(
+            "unequal_explicit_caps", "axum",
+        ).limits;
+        let context = ConfigValidationContext {
+            product_host: auctioneer_config_data::product_host_default(),
+            product_account: auctioneer_config_data::product_account_default(),
+            catalog: &catalog,
+            limits: &limits,
+            now_unix_seconds: 1000,
+        };
+        let valid: auctioneer_core::config::policy::OperatorPolicy = serde_json::from_value(json!({
+            "schema_version": 1_u64,
+            "host": {"aliases": {"fake_alias": "fake_base"}},
+            "bidders": {
+                "fake_base": {"settings": {"implementation": "fake_integer_probe", "values": {
+                    "primary_number": 7_i64, "secondary_number": 11_i64
+                }}},
+                "fake_alias": {"settings": {"implementation": "fake_integer_probe", "values": {
+                    "primary_number": 0_i64
+                }}},
+                "fake_future": {"settings": {"implementation": "fake_integer_probe", "values": {
+                    "primary_number": 17_i64, "secondary_number": 19_i64
+                }}}
+            }
+        })).unwrap();
+        assert_eq!(validate_operator_policy(&valid, &context), Ok(()));
+        let mut seen = observations();
+        seen.sort_by_key(|row| row.primary);
+        assert_eq!(seen, vec![
+            Observation {implementation: "fake_integer_probe", definition: Some("fake_base".into()), enabled: true, primary: Some(0), secondary: Some(11)},
+            Observation {implementation: "fake_integer_probe", definition: Some("fake_base".into()), enabled: true, primary: Some(7), secondary: Some(11)},
+            Observation {implementation: "fake_integer_probe", definition: None, enabled: false, primary: Some(17), secondary: Some(19)},
+        ]);
+        let invalid: auctioneer_core::config::policy::OperatorPolicy = serde_json::from_value(json!({
+            "schema_version": 1_u64,
+            "host": {"aliases": {"fake_alias": "fake_base"}},
+            "bidders": {
+                "fake_base": {"enabled": false, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": -1_i64}}},
+                "fake_alias": {"enabled": false, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0_i64}}}
+            }
+        })).unwrap();
+        assert_eq!(validate_operator_policy(&invalid, &context),
+            Err(PolicyValidationError::Bidder(BidderConfigurationError::Bidder(BidderConfigError {
+                field: "primary_number", reason: "invalid"
+            }))));
+        assert_eq!(observations().len(), 1);
+        assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
     }
 
     #[test]

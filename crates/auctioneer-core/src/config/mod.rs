@@ -73,6 +73,7 @@ mod floor_currency {
 pub mod override_value;
 pub mod policy;
 pub mod policy_account;
+pub mod policy_host;
 pub mod resolve;
 pub mod runtime;
 mod sdk;
