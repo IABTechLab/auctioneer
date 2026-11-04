@@ -109,6 +109,10 @@ full acceptance matrix; do not copy it into multiple agent files.
 - Search for existing issues before creating one. Substantial changes need a
   clear issue, acceptance criteria and the appropriate reviewed design. Do not
   create an issue merely to decorate a small PR.
+- GitHub issues are the backlog of record. Put remaining work under an existing
+  or reviewed new epic; update its issue and native dependency links instead of
+  recreating a local `ISSUES.md` ledger. Keep specs and evidence as contracts and
+  records, not a parallel status tracker.
 - Reviews report concrete correctness, security, privacy, resource and
   regression findings with file/line references. Verify unfamiliar behavior
   before flagging it; do not treat formatter preferences as defects.

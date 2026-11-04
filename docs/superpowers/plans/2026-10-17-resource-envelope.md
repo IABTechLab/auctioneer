@@ -394,7 +394,9 @@ four provider profiles.
 ## Task 6: Target Execution, CI And Handoff
 
 **Files:** existing provider workflows and their colocated scripts;
-approved target-observation records; human audit; `ISSUES.md`, roadmap, bidder catalog docs.
+approved target-observation records; human audit; the owning issues under
+[resource epic #9](https://github.com/IABTechLab/auctioneer/issues/9), roadmap,
+bidder catalog docs.
 
 - [x] Execute the unchanged actual CI toolchain/build/lint matrix: Cloudflare worker build/dry-run, Fastly wasm32-wasip1 guest/package build, Spin wasm32-wasip2 component build. Retain existing upload/package/component ceilings and profile settings. Host-side envelope tests do not substitute for this matrix. The [storage verification](../../testing/evidence/auxiliary-storage-controls-20261018.md) records all three real package builds, all-target WASM Clippy rows, guest conformance links and unchanged size ceilings. This is not execution of every workflow job, runtime observation or physical qualification.
 - [ ] Wire new required pure/process/CLI controls into existing workflows. For a frozen limit/model package also wire its approved-review-to-HEAD check. Extend semantic gates to pin commands/features, applicable approved review bindings, non-disableable measurement steps, shell failure propagation and triggers; demonstrate deletion/`if: false`/raised-budget mutations fail. A missing binding refuses that package, not unrelated authorized unchanged-workload improvements.
@@ -404,7 +406,7 @@ approved target-observation records; human audit; `ISSUES.md`, roadmap, bidder c
 - [ ] Review the complete diff, applicable frozen-package scope result and actual versus projected terms/full gap. Update accounted fit, allocation bounds and observations separately. Verified Auctioneer work may be complete with external prerequisites pending; that does not close its target or resource qualification. resource qualification completion needs all three WASM targets, and aggregate exit zero also needs all four SDK fact sets including native; otherwise record the exact nonzero reason, owner and next action.
 - [ ] Close any opened frozen limit/model package window, even if target readiness remains partial: obtain AG's approval of endpoint H and the closing CI-binding change after D-to-H passes. That change updates only the approved workflow binding and human audit. Keep CI checking explicit frozen D-to-H thereafter, not every future bidder catalog HEAD. Authorized implementation-only work creates no such window or closing-approval requirement. Window closure grants no fit claim for later artifacts.
 - [ ] Link the approved profiles/artifacts/reports and unresolved facts into publisher pilot's existing runbooks. Credentialed hosted-handler execution, corrupt-config injection/recovery, actual deployment Q2-D and publisher readiness stay unexecuted until separately authorized.
-- [ ] Update `ISSUES.md`, roadmap and bidder catalog cross-references. Commit and push verified changes to the same bidder catalog PR; no claim that documentation alone repaired WASM fit.
+- [ ] Update the owning GitHub issues, roadmap and bidder catalog cross-references. Commit and push verified changes to the same bidder catalog PR; no claim that documentation alone repaired WASM fit.
 
 ## Completion Record
 

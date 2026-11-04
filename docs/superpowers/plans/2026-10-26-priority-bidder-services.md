@@ -175,7 +175,10 @@ decoder helpers only where a real protocol branch requires them.
 ## Task 6: Review And Publish The Complete Priority Checkpoint
 
 **Files:** existing priority wave/producer owners, selected handler acceptance,
-schema/resource qualification records, `ISSUES.md` and the main bidder catalog plan.
+schema/resource qualification records and the main bidder catalog plan. Track
+remaining proof in [epic #9](https://github.com/IABTechLab/auctioneer/issues/9)
+and credentialed provider acceptance in
+[epic #10](https://github.com/IABTechLab/auctioneer/issues/10).
 
 - [ ] Complete required schema/work/cache qualification and funded serving joins;
   a passing protocol unit cannot waive them.
