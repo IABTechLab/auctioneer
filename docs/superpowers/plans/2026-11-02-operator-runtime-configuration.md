@@ -41,9 +41,10 @@ updated callers does not count as implementing their operator startup ports.
   schema reservations, resource floors or the additive budget equation.
 - No new cross-request store cache or last-known-good store behavior.
 - No unbounded startup read, post-allocation-only limit, or invented SDK hook.
-- One operator configuration document and one SDK load/validate pipeline;
-  startup/runtime are internal scopes, not separate files or loaders. Follow
-  design section 9.1 for the bounded, reload-free handoff.
+- One operator configuration document and the existing typed SDK CLI flow;
+  startup/runtime are internal scopes, not separate files or loaders. Local
+  CLI read bounding/accepted-input reuse is separately tracked hardening under
+  the 2026-11-03 amendment to design section 9.1. Serving bounds remain required.
 - No rewriting historical evidence, reference captures or attribution.
 - No raw config values, credentials, consent or store locations in diagnostics.
 - No handwritten source imports, new per-feature duplicate compiler owners,
@@ -199,6 +200,13 @@ the per-field null/clear tests and
 `application_version_is_required_under_valid_envelope` belongs in the existing
 store integration target, not a pretend Serde-only unit.
 
+The staged `auctioneer-config/src/startup.rs` now declares source-selection
+intent with strict store/host/product-defaults modes, SDK-compatible selectors
+and timeout validation, and no loader or domain installation. The typed root
+contracts use the real startup and policy models. Resource/health declarations,
+deployment resolution, inherited legacy-leaf strictness and admission remain
+cutover work; this does not complete Task 2's first or final checkbox.
+
 Checkpoint commit: `Add strict operator policy and reset semantics`.
 
 ## Task 3: Prepare Neutral Defaults And Pure Resolution
@@ -323,16 +331,20 @@ readers remain active until the later cutover group.
 **Files:** `config/startup.rs`, resource profile/bootstrap/gates owners; review
 record attached to #128/#130 before measurement, with repository evidence link.
 
-- [ ] Inventory the exact pinned SDK and Axum operations for startup reads,
+- [x] Inventory the exact pinned SDK and Axum operations for startup reads,
   environment/health materialization, parser structure, store selectors,
   logging and App construction. Do not assume `EnvConfig`, whole-file TOML
   loading or a typed host Settings object establishes a bounded read.
   Trace CLI raw/typed reloads as well: a preliminary bounded read does not
   bound a later SDK whole-file reread or a second environment materialization.
-  The SDK pipeline must reuse the same accepted input within each command,
-  without reopening the file or resampling ambient environment. A missing
-  reusable SDK hook stays an explicit prerequisite, not an assumed
-  implementation or permission for an Auctioneer-specific parallel loader.
+  Record the actual raw/typed CLI rereads without misclassifying them as
+  missing single-config support. Local authoring read bounds and accepted-input
+  reuse are separate hardening under the 2026-11-03 amendment, not a prerequisite
+  for using the existing typed SDK commands. Serving/startup bounds still
+  require their own enforcement and reviewed ownership below; no parallel loader.
+  Source audit completed on 2026-11-03 against the locked SDK and Trusted
+  Server's actual command wiring; see the validation evidence follow-up.
+  This completes the inventory, not the numeric or lifecycle approval below.
 - [ ] Freeze each proposed input cap, unit, parser/depth/value limit, deadline,
   retained storage allowance, owner and under/at/over test. Include startup
   file, scalar overlays, binding names/maps, health/token inputs and temporary
@@ -471,12 +483,12 @@ only in Task 8, atomically with removal of its build reader.
   fixtures for CLI tests; do not migrate or parse the still build-owned root
   file with the new type. Move shipped-file projection controls to Task 8's
   checkpoint. The branch remains unshippable until that checkpoint passes.
-- [ ] Wire existing validate/diff/push through the same explicit validation
-  context and single bounded loading pipeline, not ambient installed boot
-  globals. Exercise changed-file and changed-environment controls after input
-  preparation: validation and emission must still use the identical accepted
-  input. No second typed file load or cross-command cache. These commands
-  validate startup as well as the projected policy. Preserve deployed secret
+- [ ] Wire existing typed SDK validate/diff/push through the shared application
+  contract and explicit validation context, not ambient installed boot globals.
+  Use the approved existing SDK flow; its raw/typed local rereads remain a
+  separately tracked hardening item, not a second Auctioneer loader or a cache.
+  Changed-file/environment-after-acceptance controls belong to that follow-up.
+  These commands validate startup as well as projected policy. Preserve deployed secret
   metadata paths without adding a `runtime.` prefix to projected payload paths.
   Audit all secret metadata when policy fields move beneath `host`.
 - [ ] Update exact env overlay paths/callers to `AUCTIONEER__...__...`.
@@ -597,7 +609,9 @@ Checkpoint commit: `Start the native adapter from validated operator settings`.
 
 **Issues:** Acceptance evidence for completed child scopes, not epic closure.
 **Files:** Operator/cutover docs, development commands, dated new evidence,
-`ISSUES.md`; existing CI ownership only where new/renamed targets require it.
+the owning GitHub issues; existing CI ownership only where new/renamed targets
+require it. Local CLI input hardening remains the separate follow-on
+[#142](https://github.com/IABTechLab/auctioneer/issues/142).
 
 - [ ] Publish a complete old-field -> new-field mapping from the inventory.
   Show the startup/runtime split, required version, clear semantics,
@@ -624,7 +638,7 @@ Checkpoint commit: `Start the native adapter from validated operator settings`.
   dispositions, exact normalized limits, simultaneous snapshot owners, release
   neutrality and one-artifact/two-config native evidence. Compare migration
   test names/counts; a disappearing assertion needs an identified retained owner.
-- [ ] Update `ISSUES.md` only for fixes demonstrated by this implementation;
+- [ ] Update the owning GitHub issues only for fixes demonstrated by this implementation;
   distinguish partially delivered work and unresolved guest/host prerequisites.
   Request code review for a separate implementation PR after verification.
   Obtain permission before commit/push/public PR operations; no automatic merge.
@@ -691,7 +705,8 @@ records subsequent test execution, the pinned SDK audit and registry growth.
 | Explicit field override | Implemented test-first; 29 inline cases pass, including duplicate/escaped marker keys, strict clear shape, direct null refusal and rejection of programmatic null-producing roots. Temporary parser allocations are not resource-qualified. |
 | Versioned policy model | Staged DTO implemented; 16 inline cases pass, including JSON/TOML opt-out leaf inheritance and null/omission/value controls for all optional fields declared locally. Reused legacy nested DTO strictness remains part of cutover. Combined core configuration selection: 195 passed; full core library: 670 passed. Spec/quality reviews and strict test lint passed. Full semantic admission is not implemented. |
 | Bidder-owned validation | Discovery, local callbacks and the staged pure shared dispatcher are implemented; bidder library 1,188 passed (9 existing source-dependent ignores), registry 21 and ownership 16 passed. Strict bidder lint passed. The once-owned settings contract passed 19 outer / 25 reconciled child cases, including absent-feature settings refusal; discovery passed 38. Exact ABI controls and matched native construction observations completed; staging spec and quality reviews approved. Allocation target: 8 passed, including independent regression ceilings and populated callback slots. Earlier guest test compilation and strict guest library/allocation lint passed; guest checks were not rerun for these review repairs. No serving callback activation or resource admission. |
-| SDK bounded-input audit | Exact locked source confirmed through Cargo metadata. Store extraction has bounded reads; the TOML authoring loader and typed CLI rereads do not expose equivalent bounded-input hooks. This remains a Task 4 prerequisite, not an excuse for unbounded bootstrap. |
+| SDK and CLI audit | Exact locked source and Trusted Server's real typed command wiring inspected. The existing typed SDK commands already supply single-config support. Local authoring read bounds and accepted-input reuse are separately tracked hardening; serving/startup input ownership and Task 4's numeric review remain required. |
+| Typed startup source intent | Staged source-selection DTO, shared validation/redaction helpers and actual typed-root contracts are implemented without changing CLI/serving readers. Store mode defaults only when the config section is omitted; explicit sections require the source tag. No new resource/health knobs or admission are supplied by this slice. |
 | Neutral product data / optional sync | Prepared without switching serving accessors. Existing exact defaults snapshots pass, and unconfigured services refuse before signing-key/registry work. Source/default separation remains unfinished until the reader cutover. |
 | Pure account and scoped-cap composition | Implemented without admission/boot installation: 16 account cases and 14 total budget cases remain in the passing core library. Explicit-context host composition and staged policy validation are now implemented; their reservation and serving adoption remain separate. |
 | Shared configuration ownership | Implemented under the approved amendment: shared models in config, compiled assets in config-data, settings/endpoints in bidder, and composition/SDK integration in core. All 698 baseline core case identities are preserved; native models, actual compiler consumers and WASI model execution pass. See the [ownership record](../../testing/evidence/configuration-model-ownership-20261103.md) for exact local checks and CI-only acceptance. |

@@ -273,4 +273,212 @@ mod tests {
             Some(passthrough_info().name.as_str()),
         );
     }
+
+    mod policy_envelope {
+        use super::{STORE_ID, registry_of};
+        use async_trait::async_trait;
+        use auctioneer_core::config::policy::OperatorPolicy;
+        use auctioneer_core::test_support::config_store::runtime_registry;
+        use edgezero_core::app_config::{AppConfigMeta, SecretField};
+        use edgezero_core::blob_envelope::BlobEnvelope;
+        use edgezero_core::body::Body;
+        use edgezero_core::config_store::{
+            BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
+        };
+        use edgezero_core::context::RequestContext;
+        use edgezero_core::error::{EdgeError, StoreExtractionReason};
+        use edgezero_core::extractor::AppConfig;
+        use edgezero_core::http::StatusCode;
+        use edgezero_core::params::PathParams;
+        use edgezero_core::time::{Deadline, MonotonicClock};
+        use futures::executor::block_on;
+        use http::Request;
+        use serde::Deserialize;
+        use serde_json::json;
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::Duration;
+        use validator::{Validate, ValidationErrors};
+
+        // The serving reader intentionally retains its old DTO until cutover.
+        #[derive(Debug, Deserialize)]
+        #[serde(transparent)]
+        struct FakeSdkOperatorPolicy(OperatorPolicy);
+
+        impl AppConfigMeta for FakeSdkOperatorPolicy {
+            fn secret_fields() -> Vec<SecretField> {
+                Vec::new()
+            }
+        }
+
+        impl Validate for FakeSdkOperatorPolicy {
+            fn validate(&self) -> Result<(), ValidationErrors> {
+                self.0.validate()
+            }
+        }
+
+        struct FakeBoundedPolicyStore {
+            inner: ConfigStoreHandle,
+            bounded_reads: AtomicUsize,
+        }
+
+        #[test]
+        fn startup_timeout_schema_matches_the_sdk_extraction_contract() {
+            use auctioneer_config::startup::StartupConfig;
+            use edgezero_core::config_store::ConfigExtractionLimits;
+
+            let cases = [
+                (0_u32, false),
+                (1, true),
+                (604_800_000, true),
+                (604_800_001, false),
+                (u32::MAX, false),
+            ];
+            assert_eq!(cases.len(), 5);
+            for (milliseconds, accepted) in cases {
+                let startup: StartupConfig = serde_json::from_value(json!({
+                    "config": {"source": "store", "max_config_fetch_ms": milliseconds}
+                }))
+                .unwrap();
+                let sdk = ConfigExtractionLimits {
+                    timeout: Duration::from_millis(u64::from(milliseconds)),
+                    ..ConfigExtractionLimits::default()
+                };
+                assert_eq!(
+                    startup.validate().is_ok(),
+                    accepted,
+                    "schema: {milliseconds}"
+                );
+                assert_eq!(sdk.validate().is_ok(), accepted, "SDK: {milliseconds}");
+            }
+        }
+
+        #[async_trait(?Send)]
+        impl ConfigStore for FakeBoundedPolicyStore {
+            async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
+                panic!("policy extraction must use the bounded store API")
+            }
+
+            async fn get_bounded(
+                &self,
+                key: &str,
+                clock: &MonotonicClock,
+                deadline: Deadline,
+                max_backend_bytes: u64,
+                max_value_bytes: u64,
+            ) -> Result<BoundedStoreRead<ConfigValue>, ConfigStoreError> {
+                self.bounded_reads.fetch_add(1, Ordering::SeqCst);
+                assert_eq!(key, STORE_ID);
+                assert_eq!(max_backend_bytes, 0x0100_0000);
+                assert_eq!(max_value_bytes, 0x0080_0000);
+                let remaining = deadline
+                    .remaining_at(clock.now())
+                    .expect("the SDK supplies a live extraction deadline");
+                assert!(remaining <= Duration::from_secs(30));
+
+                let read = self
+                    .inner
+                    .get_bounded(key, clock, deadline, max_backend_bytes, max_value_bytes)
+                    .await?;
+                let value = read.value.as_ref().expect("the fixture has a policy blob");
+                let envelope: BlobEnvelope = serde_json::from_slice(value.as_bytes())
+                    .expect("the fixture is a valid SDK envelope");
+                assert_eq!(envelope.version, 1);
+                envelope
+                    .verify()
+                    .expect("each application-version row has a recomputed valid digest");
+                Ok(read)
+            }
+        }
+
+        #[test]
+        fn application_version_is_required_under_valid_envelope() {
+            let cases = [
+                ("valid1", Some(json!(1_u64)), Ok(())),
+                ("missing", None, Err(".")),
+                ("wrong", Some(json!(2_u64)), Err("<redacted>")),
+                ("null", Some(json!(null)), Err("<redacted>")),
+            ];
+            assert_eq!(cases.len(), 4);
+            let mut accepted = 0_usize;
+            let mut rejected = 0_usize;
+            for (case, version, expected) in cases {
+                let mut document = json!({
+                    "schema_version": 1_u64,
+                    "host": {"status_response": "fake_policy_ready"},
+                    "accounts": {"fake_account": {"disabled": true}},
+                });
+                if let Some(application_version) = version {
+                    document["schema_version"] = application_version;
+                } else {
+                    assert_eq!(
+                        document
+                            .as_object_mut()
+                            .expect("the policy fixture is an object")
+                            .remove("schema_version"),
+                        Some(json!(1_u64)),
+                    );
+                }
+                // Build after changing the application field; SDK version and
+                // integrity remain valid independently in all four rows.
+                let fixture = runtime_registry(&document);
+                let store = Arc::new(FakeBoundedPolicyStore {
+                    inner: fixture
+                        .named(STORE_ID)
+                        .expect("the shared fixture binds the runtime store")
+                        .handle
+                        .clone(),
+                    bounded_reads: AtomicUsize::new(0),
+                });
+                let mut request = Request::builder()
+                    .body(Body::empty())
+                    .expect("the extraction request builds");
+                request
+                    .extensions_mut()
+                    .insert(registry_of(Arc::<FakeBoundedPolicyStore>::clone(&store)));
+                let ctx = RequestContext::new(request, PathParams::default());
+                let result = block_on(AppConfig::<FakeSdkOperatorPolicy>::from_store(
+                    &ctx, STORE_ID, None,
+                ));
+                assert_eq!(store.bounded_reads.load(Ordering::SeqCst), 1, "{case}");
+
+                match expected {
+                    Ok(()) => {
+                        let FakeSdkOperatorPolicy(policy) = result.expect(case);
+                        assert_eq!(
+                            serde_json::to_value(policy.schema_version).unwrap(),
+                            json!(1_u64)
+                        );
+                        assert_eq!(
+                            policy.host.status_response.as_deref(),
+                            Some("fake_policy_ready")
+                        );
+                        assert_eq!(policy.accounts["fake_account"].disabled, Some(true));
+                        accepted += 1;
+                    }
+                    Err(expected_path) => {
+                        let error = result.expect_err(case);
+                        assert_eq!(error.status(), StatusCode::SERVICE_UNAVAILABLE, "{case}");
+                        let EdgeError::StoreExtraction {
+                            reason,
+                            message,
+                            field_path,
+                        } = error
+                        else {
+                            panic!("{case}: expected an SDK store-extraction error");
+                        };
+                        assert_eq!(reason, StoreExtractionReason::Deserialization, "{case}");
+                        assert_eq!(
+                            message,
+                            "typed app-config is out of date (wrong type or invalid value; value redacted)",
+                            "{case}",
+                        );
+                        assert_eq!(field_path.as_deref(), Some(expected_path), "{case}");
+                        rejected += 1;
+                    }
+                }
+            }
+            assert_eq!((accepted, rejected), (1, 3));
+        }
+    }
 }

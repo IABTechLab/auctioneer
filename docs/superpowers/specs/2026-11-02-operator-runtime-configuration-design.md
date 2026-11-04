@@ -314,6 +314,8 @@ The recommended strict runtime scopes are:
 This is a hard authoring/schema cutover, not a dual-format parser. Reject
 `baked`, the retired flat runtime layout, unknown fields and mixed old/new
 documents. Preserve required OpenRTB identifiers and external attribution.
+The authoring root, its startup/runtime sections and `startup.config` are
+objects/tables; Serde's positional-array representation is not authoring syntax.
 The cutover must provide an explicit field mapping and validated configuration
 diff; it must not guess operator values from the machine that built the CLI.
 No permanent legacy parser, automatic fallback or migration command is required.
@@ -369,7 +371,11 @@ Select exactly one source at startup:
 | `host` | A validated snapshot supplied by the embedding host | Missing or incompatible host state refuses; no fallback store or second App is created |
 | `product_defaults` | Explicit operator selection of product-only policy | No store read; still validates against catalog, authorization and installed resource limits; never selected because a required load failed |
 
-`store` is the standalone default. An absent binding/blob is not an implicit
+`store` is the standalone default. Omitting `startup.config` selects store
+with unresolved deployment defaults; supplying that section requires an
+explicit `source` discriminator. Do not infer a mode from a supplied key or
+binding. `host` and `product_defaults` reject store/key/fetch-timeout fields,
+including explicit nulls. An absent binding/blob is not an implicit
 request for `product_defaults`. Embedding selects `host` explicitly. A source
 change, trust/physical binding change or extractor-limit change requires a new
 configuration domain; a policy push cannot perform it.
@@ -544,10 +550,12 @@ variables use `AUCTIONEER__SECTION__FIELD`; single underscores remain inside a
 component. Update readers, manifests, CLI, scripts and docs together; no legacy
 aliases. Existing provider/SDK names are not renamed by this contract.
 
-There is no ambient environment overlay on every request. For standalone use,
-the bounded authoring/load operation applies its explicit overlay once, then
-validates the result. For push, the CLI's explicitly selected input is emitted
-as policy; serving does not add the worker machine's environment a second time.
+There is no ambient environment overlay on every request. Standalone serving
+startup resolves deployment inputs under the reviewed startup boundary;
+requests consume that installed domain and accepted policy, not a fresh
+environment scan. Push emits the typed runtime projection through the existing
+SDK flow; serving does not overlay the worker's environment onto that policy.
+Local CLI authoring-read and once-only capture hardening is separate under 9.1.
 Host mode receives the host's final typed configuration, not an implicit
 Auctioneer scan of the process environment. Diagnostics report fixed reason
 codes and reviewed field paths only; rejected values and secret locations are
@@ -561,30 +569,33 @@ scopes. Their different lifecycles do not introduce another operator file,
 another loader, a supported legacy format or an alternate validator. Compiled
 neutral product defaults are product data, not a second operator configuration.
 
-The EdgeZero pipeline must read the selected document under explicit bounds,
-apply the selected scalar overlay once, deserialize it once and invoke the
-shared context-based admission rules. Each validate, diff or push invocation
-uses this pipeline and reuses its accepted input rather than reopening its path
-or collecting ambient environment again. An internal prepared value is only
-a handoff within this pipeline, not a new configuration source or a
-cross-request cache. Runtime publication
-continues to emit the runtime projection of the same authoring document.
+The maintainer approved reuse of EdgeZero's existing typed CLI flow on
+2026-11-03, as Trusted Server does. Keep the existing `run_config_validate_typed`,
+`run_config_diff_typed` and `run_config_push_typed` entry points with one
+Auctioneer authoring type and the shared application validators. Runtime
+publication emits only the runtime projection of that authoring document.
+Preserve SDK envelope integrity, secret metadata, store selection, command
+flags and existing remote reread/concurrent-change behavior. Do not call that
+behavior a compare-and-swap guarantee or invent another loader.
 
-The bounded operation must cover actual file/manifest reads and environment or
-binding materialization, not just a preliminary size check. Changing the file
-or environment after preparation must not substitute different data between
-validation and emission. Keep SDK envelope, store selection, secret handling,
-command flags and permanent/transient refusals intact, without new cryptography
-or raw-value diagnostics. The initial authoring read uses independent loader
-ceilings, not limits declared inside the document it is reading. Validate its
-startup intent before installing the domain or accessing the selected runtime
-source; publishing policy cannot redefine those established trust, source and
-admission facts.
+Bounded local authoring-file/manifest/environment materialization and reuse of
+one accepted local input without raw/typed rereads are now **separate CLI
+hardening**, not prerequisites for this cutover. Today's SDK supports the typed
+single-config commands but does not provide those extra guarantees. The
+follow-up must cover the real reads and intermediate ownership, use independent
+initial ceilings rather than limits inside the file, and test changes to file
+and environment after acceptance. Any prepared handoff is invocation-local,
+not a configuration source or cross-request cache. Track this explicitly in
+[#142](https://github.com/IABTechLab/auctioneer/issues/142) under configuration
+epic #124; do not mark it implemented by using the current SDK helpers.
 
-The pinned SDK does not yet expose this bounded, reload-free pipeline. Its
-extension and the exact startup/storage package remain prerequisites under
-#128/#130. This clarification does not approve numeric reservations, an
-unbounded SDK reread, an Auctioneer-specific parallel loader or serving cutover.
+This amendment does not waive serving extraction bounds, privacy validation,
+safe application diagnostics, immutable source/trust settings, or the numeric
+startup/storage review under #128/#130. Validate startup intent before domain
+installation or runtime-source access; policy publication cannot redefine
+those facts. Native/provider startup inputs remain subject to section 7's
+own enforcement, ownership and review requirements. Deferring local CLI
+hardening does not establish a bounded serving bootstrap.
 
 ## 10. Trusted Server Integration
 

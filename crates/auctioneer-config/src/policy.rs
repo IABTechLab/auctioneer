@@ -9,12 +9,13 @@
 use std::{borrow::Borrow, collections::BTreeMap, fmt};
 
 use crate::FloorCurrencyConfig;
+use crate::model_validation::{deserialize_optional_value, structural_validation_result};
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::Error as _,
     ser::{Error as _, SerializeMap as _},
 };
-use validator::{Validate, ValidationError, ValidationErrors, ValidationErrorsKind};
+use validator::{Validate, ValidationError, ValidationErrors};
 
 use crate::override_value::FieldOverride;
 use crate::source::{
@@ -119,38 +120,6 @@ impl<Settings: Validate> Validate for OperatorPolicy<Settings> {
             errors.add("floor_currency", ValidationError::new(code));
         }
         structural_validation_result(errors)
-    }
-}
-
-fn structural_validation_result(mut errors: ValidationErrors) -> Result<(), ValidationErrors> {
-    if errors.is_empty() {
-        return Ok(());
-    }
-    clear_validation_details(&mut errors);
-    Err(errors)
-}
-
-// Reused derives may retain rejected values; keep only their codes and field paths.
-fn clear_validation_details(errors: &mut ValidationErrors) {
-    let mut fields: Vec<_> = errors.errors().keys().cloned().collect();
-    fields.sort_unstable();
-    for field in fields {
-        if let Some(kind) = errors.errors_mut().get_mut(field.as_ref()) {
-            match kind {
-                ValidationErrorsKind::Struct(nested) => clear_validation_details(nested),
-                ValidationErrorsKind::List(entries) => {
-                    for nested in entries.values_mut() {
-                        clear_validation_details(nested);
-                    }
-                }
-                ValidationErrorsKind::Field(field_errors) => {
-                    for error in field_errors {
-                        error.params.clear();
-                        error.message = None;
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -276,14 +245,6 @@ pub struct OptoutCookiePolicy {
         skip_serializing_if = "Option::is_none"
     )]
     pub value: Option<String>,
-}
-
-fn deserialize_optional_value<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    T::deserialize(deserializer).map(Some)
 }
 
 fn deserialize_optional_u8_keyed_map<'de, D, V>(

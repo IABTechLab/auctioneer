@@ -40,23 +40,43 @@
 use core::fmt;
 use serde::{Deserialize, Deserializer};
 
+mod object;
+
 /// Strict operator authoring document, separate from compiled product data.
 ///
 /// Both sections are required even when a caller chooses optional subtree
 /// types. This staged root replaces [`AuctioneerConfigSource`] at cutover;
 /// it never accepts that type's retired `baked` namespace.
+pub struct OperatorConfigSource<Startup, Runtime> {
+    /// Deployment settings validated before policy extraction or admission.
+    pub startup: Startup,
+    /// Complete policy publication, projected by the CLI's push wrapper.
+    pub runtime: Runtime,
+}
+
 #[derive(Deserialize)]
 #[serde(
     deny_unknown_fields,
     bound(deserialize = "Startup: Deserialize<'de>, Runtime: Deserialize<'de>")
 )]
-pub struct OperatorConfigSource<Startup, Runtime> {
-    /// Deployment settings validated before policy extraction or admission.
+struct OperatorConfigFields<Startup, Runtime> {
     #[serde(deserialize_with = "required_section")]
-    pub startup: Startup,
-    /// Complete policy publication, projected by the CLI's push wrapper.
+    startup: Startup,
     #[serde(deserialize_with = "required_section")]
-    pub runtime: Runtime,
+    runtime: Runtime,
+}
+
+impl<'de, Startup: Deserialize<'de>, Runtime: Deserialize<'de>> Deserialize<'de>
+    for OperatorConfigSource<Startup, Runtime>
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let fields: OperatorConfigFields<Startup, Runtime> =
+            object::deserialize_object(deserializer)?;
+        Ok(Self {
+            startup: fields.startup,
+            runtime: fields.runtime,
+        })
+    }
 }
 
 fn required_section<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -64,7 +84,7 @@ where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
 {
-    T::deserialize(deserializer)
+    object::deserialize_object(deserializer)
 }
 
 impl<Startup, Runtime> fmt::Debug for OperatorConfigSource<Startup, Runtime> {
@@ -117,11 +137,15 @@ pub mod currency;
 #[cfg(feature = "config-model")]
 pub use currency::{FloorCurrencyConfig, MAX_FLOOR_CURRENCY_RATES};
 #[cfg(feature = "config-model")]
+mod model_validation;
+#[cfg(feature = "config-model")]
 pub mod override_value;
 #[cfg(feature = "config-model")]
 pub mod policy;
 #[cfg(feature = "config-model")]
 pub mod source;
+#[cfg(feature = "config-model")]
+pub mod startup;
 #[cfg(feature = "config-model")]
 pub use source::*;
 #[cfg(feature = "build-support")]

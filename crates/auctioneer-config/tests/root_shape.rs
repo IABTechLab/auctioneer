@@ -9,6 +9,7 @@
 mod tests {
     use auctioneer_config::{AuctioneerConfigSource, OperatorConfigSource};
     use serde::Deserialize;
+    use toml::{Table, Value as TomlValue};
 
     /// A minimal document with both namespaces present. The baked
     /// tables carry a couple of keys each so a `toml::Value`
@@ -69,6 +70,88 @@ disabled = false
         assert!(!runtime_side.runtime.disabled);
     }
 
+    #[cfg(feature = "config-model")]
+    mod typed_operator {
+        use auctioneer_config::{
+            OperatorConfigSource, policy::OperatorPolicy, startup::StartupConfig,
+        };
+        use serde::{Deserialize, Serialize};
+        use serde_json::{error::Category, json};
+        use validator::Validate;
+
+        #[derive(Default, Deserialize, Serialize, Validate)]
+        #[serde(deny_unknown_fields)]
+        struct FakeSettings {}
+
+        type OperatorDocument = OperatorConfigSource<StartupConfig, OperatorPolicy<FakeSettings>>;
+
+        #[test]
+        fn actual_startup_and_policy_models_share_one_strict_document() {
+            let document = json!({
+                "startup": {"config": {"source": "store", "store": "fake_config", "key": "fake_key", "max_config_fetch_ms": 2_000_u32}},
+                "runtime": {"schema_version": 1_u64, "host": {"status_response": "fake_ready"}}
+            });
+            let text = toml::to_string(&document).unwrap();
+            let from_json: OperatorDocument = serde_json::from_value(document).unwrap();
+            let from_toml: OperatorDocument = toml::from_str(&text).unwrap();
+            for source in [from_json, from_toml] {
+                source.startup.validate().unwrap();
+                source.runtime.validate().unwrap();
+                assert_eq!(
+                    serde_json::to_value(source.startup).unwrap(),
+                    json!({"config": {"source": "store", "store": "fake_config", "key": "fake_key", "max_config_fetch_ms": 2_000_u32}})
+                );
+                assert_eq!(
+                    source.runtime.host.status_response.as_deref(),
+                    Some("fake_ready")
+                );
+            }
+        }
+
+        #[test]
+        fn typed_document_never_accepts_an_opaque_startup_or_runtime_subtree() {
+            let mut checked = 0_usize;
+            for (scope, replacement, reason) in [
+                (
+                    "startup",
+                    json!({"config": {"source": "host", "key": "fake_key"}}),
+                    "unknown field `key`",
+                ),
+                (
+                    "startup",
+                    json!({"config": {"source": "store", "key": null}}),
+                    "invalid type",
+                ),
+                (
+                    "runtime",
+                    json!({"host": {}}),
+                    "invalid_application_schema_version",
+                ),
+                (
+                    "runtime",
+                    json!({"schema_version": 1_u64, "auction": {}}),
+                    "unknown field `auction`",
+                ),
+                (
+                    "runtime",
+                    json!({"schema_version": 2_u64}),
+                    "unsupported_application_schema_version",
+                ),
+            ] {
+                let mut document = json!({"startup": {}, "runtime": {"schema_version": 1_u64}});
+                document[scope] = replacement;
+                let error = serde_json::from_value::<OperatorDocument>(document).unwrap_err();
+                assert_eq!(error.classify(), Category::Data);
+                assert!(
+                    error.to_string().contains(reason),
+                    "{scope}: expected {reason}, got {error}"
+                );
+                checked += 1;
+            }
+            assert_eq!(checked, 5);
+        }
+    }
+
     #[test]
     fn operator_root_requires_startup() {
         let error =
@@ -87,6 +170,14 @@ disabled = false
 
     #[test]
     fn operator_root_requires_sections_even_for_optional_subtree_types() {
+        type OptionalDocument = OperatorConfigSource<Option<TomlValue>, Option<TomlValue>>;
+        let json_source: OptionalDocument =
+            serde_json::from_value(serde_json::json!({"startup": {}, "runtime": {}})).unwrap();
+        let toml_source: OptionalDocument = toml::from_str("[startup]\n[runtime]\n").unwrap();
+        for source in [json_source, toml_source] {
+            assert_eq!(source.startup, Some(TomlValue::Table(Table::new())));
+            assert_eq!(source.runtime, Some(TomlValue::Table(Table::new())));
+        }
         for (document, missing) in [("[startup]\n", "runtime"), ("[runtime]\n", "startup")] {
             let error = toml::from_str::<
                 OperatorConfigSource<Option<toml::Value>, Option<toml::Value>>,
@@ -127,6 +218,24 @@ disabled = false
             let error =
                 toml::from_str::<OperatorConfigSource<StrictHost, StrictAccount>>(&document)
                     .unwrap_err();
+            assert!(error.to_string().contains("invalid type"));
+        }
+    }
+
+    #[test]
+    fn operator_root_and_both_sections_require_objects() {
+        use serde_json::{error::Category, json};
+
+        type Document = OperatorConfigSource<toml::Value, OverlayRuntime>;
+        let valid = json!({"startup": {}, "runtime": {}});
+        serde_json::from_value::<Document>(valid).unwrap();
+        for document in [
+            json!([{}, {}]),
+            json!({"startup": [], "runtime": {}}),
+            json!({"startup": {}, "runtime": []}),
+        ] {
+            let error = serde_json::from_value::<Document>(document).unwrap_err();
+            assert_eq!(error.classify(), Category::Data);
             assert!(error.to_string().contains("invalid type"));
         }
     }
