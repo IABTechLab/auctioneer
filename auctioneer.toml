@@ -1,42 +1,65 @@
-# Runtime policy authored and pushed directly by EdgeZero's typed config commands.
-# This file is not compiled into the application. Product defaults are neutral;
-# omitted fields inherit those defaults, then account_defaults, then the selected
-# accounts entry. Each push replaces the complete policy, not the previous blob.
+# Complete reference for the supported runtime operator policy. Values below are
+# examples, not production recommendations. Replace fictional domains and names.
+# No bidder is enabled by this file; bidder-specific examples stay commented.
 #
-# auctioneer-cli config validate --adapter axum
-# auctioneer-cli config diff --adapter axum
-# auctioneer-cli config push --adapter axum
+# This file is authored and pushed directly by EdgeZero's typed config commands;
+# it is not compiled into the application. Product defaults are neutral. Omitted
+# fields inherit within this document: product defaults, then account_defaults,
+# then the selected accounts entry. Each push replaces the complete policy, not
+# just fields from the previous blob. Unknown fields are rejected. Nullable fields
+# use explicit { clear = true } resets, not JSON null. Some optional bidder/activity
+# leaves interpret null as omission; prefer the explicit TOML forms shown here.
+#
+# auctioneer-cli config validate --app-config auctioneer.toml
+# auctioneer-cli config diff --adapter axum --app-config auctioneer.toml
+# auctioneer-cli config push --adapter axum --app-config auctioneer.toml
 #
 # The SDK applies environment overrides at authoring time only, and only to keys
 # already present in this file. For example:
-# Example: AUCTIONEER__HOST__RESOURCE_LIMITS__DEFAULT_TMAX_MS=1500
+# AUCTIONEER__HOST__RESOURCE_LIMITS__DEFAULT_TMAX_MS=1500
 # An omitted/commented key cannot be created through the environment. --no-env
 # disables the overlay. Running instances read the stored envelope, not this file
 # or these environment variables. CLI authoring hardening remains tracked in #142.
 # Envelope integrity detects drift; config-store write access is the trust boundary.
+#
+# Adapter bindings, installed capacity, compiled capabilities and raw secret values
+# are not operator-policy fields. Configure deployment bindings through EdgeZero
+# and put credentials in its secret store, never in this document.
 
 schema_version = 1
 
 [host]
+# Plain-text response used by the status handler.
 status_response = "auctioneer local"
 
-# Requested resource limits can lower, but never expand, installed capacity.
+# Requested limits can lower, but never expand, independently installed capacity.
+# Durations are milliseconds, sizes are bytes, and counts are integers.
 [host.resource_limits]
+# Timeout requests: 1..30000 ms; actual dispatch still obeys the auction deadline.
 default_tmax_ms = 1000
 max_tmax_ms = 2000
+# Legacy bidder-response cap: 1024..16777216 bytes.
 max_bidder_response_bytes = 262144
+# Syntactic ranges: 1..500 bidders and 1..1000 outbound calls per auction.
 max_bidders_per_auction = 50
 max_outbound_requests = 100
+# Request-body caps: 1024..16777216 bytes, before and after encoding.
 max_outbound_raw_bytes = 262144
 max_outbound_request_bytes = 262144
+# Response caps: 1024..104857600 bytes, on the wire and after decoding.
 max_transport_bytes = 262144
 max_decoded_bytes = 262144
+# JSON structural cap: 1..1048576 nodes. Applies to inbound auction parsing before
+# account selection and to bidder response parsing; it is not response-only.
 max_parsed_nodes = 65536
 
 [host.gdpr]
 enabled = true
+# "0" or "1": fallback when request/geo signals do not settle applicability.
 default_value = "0"
+# 0 means no declared host GVL vendor id; set the actual id when applicable.
 host_vendor_id = 0
+# Publisher ids exempted from the ordinary GDPR path; empty means no exceptions.
 non_standard_publishers = []
 
 [host.gdpr.tcf2]
@@ -46,17 +69,21 @@ enabled = true
 enabled = true
 access_allowed = true
 
+# Purpose ids are 1..10. Repeat this shape with the required id, not a new field.
+# enforce_algo: "full" or "basic". Enforcement tri-states: "unset", "enabled",
+# "disabled". Vendor exception entries are bidder identities, not GVL numbers.
 [host.gdpr.tcf2.purposes.2]
 enforce_algo = "full"
 enforce_purpose = "enabled"
 enforce_vendors = "enabled"
 vendor_exceptions = []
 
+# Special-feature ids are 1..12; the same tri-state and name-list rules apply.
 [host.gdpr.tcf2.special_features.1]
 enforce = "enabled"
 vendor_exceptions = []
 
-# Independent of the GDPR master switch and publisher exceptions.
+# CCPA and LMT enforcement are independent of the GDPR master switch.
 [host.ccpa]
 enforce = true
 
@@ -67,41 +94,64 @@ enforce = true
 # Source identity cookie, distinct from Auctioneer's fixed writable uids cookie.
 cookie_name = "auctioneer_uid"
 family = "auctioneer"
+# Omit to inherit; { clear = true } removes Domain (a host-only cookie).
+domain = "sync.example.test"
 ttl_days = 90
-# Zero disables logical eviction, not the Set-Cookie field-size cap.
+# Zero disables logical eviction, not the complete Set-Cookie field-size cap.
 max_cookie_size_bytes = 0
-# domain = "sync.publisher.example"
-# [host.host_cookie.optout_cookie]
-# name = "auctioneer_optout"
-# value = "1"
+
+[host.host_cookie.optout_cookie]
+# The whole opt-out cookie may be cleared; its individual leaves inherit if absent.
+name = "auctioneer_optout"
+value = "1"
 
 # This explicit demonstration service exists only in this runtime policy.
-# Replace its origin before deployment; omission leaves sync unconfigured.
+# Replace its origin before deployment; omission leaves sync unconfigured unless
+# an explicit parent supplies it. { clear = true } disables an inherited service.
 [host.user_sync]
 external_url = "https://sync.example.test"
+# Template macros are literal here, not environment-variable expansion. Keep uid
+# last and a single bidder binding. The standard template below carries every
+# privacy signal. BidderName is also supported in place of SyncerKey.
+redirect_url = "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}"
+# Groups are arrays of bidder-name arrays; [] clears the inherited ordering.
+# Example ordering: [["fake_first", "fake_second"], ["fake_third"]].
 priority_groups = []
+# Exact browser origins; for example ["https://publisher.example"].
 allowed_origins = []
-# redirect_url = "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&uid={{.UserMacro}}"
 
 [host.user_sync.cooperative]
 enabled_by_default = false
 
-# Use an enabled public bidder definition when adding aliases or bidder settings.
+# Alias names resolve to compiled public bidder definitions, not new implementations.
+# Replace both placeholders with identities appropriate for the deployed catalog.
 [host.aliases]
 # fake_alias = "fake_bidder"
 
+# The complete account shape below is shared by account_defaults and accounts.<id>.
+# Named accounts may override any subset; omitted leaves retain the earlier layer.
 [account_defaults]
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
 disabled = false
+# Debug must also be requested by the auction; this is permission, not activation.
 debug_allow = false
+# Primary modes: "down", "up", "nearest", "timesplit".
 bid_rounding = "down"
+# Prefix length: 1..8 characters. Targeting attribute truncation: 12..20.
 targeting_prefix = "hb"
-# truncate_target_attribute = 20
+truncate_target_attribute = 20
 
 [account_defaults.gdpr]
+# Channel -> account -> host TCF2 fallback. "unset" defers to the next level.
 enabled = "unset"
-purposes = {}
-special_features = {}
+# Bidder names that opt into basic enforcement; [] means no exceptions.
 basic_enforcement_vendors = []
+
+[account_defaults.gdpr.purpose_one_treatment]
+# Boolean values, unlike the tri-states above. Clear either to fall back to host.
+enabled = true
+access_allowed = true
 
 [account_defaults.gdpr.channel_enabled]
 web = "unset"
@@ -110,22 +160,85 @@ amp = "unset"
 video = "unset"
 dooh = "unset"
 
+# Keyed account overrides leave unnamed purpose/feature entries unchanged.
+[account_defaults.gdpr.purposes.2]
+enforce_algo = "full"
+enforce_purpose = "unset"
+enforce_vendors = "unset"
+vendor_exceptions = []
+
+[account_defaults.gdpr.special_features.1]
+enforce = "unset"
+vendor_exceptions = []
+
+# CCPA resolves the trusted inventory channel, then account, then host.
 [account_defaults.ccpa]
 enabled = "unset"
 
+[account_defaults.ccpa.channel_enabled]
+web = "unset"
+app = "unset"
+amp = "unset"
+video = "unset"
+dooh = "unset"
+
+# Address bits retained during anonymization: IPv4 0..32, IPv6 0..128.
 [account_defaults.privacy.ipv4]
 anon_keep_bits = 24
 
 [account_defaults.privacy.ipv6]
 anon_keep_bits = 56
 
+# Activities use the first matching rule, then default (true when absent).
+# Conditions AND name/type clauses and OR entries within a clause. Names use
+# Unicode simple folding against the requested bidder/alias, not wildcard syntax.
+# componentType values: "bidder", "analytics", "rtd", "general".
+# An override replaces the whole rules array; [] clears it. Per activity: at most
+# 128 rules, 128 combined condition entries per rule, 128 UTF-8 bytes per name.
+# A conditional-denial example follows the named publisher below.
+[account_defaults.privacy.allowactivities.fetchBids]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitUfpd]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitPreciseGeo]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitTid]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.syncUser]
+default = true
+rules = []
+
+# These names are accepted policy, but config alone does not activate consumers.
+[account_defaults.privacy.allowactivities.reportAnalytics]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.enrichUfpd]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitUniqueRequestIds]
+default = true
+rules = []
+
+# COPPA has no disable switch; activity grants do not override privacy denials.
 [account_defaults.cookie_sync]
 default_limit = 5
 max_limit = 10
 default_coop_sync = false
+priority_groups = []
 
-# Fictional publisher policy demonstrates the last account layer, not a compiled
-# customer identity. Unknown/missing publisher ids use account_defaults.
+# Fictional publisher demonstrates the final account layer, not a compiled tenant.
+# Unknown/missing publisher ids use account_defaults. All account fields shown
+# above are also valid beneath this table; there is no separate named-account API.
 [accounts.fake_publisher]
 debug_allow = true
 targeting_prefix = "ad"
@@ -133,79 +246,102 @@ targeting_prefix = "ad"
 [accounts.fake_publisher.cookie_sync]
 priority_groups = []
 
-# Account GDPR tri-states fall through to the host when unset.
-# [accounts.fake_publisher.gdpr]
-# enabled = "unset"
-# basic_enforcement_vendors = []
-
-# [accounts.fake_publisher.gdpr.channel_enabled]
-# web = "unset"
-# app = "unset"
-# video = "unset"
-# amp = "unset"
-# dooh = "unset"
-
-# Keyed enforcement overrides leave unnamed purposes/features unchanged.
-# [accounts.fake_publisher.gdpr.purposes.3]
-# enforce_purpose = "disabled"
-
-# [accounts.fake_publisher.gdpr.special_features.1]
-# enforce = "disabled"
-
-# CCPA resolves the trusted inventory channel, then account, then host.
-# [accounts.fake_publisher.ccpa]
-# enabled = "unset"
-# [accounts.fake_publisher.ccpa.channel_enabled]
-# web = "enabled"
-# app = "unset"
-# dooh = "unset"
-
-# Activities use the first matching rule, then the default (true if absent).
-# Conditions AND the name/type clauses and OR entries within each clause.
-# Names use Unicode simple folding against the requested bidder/alias only.
-# An override replaces the whole rules array; an empty array clears it.
-# Per activity: at most 128 rules, 128 combined condition entries per rule,
-# and 128 UTF-8 bytes per component name. Unknown fields/names are errors.
-# [accounts.fake_publisher.privacy.allowactivities.fetchBids]
-# default = true
-# rules = []
+# Append this block to apply a conditional rule to the fictional publisher.
+# A missing/empty condition matches every component. Rules still need allow.
+# BEGIN ACTIVITY RULE EXAMPLE
 # [accounts.fake_publisher.privacy.allowactivities.transmitUfpd]
 # default = true
 # [[accounts.fake_publisher.privacy.allowactivities.transmitUfpd.rules]]
 # allow = false
 # condition = { componentName = ["fake_alias"], componentType = ["bidder"] }
-# [accounts.fake_publisher.privacy.allowactivities.transmitPreciseGeo]
-# default = false
-# [accounts.fake_publisher.privacy.allowactivities.transmitTid]
-# default = false
-# syncUser is consumed by user-sync permission checks; other accepted activities
-# include reportAnalytics, enrichUfpd and transmitUniqueRequestIds. Config alone
-# does not activate their consumers. COPPA has no disable switch.
-
-# IP anonymization is account-scoped, with independent defaults for each family.
-# [accounts.fake_publisher.privacy.ipv4]
-# anon_keep_bits = 24
-# [accounts.fake_publisher.privacy.ipv6]
-# anon_keep_bits = 56
-
-# Nullable leaves use TOML inline { clear = true } to reset inherited values.
-# In the existing account table: truncate_target_attribute = { clear = true }
-# In the existing cookie_sync table: max_limit = { clear = true }
+# END ACTIVITY RULE EXAMPLE
 
 [features]
+# Only affects bidders declaring outbound gzip support; false sends plaintext.
 gzip_outbound = true
+# Default when the auction does not request its own returnallbidstatus value.
 returnallbidstatus_default = false
 
 [bidders]
+# Each public bidder or alias has the common knobs shown below. A cap resolves
+# per field through the observable name, base, selected account and host, and
+# remains bounded by installed capacity. timeout_ms is 1..30000; sample_rate is
+# finite 0.0..1.0. enabled=false disables with a warning; sample_rate=0 silently
+# excludes traffic. Settings do not register a new implementation or endpoint.
+#
+# This block is a FIELD REFERENCE, not a deployable combined settings object.
+# Replace fake_bidder with a compiled public name, implementation with its owner,
+# and keep ONLY values declared by that owner's bidder.toml [settings.fields].
+# The values table lists every currently supported bidder-owned field across all
+# implementations. Do not paste that union into a single bidder's settings.
+# hb_source/hb_source_video: integer protocol source values.
+# supply_id: nonempty routing identifier when required by the implementation.
+# credentials_secret: a secret-store key, never the credential bundle itself.
+# external_url: publisher-facing URL used by the owning protocol.
+# region: "us-east", "us-west", "eu" or "apac" for the regional implementation.
+# BEGIN BIDDER EXAMPLE
 # [bidders.fake_bidder]
 # enabled = true
 # usersync_enabled = false
 # timeout_ms = 300
 # sample_rate = 1.0
-# Bidder-owned settings retain their implementation-tagged schema.
+# max_transport_bytes = 131072
+# max_decoded_bytes = 262144
+#
+# [bidders.fake_bidder.settings]
+# implementation = "fake_implementation"
+#
+# [bidders.fake_bidder.settings.values]
+# hb_source = 5
+# hb_source_video = 6
+# supply_id = "fake_supply"
+# credentials_secret = "fake_credential_bundle"
+# external_url = "https://publisher.example"
+# region = "us-east"
+# END BIDDER EXAMPLE
 
-# Optional floor-only currency conversion; response currency stays USD.
+# Optional floor-only currency conversion. Append this block to opt in; response
+# currency stays USD. expires_at is an exclusive Unix-second expiry, not a TTL.
+# Up to 256 three-uppercase-letter rates: finite positive USD per foreign unit.
+# USD is implicit identity and cannot be overridden. QAA is an illustrative code;
+# replace the code, rate and expiry with a fresh operator-owned snapshot.
+# BEGIN FLOOR CURRENCY EXAMPLE
 # [floor_currency]
 # expires_at = 2000000000
 # [floor_currency.usd_per_unit]
 # QAA = 2.5
+# END FLOOR CURRENCY EXAMPLE
+
+# Explicit clears are supported ONLY on the nullable fields listed below.
+# Replace corresponding values/tables; do not append duplicate TOML keys.
+# This is a standalone policy illustrating all compatible clears, not an overlay
+# that preserves the rest of the active reference when pushed. Clear is not false,
+# zero, [], "unset" or omission. Non-nullable leaves cannot use { clear = true }.
+# BEGIN CLEAR EXAMPLES
+# schema_version = 1
+# [host]
+# user_sync = { clear = true }
+# [host.host_cookie]
+# domain = { clear = true }
+# optout_cookie = { clear = true }
+# [account_defaults]
+# truncate_target_attribute = { clear = true }
+# [account_defaults.cookie_sync]
+# default_limit = { clear = true }
+# max_limit = { clear = true }
+# default_coop_sync = { clear = true }
+# priority_groups = { clear = true }
+# [account_defaults.gdpr.purpose_one_treatment]
+# enabled = { clear = true }
+# access_allowed = { clear = true }
+# END CLEAR EXAMPLES
+
+# Redirect clear is separate because it needs a configured service. It removes an
+# inherited redirect override and uses the service's standard redirect template;
+# it does not disable the service itself. Again, this is a standalone policy.
+# BEGIN SYNC REDIRECT CLEAR EXAMPLE
+# schema_version = 1
+# [host.user_sync]
+# external_url = "https://sync.example.test"
+# redirect_url = { clear = true }
+# END SYNC REDIRECT CLEAR EXAMPLE

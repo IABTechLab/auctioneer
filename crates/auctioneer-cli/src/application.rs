@@ -90,6 +90,7 @@ pub(crate) fn run(command: Command) -> i32 {
 #[cfg(test)]
 mod config_contract {
     use super::ConfigValidateArgs;
+    use auctioneer_config::build_catalog;
     use auctioneer_core::config::resolve::{
         AccountSelection, resolve_host, resolve_selected_account, resolved_account,
     };
@@ -97,12 +98,15 @@ mod config_contract {
         AuctioneerAppConfig, EffectiveConfigError, SdkAuctioneerAppConfig,
         validate_effective_defaults,
     };
+    use clap::Parser as _;
     use edgezero_core::app_config::{
         AppConfigLoadOptions, AppConfigMeta as _, load_app_config_with_options,
     };
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde::Deserialize as _;
     use serde_json::json;
+    use std::collections::BTreeSet;
+    use std::iter;
     use std::path::PathBuf;
     use std::process::Command;
     use std::{env, fs};
@@ -115,6 +119,377 @@ mod config_contract {
         "schema_version = 1\n[host.resource_limits]\ndefault_tmax_ms = 1000\n";
     const ABSENT_KEY_DOC: &str =
         "schema_version = 1\n[host.resource_limits]\n# default_tmax_ms = 1000\n";
+
+    fn commented_example(name: &str) -> String {
+        let start = format!("# BEGIN {name}");
+        let end = format!("# END {name}");
+        let lines: Vec<_> = REFERENCE.lines().collect();
+        assert_eq!(lines.iter().filter(|line| **line == start).count(), 1);
+        assert_eq!(lines.iter().filter(|line| **line == end).count(), 1);
+        let first = lines.iter().position(|line| *line == start).unwrap();
+        let last = lines.iter().position(|line| *line == end).unwrap();
+        assert!(first < last);
+        lines[first.checked_add(1).unwrap()..last]
+            .iter()
+            .map(|line| {
+                if *line == "#" {
+                    ""
+                } else {
+                    line.strip_prefix("# ").expect("example stays commented")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn assert_reference_fields(document: &toml::Value, path: &str, fields: &[&str]) {
+        let table = path
+            .split('.')
+            .try_fold(document, |value, key| value.get(key))
+            .and_then(toml::Value::as_table)
+            .unwrap_or_else(|| panic!("missing reference table {path}"));
+        assert_eq!(
+            table.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+            fields.iter().copied().collect::<BTreeSet<_>>(),
+            "reference fields for {path}",
+        );
+    }
+
+    #[test]
+    fn shipped_reference_commands_use_the_actual_cli_arguments() {
+        let commands: Vec<_> = REFERENCE
+            .lines()
+            .filter_map(|line| line.strip_prefix("# auctioneer-cli "))
+            .collect();
+        assert_eq!(commands.len(), 3);
+        for command in commands {
+            crate::Args::try_parse_from(
+                iter::once("auctioneer-cli").chain(command.split_ascii_whitespace()),
+            )
+            .unwrap_or_else(|error| panic!("invalid reference command {command}: {error}"));
+        }
+    }
+
+    const REFERENCE_FIELDS: &[(&str, &[&str])] = &[
+        (
+            "host",
+            &[
+                "status_response",
+                "resource_limits",
+                "gdpr",
+                "ccpa",
+                "lmt",
+                "host_cookie",
+                "user_sync",
+                "aliases",
+            ],
+        ),
+        (
+            "host.resource_limits",
+            &[
+                "default_tmax_ms",
+                "max_tmax_ms",
+                "max_bidder_response_bytes",
+                "max_bidders_per_auction",
+                "max_outbound_requests",
+                "max_outbound_raw_bytes",
+                "max_outbound_request_bytes",
+                "max_transport_bytes",
+                "max_decoded_bytes",
+                "max_parsed_nodes",
+            ],
+        ),
+        (
+            "host.gdpr",
+            &[
+                "enabled",
+                "default_value",
+                "host_vendor_id",
+                "non_standard_publishers",
+                "tcf2",
+            ],
+        ),
+        (
+            "host.gdpr.tcf2",
+            &[
+                "enabled",
+                "purpose_one_treatment",
+                "purposes",
+                "special_features",
+            ],
+        ),
+        (
+            "host.gdpr.tcf2.purpose_one_treatment",
+            &["enabled", "access_allowed"],
+        ),
+        (
+            "host.gdpr.tcf2.purposes.2",
+            &[
+                "enforce_algo",
+                "enforce_purpose",
+                "enforce_vendors",
+                "vendor_exceptions",
+            ],
+        ),
+        (
+            "host.gdpr.tcf2.special_features.1",
+            &["enforce", "vendor_exceptions"],
+        ),
+        ("host.ccpa", &["enforce"]),
+        ("host.lmt", &["enforce"]),
+        (
+            "host.host_cookie",
+            &[
+                "cookie_name",
+                "family",
+                "domain",
+                "ttl_days",
+                "max_cookie_size_bytes",
+                "optout_cookie",
+            ],
+        ),
+        ("host.host_cookie.optout_cookie", &["name", "value"]),
+        (
+            "host.user_sync",
+            &[
+                "external_url",
+                "redirect_url",
+                "cooperative",
+                "priority_groups",
+                "allowed_origins",
+            ],
+        ),
+        ("host.user_sync.cooperative", &["enabled_by_default"]),
+        (
+            "account_defaults",
+            &[
+                "max_transport_bytes",
+                "max_decoded_bytes",
+                "disabled",
+                "debug_allow",
+                "bid_rounding",
+                "targeting_prefix",
+                "truncate_target_attribute",
+                "gdpr",
+                "ccpa",
+                "privacy",
+                "cookie_sync",
+            ],
+        ),
+        (
+            "account_defaults.cookie_sync",
+            &[
+                "default_limit",
+                "max_limit",
+                "default_coop_sync",
+                "priority_groups",
+            ],
+        ),
+        (
+            "account_defaults.gdpr",
+            &[
+                "enabled",
+                "purpose_one_treatment",
+                "channel_enabled",
+                "purposes",
+                "special_features",
+                "basic_enforcement_vendors",
+            ],
+        ),
+        (
+            "account_defaults.gdpr.purpose_one_treatment",
+            &["enabled", "access_allowed"],
+        ),
+        (
+            "account_defaults.gdpr.channel_enabled",
+            &["web", "app", "amp", "video", "dooh"],
+        ),
+        (
+            "account_defaults.gdpr.purposes.2",
+            &[
+                "enforce_algo",
+                "enforce_purpose",
+                "enforce_vendors",
+                "vendor_exceptions",
+            ],
+        ),
+        (
+            "account_defaults.gdpr.special_features.1",
+            &["enforce", "vendor_exceptions"],
+        ),
+        ("account_defaults.ccpa", &["enabled", "channel_enabled"]),
+        (
+            "account_defaults.ccpa.channel_enabled",
+            &["web", "app", "amp", "video", "dooh"],
+        ),
+        (
+            "account_defaults.privacy",
+            &["ipv4", "ipv6", "allowactivities"],
+        ),
+        ("account_defaults.privacy.ipv4", &["anon_keep_bits"]),
+        ("account_defaults.privacy.ipv6", &["anon_keep_bits"]),
+        (
+            "account_defaults.privacy.allowactivities",
+            &[
+                "fetchBids",
+                "transmitUfpd",
+                "transmitPreciseGeo",
+                "transmitTid",
+                "syncUser",
+                "reportAnalytics",
+                "enrichUfpd",
+                "transmitUniqueRequestIds",
+            ],
+        ),
+        ("features", &["gzip_outbound", "returnallbidstatus_default"]),
+    ];
+
+    #[test]
+    fn reference_includes_the_complete_common_policy_surface() {
+        let document: toml::Value = toml::from_str(REFERENCE).unwrap();
+        for &(path, fields) in REFERENCE_FIELDS {
+            assert_reference_fields(&document, path, fields);
+        }
+        for activity in document["account_defaults"]["privacy"]["allowactivities"]
+            .as_table()
+            .unwrap()
+            .keys()
+        {
+            assert_reference_fields(
+                &document,
+                &format!("account_defaults.privacy.allowactivities.{activity}"),
+                &["default", "rules"],
+            );
+        }
+        let floor_example = commented_example("FLOOR CURRENCY EXAMPLE");
+        let floor: toml::Value = toml::from_str(&floor_example).unwrap();
+        assert_reference_fields(&floor, "floor_currency", &["expires_at", "usd_per_unit"]);
+        let policy: SdkAuctioneerAppConfig =
+            toml::from_str(&format!("{REFERENCE}\n{floor_example}")).unwrap();
+        policy.validate().unwrap();
+    }
+
+    #[test]
+    fn reference_clear_and_activity_alternatives_are_valid_policy() {
+        for (example, paths) in [
+            (
+                "CLEAR EXAMPLES",
+                &[
+                    "/host/user_sync",
+                    "/host/host_cookie/domain",
+                    "/host/host_cookie/optout_cookie",
+                    "/account_defaults/truncate_target_attribute",
+                    "/account_defaults/cookie_sync/default_limit",
+                    "/account_defaults/cookie_sync/max_limit",
+                    "/account_defaults/cookie_sync/default_coop_sync",
+                    "/account_defaults/cookie_sync/priority_groups",
+                    "/account_defaults/gdpr/purpose_one_treatment/enabled",
+                    "/account_defaults/gdpr/purpose_one_treatment/access_allowed",
+                ][..],
+            ),
+            (
+                "SYNC REDIRECT CLEAR EXAMPLE",
+                &["/host/user_sync/redirect_url"],
+            ),
+        ] {
+            let policy: SdkAuctioneerAppConfig =
+                toml::from_str(&commented_example(example)).unwrap();
+            policy.validate().unwrap();
+            let value = serde_json::to_value(policy).unwrap();
+            for path in paths {
+                assert_eq!(value.pointer(path), Some(&json!({"clear": true})), "{path}");
+            }
+        }
+        let policy: SdkAuctioneerAppConfig = toml::from_str(&format!(
+            "{REFERENCE}\n{}",
+            commented_example("ACTIVITY RULE EXAMPLE")
+        ))
+        .unwrap();
+        policy.validate().unwrap();
+        let value = serde_json::to_value(policy).unwrap();
+        assert_eq!(
+            value["accounts"]["fake_publisher"]["privacy"]["allowactivities"]["transmitUfpd"]["rules"]
+                [0],
+            json!({"allow": false, "condition": {"componentName": ["fake_alias"], "componentType": ["bidder"]}})
+        );
+    }
+
+    #[test]
+    fn reference_bidder_settings_cover_discovered_fields_without_a_bidder_list() {
+        let example: toml::Value = toml::from_str(&commented_example("BIDDER EXAMPLE")).unwrap();
+        assert_reference_fields(
+            &example,
+            "bidders.fake_bidder",
+            &[
+                "enabled",
+                "usersync_enabled",
+                "timeout_ms",
+                "sample_rate",
+                "max_transport_bytes",
+                "max_decoded_bytes",
+                "settings",
+            ],
+        );
+        assert_reference_fields(
+            &example,
+            "bidders.fake_bidder.settings",
+            &["implementation", "values"],
+        );
+        let values = example["bidders"]["fake_bidder"]["settings"]["values"]
+            .as_table()
+            .unwrap();
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("auctioneer-bidder");
+        let manifest: toml::Value =
+            toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
+        let features = manifest["features"]
+            .as_table()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        let catalog = build_catalog::scan(&root.join("src/bidders"), &features).unwrap();
+        let owners: Vec<_> = catalog
+            .manifests
+            .values()
+            .filter_map(|owner| owner.settings.as_ref().map(|settings| (owner, settings)))
+            .collect();
+        assert!(!owners.is_empty());
+        let declared: BTreeSet<_> = owners
+            .iter()
+            .flat_map(|(_, settings)| settings.fields.keys().map(String::as_str))
+            .collect();
+        assert_eq!(
+            values.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+            declared
+        );
+        let mut checked = 0_usize;
+        for (owner, settings) in owners {
+            let Some(name) = owner
+                .definitions
+                .keys()
+                .find(|name| auctioneer_config_data::bidder(name).is_some())
+            else {
+                continue;
+            };
+            let selected: toml::Table = settings
+                .fields
+                .keys()
+                .map(|field| (field.clone(), values[field].clone()))
+                .collect();
+            let mut overrides = serde_json::to_value(&example["bidders"]["fake_bidder"]).unwrap();
+            overrides["settings"] = json!({"implementation": owner.key, "values": selected});
+            let policy: SdkAuctioneerAppConfig = serde_json::from_value(
+                json!({"schema_version": 1_u8, "bidders": {(name): overrides}}),
+            )
+            .unwrap();
+            policy.validate().unwrap();
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert!(checked > 0, "compiled settings examples must execute");
+    }
 
     fn fixture_file(body: &str) -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().expect("temporary fixture directory");
