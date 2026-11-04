@@ -27,10 +27,17 @@ mod tests {
                 if kind.as_str() != Some("optional_string") {
                     continue;
                 }
-                let input = json!({"bidders":{"fake_future_alias":{"settings":{
-                    "implementation":manifest["key"].as_str().unwrap(),
-                    "values":{field:"private-host-marker"}
-                }}}});
+                let input = json!({
+                    "schema_version": 1_u64,
+                    "bidders": {
+                        "fake_future_alias": {
+                            "settings": {
+                                "implementation": manifest["key"].as_str().unwrap(),
+                                "values": {field:"private-host-marker"},
+                            },
+                        },
+                    },
+                });
                 let source = toml::to_string(&input).unwrap();
                 let config: AuctioneerAppConfig = toml::from_str(&source).unwrap();
                 assert!(!format!("{config:?}").contains("private-host-marker"));

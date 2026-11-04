@@ -346,7 +346,7 @@ mod tests {
         host.user_sync.as_mut().unwrap().external_url = "https://sync.example.com".to_owned();
         host.user_sync.as_mut().unwrap().redirect_url = Some(CALLBACK.to_owned());
         let app: AuctioneerAppConfig = toml::from_str(
-            "[accounts.disabled]\ndisabled = true\n\
+            "schema_version = 1\n[accounts.disabled]\ndisabled = true\n\
              [accounts.activity-deny.privacy.allowactivities.syncUser]\ndefault = false\n",
         )
         .unwrap();

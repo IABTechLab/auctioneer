@@ -269,8 +269,8 @@ mod tests {
 
     #[test]
     fn host_defaults_aliases_is_empty_in_phase_1() {
-        // Host operators declare aliases in `[baked.host.aliases]`;
-        // phase 1 ships an empty map so `/info/bidders` never
+        // Operators declare runtime aliases in the direct `[host.aliases]` scope;
+        // neutral compiled product defaults keep an empty map so `/info/bidders` never
         // synthesizes surprise entries out of the box.
         let host = host_default();
         assert!(host.aliases.is_empty());

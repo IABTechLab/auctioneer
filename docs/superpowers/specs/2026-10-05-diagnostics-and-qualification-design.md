@@ -592,32 +592,37 @@ logs may use only fixed omission categories and bounded aggregate counters.
 
 ## 7. Config Resolution and Error Precedence
 
-Retain one EdgeZero-loaded `AuctioneerAppConfig` runtime blob containing typed
-host overrides and `accounts.<id>` overlays. The existing push path validates
+Use one direct versioned `OperatorPolicy` containing `schema_version = 1`,
+`host`, `account_defaults`, `accounts`, `bidders`, `features` and `floor_currency`.
+The existing EdgeZero typed validate/diff/push path validates
 and encapsulates this blob with the canonical SHA-256 `BlobEnvelope`; diagnostic qualification uses
 the existing store/binding/key, extractor, and trust configuration. This digest
 checks integrity, not a cryptographic publisher signature. No additional
 runtime signing protocol or separate keys are introduced.
 
-`Option::None` inherits. Serialized null on an optional overlay also means
-absent, not deletion; a whole optional block set to null inherits that
-block. Empty objects are no-op overlays. Explicit false, zero, and empty
+Omission inherits from product data or the parent scope in the same document.
+Direct null is rejected except where generated bidder settings explicitly
+admit it. Only the operator contract's nullable-field whitelist accepts strict
+`{ clear = true }`; it clears optional state, restoring documented fallback,
+not permission. Empty objects are no-op overlays. Explicit false, zero, and empty
 strings/lists preserve their typed meaning wherever valid. An explicitly
 present array replaces its corresponding default array, including `[]`.
 Invalid effective required values fail through the existing whole-blob
-loader validation; null does not delete a required defaulted field.
+loader validation; required fields cannot be cleared.
 Host/account privacy fall-through applies only when a declared tri-state
-field is absent in the effective account after baked-plus-overlay resolution,
-never just because a raw overlay key is absent/null. It is not a general
+field requests fallback after product, account-default and selected named-account
+resolution, never merely because a raw key is absent. It is not a general
 fallback between unrelated settings.
 
 Malformed or integrity-invalid runtime data anywhere in the blob yields the
 existing `MalformedHost` 500, even when it affects a different account or
 the user has opted out. Backend/secret-backend/deadline unavailability keeps
 the existing 503 with Retry-After; rejected keys retain their existing 500
-classification. Missing data uses baked fallback only when compiled bootstrap
-`allow_missing_config` permits it, never because of a transient or malformed
-read. No last-known-good permissive fallback is introduced.
+classification. Missing required policy refuses; it never selects product
+defaults, another source or last-known-good state. Store bindings and installed
+limits stay host-owned, not a separate startup/source-mode configuration.
+Shared validation semantics preserve SDK command ordering and the request
+error/admission ordering below; parity does not mean identical side effects.
 
 After EdgeZero ingress/routing/admission succeeds, the shared auction path
 loads/validates config and resolves/clamps host policy, reads bounded input,

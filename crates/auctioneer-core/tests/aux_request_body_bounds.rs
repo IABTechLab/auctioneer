@@ -11,7 +11,8 @@ mod fanout_limits;
 mod tests {
     use crate::config_funding;
     use async_trait::async_trait;
-    use auctioneer_core::config::{AuctioneerAppConfig, StatusConfig};
+    use auctioneer_config::policy::HostPolicy;
+    use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::handlers::egress_deadline::REFUSAL_WRITE_BUDGET;
     use auctioneer_core::handlers::probe_config::{
         __probe_isolation_for_tests, config_resolutions,
@@ -112,8 +113,9 @@ mod tests {
             });
             let envelope = BlobEnvelope::new(
                 serde_json::to_value(AuctioneerAppConfig {
-                    status: StatusConfig {
-                        banner: Some("ok".to_owned()),
+                    host: HostPolicy {
+                        status_response: Some("ok".to_owned()),
+                        ..HostPolicy::default()
                     },
                     ..AuctioneerAppConfig::default()
                 })

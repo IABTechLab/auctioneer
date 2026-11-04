@@ -1,26 +1,10 @@
-//! Every commented example in `auctioneer.toml` must be valid config when
-//! an operator uncomments it verbatim.
-//!
-//! The reference file is the only place a deployer learns these keys
-//! exist, and an example that does not parse is worse than no example:
-//! a rejected blob currently degrades to the baked default, which ships
-//! `[baked.host.gdpr.tcf2] enabled = false`. A typo in a comment can
-//! therefore turn GDPR enforcement off. This gate makes that
-//! unrepresentable.
-//!
-//! It also pins a convention the extraction below depends on: a prose
-//! comment in `auctioneer.toml` must not begin with `<ident> =`, because
-//! that is indistinguishable from an uncommentable assignment.
-//!
-//! `auctioneer.toml` now carries THREE namespaces in one document —
-//! `[baked.host]`, `[baked.account]` and `[runtime]` — so the whole
-//! file no longer parses as `AuctioneerAppConfig`. The checks are split to
-//! match: one case projects `[runtime]` and validates it exactly as
-//! this file always has, and a second validates the `[baked.*]`
-//! examples against the shapes the build script compiles them through.
+//! Every commented operator example is a direct, versioned runtime policy.
+//! Prose comments must not begin with `<ident> =`: the extraction below
+//! deliberately treats that spelling as an uncommentable assignment.
 
 #[cfg(test)]
 mod tests {
+    use auctioneer_config_data::types::TriState;
     use auctioneer_config_data::{account_default, host_default};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{resolve_host, resolved_account};
@@ -65,9 +49,7 @@ mod tests {
         out
     }
 
-    /// The whole document with every example enabled, parsed as the
-    /// generic root. Both namespaces are opaque here; the two cases
-    /// below each type the half they are about.
+    /// The whole direct policy with every example enabled.
     fn uncommented_root() -> toml::Table {
         let document = uncommented(REFERENCE);
         toml::from_str(&document).unwrap_or_else(|err| {
@@ -75,56 +57,59 @@ mod tests {
         })
     }
 
-    /// Pull one namespace out of the uncommented document.
-    fn subtree(root: &toml::Table, path: &[&str]) -> toml::Value {
-        let mut cursor = toml::Value::Table(root.clone());
-        for segment in path {
-            cursor = cursor
-                .get(segment)
-                .unwrap_or_else(|| panic!("`{}` must exist in auctioneer.toml", path.join(".")))
-                .clone();
-        }
-        cursor
-    }
-
     #[test]
     fn every_commented_runtime_example_in_auctioneer_toml_is_valid_config() {
         let root = uncommented_root();
-        let runtime = subtree(&root, &["runtime"]);
-        let rendered = toml::to_string(&runtime).expect("the runtime subtree re-serialises");
+        assert_eq!(
+            root.get("schema_version").and_then(toml::Value::as_integer),
+            Some(1)
+        );
+        for forbidden in ["baked", "startup", "runtime"] {
+            assert!(
+                !root.contains_key(forbidden),
+                "operator policy must be direct"
+            );
+        }
+        let rendered = toml::to_string(&root).expect("the direct policy re-serialises");
 
         // Guard the extraction itself: a rule that dropped everything
         // would leave an empty document, and an empty document parses.
         for required in [
-            "[gdpr.tcf2]",
-            "[gdpr.tcf2.purposes.2]",
-            "[gdpr.tcf2.special_features.1]",
-            "[aliases]",
-            "[accounts.acct-42]",
-            "[accounts.acct-42.gdpr.channel_enabled]",
-            "[accounts.acct-42.privacy.ipv4]",
-            "[ccpa]",
-            "[lmt]",
-            "[accounts.acct-42.ccpa.channel_enabled]",
-            "[accounts.acct-42.privacy.allowactivities.transmitUfpd]",
-            "[[accounts.acct-42.privacy.allowactivities.transmitUfpd.rules]]",
+            "[host.gdpr.tcf2]",
+            "[host.gdpr.tcf2.purposes.2]",
+            "[host.gdpr.tcf2.special_features.1]",
+            "[host.aliases]",
+            "[accounts.fake_publisher]",
+            "[accounts.fake_publisher.gdpr.channel_enabled]",
+            "[accounts.fake_publisher.privacy.ipv4]",
+            "[host.ccpa]",
+            "[host.lmt]",
+            "[accounts.fake_publisher.ccpa.channel_enabled]",
+            "[accounts.fake_publisher.privacy.allowactivities.transmitUfpd]",
+            "[[accounts.fake_publisher.privacy.allowactivities.transmitUfpd.rules]]",
         ] {
             assert!(
                 rendered.contains(required),
-                "the extraction dropped `{required}` from `[runtime]`, so this test \
+                "the extraction dropped `{required}` from the direct policy, so this test \
                  would prove nothing. Got:\n{rendered}",
             );
         }
 
-        let cfg: AuctioneerAppConfig = runtime.clone().try_into().unwrap_or_else(|err| {
-            panic!("every commented `[runtime]` example must parse when uncommented: {err}")
+        let cfg: AuctioneerAppConfig = root.try_into().unwrap_or_else(|err| {
+            panic!("every commented policy example must parse when uncommented: {err}")
         });
         cfg.validate().unwrap_or_else(|err| {
             panic!("every commented example must also pass validation: {err}")
         });
 
-        assert_eq!(cfg.ccpa.as_ref().and_then(|ccpa| ccpa.enforce), Some(true));
-        assert_eq!(cfg.lmt.as_ref().and_then(|lmt| lmt.enforce), Some(true));
+        assert_eq!(
+            cfg.host.ccpa.as_ref().and_then(|ccpa| ccpa.enforce),
+            Some(true)
+        );
+        assert_eq!(
+            cfg.host.lmt.as_ref().and_then(|lmt| lmt.enforce),
+            Some(true)
+        );
 
         // The two outbound overrides are the newest `[auction]` keys
         // and the pair `deny_unknown_fields` rejected until they were
@@ -133,8 +118,8 @@ mod tests {
         // just the code carrying it.
         assert_eq!(
             (
-                cfg.auction.max_outbound_raw_bytes,
-                cfg.auction.max_outbound_request_bytes,
+                cfg.host.resource_limits.max_outbound_raw_bytes,
+                cfg.host.resource_limits.max_outbound_request_bytes,
             ),
             (Some(0x0004_0000), Some(0x0004_0000)),
             "`auctioneer.toml` must document both outbound overrides with their baked \
@@ -145,14 +130,15 @@ mod tests {
         // not silently-ignored unknown keys — `deny_unknown_fields`
         // already rejects those, so this pins the shape instead.
         assert_eq!(
-            cfg.gdpr
+            cfg.host
+                .gdpr
                 .as_ref()
                 .and_then(|gdpr| gdpr.tcf2.as_ref())
                 .and_then(|tcf2| tcf2.enabled),
             Some(true),
         );
         assert!(
-            cfg.accounts["acct-42"]
+            cfg.accounts["fake_publisher"]
                 .gdpr
                 .as_ref()
                 .and_then(|gdpr| gdpr.channel_enabled.as_ref())
@@ -161,72 +147,37 @@ mod tests {
         );
     }
 
-    /// The `[baked.*]` half. Those tables are read by
-    /// `auctioneer-config-data`'s build script, which compiles them into
-    /// `host_default()` / `account_default()` — so the shipped file's
-    /// baked namespaces are correct exactly when this build's baked
-    /// constants match them field for field. That is a stronger check
-    /// than re-parsing the tables here: it proves the build actually
-    /// read THESE values.
     #[test]
-    fn the_baked_examples_in_auctioneer_toml_are_what_the_build_compiled() {
+    fn operator_examples_resolve_without_changing_neutral_product_defaults() {
         let root = uncommented_root();
-        let host = subtree(&root, &["baked", "host"]);
-        let account = subtree(&root, &["baked", "account"]);
-
+        let cfg: AuctioneerAppConfig = root.try_into().expect("direct reference policy");
+        let product_host = host_default();
+        let product_account = account_default();
+        assert!(product_host.user_sync.is_none());
+        assert!(product_host.aliases.is_empty());
+        assert_eq!(product_host.status_response, "");
+        assert!(!product_host.ccpa.enforce);
+        assert!(!product_host.lmt.enforce);
+        assert_eq!(product_account.targeting_prefix, "hb");
+        assert_eq!(product_account.privacy.ipv6.anon_keep_bits, 56);
+        let host = resolve_host(&cfg, product_host);
+        assert!(host.ccpa.enforce);
+        assert!(host.lmt.enforce);
+        assert!(host.gdpr.enabled);
+        assert_eq!(host.resource_limits.max_tmax_ms, 2000);
+        assert_eq!(host.resource_limits.default_tmax_ms, 1000);
+        let account = resolved_account(&cfg, product_account);
+        assert_eq!(account.bid_rounding, "down");
+        assert_eq!(account.targeting_prefix, "hb");
+        assert_eq!(account.gdpr.enabled, TriState::Unset);
+        assert_eq!(account.privacy.ipv6.anon_keep_bits, 56);
         assert_eq!(
-            host.get("status_response").and_then(toml::Value::as_str),
-            Some(host_default().status_response.as_str()),
-            "`[baked.host] status_response` must be the value this build baked",
-        );
-        let limits = host
-            .get("resource_limits")
-            .expect("`[baked.host.resource_limits]` must exist");
-        assert_eq!(
-            limits
-                .get("default_tmax_ms")
-                .and_then(toml::Value::as_integer),
-            Some(host_default().resource_limits.default_tmax_ms),
-            "`[baked.host.resource_limits] default_tmax_ms` must be the baked value",
-        );
-        assert_eq!(
-            limits.get("max_tmax_ms").and_then(toml::Value::as_integer),
-            Some(host_default().resource_limits.max_tmax_ms),
-        );
-        assert_eq!(
-            host.get("gdpr")
-                .and_then(|gdpr| gdpr.get("enabled"))
-                .and_then(toml::Value::as_bool),
-            Some(host_default().gdpr.enabled),
-            "host `gdpr.enabled` is a bool here and a tri-state STRING under \
-             `[baked.account]`; the namespaces are what keep them apart",
-        );
-
-        assert_eq!(
-            account.get("bid_rounding").and_then(toml::Value::as_str),
-            Some(account_default().bid_rounding.as_str()),
+            serde_json::to_value(product_host).unwrap(),
+            serde_json::to_value(auctioneer_config_data::product_host_default()).unwrap()
         );
         assert_eq!(
-            account
-                .get("targeting_prefix")
-                .and_then(toml::Value::as_str),
-            Some(account_default().targeting_prefix.as_str()),
-        );
-        assert_eq!(
-            account
-                .get("gdpr")
-                .and_then(|gdpr| gdpr.get("enabled"))
-                .and_then(toml::Value::as_str),
-            Some("unset"),
-            "account `gdpr.enabled` is the tri-state string, not a bool",
-        );
-        assert_eq!(
-            account
-                .get("privacy")
-                .and_then(|privacy| privacy.get("ipv6"))
-                .and_then(|ipv6| ipv6.get("anon_keep_bits"))
-                .and_then(toml::Value::as_integer),
-            Some(i64::from(account_default().privacy.ipv6.anon_keep_bits)),
+            serde_json::to_value(product_account).unwrap(),
+            serde_json::to_value(auctioneer_config_data::product_account_default()).unwrap()
         );
     }
 
@@ -236,8 +187,9 @@ mod tests {
     /// blob would then have no `gdpr.enabled` at all.
     #[test]
     fn partial_overlay_still_falls_through_to_baked() {
-        let overlay: AuctioneerAppConfig = toml::from_str("[auction]\ndefault_tmax_ms = 1500\n")
-            .expect("a one-key overlay is valid config");
+        let overlay: AuctioneerAppConfig =
+            toml::from_str("schema_version = 1\n[host.resource_limits]\ndefault_tmax_ms = 1500\n")
+                .expect("a one-key overlay is valid config");
 
         let resolved = resolve_host(&overlay, host_default());
         assert_eq!(

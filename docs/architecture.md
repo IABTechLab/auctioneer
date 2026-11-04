@@ -430,16 +430,16 @@ Configuration has two different lifecycles:
 
 | Layer                       | Input and owner                                                                                        | Activation                                           |
 | --------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Baked defaults and metadata | `auctioneer-config-data` build inputs; bidder info, host/account defaults, bootstrap settings, EEA/GVL/GCL data | Rebuild and deploy an artifact                       |
-| Runtime overrides           | Auctioneer runtime DTOs delivered through EdgeZero's config/secret-store integration                       | Validated configuration used by application handlers |
+| Compiled product data | Reviewed neutral host/account defaults, bidder metadata and EEA/GVL/GCL data owned by `auctioneer-config-data` | Rebuild and deploy an artifact |
+| Runtime policy | One direct `OperatorPolicy`, existing EdgeZero typed commands/extraction and shared semantic validation/resolution over caller-owned input/context | Validated policy used under the backend's activation lifecycle; actual host ingestion/adoption capacity/lifetimes remain #135 |
 
 ```text
-authoring config / reference-data files
+code-owned product defaults / reference-data files
   -> schema and semantic validation
   -> build generation -> embedded artifact defaults
 
 operator runtime config
-  -> auctioneer-cli validation / runtime-payload selection
+  -> existing EdgeZero typed validate/diff/push / shared validators
   -> EdgeZero config push and hash-bearing envelope
   -> provider config store
   -> EdgeZero extraction / integrity checking
@@ -447,14 +447,19 @@ operator runtime config
   -> one effective configuration for this request
 ```
 
-The authoring file is [`auctioneer.toml`](../auctioneer.toml). Its `[baked.*]`
-sections are consumed by the build, while the CLI pushes only `[runtime]`
-to the logical `auctioneer_runtime` store. Accounts are carried in that runtime
+The authoring file [`auctioneer.toml`](../auctioneer.toml) is the direct payload:
+required root `schema_version = 1`, `host`, `account_defaults`, `accounts`,
+`bidders`, `features` and `floor_currency`. There are no baked/startup/runtime
+root wrappers, source modes or backward wire aliases. Builds never read operator
+policy. The SDK trait wrapper preserves model and wire layout. Accounts are carried in that runtime
 blob, not fetched from separate account records. Runtime-field environment
 overrides are applied at push time to keys already present in the source;
 they are not a live, per-instance policy override channel. Boot health
 credentials are a separate provider-specific input.
 
+Host/adapter facts, store/trust bindings and installed limits retain their
+existing owners; they are not another Auctioneer startup config. Runtime policy
+may request supported existing caps, not resize gates or authorize its own read.
 These layers are not interchangeable. Bounded fanout requires runtime policy to
 stay within the boot envelope installed by the default adapter entry points.
 Field-specific merge rules preserve omitted versus explicit values; aliases,
@@ -462,10 +467,9 @@ per-account settings, bidder kill switches, sampling, and timeouts are resolved 
 than applied by mutating the shared bidder registry.
 
 Invalid or unavailable runtime configuration is not permission to switch
-off privacy. The runtime-config resolver distinguishes permitted missing configuration
-from extraction, integrity, parsing, and validation failures and uses
-explicit error responses. Missing config defaults only when the separately
-baked `allow_missing_config` permits it; its checked-in value is false.
+off privacy. The runtime-config resolver refuses missing required policy and
+distinguishes extraction, integrity, parsing and validation failures with
+explicit error responses. No failed or missing load selects product defaults.
 Invalid config is a 500; backend unavailability/extraction timeout is a 503
 with `Retry-After: 5`. `/status` remains available to report degradation.
 Do not add an ad hoc fallback or a second config cache in a handler.
@@ -686,9 +690,9 @@ an installed access policy. Tokenless opt-in requires an ingress path
 restriction; see [internal-route deployment guidance](deployment/restrict-operational-endpoints.md).
 
 The sync routes use the auxiliary admission class and a validated runtime
-config snapshot. The configured public `user_sync.external_url` supplies
+config snapshot. The configured public `host.user_sync.external_url` supplies
 the callback origin and optional base path; request `Host` and forwarded
-headers do not. `user_sync.allowed_origins` controls exact-origin
+headers do not. `host.user_sync.allowed_origins` controls exact-origin
 credentialed JavaScript access, not privacy permission. After config
 resolution, application responses can carry those CORS headers; earlier
 admission, config, framework, or transport failures have narrower header

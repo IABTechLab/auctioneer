@@ -1,15 +1,16 @@
-//! Shared runtime source models and pure structural validation.
+//! Shared runtime leaves and pure structural validation.
+//! The canonical operator root is `crate::policy::OperatorPolicy`.
 //! Semantic admission, defaults and registry access remain with the engine.
 
 use crate::activity::{ActivityOverrides, validate_activity_overrides};
-use crate::currency::FloorCurrencyConfig;
 use crate::limits::MAX_STATUS_BANNER_BYTES;
+use crate::model_validation::deserialize_optional_value;
 use crate::types::{EnforceAlgo, MAX_BIDDER_NAME_BYTES, PurposeOneTreatmentOverride, TriState};
 use core::num::ParseIntError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
-use validator::{Validate, ValidateLength as _, ValidateRange, ValidationError, ValidationErrors};
+use validator::{Validate, ValidateLength as _, ValidateRange, ValidationError};
 
 /// TCF enforcement-config key ranges. Purposes are the 10 standard
 /// consent purposes Prebid gates; special features are the 12-slot wire
@@ -18,190 +19,137 @@ use validator::{Validate, ValidateLength as _, ValidateRange, ValidationError, V
 const PURPOSE_ID_RANGE: RangeInclusive<u8> = 1..=10;
 const SPECIAL_FEATURE_ID_RANGE: RangeInclusive<u8> = 1..=12;
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields, bound(deserialize = "Settings: Deserialize<'de>"))]
-pub struct AuctioneerAppConfig<Settings: Validate> {
-    /// Auction-tuning overrides. Absent fields fall through to
-    /// `[baked.host]` in `auctioneer.toml` at build time.
-    #[serde(default)]
-    pub auction: AuctionConfig,
-
-    /// Targeting-key overrides. Absent fields fall through to
-    /// `[baked.account]` in `auctioneer.toml`.
-    #[serde(default)]
-    pub targeting: TargetingConfig,
-
-    /// `/status` handler overrides.
-    #[serde(default)]
-    pub status: StatusConfig,
-
-    /// Feature kill-switches. Absent → conservative defaults.
-    #[serde(default)]
-    pub features: FeatureFlags,
-
-    /// Per-observable-bidder tunables, including request and host aliases.
-    /// Alias fields fall back independently to their base bidder.
-    /// Validated manually so rejected maps are not copied into
-    /// validation-error parameters by the custom-field derive.
-    #[serde(default)]
-    pub bidders: BTreeMap<String, BidderOverrides<Settings>>,
-
-    /// Operator-owned floor-only rate snapshot, borrowed by the auction caller.
-    /// The existing extracted-config byte/node ownership and caps still apply.
-    /// Absence permits USD identity only; freshness uses the handler's instant.
-    #[serde(default)]
-    pub floor_currency: Option<FloorCurrencyConfig>,
-
-    /// Per-account overrides keyed by publisher id (or `parentAccount`).
-    /// Absent → every request resolves to the baked default account.
-    /// Values are the same overlay-over-baked shape as the top-level
-    /// `TargetingConfig` / `AuctionConfig`: every field is `Option<_>`
-    /// and only present fields override the baked default.
-    #[serde(default)]
-    pub accounts: BTreeMap<String, AccountOverride>,
-
-    /// Host GDPR overlay. Absent → the baked `HostConfig.gdpr` applies
-    /// unchanged. Present → per-field merge onto the baked default per
-    /// the same `Option::Some`/`None` overlay pattern the account map
-    /// uses. Deployers who want to turn on TCF2 enforcement, add
-    /// non-standard publishers, or change per-purpose enforcement config
-    /// edit this section.
-    #[serde(default)]
-    pub gdpr: Option<HostGdprOverride>,
-
-    #[serde(default)]
-    pub ccpa: Option<HostEnforcementOverride>,
-
-    #[serde(default)]
-    pub lmt: Option<HostEnforcementOverride>,
-
-    /// Host-declared aliases. Root-level, NOT under `gdpr` — aliases are
-    /// routing/config, not privacy. Overlays onto the baked
-    /// `HostConfig.aliases` map. Alias values are base bidder names.
-    ///
-    /// Bounded in entry count by [`MAX_ALIASES`] and in alias-name
-    /// length by [`MAX_ALIAS_NAME_BYTES`]; see
-    /// [`validate_host_alias_overlay`] for why both bounds exist and
-    /// why crossing either is a refusal rather than a truncation.
-    #[serde(default)]
-    pub aliases: Option<BTreeMap<String, String>>,
-
-    #[serde(default)]
-    pub host_cookie: Option<HostCookieOverride>,
-
-    #[serde(default)]
-    pub user_sync: Option<UserSyncOverride>,
-}
-
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct HostCookieOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cookie_name: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub family: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub domain: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub ttl_days: Option<i64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_cookie_size_bytes: Option<usize>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub optout_cookie: Option<OptoutCookieOverride>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct OptoutCookieOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub name: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub value: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct UserSyncOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub external_url: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub redirect_url: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub cooperative: Option<CooperativeOverride>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub priority_groups: Option<Vec<Vec<String>>>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub allowed_origins: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct CooperativeOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled_by_default: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct AccountCookieSyncOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub default_limit: Option<i64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_limit: Option<i64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub default_coop_sync: Option<bool>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub priority_groups: Option<Vec<Vec<String>>>,
-}
-
-// The custom-field derive serializes the whole rejected field into `params.value`.
-// Add root map errors directly, preserving field keys and nested validation shapes.
-impl<Settings: Validate> Validate for AuctioneerAppConfig<Settings> {
-    fn validate(&self) -> Result<(), ValidationErrors> {
-        let mut errors = ValidationErrors::new();
-        errors.merge_self("auction", self.auction.validate());
-        errors.merge_self("targeting", self.targeting.validate());
-        errors.merge_self("status", self.status.validate());
-
-        if let Err(err) = validate_bidder_map(&self.bidders) {
-            errors.add("bidders", err);
-        }
-        if let Some(snapshot) = &self.floor_currency
-            && let Err(err) = snapshot.validate().map_err(validator::ValidationError::new)
-        {
-            errors.add("floor_currency", err);
-        }
-        if let Err(err) = validate_account_map(&self.accounts) {
-            errors.add("accounts", err);
-        }
-        if let Some(gdpr) = &self.gdpr {
-            errors.merge_self("gdpr", gdpr.validate());
-        }
-        if let Some(host_cookie) = &self.host_cookie {
-            errors.merge_self("host_cookie", host_cookie.validate());
-        }
-        if let Some(user_sync) = &self.user_sync {
-            errors.merge_self("user_sync", user_sync.validate());
-        }
-        if let Some(aliases) = &self.aliases
-            && let Err(err) = validate_host_alias_overlay(aliases)
-        {
-            errors.add("aliases", err);
-        }
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
-    }
-}
-
-impl<Settings: Validate> validator::ValidateArgs<'_> for AuctioneerAppConfig<Settings> {
-    type Args = ();
-
-    fn validate_with_args(&self, (): Self::Args) -> Result<(), ValidationErrors> {
-        self.validate()
-    }
 }
 
 /// Entries the host `[aliases]` overlay may declare.
@@ -294,34 +242,31 @@ pub fn validate_host_alias_overlay(
     Ok(())
 }
 
-fn validate_account_map(
-    map: &BTreeMap<String, AccountOverride>,
-) -> Result<(), validator::ValidationError> {
-    for (id, entry) in map {
-        // Baked rules are build-validated; replacement arrays are validated
-        // below through AccountPrivacyOverride, without rescanning inherited rules.
-        if let Err(err) = entry.validate() {
-            let mut ve = validator::ValidationError::new("account_override_invalid");
-            ve.message = Some(format!("[accounts.{id}]: {err}").into());
-            return Err(ve);
-        }
-    }
-    Ok(())
-}
-
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HostEnforcementOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct AccountCcpaOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub channel_enabled: Option<ChannelEnabledOverride>,
 }
 
@@ -334,7 +279,7 @@ fn validate_activity_map(map: &ActivityOverrides) -> Result<(), validator::Valid
 /// The deploy format is TOML, whose table keys are always strings, and
 /// `toml` — unlike `serde_json` — hands the key to serde as a `str`
 /// rather than re-parsing it for an integer key type. Without this the
-/// canonical `[gdpr.tcf2.purposes.2]` block fails with "invalid type:
+/// canonical `[host.gdpr.tcf2.purposes.2]` block fails with "invalid type:
 /// string \"2\", expected u8" before any validator runs. Accepting the
 /// string form also keeps the JSON blob path working, since JSON object
 /// keys are strings too.
@@ -351,9 +296,7 @@ where
 {
     use serde::de::Error as _;
 
-    let Some(raw) = Option::<BTreeMap<String, V>>::deserialize(deserializer)? else {
-        return Ok(None);
-    };
+    let raw = BTreeMap::<String, V>::deserialize(deserializer)?;
     let mut parsed: BTreeMap<u8, V> = BTreeMap::new();
     for (key, value) in raw {
         let id: u8 = key.parse().map_err(|err: ParseIntError| {
@@ -403,27 +346,47 @@ pub(crate) fn validate_special_feature_id_keys<V>(
 pub struct HostGdprOverride {
     /// GDPR master switch. Overlays onto the baked
     /// `HostConfig.gdpr.enabled`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled: Option<bool>,
 
     /// GVL vendor id assigned to the host as itself a TCF vendor. `0` is
     /// valid — it is the "no host vendor id declared" sentinel and the
     /// default; `65535` is the `u16` max the GVL keys use.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 0_u32, max = 0xFFFF_u32))]
     pub host_vendor_id: Option<u32>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub non_standard_publishers: Option<Vec<String>>,
 
     /// The string value the resolver uses when the geo signal is
     /// ambiguous and neither `user.geo` nor `device.geo` resolves. Must
     /// be exactly `"0"` or `"1"` (the `OpenRTB` `regs.gdpr` wire values).
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_default_value"))]
     pub default_value: Option<String>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub tcf2: Option<HostTcf2Override>,
 }
@@ -431,19 +394,38 @@ pub struct HostGdprOverride {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct HostTcf2Override {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled: Option<bool>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "crate::model_validation::deserialize_optional_treatment",
+        serialize_with = "crate::model_validation::serialize_optional_treatment",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub purpose_one_treatment: Option<PurposeOneTreatmentOverride>,
 
     /// Per-purpose enforcement overrides, keys `1..=10`.
-    #[serde(default, deserialize_with = "deserialize_u8_keyed_map")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_u8_keyed_map",
+        serialize_with = "crate::model_validation::serialize_optional_u8_keyed_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_purpose_id_keys"))]
     pub purposes: Option<BTreeMap<u8, HostPurposeEnforcementOverride>>,
 
     /// Per-special-feature enforcement overrides, keys `1..=12`.
-    #[serde(default, deserialize_with = "deserialize_u8_keyed_map")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_u8_keyed_map",
+        serialize_with = "crate::model_validation::serialize_optional_u8_keyed_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_special_feature_id_keys"))]
     pub special_features: Option<BTreeMap<u8, SpecialFeatureEnforcementOverride>>,
 }
@@ -454,13 +436,29 @@ pub struct HostTcf2Override {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct HostPurposeEnforcementOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce_algo: Option<EnforceAlgo>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce_purpose: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce_vendors: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub vendor_exceptions: Option<Vec<String>>,
 }
 
@@ -468,30 +466,58 @@ pub struct HostPurposeEnforcementOverride {
 #[serde(deny_unknown_fields)]
 pub struct AccountOverride {
     /// Account-scoped on-wire response cap; overrides the host default.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
 
     /// Account-scoped post-decode response cap, independent of transport.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub disabled: Option<bool>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub debug_allow: Option<bool>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub cookie_sync: Option<AccountCookieSyncOverride>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_bid_rounding"))]
     pub bid_rounding: Option<String>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_targeting_prefix"))]
     pub targeting_prefix: Option<String>,
 
@@ -500,15 +526,27 @@ pub struct AccountOverride {
     /// deployer sets. Bounds are structural: shorter than 12 breaks the
     /// `hb_<attr>_<bidder>` key-length invariant even for short bidder
     /// names; longer than 20 is the `OpenRTB` targeting-macro cap.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_targeting_truncation"))]
     pub truncate_target_attribute: Option<usize>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub gdpr: Option<AccountGdprOverride>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub ccpa: Option<AccountCcpaOverride>,
 
@@ -516,7 +554,11 @@ pub struct AccountOverride {
     /// overlay can set one family without disturbing the other; the
     /// merge applies present values over the baked
     /// `AccountPrivacyConfig`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub privacy: Option<AccountPrivacyOverride>,
 }
@@ -526,13 +568,26 @@ pub struct AccountOverride {
 pub struct AccountPrivacyOverride {
     // v4 and v6 use DISTINCT override types — a shared 32-capped struct
     // would reject a legitimate v6 keep-bits in 33..=128.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub ipv4: Option<IpAnonOverrideV4>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub ipv6: Option<IpAnonOverrideV6>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "crate::model_validation::deserialize_optional_activities",
+        serialize_with = "crate::model_validation::serialize_optional_activities",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_activity_map"))]
     pub allowactivities: Option<ActivityOverrides>,
 }
@@ -540,7 +595,11 @@ pub struct AccountPrivacyOverride {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct IpAnonOverrideV4 {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 0_u8, max = 32_u8))]
     pub anon_keep_bits: Option<u8>,
 }
@@ -548,7 +607,11 @@ pub struct IpAnonOverrideV4 {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct IpAnonOverrideV6 {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 0_u8, max = 128_u8))]
     pub anon_keep_bits: Option<u8>,
 }
@@ -558,15 +621,28 @@ pub struct IpAnonOverrideV6 {
 pub struct AccountGdprOverride {
     /// `TriState::Unset` / `Enabled` / `Disabled` — the account-side
     /// master switch. `Unset` falls through to `host.tcf2.enabled`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled: Option<TriState>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "crate::model_validation::deserialize_optional_treatment",
+        serialize_with = "crate::model_validation::serialize_optional_treatment",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub purpose_one_treatment: Option<PurposeOneTreatmentOverride>,
 
     /// Per-channel enablement fallback. `Unset` entries fall through to
     /// the account-level `enabled`, then to `host.tcf2.enabled`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub channel_enabled: Option<ChannelEnabledOverride>,
 
     /// Per-purpose enforcement overrides. Keys `1..=10`. `None` =
@@ -577,13 +653,23 @@ pub struct AccountGdprOverride {
     /// entry (or `PurposeEnforcement::default()` when the baked account
     /// has no entry for that id). Runtime host fall-through is a
     /// SEPARATE step in the privacy resolver, not a boot-time overlay.
-    #[serde(default, deserialize_with = "deserialize_u8_keyed_map")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_u8_keyed_map",
+        serialize_with = "crate::model_validation::serialize_optional_u8_keyed_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_purpose_id_keys"))]
     pub purposes: Option<BTreeMap<u8, PurposeEnforcementOverride>>,
 
     /// Per-special-feature enforcement overrides. Same two-layer
     /// semantics as `purposes`.
-    #[serde(default, deserialize_with = "deserialize_u8_keyed_map")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_u8_keyed_map",
+        serialize_with = "crate::model_validation::serialize_optional_u8_keyed_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_special_feature_id_keys"))]
     pub special_features: Option<BTreeMap<u8, SpecialFeatureEnforcementOverride>>,
 
@@ -593,7 +679,11 @@ pub struct AccountGdprOverride {
     /// inherit the baked account default; `Some(list)` = replace the
     /// baked account list wholesale (whole-array replace matches
     /// RFC 7396). There is no host-side merge for this field.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub basic_enforcement_vendors: Option<Vec<String>>,
 }
 
@@ -608,13 +698,29 @@ pub struct AccountGdprOverride {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct PurposeEnforcementOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce_algo: Option<EnforceAlgo>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce_purpose: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce_vendors: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub vendor_exceptions: Option<Vec<String>>,
 }
 
@@ -623,24 +729,52 @@ pub struct PurposeEnforcementOverride {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct SpecialFeatureEnforcementOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enforce: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub vendor_exceptions: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct ChannelEnabledOverride {
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub web: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub app: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub video: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub amp: Option<TriState>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dooh: Option<TriState>,
 }
 
@@ -675,29 +809,49 @@ pub struct AuctionConfig {
     /// Runtime override for `HostConfig.resource_limits.default_tmax_ms`.
     /// Deployers tune the auction budget without a rebuild. Range
     /// enforces the `> 0` rule.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 1_i64, max = 30_000_i64))]
     pub default_tmax_ms: Option<i64>,
 
     /// Runtime override for `HostConfig.resource_limits.max_tmax_ms`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 1_i64, max = 30_000_i64))]
     pub max_tmax_ms: Option<i64>,
 
     /// Runtime override for `HostConfig.resource_limits.max_bidders_per_auction`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 1_usize, max = 500_usize))]
     pub max_bidders_per_auction: Option<usize>,
 
     /// Runtime override for `HostConfig.resource_limits.max_outbound_requests`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 1_usize, max = 1_000_usize))]
     pub max_outbound_requests: Option<usize>,
 
     /// Runtime override for `HostConfig.resource_limits.max_bidder_response_bytes`.
     /// Deployers cap bidder response size below the build default when
     /// running under a tight memory budget.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 0x0000_0400_usize, max = 0x0100_0000_usize))]
     pub max_bidder_response_bytes: Option<usize>,
 
@@ -705,14 +859,22 @@ pub struct AuctionConfig {
     /// Clamped to the envelope's funded figure the same way the other
     /// envelope-funded byte caps are: this lowers the per-call charge,
     /// it cannot raise it.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 0x0000_0400_u64, max = 0x0100_0000_u64))]
     pub max_outbound_raw_bytes: Option<u64>,
 
     /// Runtime override for
     /// `HostConfig.resource_limits.max_outbound_request_bytes`.
     /// Clamped to the envelope's funded figure the same way.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 0x0000_0400_u64, max = 0x0100_0000_u64))]
     pub max_outbound_request_bytes: Option<u64>,
 
@@ -721,19 +883,31 @@ pub struct AuctionConfig {
     /// range only bounds what is syntactically a cap at all — the
     /// envelope, not this attribute, is what stops a value from
     /// authorising memory nothing budgeted for.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
 
     /// Runtime override for `HostConfig.resource_limits.max_decoded_bytes`.
     /// Clamped to the envelope's funded figure the same way.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
 
     /// Runtime override for `HostConfig.resource_limits.max_parsed_nodes`.
     /// Clamped to the envelope's funded figure the same way.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 1_u32, max = 0x0010_0000_u32))]
     pub max_parsed_nodes: Option<u32>,
 }
@@ -744,13 +918,21 @@ pub struct TargetingConfig {
     /// Runtime override for `AccountConfig.targeting_prefix`.
     /// Length capped so the resolved key length invariant
     /// still leaves room for the `_pb_<bidder>` suffix on legit bidders.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_targeting_prefix"))]
     pub prefix: Option<String>,
 
     /// Runtime override for `AccountConfig.truncate_target_attribute`.
     /// `None` → default (`MaxKeyLength = 20`).
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_targeting_truncation"))]
     pub truncate_target_attribute: Option<usize>,
 }
@@ -800,7 +982,11 @@ pub struct StatusConfig {
     /// Overrides `HostConfig.status_response`. Empty string → 204 No
     /// Content. Deployers set an env-name / banner here for prod
     /// probes.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_status_banner"))]
     pub banner: Option<String>,
 }
@@ -819,13 +1005,21 @@ pub struct FeatureFlags {
     /// bidder declares `endpoint_compression: gzip`. `None` /
     /// `Some(true)` → gzip; `Some(false)` → send plaintext (useful
     /// when a downstream proxy strips gzip incorrectly).
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gzip_outbound: Option<bool>,
 
     /// Default `returnallbidstatus` when the request omits
     /// `ext.prebid.returnallbidstatus`. Defaults to `false`;
     /// deployers can flip it on for auditability.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub returnallbidstatus_default: Option<bool>,
 }
 
@@ -834,17 +1028,29 @@ pub struct FeatureFlags {
 pub struct BidderOverrides<Settings: Validate> {
     /// Implementation-tagged, bidder-owned host protocol settings. This does
     /// not activate an implementation or authorize an endpoint.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(nested)]
     pub settings: Option<Settings>,
 
     /// Observable-name response cap. An alias falls back per field to
     /// its base bidder, then the selected account and host defaults.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_response_cap"))]
     pub max_transport_bytes: Option<u64>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_response_cap"))]
     pub max_decoded_bytes: Option<u64>,
 
@@ -858,16 +1064,28 @@ pub struct BidderOverrides<Settings: Validate> {
     /// name is disabled — removes the bidder and emits a code-6
     /// `BidderTemporarilyDisabled` warning under its observable name
     /// rather than silently omitting it.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enabled: Option<bool>,
 
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub usersync_enabled: Option<bool>,
 
     /// Runtime override for `BidderInfo.bidder_timeout_ms`. Absent →
     /// falls back to build-time TOML value; if that is also absent,
     /// the exchange uses the auction-wide `bidder_visible_tmax_ms`.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(range(min = 1_u32, max = 30_000_u32))]
     pub timeout_ms: Option<u32>,
 
@@ -878,7 +1096,11 @@ pub struct BidderOverrides<Settings: Validate> {
     /// bidders" branch reachable so `nbr = NoBidInvalidRequest`
     /// still fires per Appendix E.5). To hard-disable a bidder
     /// noisily, use `enabled = false` instead.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[validate(custom(function = "validate_sample_rate"))]
     pub sample_rate: Option<f64>,
 }
@@ -898,26 +1120,6 @@ fn validate_sample_rate(v: f64) -> Result<(), validator::ValidationError> {
     }
 }
 
-impl<Settings: Validate> Default for AuctioneerAppConfig<Settings> {
-    fn default() -> Self {
-        Self {
-            auction: AuctionConfig::default(),
-            targeting: TargetingConfig::default(),
-            status: StatusConfig::default(),
-            features: FeatureFlags::default(),
-            bidders: BTreeMap::new(),
-            floor_currency: None,
-            accounts: BTreeMap::new(),
-            gdpr: None,
-            ccpa: None,
-            lmt: None,
-            aliases: None,
-            host_cookie: None,
-            user_sync: None,
-        }
-    }
-}
-
 impl<Settings: Validate> Default for BidderOverrides<Settings> {
     fn default() -> Self {
         Self {
@@ -934,17 +1136,69 @@ impl<Settings: Validate> Default for BidderOverrides<Settings> {
 
 #[cfg(test)]
 mod tests {
+    use super::{MAX_BIDDER_NAME_BYTES, test_support::TestSettings};
+    use crate::policy::{self, HostPolicy};
+    use serde::{Serialize, de::DeserializeOwned};
+    use std::collections::BTreeMap;
+    use validator::Validate as _;
+
+    type OperatorPolicy = policy::OperatorPolicy<TestSettings>;
+    type BidderOverrides = super::BidderOverrides<TestSettings>;
+
+    #[test]
+    fn default_leaf_serialization_omits_every_absent_option() {
+        fn check<T: Default + Serialize + DeserializeOwned>() {
+            let encoded = serde_json::to_value(T::default()).unwrap();
+            assert_eq!(encoded, serde_json::json!({}));
+            let json_restored: T = serde_json::from_value(encoded).unwrap();
+            assert_eq!(
+                serde_json::to_value(json_restored).unwrap(),
+                serde_json::json!({})
+            );
+            let toml_restored: T =
+                toml::from_str(&toml::to_string(&T::default()).unwrap()).unwrap();
+            assert_eq!(
+                serde_json::to_value(toml_restored).unwrap(),
+                serde_json::json!({})
+            );
+        }
+        check::<super::HostCookieOverride>();
+        check::<super::OptoutCookieOverride>();
+        check::<super::UserSyncOverride>();
+        check::<super::CooperativeOverride>();
+        check::<super::AccountCookieSyncOverride>();
+        check::<super::HostEnforcementOverride>();
+        check::<super::AccountCcpaOverride>();
+        check::<super::HostGdprOverride>();
+        check::<super::HostTcf2Override>();
+        check::<super::HostPurposeEnforcementOverride>();
+        check::<super::AccountOverride>();
+        check::<super::AccountPrivacyOverride>();
+        check::<super::IpAnonOverrideV4>();
+        check::<super::IpAnonOverrideV6>();
+        check::<super::AccountGdprOverride>();
+        check::<super::PurposeEnforcementOverride>();
+        check::<super::SpecialFeatureEnforcementOverride>();
+        check::<super::ChannelEnabledOverride>();
+        check::<super::AuctionConfig>();
+        check::<super::TargetingConfig>();
+        check::<super::StatusConfig>();
+        check::<super::FeatureFlags>();
+        check::<BidderOverrides>();
+    }
+
     #[test]
     fn response_caps_accept_boundaries_in_every_runtime_scope() {
         for section in [
-            "auction",
+            "host.resource_limits",
+            "account_defaults",
             "accounts.publisher",
             "bidders.fake_aaa",
             "bidders.fake_alias",
         ] {
             for cap in [1_024_u64, 80 * 1024 * 1024, 100 * 1024 * 1024] {
-                let cfg: AuctioneerAppConfig = toml::from_str(&format!(
-                    "[{section}]\nmax_transport_bytes = {cap}\nmax_decoded_bytes = {cap}\n"
+                let cfg: OperatorPolicy = toml::from_str(&format!(
+                    "schema_version = 1\n[{section}]\nmax_transport_bytes = {cap}\nmax_decoded_bytes = {cap}\n"
                 ))
                 .expect("each scope must accept independent response caps");
                 cfg.validate()
@@ -955,12 +1209,19 @@ mod tests {
 
     #[test]
     fn response_caps_reject_values_outside_the_interval_in_every_runtime_scope() {
-        for section in ["auction", "accounts.publisher", "bidders.fake_aaa"] {
+        for section in [
+            "host.resource_limits",
+            "account_defaults",
+            "accounts.publisher",
+            "bidders.fake_aaa",
+            "bidders.fake_alias",
+        ] {
             for field in ["max_transport_bytes", "max_decoded_bytes"] {
                 for cap in [0_u64, 1_023, 100 * 1024 * 1024 + 1] {
-                    let cfg: AuctioneerAppConfig =
-                        toml::from_str(&format!("[{section}]\n{field} = {cap}\n"))
-                            .expect("validation, not unknown-field rejection, must reject the cap");
+                    let cfg: OperatorPolicy = toml::from_str(&format!(
+                        "schema_version = 1\n[{section}]\n{field} = {cap}\n"
+                    ))
+                    .expect("validation, not unknown-field rejection, must reject the cap");
                     assert!(cfg.validate().is_err(), "{section}.{field} accepted {cap}");
                 }
             }
@@ -969,12 +1230,15 @@ mod tests {
 
     #[test]
     fn host_alias_bases_are_bounded_before_registry_diagnostics() {
-        let cfg = AuctioneerAppConfig {
-            aliases: Some(BTreeMap::from([(
-                "fake_short_alias".to_owned(),
-                "x".repeat(0x0001_0000),
-            )])),
-            ..AuctioneerAppConfig::default()
+        let cfg = OperatorPolicy {
+            host: HostPolicy {
+                aliases: Some(BTreeMap::from([(
+                    "fake_short_alias".to_owned(),
+                    "x".repeat(0x0001_0000),
+                )])),
+                ..HostPolicy::default()
+            },
+            ..OperatorPolicy::default()
         };
         let error = cfg.validate().expect_err("an oversized base is invalid");
         let diagnostic = error.to_string();
@@ -984,28 +1248,24 @@ mod tests {
 
     #[test]
     fn status_banner_is_limited_by_utf8_bytes_not_characters() {
-        let mut cfg = AuctioneerAppConfig::default();
-        cfg.status.banner = Some("\u{1f600}".repeat(2_049));
+        let mut cfg = OperatorPolicy::default();
+        cfg.host.status_response = Some("\u{1f600}".repeat(2_049));
         assert!(
             cfg.validate().is_err(),
             "8,196 bytes must not pass an 8,192-byte limit"
         );
-        cfg.status.banner = Some("\u{1f600}".repeat(2_048));
+        cfg.host.status_response = Some("\u{1f600}".repeat(2_048));
         cfg.validate().expect("the exact byte boundary is valid");
     }
 
-    use super::MAX_BIDDER_NAME_BYTES;
-    type AuctioneerAppConfig = super::AuctioneerAppConfig<super::test_support::TestSettings>;
-    type BidderOverrides = super::BidderOverrides<super::test_support::TestSettings>;
-    use std::collections::BTreeMap;
-    use validator::Validate as _;
-
-    fn config_with_bidder_key(name: &str, fields: &str) -> AuctioneerAppConfig {
-        toml::from_str(&format!("[bidders.{name:?}]\n{fields}\n"))
-            .expect("quoted bidder keys parse from TOML")
+    fn config_with_bidder_key(name: &str, fields: &str) -> OperatorPolicy {
+        toml::from_str(&format!(
+            "schema_version = 1\n[bidders.{name:?}]\n{fields}\n"
+        ))
+        .expect("quoted bidder keys parse from TOML")
     }
 
-    fn assert_bidder_key_error(cfg: &AuctioneerAppConfig, name: &str) {
+    fn assert_bidder_key_error(cfg: &OperatorPolicy, name: &str) {
         let error = cfg
             .validate()
             .expect_err("oversized bidder keys must be rejected");
@@ -1082,12 +1342,19 @@ mod tests {
     #[test]
     fn bidder_override_bounded_key_still_reports_invalid_value() {
         let name = format!("fake_{}", "a".repeat(MAX_BIDDER_NAME_BYTES - 5));
-        let error = config_with_bidder_key(&name, "max_transport_bytes = 0")
+        let cfg = config_with_bidder_key(&name, "max_transport_bytes = 0");
+        let leaf_error = cfg.bidders[&name].validate().unwrap_err();
+        assert!(
+            leaf_error
+                .field_errors()
+                .contains_key("max_transport_bytes")
+        );
+        let error = cfg
             .validate()
             .expect_err("bounded keys must still validate their values");
         let fields = error.field_errors();
         assert_eq!(fields["bidders"][0].code, "bidder_overrides_invalid");
-        assert!(error.to_string().contains("max_transport_bytes"));
+        assert!(!error.to_string().contains(&name));
     }
 
     #[test]
@@ -1171,8 +1438,8 @@ mod tests {
 
     #[test]
     fn root_account_map_errors_retain_no_map_parameters() {
-        let cfg: AuctioneerAppConfig = toml::from_str(
-            "[accounts.bad-account]\nmax_transport_bytes = 0\n\
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[accounts.bad-account]\nmax_transport_bytes = 0\n\
              [accounts.untouched-publisher]\nmax_transport_bytes = 1024\n",
         )
         .expect("account maps deserialize before validation");
@@ -1206,24 +1473,22 @@ mod tests {
                     "host_alias_base_too_long",
                 ),
             ] {
-                let cfg = AuctioneerAppConfig {
-                    aliases: Some(BTreeMap::from([
-                        (name, base),
-                        ("fake_untouched_alias".to_owned(), "fake_aaa".to_owned()),
-                    ])),
-                    ..AuctioneerAppConfig::default()
+                let cfg = OperatorPolicy {
+                    host: HostPolicy {
+                        aliases: Some(BTreeMap::from([
+                            (name, base),
+                            ("fake_untouched_alias".to_owned(), "fake_aaa".to_owned()),
+                        ])),
+                        ..HostPolicy::default()
+                    },
+                    ..OperatorPolicy::default()
                 };
                 let error = cfg
                     .validate()
                     .expect_err("oversized alias identities are rejected");
-                let field_errors = error.field_errors();
-                assert_eq!(field_errors["aliases"][0].code, code);
-                assert!(
-                    field_errors["aliases"][0].params.is_empty(),
-                    "alias validation errors must not retain the alias map"
-                );
                 let value = serde_json::to_value(&error).expect("validation errors serialize");
-                assert_eq!(value["aliases"][0]["params"], serde_json::json!({}));
+                assert_eq!(value["host"]["aliases"][0]["code"], code);
+                assert_eq!(value["host"]["aliases"][0]["params"], serde_json::json!({}));
                 let serialized = value.to_string();
                 assert!(!serialized.contains(&oversized));
                 assert!(!serialized.contains("fake_untouched_alias"));
@@ -1234,93 +1499,62 @@ mod tests {
 
     #[test]
     fn root_validation_preserves_existing_error_fields_and_nested_shapes() {
-        let mut cfg: AuctioneerAppConfig = toml::from_str(
-            "[auction]\ndefault_tmax_ms = 0\n\
-             [targeting]\nprefix = \"toolongprefix\"\n\
-             [gdpr]\nhost_vendor_id = 65536\n\
+        let mut cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.resource_limits]\ndefault_tmax_ms = 0\n\
+             [account_defaults]\ntargeting_prefix = \"toolongprefix\"\n\
+             [host.gdpr]\nhost_vendor_id = 65536\n\
              [bidders.fake_aaa]\nmax_transport_bytes = 0\n\
              [accounts.publisher]\nmax_transport_bytes = 0\n",
         )
         .expect("invalid values deserialize before validation");
-        cfg.status.banner = Some("x".repeat(super::MAX_STATUS_BANNER_BYTES + 1));
-        cfg.aliases = Some(BTreeMap::from([("a".repeat(65), "fake_aaa".to_owned())]));
+        cfg.host.status_response = Some("x".repeat(super::MAX_STATUS_BANNER_BYTES + 1));
+        cfg.host.aliases = Some(BTreeMap::from([("a".repeat(65), "fake_aaa".to_owned())]));
         let error = cfg
             .validate()
             .expect_err("all invalid fields are collected");
         let value = serde_json::to_value(&error).expect("validation errors serialize");
-        let mut keys: Vec<&str> = value
-            .as_object()
-            .unwrap()
-            .keys()
-            .map(String::as_str)
-            .collect();
-        keys.sort_unstable();
         assert_eq!(
-            keys,
-            [
-                "accounts",
-                "aliases",
-                "auction",
-                "bidders",
-                "gdpr",
-                "status",
-                "targeting"
-            ]
+            value,
+            serde_json::json!({
+                "host": {
+                    "resource_limits": {"default_tmax_ms": [{"code": "range", "message": null, "params": {}}]},
+                    "gdpr": {"host_vendor_id": [{"code": "range", "message": null, "params": {}}]},
+                    "status_response": [{"code": "status_banner_bytes", "message": null, "params": {}}],
+                    "aliases": [{"code": "host_alias_name_too_long", "message": null, "params": {}}]
+                },
+                "account_defaults": {"targeting_prefix": [{"code": "length", "message": null, "params": {}}]},
+                "accounts": [{"code": "account_override_invalid", "message": null, "params": {}}],
+                "bidders": [{"code": "bidder_overrides_invalid", "message": null, "params": {}}]
+            })
         );
-        for (field, nested_error) in [
-            ("auction", cfg.auction.validate().unwrap_err()),
-            ("targeting", cfg.targeting.validate().unwrap_err()),
-            ("status", cfg.status.validate().unwrap_err()),
-            ("gdpr", cfg.gdpr.as_ref().unwrap().validate().unwrap_err()),
-        ] {
-            assert_eq!(value[field], serde_json::to_value(nested_error).unwrap());
-        }
-        let field_errors = error.field_errors();
-        assert_eq!(field_errors["accounts"][0].code, "account_override_invalid");
-        assert_eq!(field_errors["aliases"][0].code, "host_alias_name_too_long");
-        assert_eq!(field_errors["bidders"][0].code, "bidder_overrides_invalid");
         let args_error = validator::ValidateArgs::validate_with_args(&cfg, ()).unwrap_err();
-        assert_eq!(args_error.errors().len(), error.errors().len());
-        for field in [
-            "accounts",
-            "aliases",
-            "auction",
-            "bidders",
-            "gdpr",
-            "status",
-            "targeting",
-        ] {
-            assert!(args_error.errors().contains_key(field));
-        }
-        let args_field_errors = args_error.field_errors();
-        for field in ["accounts", "aliases", "bidders"] {
-            assert_eq!(
-                args_field_errors[field][0].code,
-                field_errors[field][0].code
-            );
-        }
+        assert_eq!(serde_json::to_value(args_error).unwrap(), value);
     }
 
     #[test]
-    fn empty_toml_deserializes_to_defaults() {
-        let cfg: AuctioneerAppConfig = toml::from_str("").unwrap();
-        assert!(cfg.auction.default_tmax_ms.is_none());
-        assert!(cfg.targeting.prefix.is_none());
-        assert!(cfg.status.banner.is_none());
+    fn version_only_toml_deserializes_to_defaults() {
+        let cfg: OperatorPolicy = toml::from_str("schema_version = 1\n").unwrap();
+        assert!(cfg.host.resource_limits.default_tmax_ms.is_none());
+        assert!(cfg.account_defaults.targeting_prefix.is_none());
+        assert!(cfg.host.status_response.is_none());
         assert!(cfg.features.gzip_outbound.is_none());
         assert!(cfg.bidders.is_empty());
     }
 
     #[test]
     fn range_bounds_reject_zero_tmax() {
-        let cfg: AuctioneerAppConfig = toml::from_str("[auction]\ndefault_tmax_ms = 0\n").unwrap();
+        let cfg: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[host.resource_limits]\ndefault_tmax_ms = 0\n")
+                .unwrap();
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn prefix_length_capped_to_eight() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[targeting]\nprefix = \"toolongprefix\"\n").unwrap();
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[account_defaults]\ntargeting_prefix = \"toolongprefix\"\n",
+        )
+        .unwrap();
         assert!(cfg.validate().is_err());
     }
 
@@ -1328,22 +1562,26 @@ mod tests {
     fn truncate_below_min_key_length_rejected() {
         // MIN_KEY_LENGTH = 12 in build_keys; anything below that is
         // guaranteed to collapse every key to the prefix fallback.
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[targeting]\ntruncate_target_attribute = 8\n").unwrap();
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[account_defaults]\ntruncate_target_attribute = 8\n",
+        )
+        .unwrap();
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn max_bidder_response_bytes_1kb_min() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[auction]\nmax_bidder_response_bytes = 512\n").unwrap();
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.resource_limits]\nmax_bidder_response_bytes = 512\n",
+        )
+        .unwrap();
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn per_bidder_overrides_parse() {
-        let cfg: AuctioneerAppConfig = toml::from_str(
-            "[bidders.fake_aaa]\nenabled = false\ntimeout_ms = 250\n\n\
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[bidders.fake_aaa]\nenabled = false\ntimeout_ms = 250\n\n\
              [bidders.fake_bbb]\nenabled = true\nsample_rate = 0.5\n",
         )
         .unwrap();
@@ -1357,8 +1595,8 @@ mod tests {
 
     #[test]
     fn per_bidder_sample_rate_out_of_range_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_aaa]\nsample_rate = 42.0\n").unwrap();
+        let cfg: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[bidders.fake_aaa]\nsample_rate = 42.0\n").unwrap();
         assert!(
             cfg.validate().is_err(),
             "sample_rate = 42.0 must fail the 0..=1 range validator",
@@ -1388,8 +1626,9 @@ mod tests {
     /// prove the literal parses to something the validator rejects.
     #[test]
     fn sample_rate_nan_from_a_toml_literal_is_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_aaa]\nsample_rate = nan\n").expect("nan parses as f64");
+        let cfg: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[bidders.fake_aaa]\nsample_rate = nan\n")
+                .expect("nan parses as f64");
         assert!(
             cfg.bidders["fake_aaa"].sample_rate.is_some_and(f64::is_nan),
             "the TOML literal must deserialize to NaN, or this guards nothing",
@@ -1426,8 +1665,8 @@ mod tests {
 
     #[test]
     fn per_bidder_timeout_ms_zero_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_aaa]\ntimeout_ms = 0\n").unwrap();
+        let cfg: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[bidders.fake_aaa]\ntimeout_ms = 0\n").unwrap();
         assert!(
             cfg.validate().is_err(),
             "timeout_ms = 0 must fail the min=1 range validator",
@@ -1435,17 +1674,18 @@ mod tests {
     }
 
     /// TOML table names are strings, so the enforcement maps have to
-    /// accept `[gdpr.tcf2.purposes.2]` — the canonical spelling an
+    /// accept `[host.gdpr.tcf2.purposes.2]` — the canonical spelling an
     /// operator writes — and not just a JSON integer key.
     #[test]
     fn enforcement_map_keys_parse_from_toml_table_names() {
-        let cfg: AuctioneerAppConfig = toml::from_str(
-            "[gdpr.tcf2.purposes.2]\nenforce_purpose = \"disabled\"\n\n\
-             [gdpr.tcf2.special_features.1]\nenforce = \"enabled\"\n\n\
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.gdpr.tcf2.purposes.2]\nenforce_purpose = \"disabled\"\n\n\
+             [host.gdpr.tcf2.special_features.1]\nenforce = \"enabled\"\n\n\
              [accounts.acct-42.gdpr.purposes.3]\nenforce_vendors = \"enabled\"\n",
         )
         .expect("keyed enforcement tables parse");
         let tcf2 = cfg
+            .host
             .gdpr
             .as_ref()
             .and_then(|gdpr| gdpr.tcf2.as_ref())
@@ -1472,9 +1712,10 @@ mod tests {
 
     #[test]
     fn purpose_id_outside_one_to_ten_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[gdpr.tcf2.purposes.0]\nenforce_purpose = \"enabled\"\n")
-                .expect("the map parses; the range check is a validator");
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.gdpr.tcf2.purposes.0]\nenforce_purpose = \"enabled\"\n",
+        )
+        .expect("the map parses; the range check is a validator");
         assert!(cfg.validate().is_err(), "purpose id 0 is never valid");
     }
 
@@ -1482,8 +1723,8 @@ mod tests {
     /// `[accounts.<id>]` entry would sail through `validate()`.
     #[test]
     fn account_special_feature_id_out_of_range_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[accounts.acct-42.gdpr.special_features.13]\nenforce = \"enabled\"\n")
+        let cfg: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[accounts.acct-42.gdpr.special_features.13]\nenforce = \"enabled\"\n")
                 .expect("the map parses; the range check is a validator");
         assert!(
             cfg.validate().is_err(),
@@ -1496,32 +1737,35 @@ mod tests {
     /// validator must fire through the `gdpr` -> `tcf2` nested chain.
     #[test]
     fn host_purpose_key_zero_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[gdpr.tcf2.purposes.0]\nenforce_purpose = \"enabled\"\n")
-                .expect("the map parses; the range check is a validator");
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.gdpr.tcf2.purposes.0]\nenforce_purpose = \"enabled\"\n",
+        )
+        .expect("the map parses; the range check is a validator");
         assert!(cfg.validate().is_err(), "host purpose id 0 is never valid");
     }
 
     #[test]
     fn host_special_feature_key_overflow_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[gdpr.tcf2.special_features.13]\nenforce = \"enabled\"\n")
-                .expect("the map parses; the range check is a validator");
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.gdpr.tcf2.special_features.13]\nenforce = \"enabled\"\n",
+        )
+        .expect("the map parses; the range check is a validator");
         assert!(
             cfg.validate().is_err(),
             "host special feature ids stop at the 12-slot wire bitfield",
         );
     }
 
-    /// Proves `validate_account_map` recurses into each entry's own
-    /// `AccountOverride::validate()` — an out-of-range key nested three
+    /// Proves canonical account validation recurses into each entry —
+    /// an out-of-range key nested three
     /// levels down (`accounts.<id>.gdpr.purposes.<id>`) must still fail
-    /// the top-level `AuctioneerAppConfig::validate()`.
+    /// the top-level `OperatorPolicy::validate()`.
     #[test]
     fn account_purpose_key_overflow_rejected() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[accounts.pub1.gdpr.purposes.11]\nenforce_purpose = \"enabled\"\n")
-                .expect("the map parses; the range check is a validator");
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[accounts.pub1.gdpr.purposes.11]\nenforce_purpose = \"enabled\"\n",
+        )
+        .expect("the map parses; the range check is a validator");
         assert!(
             cfg.validate().is_err(),
             "account purpose ids stop at the 10-purpose roster",
@@ -1532,9 +1776,9 @@ mod tests {
     /// pins the boundary the overflow/zero tests approach from outside.
     #[test]
     fn in_range_enforcement_keys_accepted() {
-        let cfg: AuctioneerAppConfig = toml::from_str(
-            "[gdpr.tcf2.purposes.10]\nenforce_purpose = \"enabled\"\n\n\
-             [gdpr.tcf2.special_features.12]\nenforce = \"enabled\"\n\n\
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[host.gdpr.tcf2.purposes.10]\nenforce_purpose = \"enabled\"\n\n\
+             [host.gdpr.tcf2.special_features.12]\nenforce = \"enabled\"\n\n\
              [accounts.pub1.gdpr.purposes.1]\nenforce_vendors = \"enabled\"\n",
         )
         .expect("the map parses; the range check is a validator");
@@ -1544,18 +1788,20 @@ mod tests {
 
     #[test]
     fn gdpr_default_value_must_be_zero_or_one() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[gdpr]\ndefault_value = \"yes\"\n").expect("the string parses");
+        let cfg: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[host.gdpr]\ndefault_value = \"yes\"\n")
+                .expect("the string parses");
         assert!(cfg.validate().is_err());
-        let ok: AuctioneerAppConfig =
-            toml::from_str("[gdpr]\ndefault_value = \"1\"\n").expect("the string parses");
+        let ok: OperatorPolicy =
+            toml::from_str("schema_version = 1\n[host.gdpr]\ndefault_value = \"1\"\n")
+                .expect("the string parses");
         ok.validate().expect("`1` is a legal wire value");
     }
 
     #[test]
     fn feature_flag_toggles_parse() {
-        let cfg: AuctioneerAppConfig = toml::from_str(
-            "[features]\ngzip_outbound = false\nreturnallbidstatus_default = true\n",
+        let cfg: OperatorPolicy = toml::from_str(
+            "schema_version = 1\n[features]\ngzip_outbound = false\nreturnallbidstatus_default = true\n",
         )
         .unwrap();
         assert_eq!(cfg.features.gzip_outbound, Some(false));
@@ -1572,8 +1818,10 @@ mod tests {
                 (0x0100_0000, true),
                 (0x0100_0001, false),
             ] {
-                let app: AuctioneerAppConfig =
-                    toml::from_str(&format!("[auction]\n{field} = {value}\n")).unwrap();
+                let app: OperatorPolicy = toml::from_str(&format!(
+                    "schema_version = 1\n[host.resource_limits]\n{field} = {value}\n"
+                ))
+                .unwrap();
                 assert_eq!(app.validate().is_ok(), valid, "{field}={value}");
             }
         }
@@ -1582,7 +1830,7 @@ mod tests {
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use super::{AuctioneerAppConfig, BidderOverrides};
+    use super::BidderOverrides;
     use crate::policy::OperatorPolicy;
     use serde::{Deserialize, Serialize};
     use serde_json::json;
@@ -1591,6 +1839,7 @@ pub(crate) mod test_support {
 
     // Deliberately not Default: optional settings never synthesize a value.
     #[derive(Debug, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
     pub(crate) struct TestSettings {
         private_value: String,
     }
@@ -1613,18 +1862,10 @@ pub(crate) mod test_support {
 
     #[test]
     fn generic_roots_and_entries_do_not_require_default_settings() {
-        let default_source = AuctioneerAppConfig::<TestSettings>::default();
         let default_policy = OperatorPolicy::<TestSettings>::default();
         let entry = BidderOverrides::<TestSettings>::default();
-        assert!(default_source.bidders.is_empty());
         assert!(default_policy.bidders.is_empty());
         assert!(entry.settings.is_none());
-        for source in [
-            serde_json::from_value::<AuctioneerAppConfig<TestSettings>>(json!({})).unwrap(),
-            toml::from_str::<AuctioneerAppConfig<TestSettings>>("").unwrap(),
-        ] {
-            assert!(source.bidders.is_empty());
-        }
         for policy in [
             serde_json::from_value::<OperatorPolicy<TestSettings>>(
                 json!({"schema_version": 1_u32}),
@@ -1645,8 +1886,8 @@ pub(crate) mod test_support {
     #[test]
     fn omitted_settings_are_not_visited_by_model_validation() {
         VISITS.set(0);
-        let source: AuctioneerAppConfig<TestSettings> =
-            serde_json::from_value(json!({"bidders": {"fake_private_bidder": {}}})).unwrap();
+        let source: OperatorPolicy<TestSettings> =
+            toml::from_str("schema_version = 1\n[bidders.fake_private_bidder]\n").unwrap();
         source.validate().unwrap();
         let policy: OperatorPolicy<TestSettings> = serde_json::from_value(json!({
             "schema_version": 1_u32,
@@ -1686,11 +1927,9 @@ pub(crate) mod test_support {
     #[test]
     fn supplied_source_settings_are_visited_once_without_input_in_errors() {
         VISITS.set(0);
-        let source: AuctioneerAppConfig<TestSettings> = serde_json::from_value(json!({
-            "bidders": {"fake_private_bidder_canary": {
-                "settings": {"private_value": "private-settings-canary"}
-            }}
-        }))
+        let source: OperatorPolicy<TestSettings> = toml::from_str(
+            "schema_version = 1\n[bidders.fake_private_bidder_canary.settings]\nprivate_value = \"private-settings-canary\"\n",
+        )
         .unwrap();
         let errors = source
             .validate()

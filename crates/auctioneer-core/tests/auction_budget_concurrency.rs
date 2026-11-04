@@ -82,7 +82,7 @@ mod tests {
             .extensions_mut()
             .insert(TestAuctionBudget(Arc::clone(ledger)));
         let config = format!(
-            "[aliases]\nfake_bb={:?}\n[gdpr]\nenabled = false\n",
+            "schema_version = 1\n[host.aliases]\nfake_bb={:?}\n[host.gdpr]\nenabled = false\n",
             serving_catalog::passthrough_info().name,
         );
         support::ctx_with_config(&config, request)

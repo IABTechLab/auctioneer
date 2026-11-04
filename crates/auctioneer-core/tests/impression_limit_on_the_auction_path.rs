@@ -293,7 +293,8 @@ mod tests {
         }
 
         let disabled_config: AuctioneerAppConfig = serde_json::from_value(serde_json::json!({
-            "accounts": {DISABLED_ACCOUNT: {"disabled": true}}
+            "schema_version": 1_u64,
+            "accounts": {DISABLED_ACCOUNT: {"disabled": true}},
         }))
         .unwrap();
         let over = FUNDED_IMPRESSIONS + 1;

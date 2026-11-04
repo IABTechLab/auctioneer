@@ -429,7 +429,11 @@ fn host_is_private(url: &Url) -> bool {
         || url_safety::endpoint_has_private_ip_authority(url.as_str())
 }
 
-fn validate_priority_groups(groups: &[Vec<String>]) -> Result<(), String> {
+/// Validate a borrowed host or account priority list without copying it.
+///
+/// # Errors
+/// Rejects oversized groups or invalid bidder identities.
+pub fn validate_priority_groups(groups: &[Vec<String>]) -> Result<(), String> {
     if u32::try_from(groups.len())
         .ok()
         .is_none_or(|count| count > MAX_SYNC_PRIORITY_GROUPS)

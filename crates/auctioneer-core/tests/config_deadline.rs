@@ -11,7 +11,7 @@
 //!
 //! auctioneer's contract is two-sided and both sides are provable here:
 //!
-//! 1. It SUPPLIES the bound — the baked `max_config_fetch_ms` becomes
+//! 1. It SUPPLIES the bound: the fixed two-second fetch timeout becomes
 //!    `ConfigExtractionLimits.timeout` on the `App`, and the host turns
 //!    that into an absolute deadline every store read is handed.
 //! 2. It MAPS the typed expiry onto `ConfigStoreUnavailable`, which is
@@ -51,12 +51,14 @@ mod fanout_limits;
 mod tests {
     use crate::config_funding;
     use async_trait::async_trait;
-    use auctioneer_config_data::RUNTIME_BOOTSTRAP;
-    use auctioneer_core::config::runtime::{RuntimeConfigError, resolve_runtime_config};
+    use auctioneer_core::config::runtime::{
+        CONFIG_FETCH_TIMEOUT, RuntimeConfigError, resolve_runtime_config,
+    };
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::host_primitives::ingress_lease::{
         RouteAdmissionMarker, RouteEgressPermit, admit_pending, install_route_permit,
     };
+    use auctioneer_core::test_support::config_store as funded_config;
     use auctioneer_runtime::{AdmissionGate, EgressGate, MonotonicInstant};
     use edgezero_core::app::App;
     use edgezero_core::body::Body;
@@ -66,7 +68,6 @@ mod tests {
     };
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::{StatusCode, request_builder};
-    use edgezero_core::params::PathParams;
     use edgezero_core::router::RouterService;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
     use edgezero_core::time::{Deadline, MonotonicClock};
@@ -86,7 +87,7 @@ mod tests {
     // race on. Nothing in this binary installs the boot envelope, so
     // `boot_limits()` answers `None` throughout and the byte caps the
     // configure callback resolves are the host's defaults; the timeout
-    // this file asserts is a baked constant and is envelope-independent
+    // this file asserts is a fixed constant and is envelope-independent
     // either way.
 
     /// A store that NEVER answers with a value: `get_bounded` records the
@@ -155,7 +156,7 @@ mod tests {
             },
         );
         request.extensions_mut().insert(registry);
-        RequestContext::new(request, PathParams::default())
+        funded_config::context(request)
     }
 
     /// The limits `configure_app` actually installs, read back off a
@@ -166,24 +167,89 @@ mod tests {
         app.config_extraction_limits()
     }
 
+    #[test]
+    fn fixture_context_preserves_route_clock_extensions_and_unread_body() {
+        use auctioneer_core::host_primitives::TestMonotonicClockHandle;
+        use edgezero_core::http::Method;
+        use edgezero_core::ingress::DEFAULT_INBOUND_READ_BUDGET;
+        use futures::stream;
+
+        let instant = MonotonicInstant::now();
+        let clock = MonotonicClock::new(move || instant);
+        let mut request = request_builder()
+            .method(Method::POST)
+            .uri("/fixture/publisher?opaque=unchanged")
+            .header("x-fixture", "untouched")
+            .body(Body::from_bytes(b"original request body".to_vec()))
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(TestMonotonicClockHandle(clock.clone()));
+        let ctx = funded_config::context_for_route(request, "/fixture/{publisher}", clock.clone());
+        assert_eq!(ctx.method(), &Method::POST);
+        assert_eq!(ctx.uri().to_string(), "/fixture/publisher?opaque=unchanged");
+        assert_eq!(ctx.headers()["x-fixture"], "untouched");
+        assert_eq!(ctx.path_params().get("publisher"), Some("publisher"));
+        assert_eq!(ctx.monotonic_clock().now(), instant);
+        assert_eq!(ctx.request_start(), instant);
+        let read_deadline =
+            Deadline::at_instant(instant.checked_add(DEFAULT_INBOUND_READ_BUDGET).unwrap());
+        assert_eq!(
+            ctx.read_deadline().map(|value| value.instant()),
+            Some(read_deadline.instant())
+        );
+        assert_eq!(
+            ctx.extensions()
+                .get::<TestMonotonicClockHandle>()
+                .unwrap()
+                .0
+                .now(),
+            instant,
+        );
+        assert_eq!(ctx.config_extraction_limits(), installed_limits());
+        assert_eq!(
+            ctx.config_extraction_limits().timeout,
+            Duration::from_secs(2)
+        );
+        assert!(ctx.config_store_binding(STORE_ID).is_none());
+        assert_eq!(
+            block_on(ctx.body_bytes(1024)).unwrap().as_ref(),
+            b"original request body"
+        );
+        assert_eq!(
+            ctx.read_deadline().map(|value| value.instant()),
+            Some(read_deadline.instant())
+        );
+
+        let unread_request = request_builder()
+            .uri("/fixture/unread")
+            .body(Body::from_stream(stream::poll_fn(|_| {
+                panic!("context capture must not poll the fixture body");
+            })))
+            .unwrap();
+        let unread =
+            funded_config::context_for_route(unread_request, "/fixture/{publisher}", clock);
+        assert_eq!(unread.path_params().get("publisher"), Some("unread"));
+    }
+
     // -----------------------------------------------------------------
     // 1. auctioneer SUPPLIES the bound.
     // -----------------------------------------------------------------
 
-    /// The `app!` configure callback installs the baked
-    /// `max_config_fetch_ms` as the extraction timeout.
+    /// The `app!` configure callback installs the fixed two-second timeout.
     ///
     /// Before this seam existed the loader silently inherited upstream's
     /// own default, which is far wider, so the whole fetch bound was
     /// inert while the plan described it as live. That is the regression
     /// this pins: the value on the `App` is auctioneer's, not the host's.
     #[test]
-    fn configure_installs_the_baked_fetch_bound_as_the_extraction_timeout() {
-        let expected = Duration::from_millis(u64::from(RUNTIME_BOOTSTRAP.max_config_fetch_ms));
+    fn configure_installs_the_fixed_fetch_bound_as_the_extraction_timeout() {
+        let expected = Duration::from_secs(2);
+        assert_eq!(CONFIG_FETCH_TIMEOUT, expected);
         assert_eq!(
             installed_limits().timeout,
             expected,
-            "the extraction timeout is the baked max_config_fetch_ms",
+            "the extraction timeout is the fixed two-second fetch bound",
         );
         // TIGHTER than the host's default, not merely different from it.
         // A bound at or above the default would install a number that
@@ -245,20 +311,9 @@ mod tests {
     /// that was the original specification, and it is not reachable
     /// through the typed extractor.
     ///
-    /// WHICH `timeout` this reads, stated because it is NOT auctioneer's:
-    /// the limits come from the CONTEXT, and `RequestContext::new`
-    /// hardcodes the host's defaults. The constructor that carries an
-    /// `App`'s configured limits — `new_routed`, from an
-    /// `AdmittedIngress` only the host's own ingress path builds
-    /// — is `pub(crate)` upstream, so a auctioneer test cannot hand a
-    /// context auctioneer's number. This test therefore pins the RELATION
-    /// (whatever timeout is configured becomes
-    /// `extraction_started_at + timeout` on the read, and its expiry
-    /// becomes a 503); that auctioneer's own number is the configured one is
-    /// pinned separately, on the `App`, by
-    /// `configure_installs_the_baked_fetch_bound_as_the_extraction_timeout`.
-    /// Neither half is provable through the other, and together they are
-    /// the whole contract.
+    /// The context captures Auctioneer's fixed timeout through actual SDK App
+    /// dispatch. This test pins its extraction-entry anchor independently of
+    /// `configure_installs_the_fixed_fetch_bound_as_the_extraction_timeout`.
     #[test]
     fn config_read_passes_the_envelope_deadline() {
         let store = ExpiringStore::new();
@@ -320,32 +375,18 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // 3. The bootstrap flag governs ABSENCE, not slowness.
+    // 3. A slow store is transient, not a missing publication.
     // -----------------------------------------------------------------
 
-    /// A timeout classifies identically under BOTH `allow_missing_config`
-    /// values.
-    ///
-    /// The flag exists to tell an intentionally unconfigured deploy from
-    /// a deleted production key — both states of "there is no blob". A
-    /// slow store is neither: the blob may be perfectly present and
-    /// correct. Letting the permissive setting swallow a timeout into the
-    /// baked default would silently serve an auction with GDPR
-    /// enforcement off because a backend was briefly slow, which is the
-    /// exact fail-open the fail-loud contract exists to prevent.
-    ///
-    /// The classifier consults the baked constant, which a test cannot
-    /// flip — so the property is asserted on the reachable equivalent:
-    /// the timeout path never enters the missing-config rule at all. It
-    /// returns the transient class, whose response carries `Retry-After`
-    /// and whose detail names the deadline reason, under whichever value
-    /// this build happens to carry.
+    /// A timeout must never become a missing-publication error or silently
+    /// resolve product defaults. The transient detail identifies the store's
+    /// deadline failure independently of whether a publication exists.
     #[test]
-    fn a_timeout_classifies_identically_under_both_allow_missing_config_values() {
+    fn a_timeout_remains_transient_and_distinct_from_missing_config() {
         let store = ExpiringStore::new();
         let ctx = ctx_with_store(store);
         let err = block_on(resolve_runtime_config(&ctx))
-            .expect_err("a timeout is never a config, under either policy");
+            .expect_err("a timeout never resolves a runtime policy");
 
         let detail = match &err {
             RuntimeConfigError::ConfigStoreUnavailable { detail, .. } => detail.clone(),
@@ -353,11 +394,7 @@ mod tests {
             | RuntimeConfigError::UnfundedExtraction { .. }
             | RuntimeConfigError::MalformedHost { .. }
             | RuntimeConfigError::StoreKeyRejected { .. } => {
-                panic!(
-                    "a slow store is transient under EITHER bootstrap policy, got {err:?} (this \
-                     build bakes allow_missing_config = {})",
-                    RUNTIME_BOOTSTRAP.allow_missing_config,
-                )
+                panic!("a slow store must remain transient, got {err:?}")
             }
         };
         assert!(
@@ -366,7 +403,7 @@ mod tests {
         );
         assert!(
             !detail.contains("missing config"),
-            "a timeout never travels the allow_missing_config arm: {detail}",
+            "a timeout never travels the missing-publication arm: {detail}",
         );
     }
 

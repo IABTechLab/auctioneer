@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Release one operator-neutral native executable that accepts different bounded, validated operator configurations without rebuilding, while establishing the shared contract for the remaining adapters and embedding host.
+**Goal:** Finish PR #140's actual runtime cutover to one bounded, validated operator policy through existing EdgeZero typed validate/diff/push, with same-binary/two-config acceptance and the same typed host model.
 
-**Architecture:** Keep shared source/policy/effective models in `auctioneer-config`, compiled product data in `auctioneer-config-data`, and generated settings/endpoints in `auctioneer-bidder`. Core composes those models and owns semantic resolution, startup coordination, SDK integration and snapshot admission. Use the existing EdgeZero store/envelope, host services and additive resource model. Prepare foundations without changing serving, then cut defaults, policy loading, bootstrap, CLI and the native adapter over together.
+**Architecture:** Keep shared policy/effective models in `auctioneer-config`, neutral compiled data in `auctioneer-config-data`, and generated settings/endpoints in `auctioneer-bidder`. Core reuses shared validators and resolution at push and bounded typed consumption. The file is the direct `OperatorPolicy` payload; any SDK wrapper is a zero-layout trait boundary only. Keep host/adapter facts, bindings, installed limits and the existing additive budget under their current owners.
 
 **Tech Stack:** Rust workspace, Serde, validator, existing TOML/JSON support, quote/syn for retained code generation, EdgeZero, existing resource and test-support APIs. No new workspace crate, config framework, third-party package or cryptographic scheme is planned. The bidder crate adds a workspace-inherited dependency on the already-used `validator` package for its local views.
 
@@ -17,21 +17,33 @@ commit `3b1b6d929bc99b800459fdafb3080655b8c77c29`. Their original draft-status
 and review-scope statements describe the design review, not runtime acceptance.
 This plan does not grant broader SDK, resource or deployment approval.
 
+**Accepted scope, 2026-11-04:** The maintainer explicitly directed PR #140 to
+finish the single runtime configuration, not a startup package. No separate
+Auctioneer startup config/file/loader, source-mode config, retained-snapshot
+publication subsystem, global host snapshot pool, new numeric startup
+reservation or SDK startup hook. This replaces the former Task 4 stop/go gate,
+not merely its deadline. Existing safety/accounting and end-to-end acceptance
+remain required. The scope amendment alone completes no task; final checkmarks
+below reconcile the actual accepted-scope source and verification receipts.
+
 Section 5.1 of the design is a local bidder-validation amendment requested
-after that merge, not content approved by PR #139. Task 3A implements it after
-written-contract review; it is part of #127 and the same implementation branch.
+after that merge, not content approved by PR #139. Task 3A follows its separately
+approved contract; it is part of #127 and the same implementation branch.
 
 Tracking: [epic #124](https://github.com/IABTechLab/auctioneer/issues/124).
-The first implementation PR coordinates #126, #127, #128, #130 and #129 with
-the Axum port #131. It also implements the shared typed constructor needed
-for validation parity; that alone does not close host integration #135.
+PR #140 coordinates #126, #127, #128, #130 and #129 for the shared runtime
+cutover. It includes shared typed-policy semantic validation/resolution over
+explicit caller-owned input/context, not host ingestion or adoption. Actual
+host allocation/capacity/lifetime integration remains #135. Native acceptance
+uses the existing adapter surface, not a new deployment loader or a claim that
+the actual adapter port #131 is complete.
 Use `Refs`, not `Closes`, for partially delivered issues. Do not append code
 to the merged design PR or create a third design PR for this plan.
 
-Cloudflare #132, Fastly #133, hosted Spin #134, actual host integration #135,
-and the remaining deployment documentation #136 retain separate acceptance.
+Actual Axum #131, Cloudflare #132, Fastly #133, hosted Spin #134, host integration
+#135 and remaining deployment documentation #136 retain separate acceptance.
 They may reuse the shared contract after the first cutover. Compiling their
-updated callers does not count as implementing their operator startup ports.
+updated callers does not count as implementing their provider/host ports.
 
 ### Fixed Boundaries
 
@@ -40,9 +52,10 @@ updated callers does not count as implementing their operator startup ports.
 - No change to privacy policy, bidder publication, workload defaults, ceilings,
   schema reservations, resource floors or the additive budget equation.
 - No new cross-request store cache or last-known-good store behavior.
-- No unbounded startup read, post-allocation-only limit, or invented SDK hook.
-- One operator configuration document and the existing typed SDK CLI flow;
-  startup/runtime are internal scopes, not separate files or loaders. Local
+- No unbounded serving read, post-allocation-only bound, or invented SDK hook.
+- One direct `OperatorPolicy` document with root `schema_version = 1`, `host`,
+  `account_defaults`, `accounts`, `bidders`, `features` and `floor_currency`.
+  Reject `baked`/`startup`/`runtime` wrappers and backward wire aliases. Local
   CLI read bounding/accepted-input reuse is separately tracked hardening under
   the 2026-11-03 amendment to design section 9.1. Serving bounds remain required.
 - No rewriting historical evidence, reference captures or attribution.
@@ -57,12 +70,11 @@ serving consumes. Do not remove the old default/source path in those commits.
 The temporary coexistence is internal development staging, not a supported
 dual-format release interface. Keep the branch unmerged until cutover succeeds.
 
-Task 4 is a required review checkpoint for the exact bounded startup-input,
-parser/storage and snapshot-retention package. The design did not approve
-numeric startup reservations. Capture proposed values and independent proofs
-in #128/#130, obtain maintainer approval, then implement Tasks 5-9. A rejected
-or missing package blocks raw-input adoption; it is not permission to tune
-workload or fabricate a reserve. Pure DTO/resolver tests can proceed meanwhile.
+Task 4 maps actual runtime bounds and allocation ownership into existing funded
+owners; it does not request a new startup/parser/publication package. Tasks 5-9
+cut over the active readers, defaults and CLI while preserving those limits.
+Host/adapter deployment facts and store bindings are not new operator knobs;
+runtime policy may request supported existing caps within installed capacity.
 
 Tasks 5-9 form one serving cutover group. Their intermediate development
 commits must compile; none is separately shippable while it leaves a reader
@@ -72,28 +84,59 @@ compile-only pass or a filtered command that dispatched zero tests.
 
 ## File And Test Ownership
 
+### Current Cutover Status (2026-11-04)
+
+The [final local receipts](../../testing/evidence/operator-policy-validation-20261103.md#accepted-pr-140-completion-receipts-2026-11-04)
+reconcile the accepted shared-runtime scope with source and executed owners.
+Checked items do not certify the full CI/provider matrix or an unrun historical
+permutation. Earlier failures and staging records remain historical. The final
+comment-only edits passed post-edit formatting and a freshly compiled CLI
+boundary run. Provider and host-integration work remain separately tracked.
+
+| Task | Evidenced status and remaining boundary |
+| --- | --- |
+| 1 | Reader/field ownership, direct fixtures, preserved captures and affected test owners reviewed; final shared/CLI/adapter dispatch is recorded. |
+| 2 | Strict root/override/context implemented; model 403 passed, including root-shape 5 and discovery's actual missing/wrong-hook compiler controls. Historical preparatory listing/red-green chronology is not reconstructed. |
+| 3 | Neutral defaults, optional sync and pure resolution implemented; shared semantic/clear oracles passed with nonempty supplied defaults. Config-data's callback repair has its separate passing receipt. |
+| 3A | Discovery/callbacks, miswiring and credential-canary controls passed. Full settings owner: 24 outer cases passed, including the 31-child contract and three catalog-allocation probes; 140.12 s. Isolation: 16 passed; conformance Clippy passed. |
+| 4 | Existing command/request ordering, all seven captured SDK fields and existing funding/retention owners preserved. No startup/storage or host adoption gate. |
+| 5 | Bounded SDK reader/guards and configuration funding complete; runtime library 266 passed and all named core funding/node/peak/factor/boot owners passed. |
+| 6 | Shared typed semantics and actual SDK lifecycle/retention/refusal owners passed in core-complete: 97 binaries, 1,187 passed, 0 failed, 1 existing ignored. Actual host ingestion/adoption remains #135. |
+| 7 | Direct authoring, existing SDK typed commands and scalar overlays complete. Ordinary CLI: 926 passed, 3 existing ignores, 2 existing once-owned filters; maintenance: 209 passed. Boot/CLI parity: 8 passed, 40 fresh PIDs and four traced mutation refusals. |
+| 8 | Product-only generation, root/bootstrap retirement and snapshot-owner rename complete. Build harness: 101 passed; combined data/runtime: exit 0, 468 passed, 0 failed/ignored across 14 targets (202 data + 266 runtime). Model/isolation owners passed. |
+| 9 | Four adapter library/boot owners: 87 passed. Axum full insecure all-targets: 81 passed, 1 existing ignored across 11 rows, including resource-profile 14, privacy-wire 1 and wave 14. The separate secure-production owner passed 1 case; its ordinary-run ignore remains reported. Actual ports/hosted qualification remain separate. |
+| 10 | Local shared-runtime implementation, accepted-scope review and final verification complete. Full outer settings, post-comment formatting and fresh CLI boundary checks passed. Publication still needs approval. No full CI/readiness claim. |
+
+The earlier Axum/CLI and two-target core failure logs remain failed evidence;
+later passing invocations do not rewrite them. The three final prose comments
+also changed CLI source identity; the final boundary run verified those bytes
+after those comment edits. Actual #131-#136 delivery and #142 local authoring-read/
+reuse hardening retain their explicit child owners, not unchecked #140 gates.
+
+### Ownership Map
+
 Paths below are relative to the repository root and incorporate the approved
-ownership amendment. Unimplemented startup/snapshot paths remain proposed;
-their presence here is not a claim of serving acceptance.
+ownership amendment and revised runtime scope. Historical staged startup/root
+types are retirement work, not new serving APIs or acceptance claims.
 
 | Owner | Existing files / planned changes |
 | --- | --- |
 | Product data and generation | `auctioneer-config-data/data/product-defaults.toml`, `auctioneer-config-data/{build.rs,src/lib.rs}` and `auctioneer-config/src/codegen/mod.rs`. Retain quote/syn, discovery, disclosure and public-reference generation. |
 | Effective sync state | `auctioneer-config/src/{types.rs,usersync.rs}` and their existing renderers represent an unconfigured service explicitly. |
-| Strict authoring root | `auctioneer-config/src/lib.rs` and `tests/root_shape.rs`; the final generic root carries typed startup/runtime, not opaque operator subtrees. |
+| Direct authoring payload | `auctioneer-config/src/{lib.rs,policy.rs}` and `tests/root_shape.rs`; use `OperatorPolicy` directly and retire staged startup/runtime roots at cutover. |
 | Operator policy DTO | `auctioneer-config/src/{source.rs,policy.rs,override_value.rs}` owns declarations and pure structural validation. Core aliases compose bidder-owned settings; no duplicate model. Private units remain inline. |
-| Resolution and validation | `auctioneer-core/src/config/{resolve.rs,policy_host.rs,policy_account.rs,budgets.rs,validation.rs}` owns non-installing context-based composition and semantic checks. `snapshot.rs` remains proposed for admitted ownership. |
+| Resolution and validation | `auctioneer-core/src/config/{resolve.rs,policy_host.rs,policy_account.rs,budgets.rs,validation.rs}` owns non-installing context-based composition and shared semantic admission. No snapshot publication subsystem. |
 | Bidder-owned policy validation | `auctioneer-bidder/src/config_validation.rs`, `src/bidders/mod.rs`, `src/registry/catalog.rs` and `auctioneer-config/src/bidder_discovery.rs`. Settings-owning executable bidders use local `config.rs`, ordinary module wiring and inline validator units; no central bidder-name list. |
-| Startup | Shared input declarations belong in `auctioneer-config`; startup coordination belongs in proposed `auctioneer-core/src/config/startup.rs` with `host_primitives/{bootstrap.rs,gates.rs,resource_profile.rs}`, `configure.rs` and `config/runtime.rs`. Keep provider reads out of core. |
+| Runtime extraction / host facts | `auctioneer-core/src/config/{runtime.rs,mod.rs,sdk.rs}` and `configure.rs` consume the single policy with a zero-layout SDK trait boundary. Preserve `host_primitives/{bootstrap.rs,gates.rs,resource_profile.rs}` ownership/order; retire staged config `startup.rs`, without a new core startup file. |
 | Accounting | Modify `auctioneer-runtime/src/{budget.rs,aux_work.rs}` and core's existing config-cost/funding owners. Preserve one derivation and independent product-default storage. |
 | Request consumers | Update `auctioneer-core/src/handlers/{auction.rs,cookie_sync.rs,setuid.rs,getuids.rs,sync_http.rs,usersync_keys.rs,probe_config.rs,status.rs,info_bidders.rs}`. Do not create a parallel route family. |
-| CLI | Modify `auctioneer-cli/src/{config_source.rs,application.rs}` and existing resource/evidence input owners; preserve config validate/diff/push/gc and maintenance-only features. |
-| Native startup | Modify `auctioneer-adapter-axum/src/{main.rs,envelope.rs,resource_profile.rs}` and add `startup.rs` for bounded deployment translation. Adjust `src/lib.rs` exports only when an integration needs a public contract. |
-| Public configuration integration | Extend core `tests/resolve_runtime_config.rs` for SDK store/host parity and `runtime_config_failclosed.rs` for refusals. Add ordinary submodules beneath `tests/resolve_runtime_config/` only as needed. Shared setup uses existing `test_support::config_store`; expected values stay with the cases. |
+| CLI | Modify `auctioneer-cli/src/application.rs` and existing resource/evidence input owners; retire `config_source.rs`'s root projection in favor of the core SDK trait boundary. Preserve config validate/diff/push/gc and maintenance-only features. |
+| Adapter compatibility | Existing adapter main/envelope/resource-profile callers only as required by shared API changes. No new `startup.rs` or deployment parser; actual ports remain #131-#134. |
+| Public configuration integration | Extend core `tests/resolve_runtime_config.rs` for real SDK store and caller-owned typed-policy validation/resolution parity, plus `runtime_config_failclosed.rs` for refusals. Use existing setup and independent case expectations; actual host ingestion/adoption is #135. |
 | Global/allocator isolation | Keep `config_funding`, `config_peak_charge`, `boot_strict_parity`, `auction_config_retention` and sync allocation targets isolated. Use their existing processes/allocators, not a combined binary. |
-| Native artifact acceptance | Extend Axum `tests/boot_envelope.rs` and `tests/health_boot.rs`. Add one `tests/operator_configuration.rs` only for executable lifecycle/two-config acceptance, which cannot share an installed boot domain. |
+| Native artifact acceptance | Use Axum's existing `tests/resource_profile.rs` lifecycle/two-config owner, preserving child-process boot isolation. Keep boot/health controls in `tests/boot_envelope.rs` and `tests/health_boot.rs`; do not add an `operator_configuration` target. |
 | Build rejection and neutrality | Extend config-data's existing `tests/build_failure_harness.rs` and its existing mandatory compiler owner. Rename `baked_defaults_snapshot.rs` to `product_defaults_snapshot.rs` at cutover, updating Cargo/CI callers. Do not add a second full child-build suite. |
-| Three-path CLI parity | Extend inline `config_source.rs` tests and core's opt-in test-support setup with fixed test cases, not a second validator. CLI tests call the actual store extraction and host snapshot constructor for equivalent inputs. |
+| Shared semantics and CLI/SDK boundaries | Exhaustive field oracles belong once to the shared model/resolvers over supplied defaults. Actual CLI/SDK owners prove direct payload/object guards and shared-validator delegation, including bidder-settings miswiring; existing lifecycle owners prove A/B and no fallback. No new model, validator, host constructor or storage proof. |
 | Synthetic settings and discovery proof | Extend bidder `tests/generated_settings.rs`, `tests/support/generated_settings_contract.rs`, `tests/support/generated_exchange_settings.rs` and existing `tests/build_workspace/` setup. Use its actual synthetic generated settings and normal copied crate APIs; no production fake settings variant or source import. Keep the existing once-owned compiler job. |
 
 All `auctioneer-*` rows above are under `crates/`. Before editing, find
@@ -126,25 +169,34 @@ cargo test --locked -p auctioneer-cli --bin auctioneer-cli config_source::
 Expected: actual tests execute; record failures and unavailable prerequisites
 before editing, not a guessed baseline count. Do not call a skipped target a pass.
 
-- [ ] Enumerate all active readers/callers of `AuctioneerConfigSource`,
+- [x] Enumerate all active readers/callers of `AuctioneerConfigSource`,
   `AuctioneerAppConfig`, `host_default`, `account_default`, `RUNTIME_BOOTSTRAP`,
   root operator-file includes, old overlay keys, default/boot override controls
   and resource report fields. Include examples, scripts, manifests, bidder
   compiler scratch workspaces, schema tests and all four adapter callers.
   Use `rg` across the workspace; the ownership table is not an exhaustive list.
-- [ ] Separate live fixtures from immutable captures/evidence. For each affected
-  test, record its retained guarantee, required features and replacement owner.
+  Historical 2026-11-03 census note:
+  The [active-reader census](../../testing/evidence/operator-policy-validation-20261103.md#active-reader-migration-census)
+  records the remaining old readers, staged replacements, live synthetic
+  fixtures and immutable-capture boundary at `83659d0`. This is an inventory,
+  not the per-case fixture migration, startup approval or reader cutover below.
+  Its startup-approval reference is superseded by the accepted scope above;
+  the census and evidence remain intact.
+- [x] Separate live fixtures from immutable captures/evidence. Retain the affected
+  owner/feature map and verify its guarantees through the final executed owners.
   A syntactic fixture migration must not weaken privacy/refusal assertions.
-  Update valid fixture builders explicitly to the new versioned scopes; do
+  Update valid fixture builders explicitly to the direct versioned policy; do
   not hide a legacy-to-new converter in the shared store fixture. For each
   hostile case, prove its control document passes every earlier layer so a
   missing schema version cannot replace the intended digest, privacy, alias,
   secret or effective-validation failure. Retain original external captures
   and translate only at their documented consumer boundary when required.
-- [ ] Turn the inventory's C/S/P/V/D rows into an implementation checklist with
+- [x] Turn the inventory's C/S/P/V/D census into an implementation checklist with
   concrete DTO path, resolver/reader, validator and resource owner. Derived and
   immutable fields have explicit rejection controls, not new public setters.
-- [ ] Record build prerequisites as blockers if absent. Do not refresh archives,
+  Apply the revised design: former `S` proposals remain host-owned, not startup
+  DTO fields; required schema version lives at the direct payload root.
+- [x] Record build prerequisites as blockers if absent. Do not refresh archives,
   change SDK revisions or run provider mutations incidentally to this plan.
 
 Checkpoint commit: `Record operator configuration implementation baseline`.
@@ -152,20 +204,22 @@ Checkpoint commit: `Record operator configuration implementation baseline`.
 ## Task 2: Prepare Strict Policy And Clear-Value Types
 
 **Issues:** #127, prerequisites for #129/#135.
-**Files:** New `config/{policy.rs,override_value.rs,validation.rs}`; core
-`config/mod.rs`; schema `lib.rs` and `tests/root_shape.rs`.
+**Files:** Shared config `src/{policy.rs,override_value.rs,lib.rs}` and
+`tests/root_shape.rs`; core `src/config/{validation.rs,mod.rs}`.
 
-- [ ] Write inline red tests for a required application `schema_version = 1`,
+- [x] Write inline red tests for a required application `schema_version = 1`,
   strict `host`, `account_defaults`, `accounts`, `bidders`, `features` and
   `floor_currency` scopes. Reject missing/wrong application versions, unknown
   nested fields, old flat policy roots and mixed old/new roots. The final
-  authoring root rejects `baked` and strictly types both startup and runtime.
+  direct authoring root rejects `baked`, `startup` and `runtime` wrappers,
+  retired flat overlay keys, positional roots and backward wire aliases.
 - [x] Introduce the new types without changing the deployed extractor's type
-  yet. Stage the new `OperatorPolicy` and dependency-neutral generic
+  yet. Historical staging added `OperatorPolicy` and dependency-neutral generic
   `OperatorConfigSource<Startup, Runtime>` alongside the old build-only root;
   do not change the old generic root's arity while build.rs still uses it.
-  New strict-root tests target the new type. Task 7 switches CLI callers and
-  Task 8 deletes the retired root; no released parser accepts both layouts.
+  Those wrapper-root tests record the old staging contract, now superseded.
+  Task 7 switches CLI to direct `OperatorPolicy`; Task 8 retires both wrapper
+  roots and startup DTOs. No released parser accepts both layouts.
   Reuse existing leaf types/validators, with `validator` for supported
   scalar/nested constraints and explicit checks for actual cross-field rules.
   Do not duplicate generated bidder settings or put native generators in core.
@@ -179,12 +233,12 @@ Checkpoint commit: `Record operator configuration implementation baseline`.
   extra key, wrong type and null. For generated bidder settings, independently
   preserve only owner-declared accepted nulls; do not apply the override union.
 - [x] Add `ConfigValidationContext` with explicit borrowed product defaults,
-  catalog eligibility and normalized resource/startup inputs. Semantic
+  catalog eligibility and host-owned normalized limits. Semantic
   validation must not call global boot accessors. Two different valid contexts
   in one process must produce their respective decisions without installation.
-- [ ] Run the new owner filters with `-- --list` first, then execute each with
-  a verified nonzero count. Run all `root_shape` cases and core `--lib config::`
-  after implementation. Record red reason, green count and no serving switch.
+- [x] Verify final model/root-shape and core config owners execute nonzero cases.
+  Model 403 and full conformance core 1,187 passed. Preparatory listing/red-green
+  chronology remains historical, not an invented final receipt or cutover gate.
 
 Use the proposed module owners for the new focused commands:
 
@@ -200,12 +254,12 @@ the per-field null/clear tests and
 `application_version_is_required_under_valid_envelope` belongs in the existing
 store integration target, not a pretend Serde-only unit.
 
-The staged `auctioneer-config/src/startup.rs` now declares source-selection
-intent with strict store/host/product-defaults modes, SDK-compatible selectors
-and timeout validation, and no loader or domain installation. The typed root
-contracts use the real startup and policy models. Resource/health declarations,
-deployment resolution, inherited legacy-leaf strictness and admission remain
-cutover work; this does not complete Task 2's first or final checkbox.
+Historical staging added source intent in `auctioneer-config/src/startup.rs`
+and a startup/runtime root without changing serving readers. The 2026-11-04
+direction supersedes that design: retire those types/callers, retain relevant
+strictness/redaction controls at the direct policy or host-owned boundary.
+Inherited leaf strictness and serving admission remain actual cutover work;
+this note completes no checkbox.
 
 Checkpoint commit: `Add strict operator policy and reset semantics`.
 
@@ -215,15 +269,15 @@ Checkpoint commit: `Add strict operator policy and reset semantics`.
 **Files:** Product-default artifact; schema `types.rs`, `usersync.rs`, codegen;
 core `config/{resolve.rs,budgets.rs,validation.rs}`.
 
-- [ ] Write failing controls for explicit unconfigured user-sync. Product
+- [x] Write failing controls for explicit unconfigured user-sync. Product
   resource defaults must equal the reviewed existing numeric defaults, not
   `ResourceLimits::default()` zeros. Product operator aliases, account rosters,
   publisher lists, origins, domains and host vendor identity contain no
   customer settings; no example external URL means a configured service.
-- [ ] Prepare a product-only artifact and generation path separate from the
+- [x] Prepare a product-only artifact and generation path separate from the
   operator file. Keep existing serving accessors until the cutover group.
   Retain useful quote/syn generation rather than writing Rust strings.
-- [ ] Prepare the effective-model migration so sync service state is optional;
+- [x] Prepare the effective-model migration so sync service state is optional;
   neutral preferences may still default. Update all affected typed builders,
   generated syntax tests and direct sync consumers together when activating it.
   Configured sync still requires an explicit valid external origin and current
@@ -240,11 +294,11 @@ core `config/{resolve.rs,budgets.rs,validation.rs}`.
   decoded caps separately across bidder, alias base, named account,
   account_defaults, host, product/historical fallback and installed min.
   Validate invalid values before successful capacity-clamp/warning behavior.
-- [ ] Reuse the actual bidder/settings/currency/alias/privacy validators.
+- [x] Reuse the actual bidder/settings/currency/alias/privacy validators.
   Prove immutable disable, unlinked/guest-ineligible factories, bad settings,
   sample/timeout bounds, expired currency and namespace conflicts still refuse.
   Use synthetic catalog metadata rather than a production bidder as a fake.
-- [ ] Run schema/config owning units and core config units. Until the active
+- [x] Run schema/config owning units and core config units. Until the active
   cutover, new-resolution tests exercise explicit new inputs without claiming
   the old serving path already has the new semantics.
 
@@ -252,24 +306,24 @@ Checkpoint commit: `Prepare neutral defaults and explicit policy resolution`.
 
 ## Task 3A: Register Bidder-Owned Configuration Validators
 
-**Issue:** #127; prerequisite for snapshot/CLI adoption in Tasks 6-7.
+**Issue:** #127; prerequisite for typed runtime/CLI adoption in Tasks 5-7.
 **Files:** Bidder/config/discovery owners and synthetic tests in the ownership
 table; bidder `Cargo.toml`, `src/bidders/README.md` and each settings owner's
 ordinary `mod.rs`/new `config.rs`. No request schema engine changes.
 
-- [ ] Read the design's section 5.1 and review this amendment before coding.
+- [x] Follow the approved design section 5.1 bidder-validation contract.
   Keep one bidder-owned `validator::Validate` mechanism and the generated
   settings ownership/current per-field fallback. The discovered function is
   only a thin adapter to it, not a second validator or selectable validation
   phase. Do not implement an external trait on another crate's generated type, add a
   constraint DSL to TOML, or require config values that validly come from an
   impression. The new local borrowed view owns validation, not another DTO.
-- [ ] Add red inline units for the single borrowed context and fixed callback
+- [x] Add red inline units for the single borrowed context and fixed callback
   errors. Extend the capable fake with synthetic validation behavior. Use the
   existing `generated_settings` disposable workspace when actual nonempty
   generated fake settings are needed; those variants must not enter release
   generation. Existing metadata-selected whole-catalog controls stay separate.
-- [ ] Extend discovery's declaration/registration with the callback reference,
+- [x] Extend discovery's declaration/registration with the callback reference,
   deriving its requirement from `settings` on executable manifests. Use
   quote/syn and existing feature/target predicates. A settings-free factory
   gets no empty module; a settings owner missing its owner-level
@@ -277,7 +331,7 @@ ordinary `mod.rs`/new `config.rs`. No request schema engine changes.
   function in `mod.rs`, never a private child path or test-only export.
   Extend validated registry plan/definition lookup with the callback using
   existing indexes, without invoking factories or boot.
-- [ ] Add bidder-local borrowed views using `validator` derive/custom rules
+- [x] Add bidder-local borrowed views using `validator` derive/custom rules
   and existing pure protocol helpers. Inherit the workspace dependency. The
   registered adapter must call that `Validate` implementation rather than
   maintain its own conditions. Keep existing intentional zero/empty/optional
@@ -294,27 +348,27 @@ ordinary `mod.rs`/new `config.rs`. No request schema engine changes.
   Use implementation-tag dispatch for request-dependent identity entries;
   preserve their existing per-request binding/effective checks. Do not create
   a raw bidder-name switch, second lookup registry or whole-account expansion.
-- [ ] Prove supplied-value and effective-requiredness rules are each observable
+- [x] Prove supplied-value and effective-requiredness rules are each observable
   through that single context, with an exact one-call count per identity:
   disabled-invalid supplied values refuse; enabled missing intrinsic settings
   refuse; valid request-provided fallback remains allowed; an overridden bad
   parent is not hidden. Vary base/alias fields and enablement independently.
   On rejection, assert exact static reasons and no partial snapshot, factory
   invocation, secret read, network access or global installation.
-- [ ] Test callback removal and miswiring with synthetic owners in the existing
+- [x] Test callback removal and miswiring with synthetic owners in the existing
   generated-settings/build-discovery controls. A generated function's presence
   alone is insufficient: swap two owners' callbacks and require a behavioral
   failure. Update child dispatch reconciliation to its enumerated real cases,
   not an approximate count. Do not duplicate the child builds in every lane.
-- [ ] Add a credential-reference canary to the validator failure path and
+- [x] Add a credential-reference canary to the validator failure path and
   verify the callback result/log/status contains no raw or partial input.
   Bound/fund temporary `ValidationErrors` allocations and any added indexes
   in Task 4 before serving activation; callback purity is not zero-allocation.
-- [ ] Run focused bidder `--lib config_validation::`, core
-  `--lib config::validation::`, config `--lib --features build-support
-  bidder_discovery::` and the explicit bidder `--test generated_settings` owner.
-  List and execute new cases, preserving each old guarantee and its features.
-  Run `--test test_isolation` after module wiring and test builds under Clippy.
+- [x] Execute the once-owned generated-settings contract parent and its 31
+  reconciled children, model discovery/compiler controls and core validation
+  owners. Preserve old guarantees/features and catalog-allocation probes.
+  Isolation 16 and conformance test-build Clippy passed. Do not claim the full
+  24-case outer generated-settings suite was rerun by the selected parent.
 
 Checkpoint commit: `Register bidder-owned configuration validation`.
 
@@ -322,209 +376,199 @@ The 2026-11-03 staged checkpoint adds the pure bidder subvalidator and its
 synthetic behavioral controls; see the
 [foundation evidence](../../testing/evidence/operator-configuration-foundations-20261103.md#shared-bidder-validation-checkpoint).
 This checkbox does not complete the full `ConfigValidationContext`, product
-resolution, snapshot funding or serving adoption. The existing CLI/store/host
+resolution, runtime allocation admission or serving adoption. The existing CLI/store/host
 readers remain active until the later cutover group.
 
-## Task 4: Freeze Startup And Snapshot Ownership Before Adoption
+## Task 4: Map Runtime Bounds To Existing Owners
 
-**Issues:** #128/#130, reviewed prerequisite for raw/native adoption.
-**Files:** `config/startup.rs`, resource profile/bootstrap/gates owners; review
-record attached to #128/#130 before measurement, with repository evidence link.
+**Issues:** #128/#130; actual runtime cutover preparation, not numeric startup approval.
+**Files:** Core `config/{validation.rs,runtime.rs}`, `configure.rs`, existing
+resource/profile/gate and config-cost owners; runtime `budget.rs`/`aux_work.rs`.
 
 - [x] Inventory the exact pinned SDK and Axum operations for startup reads,
   environment/health materialization, parser structure, store selectors,
-  logging and App construction. Do not assume `EnvConfig`, whole-file TOML
-  loading or a typed host Settings object establishes a bounded read.
-  Trace CLI raw/typed reloads as well: a preliminary bounded read does not
-  bound a later SDK whole-file reread or a second environment materialization.
-  Record the actual raw/typed CLI rereads without misclassifying them as
-  missing single-config support. Local authoring read bounds and accepted-input
-  reuse are separate hardening under the 2026-11-03 amendment, not a prerequisite
-  for using the existing typed SDK commands. Serving/startup bounds still
-  require their own enforcement and reviewed ownership below; no parallel loader.
-  Source audit completed on 2026-11-03 against the locked SDK and Trusted
-  Server's actual command wiring; see the validation evidence follow-up.
-  This completes the inventory, not the numeric or lifecycle approval below.
-- [ ] Freeze each proposed input cap, unit, parser/depth/value limit, deadline,
-  retained storage allowance, owner and under/at/over test. Include startup
-  file, scalar overlays, binding names/maps, health/token inputs and temporary
-  copies. Identify an operation that enforces the bound before allocation, or
-  a published provider bound plus independently funded materialization.
-- [ ] Map the complete SDK extraction tuple: backend/blob bytes, JSON depth,
-  JSON values, secret bytes, total bytes and timeout. Expose a startup knob
-  only when both enforcement and accounting are identified. Otherwise it stays
-  a fixed reviewed product/SDK value and an attempted override is rejected.
-  Preserve internal normalization sentinels without exposing public unlimited.
-- [ ] Freeze the startup resource-intent whitelist from the inventory, keeping
-  measured factors, actual provider facts, baseline/layout costs and derived
-  totals out of caller control. For each admitted intent name its actual
-  enforcement owner and floor; do not advertise charge-only declarations as
-  working knobs. Keep default workload unchanged.
-- [ ] Specify snapshot ownership: store-request/candidate temporary allocations,
-  owned normalized storage, current host snapshot and all retained generations.
-  Acquire admission before construction/copy. A reservation follows the owning
-  allocation through final drop; a request receipt cannot be reused as though
-  each historical snapshot were free. Specify bounded candidate/update refusal
-  and cancellation releases without assuming only two versions can survive.
-  Include Task 3A's callback/registry additions and the bounded failure-path
-  allocations made by `validator`; static diagnostics do not erase that peak.
-- [ ] Require a typed-host control with short logical data and oversized
-  String/Vec/Map capacities. Count bounded logical content before copying,
-  normalize into funded owned storage, and keep the caller's source allocation
-  explicitly host-owned on success and refusal. No serialize-to-Value detour
-  or arbitrary-capacity adoption may bypass this boundary.
-- [ ] Obtain maintainer review of exact numbers, derivation and lifecycle.
-  This is an explicit stop/go gate, not a preapproved package. Record unknown
-  SDK/provider facts as blocked raw paths with owners. Continue only pure
-  foundation work while blocked; do not mark startup/provider work complete.
+  logging and App construction. The 2026-11-03 source audit also traced CLI
+  raw/typed rereads and Trusted Server's actual typed command wiring; see the
+  validation evidence follow-up. It established existing single-config support,
+  not bounded local rereads or serving qualification. The old startup-package
+  conclusion is superseded; local read/reuse hardening remains #142.
+- [x] Preserve existing SDK command ordering and flags for validate/diff/push,
+  including target selection, confirmation and remote reread behavior. Shared
+  validation means semantic parity, not identical CLI/request execution order.
+  Requests retain ingress/admission, pre-read funding/captured-cap checks,
+  bounded extraction and semantic validation before effective use, with existing
+  input/privacy/secret-read ordering and error precedence. Pure validation must
+  not install state or move those side effects earlier.
+- [x] Map the complete captured SDK tuple: `max_backend_bytes`, `max_blob_bytes`,
+  `max_json_depth`, `max_json_nodes`, `max_secret_bytes`, `max_total_bytes` and
+  `timeout`. Keep their existing host enforcement/accounting owners and reject
+  policy attempts to set them. Preserve independent byte/value units and
+  internal normalization sentinels without exposing public unlimited.
+- [x] Map policy parsing, merged views, namespace indexes, bidder callbacks
+  (including allocating `ValidationErrors` failure paths) and retained effective
+  data to existing funded config/work owners. Admission precedes construction;
+  charges follow actual ownership through final drop/cancellation. Keep
+  independent product-default storage and all conservative existing terms.
+- [x] Keep the reusable typed-policy semantic validator/resolvers on explicit
+  caller-owned `OperatorPolicy` and context. They do not ingest/adopt host
+  allocations or establish capacity/lifetime readiness. Actual host ingestion,
+  copying/borrowing/adoption and its allocation proof belong to #135; no new
+  normalization constructor, host pool or storage package gates PR #140.
+- [x] Preserve real SDK extraction and overlapping per-request policy/effective
+  views under existing admission/retention owners through final drop/cancellation.
+  Do not assume two generations or retain the full policy tree through fanout.
+  Unknown provider ingestion facts remain child-task acceptance work.
 
-Checkpoint commit after approval: `Freeze startup and policy storage ownership`.
+Checkpoint: runtime ownership mapped without changing budgets, limits or workload.
 
-## Task 5: Implement Shared Funding And Conflict-Safe Startup
+## Task 5: Cut The Runtime Reader Over To OperatorPolicy
 
-**Issues:** #128/#130. Starts the cutover group; Task 4 approval required.
-**Files:** Core startup/snapshot/bootstrap/gates/configure; runtime budget/aux
-owners; existing boot/config allocation and parity tests.
+**Issues:** #127/#128/#130. Starts the coordinated serving cutover group.
+**Files:** Core `config/{runtime.rs,mod.rs,validation.rs}`, `configure.rs`,
+existing config-cost owners and boot/config allocation/parity tests.
 
-- [ ] Add red tests for fatal invalid source/binding/limit input, zero public
-  caps, below-floor factors, unknown facts, two independent ceilings, identical
-  concurrent install and conflicting valid install. Assert no policy read or
-  new domain/gate publication on fatal domain validation; logging/closed health
-  may already exist as allowed by the design.
-- [ ] Implement typed `AuctioneerStartupConfig` and a fully validated pending
-  domain before publication. Select exactly store, host or explicit
-  product_defaults; store is the standalone default. Missing/corrupt required
-  sources never select defaults. Changing source/trust/caps requires a new
-  domain, not new counters in a live App. Do not add a multi-domain engine.
-- [ ] Normalize once and derive the budget through runtime's existing checked
-  additive owner. Install the accepted immutable domain consistently with
-  gates/host primitives, then construct Apps. Handle identical/conflicting
-  initialization explicitly instead of ignoring a failed OnceLock set. Publish
-  the authoritative validated startup and its gates through one installation
-  owner; independently published cells with a check-then-set race are not an
-  atomic domain. Keep legacy public gate access backed by that same owner.
-- [ ] Preserve independent product-default clone allowance while naming it
-  for product defaults in active APIs/reports. Include the newly approved
-  startup/snapshot terms with their actual multiplicities. Do not hide them
-  in the old baseline, fold them into catalog cost or introduce `max(startup,
-  steady)`. If tighter bounds are not independently established, retain the
-  prior conservative charge.
-- [ ] Extend `configure.rs` and the runtime pre-read guard to the complete
-  accepted SDK extraction tuple. Independently exceed each captured field;
-  assert zero store/secret reads on refusal. Preserve bounded `/status`
-  diagnostics and immutable-registry-failure treatment.
-- [ ] Measure new owners only after the approved reservations are frozen.
-  Use independent literal/layout/differential expectations, not the same
-  charge constants on both sides. Exercise asymmetric auction/aux/probe counts,
-  backend/blob/value caps, default size, startup size and retained generations.
-- [ ] Run `auctioneer-runtime --lib`, core `config_funding`, `config_peak_charge`,
+- [x] Add red controls for actual bounded SDK extraction of the direct policy,
+  shared semantic rejection and missing/wrong app version inside a valid SDK
+  envelope with a correct recomputed digest. Reject old wrappers and flat keys;
+  a checksum is not schema compatibility or writer authentication.
+- [x] Switch the active SDK typed boundary to `OperatorPolicy` and invoke the
+  same explicit-context validators used at push before any effective use.
+  Any SDK wrapper delegates traits without changing wire layout or model.
+  Preserve current request admission and host boot order, not a startup DTO.
+- [x] Check Apps against every field of the accepted SDK tuple before reads.
+  Independently exceed each captured field and assert zero store/secret reads;
+  retain preboot-App refusal, fixed `/status` diagnostics and distinct immutable
+  registry failures. Policy cannot alter bindings, installed limits or gates.
+- [x] Preserve product-default clone/storage allowance independently of blob
+  caps and name it correctly in active reports. Use the existing shared checked
+  additive derivation and actual multiplicities; no hidden baseline substitution,
+  `max(startup, steady)`, new numeric startup reserve or lowered conservative term.
+- [x] Exercise independent literal/layout/differential allocation expectations:
+  asymmetric auction/aux/probe populations, envelope/blob/value limits,
+  product-default size, semantic error peaks and retained data through drop.
+  Preserve factors, floors, configured/platform ceilings and boot warnings.
+- [x] Run runtime library and core `config_funding`, `config_peak_charge`,
   `config_node_cap`, `config_parse_factor`, `config_envelope_value_factor`,
   `boot_resource_charges`, `boot_strict_parity`, `boot_order_gates` and
-  `bootstrap_order`. Preserve separate test processes and measured floors.
+  `bootstrap_order` owners in their existing isolated processes.
 
-Checkpoint commit: `Fund and validate the operator configuration domain`.
+Checkpoint: serving consumes bounded, semantically validated direct runtime policy.
 
-## Task 6: Admit Immutable Policy Snapshots And Preserve Refusals
+## Task 6: Reuse Typed Policy Validation And Finish Request Consumption
 
-**Issues:** #127/#128/#130 and shared #135 constructor only.
-**Files:** Core `config/{snapshot.rs,validation.rs,runtime.rs,resolve.rs}`,
-handlers, config store test-support, existing lifecycle/retention tests.
+**Issues:** #127/#128/#130; typed-policy semantics only, not #135 host adoption.
+**Files:** Core config/resolve/validation/runtime, handlers, config-store
+test-support and existing public integration/lifecycle/retention tests.
 
-- [ ] Test actual bounded SDK store extraction of the new DTO, then shared
-  semantic validation and admitted immutable construction. Include a correct
-  SDK envelope/version/digest containing missing/wrong app schema_version;
-  it must refuse as malformed application policy, not pass on its checksum.
-- [ ] Make `ValidatedPolicySnapshot` construction private. CLI validation uses
-  the same non-installing semantic validator without acquiring serving globals;
-  store and typed-host paths additionally require funded normalization and
-  ownership. Do not pretend a dry-run allocation is free; retain its own
-  explicit bounded caller context.
-- [ ] Load once per admitted request, then derive every route decision from
-  that snapshot. Preserve exact permanent/transient/unknown error categories,
-  503/Retry-After behavior and liveness-only degradation. No missing-policy
-  privacy grant, default-source fallback or hidden store retry cache.
-  Preserve `auction_config_retention`'s early release of unrelated accounts:
-  coherent decisions do not require the whole policy tree to survive fanout.
-  Derive the required owned effective view from one generation, release unused
-  root storage when no longer needed, and keep each remaining allocation funded.
-- [ ] Test replacement A -> B omitting A's account/alias/overrides and prove
-  they disappear. Hold several requests on distinct generations, replace
-  repeatedly, refuse over-admission, cancel and finish in a different order;
-  prove coherent policy and release of the final owning reservation. An invalid
-  host candidate leaves the host's admitted current snapshot unchanged; a store
-  load failure is still a refused request, not that host publication behavior.
-- [ ] Update unconfigured sync handling before signing-key/callback work.
-  Assert unavailable sync, zero secret reads, zero callbacks and no opt-out
-  cookie rewrite; independently prove auctions/info still work. Configured
-  sync retains real key rotation, callback, CORS and privacy behavior.
-- [ ] Migrate handler access to admitted snapshots; do not leave direct
-  extractor calls or separately re-resolve one route's policy. Keep source,
-  immutable catalog and requested-cap refusal distinct.
-- [ ] Run core `runtime_config_failclosed`, `resolve_runtime_config`,
+- [x] Reuse the same `OperatorPolicy` semantic validator and resolution helpers
+  with explicit caller-owned input/context, without another model, store/App/HTTP
+  hop or new constructor. Test representable semantic failures and independent
+  resolution directly, without Serde or installed globals. This proves policy
+  semantics, not host allocation ingestion/adoption or serving readiness; #135
+  owns that implementation and its actual capacity/lifetime proof.
+- [x] Capture one generation per request and migrate auction/sync/info/status
+  readers together. Preserve permanent/transient/unknown categories,
+  503/Retry-After behavior and liveness-only degradation. No privacy grant on
+  failed/missing policy, fallback source, last-known-good cache or mid-auction read.
+- [x] Preserve `auction_config_retention`'s early release of unrelated accounts
+  before fanout. Derive required effective views coherently, release unused
+  root storage and fund the allocations actually retained, not the whole tree
+  by default. Do not add a global retained-snapshot publication subsystem.
+- [x] Test store A -> B removal of accounts/aliases/overrides, overlapping
+  requests on distinct generations, existing admission refusal, cancellation
+  and final release in different orders. Invalid typed policies fail shared
+  validation; actual host update/adoption behavior remains #135. Failed required
+  store loads still refuse rather than reuse previous state.
+- [x] Refuse unconfigured sync before signing-key/callback work: zero secret
+  reads/callbacks and no opt-out cookie rewrite; auctions/info remain independent.
+  Configured sync retains key rotation, callback, CORS and privacy checks.
+- [x] Run `runtime_config_failclosed`, `resolve_runtime_config`,
   `auction_config_lifecycle`, `auction_config_retention`,
   `usersync_config_lifecycle`, `usersync_integrity`, `usersync_routes`,
   `usersync_handler_alloc`, `privacy_config_parity` and `response_account_resolution`.
-  Include all host-typed capacity and admission controls from Task 4.
 
-Checkpoint commit: `Resolve requests from admitted operator policy snapshots`.
+Checkpoint: shared typed-policy semantics and coherent SDK request consumption;
+host storage/ingestion/adoption remains explicitly unqualified under #135.
 
 ## Task 7: Move Authoring And CLI To The Shared Contract
 
 **Issues:** #129, mandatory #127 acceptance.
-**Files:** CLI config_source/application; final schema root; core test-support;
+**Files:** CLI application and retired config_source projection; shared policy;
+core `config/sdk.rs`, test-support and
 existing CLI/core contract targets. The checked-in `auctioneer.toml` changes
 only in Task 8, atomically with removal of its build reader.
 
-- [ ] Make the final authoring root strictly typed `startup` + `runtime`.
-  Serialize only runtime, including required app schema_version. Startup,
-  physical bindings and secret values must not appear in the pushed payload.
+- [x] Make the operator file the direct staged `OperatorPolicy`: root
+  `schema_version = 1`, `host`, `account_defaults`, `accounts`, `bidders`,
+  `features` and `floor_currency`. Deserialize/serialize this exact payload;
+  any SDK wrapper is a zero-layout trait boundary only, not another root or
+  runtime projection. Reject `baked`/`startup`/`runtime` wrappers and backward wire aliases.
+  Physical bindings, installed limits and secret values are not policy fields.
   Preserve actual SDK envelope integrity behavior; do not claim signing.
   At this preparation checkpoint, use explicit new-format temporary authoring
   fixtures for CLI tests; do not migrate or parse the still build-owned root
-  file with the new type. Move shipped-file projection controls to Task 8's
+  file with the new type. Move shipped-file payload-identity controls to Task 8's
   checkpoint. The branch remains unshippable until that checkpoint passes.
-- [ ] Wire existing typed SDK validate/diff/push through the shared application
+- [x] Wire existing typed SDK validate/diff/push through the shared application
   contract and explicit validation context, not ambient installed boot globals.
   Use the approved existing SDK flow; its raw/typed local rereads remain a
   separately tracked hardening item, not a second Auctioneer loader or a cache.
   Changed-file/environment-after-acceptance controls belong to that follow-up.
-  These commands validate startup as well as projected policy. Preserve deployed secret
-  metadata paths without adding a `runtime.` prefix to projected payload paths.
+  These commands validate the same policy as bounded consumption, not startup.
+  Preserve secret metadata paths without adding a `runtime.` prefix.
   Audit all secret metadata when policy fields move beneath `host`.
-- [ ] Update exact env overlay paths/callers to `AUCTIONEER__...__...`.
+- [x] Update exact env overlay paths/callers to `AUCTIONEER__...__...`.
   Keep the SDK's existing scalar-leaf-only behavior and `--no-env` scope;
-  startup/store selector env behavior is not silently disabled or repeated
-  per request. Use child processes for environment controls, not unsafe global
-  mutations. Reject old names without adding aliases.
-- [ ] Implement the hard three-path gate below before allowing publication.
+  host/SDK store selector env behavior is not silently disabled or repeated
+  per request. Direct leaf paths have no `RUNTIME` wrapper component (for example,
+  `AUCTIONEER__HOST__RESOURCE_LIMITS__DEFAULT_TMAX_MS`). Use child processes for
+  environment controls, not unsafe global mutations. Reject old names without aliases.
+- [x] Complete the shared-semantics and actual-boundary gate below before allowing publication.
   Preserve config gc/deploy and archive-independent maintenance CLI behavior;
   no migration/export subcommand or new feature split is needed.
-- [ ] Run CLI `--bin auctioneer-cli config_source::`, `--test help`, core store/host parity,
-  plus CLI default-feature and `--no-default-features` checks. Test the actual
+- [x] Run and reconcile the migrated CLI application/core `config::sdk::` owners,
+  CLI `--test help`, core store/typed-policy parity, plus CLI default-feature and
+  `--no-default-features` checks; assert nonzero dispatch, not a retired filter.
+  Test the actual
   typed SDK push/validate entry points using the existing local test backend;
   do not publish to a production store as verification.
 
-### Required CLI / Store / Host Parity Gate
+### Required Shared Semantics And Actual Boundary Gate
 
-Use one enumerated input matrix with independent expected results. Core owns
-effective/constructor behavior, CLI owns authoring/projection/overlay behavior.
-Sharing fixture data or setup is allowed; sharing the expected-output resolver
-with production code is not. Every filter and case family asserts its count.
+**Latest directed scope alignment, 2026-11-04:** Own exhaustive nullable/clear
+and semantic field oracles once in the shared model/resolvers with explicit
+caller-owned input/context and nonempty supplied defaults. The canonical direct
+policy and zero-layout SDK trait wrapper use the same underlying model, removing
+subtree-projection drift, not the need to verify actual boundary delegation.
+Neutral compiled host defaults leave some clears unobservable there; do not
+rebuild synthetic CLI artifacts or repeat a field-by-path Cartesian matrix to
+manufacture inherited host values. Do not add another validator.
+
+Actual CLI/SDK owners verify the direct payload, object guards and shared-validator
+delegation; actual lifecycle owners verify A/B and no fallback. Keep independent
+literal expectations, every existing test/negative control and all limits. Fixture
+setup may be shared, but not the expected-output resolver with production code.
+Assert dispatch counts. This explicitly revises acceptance ownership, not pending
+command results, safety/storage requirements or the separate #135 integration.
 
 | Family | Required exercise |
 | --- | --- |
-| Every clear whitelist member | Nonempty inherited value, omission, concrete value and strict clear; identical literal effective outputs through CLI, actual SDK extraction and host construction. |
-| Malformed wire values | Null, false/extra-key clear, clear on a nonnullable field, unknown scope/field, wrong type and app version. CLI and SDK deserializers must refuse with fixed categories. |
-| Typed-host invalid values | Construct representable semantic errors directly and reach the real constructor; test scalar/cross-field/catalog/cap/refusal equivalence. Do not route them only through Serde. |
-| Bidder-owned validation | In the existing synthetic generated-settings workspace, drive actual CLI, SDK store extraction and host construction with independent supplied/effective failures, disabled entries, alias/base precedence and valid request fallbacks. Missing/wrong callbacks must fail discovery or behavior without factories, secrets or boot globals. |
-| Shapes unrepresentable by host DTO | Record compile-time exclusion or strict shared-DTO decoding control, rather than claim the constructor processed a null or unknown field it cannot represent. |
-| Host storage | Oversized capacities, candidate limits and old-generation retention reach funded normalization; serialized length is not the expected allocation bound. |
-| Independent resolution | Different defaults, named account, activity default/rules, both response caps and per-field clears varied separately; assert before-state presence and no surviving parent after a clear. |
+| Every nullable/clear field (shared owner) | Exhaustive omission, concrete value, strict clear and malformed-union oracles in shared model/resolver tests; supply nonempty inherited defaults and assert literal effective results. No per-field CLI/SDK replay requirement. |
+| Typed-policy invalid values (shared owner) | Pass representable semantic errors directly to the existing shared validator/resolvers with caller-owned input/context; cover scalar/cross-field/catalog/cap/refusal behavior once, without Serde or a new constructor. |
+| Actual CLI / SDK boundaries | Independently verify the direct schema-version-1 payload/object guards, serialization/overlay behavior and shared-validator delegation through existing typed validate/diff/push and bounded store consumption. Retain malformed-wire controls for null, false/extra-key clear, clear on a nonnullable field, unknown scope/field, wrong type and app version with fixed refusal categories. |
+| Bidder-owned validation | Keep the existing synthetic generated-settings controls for supplied/effective failures, disabled entries, alias/base precedence and valid request fallbacks with their current owners. Actual CLI and SDK store extraction must detect missing/miswired settings-validation callbacks; keep discovery/behavior controls without factories, secrets or boot globals. No duplicate bidder-field Cartesian matrix. |
+| Unrepresentable wire shapes | Retain independent CLI/SDK decoding refusals; record typed-model exclusion rather than claiming a typed validator processed an unrepresentable shape. Exhaustive field-shape oracles remain shared-model tests. |
+| SDK storage and retention | Real extraction bounds, per-request admission, early release, cancellation and final-drop accounting remain mandatory. Actual host ingestion/adoption and capacity/lifetime proofs remain #135, not a fabricated storage pass here. |
+| Independent resolution (shared owner) | Vary supplied defaults, named account, activity default/rules, both response caps and per-field clears separately in shared resolver tests; assert before-state presence and no surviving parent after a clear. |
+| Actual lifecycle | Existing lifecycle owners exercise policy A/B replacement, coherent per-request generations and no fallback after missing/corrupt/invalid required policy. Keep same-binary/two-config and retention controls; do not substitute two pure-helper calls or claim #135 host storage proof. |
 
-The gate blocks #127/#129 implementation acceptance. Required targeted negative
-controls disable a representative clear, bypass one path's validator and read
-an installed global instead of the explicit context; each must fail an owning
-test in a disposable workspace. Do not mutate the active review tree.
+The accepted #127/#129 gate retains shared clear/malformed controls, actual
+CLI/SDK invalid-policy refusals, swapped-callback behavioral controls and
+independent explicit-context decisions without boot installation. The actual
+boot/CLI owner also passed four traced scratch-only resource mutations. An
+additional disposable clear/bypass/global mutation campaign is not reported
+executed or required as another field-by-path matrix. No existing negative
+control is removed, and no unrun command is marked complete.
 
 Checkpoint commit: `Cut config authoring and CLI over to operator runtime policy`.
 
@@ -534,141 +578,142 @@ Checkpoint commit: `Cut config authoring and CLI over to operator runtime policy
 **Files:** Config build/lib/data; schema codegen; old bootstrap data; config
 snapshots/build-failure tests; Cargo and existing CI callers; active docs/examples.
 
-- [ ] Switch serving product-default accessors to the reviewed neutral artifact
-  after optional sync, resolution, startup and funding readers are ready.
+- [x] Switch serving product-default accessors to the reviewed neutral artifact
+  after optional sync, resolution and bounded policy readers/funding are ready.
   Delete release-build access to root `auctioneer.toml` and the compiled
   `data/runtime-bootstrap.toml`; remove obsolete operator-default/bootstrap
   harness overrides and migrate their remaining rejection guarantees.
   In this same compiling checkpoint, migrate the checked-in authoring file to
-  startup/runtime and retarget shipped-file CLI/schema/example tests. Only then
-  remove the retired root type after its final build caller moves. Never commit
+  direct `OperatorPolicy` and retarget shipped-file CLI/schema/example tests.
+  Retire both old and staged startup/runtime root types, source-mode DTOs and
+  their exports/callers after the final build reader moves. Preserve their
+  applicable strictness/refusal guarantees at the new boundary. Never commit
   a new root document that the still-active old build reader cannot parse.
-- [ ] Keep product artifact validation, bidder aliases/metadata/settings,
+- [x] Keep product artifact validation, bidder aliases/metadata/settings,
   discovery, disclosure, GVL/GCL and test-harness feature-export checks.
   Retarget operator alias/source failures to runtime validation; do not delete
   unrelated build rejection cases. No operator-supplied file path override
   remains as a way to customize a release.
-- [ ] Rename the defaults snapshot target and its Cargo/CI/script references
+- [x] Rename the defaults snapshot target and its Cargo/CI/script references
   together. Freeze neutral defaults independently, preserving existing resource
   numbers/privacy defaults and documenting only intentional sync/domain/list
   changes. No snapshot regeneration from the function under test as the oracle.
-- [ ] In the existing hermetic build owner, test root operator file absent,
-  added, malformed and changed to a synthetic canary; build/generation succeeds
-  identically and the canary is not emitted. Check SDK macros/packaging as well
-  as Auctioneer build.rs. Keep controlled code/catalog changes as positive
-  controls that the inspection really observes generated input changes.
-- [ ] Preserve fresh refusal workspaces and one mandatory compiler owner.
+- [x] In the existing hermetic owner, prove identical release product output
+  with the root operator file missing and changed to malformed bytes; obsolete
+  overrides are ignored without the explicit harness feature. Retain independent
+  product/code/catalog rejection and positive controls in the 101-case owner.
+  SDK payload/trait guards remain in their actual model/CLI owners. Additional
+  provider packaging permutations remain child qualification, not claimed runs.
+- [x] Preserve fresh refusal workspaces and one mandatory compiler owner.
   Update exact case/dispatch lists in its script if intentionally changed;
   do not reintroduce YAML snapshot guards or triple-run the same child plans.
-- [ ] Run config `product_defaults_snapshot`, `codegen`, `usersync_config`,
-  `activity`, `bidder_bindings`, schema `root_shape` and the explicit
-  `build_failure_harness` owner. Run bidder `test_isolation` after wiring edits.
+- [x] Run config-data `product_defaults_snapshot`, `codegen`, `usersync_config`,
+  `activity`, `bidder_bindings` and the explicit `build_failure_harness` owner;
+  run shared config `root_shape` and bidder `test_isolation` after wiring edits.
 
 Checkpoint commit: `Make release generation independent of operator files`.
 
-## Task 9: Port Native Startup And Finish The Atomic Cutover
+## Task 9: Verify Existing Adapter Compatibility And Two-Config Behavior
 
-**Issues:** #131 and shared #128/#130 completion on the selected native path.
-**Files:** Axum startup/main/envelope/resource_profile and existing core setup;
-other adapters' compile-time caller adjustments only; native process tests.
+**Issues:** Shared #128/#130 acceptance; actual #131-#135 ports remain separate.
+**Files:** Existing adapter callers only where shared API changes require them;
+Axum's existing `tests/{resource_profile.rs,boot_envelope.rs,health_boot.rs}`.
 
-- [ ] Translate supported native file/env/binding inputs in adapter-owned
-  `startup.rs` using Task 4's approved bounded operations. Keep only fixed
-  sanitized error codes/paths. Validate source, approved secret references,
-  actual platform facts, complete extraction tuple and resource requests
-  before installing gates or building the App.
-- [ ] Preserve Axum fatal health errors; test a credential placed in the flag
-  slot, not only in the token slot. Closed/no-token defaults and conflicting
-  valid installation behavior stay explicit. Do not copy SDK/provider external
-  env names into a new Auctioneer naming scheme.
-- [ ] Install/configure in the required order. Native `--resource-profile`
-  diagnostics and CLI derivation consume the same validated normalized inputs
-  without starting a serving domain. Preserve distinct strict/boot policies,
-  over-ceiling warning semantics and stricter native schema admission.
-- [ ] Update shared-API callers in all three guests so the workspace/guest
-  builds remain valid. They use fixed product startup settings until their
-  individual bounded input ports land, not a hidden unbounded parser. Keep
-  their existing health-only Closed degradation and fatal install conflict.
-  Explicitly document that these compatibility edits do not close #132-#134.
-- [ ] In the Axum process target, start the already-built executable with
-  isolated config A, then B, using distinct bind directories/services. Change
-  banner/account/feature decisions independently and assert actual handler
-  outputs. Hash the executable before/after; do not rebuild for either run.
-  Also test no sync service, explicit defaults mode, missing required store,
-  malformed policy, invalid startup, boundary input and shutdown cleanup.
-- [ ] Run `cargo test --locked -p auctioneer-adapter-axum --all-targets` and
-  verify `privacy_wire` actually executes. At this baseline it has no required
-  feature; the adapter's dev-dependency enables loopback support for tests.
-  Keep this feature-unified run distinct from secure-default package acceptance.
-  Run health/boot process cases separately where globals require it. Re-run
-  core lifecycle and strict parity.
+- [x] Adjust shared-API callers without moving host/adapter facts, store
+  bindings, health/logging or installed limits into policy. Preserve existing
+  boot order, identical/conflicting installation, Axum-fatal health resolution,
+  guest health-only Closed degradation and fatal health install conflicts.
+  Do not add startup files/parsers or claim provider-port completion.
+- [x] Preserve native `--resource-profile` and CLI parity on the same normalized
+  host inputs, independent product defaults and complete SDK tuple. Keep
+  strict-vs-boot policy, existing over-ceiling warnings and native schema admission.
+- [x] Build once without operator input, then run the unchanged executable with
+  isolated direct policies A and B through the existing SDK store/binding surface.
+  Assert independent banner/node-cap results and equal executable hashes; never
+  rebuild for either policy. Account/feature/removal, unconfigured sync and
+  missing/corrupt/wrong-schema refusals retain their shared/core lifecycle owners,
+  not a duplicate native field matrix. Preserve bounds and shutdown cleanup.
+  There is no defaults source mode or actual #135 host storage claim.
+- [x] Run the full Axum insecure all-targets owner and verify `privacy_wire`
+  dispatch separately from secure-production acceptance. Keep health/boot
+  isolation and the native four-adapter library/boot controls. Record selected
+  Fastly guest execution as guest-only; remaining provider/target qualification
+  retains its child owner. Core lifecycle/strict parity and the separate
+  secure-production user-sync script passed; the ordinary ignore stays reported.
 
-Checkpoint commit: `Start the native adapter from validated operator settings`.
+Checkpoint: shared runtime cutover has same-binary/two-config native evidence.
 
-## Task 10: Verify And Review The Shared Native Implementation PR
+## Task 10: Verify And Review PR #140 Runtime Cutover
 
 **Issues:** Acceptance evidence for completed child scopes, not epic closure.
 **Files:** Operator/cutover docs, development commands, dated new evidence,
-the owning GitHub issues; existing CI ownership only where new/renamed targets
+existing CI ownership only where new/renamed targets
 require it. Local CLI input hardening remains the separate follow-on
 [#142](https://github.com/IABTechLab/auctioneer/issues/142).
 
-- [ ] Publish a complete old-field -> new-field mapping from the inventory.
-  Show the startup/runtime split, required version, clear semantics,
-  unconfigured sync, secret references, source-selection failures, overlay
-  limits and restart-only fields. Do not ship an obsolete live example.
-- [ ] Run every affected test owner, including secure-default package tests
-  separately from feature-unified workspace runs, and every explicit once-owned
-  compiler target touched by Task 1's migration set. Enumerate new target
-  `required-features`; assert actual dispatch. Do not select the entire expensive
-  workspace on every edit or replace full acceptance with the focused loop.
-- [ ] Execute the actual boot/CLI parity owner, not just two calls to one pure
+- [x] Publish a complete old-field -> new-field mapping from the inventory.
+  Show the direct payload, required version, clear semantics, unconfigured sync,
+  secret references, no-fallback refusals and scalar-overlay limits. Mark physical
+  facts, bindings and installed limits host-owned, not startup/runtime config.
+  Retire wrapper examples and legacy wire names without aliases.
+- [x] Reconcile the accepted shared-runtime owners: model/data/runtime, full
+  conformance core, ordinary/maintenance CLI, explicit boot parity, four native
+  adapter library/boot owners, full insecure Axum, secure-production user-sync,
+  once-owned compiler/settings contracts and isolation. Record their feature
+  scopes and actual dispatch; this is not the entire CI/provider test matrix.
+- [x] Execute the actual boot/CLI parity owner, not just two calls to one pure
   helper. Extend `auctioneer-cli --test resource_boot_parity` and core
-  `boot_strict_parity` to the accepted startup tuple/product-default identity;
+  `boot_strict_parity` to the complete captured tuple/product-default identity;
   vary one independent input at a time and retain fresh process installation.
-- [ ] Run strict Clippy including test builds for changed packages, `cargo fmt
-  --all -- --check`, source-import isolation and the existing fixture gates.
-  Guest check/clippy/available execution remain compile/guest controls, not
-  hosted acceptance. Keep pinned evidence unchanged and add new results for
-  changed resource identities.
-- [ ] Record commands, versions, counts, durations and pass/fail/not-run/blocked
-  outcomes. Check new startup/default/snapshot storage deltas against frozen
-  values without adjusting workload or headroom to make tests pass.
-- [ ] Review three-path equivalence, privacy/refusal behavior, all issue field
-  dispositions, exact normalized limits, simultaneous snapshot owners, release
-  neutrality and one-artifact/two-config native evidence. Compare migration
+- [x] Run strict default/insecure/conformance workspace all-target Clippy and
+  explicit boot-parity Clippy; isolation passed 16 cases. Retain existing fixture
+  guards and pinned evidence. Guest execution remains guest-only, not hosted
+  acceptance. Final post-comment formatting is recorded separately below.
+- [x] Record confirmed command/feature scopes, repository toolchain/SDK references,
+  counts, durations and pass/fail/not-run outcomes. Full shell argv/environment
+  absent from saved output is explicitly unrecorded, not reconstructed. Preserve
+  actual policy/default/retention charges, limits, workload and reservations.
+- [x] Review once-owned shared semantic oracles, actual CLI/SDK boundary delegation,
+  lifecycle A/B/no-fallback behavior, privacy/refusals, all issue field dispositions,
+  exact normalized limits, simultaneous allocation owners, release neutrality
+  and one-artifact/two-config native evidence. Compare migration
   test names/counts; a disappearing assertion needs an identified retained owner.
-- [ ] Update the owning GitHub issues only for fixes demonstrated by this implementation;
-  distinguish partially delivered work and unresolved guest/host prerequisites.
-  Request code review for a separate implementation PR after verification.
-  Obtain permission before commit/push/public PR operations; no automatic merge.
+- [x] Coordinator: after the three present-tense comment edits, run final
+  `cargo fmt --all -- --check` and the fresh source-frozen CLI boundary check.
+  Append their exact receipts; earlier CLI fingerprints do not certify these
+  final source bytes. This is final verification, not remaining runtime code.
+- [x] Review remaining work against the existing PR #140 and child-task scopes;
+  distinguish shared cutover from unresolved actual provider/host integration.
+  No new spec/PR, GitHub/status update, commit, push or public operation is
+  authorized by this documentation revision.
 
-Expected outcome: reviewable native implementation with concrete evidence.
+Expected outcome: reviewable single-runtime cutover with concrete evidence.
 Not an assertion that the epic, all providers, Trusted Server integration or
 guest resource qualification are complete.
 
 ## Follow-On Acceptance Owners
 
 These are explicit dependencies and acceptance requirements, not implementation
-work silently included in a native completion claim. Their scoped plans must
-use the approved shared startup/storage package and actual provider/host APIs.
+work silently included in PR #140 acceptance. Their scoped plans use the same
+policy/validators and actual host/provider APIs, not a shared startup package.
 
 | Issue | Required next work / blocking fact |
 | --- | --- |
+| #131 Axum | Actual native operator/deployment integration under existing SDK host surfaces and bounded ingestion; shared caller compatibility/two-config proof alone does not close the port. |
 | #132 Cloudflare | Bounded binding/env/health materialization; captured App tuple; actual Worker artifact run with two configs. Provider bound/SDK gaps block adoption, not a local native green. |
 | #133 Fastly | Adapter-owned stores/secret translation; key-to-store alias constraint; bounded preboot materialization; unchanged component with two configs. Keep local manifest secret sources credential-free. |
 | #134 Spin | Hosted Akamai Functions surface, bounded variables/health/secret ownership, complete tuple; actual component acceptance. Generic Spin tests alone do not prove hosted readiness. |
-| #135 embedding | Real host Settings ingestion/ownership, SDK type/service compatibility with #34, funded snapshot publication/retirement and host-owned App/services; standalone/embedded controlled result parity. Blocks integrated artifact #76, not independent bridge review. |
+| #135 embedding | Implement actual host ingestion/adoption, allocation/capacity/lifetime proof, SDK compatibility with #34 and host-owned App/services using the shared typed policy/validators. Prove controlled standalone/embedded results; PR #140's typed semantics do not establish serving/storage readiness. No global host pool or new Auctioneer publisher. Blocks artifact #76, not bridge review. |
 | #130/#9 resources | Remaining target facts, physical fit and deployment evidence remain explicit qualification blockers. Native source neutrality does not close them. |
 | #136 documentation | Finish provider/embedding release instructions only against implemented surfaces and evidence. No required wait for all four adapters before accepting one selected host path. |
 
-## Plan Verification
+## Historical Plan Verification
 
-All tasks are initially unchecked. Proposed tests/types are not reported as
-implemented. Before starting Task 1, complete an independent plan review against
-the merged spec/inventory, check local document links and command/target names,
-and resolve material contradictions. Documentation checks are not Cargo,
-allocation, native-serving or deployment verification.
+These dated reviews record earlier plan revisions, not fresh checks or current
+gates. The 2026-11-04 accepted scope supersedes their startup-package, wrapper
+and source-mode assumptions. Existing checkmarks below/above are retained
+checkpoint history, not completion asserted by this revision. Documentation
+checks are not Cargo, allocation, serving or deployment verification.
 
 The initial plan's documentation review on 2026-11-02 found and corrected the shared-file cutover
 ordering: Task 8 now changes the build reader and checked-in authoring root
@@ -676,20 +721,24 @@ together. The independent rereview found no remaining material plan blockers.
 Local checks resolved all three document links, found all 32 named existing
 test targets, and found no trailing whitespace or legacy delivery labels.
 No Cargo tests, allocation measurements or serving/deployment checks were run
-for this documentation-only preparation. Task 4's separate numeric approval
-gate remains required; plan review does not satisfy it. That initial approval
-does not cover the subsequently added bidder-validation amendment or Task 3A;
-both require their own written-contract review before implementation.
+for that documentation-only preparation. At that review, Task 4 had a separate
+numeric startup approval gate; it is now superseded, not outstanding. The
+subsequent bidder-validation amendment/Task 3A had its own review below.
 
 The bidder-validation amendment and Task 3A subsequently passed a separate
 read-only review, including the inventory row and the single-contract/no-settings
 disposition. The three documents have 49 resolving local links and pass
 whitespace checks. At that review no production code or runtime tests had
 changed; the source/document review is not runtime qualification. The maintainer subsequently approved the
-written amendment and implementation on 2026-11-02. Task 4's numeric startup
-reservation approval remains separate and outstanding.
+written amendment and implementation on 2026-11-02. The former numeric startup
+reservation gate is removed by the 2026-11-04 direction.
 
-## Execution Progress
+## Recorded Execution Checkpoints
+
+The following preserves the 2026-11-02/03 local implementation/evidence record.
+Staged startup/root work is superseded and must be retired, not promoted to an
+active requirement. No tests or new completion checkmarks accompany this scope
+revision; the remaining tasks above define actual PR #140 acceptance.
 
 The maintainer approved implementation on 2026-11-02. The
 [pre-edit baseline](../../testing/evidence/operator-configuration-baseline-20261102.md)
@@ -701,17 +750,17 @@ records subsequent test execution, the pinned SDK audit and registry growth.
 | Slice | Current status |
 | --- | --- |
 | Pre-edit selected baselines | Executed; 176 parent test cases passed, with the existing child-only CLI probes driven by their parent cases. |
-| Strict operator authoring root | Implemented alongside the unchanged old reader; 12 root integration cases and 3 schema library cases pass. Spec and code-quality review approved; strict schema test lint passed. |
+| Strict operator authoring root (superseded staging) | Implemented alongside the unchanged old reader; 12 root integration cases and 3 schema library cases pass. Spec and code-quality review approved; strict schema test lint passed. Retire its startup/runtime layout in favor of the direct policy. |
 | Explicit field override | Implemented test-first; 29 inline cases pass, including duplicate/escaped marker keys, strict clear shape, direct null refusal and rejection of programmatic null-producing roots. Temporary parser allocations are not resource-qualified. |
 | Versioned policy model | Staged DTO implemented; 16 inline cases pass, including JSON/TOML opt-out leaf inheritance and null/omission/value controls for all optional fields declared locally. Reused legacy nested DTO strictness remains part of cutover. Combined core configuration selection: 195 passed; full core library: 670 passed. Spec/quality reviews and strict test lint passed. Full semantic admission is not implemented. |
 | Bidder-owned validation | Discovery, local callbacks and the staged pure shared dispatcher are implemented; bidder library 1,188 passed (9 existing source-dependent ignores), registry 21 and ownership 16 passed. Strict bidder lint passed. The once-owned settings contract passed 19 outer / 25 reconciled child cases, including absent-feature settings refusal; discovery passed 38. Exact ABI controls and matched native construction observations completed; staging spec and quality reviews approved. Allocation target: 8 passed, including independent regression ceilings and populated callback slots. Earlier guest test compilation and strict guest library/allocation lint passed; guest checks were not rerun for these review repairs. No serving callback activation or resource admission. |
-| SDK and CLI audit | Exact locked source and Trusted Server's real typed command wiring inspected. The existing typed SDK commands already supply single-config support. Local authoring read bounds and accepted-input reuse are separately tracked hardening; serving/startup input ownership and Task 4's numeric review remain required. |
-| Typed startup source intent | Staged source-selection DTO, shared validation/redaction helpers and actual typed-root contracts are implemented without changing CLI/serving readers. Store mode defaults only when the config section is omitted; explicit sections require the source tag. No new resource/health knobs or admission are supplied by this slice. |
+| SDK and CLI audit | Exact locked source and Trusted Server's real typed command wiring inspected. The existing typed SDK commands already supply single-config support. Local authoring read bounds and accepted-input reuse remain separately tracked hardening. Serving bounds still apply; the numeric startup review is superseded. |
+| Typed startup source intent (superseded staging) | Staged source-selection DTO, validation/redaction helpers and wrapper-root contracts were implemented without changing CLI/serving readers. They supply no resource/health admission and are retirement work under the revised scope. |
 | Neutral product data / optional sync | Prepared without switching serving accessors. Existing exact defaults snapshots pass, and unconfigured services refuse before signing-key/registry work. Source/default separation remains unfinished until the reader cutover. |
 | Pure account and scoped-cap composition | Implemented without admission/boot installation: 16 account cases and 14 total budget cases remain in the passing core library. Explicit-context host composition and staged policy validation are now implemented; their reservation and serving adoption remain separate. |
 | Shared configuration ownership | Implemented under the approved amendment: shared models in config, compiled assets in config-data, settings/endpoints in bidder, and composition/SDK integration in core. All 698 baseline core case identities are preserved; native models, actual compiler consumers and WASI model execution pass. See the [ownership record](../../testing/evidence/configuration-model-ownership-20261103.md) for exact local checks and CI-only acceptance. |
 | Context-based policy foundation | Host composition uses supplied defaults/capacity; the staged validator uses supplied defaults, catalog, capacity and time. Typed children use nested validation; maps and explicit clears retain their specialized rules. Success is not snapshot/input/storage admission. See the [validation checkpoint](../../testing/evidence/operator-policy-validation-20261103.md) for actual execution and remaining cutover gates. |
-| Serving/default/bootstrap/CLI cutover | Not started; the exact startup reservation gate is still outstanding. |
+| Serving/default/CLI cutover | Not started at this checkpoint; actual runtime reader, default and CLI migration remains. No startup reservation gate remains. |
 
 The maintainer subsequently requested one physical owner for shared configuration
 models, with bidder-specific settings remaining bidder-owned. The

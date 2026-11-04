@@ -79,7 +79,7 @@ mod tests {
         "the usize twins drifted from the funded counts above"
     );
 
-    /// What the shipped baked `auctioneer.toml` CONFIGURES — both above
+    /// What the neutral compiled product defaults CONFIGURE — both above
     /// what the row above funds, which is the shipped situation this
     /// test exists for.
     const BAKED_BIDDERS: usize = 50;
@@ -142,11 +142,11 @@ mod tests {
         }
     }
 
-    /// A baked row whose every envelope-funded cap is ABOVE what the
+    /// A product-default fixture whose every envelope-funded cap is ABOVE what the
     /// envelope above funds, which is what makes the default-config arm
     /// of the test prove something.
     ///
-    /// The two population caps carry the shipped `auctioneer.toml` numbers,
+    /// The two population caps carry the neutral compiled product-default numbers,
     /// which already exceed the wasm row. The three byte/node caps are
     /// deliberately set OVER this fixture's envelope rather than at the
     /// shipped 256 KiB / 65536: the shipped values equal what every
@@ -235,7 +235,7 @@ mod tests {
         // --- A runtime override ABOVE the ceiling. Config pushed to the
         // store must not be able to widen the gap further.
         let over: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_bidders_per_auction = 500\nmax_outbound_requests = 1000\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_bidders_per_auction = 500\nmax_outbound_requests = 1000\n",
         )
         .expect("the override parses");
         let over_row = resolved_host(&over, &baked_host());
@@ -254,7 +254,7 @@ mod tests {
         // deployment to the funded number would silently discard this,
         // which is a different bug in the same line.
         let under: AuctioneerAppConfig =
-            toml::from_str("[auction]\nmax_bidders_per_auction = 6\nmax_outbound_requests = 9\n")
+            toml::from_str("schema_version = 1\n[host.resource_limits]\nmax_bidders_per_auction = 6\nmax_outbound_requests = 9\n")
                 .expect("the override parses");
         let under_row = resolved_host(&under, &baked_host());
         assert_eq!(
@@ -270,7 +270,7 @@ mod tests {
         // minimum would make a row whose bidder and call ceilings differ
         // collapse to one of them.
         let split: AuctioneerAppConfig =
-            toml::from_str("[auction]\nmax_bidders_per_auction = 500\nmax_outbound_requests = 9\n")
+            toml::from_str("schema_version = 1\n[host.resource_limits]\nmax_bidders_per_auction = 500\nmax_outbound_requests = 9\n")
                 .expect("the override parses");
         let split_row = resolved_host(&split, &baked_host());
         assert_eq!(
@@ -318,8 +318,7 @@ mod tests {
 
         // An override ABOVE each funded figure is clamped, not accepted.
         let over: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_outbound_raw_bytes = 4194304\n\
-             max_outbound_request_bytes = 8388608\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_outbound_raw_bytes = 4194304\nmax_outbound_request_bytes = 8388608\n",
         )
         .expect("the override parses");
         let over_row = resolved_host(&over, &baked_host());
@@ -338,8 +337,7 @@ mod tests {
         // number and survives. This is the direction the knob exists
         // for.
         let under: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_outbound_raw_bytes = 65536\n\
-             max_outbound_request_bytes = 32768\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_outbound_raw_bytes = 65536\nmax_outbound_request_bytes = 32768\n",
         )
         .expect("the override parses");
         let under_row = resolved_host(&under, &baked_host());
@@ -355,8 +353,7 @@ mod tests {
         // Each resolves against its OWN funded figure, and the two are
         // independent of each other: one over, one under.
         let split: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_outbound_raw_bytes = 4194304\n\
-             max_outbound_request_bytes = 32768\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_outbound_raw_bytes = 4194304\nmax_outbound_request_bytes = 32768\n",
         )
         .expect("the override parses");
         let split_row = resolved_host(&split, &baked_host());
@@ -427,8 +424,7 @@ mod tests {
 
         // An override ABOVE each funded figure is clamped, not accepted.
         let caps_over: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_transport_bytes = 1048576\nmax_decoded_bytes = 2097152\n\
-             max_parsed_nodes = 262144\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 1048576\nmax_decoded_bytes = 2097152\nmax_parsed_nodes = 262144\n",
         )
         .expect("the override parses");
         let caps_over_row = resolved_host(&caps_over, &baked_host());
@@ -448,8 +444,7 @@ mod tests {
         // for: lowering is always safe because every envelope term is a
         // worst-case charge.
         let caps_under: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_transport_bytes = 65536\nmax_decoded_bytes = 32768\n\
-             max_parsed_nodes = 4096\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 65536\nmax_decoded_bytes = 32768\nmax_parsed_nodes = 4096\n",
         )
         .expect("the override parses");
         let caps_under_row = resolved_host(&caps_under, &baked_host());
@@ -468,8 +463,7 @@ mod tests {
         // shared minimum across the group would collapse all three onto
         // the node budget, which is numerically the smallest.
         let caps_split: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_transport_bytes = 1048576\nmax_decoded_bytes = 32768\n\
-             max_parsed_nodes = 262144\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 1048576\nmax_decoded_bytes = 32768\nmax_parsed_nodes = 262144\n",
         )
         .expect("the override parses");
         let caps_split_row = resolved_host(&caps_split, &baked_host());

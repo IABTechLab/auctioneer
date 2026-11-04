@@ -82,7 +82,10 @@ mod tests {
     fn host_config() -> AuctioneerAppConfig {
         toml::from_str(
             &toml::to_string(&serde_json::json!({
-                "aliases": {"fake_bidder": serving_catalog::passthrough_info().name}
+                "schema_version": 1_u64,
+                "host": {
+                    "aliases": {"fake_bidder": serving_catalog::passthrough_info().name},
+                },
             }))
             .unwrap(),
         )

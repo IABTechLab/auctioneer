@@ -40,7 +40,7 @@ mod tests {
 
     fn config() -> String {
         format!(
-            "[aliases]\nfake_bb={:?}\n[gdpr]\nenabled=false\n",
+            "schema_version = 1\n[host.aliases]\nfake_bb={:?}\n[host.gdpr]\nenabled=false\n",
             serving_catalog::passthrough_info().name,
         )
     }

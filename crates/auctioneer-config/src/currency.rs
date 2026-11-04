@@ -258,18 +258,19 @@ mod tests {
 
 #[cfg(test)]
 mod source_tests {
-    use crate::source::{AuctioneerAppConfig as GenericAppConfig, test_support::TestSettings};
+    use crate::{policy::OperatorPolicy as GenericAppConfig, source::test_support::TestSettings};
     type AuctioneerAppConfig = GenericAppConfig<TestSettings>;
     use serde_json::{Value, json};
     use validator::Validate as _;
 
     fn config_with_snapshot(snapshot: &Value) -> AuctioneerAppConfig {
-        serde_json::from_value(json!({"floor_currency": snapshot})).unwrap()
+        serde_json::from_value(json!({"schema_version": 1_u8, "floor_currency": snapshot})).unwrap()
     }
 
     #[test]
     fn floor_currency_absence_keeps_existing_runtime_config_valid() {
-        let config: AuctioneerAppConfig = serde_json::from_value(json!({})).unwrap();
+        let config: AuctioneerAppConfig =
+            serde_json::from_value(json!({"schema_version": 1_u8})).unwrap();
         config.validate().unwrap();
         assert!(serde_json::to_value(config).unwrap()["floor_currency"].is_null());
     }
@@ -293,6 +294,7 @@ mod source_tests {
             json!({"expires_at": 2_000_i32, "usd_per_unit": {}, "feed_url": "https://example.test/rates"}),
         ] {
             serde_json::from_value::<AuctioneerAppConfig>(json!({
+                "schema_version": 1_u8,
                 "floor_currency": snapshot
             }))
             .unwrap_err();
@@ -303,8 +305,8 @@ mod source_tests {
     fn floor_currency_root_parser_rejects_duplicate_rate_keys_not_as_unknown_root_field() {
         // Raw wire JSON is required to retain duplicate and escaped-equivalent keys.
         for wire in [
-            r#"{"floor_currency":{"expires_at":2000,"usd_per_unit":{"QAA":1.25,"QAA":2.5}}}"#,
-            r#"{"floor_currency":{"expires_at":2000,"usd_per_unit":{"QAA":1.25,"\u0051AA":2.5}}}"#,
+            r#"{"schema_version":1,"floor_currency":{"expires_at":2000,"usd_per_unit":{"QAA":1.25,"QAA":2.5}}}"#,
+            r#"{"schema_version":1,"floor_currency":{"expires_at":2000,"usd_per_unit":{"QAA":1.25,"\u0051AA":2.5}}}"#,
         ] {
             let error = serde_json::from_str::<AuctioneerAppConfig>(wire)
                 .expect_err("duplicate floor-currency keys must fail at config ingestion");
@@ -339,6 +341,7 @@ mod source_tests {
         rates.insert("QZZ".to_owned(), json!(1.25_f64));
         assert_eq!(rates.len(), 257);
         serde_json::from_value::<AuctioneerAppConfig>(json!({
+            "schema_version": 1_u8,
             "floor_currency": {"expires_at": 2_000_i32, "usd_per_unit": rates}
         }))
         .unwrap_err();

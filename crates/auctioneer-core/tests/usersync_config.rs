@@ -34,10 +34,9 @@ mod tests {
             .enabled_by_default = true;
         baked.user_sync.as_mut().unwrap().priority_groups = vec![vec!["fake_aaa".into()]];
         baked.user_sync.as_mut().unwrap().allowed_origins = vec!["https://old.example".into()];
-        let cfg = app("[host_cookie]\nmax_cookie_size_bytes = 0\n\
-         [user_sync]\npriority_groups = []\nallowed_origins = []\n\
-         [user_sync.cooperative]\nenabled_by_default = false\n\
-         [gdpr.tcf2.purpose_one_treatment]\naccess_allowed = false\n");
+        let cfg = app(
+            "schema_version = 1\n[host.host_cookie]\nmax_cookie_size_bytes = 0\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\npriority_groups = []\nallowed_origins = []\n[host.user_sync.cooperative]\nenabled_by_default = false\n[host.gdpr.tcf2.purpose_one_treatment]\naccess_allowed = false\n",
+        );
         let host = resolve_host(&cfg, &baked);
         assert_eq!(host.host_cookie.cookie_name, "host_id");
         assert_eq!(host.host_cookie.family, "family");
@@ -60,7 +59,7 @@ mod tests {
     fn account_priority_empty_replaces_host_and_none_inherits() {
         let mut host = configured_sync_host();
         host.user_sync.as_mut().unwrap().priority_groups = vec![vec!["fake_bbb".into()]];
-        let cfg = app("[accounts.empty.cookie_sync]\npriority_groups = []\n");
+        let cfg = app("schema_version = 1\n[accounts.empty.cookie_sync]\npriority_groups = []\n");
         let empty = resolve_selected_account(
             AccountSelection::Named("empty".into()),
             &cfg,
@@ -85,7 +84,7 @@ mod tests {
 
     #[test]
     fn default_selection_does_not_lookup_literal_unknown() {
-        let cfg = app("[accounts.unknown]\ndisabled = true\n");
+        let cfg = app("schema_version = 1\n[accounts.unknown]\ndisabled = true\n");
         let baked = AccountConfig::default();
         let default =
             resolve_selected_account(AccountSelection::from_requested(None), &cfg, &baked);
@@ -118,7 +117,8 @@ mod tests {
 
     #[test]
     fn account_web_channel_overlay_is_preserved_for_privacy() {
-        let cfg = app("[accounts.named.gdpr.channel_enabled]\nweb = 'disabled'\n");
+        let cfg =
+            app("schema_version = 1\n[accounts.named.gdpr.channel_enabled]\nweb = 'disabled'\n");
         let selected = resolve_selected_account(
             AccountSelection::Named("named".into()),
             &cfg,
@@ -129,7 +129,9 @@ mod tests {
 
     #[test]
     fn account_treatment_overlay_keeps_unset_for_privacy_fallback() {
-        let cfg = app("[accounts.named.gdpr.purpose_one_treatment]\naccess_allowed = false\n");
+        let cfg = app(
+            "schema_version = 1\n[accounts.named.gdpr.purpose_one_treatment]\naccess_allowed = false\n",
+        );
         let selected = resolve_selected_account(
             AccountSelection::Named("named".into()),
             &cfg,
@@ -160,7 +162,7 @@ mod tests {
         let account = AccountConfig::default();
         assert!(
             validate_effective_with_catalog(
-                &app("[host_cookie]\ncookie_name = 'uids'\n"),
+                &app("schema_version = 1\n[host.host_cookie]\ncookie_name = 'uids'\n"),
                 &baked,
                 &account,
                 &compiled_names()
@@ -169,7 +171,7 @@ mod tests {
         );
         assert!(
             validate_effective_with_catalog(
-                &app("[user_sync]\nexternal_url = 'http://bad.example'\n"),
+                &app("schema_version = 1\n[host.user_sync]\nexternal_url = 'http://bad.example'\n"),
                 &baked,
                 &account,
                 &compiled_names()
@@ -178,7 +180,7 @@ mod tests {
         );
         assert!(
             validate_effective_with_catalog(
-                &app("[aliases]\nfake_Foo = 'fake_pp'\nfake_foo = 'fake_pp'\n"),
+                &app("schema_version = 1\n[host.aliases]\nfake_Foo = 'fake_pp'\nfake_foo = 'fake_pp'\n"),
                 &baked,
                 &account,
                 &compiled_names()
@@ -187,7 +189,7 @@ mod tests {
         );
         assert!(
             validate_effective_with_catalog(
-                &app("[aliases]\nfake_Pp = 'fake_bbb'\n"),
+                &app("schema_version = 1\n[host.aliases]\nfake_Pp = 'fake_bbb'\n"),
                 &baked,
                 &account,
                 &compiled_names()
@@ -196,7 +198,7 @@ mod tests {
         );
         assert!(
             validate_effective_with_catalog(
-                &app("[bidders.fake_Foo]\nusersync_enabled = false\n[bidders.fake_foo]\nenabled = false\n"),
+                &app("schema_version = 1\n[bidders.fake_Foo]\nusersync_enabled = false\n[bidders.fake_foo]\nenabled = false\n"),
                 &baked,
                 &account,
                 &compiled_names()
@@ -205,7 +207,7 @@ mod tests {
         );
         assert!(
             validate_effective_with_catalog(
-                &app("[bidders.fake_Pp]\nusersync_enabled = false\n"),
+                &app("schema_version = 1\n[bidders.fake_Pp]\nusersync_enabled = false\n"),
                 &baked,
                 &account,
                 &compiled_names()
@@ -213,7 +215,7 @@ mod tests {
             .is_err()
         );
         validate_effective_with_catalog(
-            &app("[aliases]\nfake_pp = 'fake_bbb'\n"),
+            &app("schema_version = 1\n[host.aliases]\nfake_pp = 'fake_bbb'\n"),
             &baked,
             &account,
             &compiled_names(),
@@ -241,7 +243,7 @@ mod tests {
             &compiled_names(),
         )
         .unwrap();
-        let runtime = app("[aliases]\nfake_overflow = 'fake_pp'\n");
+        let runtime = app("schema_version = 1\n[host.aliases]\nfake_overflow = 'fake_pp'\n");
         validate_effective_with_catalog(&runtime, &baked, &account, &compiled_names()).unwrap();
         baked
             .aliases
@@ -263,22 +265,24 @@ mod tests {
     fn bidder_override_cannot_shadow_effective_alias_with_different_case() {
         let baked = configured_sync_host();
         let account = AccountConfig::default();
-        let colliding =
-            app("[aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_foo]\nusersync_enabled = false\n");
+        let colliding = app(
+            "schema_version = 1\n[host.aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_foo]\nusersync_enabled = false\n",
+        );
         assert!(
             validate_effective_with_catalog(&colliding, &baked, &account, &compiled_names())
                 .is_err()
         );
 
-        let exact =
-            app("[aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_Foo]\nusersync_enabled = false\n");
+        let exact = app(
+            "schema_version = 1\n[host.aliases]\nfake_Foo = 'fake_pp'\n[bidders.fake_Foo]\nusersync_enabled = false\n",
+        );
         validate_effective_with_catalog(&exact, &baked, &account, &compiled_names()).unwrap();
 
         let mut baked_alias = configured_sync_host();
         baked_alias
             .aliases
             .insert("fake_Foo".into(), "fake_pp".into());
-        let runtime = app("[bidders.fake_foo]\nusersync_enabled = false\n");
+        let runtime = app("schema_version = 1\n[bidders.fake_foo]\nusersync_enabled = false\n");
         assert!(
             validate_effective_with_catalog(&runtime, &baked_alias, &account, &compiled_names())
                 .is_err()
@@ -287,10 +291,18 @@ mod tests {
 
     #[test]
     fn overlay_rejects_wrong_types_without_silent_defaulting() {
-        toml::from_str::<AuctioneerAppConfig>("[accounts.a.cookie_sync]\ndefault_limit = '2'")
-            .unwrap_err();
+        toml::from_str::<AuctioneerAppConfig>(
+            "schema_version = 1\n[accounts.a.cookie_sync]\ndefault_limit = '2'",
+        )
+        .unwrap_err();
         serde_json::from_value::<AuctioneerAppConfig>(serde_json::json!({
-            "user_sync": {"cooperative": {"enabled_by_default": 0_i32}}
+            "schema_version": 1_u64,
+            "host": {
+                "user_sync": {
+                    "external_url": "https://sync.example.test",
+                    "cooperative": {"enabled_by_default": 0_i32},
+                },
+            },
         }))
         .unwrap_err();
     }

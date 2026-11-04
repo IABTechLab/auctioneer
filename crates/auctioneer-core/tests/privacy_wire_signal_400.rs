@@ -130,7 +130,7 @@ mod tests {
     }
 
     fn drive_request(fixture: &BidRequest) -> (StatusCode, String) {
-        let (status, body, _) = drive_counted(fixture, "");
+        let (status, body, _) = drive_counted(fixture, "schema_version = 1\n");
         (status, body)
     }
 
@@ -206,8 +206,10 @@ mod tests {
     fn conflicting_gpp_usp_with_invalid_no_sale_is_400_before_ccpa() {
         let fixture = conflicting_usp_request("not-registered");
         for enforce in [false, true] {
-            let (status, body, sends) =
-                drive_counted(&fixture, &format!("[ccpa]\nenforce = {enforce}"));
+            let (status, body, sends) = drive_counted(
+                &fixture,
+                &format!("schema_version = 1\n[host.ccpa]\nenforce = {enforce}"),
+            );
             assert_eq!(status, StatusCode::BAD_REQUEST, "enforce={enforce}: {body}");
             assert_eq!(
                 body,
@@ -228,8 +230,10 @@ mod tests {
         let fixture = with_serving_bidder(conflicting_usp_request(&exempt.name));
         let original = serde_json::to_value(&fixture).expect("the fixture serializes");
         for enforce in [false, true] {
-            let (status, body, captured) =
-                drive_captured(&fixture, &format!("[ccpa]\nenforce = {enforce}"));
+            let (status, body, captured) = drive_captured(
+                &fixture,
+                &format!("schema_version = 1\n[host.ccpa]\nenforce = {enforce}"),
+            );
             assert_eq!(status, StatusCode::OK, "enforce={enforce}: {body}");
             assert_eq!(captured.len(), 1_usize, "enforce={enforce}: {body}");
             let response: Value = serde_json::from_str(&body).expect("response JSON");
@@ -281,7 +285,8 @@ mod tests {
             }),
             ..BidRequestExt::default()
         });
-        let (status, body, sends) = drive_counted(&fixture, "[ccpa]\nenforce = false");
+        let (status, body, sends) =
+            drive_counted(&fixture, "schema_version = 1\n[host.ccpa]\nenforce = false");
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
             body,
@@ -298,7 +303,7 @@ mod tests {
             gpp_sid: Some(vec![]),
             ..Regs::default()
         });
-        let (status, body, sends) = drive_counted(&fixture, "");
+        let (status, body, sends) = drive_counted(&fixture, "schema_version = 1\n");
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(
             body,
@@ -313,10 +318,7 @@ mod tests {
             serde_json::to_value(with_serving_bidder(request_with_regs(Regs::default()))).unwrap();
         value["site"] = json!({"publisher":{"id":"fake_account"}});
         let fixture: BidRequest = serde_json::from_value(value).unwrap();
-        let config = "
-[accounts.fake_account.privacy.allowactivities.fetchBids]
-default = false
-";
+        let config = "schema_version = 1\n\n[accounts.fake_account.privacy.allowactivities.fetchBids]\ndefault = false\n";
         let (status, body, sends) = drive_counted(&fixture, config);
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(sends, 0);
@@ -326,7 +328,8 @@ default = false
             10017_i32
         );
 
-        let (control_status, control_body, control_sends) = drive_counted(&fixture, "");
+        let (control_status, control_body, control_sends) =
+            drive_counted(&fixture, "schema_version = 1\n");
         assert_eq!(control_status, StatusCode::OK, "{control_body}");
         assert_eq!(control_sends, 1, "control must reach the real fanout hook");
     }

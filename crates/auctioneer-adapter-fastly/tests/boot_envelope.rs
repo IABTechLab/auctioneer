@@ -110,6 +110,8 @@ mod tests {
             auctioneer_config_data::account_default(),
         ))
         .unwrap();
+        // Neutral host (764) + account (680) + tuple delimiters (3).
+        assert_eq!(baked, 1_447);
         let proof = derive_isolate_budget_with_baked_config(
             &gates.limits,
             &target,

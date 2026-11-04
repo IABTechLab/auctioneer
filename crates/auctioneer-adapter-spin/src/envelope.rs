@@ -739,6 +739,13 @@ mod tests {
         assert_eq!(profile.construction_costs, boot.construction_costs);
         assert_eq!(profile.catalog_costs, boot.catalog_costs);
         assert_eq!(profile.catalog_costs.context_per_auction_bytes, 4_919_296);
+        let baked_bytes = auctioneer_runtime::serialized_json_bytes(&(
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
+        ))
+        .unwrap();
+        // Neutral host (764) + account (680) + tuple delimiters (3).
+        assert_eq!(baked_bytes, 1_447);
     }
 
     /// The `u64` twin equals upstream's node cap.

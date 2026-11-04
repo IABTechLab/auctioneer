@@ -320,21 +320,21 @@ mod tests {
             ..HostConfig::default()
         };
         for (overlay, expected) in [
-            ("", false),
+            ("schema_version = 1\n", false),
             (
-                "[bidders.fake_compiled_alias]\nenabled = true\n[bidders.fake_host_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_compiled_alias]\nenabled = true\n[bidders.fake_host_alias]\nenabled = true\n",
                 false,
             ),
             (
-                "[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
                 true,
             ),
             (
-                "[bidders.fake_controlled]\nenabled = false\n[bidders.fake_compiled_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_controlled]\nenabled = false\n[bidders.fake_compiled_alias]\nenabled = true\n",
                 false,
             ),
             (
-                "[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
                 true,
             ),
         ] {
@@ -356,41 +356,45 @@ mod tests {
         use auctioneer_config_data::types::BidderInfo;
 
         for (baked_veto, overlay, expected) in [
-            (false, "", false),
-            (false, "[bidders.fake_alias]\nenabled = true\n", false),
+            (false, "schema_version = 1\n", false),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_alias]\nenabled = true\n",
+                false,
+            ),
+            (
+                false,
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
                 true,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = false\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = false\n[bidders.fake_alias]\nenabled = true\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\nusersync_enabled = false\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\nusersync_enabled = false\n[bidders.fake_alias]\nenabled = true\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = false\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = false\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nenabled = false\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nenabled = false\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nusersync_enabled = false\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nusersync_enabled = false\n",
                 false,
             ),
             (
                 true,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
                 false,
             ),
         ] {

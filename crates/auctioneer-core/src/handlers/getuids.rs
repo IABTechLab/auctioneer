@@ -37,7 +37,7 @@ async fn getuids_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::product_host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };

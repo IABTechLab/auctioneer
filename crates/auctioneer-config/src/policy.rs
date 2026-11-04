@@ -1,20 +1,17 @@
-//! Strict versioned operator policy, staged separately from the serving reader.
+//! The strict versioned operator authoring and runtime payload.
 //!
 //! Deserialization establishes shape, not semantic or resource admission.
-//! Only the planned shared validator and funded snapshot constructor may make
-//! this document usable by a handler; existing serving still uses its old DTO.
-//! Optional fields declared here reject null. Reused serving DTO leaves retain
-//! their existing contract pending the required atomic serving cutover.
+//! Effective policy and resource admission remain the engine's responsibility.
+//! Optional fields reject null; nullable effective fields use explicit clears.
 
-use std::{borrow::Borrow, collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, fmt};
 
 use crate::FloorCurrencyConfig;
-use crate::model_validation::{deserialize_optional_value, structural_validation_result};
-use serde::{
-    Deserialize, Deserializer, Serialize, Serializer,
-    de::Error as _,
-    ser::{Error as _, SerializeMap as _},
+use crate::model_validation::{
+    deserialize_optional_value, serialize_optional_u8_keyed_map, structural_validation_result,
 };
+use crate::object::{ObjectFields, deserialize_fields};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use validator::{Validate, ValidationError, ValidationErrors};
 
 use crate::override_value::FieldOverride;
@@ -51,34 +48,181 @@ impl<'de> Deserialize<'de> for ApplicationSchemaVersion {
     }
 }
 
-/// One complete policy publication. Omission inherits only within this document.
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields, bound(deserialize = "Settings: Deserialize<'de>"))]
-pub struct OperatorPolicy<Settings: Validate> {
-    /// Required on the wire; programmatic defaults select this format, not admission.
-    pub schema_version: ApplicationSchemaVersion,
-    /// Host policy; never startup bindings, extraction caps or provider facts.
-    #[serde(default)]
-    pub host: HostPolicy,
-    /// Deployment-wide account overrides applied before a selected account.
-    #[serde(default)]
-    pub account_defaults: AccountPolicy,
-    /// Publisher-specific overrides, not independently compiled account defaults.
-    #[serde(default)]
-    pub accounts: BTreeMap<String, AccountPolicy>,
-    /// Shared tunables and generated, implementation-tagged protocol settings.
-    #[serde(default)]
-    pub bidders: BTreeMap<String, BidderOverrides<Settings>>,
-    /// Supported runtime feature requests, not new compiled capabilities.
-    #[serde(default)]
-    pub features: FeatureFlags,
-    /// Operator-provided floor-only conversion snapshot.
+pub use object_models::{AccountPolicy, HostPolicy, OperatorPolicy};
+
+#[expect(
+    clippy::same_name_method,
+    reason = "Serde remote Self generates field helpers used by the object-guarded trait impls"
+)]
+mod object_models {
+    use super::{
+        AccountCcpaOverride, AccountCookieSyncPolicy, AccountGdprPolicy, AccountPrivacyOverride,
+        ApplicationSchemaVersion, AuctionConfig, BTreeMap, BidderOverrides, FeatureFlags,
+        FieldOverride, FloorCurrencyConfig, HostCookiePolicy, HostEnforcementOverride,
+        HostGdprOverride, UserSyncPolicy, deserialize_optional_value, validate_bid_rounding,
+        validate_response_cap, validate_targeting_prefix,
+    };
+    use serde::{Deserialize, Serialize};
+    use validator::Validate;
+
+    /// One complete policy publication. Omission inherits only within this document.
+    #[derive(Deserialize, Serialize)]
     #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
+        remote = "Self",
+        deny_unknown_fields,
+        bound(deserialize = "Settings: Deserialize<'de>")
     )]
-    pub floor_currency: Option<FloorCurrencyConfig>,
+    pub struct OperatorPolicy<Settings: Validate> {
+        /// Required on the wire; programmatic defaults select this format, not admission.
+        pub schema_version: ApplicationSchemaVersion,
+        /// Host policy; never startup bindings, extraction caps or provider facts.
+        #[serde(default)]
+        pub host: HostPolicy,
+        /// Deployment-wide account overrides applied before a selected account.
+        #[serde(default)]
+        pub account_defaults: AccountPolicy,
+        /// Publisher-specific overrides, not independently compiled account defaults.
+        #[serde(default)]
+        pub accounts: BTreeMap<String, AccountPolicy>,
+        /// Shared tunables and generated, implementation-tagged protocol settings.
+        #[serde(default)]
+        pub bidders: BTreeMap<String, BidderOverrides<Settings>>,
+        /// Supported runtime feature requests, not new compiled capabilities.
+        #[serde(default)]
+        pub features: FeatureFlags,
+        /// Operator-provided floor-only conversion snapshot.
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub floor_currency: Option<FloorCurrencyConfig>,
+    }
+
+    /// Optional host policy requests over product defaults.
+    #[derive(Debug, Default, Deserialize, Serialize, Validate)]
+    #[serde(remote = "Self", deny_unknown_fields)]
+    pub struct HostPolicy {
+        /// Requested auction limits; installed capacity remains independently authoritative.
+        #[serde(default)]
+        #[validate(nested)]
+        pub resource_limits: AuctionConfig,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(nested)]
+        pub gdpr: Option<HostGdprOverride>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub ccpa: Option<HostEnforcementOverride>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub lmt: Option<HostEnforcementOverride>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub host_cookie: Option<HostCookiePolicy>,
+        /// Inherited or cleared means no service unless the explicit parent provides one.
+        #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
+        pub user_sync: FieldOverride<UserSyncPolicy>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub status_response: Option<String>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub aliases: Option<BTreeMap<String, String>>,
+    }
+
+    /// The same strict overlay type is used for account defaults and named accounts.
+    #[derive(Debug, Default, Deserialize, Serialize, Validate)]
+    #[serde(remote = "Self", deny_unknown_fields)]
+    pub struct AccountPolicy {
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(custom(function = "validate_response_cap"))]
+        pub max_transport_bytes: Option<u64>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(custom(function = "validate_response_cap"))]
+        pub max_decoded_bytes: Option<u64>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub disabled: Option<bool>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub debug_allow: Option<bool>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub cookie_sync: Option<AccountCookieSyncPolicy>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(custom(function = "validate_bid_rounding"))]
+        pub bid_rounding: Option<String>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(custom(function = "validate_targeting_prefix"))]
+        pub targeting_prefix: Option<String>,
+        #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
+        pub truncate_target_attribute: FieldOverride<usize>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(nested)]
+        pub gdpr: Option<AccountGdprPolicy>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(nested)]
+        pub ccpa: Option<AccountCcpaOverride>,
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(nested)]
+        pub privacy: Option<AccountPrivacyOverride>,
+    }
 }
 
 impl<Settings: Validate> Default for OperatorPolicy<Settings> {
@@ -92,6 +236,32 @@ impl<Settings: Validate> Default for OperatorPolicy<Settings> {
             features: FeatureFlags::default(),
             floor_currency: None,
         }
+    }
+}
+
+impl<'de, Settings: Validate + Deserialize<'de>> ObjectFields<'de> for OperatorPolicy<Settings> {
+    fn deserialize_fields<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::deserialize(deserializer)
+    }
+}
+
+impl<'de, Settings: Validate + Deserialize<'de>> Deserialize<'de> for OperatorPolicy<Settings> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserialize_fields(deserializer)
+    }
+}
+
+impl<Settings: Validate + Serialize> Serialize for OperatorPolicy<Settings> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Self::serialize(self, serializer)
+    }
+}
+
+impl<Settings: Validate> validator::ValidateArgs<'_> for OperatorPolicy<Settings> {
+    type Args = ();
+
+    fn validate_with_args(&self, (): Self::Args) -> Result<(), ValidationErrors> {
+        self.validate()
     }
 }
 
@@ -129,54 +299,22 @@ impl<Settings: Validate> fmt::Debug for OperatorPolicy<Settings> {
     }
 }
 
-/// Optional host policy requests over product defaults.
-#[derive(Debug, Default, Deserialize, Serialize, Validate)]
-#[serde(deny_unknown_fields)]
-pub struct HostPolicy {
-    /// Requested auction limits; installed capacity remains independently authoritative.
-    #[serde(default)]
-    #[validate(nested)]
-    pub resource_limits: AuctionConfig,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(nested)]
-    pub gdpr: Option<HostGdprOverride>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub ccpa: Option<HostEnforcementOverride>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub lmt: Option<HostEnforcementOverride>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub host_cookie: Option<HostCookiePolicy>,
-    /// Inherited or cleared means no service unless the explicit parent provides one.
-    #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
-    pub user_sync: FieldOverride<UserSyncPolicy>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub status_response: Option<String>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub aliases: Option<BTreeMap<String, String>>,
+impl<'de> ObjectFields<'de> for HostPolicy {
+    fn deserialize_fields<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::deserialize(deserializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for HostPolicy {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserialize_fields(deserializer)
+    }
+}
+
+impl Serialize for HostPolicy {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Self::serialize(self, serializer)
+    }
 }
 
 // Root-only rules keep map keys and clear wrappers out of derive's value params.
@@ -260,34 +398,6 @@ where
     Ok(Some(value))
 }
 
-fn serialize_optional_u8_keyed_map<S, V>(
-    value: impl Borrow<Option<BTreeMap<u8, V>>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-    V: Serialize,
-{
-    let Some(entries) = value.borrow() else {
-        return Err(S::Error::custom(
-            "an absent enforcement map must be omitted",
-        ));
-    };
-    let mut map = serializer.serialize_map(Some(entries.len()))?;
-    for (key, entry) in entries {
-        map.serialize_entry(&EnforcementKey(*key), entry)?;
-    }
-    map.end()
-}
-
-struct EnforcementKey(u8);
-
-impl Serialize for EnforcementKey {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(&self.0)
-    }
-}
-
 /// An explicitly configured service; it has no example-URL default.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -316,79 +426,22 @@ pub struct UserSyncPolicy {
     pub allowed_origins: Option<Vec<String>>,
 }
 
-/// The same strict overlay type is used for account defaults and named accounts.
-#[derive(Debug, Default, Deserialize, Serialize, Validate)]
-#[serde(deny_unknown_fields)]
-pub struct AccountPolicy {
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(custom(function = "validate_response_cap"))]
-    pub max_transport_bytes: Option<u64>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(custom(function = "validate_response_cap"))]
-    pub max_decoded_bytes: Option<u64>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub disabled: Option<bool>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub debug_allow: Option<bool>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub cookie_sync: Option<AccountCookieSyncPolicy>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(custom(function = "validate_bid_rounding"))]
-    pub bid_rounding: Option<String>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(custom(function = "validate_targeting_prefix"))]
-    pub targeting_prefix: Option<String>,
-    #[serde(default, skip_serializing_if = "FieldOverride::is_inherit")]
-    pub truncate_target_attribute: FieldOverride<usize>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(nested)]
-    pub gdpr: Option<AccountGdprPolicy>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(nested)]
-    pub ccpa: Option<AccountCcpaOverride>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
-        skip_serializing_if = "Option::is_none"
-    )]
-    #[validate(nested)]
-    pub privacy: Option<AccountPrivacyOverride>,
+impl<'de> ObjectFields<'de> for AccountPolicy {
+    fn deserialize_fields<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::deserialize(deserializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for AccountPolicy {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserialize_fields(deserializer)
+    }
+}
+
+impl Serialize for AccountPolicy {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Self::serialize(self, serializer)
+    }
 }
 
 fn validate_account_policy(account: &AccountPolicy) -> Result<(), ValidationErrors> {
@@ -493,6 +546,185 @@ mod tests {
     use crate::override_value::FieldOverride;
     use serde_json::{Value, json};
     use validator::Validate as _;
+
+    fn assert_no_null(value: &Value) {
+        match value {
+            Value::Object(fields) => fields.values().for_each(assert_no_null),
+            Value::Array(values) => values.iter().for_each(assert_no_null),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                assert!(!value.is_null(), "absent optional leaves must be omitted");
+            }
+        }
+    }
+
+    fn collect_policy_paths(value: &Value, path: &str, paths: &mut Vec<String>) {
+        match value {
+            Value::Object(fields) => {
+                for (field, child_value) in fields {
+                    let child_path = format!("{path}/{field}");
+                    paths.push(child_path.clone());
+                    collect_policy_paths(child_value, &child_path, paths);
+                }
+            }
+            Value::Array(values) => {
+                for (index, element) in values.iter().enumerate() {
+                    collect_policy_paths(element, &format!("{path}/{index}"), paths);
+                }
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        }
+    }
+
+    #[test]
+    fn sparse_nested_policy_serialization_omits_absent_leaves_in_every_scope() {
+        let account = json!({
+            "cookie_sync": {},
+            "gdpr": {"purpose_one_treatment": {}, "channel_enabled": {},
+                "purposes": {"1": {}}, "special_features": {"1": {}}},
+            "ccpa": {"channel_enabled": {}},
+            "privacy": {"ipv4": {}, "ipv6": {}, "allowactivities": {"fetchBids": {}}}
+        });
+        let document = json!({
+            "schema_version": 1_u64,
+            "host": {
+                "resource_limits": {},
+                "gdpr": {"tcf2": {"purpose_one_treatment": {},
+                    "purposes": {"1": {}}, "special_features": {"1": {}}}},
+                "ccpa": {}, "lmt": {},
+                "host_cookie": {"optout_cookie": {}},
+                "user_sync": {"external_url": "https://sync.example.test", "cooperative": {}}
+            },
+            "account_defaults": account,
+            "accounts": {"fake_publisher": account},
+            "bidders": {"fake_sparse": {}},
+            "features": {}
+        });
+        for input in [
+            json!({"schema_version": 1_u64, "host": {"resource_limits": {}},
+                "account_defaults": {}, "accounts": {}, "bidders": {}, "features": {}}),
+            document,
+        ] {
+            let policy: OperatorPolicy = serde_json::from_value(input.clone()).unwrap();
+            policy.validate().unwrap();
+            let emitted = serde_json::to_value(&policy).unwrap();
+            assert_no_null(&emitted);
+            assert_eq!(emitted, input);
+            let json: OperatorPolicy = serde_json::from_value(emitted.clone()).unwrap();
+            let toml: OperatorPolicy = toml::from_str(&toml::to_string(&policy).unwrap()).unwrap();
+            assert_eq!(serde_json::to_value(json).unwrap(), emitted);
+            assert_eq!(serde_json::to_value(toml).unwrap(), emitted);
+        }
+    }
+
+    #[test]
+    fn borrowed_leaves_round_trip_without_emitting_null_or_integer_toml_keys() {
+        let document = json!({
+            "schema_version": 1_u64,
+            "host": {"gdpr": {"tcf2": {
+                "purpose_one_treatment": {},
+                "purposes": {"1": {}},
+                "special_features": {"1": {}}
+            }}, "ccpa": {}, "lmt": {}, "user_sync": {
+                "external_url": "https://sync.example.test", "cooperative": {}
+            }},
+            "account_defaults": {"privacy": {"allowactivities": {
+                "fetchBids": {},
+                "transmitUfpd": {"default": false, "rules": [{"allow": false}, {"allow": true, "condition": {}}]}
+            }}, "ccpa": {"channel_enabled": {}}, "gdpr": {
+                "purposes": {"1": {}}, "special_features": {"1": {}}
+            }},
+            "bidders": {"fake": {}}, "features": {}
+        });
+        let policy: OperatorPolicy = serde_json::from_value(document).unwrap();
+        policy.validate().unwrap();
+        let canonical = serde_json::to_value(&policy).unwrap();
+        let json_restored: OperatorPolicy = serde_json::from_value(canonical.clone()).unwrap();
+        assert_eq!(serde_json::to_value(json_restored).unwrap(), canonical);
+        let toml_restored: OperatorPolicy =
+            toml::from_str(&toml::to_string(&policy).unwrap()).unwrap();
+        assert_eq!(serde_json::to_value(toml_restored).unwrap(), canonical);
+        assert_eq!(
+            canonical["host"]["gdpr"]["tcf2"]["purpose_one_treatment"],
+            json!({})
+        );
+        assert_eq!(
+            canonical["account_defaults"]["privacy"]["allowactivities"]["fetchBids"],
+            json!({})
+        );
+        assert_eq!(
+            canonical["account_defaults"]["privacy"]["allowactivities"]["transmitUfpd"]["rules"][0],
+            json!({"allow": false})
+        );
+    }
+
+    #[test]
+    fn borrowed_leaves_reject_nested_nulls_and_unknown_fields() {
+        let base = json!({
+            "schema_version": 1_u64,
+            "host": {
+                "resource_limits": {"default_tmax_ms": 500_u64},
+                "gdpr": {"enabled": true, "host_vendor_id": 1_u64, "non_standard_publishers": [], "default_value": "0", "tcf2": {
+                    "enabled": false,
+                    "purpose_one_treatment": {"enabled": false, "access_allowed": true},
+                    "purposes": {"1": {"enforce_algo": "full", "enforce_purpose": "enabled", "enforce_vendors": "unset", "vendor_exceptions": []}},
+                    "special_features": {"1": {"enforce": "enabled", "vendor_exceptions": []}}
+                }},
+                "ccpa": {"enforce": false}, "lmt": {"enforce": true},
+                "user_sync": {"external_url": "https://sync.example.test", "cooperative": {"enabled_by_default": false}}
+            },
+            "account_defaults": {
+                "ccpa": {"enabled": "unset", "channel_enabled": {"web": "enabled"}},
+                "gdpr": {"channel_enabled": {"app": "disabled"}, "purposes": {"1": {"enforce_purpose": "unset"}}, "special_features": {"1": {"enforce": "enabled"}}},
+                "privacy": {"ipv4": {"anon_keep_bits": 24_u8}, "ipv6": {"anon_keep_bits": 64_u8}, "allowactivities": {"fetchBids": {"default": false, "rules": [{"allow": false, "condition": {"componentName": ["fake"], "componentType": ["bidder"]}}]}}}
+            },
+            "bidders": {"fake": {"enabled": false, "usersync_enabled": true, "timeout_ms": 100_u64, "sample_rate": 0.5_f64, "max_transport_bytes": 1_024_u64, "max_decoded_bytes": 2_048_u64}},
+            "features": {"gzip_outbound": false, "returnallbidstatus_default": true}
+        });
+        serde_json::from_value::<OperatorPolicy>(base.clone())
+            .unwrap()
+            .validate()
+            .unwrap();
+        let mut paths = Vec::new();
+        collect_policy_paths(&base, "", &mut paths);
+        for path in paths {
+            let mut null_document = base.clone();
+            *null_document.pointer_mut(&path).unwrap() = json!(null);
+            assert!(
+                serde_json::from_value::<OperatorPolicy>(null_document).is_err(),
+                "null at {path}"
+            );
+            if base.pointer(&path).unwrap().is_object()
+                && !matches!(
+                    path.as_str(),
+                    "/bidders"
+                        | "/account_defaults/privacy/allowactivities"
+                        | "/host/gdpr/tcf2/purposes"
+                        | "/host/gdpr/tcf2/special_features"
+                        | "/account_defaults/gdpr/purposes"
+                        | "/account_defaults/gdpr/special_features"
+                )
+            {
+                let mut unknown_document = base.clone();
+                unknown_document
+                    .pointer_mut(&path)
+                    .unwrap()
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("unknown".to_owned(), json!(true));
+                let error = serde_json::from_value::<OperatorPolicy>(unknown_document).unwrap_err();
+                assert!(
+                    error.to_string().contains("unknown field"),
+                    "{path}: {error}"
+                );
+            }
+        }
+        // The same borrowed leaves apply to a selected account, not just defaults.
+        let mut selected = base.clone();
+        selected["accounts"] = json!({"fake_publisher": base["account_defaults"].clone()});
+        selected["accounts"]["fake_publisher"]["privacy"]["ipv4"]["anon_keep_bits"] = json!(null);
+        serde_json::from_value::<OperatorPolicy>(selected)
+            .expect_err("selected-account borrowed leaves reject null too");
+    }
 
     fn structural_policy(scope: &str, overlay: Value) -> OperatorPolicy {
         let mut document = json!({

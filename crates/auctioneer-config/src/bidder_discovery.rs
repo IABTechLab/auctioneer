@@ -310,6 +310,20 @@ impl Discovery {
             let gate = self.publication_gate(row);
             quote::quote!(#gate (#public, #implementation),)
         });
+        let target_declarations = rows.iter().map(|row| {
+            let bidder = row.bidder;
+            let implementation = row.implementation;
+            // Keep inactive features for strict feature-parity validation. Only
+            // source-declared target ineligibility removes a declaration here.
+            let gate = publication_gate(self.native_only(implementation), None);
+            let feature = row.required_feature.map_or_else(
+                || quote::quote!(None),
+                |feature| quote::quote!(Some(#feature)),
+            );
+            quote::quote!(#gate BidderMetadataDeclaration {
+                bidder: #bidder, implementation: #implementation, required_feature: #feature,
+            },)
+        });
         let mut factories: BTreeMap<_, Vec<_>> = BTreeMap::new();
         for row in &rows {
             factories
@@ -335,6 +349,14 @@ impl Discovery {
             .collect::<Result<Vec<_>, _>>()?;
         let registry_builder = render_published_registry_builder(&arms);
         Ok(quote::quote! {
+            use auctioneer_config_data::types::BidderMetadataDeclaration;
+
+            #[doc = "Complete target-eligible metadata declarations, before feature activation."]
+            #[doc = "Generated from source publication gates, never inferred from active metadata or bindings."]
+            #[must_use]
+            pub fn target_metadata_declarations() -> &'static [BidderMetadataDeclaration] {
+                &[#(#target_declarations)*]
+            }
             // This is evaluated, not retained: no runtime catalog or heap index.
             // Compare target-crate features too, not just host build dependencies.
             const _: () = {
@@ -2407,7 +2429,7 @@ mod tests {
                 .unwrap()
                 .render_registry(metadata)
                 .unwrap();
-            fs::write(&source, serving_probe_source(&generated)).unwrap();
+            fs::write(&source, serving_probe_source(&generated, metadata.len())).unwrap();
             if mode == "all" {
                 for mismatch in ["extra_feature", "wrong_public", "wrong_implementation"] {
                     let compilation = child_output(
@@ -2482,6 +2504,24 @@ mod tests {
             .unwrap();
         let gate = publication_gate(true, Some("experimental")).to_string();
         assert_eq!(registry.matches(&gate).count(), 2);
+        let syntax = syn::parse_file(&registry).unwrap();
+        let target_function = syntax
+            .items
+            .iter()
+            .find_map(|item| {
+                let syn::Item::Fn(function) = item else {
+                    return None;
+                };
+                (function.sig.ident == "target_metadata_declarations").then_some(function)
+            })
+            .expect("compiled validation needs an explicit target declaration view");
+        let target_tokens = quote::quote!(#target_function).to_string();
+        assert!(target_tokens.contains(&publication_gate(true, None).to_string()));
+        assert!(!target_tokens.contains(&quote::quote!(cfg(feature = "experimental")).to_string()));
+        assert!(
+            target_tokens.contains("experimental"),
+            "off-feature declarations keep their feature ownership"
+        );
         let factories = syn::parse_file(&discovery.render().unwrap()).unwrap();
         let registrations = factories
             .items
@@ -2498,13 +2538,8 @@ mod tests {
         assert!(registration_tokens.contains("experimental"));
     }
 
-    fn serving_probe_source(generated: &str) -> String {
-        let generated_syntax = syn::parse_file(generated).unwrap();
+    fn serving_probe_types() -> proc_macro2::TokenStream {
         quote::quote! {
-            extern crate self as auctioneer_config_data;
-            use std::sync::atomic::{AtomicUsize, Ordering};
-            static SHARED: AtomicUsize = AtomicUsize::new(0);
-            static GATED: AtomicUsize = AtomicUsize::new(0);
             pub trait Bidder { fn marker(&self) -> u8; }
             pub struct Marker(u8);
             impl Bidder for Marker { fn marker(&self) -> u8 { self.0 } }
@@ -2512,6 +2547,25 @@ mod tests {
             impl Name { fn as_str(&self) -> &str { self.0 } }
             pub struct Info { name: Name }
             pub struct Binding { pub bidder: &'static str, pub implementation: &'static str }
+            pub mod types {
+                pub struct BidderMetadataDeclaration {
+                    pub bidder: &'static str,
+                    pub implementation: &'static str,
+                    pub required_feature: Option<&'static str>,
+                }
+            }
+        }
+    }
+
+    fn serving_probe_source(generated: &str, expected_declarations: usize) -> String {
+        let generated_syntax = syn::parse_file(generated).unwrap();
+        let types = serving_probe_types();
+        quote::quote! {
+            extern crate self as auctioneer_config_data;
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static SHARED: AtomicUsize = AtomicUsize::new(0);
+            static GATED: AtomicUsize = AtomicUsize::new(0);
+            #types
             pub const fn bidder_implementation_bindings() -> &'static [Binding] {
                 static BINDINGS: &[Binding] = &[
                     #[cfg(all(not(empty), feature = "experimental"))]
@@ -2567,6 +2621,13 @@ mod tests {
                 #generated_syntax
             }
             fn main() {
+                let declarations = bidders::target_metadata_declarations();
+                assert_eq!(declarations.len(), #expected_declarations);
+                for row in declarations {
+                    let gated = row.bidder == "fake_OptionalPublic";
+                    assert_eq!(row.implementation, if gated {"fake_gated_factory"} else {"fake_shared_factory"});
+                    assert_eq!(row.required_feature, if gated {Some("experimental")} else {None});
+                }
                 assert_eq!([SHARED.load(Ordering::SeqCst), GATED.load(Ordering::SeqCst)], [0, 0]);
                 let registry = bidders::configured_registry();
                 if cfg!(any(duplicate_info, unknown_info, missing_info)) {
@@ -2618,7 +2679,7 @@ mod tests {
             .unwrap();
         let source = fixture.directory.join("main.rs");
         let binary = fixture.directory.join(format!("refusal_probe{EXE_SUFFIX}"));
-        fs::write(&source, serving_probe_source(&generated)).unwrap();
+        fs::write(&source, serving_probe_source(&generated, 2)).unwrap();
         for mode in ["duplicate_info", "unknown_info", "missing_info"] {
             let compilation = child_output(
                 Command::new("rustc")

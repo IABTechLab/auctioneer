@@ -54,7 +54,9 @@ for (const denyRemoval of [false, true]) test(
     assert.equal(fixtures.length, 1);
     const fixture = path.join(dir, fixtures[0]);
     const store = JSON.parse(await readFile(path.join(fixture, '.edgezero/local-config-auctioneer_runtime.json'), 'utf8'));
-    const origin = JSON.parse(store.auctioneer_runtime).data.user_sync.external_url;
+    const policy = JSON.parse(store.auctioneer_runtime).data;
+    assert.equal(policy.schema_version, 1);
+    const origin = policy.host.user_sync.external_url;
     assert.equal(new URL(origin).hostname, '127.0.0.1');
     // At this marker only Axum is a child; the stub never starts Chromium.
     nativePids = execFileSync('pgrep', ['-P', String(child.pid)], { encoding: 'utf8', timeout: 1_000 })

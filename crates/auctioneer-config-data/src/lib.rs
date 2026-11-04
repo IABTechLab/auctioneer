@@ -28,7 +28,19 @@ include!(concat!(env!("OUT_DIR"), "/gvl_archive.rs"));
 #[cfg(test)]
 mod tests {
     use serde_json::json;
-    use std::hint::black_box;
+    use std::{hint::black_box, ptr};
+
+    #[test]
+    fn default_accessors_share_the_product_instances() {
+        assert!(ptr::eq(
+            super::host_default(),
+            super::product_host_default()
+        ));
+        assert!(ptr::eq(
+            super::account_default(),
+            super::product_account_default()
+        ));
+    }
 
     #[test]
     fn product_host_defaults_preserve_resources_without_an_operator_service() {

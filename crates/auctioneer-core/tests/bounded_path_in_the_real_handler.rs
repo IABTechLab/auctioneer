@@ -216,7 +216,7 @@ mod tests {
 
     fn config_registry_for(cfg: &AuctioneerAppConfig) -> ConfigRegistry {
         let mut data = serde_json::to_value(cfg).expect("config serialises to json");
-        data["aliases"]["fake_bidder"] = serde_json::json!(passthrough_info().name);
+        data["host"]["aliases"]["fake_bidder"] = serde_json::json!(passthrough_info().name);
         runtime_registry(&data)
     }
 
@@ -527,8 +527,7 @@ mod tests {
         boot();
         let app = configured_app();
         let cfg: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n\
-             [accounts.unknown]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.unknown]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n",
         )
         .unwrap();
         for (publisher, transport, decoded) in
@@ -585,13 +584,16 @@ mod tests {
         ] {
             let own_caps: toml::Value = toml::from_str(own).unwrap();
             let cfg: AuctioneerAppConfig = serde_json::from_value(serde_json::json!({
-                "auction": {"max_transport_bytes": 1_024_u64, "max_decoded_bytes": 2_048_u64},
+                "schema_version": 1_u64,
+                "host": {
+                    "resource_limits": {"max_transport_bytes": 1_024_u64, "max_decoded_bytes": 2_048_u64},
+                    "aliases": {"fake_alias": passthrough_info().name},
+                },
                 "accounts": {"acct-bounded": {"max_transport_bytes": 0x8000_u64, "max_decoded_bytes": 0xc000_u64}},
                 "bidders": {
                     (passthrough_info().name.as_str()): {"max_decoded_bytes": 0x0001_0000_u64},
                     "fake_alias": own_caps
                 },
-                "aliases": {"fake_alias": passthrough_info().name}
             }))
             .unwrap();
             let clock = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));

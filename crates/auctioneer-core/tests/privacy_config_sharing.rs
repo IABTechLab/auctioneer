@@ -42,12 +42,7 @@ mod tests {
             &cloned.privacy.allowactivities
         ));
         let config: AuctioneerAppConfig = toml::from_str(
-            "
-            [accounts.pub.privacy.allowactivities.fetchBids]
-            default = true
-            [accounts.pub.privacy.allowactivities.transmitUfpd]
-            rules = [{allow = false}, {allow = true}]
-        ",
+            "schema_version = 1\n\n            [accounts.pub.privacy.allowactivities.fetchBids]\n            default = true\n            [accounts.pub.privacy.allowactivities.transmitUfpd]\n            rules = [{allow = false}, {allow = true}]\n        ",
         )
         .expect("runtime DTO");
         let overlay_rules = config.accounts["pub"]

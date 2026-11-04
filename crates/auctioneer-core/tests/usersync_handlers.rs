@@ -22,8 +22,10 @@ mod fanout_limits;
 mod tests {
     use super::usersync_keys::decode_cookie;
     use super::{live_catalog, usersync_app};
+    use auctioneer_config::override_value::FieldOverride;
+    use auctioneer_config::policy::UserSyncPolicy;
     use auctioneer_core::{
-        config::{AuctioneerAppConfig, UserSyncOverride},
+        config::AuctioneerAppConfig,
         handlers::sync_http::serialized_header_bytes,
         usersync::{cookie::MAX_SET_COOKIE_FIELD_BYTES, limits::CookieLimits},
     };
@@ -34,7 +36,9 @@ mod tests {
 
     #[test]
     fn setuid_write_is_read_back_by_getuids_without_a_second_write() {
-        let app = usersync_app::TestApp::new("");
+        let app = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let response = app.dispatch(
             Method::GET,
             &format!(
@@ -75,7 +79,7 @@ mod tests {
     #[test]
     fn setuid_near_limit_cookie_does_not_consume_other_header_budget() {
         let app = usersync_app::TestApp::new(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n[host_cookie]\nmax_cookie_size_bytes = 0\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n[host.host_cookie]\nmax_cookie_size_bytes = 0\n",
         );
         assert_eq!(MAX_SET_COOKIE_FIELD_BYTES, 4096);
         let dispatch = |uid_length: usize| {
@@ -146,23 +150,31 @@ mod tests {
         ] {
             for callback_token in ["SyncerKey", "BidderName"] {
                 let mut config = AuctioneerAppConfig::default();
+                config.host.user_sync = FieldOverride::Value(UserSyncPolicy {
+                    external_url: "https://sync.example.test".to_owned(),
+                    redirect_url: FieldOverride::Inherit,
+                    cooperative: None,
+                    priority_groups: None,
+                    allowed_origins: None,
+                });
                 if let Some(alias_name) = alias {
-                    config.aliases = Some(BTreeMap::from([(
+                    config.host.aliases = Some(BTreeMap::from([(
                         alias_name.to_owned(),
                         role.name().to_owned(),
                     )]));
                 }
                 assert!(
                     !config
+                        .host
                         .aliases
                         .as_ref()
                         .is_some_and(|aliases| aliases.contains_key(role.family()))
                 );
                 if callback_token == "BidderName" {
-                    config.user_sync = Some(UserSyncOverride {
-                        redirect_url: Some("{{.ExternalURL}}/setuid?bidder={{.BidderName}}&gdpr={{.GDPR}}&f={{.SyncType}}&uid={{.UserMacro}}".to_owned()),
-                        ..UserSyncOverride::default()
-                    });
+                    let FieldOverride::Value(sync) = &mut config.host.user_sync else {
+                        panic!("the fixture explicitly configures sync");
+                    };
+                    sync.redirect_url = FieldOverride::Value("{{.ExternalURL}}/setuid?bidder={{.BidderName}}&gdpr={{.GDPR}}&f={{.SyncType}}&uid={{.UserMacro}}".to_owned());
                 }
                 let app = usersync_app::TestApp::new(&toml::to_string(&config).unwrap());
                 let raw = serde_json::to_vec(&serde_json::json!({
@@ -212,7 +224,7 @@ mod tests {
     #[test]
     fn cookie_sync_routed_missing_consent_uses_numeric_sid_scope() {
         let app = usersync_app::TestApp::new(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n",
         );
         for sid in ["02", "00002", "6,02", "02,02"] {
             let raw = serde_json::to_vec(&serde_json::json!({
@@ -246,7 +258,9 @@ mod tests {
 
     #[test]
     fn cookie_sync_routed_numeric_sid_scope_preserves_raw_callback_macro() {
-        let app = usersync_app::TestApp::new("[gdpr]\nenabled = false\n");
+        let app = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[host.gdpr]\nenabled = false\n",
+        );
         for (sid, expected_gdpr) in [("02", "1"), ("6,02", "1"), ("-1", "0")] {
             let raw = serde_json::to_vec(&serde_json::json!({
                 "bidders": [live_catalog::redirect().name()],

@@ -1,6 +1,4 @@
-//! Snapshot of the BAKED defaults, recorded from the two
-//! `data/` files that shipped before they were folded into
-//! `auctioneer.toml`.
+//! Snapshot of the neutral product defaults in `data/product-defaults.toml`.
 //!
 //! Moving defaults between files is the kind of change that can lose a
 //! value without any test noticing: every consumer reads
@@ -15,7 +13,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config_data::{account_default, host_default};
+    use auctioneer_config_data::{product_account_default, product_host_default};
 
     /// Pre-existing defaults remain fixed; privacy enforcement adds outbound and funded
     /// response/parse caps, and user sync adds explicit sync policy.
@@ -33,8 +31,7 @@ mod tests {
         r#""non_standard_publishers":[]},"ccpa":{"enforce":false},"#,
         r#""lmt":{"enforce":false},"host_cookie":{"cookie_name":"auctioneer_uid","family":"auctioneer","#,
         r#""domain":null,"ttl_days":90,"max_cookie_size_bytes":0,"optout_cookie":null},"#,
-        r#""user_sync":{"external_url":"https://sync.example.test","redirect_url":null,"#,
-        r#""cooperative":{"enabled_by_default":false},"priority_groups":[],"allowed_origins":[]},"#,
+        r#""user_sync":null,"#,
         r#""status_response":"","resource_limits":{"default_tmax_ms":1000,"#,
         r#""max_tmax_ms":2000,"max_bidder_response_bytes":262144,"#,
         r#""max_bidders_per_auction":50,"max_outbound_requests":100,"#,
@@ -58,26 +55,25 @@ mod tests {
     );
 
     #[test]
-    fn baked_defaults_match_the_pre_fold_values() {
-        let host = serde_json::to_string(host_default()).expect("host defaults serialise");
+    fn product_defaults_match_the_neutral_contract() {
+        let host = serde_json::to_string(product_host_default()).expect("host defaults serialise");
         assert_eq!(
             host, HOST_SNAPSHOT,
-            "the baked host defaults changed without updating the intentional default contract"
+            "the product host defaults changed without updating the intentional default contract"
         );
 
-        let account = serde_json::to_string(account_default()).expect("account defaults serialise");
+        let account =
+            serde_json::to_string(product_account_default()).expect("account defaults serialise");
         assert_eq!(
             account, ACCOUNT_SNAPSHOT,
-            "the baked account defaults changed without updating the intentional default contract"
+            "the product account defaults changed without updating the intentional default contract"
         );
     }
 
-    /// The keys that motivated the fold: `[runtime.auction]` overrides
-    /// these, and before the fold the default and its override lived in
-    /// different files under different section names, free to disagree.
+    /// Product resource limits remain fixed independently of operator policy.
     #[test]
     fn the_duplicated_auction_limits_keep_their_shipped_values() {
-        let limits = &host_default().resource_limits;
+        let limits = &product_host_default().resource_limits;
         assert_eq!(limits.default_tmax_ms, 1000);
         assert_eq!(limits.max_tmax_ms, 2000);
         // 256 KiB. Spelled in hex because the workspace's clippy

@@ -212,7 +212,8 @@ mod tests {
     fn runtime_disabled_candidate_stays_in_order_but_is_not_selected() {
         let host = HostConfig::default();
         let app: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_aaa]\nusersync_enabled = false\n").unwrap();
+            toml::from_str("schema_version = 1\n[bidders.fake_aaa]\nusersync_enabled = false\n")
+                .unwrap();
         let catalog = Catalog::from_registry(&host, &app, registry()).unwrap();
         assert!(catalog.available_names().contains(&"fake_aaa"));
         let requested = vec!["fake_aaa".into()];
@@ -247,8 +248,13 @@ mod tests {
             aliases: serde_json::from_value(input["aliases"].clone()).unwrap(),
             ..HostConfig::default()
         };
-        let app: AuctioneerAppConfig =
-            toml::from_str(input["app_config"].as_str().unwrap()).unwrap();
+        // The frozen corpus predates the required application version. Add only
+        // that application field at this consumer; leave the captured payload intact.
+        let versioned = format!(
+            "schema_version = 1\n{}",
+            input["app_config"].as_str().unwrap()
+        );
+        let app: AuctioneerAppConfig = toml::from_str(&versioned).unwrap();
         // This frozen policy corpus names its own identities; keep its inputs and
         // expectations verbatim instead of projecting them into the fake namespace.
         let mut reference_registry = auctioneer_bidder::BidderRegistry::new();
@@ -330,7 +336,8 @@ mod tests {
     fn activity_denial_comes_from_privacy_before_runtime_disable() {
         let host = HostConfig::default();
         let app: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_aaa]\nusersync_enabled = false\n").unwrap();
+            toml::from_str("schema_version = 1\n[bidders.fake_aaa]\nusersync_enabled = false\n")
+                .unwrap();
         let catalog = Catalog::from_registry(&host, &app, registry()).unwrap();
         let mut account = AccountConfig::default();
         account.privacy.allowactivities =

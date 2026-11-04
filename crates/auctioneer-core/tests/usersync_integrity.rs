@@ -37,7 +37,9 @@ mod tests {
 
     #[test]
     fn unsigned_uid_state_is_rejected_by_every_http_reader() {
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let payload = json!({
             "tempUIDs": {(live_catalog::redirect().family()): {"uid": "caller-chosen-uid", "expires": "2099-01-01T00:00:00Z"}}
         });
@@ -81,7 +83,7 @@ mod tests {
     #[test]
     fn unavailable_keys_refuse_state_without_polling_earlier_denials() {
         let app = TestApp::new(
-            "[host_cookie.optout_cookie]\nname='optout'\nvalue='yes'\n[accounts.closed]\ndisabled=true\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[host.host_cookie.optout_cookie]\nname='optout'\nvalue='yes'\n[accounts.closed]\ndisabled=true\n",
         );
         app.secrets().set(None);
         let denied = app.dispatch(
@@ -130,7 +132,9 @@ mod tests {
 
     #[test]
     fn rotation_uses_one_current_secret_snapshot_per_request() {
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let callback = app.dispatch(
             Method::GET,
             &live_catalog::redirect().setuid("gdpr=0&uid=owned-hint"),
@@ -188,7 +192,9 @@ mod tests {
 
     #[test]
     fn malformed_or_oversized_keyrings_never_become_unsigned_writes() {
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         for keyring in [b"private-keyring-canary".to_vec(), vec![b' '; 4_097]] {
             app.secrets().set(Some(&keyring));
             let response = app.dispatch(
@@ -208,7 +214,9 @@ mod tests {
     }
 
     fn assert_keyring_unavailable_to_every_http_reader(secret: &serde_json::Value) {
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         app.secrets()
             .set(Some(&serde_json::to_vec(secret).unwrap()));
         for (method, uri, payload) in [
@@ -256,7 +264,9 @@ mod tests {
 
     #[test]
     fn every_http_reader_rejects_an_authentic_mac_for_an_unsupported_version() {
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let payload = URL_SAFE.encode(
             serde_json::to_vec(&json!({
                 "tempUIDs":{(live_catalog::redirect().family()):{"uid":"synthetic-user","expires":"2099-01-01T00:00:00Z"}}
@@ -306,7 +316,9 @@ mod tests {
 
     #[test]
     fn every_http_reader_rejects_tampered_fields_without_a_cookie_write() {
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let issued = app.dispatch(
             Method::GET,
             &live_catalog::redirect().setuid("gdpr=0&uid=original"),
@@ -364,7 +376,9 @@ mod tests {
 
     #[test]
     fn deletion_matches_cookie_scope_and_empty_readback_needs_no_legacy_state() {
-        let app = TestApp::new("[host_cookie]\ndomain='publisher.example'\n");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[host.host_cookie]\ndomain='publisher.example'\n",
+        );
         let issued = app.dispatch(
             Method::GET,
             &live_catalog::redirect().setuid("gdpr=0&uid=original"),

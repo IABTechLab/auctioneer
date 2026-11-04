@@ -3,17 +3,17 @@
 //! against this crate after pointing `AUCTIONEER__BIDDERS__DIR` at a
 //! tempdir that contains the planted bad fixture.
 //!
-//! The baked defaults are covered the same way:
+//! The product defaults are covered the same way:
 //! `AUCTIONEER__DEFAULTS__PATH_OVERRIDE` points the child build at a
-//! planted `auctioneer.toml`, exercising the GDPR/privacy render
+//! planted `product-defaults.toml`, exercising the GDPR/privacy render
 //! validators (tri-state / `enforce_algo` / `default_value` /
 //! vendor-id / key-range / IP-keep-bits) end-to-end through
 //! `build.rs`.
 //!
-//! One document now carries BOTH baked namespaces, so a fixture
-//! planting a defect in `[baked.host]` still has to ship a valid
-//! `[baked.account]` (and vice versa) plus a `[runtime]` table —
-//! `config_source_toml` assembles that around whichever half the case
+//! One build-data document carries BOTH product namespaces, so a fixture
+//! planting a defect in `[host]` still has to ship a valid
+//! `[account]` (and vice versa), without an operator configuration root.
+//! `product_data_toml` assembles that around whichever half the case
 //! is about.
 //!
 //! Build-time assertions for invalid bidder-owned metadata fixtures. The
@@ -284,7 +284,7 @@ fn unique_label(label: &str) -> String {
 /// An independent fixture and exclusive target slot, held until teardown.
 struct Harness {
     /// The env-var override points here: the bidder-owned root, or the
-    /// dir holding a planted `auctioneer.toml`.
+    /// dir holding a planted `product-defaults.toml`.
     fixture_dir: PathBuf,
     /// Dependency cache owned by this test process, not the outer Cargo build.
     target_dir: PathBuf,
@@ -498,9 +498,9 @@ fn build_defaults_tempdir(label: &str, file_name: &str, body: &str) -> Harness {
 fn build_alias_defaults_tempdir(label: &str, aliases: &str) -> Harness {
     let harness = build_defaults_tempdir(
         label,
-        "auctioneer.toml",
-        &config_source_toml(
-            &baked_host_toml(HOST_GDPR_BASELINE, aliases),
+        "product-defaults.toml",
+        &product_data_toml(
+            &product_host_toml(HOST_GDPR_BASELINE, aliases),
             &account_baseline(),
         ),
     );
@@ -563,7 +563,6 @@ fn cargo_build_with_disclosure_dir(
         .env_remove(OsStr::new("AUCTIONEER__BIDDERS__DIR"))
         .env_remove(OsStr::new("AUCTIONEER__DEFAULTS__PATH_OVERRIDE"))
         .env_remove(OsStr::new("AUCTIONEER__GVL__ARCHIVE__DIR"))
-        .env_remove(OsStr::new("AUCTIONEER__RUNTIME_BOOTSTRAP__PATH_OVERRIDE"))
         .current_dir(workspace_root());
     let output = cargo_output(
         without_bundle_check(without_compiler_wrappers(&mut command)),
@@ -668,12 +667,10 @@ fn metadata_build_command(
 
 /// Spawn `cargo build -p auctioneer-config-data` with
 /// `AUCTIONEER__DEFAULTS__PATH_OVERRIDE` pointed at the planted
-/// `auctioneer.toml`. The bidder-owned metadata overrides are cleared so the child
+/// `product-defaults.toml`. The bidder-owned metadata overrides are cleared so the child
 /// reads the committed sibling `auctioneer-bidder/src/bidders/` tree.
 ///
-/// The fold left ONE source document, so one redirect now covers both
-/// baked namespaces — where two files once needed two env vars whose
-/// other half had to be swept.
+/// One explicit test redirect covers both product-data namespaces.
 fn cargo_build_with_defaults_override(harness: &Harness, file_name: &str) -> (ExitStatus, String) {
     let mut command = Command::new(env!("CARGO"));
     command
@@ -734,11 +731,10 @@ fn privacy_config_parity_command(harness: &Harness) -> Command {
         ])
         .env_remove(OsStr::new("AUCTIONEER__BIDDERS__DIR"))
         .env_remove(OsStr::new("AUCTIONEER__GVL__ARCHIVE__DIR"))
-        .env_remove(OsStr::new("AUCTIONEER__RUNTIME_BOOTSTRAP__PATH_OVERRIDE"))
         .env_remove(OsStr::new("AUCTIONEER__DISCLOSURE__DIR"))
         .env(
             "AUCTIONEER__DEFAULTS__PATH_OVERRIDE",
-            harness.fixture("auctioneer.toml"),
+            harness.fixture("product-defaults.toml"),
         )
         .current_dir(workspace_root());
     command
@@ -852,48 +848,79 @@ fn read_generated_config(harness: &Harness) -> syn::Result<generated_syntax::Gen
     generated_syntax::GeneratedConfig::parse(&read_generated_rs(harness))
 }
 
-/// Assemble a complete, valid `auctioneer.toml` around the caller's two
-/// baked namespaces. `[runtime]` is always present and always empty:
-/// every case here is about the BAKED half, and an empty `[runtime]`
-/// is exactly what the strict root requires.
-fn config_source_toml(host: &str, account: &str) -> String {
-    format!("{host}\n{account}\n[runtime]\n")
+fn read_build_directives(harness: &Harness) -> String {
+    let generated = harness.generated.borrow();
+    let directory = generated
+        .as_ref()
+        .and_then(|path| path.parent())
+        .and_then(Path::parent)
+        .expect("Cargo must report this build's output directory");
+    fs::read_to_string(directory.join("output")).expect("read build-script directives")
 }
 
-/// The `[baked.host]` namespace: complete and valid apart from the
+/// Copy selected build trees without Git state, target caches or symlinks.
+fn copy_build_sources(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if name == "target" || name == ".git" {
+            continue;
+        }
+        let target = destination.join(name);
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_build_sources(&entry.path(), &target)?;
+        } else if kind.is_file() {
+            fs::copy(entry.path(), target)?;
+        } else {
+            return Err(io::Error::other(
+                "build source must be a regular file or directory",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Assemble strict product build data, never an operator configuration.
+fn product_data_toml(host: &str, account: &str) -> String {
+    format!("{host}\n{account}\n")
+}
+
+/// The `[host]` namespace: complete and valid apart from the
 /// caller-supplied `[gdpr]` body and trailing tables. Mirrors the
-/// shipped `auctioneer.toml`; `[baked.host.gdpr.tcf2]` keeps its
+/// shipped `product-defaults.toml`; `[host.gdpr.tcf2]` keeps its
 /// serde-default empty maps so `trailing` can append
-/// `[baked.host.gdpr.tcf2.purposes.N]` /
-/// `[baked.host.gdpr.tcf2.special_features.N]` tables.
-fn baked_host_toml(gdpr_lines: &str, trailing: &str) -> String {
-    let indented = prefix_tables(gdpr_lines, "baked.host.gdpr");
-    let trailing_tables = prefix_tables(trailing, "baked.host");
+/// `[host.gdpr.tcf2.purposes.N]` /
+/// `[host.gdpr.tcf2.special_features.N]` tables.
+fn product_host_toml(gdpr_lines: &str, trailing: &str) -> String {
+    let indented = prefix_tables(gdpr_lines, "host.gdpr");
+    let trailing_tables = prefix_tables(trailing, "host");
     format!(
-        r#"[baked.host]
+        r#"[host]
 status_response = ""
 
-[baked.host.gdpr]
+[host.gdpr]
 {indented}
 
-[baked.host.gdpr.tcf2]
+[host.gdpr.tcf2]
 enabled = false
 
-[baked.host.ccpa]
+[host.ccpa]
 enforce = false
 
-[baked.host.lmt]
+[host.lmt]
 enforce = false
 
-[baked.host.host_cookie]
+[host.host_cookie]
 cookie_name = "auctioneer_uid"
 family = "auctioneer"
 ttl_days = 90
 
-[baked.host.user_sync]
+[host.user_sync]
 external_url = "https://sync.example.test"
 
-[baked.host.resource_limits]
+[host.resource_limits]
 default_tmax_ms = 1000
 max_tmax_ms = 2000
 max_bidder_response_bytes = 262144
@@ -908,22 +935,22 @@ max_parsed_nodes = 65536
     )
 }
 
-/// The `[baked.account]` namespace, same contract as
-/// [`baked_host_toml`].
-fn baked_account_toml(gdpr_lines: &str, trailing: &str) -> String {
-    let indented = prefix_tables(gdpr_lines, "baked.account.gdpr");
-    let trailing_tables = prefix_tables(trailing, "baked.account");
+/// The `[account]` namespace, same contract as
+/// [`product_host_toml`].
+fn product_account_toml(gdpr_lines: &str, trailing: &str) -> String {
+    let indented = prefix_tables(gdpr_lines, "account.gdpr");
+    let trailing_tables = prefix_tables(trailing, "account");
     format!(
-        r#"[baked.account]
+        r#"[account]
 disabled = false
 debug_allow = false
 bid_rounding = "down"
 targeting_prefix = "hb"
 
-[baked.account.gdpr]
+[account.gdpr]
 {indented}
 
-[baked.account.gdpr.channel_enabled]
+[account.gdpr.channel_enabled]
 web = "unset"
 app = "unset"
 amp = "unset"
@@ -939,7 +966,7 @@ dooh = "unset"
 /// each Raw struct sees (`[gdpr.tcf2.purposes.1]`, `[privacy.ipv4]`),
 /// which is what makes them readable next to the error message they
 /// assert. This is the one place that knows those subtrees now live
-/// under `[baked.*]`, so a case never repeats the prefix.
+/// under `[host]` or `[account]`, so a case never repeats the prefix.
 fn prefix_tables(body: &str, namespace: &str) -> String {
     body.lines()
         .map(|line| {
@@ -956,19 +983,19 @@ fn prefix_tables(body: &str, namespace: &str) -> String {
         .join("\n")
 }
 
-/// Valid `[gdpr]` body for `baked_host_toml` callers that plant their
+/// Valid `[gdpr]` body for `product_host_toml` callers that plant their
 /// breakage elsewhere.
 const HOST_GDPR_BASELINE: &str = "enabled = false\ndefault_value = \"0\"";
 
-/// The `[baked.host]` namespace with nothing wrong with it — for
+/// The `[host]` namespace with nothing wrong with it — for
 /// cases whose defect is on the account side.
 fn host_baseline() -> String {
-    baked_host_toml(HOST_GDPR_BASELINE, "")
+    product_host_toml(HOST_GDPR_BASELINE, "")
 }
 
-/// The `[baked.account]` namespace with nothing wrong with it.
+/// The `[account]` namespace with nothing wrong with it.
 fn account_baseline() -> String {
-    baked_account_toml(ACCOUNT_GDPR_BASELINE, "")
+    product_account_toml(ACCOUNT_GDPR_BASELINE, "")
 }
 
 const ACCOUNT_GDPR_BASELINE: &str = "enabled = \"unset\"";
@@ -980,6 +1007,109 @@ mod tests {
     };
     use super::*;
     use std::collections::BTreeSet;
+
+    #[test]
+    fn release_product_output_is_independent_of_root_operator_file_and_override_controls() {
+        use quote::ToTokens as _;
+
+        let harness = harness_dirs("operator_neutral_release");
+        let input_overrides = [
+            "AUCTIONEER__DEFAULTS__PATH_OVERRIDE",
+            "AUCTIONEER__BIDDERS__DIR",
+            "AUCTIONEER__DISCLOSURE__DIR",
+            "AUCTIONEER__GVL__ARCHIVE__DIR",
+        ];
+        let mut expected = None;
+        for state in ["missing", "changed"] {
+            let source = harness.fixture(state);
+            fs::create_dir_all(&source).unwrap();
+            for name in ["Cargo.toml", "Cargo.lock"] {
+                fs::copy(workspace_root().join(name), source.join(name)).unwrap();
+            }
+            for directory in ["crates", "vendor"] {
+                copy_build_sources(&workspace_root().join(directory), &source.join(directory))
+                    .unwrap();
+            }
+            let operator = source.join("auctioneer.toml");
+            let original = "[runtime]\noperator_marker = 'original'\n";
+            fs::write(&operator, original).unwrap();
+            assert_eq!(fs::read_to_string(&operator).unwrap(), original);
+            if state == "missing" {
+                fs::remove_file(&operator).unwrap();
+                assert!(!operator.exists());
+            } else {
+                fs::write(&operator, "changed operator bytes: deliberately not TOML [").unwrap();
+                assert_ne!(fs::read_to_string(&operator).unwrap(), original);
+            }
+
+            let mut command = Command::new(env!("CARGO"));
+            command
+                .args([
+                    "build",
+                    "--release",
+                    "--locked",
+                    "-p",
+                    "auctioneer-config-data",
+                    "--target-dir",
+                ])
+                .arg(harness.target_dir.join(state))
+                .current_dir(&source);
+            // These nonexistent inputs must be ignored without the explicit feature.
+            for variable in input_overrides {
+                command.env(variable, harness.fixture("nonexistent-override"));
+            }
+            let output = cargo_output(
+                without_bundle_check(without_compiler_wrappers(&mut command)),
+                &harness,
+            )
+            .unwrap();
+            assert!(
+                output.status.success(),
+                "{state}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let generated = read_generated_config(&harness).unwrap();
+            let host = generated.initializer("host_default").unwrap();
+            let account = generated.initializer("account_default").unwrap();
+            assert!(path_is(field(host, &["user_sync"]).unwrap(), &["None"]));
+            assert!(
+                map_entries(field(host, &["aliases"]).unwrap())
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                integer(field(host, &["resource_limits", "default_tmax_ms"]).unwrap()).unwrap(),
+                1000
+            );
+            assert_eq!(
+                integer(field(account, &["privacy", "ipv4", "anon_keep_bits"]).unwrap()).unwrap(),
+                24
+            );
+            let product = (
+                host.to_token_stream().to_string(),
+                account.to_token_stream().to_string(),
+            );
+            if let Some(expected) = &expected {
+                assert_eq!(
+                    &product, expected,
+                    "operator bytes must not change product output"
+                );
+            } else {
+                expected = Some(product);
+            }
+            let directives = read_build_directives(&harness);
+            assert!(directives.contains("product-defaults.toml"), "{directives}");
+            assert!(!directives.contains("auctioneer.toml"), "{directives}");
+            assert!(
+                !directives.contains("runtime-bootstrap.toml"),
+                "{directives}"
+            );
+            assert!(!directives.contains("SKIP_BUNDLE_CHECK"), "{directives}");
+            for variable in input_overrides {
+                assert!(!directives.contains(variable), "{directives}");
+            }
+        }
+    }
 
     #[test]
     fn child_builds_do_not_delegate_workers_outside_the_owned_process_group() {
@@ -1142,16 +1272,17 @@ mod tests {
             } else {
                 HOST_GDPR_BASELINE.replace("default_value = \"0\"", "default_value = \"7\"")
             };
-            let host = baked_host_toml(&gdpr, "").replace(
+            let host = product_host_toml(&gdpr, "").replace(
                 "status_response = \"\"",
                 &format!("status_response = \"{marker}\""),
             );
             fs::write(
-                harness.fixture("auctioneer.toml"),
-                config_source_toml(&host, &account_baseline()),
+                harness.fixture("product-defaults.toml"),
+                product_data_toml(&host, &account_baseline()),
             )
             .unwrap();
-            let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+            let (status, stderr) =
+                cargo_build_with_defaults_override(&harness, "product-defaults.toml");
             assert_eq!(status.success(), valid, "{marker}: {stderr}");
             if valid {
                 let generated = read_generated_config(&harness).unwrap();
@@ -2148,9 +2279,9 @@ mediaTypes = ["banner"]
         // else must fail codegen instead of baking a default.
         let harness = build_defaults_tempdir(
             "gdpr_bad_enforce_algo",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.purposes.1]\nenforce_algo = \"strict\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"enabled\"\n",
@@ -2159,7 +2290,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when a purpose's enforce_algo is not \
@@ -2177,9 +2309,9 @@ mediaTypes = ["banner"]
         // A scalar where a list is required must fail deserialization.
         let harness = build_defaults_tempdir(
             "gdpr_scalar_vendors",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_account_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_account_toml(
                     "enabled = \"unset\"\nbasic_enforcement_vendors = \"notalist\"",
                     "",
                 ),
@@ -2187,7 +2319,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when basic_enforcement_vendors is a \
@@ -2232,8 +2365,8 @@ mediaTypes = ["banner"]
         for target in [host, "wasm32-wasip1"] {
             for base in ["fake_portable_base", "fake_native_base"] {
                 let should_build = target == host || base == "fake_portable_base";
-                let source = config_source_toml(
-                    &baked_host_toml(
+                let source = product_data_toml(
+                    &product_host_toml(
                         HOST_GDPR_BASELINE,
                         &format!("\n[aliases]\nfake_host_alias = '{base}'\n"),
                     ),
@@ -2285,8 +2418,10 @@ mediaTypes = ["banner"]
             "\n[aliases]\nfake_my_alias = \"fake_unknown_bidder\"\n",
         );
 
-        let (status, stderr) =
-            cargo_build_with_bidder_dir_and_defaults_override(&harness, Some("auctioneer.toml"));
+        let (status, stderr) = cargo_build_with_bidder_dir_and_defaults_override(
+            &harness,
+            Some("product-defaults.toml"),
+        );
         assert!(
             !status.success(),
             "child cargo build should fail when a host `[aliases]` row names a \
@@ -2308,8 +2443,10 @@ mediaTypes = ["banner"]
             "\n[aliases]\nfake_Foo = \"fake_fixture_base\"\nfake_foo = \"fake_fixture_other\"\n",
         );
 
-        let (status, stderr) =
-            cargo_build_with_bidder_dir_and_defaults_override(&harness, Some("auctioneer.toml"));
+        let (status, stderr) = cargo_build_with_bidder_dir_and_defaults_override(
+            &harness,
+            Some("product-defaults.toml"),
+        );
         assert!(
             !status.success(),
             "ASCII-fold-colliding host aliases must fail the child build: {stderr}"
@@ -2327,8 +2464,10 @@ mediaTypes = ["banner"]
             "\n[aliases]\nfake_Fixture_base = \"fake_fixture_other\"\n",
         );
 
-        let (status, stderr) =
-            cargo_build_with_bidder_dir_and_defaults_override(&harness, Some("auctioneer.toml"));
+        let (status, stderr) = cargo_build_with_bidder_dir_and_defaults_override(
+            &harness,
+            Some("product-defaults.toml"),
+        );
         assert!(
             !status.success(),
             "a differently cased base shadow must fail the child build: {stderr}"
@@ -2347,8 +2486,10 @@ mediaTypes = ["banner"]
             "\n[aliases]\n\"\" = \"fake_fixture_other\"\n",
         );
 
-        let (status, stderr) =
-            cargo_build_with_bidder_dir_and_defaults_override(&harness, Some("auctioneer.toml"));
+        let (status, stderr) = cargo_build_with_bidder_dir_and_defaults_override(
+            &harness,
+            Some("product-defaults.toml"),
+        );
         assert!(
             !status.success(),
             "an empty host alias name must fail the child build: {stderr}"
@@ -2369,8 +2510,10 @@ mediaTypes = ["banner"]
             &format!("\n[aliases]\n\"{alias}\" = \"fake_fixture_other\"\n"),
         );
 
-        let (status, stderr) =
-            cargo_build_with_bidder_dir_and_defaults_override(&harness, Some("auctioneer.toml"));
+        let (status, stderr) = cargo_build_with_bidder_dir_and_defaults_override(
+            &harness,
+            Some("product-defaults.toml"),
+        );
         assert!(
             !status.success(),
             "a 129-byte host alias must fail even with only 128 characters: {stderr}"
@@ -2395,8 +2538,10 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) =
-            cargo_build_with_bidder_dir_and_defaults_override(&harness, Some("auctioneer.toml"));
+        let (status, stderr) = cargo_build_with_bidder_dir_and_defaults_override(
+            &harness,
+            Some("product-defaults.toml"),
+        );
         assert!(
             status.success(),
             "exact base overrides and valid 128-byte alias names must build: {stderr}"
@@ -2431,9 +2576,9 @@ mediaTypes = ["banner"]
         // 65536 → 0.
         let harness = build_defaults_tempdir(
             "gdpr_vendor_id_overflow",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     "enabled = false\ndefault_value = \"0\"\nhost_vendor_id = 65536",
                     "",
                 ),
@@ -2441,7 +2586,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when host_vendor_id exceeds u16::MAX, \
@@ -2457,9 +2603,9 @@ mediaTypes = ["banner"]
     fn child_build_fails_with_negative_host_vendor_id() {
         let harness = build_defaults_tempdir(
             "gdpr_vendor_id_negative",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     "enabled = false\ndefault_value = \"0\"\nhost_vendor_id = -1",
                     "",
                 ),
@@ -2467,7 +2613,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when host_vendor_id is negative, but \
@@ -2486,9 +2633,9 @@ mediaTypes = ["banner"]
         // must fail the build, not map to `TriState::Unset`.
         let harness = build_defaults_tempdir(
             "gdpr_bad_enforce_purpose",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.purposes.1]\nenforce_algo = \"full\"\n\
                  enforce_purpose = \"yes\"\nenforce_vendors = \"enabled\"\n",
@@ -2497,7 +2644,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when enforce_purpose is not a \
@@ -2514,9 +2662,9 @@ mediaTypes = ["banner"]
     fn child_build_fails_with_invalid_enforce_vendors_tristate() {
         let harness = build_defaults_tempdir(
             "gdpr_bad_enforce_vendors",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.purposes.1]\nenforce_algo = \"full\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"yes\"\n",
@@ -2525,7 +2673,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when enforce_vendors is not a \
@@ -2543,14 +2692,15 @@ mediaTypes = ["banner"]
         // Only literal "0" / "1" are legal consent-scope fallbacks.
         let harness = build_defaults_tempdir(
             "gdpr_bad_default_value",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml("enabled = false\ndefault_value = \"2\"", ""),
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml("enabled = false\ndefault_value = \"2\"", ""),
                 &account_baseline(),
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when gdpr.default_value is not \"0\" \
@@ -2566,9 +2716,9 @@ mediaTypes = ["banner"]
     fn child_build_fails_with_ipv4_keep_bits_above_32() {
         let harness = build_defaults_tempdir(
             "privacy_ipv4_out_of_range",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_account_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_account_toml(
                     ACCOUNT_GDPR_BASELINE,
                     "\n[privacy.ipv4]\nanon_keep_bits = 33\n",
                 ),
@@ -2576,7 +2726,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when ipv4.anon_keep_bits exceeds 32, \
@@ -2592,9 +2743,9 @@ mediaTypes = ["banner"]
     fn child_build_fails_with_ipv6_keep_bits_above_128() {
         let harness = build_defaults_tempdir(
             "privacy_ipv6_out_of_range",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_account_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_account_toml(
                     ACCOUNT_GDPR_BASELINE,
                     "\n[privacy.ipv6]\nanon_keep_bits = 129\n",
                 ),
@@ -2602,7 +2753,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when ipv6.anon_keep_bits exceeds 128, \
@@ -2618,9 +2770,9 @@ mediaTypes = ["banner"]
     fn child_build_fails_with_purpose_key_zero() {
         let harness = build_defaults_tempdir(
             "gdpr_purpose_key_zero",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.purposes.0]\nenforce_algo = \"full\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"enabled\"\n",
@@ -2629,7 +2781,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail on purpose key 0, but it succeeded. \
@@ -2646,9 +2799,9 @@ mediaTypes = ["banner"]
         // Exercises the overflow edge exactly one past the 1..=10 range.
         let harness = build_defaults_tempdir(
             "gdpr_purpose_key_eleven",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.purposes.11]\nenforce_algo = \"full\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"enabled\"\n",
@@ -2657,7 +2810,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail on purpose key 11, but it succeeded. \
@@ -2673,9 +2827,9 @@ mediaTypes = ["banner"]
     fn child_build_fails_with_special_feature_key_zero() {
         let harness = build_defaults_tempdir(
             "gdpr_sf_key_zero",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.special_features.0]\nenforce = \"enabled\"\n",
                 ),
@@ -2683,7 +2837,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail on special-feature key 0, but it \
@@ -2701,9 +2856,9 @@ mediaTypes = ["banner"]
         // host one.
         let harness = build_defaults_tempdir(
             "gdpr_account_sf_key_thirteen",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_account_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_account_toml(
                     ACCOUNT_GDPR_BASELINE,
                     "\n[gdpr.special_features.13]\nenforce = \"enabled\"\n",
                 ),
@@ -2711,7 +2866,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail on account special-feature key 13, \
@@ -2730,9 +2886,9 @@ mediaTypes = ["banner"]
         // silently select a default.
         let harness = build_defaults_tempdir(
             "gdpr_misspelled_key",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     HOST_GDPR_BASELINE,
                     "\n[gdpr.tcf2.purposes.1]\nenforce_algo = \"full\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"enabled\"\n\
@@ -2742,7 +2898,8 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail on a misspelled privacy key, but it \
@@ -2755,7 +2912,7 @@ mediaTypes = ["banner"]
         );
     }
 
-    /// Positive control: a VALID `[baked.host]` override differing from
+    /// Positive control: a VALID `[host]` override differing from
     /// the baked one must be honored — proving the env var is actually
     /// read, not silently ignored (mirrors the bidder-dir positive
     /// control). The populated purpose also proves non-empty tcf2 maps
@@ -2765,9 +2922,9 @@ mediaTypes = ["banner"]
     fn child_build_succeeds_with_host_defaults_override_honored() {
         let harness = build_defaults_tempdir(
             "host_defaults_override_ok",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_host_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_host_toml(
                     "enabled = true\ndefault_value = \"1\"\nhost_vendor_id = 12",
                     "\n[gdpr.tcf2.purposes.5]\nenforce_algo = \"basic\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"enabled\"\n",
@@ -2776,10 +2933,11 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             status.success(),
-            "child cargo build with a valid `[baked.host]` override should \
+            "child cargo build with a valid `[host]` override should \
              succeed, but it failed. stderr:\n{stderr}"
         );
         let generated = read_generated_config(&harness).unwrap();
@@ -2805,9 +2963,9 @@ mediaTypes = ["banner"]
     fn child_build_succeeds_with_account_defaults_override_honored() {
         let harness = build_defaults_tempdir(
             "account_defaults_override_ok",
-            "auctioneer.toml",
-            &config_source_toml(
-                &baked_account_toml(
+            "product-defaults.toml",
+            &product_data_toml(
+                &product_account_toml(
                     ACCOUNT_GDPR_BASELINE,
                     "\n[gdpr.purposes.2]\nenforce_algo = \"basic\"\n\
                  enforce_purpose = \"enabled\"\nenforce_vendors = \"unset\"\n\
@@ -2817,10 +2975,11 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             status.success(),
-            "child cargo build with a valid `[baked.account]` override should \
+            "child cargo build with a valid `[account]` override should \
              succeed, but it failed. stderr:\n{stderr}"
         );
         let generated = read_generated_config(&harness).unwrap();
@@ -2849,7 +3008,6 @@ mediaTypes = ["banner"]
         for variable in [
             "AUCTIONEER__BIDDERS__DIR",
             "AUCTIONEER__GVL__ARCHIVE__DIR",
-            "AUCTIONEER__RUNTIME_BOOTSTRAP__PATH_OVERRIDE",
             "AUCTIONEER__DISCLOSURE__DIR",
         ] {
             assert!(
@@ -2861,7 +3019,7 @@ mediaTypes = ["banner"]
         }
         assert!(command.get_envs().any(|(key, value)| {
             key == OsStr::new("AUCTIONEER__DEFAULTS__PATH_OVERRIDE")
-                && value == Some(harness.fixture("auctioneer.toml").as_os_str())
+                && value == Some(harness.fixture("product-defaults.toml").as_os_str())
         }));
         assert!(!command.get_args().any(|arg| arg == OsStr::new("--offline")));
         assert!(
@@ -2876,12 +3034,12 @@ mediaTypes = ["banner"]
         use serde_json::json;
 
         let baseline: toml::Value =
-            toml::from_str(&config_source_toml(&host_baseline(), &account_baseline()))
+            toml::from_str(&product_data_toml(&host_baseline(), &account_baseline()))
                 .expect("valid baseline");
         let mut source = serde_json::to_value(baseline).expect("baseline as JSON");
-        source["baked"]["host"]["ccpa"] = json!({"enforce": true});
-        source["baked"]["host"]["lmt"] = json!({"enforce": true});
-        source["baked"]["account"]["ccpa"] = json!({
+        source["host"]["ccpa"] = json!({"enforce": true});
+        source["host"]["lmt"] = json!({"enforce": true});
+        source["account"]["ccpa"] = json!({
             "enabled": "enabled", "channel_enabled": {
                 "web": "enabled", "app": "disabled", "amp": "unset",
                 "video": "disabled", "dooh": "enabled"
@@ -2914,10 +3072,10 @@ mediaTypes = ["banner"]
             }
             activities[activity] = config;
         }
-        source["baked"]["account"]["privacy"]["allowactivities"] = activities;
+        source["account"]["privacy"]["allowactivities"] = activities;
         let harness = build_defaults_tempdir(
             "privacy_config",
-            "auctioneer.toml",
+            "product-defaults.toml",
             &toml::to_string(&source).expect("serialize the shared fixture"),
         );
         let (status, output) = cargo_test_privacy_config_parity(&harness);
@@ -2925,126 +3083,139 @@ mediaTypes = ["banner"]
             status.success(),
             "generated privacy values must match runtime resolution: {output}"
         );
-        assert!(
-            output.contains("test result: ok. 1 passed"),
-            "child probe must actually execute, not silently match zero tests: {output}"
-        );
+        for expected in [
+            "running 1 test",
+            "test tests::emitted_baked_config_matches_runtime_fixture ... ok",
+        ] {
+            assert_eq!(
+                output.lines().filter(|line| *line == expected).count(),
+                1,
+                "{output}"
+            );
+        }
+        let summaries = output
+            .lines()
+            .filter(|line| line.starts_with("test result:"))
+            .collect::<Vec<_>>();
+        assert_eq!(summaries.len(), 1, "{output}");
+        assert!(summaries[0].starts_with("test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in "), "{output}");
     }
 
-    // ---- combined-root strictness (auctioneer.toml) -----------------------
+    // ---- product-data strictness ------------------------------------------
 
     #[test]
     fn build_rejects_unknown_root_key() {
-        // Strict SUBTREE parsing cannot catch this: a `[runtim]` typo
-        // is simply a table nobody reads, and the operator's intended
-        // `[runtime]` content silently never ships. Only
-        // `deny_unknown_fields` on the ROOT closes it.
-        let harness = build_defaults_tempdir(
-            "root_unknown_key",
-            "auctioneer.toml",
-            &format!(
-                "{host}\n{account}\n[runtim]\n[runtime]\n",
-                host = host_baseline(),
-                account = account_baseline(),
-            ),
-        );
+        // Product data must not acquire an operator/runtime namespace.
+        for namespace in ["runtim", "runtime", "baked"] {
+            let harness = build_defaults_tempdir(
+                "root_unknown_key",
+                "product-defaults.toml",
+                &format!(
+                    "{host}\n{account}\n[{namespace}]\n",
+                    host = host_baseline(),
+                    account = account_baseline(),
+                ),
+            );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
-        assert!(
-            !status.success(),
-            "child cargo build should fail on an unknown ROOT namespace, but it \
-             succeeded. stderr:\n{stderr}"
-        );
-        assert!(
-            stderr.contains("unknown field") && stderr.contains("runtim"),
-            "stderr should name the unknown root key. Got:\n{stderr}"
-        );
+            let (status, stderr) =
+                cargo_build_with_defaults_override(&harness, "product-defaults.toml");
+            assert!(
+                !status.success(),
+                "child cargo build should fail on an unknown ROOT namespace, but it \
+                 succeeded. stderr:\n{stderr}"
+            );
+            assert!(
+                stderr.contains("unknown field") && stderr.contains(namespace),
+                "stderr should name the unknown root key. Got:\n{stderr}"
+            );
+        }
     }
 
     #[test]
-    fn build_rejects_unknown_baked_namespace() {
+    fn build_rejects_unknown_product_namespace() {
         let harness = build_defaults_tempdir(
-            "baked_unknown_namespace",
-            "auctioneer.toml",
+            "product_unknown_namespace",
+            "product-defaults.toml",
             &format!(
-                "{source}\n[baked.other]\nx = 1\n",
-                source = config_source_toml(&host_baseline(), &account_baseline()),
+                "{source}\n[other]\nx = 1\n",
+                source = product_data_toml(&host_baseline(), &account_baseline()),
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
-            "child cargo build should fail on a stray `[baked.*]` namespace, but \
+            "child cargo build should fail on a stray product namespace, but \
              it succeeded. stderr:\n{stderr}"
         );
         assert!(
             stderr.contains("unknown field") && stderr.contains("other"),
-            "stderr should name the unknown baked namespace. Got:\n{stderr}"
+            "stderr should name the unknown product namespace. Got:\n{stderr}"
         );
     }
 
     #[test]
-    fn build_rejects_missing_runtime() {
-        // `[runtime]` is REQUIRED, not `#[serde(default)]`. A document
-        // that lost it would push an empty overlay without saying so.
+    fn build_rejects_missing_product_host() {
         let harness = build_defaults_tempdir(
-            "root_missing_runtime",
-            "auctioneer.toml",
-            &format!(
-                "{host}\n{account}\n",
-                host = host_baseline(),
-                account = account_baseline(),
-            ),
+            "product_missing_host",
+            "product-defaults.toml",
+            &account_baseline(),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
-            "child cargo build should fail when `[runtime]` is absent, but it \
+            "child cargo build should fail when product `[host]` is absent, but it \
              succeeded. stderr:\n{stderr}"
         );
         assert!(
-            stderr.contains("missing field") && stderr.contains("runtime"),
-            "stderr should name the missing `runtime` namespace. Got:\n{stderr}"
+            stderr.contains("missing field") && stderr.contains("host"),
+            "stderr should name the missing `host` namespace. Got:\n{stderr}"
         );
     }
 
     #[test]
-    fn build_rejects_missing_baked() {
-        let harness =
-            build_defaults_tempdir("root_missing_baked", "auctioneer.toml", "[runtime]\n");
+    fn build_rejects_missing_product_account() {
+        let harness = build_defaults_tempdir(
+            "product_missing_account",
+            "product-defaults.toml",
+            &host_baseline(),
+        );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
-            "child cargo build should fail when `[baked]` is absent, but it \
+            "child cargo build should fail when product `[account]` is absent, but it \
              succeeded. stderr:\n{stderr}"
         );
         assert!(
-            stderr.contains("missing field") && stderr.contains("baked"),
-            "stderr should name the missing `baked` namespace. Got:\n{stderr}"
+            stderr.contains("missing field") && stderr.contains("account"),
+            "stderr should name the missing `account` namespace. Got:\n{stderr}"
         );
     }
 
     #[test]
     fn build_rejects_unknown_key_in_baked_host() {
         // Each namespace keeps `deny_unknown_fields` independently:
-        // a top-level typo under `[baked.host]` is a build failure,
+        // a top-level typo under `[host]` is a build failure,
         // not a silently-defaulted host config.
         let harness = build_defaults_tempdir(
             "baked_host_unknown_key",
-            "auctioneer.toml",
-            &config_source_toml(
+            "product-defaults.toml",
+            &product_data_toml(
                 &format!("{host}\nstatsu_response = \"\"\n", host = host_baseline()),
                 &account_baseline(),
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
-            "child cargo build should fail on an unknown `[baked.host]` key, but \
+            "child cargo build should fail on an unknown `[host]` key, but \
              it succeeded. stderr:\n{stderr}"
         );
         assert!(
@@ -3057,8 +3228,8 @@ mediaTypes = ["banner"]
     fn build_rejects_unknown_key_in_baked_account() {
         let harness = build_defaults_tempdir(
             "baked_account_unknown_key",
-            "auctioneer.toml",
-            &config_source_toml(
+            "product-defaults.toml",
+            &product_data_toml(
                 &host_baseline(),
                 &format!(
                     "{account}\ndebug_alow = false\n",
@@ -3067,10 +3238,11 @@ mediaTypes = ["banner"]
             ),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
-            "child cargo build should fail on an unknown `[baked.account]` key, \
+            "child cargo build should fail on an unknown `[account]` key, \
              but it succeeded. stderr:\n{stderr}"
         );
         assert!(
@@ -3087,11 +3259,12 @@ mediaTypes = ["banner"]
         let stripped = host_baseline().replace("cookie_name = \"auctioneer_uid\"\n", "");
         let harness = build_defaults_tempdir(
             "missing_required_default",
-            "auctioneer.toml",
-            &config_source_toml(&stripped, &account_baseline()),
+            "product-defaults.toml",
+            &product_data_toml(&stripped, &account_baseline()),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "child cargo build should fail when a required baked key is absent, \
@@ -3113,24 +3286,16 @@ mediaTypes = ["banner"]
     #[test]
     fn build_rejects_unknown_key_in_each_nested_baked_table() {
         for (label, table, typo) in [
-            (
-                "ccpa",
-                "[baked.host.ccpa]\nenforce = false\n",
-                "enfroce = true",
-            ),
-            (
-                "lmt",
-                "[baked.host.lmt]\nenforce = false\n",
-                "enfroce = true",
-            ),
+            ("ccpa", "[host.ccpa]\nenforce = false\n", "enfroce = true"),
+            ("lmt", "[host.lmt]\nenforce = false\n", "enfroce = true"),
             (
                 "host_cookie",
-                "[baked.host.host_cookie]\ncookie_name = \"auctioneer_uid\"\nfamily = \"auctioneer\"\nttl_days = 90\n",
+                "[host.host_cookie]\ncookie_name = \"auctioneer_uid\"\nfamily = \"auctioneer\"\nttl_days = 90\n",
                 "ttl_dyas = 30",
             ),
             (
                 "user_sync",
-                "[baked.host.user_sync]\nexternal_url = \"https://sync.example.test\"\n",
+                "[host.user_sync]\nexternal_url = \"https://sync.example.test\"\n",
                 "external_urll = \"https://other.example.test\"",
             ),
             (
@@ -3148,15 +3313,16 @@ mediaTypes = ["banner"]
             );
             let harness = build_defaults_tempdir(
                 &format!("nested_unknown_{label}"),
-                "auctioneer.toml",
-                &config_source_toml(&planted, &account_baseline()),
+                "product-defaults.toml",
+                &product_data_toml(&planted, &account_baseline()),
             );
 
-            let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+            let (status, stderr) =
+                cargo_build_with_defaults_override(&harness, "product-defaults.toml");
             assert!(
                 !status.success(),
                 "child cargo build should fail on a misspelled key inside \
-                 `[baked.host.{label}]`, but it succeeded. stderr:\n{stderr}"
+                 `[host.{label}]`, but it succeeded. stderr:\n{stderr}"
             );
             let misspelling = typo.split(' ').next().expect("the typo names a key");
             assert!(
@@ -3304,11 +3470,12 @@ userMacro = "bad&uid"
         );
         let harness = build_defaults_tempdir(
             "sync_priority_overflow",
-            "auctioneer.toml",
-            &config_source_toml(&host, &account_baseline()),
+            "product-defaults.toml",
+            &product_data_toml(&host, &account_baseline()),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "33 priority groups should fail: {stderr}"
@@ -3333,11 +3500,12 @@ userMacro = "bad&uid"
         );
         let harness = build_defaults_tempdir(
             "sync_allowed_origins_overflow",
-            "auctioneer.toml",
-            &config_source_toml(&host, &account_baseline()),
+            "product-defaults.toml",
+            &product_data_toml(&host, &account_baseline()),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             !status.success(),
             "257 allowed origins should fail: {stderr}"
@@ -3371,7 +3539,7 @@ userMacro = "bad&uid"
                 baseline.replace(
                     "ttl_days = 90\n",
                     &format!(
-                        "ttl_days = 90\n[baked.host.host_cookie.optout_cookie]\nname = \"{overlong}\"\nvalue = \"1\"\n"
+                        "ttl_days = 90\n[host.host_cookie.optout_cookie]\nname = \"{overlong}\"\nvalue = \"1\"\n"
                     ),
                 ),
                 "host_cookie.optout_cookie",
@@ -3380,11 +3548,11 @@ userMacro = "bad&uid"
             assert_ne!(host, baseline, "{label} fixture planted nothing");
             let harness = build_defaults_tempdir(
                 &format!("sync_overlong_{label}"),
-                "auctioneer.toml",
-                &config_source_toml(&host, &account_baseline()),
+                "product-defaults.toml",
+                &product_data_toml(&host, &account_baseline()),
             );
 
-            let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+            let (status, stderr) = cargo_build_with_defaults_override(&harness, "product-defaults.toml");
             assert!(!status.success(), "overlong {label} should fail: {stderr}");
             assert!(stderr.contains(diagnostic), "{label}: {stderr}");
         }
@@ -3725,7 +3893,7 @@ userMacro = "bad&uid"
             let harness = harness_dirs_in("sync_catalog_metadata", &pool);
             write_catalog_bidders(&harness, bidders).unwrap();
             assert_eq!(fs::read_dir(&harness.fixture_dir).unwrap().count(), 1);
-            let valid_defaults = config_source_toml(&host_baseline(), &account_baseline());
+            let valid_defaults = product_data_toml(&host_baseline(), &account_baseline());
             let defaults = if malformed_defaults {
                 format!("metadata_owner_sentinel = true\n{valid_defaults}")
             } else {
@@ -3780,10 +3948,10 @@ userMacro = "bad&uid"
                 .map(|index| format!("fake_hostalias{index:03} = \"fake_catalog000\""))
                 .collect::<Vec<_>>()
                 .join("\n");
-            let host = baked_host_toml(HOST_GDPR_BASELINE, &format!("\n[aliases]\n{aliases}\n"));
-            let defaults = config_source_toml(&host, &account_baseline());
+            let host = product_host_toml(HOST_GDPR_BASELINE, &format!("\n[aliases]\n{aliases}\n"));
+            let defaults = product_data_toml(&host, &account_baseline());
             let parsed: toml::Value = toml::from_str(&defaults).unwrap();
-            let alias_count = parsed["baked"]["host"]["aliases"].as_table().unwrap().len();
+            let alias_count = parsed["host"]["aliases"].as_table().unwrap().len();
             assert_eq!(alias_count, 64);
             assert_eq!(bidders + alias_count, total);
             fs::write(harness.fixture("defaults.fixture"), defaults).unwrap();
@@ -3846,20 +4014,21 @@ userMacro = "bad&uid"
             .replace(
                 "external_url = \"https://sync.example.test\"\n",
                 "external_url = \"https://sync.example.test\"\npriority_groups = []\n\
-                 [baked.host.user_sync.cooperative]\nenabled_by_default = false\n",
+                 [host.user_sync.cooperative]\nenabled_by_default = false\n",
             );
         let account_source = format!(
-            "{}\n[baked.account.cookie_sync]\ndefault_limit = 0\nmax_limit = 0\n\
+            "{}\n[account.cookie_sync]\ndefault_limit = 0\nmax_limit = 0\n\
              default_coop_sync = false\npriority_groups = []\n",
             account_baseline()
         );
         let harness = build_defaults_tempdir(
             "sync_explicit_empty_defaults",
-            "auctioneer.toml",
-            &config_source_toml(&host_source, &account_source),
+            "product-defaults.toml",
+            &product_data_toml(&host_source, &account_source),
         );
 
-        let (status, stderr) = cargo_build_with_defaults_override(&harness, "auctioneer.toml");
+        let (status, stderr) =
+            cargo_build_with_defaults_override(&harness, "product-defaults.toml");
         assert!(
             status.success(),
             "explicit zero/false/empty should build: {stderr}"

@@ -26,7 +26,7 @@ insecure-bidders = [
 # env-var overrides in
 # addition to AUCTIONEER__DISCLOSURE__DIR for independent disclosure fixtures in
 # build.rs. Used ONLY by tests/build_failure_harness.rs to point codegen
-# at per-test fixtures. Production / default builds MUST NOT enable
+# at per-test product-data {host, account} fixtures. Production / default builds MUST NOT enable
 # this — without it the build script ignores the env vars and reads
 # only the committed bidder and data source trees, preserving the
 # build-time-fixed outbound-host guarantee.

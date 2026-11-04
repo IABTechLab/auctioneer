@@ -7,8 +7,6 @@
 #[cfg(feature = "application")]
 mod application;
 mod bidders;
-#[cfg(feature = "application")]
-mod config_source;
 mod maintenance;
 #[cfg(feature = "application")]
 mod qualification;

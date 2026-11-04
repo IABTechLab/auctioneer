@@ -23,6 +23,7 @@ mod tests {
     use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::handlers::status::status;
     use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
+    use auctioneer_core::test_support::config_store as funded_config;
     use auctioneer_runtime::budget::{
         ASSEMBLY_FACTOR, derive_aux_work_for_profile, min_aux_route_peak_bytes,
     };
@@ -38,7 +39,6 @@ mod tests {
     };
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::{Response, StatusCode, request_builder};
-    use edgezero_core::params::PathParams;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
     use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::channel::oneshot;
@@ -213,7 +213,7 @@ mod tests {
             },
         );
         request.extensions_mut().insert(registry);
-        RequestContext::new(request, PathParams::default())
+        funded_config::context(request)
     }
 
     fn poll<F: Future>(future: Pin<&mut F>) -> Poll<F::Output> {
@@ -315,7 +315,7 @@ mod tests {
             .uri("/status")
             .body(Body::empty())
             .unwrap();
-        let source = format!("[status]\nbanner = {banner:?}\n");
+        let source = format!("schema_version = 1\n[host]\nstatus_response = {banner:?}\n");
         block_on(status(ctx_with_config(&source, request))).unwrap()
     }
 

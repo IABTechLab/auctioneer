@@ -22,26 +22,17 @@ pub fn resolve_budgets(
     registry: &BidderRegistry,
     aliases: &ResolvedAliases,
 ) -> ResolvedBudgets {
-    let host = resolve_host_budgets(&app.auction, baked);
-    let account = match account_source {
-        AccountSource::Configured => app.accounts.get(account_id),
-        AccountSource::DefaultFallback | AccountSource::Provided => None,
+    let selection = match account_source {
+        AccountSource::Configured => AccountSelection::from_requested(Some(account_id)),
+        AccountSource::DefaultFallback | AccountSource::Provided => AccountSelection::Default,
     };
-    let defaults = BidderBudgets {
-        max_transport_bytes: account
-            .and_then(|row| row.max_transport_bytes)
-            .unwrap_or(host.max_transport_bytes),
-        max_decoded_bytes: account
-            .and_then(|row| row.max_decoded_bytes)
-            .unwrap_or(host.max_decoded_bytes),
-    };
-    resolve_bidder_budgets(&app.bidders, defaults, registry, aliases)
+    resolve_policy_budgets(app, baked, &selection, registry, aliases)
 }
 
 /// Compose requested caps per field: observable bidder, alias base, named
 /// account, deployment account defaults, runtime host, then product host.
 ///
-/// Default selection never looks up a synthesized account identity. This staged
+/// Default selection never looks up a synthesized account identity. This
 /// resolver does not validate policy, consult boot state or clamp to capacity;
 /// exchange lookup retains installed minima and clamp-warning ownership.
 #[must_use]
@@ -142,7 +133,7 @@ mod tests {
         use auctioneer_config_data::types::AccountConfig;
 
         let app: AuctioneerAppConfig = toml::from_str(
-            "[accounts.unknown]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n",
+            "schema_version = 1\n[accounts.unknown]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n",
         )
         .unwrap();
         let publisherless = serde_json::json!({"site": {}});
@@ -189,11 +180,10 @@ mod tests {
 
     use super::{AccountSource, resolve_budgets, resolve_policy_budgets};
     use crate::bidder_fixture::registry;
-    use crate::config::{
-        AccountOverride, AuctioneerAppConfig, policy::OperatorPolicy, resolve::AccountSelection,
-    };
+    use crate::config::{AuctioneerAppConfig, policy::OperatorPolicy, resolve::AccountSelection};
     use crate::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_bidder::BidderName;
+    use auctioneer_config::policy::AccountPolicy;
     use auctioneer_config_data::types::HostConfig;
     use auctioneer_exchange::{
         AliasMap, BidderBudgets, BootEnvelope, ResolvedAliases, resolve_budget,
@@ -562,9 +552,9 @@ mod tests {
                         "bidders": {"fake_aaa": {}, "fake_alias": {}}
                     });
                     document.pointer_mut(scope).expect("cap scope")[field] = json!(cap);
-                    // AccountPolicy admission is staged; the existing account
-                    // leaf validator still owns the unchanged response-cap range.
-                    let account_leaf: AccountOverride =
+                    // The shared account leaf retains the response-cap range
+                    // independently of which policy scope requested the cap.
+                    let account_leaf: AccountPolicy =
                         serde_json::from_value(document.pointer(scope).expect("cap leaf").clone())
                             .expect("same typed response-cap leaf");
                     assert!(account_leaf.validate().is_err());
@@ -623,17 +613,17 @@ mod tests {
         baked.resource_limits.max_transport_bytes = 0x8000;
         baked.resource_limits.max_decoded_bytes = 0xC000;
         let stages = [
-            ("", (0x8000, 0xC000)),
+            ("schema_version = 1\n", (0x8000, 0xC000)),
             (
-                "[auction]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n",
+                "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n",
                 (0x2000, 0x4000),
             ),
             (
-                "[auction]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.publisher]\nmax_transport_bytes = 24576\n",
+                "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.publisher]\nmax_transport_bytes = 24576\n",
                 (0x6000, 0x4000),
             ),
             (
-                "[auction]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.publisher]\nmax_transport_bytes = 24576\n[bidders.fake_aaa]\nmax_decoded_bytes = 32768\n",
+                "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.publisher]\nmax_transport_bytes = 24576\n[bidders.fake_aaa]\nmax_decoded_bytes = 32768\n",
                 (0x6000, 0x8000),
             ),
         ];
@@ -668,7 +658,7 @@ mod tests {
             ),
         ] {
             let app: AuctioneerAppConfig = toml::from_str(&format!(
-                "[bidders.fake_aaa]\nmax_transport_bytes = 16384\nmax_decoded_bytes = 32768\n[bidders.fake_alias]\n{own}\n"
+                "schema_version = 1\n[bidders.fake_aaa]\nmax_transport_bytes = 16384\nmax_decoded_bytes = 32768\n[bidders.fake_alias]\n{own}\n"
             )).unwrap();
             let budgets = resolve_budgets(
                 &app,
@@ -696,7 +686,7 @@ mod tests {
     #[test]
     fn selected_account_and_each_bidder_keep_distinct_caps() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[accounts.publisher]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.other]\nmax_transport_bytes = 1024\n[bidders.fake_aaa]\nmax_decoded_bytes = 32768\n[bidders.fake_pp]\nmax_transport_bytes = 4096\n"
+            "schema_version = 1\n[accounts.publisher]\nmax_transport_bytes = 8192\nmax_decoded_bytes = 16384\n[accounts.other]\nmax_transport_bytes = 1024\n[bidders.fake_aaa]\nmax_decoded_bytes = 32768\n[bidders.fake_pp]\nmax_transport_bytes = 4096\n"
         ).unwrap();
         let budgets = resolve_budgets(
             &app,
@@ -746,7 +736,7 @@ mod tests {
         use auctioneer_openrtb::WarningCode;
 
         let app: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n[accounts.publisher]\nmax_transport_bytes = 32768\n[bidders.fake_aaa]\nmax_decoded_bytes = 65536\n"
+            "schema_version = 1\n[host.resource_limits]\nmax_transport_bytes = 1024\nmax_decoded_bytes = 2048\n[accounts.publisher]\nmax_transport_bytes = 32768\n[bidders.fake_aaa]\nmax_decoded_bytes = 65536\n"
         ).unwrap();
         let budgets = resolve_budgets(
             &app,
@@ -786,7 +776,7 @@ mod tests {
         baked.resource_limits.max_transport_bytes = 0x8000;
         baked.resource_limits.max_decoded_bytes = 0xC000;
         let app: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_bidder_response_bytes = 8192\nmax_decoded_bytes = 16384\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_bidder_response_bytes = 8192\nmax_decoded_bytes = 16384\n",
         )
         .unwrap();
         let budgets = resolve_budgets(

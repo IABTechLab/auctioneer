@@ -178,7 +178,7 @@ mod tests {
         let roles = handler_roles();
         if name == "gdpr_applies.toml" {
             let mut config: toml::Value = toml::from_str(&fixture(name)).unwrap();
-            let aliases = config["aliases"].as_table_mut().unwrap();
+            let aliases = config["host"]["aliases"].as_table_mut().unwrap();
             assert_eq!(aliases.len(), roles.len());
             for (role, row) in &roles {
                 let base = aliases.get_mut(*role).unwrap();
@@ -705,6 +705,7 @@ mod tests {
         let mut app: AuctioneerAppConfig =
             toml::from_str(&fixture("gdpr_section2_geo_scrub.toml")).expect("fixture TOML parses");
         let tcf2 = app
+            .host
             .gdpr
             .as_mut()
             .expect("fixture enables GDPR")

@@ -12,16 +12,15 @@
 //! literals.
 use auctioneer_config::{build_catalog, build_disclosure as disclosure, codegen};
 
-use auctioneer_config::AuctioneerConfigSource;
 use auctioneer_gvl_schema::{Manifest, ManifestEntry, validate_gvl_json, validate_manifest};
 use codegen::build_support::{
     EndpointAuthorityKind, ValidationResult, classify_endpoint_authority, validate_endpoint_url,
     validate_syncer_template,
 };
 use codegen::{
-    AccountRaw, BidderInfoRaw, BuildResult, HostDefaultRaw, RuntimeBootstrapRaw,
-    account_default_type_imports, host_default_type_imports, render_account_config,
-    render_bidder_info, render_bidder_type_imports, render_host_config,
+    AccountRaw, BidderInfoRaw, BuildResult, HostDefaultRaw, account_default_type_imports,
+    host_default_type_imports, render_account_config, render_bidder_info,
+    render_bidder_type_imports, render_host_config,
 };
 use fs2::FileExt as _;
 use proc_macro2::TokenStream;
@@ -47,18 +46,8 @@ fn main() -> BuildResult {
     // rows against exactly that list rather than re-reading manifests —
     // a second read could disagree under the `insecure-bidders` feature.
     let bidder_names = emit_bidders(&mut out)?;
-    let (source_path, source) = read_config_source()?;
-    let host_type_imports =
-        emit_host_default(&mut out, &source_path, &source.baked.host, &bidder_names)?;
-    emit_account_default(
-        &mut out,
-        &source_path,
-        &source.baked.account,
-        &host_type_imports,
-    )?;
-    emit_product_defaults(&mut out)?;
+    emit_product_defaults(&mut out, &bidder_names)?;
     emit_eea_set(&mut out)?;
-    emit_runtime_bootstrap(&mut out)?;
     emit_disclosure(&out_dir)?;
 
     fs::write(&out_path, out.to_string())?;
@@ -69,7 +58,7 @@ fn main() -> BuildResult {
     Ok(())
 }
 
-fn emit_product_defaults(out: &mut TokenStream) -> BuildResult {
+fn emit_product_defaults(out: &mut TokenStream, bidder_names: &[String]) -> BuildResult {
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
     struct ProductDefaults {
@@ -77,30 +66,37 @@ fn emit_product_defaults(out: &mut TokenStream) -> BuildResult {
         account: AccountRaw,
     }
 
-    let path = "data/product-defaults.toml";
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let committed = format!("{manifest_dir}/data/product-defaults.toml");
+    let harness_enabled = env::var_os("CARGO_FEATURE_TEST_HARNESS_OVERRIDE").is_some();
+    let path = if harness_enabled {
+        println!("cargo:rerun-if-env-changed=AUCTIONEER__DEFAULTS__PATH_OVERRIDE");
+        env::var("AUCTIONEER__DEFAULTS__PATH_OVERRIDE").unwrap_or(committed)
+    } else {
+        committed
+    };
     println!("cargo:rerun-if-changed={path}");
-    let source: ProductDefaults = toml::from_str(&fs::read_to_string(path)?)?;
-    if source.host.user_sync.is_some()
-        || !source.host.aliases.is_empty()
-        || source.host.gdpr.host_vendor_id != 0
-        || !source.host.gdpr.non_standard_publishers.is_empty()
-        || source.host.host_cookie.domain.is_some()
-        || source.host.host_cookie.optout_cookie.is_some()
-        || !source.host.status_response.is_empty()
+    let raw = fs::read_to_string(&path).map_err(|err| format!("read {path}: {err}"))?;
+    let source: ProductDefaults =
+        toml::from_str(&raw).map_err(|err| format!("parse {path}: {err}"))?;
+    // Explicit harness fixtures exercise non-neutral renderer/privacy branches.
+    // Production never reads their redirect and must ship no operator service.
+    if !harness_enabled
+        && (source.host.user_sync.is_some()
+            || !source.host.aliases.is_empty()
+            || source.host.gdpr.host_vendor_id != 0
+            || !source.host.gdpr.non_standard_publishers.is_empty()
+            || source.host.host_cookie.domain.is_some()
+            || source.host.host_cookie.optout_cookie.is_some()
+            || !source.host.status_response.is_empty())
     {
         return Err("product defaults must not configure operator identities or services".into());
     }
-    let mut defaults = TokenStream::new();
-    let imports = emit_host_default(&mut defaults, path, &source.host, &[])?;
-    emit_account_default(&mut defaults, path, &source.account, &imports)?;
+    let imports = emit_host_default(out, &path, &source.host, bidder_names)?;
+    emit_account_default(out, &path, &source.account, &imports)?;
     out.extend(quote! {
-        mod product_defaults {
-            use std::sync::OnceLock;
-            #defaults
-        }
-        pub use product_defaults::{
-            account_default as product_account_default,
-            host_default as product_host_default,
+        pub use self::{
+            account_default as product_account_default, host_default as product_host_default,
         };
     });
     Ok(())
@@ -703,81 +699,12 @@ fn validate_host_allowlist_entry(name: &str, entry: &str, allow_insecure: bool) 
     Ok(())
 }
 
-/// Resolve the on-disk path of a baked defaults TOML under the crate's
-/// own `data/` directory. Overridable via the given env var ONLY under
-/// the `test-harness-override` feature so
-/// `tests/build_failure_harness.rs` can point codegen at a per-test
-/// fixture without mutating the checked-out source tree; production /
-/// default builds always read the committed `data/` file. The default
-/// is anchored to the compile-time `CARGO_MANIFEST_DIR` (it is NOT a
-/// pre-existing `build.rs` local) so the path is unambiguous
-/// regardless of the build script's CWD.
-fn resolve_defaults_path(override_var: &str, file_name: &str) -> String {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    // Emit rerun-if-env-changed so a changed override path actually
-    // re-triggers codegen instead of serving a stale cached build.
-    println!("cargo:rerun-if-env-changed={override_var}");
-    if env::var("CARGO_FEATURE_TEST_HARNESS_OVERRIDE").is_ok() {
-        env::var(override_var).unwrap_or_else(|_| format!("{manifest_dir}/data/{file_name}"))
-    } else {
-        format!("{manifest_dir}/data/{file_name}")
-    }
-}
-
-/// `auctioneer.toml` as the BUILD sees it: both baked tables fully strict,
-/// `[runtime]` opaque. `auctioneer-cli` instantiates the same root the
-/// mirror way — baked opaque, `[runtime]` typed as `AuctioneerAppConfig`.
-type BakedConfigSource = AuctioneerConfigSource<HostDefaultRaw, AccountRaw, toml::Value>;
-
-/// Resolve the on-disk path of `auctioneer.toml` — the ONE source document
-/// an operator edits, carrying `[baked.host]`, `[baked.account]` and
-/// `[runtime]`.
-///
-/// It lives at the REPO ROOT, two levels up from this crate's manifest
-/// directory, not under `data/`: `[runtime]` is what `auctioneer-cli
-/// config push` reads, so the file has to be where an operator expects
-/// it. Same override rule as the `data/` helper above — the env var is
-/// honoured only under `test-harness-override`.
-fn resolve_config_source_path() -> String {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    println!("cargo:rerun-if-env-changed=AUCTIONEER__DEFAULTS__PATH_OVERRIDE");
-    let committed = format!("{manifest_dir}/../../auctioneer.toml");
-    if env::var("CARGO_FEATURE_TEST_HARNESS_OVERRIDE").is_ok() {
-        env::var("AUCTIONEER__DEFAULTS__PATH_OVERRIDE").unwrap_or(committed)
-    } else {
-        committed
-    }
-}
-
-/// Parse `auctioneer.toml` through the STRICT combined root.
-///
-/// Strict subtree parsing alone cannot reject an extra root namespace:
-/// a `[runtim]` typo or a stray `[baked.other]` would simply never be
-/// read, so "every unknown key fails the build" would be false at the
-/// root. `AuctioneerConfigSource` carries `deny_unknown_fields` on both
-/// levels, and it is the SAME type `auctioneer-cli` deserializes through,
-/// so the two consumers cannot drift.
-///
-/// `[runtime]` is parsed as an opaque `toml::Value` here: the build
-/// needs it only to prove the namespace EXISTS. Typing it would mean
-/// `auctioneer-config-data` depending on `auctioneer-core`, which depends on
-/// `auctioneer-config-data`.
-fn read_config_source() -> BuildResult<(String, BakedConfigSource)> {
-    let path = resolve_config_source_path();
-    let raw = fs::read_to_string(&path).map_err(|err| format!("read {path}: {err}"))?;
-    let parsed: BakedConfigSource =
-        toml::from_str(&raw).map_err(|err| format!("parse {path}: {err}"))?;
-    println!("cargo:rerun-if-changed={path}");
-    Ok((path, parsed))
-}
-
 /// Reject invalid baked alias names, ambiguous folded namespaces, and
 /// base bidders absent from this build's registry.
 ///
-/// The baked host defaults are the operator's own committed file, so an
-/// invalid namespace or unresolvable alias must fail before generation.
-/// This also protects requests that use baked defaults without a runtime
-/// config blob; loaded runtime overlays enforce the same namespace rules.
+/// Product defaults carry no aliases. Explicit harness fixtures still exercise
+/// namespace and registry checks before generation; operator policy is resolved
+/// and validated by the runtime owner.
 ///
 /// `bidder_names` is what `emit_bidders` loaded, which is deliberately
 /// build-shape-dependent: definitions requiring `insecure-bidders` are
@@ -890,41 +817,6 @@ fn emit_account_default(
             static CELL: OnceLock<AccountConfig> = OnceLock::new();
             CELL.get_or_init(|| #account_expression)
         }
-    });
-    Ok(())
-}
-
-/// Emits `RUNTIME_BOOTSTRAP` from `data/runtime-bootstrap.toml` — the
-/// deploy-immutable policy the runtime-config loader consults. Read
-/// through the same override helper as the host defaults, so the
-/// harness can bake an alternative file under `test-harness-override`
-/// while an ordinary build always bakes the checked-in one.
-fn emit_runtime_bootstrap(out: &mut TokenStream) -> BuildResult {
-    let path = resolve_defaults_path(
-        "AUCTIONEER__RUNTIME_BOOTSTRAP__PATH_OVERRIDE",
-        "runtime-bootstrap.toml",
-    );
-    let raw = fs::read_to_string(&path).map_err(|err| format!("read {path}: {err}"))?;
-    let parsed: RuntimeBootstrapRaw =
-        toml::from_str(&raw).map_err(|err| format!("parse {path}: {err}"))?;
-    // A zero fetch bound is rejected by the host's own
-    // `ConfigExtractionLimits::validate`, which would turn it into a boot
-    // failure on the adapter. Catching it here makes it a BUILD failure
-    // naming the file instead, so a shipped binary carries a value the
-    // host will accept.
-    if parsed.runtime.max_config_fetch_ms == 0 {
-        return Err(format!("{path}: max_config_fetch_ms must be nonzero").into());
-    }
-    let allow = parsed.runtime.allow_missing_config;
-    let fetch_ms = proc_macro2::Literal::u32_unsuffixed(parsed.runtime.max_config_fetch_ms);
-    out.extend(quote! {
-        use crate::types::RuntimeBootstrap;
-
-        #[doc = "The baked `[runtime]` bootstrap policy (see `data/runtime-bootstrap.toml`)."]
-        pub const RUNTIME_BOOTSTRAP: RuntimeBootstrap = RuntimeBootstrap {
-            allow_missing_config: #allow,
-            max_config_fetch_ms: #fetch_ms,
-        };
     });
     Ok(())
 }
@@ -1209,6 +1101,7 @@ fn emit_gvl_archive(out_dir: &str) -> BuildResult {
     // builds ignore it: only the failure harness enables the
     // `test-harness-override` feature.
     let archive_dir = if env::var("CARGO_FEATURE_TEST_HARNESS_OVERRIDE").is_ok() {
+        println!("cargo:rerun-if-env-changed=AUCTIONEER__GVL__ARCHIVE__DIR");
         env::var("AUCTIONEER__GVL__ARCHIVE__DIR").unwrap_or(default_dir)
     } else {
         default_dir
@@ -1218,7 +1111,6 @@ fn emit_gvl_archive(out_dir: &str) -> BuildResult {
     println!("cargo:rerun-if-changed={lock_path}");
     println!("cargo:rerun-if-changed={manifest_path}");
     println!("cargo:rerun-if-env-changed=AUCTIONEER__GVL__ARCHIVE__MAX_AGE_DAYS");
-    println!("cargo:rerun-if-env-changed=AUCTIONEER__GVL__ARCHIVE__DIR");
     println!("cargo:rerun-if-env-changed=AUCTIONEER__GVL__ARCHIVE__BUNDLE_MAX_RAW_MIB");
     println!("cargo:rerun-if-env-changed=AUCTIONEER__GVL__ARCHIVE__BUNDLE_MAX_COMPRESSED_MIB");
 

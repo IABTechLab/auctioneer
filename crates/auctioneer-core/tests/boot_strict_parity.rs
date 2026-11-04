@@ -20,6 +20,7 @@ use boot_parity_retained as retained;
 mod tests {
     use super::fixture::{CASE_ENV as CHILD_CASE_ENV, CASES, CATALOG};
     use super::{fixture, retained};
+    use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_core::host_primitives::gates::boot_target;
     use auctioneer_core::host_primitives::{
@@ -35,6 +36,7 @@ mod tests {
         MemoryCeilingScope, MemoryEnvelope, MemoryEnvelopeValidation, MemoryResource, PlatformFact,
         PlatformMetadata, PlatformResourceSource,
     };
+    use edgezero_core::{app::App, router::RouterService};
     use serde::{Deserialize, Serialize};
     use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
@@ -57,6 +59,7 @@ mod tests {
         process_id: u32,
         installs: u32,
         retained: Value,
+        captured_extraction: Value,
         warnings: Vec<String>,
     }
 
@@ -88,6 +91,15 @@ mod tests {
             "process_id": 17_u32,
             "installs": 1_u32,
             "retained": {},
+            "captured_extraction": {
+                "max_backend_bytes": 0x0100_0000_u64,
+                "max_blob_bytes": 3571_u64,
+                "max_json_depth": 64_u32,
+                "max_json_nodes": 127_u32,
+                "max_secret_bytes": 0x0010_0000_u64,
+                "max_total_bytes": 0x0100_0000_u64,
+                "timeout_ms": 2_000_u64,
+            },
             "warnings": [],
         });
         let valid =
@@ -122,6 +134,18 @@ mod tests {
                     17,
                 ),
                 Err("child must install exactly once"),
+            );
+        }
+        for field in ["retained", "captured_extraction", "warnings"] {
+            let mut invalid = receipt.clone();
+            assert!(invalid.as_object_mut().unwrap().remove(field).is_some());
+            assert_eq!(
+                verify_child_receipt(
+                    &format!("{RECEIPT_PREFIX}{invalid}\n"),
+                    "default_backend_cap",
+                    17,
+                ),
+                Err("invalid child receipt"),
             );
         }
         for invalid in [
@@ -319,6 +343,7 @@ mod tests {
         installs = installs.checked_add(1).unwrap();
         assert_eq!(raw, original, "boot does not mutate its caller's raw row");
         assert_retained_budget(&expected, &strict, baked);
+        let captured_extraction = capture_extraction(&expected);
         let warnings = assert_warning(&strict, &expected, over);
         println!(
             "case={name} raw_caps=({},{},{}) effective_caps=({},{},{}) baked={baked} total={} over={over}",
@@ -337,10 +362,44 @@ mod tests {
                 process_id: id(),
                 installs,
                 retained: retained_receipt(&raw),
+                captured_extraction,
                 warnings,
             })
             .unwrap()
         );
+    }
+
+    fn capture_extraction(expected: &ResolvedIsolateLimits) -> Value {
+        assert!(
+            boot_gates().is_some(),
+            "capture must follow boot installation"
+        );
+        let mut app = App::new(RouterService::builder().build());
+        configure_app(&mut app).expect("the installed row configures the actual SDK App");
+        let limits = app.config_extraction_limits();
+        assert_eq!(limits.timeout, Duration::from_millis(2_000));
+        let captured = json!({
+            "max_backend_bytes": limits.max_backend_bytes,
+            "max_blob_bytes": limits.max_blob_bytes,
+            "max_json_depth": limits.max_json_depth,
+            "max_json_nodes": limits.max_json_nodes,
+            "max_secret_bytes": limits.max_secret_bytes,
+            "max_total_bytes": limits.max_total_bytes,
+            "timeout_ms": u64::try_from(limits.timeout.as_millis()).unwrap(),
+        });
+        assert_eq!(
+            captured,
+            json!({
+                "max_backend_bytes": expected.max_runtime_config_bytes,
+                "max_blob_bytes": expected.max_runtime_config_blob_bytes,
+                "max_json_depth": 64_u32,
+                "max_json_nodes": expected.max_config_json_nodes,
+                "max_secret_bytes": 0x0010_0000_u64,
+                "max_total_bytes": 0x0100_0000_u64,
+                "timeout_ms": 2_000_u64,
+            })
+        );
+        captured
     }
 
     fn retained_receipt(raw: &ResolvedIsolateLimits) -> Value {

@@ -137,7 +137,7 @@ mod tests {
     fn redirect_browser_round_trip_carries_cookie_and_named_account() {
         let role = live_catalog::redirect();
         let app = TestApp::new(&format!(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n[aliases]\n'{}' = '{}'\n[accounts.publisher]\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n[host.aliases]\n'{}' = '{}'\n[accounts.publisher]\n",
             role.family(),
             role.name()
         ));
@@ -239,7 +239,9 @@ mod tests {
     #[test]
     fn emitted_redirect_callback_round_trips_without_family_alias() {
         let role = live_catalog::redirect();
-        let app = TestApp::new("[accounts.publisher]\n");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[accounts.publisher]\n",
+        );
         let post = app.dispatch(
             Method::POST,
             "/cookie_sync",
@@ -281,7 +283,9 @@ mod tests {
     #[test]
     fn deleting_signed_cookie_expires_matching_scope_before_empty_readback() {
         let role = live_catalog::redirect();
-        let app = TestApp::new("[host_cookie]\ndomain = 'sync.example.com'\n");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[host.host_cookie]\ndomain = 'sync.example.com'\n",
+        );
         let issued = app.dispatch(
             Method::GET,
             &format!("/setuid?bidder={}&uid=delete-me&gdpr=0&f=b", role.name()),
@@ -317,7 +321,9 @@ mod tests {
     #[test]
     fn iframe_append_callback_round_trip_and_unsyncable_identity_is_omitted() {
         let role = live_catalog::iframe();
-        let app = TestApp::new("");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let post = app.dispatch(
             Method::POST,
             "/cookie_sync",
@@ -370,7 +376,9 @@ mod tests {
     #[test]
     fn default_unconfigured_and_literal_unknown_accounts_keep_distinct_provenance() {
         let role = live_catalog::iframe();
-        let app = TestApp::new("[accounts.unknown]\ndisabled = true\n");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[accounts.unknown]\ndisabled = true\n",
+        );
         let default = app.dispatch(
             Method::GET,
             &format!("/setuid?bidder={}&uid=default-user&gdpr=0&f=b", role.name()),

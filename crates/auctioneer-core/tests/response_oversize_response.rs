@@ -683,7 +683,7 @@ mod tests {
         // An EMPTY deployment blob: every cap and endpoint in play here
         // is the baked one, and the row is about a response verdict
         // rather than about configuration.
-        let ctx = ctx_with_config("", request);
+        let ctx = ctx_with_config("schema_version = 1\n", request);
 
         block_on(async {
             let response = auction(ctx).await.expect("the handler answers");

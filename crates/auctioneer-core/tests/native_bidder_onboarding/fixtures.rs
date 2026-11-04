@@ -51,6 +51,7 @@ struct Member {
 
 #[derive(Clone, Deserialize)]
 pub(super) struct FactoryCase {
+    pub name: String,
     pub request: Value,
     pub context: Value,
     pub outbound: Vec<Outbound>,
@@ -712,15 +713,25 @@ pub(super) fn config(flows: &[&Flow]) -> Value {
             bidders.get_mut(flow.name()).unwrap()["settings"] = settings.clone();
         }
     }
-    json!({"gdpr":{"enabled":false}, "features":{"gzip_outbound":true},
-        "auction":{"default_tmax_ms":1_000_i32, "max_tmax_ms":1_000_i32,
-            "max_bidders_per_auction":limits.max_bidders_per_auction,
-            "max_outbound_requests":limits.max_outbound_requests,
-            "max_outbound_raw_bytes":limits.max_outbound_raw_bytes,
-            "max_outbound_request_bytes":limits.max_outbound_request_bytes,
-            "max_transport_bytes":limits.max_transport_bytes,
-            "max_decoded_bytes":limits.max_decoded_bytes,
-            "max_parsed_nodes":limits.max_parsed_nodes}, "bidders":bidders})
+    json!({
+        "schema_version": 1_u64,
+        "host": {
+            "gdpr": {"enabled":false},
+            "resource_limits": {
+                "default_tmax_ms": 1_000_i32,
+                "max_tmax_ms": 1_000_i32,
+                "max_bidders_per_auction": limits.max_bidders_per_auction,
+                "max_outbound_requests": limits.max_outbound_requests,
+                "max_outbound_raw_bytes": limits.max_outbound_raw_bytes,
+                "max_outbound_request_bytes": limits.max_outbound_request_bytes,
+                "max_transport_bytes": limits.max_transport_bytes,
+                "max_decoded_bytes": limits.max_decoded_bytes,
+                "max_parsed_nodes": limits.max_parsed_nodes,
+            },
+        },
+        "features": {"gzip_outbound":true},
+        "bidders": bidders,
+    })
 }
 
 pub(super) fn limits() -> ResolvedIsolateLimits {

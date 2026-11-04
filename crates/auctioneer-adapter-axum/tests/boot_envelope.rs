@@ -307,7 +307,8 @@ mod tests {
             auctioneer_config_data::account_default(),
         ))
         .unwrap();
-        assert_eq!(baked_bytes, 1_592);
+        // Neutral host (764) + account (680) + tuple delimiters (3).
+        assert_eq!(baked_bytes, 1_447);
         let proof = derive_isolate_budget_with_baked_config(
             installed,
             &target,
@@ -328,14 +329,14 @@ mod tests {
         assert_eq!(gates.derived.aux_term, pure.aux_term);
         assert_eq!(gates.derived.gvl_terms, pure.gvl_terms);
         assert!(gates.aux_work_derived.peak_bytes() <= installed.aux_route_peak_bytes);
-        assert_eq!(gates.aux_work_derived.peak_bytes(), 58_647_552);
+        assert_eq!(gates.aux_work_derived.peak_bytes(), 58_628_992);
         assert_eq!(installed.aux_route_peak_bytes, 0x0800_0000);
         assert_eq!(
             installed
                 .aux_route_peak_bytes
                 .checked_sub(gates.aux_work_derived.peak_bytes())
                 .unwrap(),
-            75_570_176
+            75_588_736
         );
         assert_eq!(gates.derived.total_bytes, independent_total);
         assert!(gates.derived.total_bytes + (256_u64 << 20_u32) <= installed.isolate_total_bytes);

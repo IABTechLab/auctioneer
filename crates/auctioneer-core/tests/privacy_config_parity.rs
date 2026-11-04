@@ -92,10 +92,14 @@ mod tests {
     }
 
     fn runtime_input(value: &Value) -> Value {
-        let mut input = json!({"accounts": {"fake_acct": value["account"]}});
+        let mut input = json!({
+            "schema_version": 1_u64,
+            "host": {},
+            "accounts": {"fake_acct": value["account"]},
+        });
         for key in ["ccpa", "lmt"] {
             if let Some(block) = value.get(key) {
-                input[key] = block.clone();
+                input["host"][key] = block.clone();
             }
         }
         input
@@ -142,8 +146,8 @@ mod tests {
             toml::from_str(&fs::read_to_string(path).expect("read the child build's fixture"))
                 .expect("valid TOML source");
         let source = serde_json::to_value(toml_source).expect("fixture as JSON");
-        let host = &source["baked"]["host"];
-        let account = &source["baked"]["account"];
+        let host = &source["host"];
+        let account = &source["account"];
         let value = json!({
             "ccpa": host["ccpa"], "lmt": host["lmt"],
             "account": {

@@ -1,10 +1,15 @@
 use super::fixtures::{self, Flow};
 use auctioneer_bidder::{
-    BidderHttpRequest, BidderHttpResponse, outbound_meta_bytes, schema::controlled_native_costs,
+    BidderHttpRequest, BidderHttpResponse, ValidatedRegistryPlan, outbound_meta_bytes,
+    schema::controlled_native_costs,
 };
 use auctioneer_config_data::types::{Compression as CfgCompression, MediaType};
 use auctioneer_core::{
     App as CoreApp,
+    config::{
+        AuctioneerAppConfig,
+        validation::{PolicyValidationError, validate_effective_operator_policy},
+    },
     handlers::{TestFanoutHandle, request_disclosure_audit::construction_costs},
     host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, SystemClock, TestClockHandle,
@@ -501,7 +506,34 @@ pub(super) fn send(
     config: &Value,
     secrets: &Arc<Secrets>,
 ) -> Answer {
-    send_mode(app, flows, input, config, secrets, OracleMode::Exact)
+    send_mode(
+        app,
+        flows,
+        input,
+        config,
+        secrets,
+        OracleMode::Exact,
+        Ok(()),
+    )
+}
+
+pub(super) fn send_rejected_policy(
+    app: &App,
+    flows: &[&Flow],
+    input: &Value,
+    config: &Value,
+    secrets: &Arc<Secrets>,
+    expected: PolicyValidationError,
+) -> Answer {
+    send_mode(
+        app,
+        flows,
+        input,
+        config,
+        secrets,
+        OracleMode::Exact,
+        Err(expected),
+    )
 }
 
 pub(super) fn send_privacy(
@@ -511,7 +543,40 @@ pub(super) fn send_privacy(
     config: &Value,
     secrets: &Arc<Secrets>,
 ) -> Answer {
-    send_mode(app, flows, input, config, secrets, OracleMode::Privacy)
+    send_mode(
+        app,
+        flows,
+        input,
+        config,
+        secrets,
+        OracleMode::Privacy,
+        Ok(()),
+    )
+}
+
+fn assert_policy_admission(
+    flows: &[&Flow],
+    config: &Value,
+    expected: Result<(), PolicyValidationError>,
+) {
+    let case_ids: Vec<_> = flows.iter().map(|flow| flow.case.name.as_str()).collect();
+    let policy: AuctioneerAppConfig =
+        serde_json::from_value(config.clone()).unwrap_or_else(|_error| {
+            panic!("native onboarding policy shape precondition for cases {case_ids:?}: Structure");
+        });
+    let catalog = ValidatedRegistryPlan::compiled().unwrap_or_else(|_error| {
+        panic!("native onboarding catalog precondition for cases {case_ids:?}");
+    });
+    assert_eq!(
+        validate_effective_operator_policy(
+            &policy,
+            auctioneer_config_data::product_host_default(),
+            auctioneer_config_data::product_account_default(),
+            &catalog,
+        ),
+        expected,
+        "native onboarding policy precondition for cases {case_ids:?}",
+    );
 }
 
 fn send_mode(
@@ -521,7 +586,9 @@ fn send_mode(
     config: &Value,
     secrets: &Arc<Secrets>,
     mode: OracleMode,
+    expected: Result<(), PolicyValidationError>,
 ) -> Answer {
+    assert_policy_admission(flows, config, expected);
     let clock = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
     let fanout = Arc::new(Transport::new(flows, input, clock.now_monotonic(), mode));
     let builder = request_builder()

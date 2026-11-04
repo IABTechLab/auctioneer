@@ -1,6 +1,11 @@
 use super::fixtures::{Flow, config, flows, input};
-use super::harness::{Answer, Secrets, assert_disabled, assert_success, boot, send};
+use super::harness::{
+    Answer, Secrets, assert_disabled, assert_success, boot, send, send_rejected_policy,
+};
+use auctioneer_bidder::BidderConfigError;
+use auctioneer_core::config::validation::{BidderConfigurationError, PolicyValidationError};
 use edgezero_core::app::App;
+use edgezero_core::http::StatusCode;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -200,7 +205,7 @@ fn invalid_parameters_preserve_a_real_sibling(app: &App, cohort: &[Flow]) {
     }
 }
 
-fn settings_and_secret_refusals_preserve_siblings(app: &App, cohort: &[Flow]) {
+fn settings_refuse_policy_and_secret_failures_preserve_siblings(app: &App, cohort: &[Flow]) {
     let credentialed: Vec<_> = cohort
         .iter()
         .filter(|flow| flow.credential().is_some())
@@ -241,15 +246,21 @@ fn settings_and_secret_refusals_preserve_siblings(app: &App, cohort: &[Flow]) {
                 .remove("settings");
         }
         let settings_secrets = Secrets::new(&requested, false);
-        let settings_answer = send(
+        let settings_answer = send_rejected_policy(
             app,
             &requested,
             &request,
             &missing_settings,
             &settings_secrets,
+            PolicyValidationError::Bidder(BidderConfigurationError::Bidder(BidderConfigError {
+                field: "region",
+                reason: "required",
+            })),
         );
-        assert_success(&settings_answer, &[sibling]);
-        assert_eq!(codes(&settings_answer, "errors", target.name()), [5]);
+        assert_eq!(settings_answer.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(settings_answer.wire, json!("Malformed host configuration"));
+        assert!(settings_answer.calls.is_empty());
+        assert_eq!(settings_answer.received, 0);
         assert!(settings_secrets.reads.lock().unwrap().is_empty());
 
         let secrets = Secrets::new(&requested, true);
@@ -313,7 +324,7 @@ fn all_frozen_native_flows_use_generated_app_dispatch_and_fresh_activation_snaps
     fresh_activation_snapshots(&app, &cohort);
     compiled_ancestor_veto(&app, &cohort);
     invalid_parameters_preserve_a_real_sibling(&app, &cohort);
-    settings_and_secret_refusals_preserve_siblings(&app, &cohort);
+    settings_refuse_policy_and_secret_failures_preserve_siblings(&app, &cohort);
     all_priority_privacy_denials_precede_schema_and_host_services(&app, &cohort);
     super::privacy::all_priority_outbound_privacy(&app, &cohort);
     super::sync::applicable_templates_use_signed_generated_app_callbacks(&app, &cohort);

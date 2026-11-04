@@ -180,9 +180,12 @@ mod tests {
         bidder: &str,
     ) -> Request<Body> {
         let config_json = json!({
-            "aliases": {(BIDDER_ALIAS): bidder},
-            "gdpr": {"enabled": false}, "ccpa": {"enforce": policy.enforce_ccpa},
-            "lmt": {"enforce": false},
+            "schema_version": 1_u8,
+            "host": {
+                "aliases": {(BIDDER_ALIAS): bidder},
+                "gdpr": {"enabled": false}, "ccpa": {"enforce": policy.enforce_ccpa},
+                "lmt": {"enforce": false},
+            },
             "features": {"gzip_outbound": false},
             "accounts": {"wire-account": {"privacy": {
                 "ipv4": {"anon_keep_bits": 24_i32},

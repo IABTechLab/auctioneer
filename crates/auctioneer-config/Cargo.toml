@@ -1,11 +1,6 @@
-# Dependency-neutral by design: serde-only by default, never
-# auctioneer-core or auctioneer-config-data. `auctioneer-config-data`'s BUILD SCRIPT
-# deserializes `auctioneer.toml` through the root DTO here, and
-# `auctioneer-core` depends on `auctioneer-config-data`, so hosting this type in
-# `auctioneer-core` would make that build script cyclic. Same pattern as
-# `auctioneer-gvl-schema`: a build-dependency on a sibling path crate is
-# legal and has no cycle because the sibling has no build.rs of its
-# own.
+# Dependency-neutral by design: serde-only by default, never depending on
+# auctioneer-core or auctioneer-config-data. Portable operator models live
+# under config-model; build scripts consume native build-support separately.
 [package]
 name = "auctioneer-config"
 description = "Configuration schemas and optional native build support shared by auctioneer crates."
@@ -65,9 +60,7 @@ url = { workspace = true, optional = true }
 validator = { workspace = true, optional = true }
 
 [dev-dependencies]
-# tests/root_shape.rs deserializes one fixture document under both
-# generic instantiations, which needs a TOML parser and the opaque
-# `toml::Value` the CLI side uses for the baked tables.
+# The config-model root-shape tests compare direct typed JSON/TOML payloads.
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }

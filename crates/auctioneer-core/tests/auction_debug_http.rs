@@ -39,7 +39,7 @@ mod tests {
 
     fn config(overrides: &str) -> String {
         format!(
-            "[aliases]\nfake_bb={:?}\n{overrides}",
+            "schema_version = 1\n[host.aliases]\nfake_bb={:?}\n{overrides}",
             serving_catalog::passthrough_info().name,
         )
     }
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn prepayment_refusals_are_uncacheable_without_resolving_configuration() {
-        let app = app::TestApp::new("");
+        let app = app::TestApp::new("schema_version = 1\n");
         for uri in ["/openrtb2/auction", "/openrtb2/auction?%64ebug=%31"] {
             let response = app.dispatch_with(
                 Method::POST,
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn recognized_http_debug_survives_outer_configuration_errors() {
-        let app = app::TestApp::new("");
+        let app = app::TestApp::new("schema_version = 1\n");
         app.store().set_unavailable();
         let outage_response = dispatch(&app, "/openrtb2/auction?debug=1", &[], &request());
         assert_eq!(outage_response.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn normalized_body_signal_survives_a_later_handler_owned_privacy_error() {
-        let app = app::TestApp::new("");
+        let app = app::TestApp::new("schema_version = 1\n");
         let mut body = request();
         body["test"] = json!(1_i32);
         body["regs"] = json!({"gdpr":2_i32});

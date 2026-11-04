@@ -146,7 +146,7 @@ mod tests {
         clock: &Arc<FakeClock>,
     ) -> BidResponse {
         let config = format!(
-            "[aliases]\nfake_bb={:?}\n",
+            "schema_version = 1\n[host.aliases]\nfake_bb={:?}\n",
             serving_catalog::passthrough_info().name,
         );
         config_funding::install();

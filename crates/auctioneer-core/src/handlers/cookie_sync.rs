@@ -60,7 +60,7 @@ async fn cookie_sync_preflight_body(ctx: RequestContext) -> Result<Response, Edg
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::product_host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -150,7 +150,7 @@ async fn cookie_sync_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::product_host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -292,7 +292,7 @@ async fn respond_with_registry(
     let account = resolve::resolve_selected_account(
         resolve::AccountSelection::from_requested(request.account.as_deref()),
         app,
-        auctioneer_config_data::account_default(),
+        auctioneer_config_data::product_account_default(),
     );
     if account.config.disabled {
         return bad("account is disabled, please reach out to the prebid server host");
@@ -788,7 +788,7 @@ pub(super) mod tests {
     #[test]
     fn catalog_loading_follows_optout_account_privacy_filter_and_limit_checks() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.disabled]\ndisabled = true\n").unwrap();
+            toml::from_str("schema_version = 1\n[accounts.disabled]\ndisabled = true\n").unwrap();
         let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
@@ -1062,8 +1062,10 @@ pub(super) mod tests {
             .unwrap()
             .cooperative
             .enabled_by_default = false;
-        let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.publisher.cookie_sync]\ndefault_coop_sync = true\n").unwrap();
+        let app: AuctioneerAppConfig = toml::from_str(
+            "schema_version = 1\n[accounts.publisher.cookie_sync]\ndefault_coop_sync = true\n",
+        )
+        .unwrap();
         let one = wire::parse_cookie_sync_body(
             &serde_json::to_vec(&json!({
                 "account": "publisher",

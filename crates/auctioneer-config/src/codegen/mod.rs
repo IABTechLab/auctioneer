@@ -277,42 +277,21 @@ pub struct OpenRtbRaw {
 }
 
 // `#[serde(deny_unknown_fields)]` on the ENTIRE host/account raw
-// privacy graph — a typo in a privacy-critical baked key
+// privacy graph — a typo in a privacy-critical product-data key
 // (`enfroce_purpose`, `defualt_value`, …) must FAIL the build, not
 // silently select a default. That includes the PARENT wrappers
 // `HostDefaultRaw` and `AccountRaw` themselves, not just the nested
 // privacy DTOs: without the attribute on the two top-level structs, a
 // ROOT-level typo (e.g. `[gdrp]` or a misspelled top-level key under
-// `[baked.host]` / `[baked.account]`) is silently ignored — exactly
+// product data's `[host]` / `[account]`) is silently ignored — exactly
 // the privacy-config fail-open this rule exists to close.
 //
 // It also covers `CcpaRaw`, `LmtRaw`, `HostCookieRaw` and
-// `ResourceLimitsRaw`, which are the tables an operator edits most and
-// whose every field carries a `#[serde(default)]` or a natural zero.
+// `ResourceLimitsRaw`, reviewed product-data tables whose fields carry
+// a `#[serde(default)]` or a natural zero.
 // Without the guard, a misspelling INSIDE one of them leaves the
 // default in place silently — `ccpa.enfroce = true` would read as
 // "CCPA enforcement on" and ship with it off.
-/// `data/runtime-bootstrap.toml` — the deploy-immutable runtime policy.
-/// `deny_unknown_fields` on both levels makes a misspelled key a build
-/// failure, and the strict `bool` rejects `"true"`/`1` spellings, so the
-/// baked constant is exactly what the file says or the build stops.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RuntimeBootstrapRaw {
-    pub runtime: RuntimeSectionRaw,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RuntimeSectionRaw {
-    pub allow_missing_config: bool,
-    /// The typed-config extraction bound, in milliseconds. Mandatory and
-    /// strictly integral for the same reason the bool above is strict: a
-    /// missing or `"2000"`-shaped value must stop the build rather than
-    /// leave the loader running under upstream's much wider default.
-    pub max_config_fetch_ms: u32,
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HostDefaultRaw {
@@ -484,7 +463,7 @@ const fn default_outbound_bytes() -> u64 {
 //   default for `enabled` / `channel_enabled` — a blank tri-state or
 //   empty channel set would silently disable enforcement), so
 //   `#[serde(default)]` on it would not even compile (E0277). The
-//   baked `[baked.account]` always ships a complete `[gdpr]`
+//   product data's `[account]` always ships a complete `[gdpr]`
 //   block; a build that removes it must FAIL, not silently default
 //   privacy config.
 // - `privacy` keeps `#[serde(default)]` because

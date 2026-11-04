@@ -23,6 +23,7 @@ mod tests {
         resolve::{resolve_account, resolve_host},
         runtime::{RuntimeConfigError, resolve_runtime_config},
     };
+    use auctioneer_core::test_support::config_store as funded_config;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_privacy::{
         PrivacyContext, ResolveOptions, ccpa::NoSale, gcl::Gcl, gvl::GvlStore,
@@ -34,8 +35,6 @@ mod tests {
         config_store::{
             BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
         },
-        context::RequestContext,
-        params::PathParams,
         store_registry::{ConfigStoreBinding, StoreRegistry},
         time::{Deadline, MonotonicClock},
     };
@@ -72,6 +71,33 @@ mod tests {
         }
     }
 
+    fn enforcement_fixture() -> Value {
+        let exceptions = vec![""; 30_000];
+        json!({
+            "schema_version": 1_u64,
+            "host": {
+                "gdpr": {
+                    "enabled": true,
+                    "tcf2": {
+                        "purposes": {
+                            "1": {
+                                "vendor_exceptions": exceptions,
+                            },
+                        },
+                    },
+                },
+            },
+            "accounts": {
+                "a": {
+                    "gdpr": {
+                        "basic_enforcement_vendors": exceptions,
+                        "purposes": {"2":{"vendor_exceptions":exceptions}},
+                    },
+                },
+            },
+        })
+    }
+
     fn fixtures() -> Vec<(&'static str, Value, bool)> {
         let activity_names = [
             "fetchBids",
@@ -86,7 +112,10 @@ mod tests {
         let activities: Map<_, _> = activity_names.into_iter().map(|name| (name.into(), json!({
             "rules":vec![json!({"allow":false, "condition":{"componentName":vec!["";128]}});128]
         }))).collect();
-        let heavy = json!({"accounts":{"a":{"privacy":{"allowactivities":activities}}}});
+        let heavy = json!({
+            "schema_version": 1_u64,
+            "accounts": {"a":{"privacy":{"allowactivities":activities}}},
+        });
         let rule_limits: Map<_, _> = activity_names
             .into_iter()
             .map(|name| {
@@ -112,24 +141,39 @@ mod tests {
         let accounts: Map<_, _> = (0_u32..256).map(|n| (format!("a{n}"), json!({
             "gdpr":{"basic_enforcement_vendors":["fake_pp"]}, "ccpa":{"enabled":"enabled"}
         }))).collect();
-        let exceptions = vec![""; 30_000];
-        let enforcement = json!({"gdpr":{"enabled":true,"tcf2":{"purposes":{"1":{
-            "vendor_exceptions":exceptions}}}}, "accounts":{"a":{"gdpr":{
-            "basic_enforcement_vendors":exceptions, "purposes":{"2":{"vendor_exceptions":exceptions}}
-        }}}});
+        let enforcement = enforcement_fixture();
         let empty_accounts: Map<_, _> = (0_u32..4000).map(|n| (n.to_string(), json!({}))).collect();
         vec![
-            ("minimal", json!({}), false),
-            ("many-accounts", json!({"accounts":accounts}), false),
+            (
+                "minimal",
+                json!({
+                    "schema_version": 1_u64,
+                }),
+                false,
+            ),
+            (
+                "many-accounts",
+                json!({
+                    "schema_version": 1_u64,
+                    "accounts": accounts,
+                }),
+                false,
+            ),
             ("rule-name-product-over-structural-limit", heavy, true),
             (
                 "rule-count-limits",
-                json!({"accounts":{"a":{"privacy":{"allowactivities":rule_limits}}}}),
+                json!({
+                    "schema_version": 1_u64,
+                    "accounts": {"a":{"privacy":{"allowactivities":rule_limits}}},
+                }),
                 false,
             ),
             (
                 "component-name-limits",
-                json!({"accounts":{"a":{"privacy":{"allowactivities":component_limits}}}}),
+                json!({
+                    "schema_version": 1_u64,
+                    "accounts": {"a":{"privacy":{"allowactivities":component_limits}}},
+                }),
                 false,
             ),
             (
@@ -137,10 +181,20 @@ mod tests {
                 enforcement,
                 true,
             ),
-            ("empty-accounts", json!({"accounts":empty_accounts}), false),
+            (
+                "empty-accounts",
+                json!({
+                    "schema_version": 1_u64,
+                    "accounts": empty_accounts,
+                }),
+                false,
+            ),
             (
                 "unknown-field-forest",
-                json!({"unknown":vec![json!({"":[]}); 20_000]}),
+                json!({
+                    "schema_version": 1_u64,
+                    "unknown": vec![json!({"":[]}); 20_000],
+                }),
                 true,
             ),
         ]
@@ -174,7 +228,7 @@ mod tests {
                     .body(Body::empty())
                     .unwrap();
                 request.extensions_mut().insert(store);
-                let ctx = RequestContext::new(request, PathParams::default());
+                let ctx = funded_config::context(request);
                 let raw_request =
                     serde_json::to_vec(&json!({"id":"r","imp":[],"site":{"publisher":{"id":"a"}},
                     "regs":{"gdpr":1_i32},"user":{"consent":"malformed"}}))

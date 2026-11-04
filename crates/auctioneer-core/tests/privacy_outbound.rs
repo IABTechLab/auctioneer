@@ -114,24 +114,7 @@ mod tests {
 
     fn runtime_config(allow: bool) -> String {
         format!(
-            "
-[gdpr]
-enabled = false
-[ccpa]
-enforce = true
-[lmt]
-enforce = true
-[accounts.fake_tenant.privacy.ipv4]
-anon_keep_bits = 24
-[accounts.fake_tenant.privacy.ipv6]
-anon_keep_bits = 64
-[accounts.fake_tenant.privacy.allowactivities.transmitUfpd]
-default = {allow}
-[accounts.fake_tenant.privacy.allowactivities.transmitPreciseGeo]
-default = {allow}
-[accounts.fake_tenant.privacy.allowactivities.transmitTid]
-default = {allow}
-"
+            "schema_version = 1\n\n[host.gdpr]\nenabled = false\n[host.ccpa]\nenforce = true\n[host.lmt]\nenforce = true\n[accounts.fake_tenant.privacy.ipv4]\nanon_keep_bits = 24\n[accounts.fake_tenant.privacy.ipv6]\nanon_keep_bits = 64\n[accounts.fake_tenant.privacy.allowactivities.transmitUfpd]\ndefault = {allow}\n[accounts.fake_tenant.privacy.allowactivities.transmitPreciseGeo]\ndefault = {allow}\n[accounts.fake_tenant.privacy.allowactivities.transmitTid]\ndefault = {allow}\n"
         )
     }
 

@@ -1,17 +1,19 @@
 //! Concrete configuration composition, semantic admission and SDK integration.
 //! Shared source/policy declarations and pure validation belong to auctioneer-config.
 
-use auctioneer_bidder::{BidderName, BidderSettings};
-use auctioneer_config::source::{
-    AuctioneerAppConfig as SharedAppConfig, BidderOverrides as SharedBidderOverrides,
-};
-use auctioneer_config::types::{
-    AccountConfig, AccountCookieSyncConfig, HostConfig, MAX_BIDDER_NAME_BYTES,
-};
+#[cfg(any(test, feature = "test-support"))]
+use auctioneer_bidder::BidderName;
+use auctioneer_bidder::BidderSettings;
+use auctioneer_config::policy::OperatorPolicy as SharedAppConfig;
+use auctioneer_config::source::BidderOverrides as SharedBidderOverrides;
+use auctioneer_config::types::{AccountConfig, HostConfig, MAX_BIDDER_NAME_BYTES};
+#[cfg(any(test, feature = "test-support"))]
 use auctioneer_config::usersync::{
     validate_account_cookie_sync, validate_catalog_size, validate_host_cookie, validate_user_sync,
 };
+#[cfg(any(test, feature = "test-support"))]
 use std::collections::BTreeSet;
+#[cfg(any(test, feature = "test-support"))]
 use validator::Validate as _;
 
 pub mod bidder_settings;
@@ -25,12 +27,14 @@ mod floor_currency {
         use validator::Validate as _;
 
         fn config_with_snapshot(snapshot: &Value) -> AuctioneerAppConfig {
-            serde_json::from_value(json!({"floor_currency": snapshot})).unwrap()
+            serde_json::from_value(json!({"schema_version": 1_u8, "floor_currency": snapshot}))
+                .unwrap()
         }
 
         #[test]
         fn floor_currency_accepts_operator_snapshot_through_existing_runtime_config() {
             let parsed = serde_json::from_value::<AuctioneerAppConfig>(json!({
+                "schema_version": 1_u8,
                 "floor_currency": {
                     "expires_at": 2_000_i32,
                     "usd_per_unit": {"QAA": 2.5_f64}
@@ -99,8 +103,6 @@ pub enum EffectiveConfigError {
     Registry(#[from] RegistryBuildError),
 }
 
-use crate::bidder_registry::live_name_slice;
-
 /// Shared push/load validation against this build's baked defaults.
 ///
 /// # Errors
@@ -129,18 +131,17 @@ pub fn validate_effective(
     baked_host: &HostConfig,
     baked_account: &AccountConfig,
 ) -> Result<(), EffectiveConfigError> {
-    validate_effective_with_catalog(config, baked_host, baked_account, live_name_slice()?)
-        .map_err(EffectiveConfigError::Malformed)
+    validation::validate_compiled_operator_policy(config, baked_host, baked_account)
 }
 
-/// Validate against the complete immutable catalog supplied by an embedder.
-/// The standard push/load path always supplies this build's live catalog.
-/// Names are borrowed; validation does not copy them or
-/// install a registry in a process-global cell.
+/// Test-only namespace and sync controls with synthetic catalog names.
+/// Production authoring and extraction use [`validate_effective`] and the
+/// discovered bidder validators, never this names-only fixture boundary.
 ///
 /// # Errors
 /// Returns the same effective-config and namespace errors as
 /// [`validate_effective`], using the supplied catalog for each check.
+#[cfg(any(test, feature = "test-support"))]
 pub fn validate_effective_with_catalog(
     config: &AuctioneerAppConfig,
     baked_host: &HostConfig,
@@ -152,24 +153,22 @@ pub fn validate_effective_with_catalog(
     validate_host_cookie(&host.host_cookie)?;
     match &host.user_sync {
         Some(sync) => validate_user_sync(sync, cfg!(feature = "insecure-bidders"))?,
-        None if config.user_sync.is_some() => {
+        None if matches!(
+            config.host.user_sync,
+            override_value::FieldOverride::Value(_)
+        ) =>
+        {
             return Err("user_sync requires an explicit external origin".to_owned());
         }
         None => {}
     }
     validate_catalog_size(compiled_names.len(), host.aliases.len())?;
-    validate_account_cookie_sync(&baked_account.cookie_sync)?;
-    for (id, account) in &config.accounts {
-        if let Some(sync) = &account.cookie_sync {
-            let replacement = AccountCookieSyncConfig {
-                default_limit: sync.default_limit,
-                max_limit: sync.max_limit,
-                default_coop_sync: sync.default_coop_sync,
-                priority_groups: sync.priority_groups.clone(),
-            };
-            validate_account_cookie_sync(&replacement)
-                .map_err(|err| format!("accounts.{id}.cookie_sync: {err}"))?;
-        }
+    let defaults = resolve::resolved_account(config, baked_account);
+    validate_account_cookie_sync(&defaults.cookie_sync)?;
+    for overlay in config.accounts.values() {
+        let mut account = defaults.clone();
+        policy_account::merge_policy_account(&mut account, overlay);
+        validate_account_cookie_sync(&account.cookie_sync)?;
     }
     let mut folded_aliases = BTreeSet::new();
     for (alias, base) in &host.aliases {
@@ -229,7 +228,10 @@ mod tests {
     #[test]
     fn empty_runtime_alias_name_is_rejected_by_effective_config() {
         let app = AuctioneerAppConfig {
-            aliases: Some(BTreeMap::from([(String::new(), "fake_aaa".to_owned())])),
+            host: super::policy::HostPolicy {
+                aliases: Some(BTreeMap::from([(String::new(), "fake_aaa".to_owned())])),
+                ..super::policy::HostPolicy::default()
+            },
             ..AuctioneerAppConfig::default()
         };
         let error = validate_effective_with_catalog(
@@ -262,7 +264,10 @@ mod tests {
     fn runtime_alias_over_64_bytes_is_rejected_without_priority_groups() {
         for alias in ["a".repeat(65), format!("{}a", "\u{e9}".repeat(32))] {
             let app = AuctioneerAppConfig {
-                aliases: Some(BTreeMap::from([(alias, "fake_aaa".to_owned())])),
+                host: super::policy::HostPolicy {
+                    aliases: Some(BTreeMap::from([(alias, "fake_aaa".to_owned())])),
+                    ..super::policy::HostPolicy::default()
+                },
                 ..AuctioneerAppConfig::default()
             };
             let error = validate_effective_with_catalog(
@@ -273,7 +278,7 @@ mod tests {
             )
             .expect_err("oversized alias must fail config validation, not a later callback");
             assert!(error.contains("alias"), "{error}");
-            assert!(error.contains("64"), "{error}");
+            assert!(error.contains("host_alias_name_too_long"), "{error}");
         }
     }
 
@@ -301,7 +306,10 @@ mod tests {
             format!("fake_a{}", "\u{e9}".repeat(29)),
         ] {
             let app = AuctioneerAppConfig {
-                aliases: Some(BTreeMap::from([(alias, "fake_aaa".to_owned())])),
+                host: super::policy::HostPolicy {
+                    aliases: Some(BTreeMap::from([(alias, "fake_aaa".to_owned())])),
+                    ..super::policy::HostPolicy::default()
+                },
                 ..AuctioneerAppConfig::default()
             };
             validate_effective_with_catalog(
@@ -351,23 +359,17 @@ mod tests {
         );
 
         for source in [
-            "[user_sync]\npriority_groups = []\n",
-            "[user_sync.cooperative]\nenabled_by_default = true\n",
+            "schema_version = 1\n[host.user_sync]\npriority_groups = []\n",
+            "schema_version = 1\n[host.user_sync.cooperative]\nenabled_by_default = true\n",
         ] {
-            let partial: AuctioneerAppConfig = toml::from_str(source).unwrap();
-            assert_eq!(
-                validate_effective_with_catalog(&partial, host, account, &[]),
-                Err("user_sync requires an explicit external origin".to_owned())
-            );
-            assert!(
-                super::resolve::resolve_host(&partial, host)
-                    .user_sync
-                    .is_none()
-            );
+            let error = toml::from_str::<AuctioneerAppConfig>(source).unwrap_err();
+            assert!(error.message().contains("missing field `external_url`"));
         }
 
-        let configured: AuctioneerAppConfig =
-            toml::from_str("[user_sync]\nexternal_url = 'https://sync.example.test'\n").unwrap();
+        let configured: AuctioneerAppConfig = toml::from_str(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        )
+        .unwrap();
         assert_eq!(
             validate_effective_with_catalog(&configured, host, account, &[]),
             Ok(())
@@ -381,8 +383,10 @@ mod tests {
             "https://sync.example.test"
         );
 
-        let invalid: AuctioneerAppConfig =
-            toml::from_str("[user_sync]\nexternal_url = 'https:/sync.example.test'\n").unwrap();
+        let invalid: AuctioneerAppConfig = toml::from_str(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https:/sync.example.test'\n",
+        )
+        .unwrap();
         assert_eq!(
             validate_effective_with_catalog(&invalid, host, account, &[]),
             Err("sync URL must have an explicit scheme and authority".to_owned())

@@ -22,10 +22,9 @@ pub use harness::ctx_with_config;
 #[cfg(test)]
 mod harness {
     use auctioneer_core::config::AuctioneerAppConfig;
-    use auctioneer_core::test_support::config_store::runtime_registry;
+    use auctioneer_core::test_support::config_store::{context, runtime_registry};
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::Request;
-    use edgezero_core::params::PathParams;
 
     /// Parse fixture TOML into `AuctioneerAppConfig`, wrap it in a
     /// `BlobEnvelope` (whose constructor computes the canonical sha256
@@ -35,6 +34,6 @@ mod harness {
         let cfg: AuctioneerAppConfig = toml::from_str(toml_src).expect("fixture TOML parses");
         let registry = runtime_registry(&cfg);
         request.extensions_mut().insert(registry);
-        RequestContext::new(request, PathParams::default())
+        context(request)
     }
 }

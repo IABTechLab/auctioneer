@@ -32,6 +32,7 @@ mod tests {
     #[test]
     fn retaining_settings_drops_all_entries_without_settings() {
         let config = serde_json::from_value::<AuctioneerAppConfig>(serde_json::json!({
+            "schema_version": 1_u8,
             "bidders": {"fake_unrelated": {"enabled": false}},
             "accounts": {"fake_discarded": {"targeting_prefix": "discarded"}}
         }))

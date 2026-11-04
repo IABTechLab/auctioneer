@@ -1023,7 +1023,7 @@ mod tests {
             let mut found = BTreeSet::new();
             if path.extension().unwrap() == "toml" {
                 let document: toml::Value = toml::from_str(&source).unwrap();
-                let aliases = document["aliases"].as_table().unwrap();
+                let aliases = document["host"]["aliases"].as_table().unwrap();
                 assert!(!aliases.is_empty());
                 for (alias, base) in aliases {
                     assert!(alias.starts_with("fake_"));

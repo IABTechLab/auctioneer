@@ -20,6 +20,17 @@ pub mod envelope;
 pub mod limits;
 pub mod timer;
 
+#[cfg(test)]
+mod config_validation_tests {
+    #[test]
+    fn product_defaults_validate_against_the_target_published_catalog() {
+        use auctioneer_core::config::{AuctioneerAppConfig, validate_effective_defaults};
+
+        validate_effective_defaults(&AuctioneerAppConfig::default())
+            .expect("the compiled target publication join accepts product defaults");
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 use auctioneer_core::App as AuctioneerApp;
 #[cfg(target_arch = "wasm32")]

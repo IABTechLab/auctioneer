@@ -211,7 +211,7 @@ jobs:
       # named config targets avoid another build-failure harness run.
       - name: Run auctioneer-config-data non-harness tests (secure defaults)
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-config-data --lib --test codegen --test disclosure_codegen --test gvl_archive --test smoke --test url_safety --test activity --test baked_defaults_snapshot --test simple_fold --test usersync_config --test usersync_callback_validation --test bidder_bindings --test bidder_storage
+        run: cargo test --locked -p auctioneer-config-data --lib --test codegen --test disclosure_codegen --test gvl_archive --test smoke --test url_safety --test activity --test product_defaults_snapshot --test simple_fold --test usersync_config --test usersync_callback_validation --test bidder_bindings --test bidder_storage
 
       - name: Run configuration schema tests (secure defaults)
         if: matrix.lane == 'secure'

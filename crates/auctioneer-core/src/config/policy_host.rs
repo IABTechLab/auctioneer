@@ -1,4 +1,4 @@
-//! Explicit-context host policy composition, staged separately from serving.
+//! Explicit-context runtime host policy composition.
 
 use super::{
     policy::{HostPolicy, OperatorPolicy},

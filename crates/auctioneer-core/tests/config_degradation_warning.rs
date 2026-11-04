@@ -12,13 +12,12 @@ mod tests {
     use crate::config_funding;
     use async_trait::async_trait;
     use auctioneer_core::config::runtime::resolve_runtime_config;
+    use auctioneer_core::test_support::config_store as funded_config;
     use edgezero_core::body::Body;
     use edgezero_core::config_store::{
         BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
     };
-    use edgezero_core::context::RequestContext;
     use edgezero_core::http::request_builder;
-    use edgezero_core::params::PathParams;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
     use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::executor::block_on;
@@ -85,7 +84,7 @@ mod tests {
             },
         );
         request.extensions_mut().insert(registry);
-        let context = RequestContext::new(request, PathParams::default());
+        let context = funded_config::context(request);
         let error = block_on(resolve_runtime_config(&context)).unwrap_err();
         assert_eq!(error.status_code().as_str(), "store_unavailable");
         let _fallback = error.degrade_to_default().unwrap();

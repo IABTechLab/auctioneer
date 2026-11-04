@@ -30,11 +30,12 @@ pub struct BuildIdentity {
 }
 
 fn source_path(path: &Path) -> bool {
-    // Only non-Rust documentation and approved resource qualification records are evidence.
-    // Rust owners remain source even when placed inside either evidence tree.
-    path.extension() == Some(OsStr::new("rs"))
-        || (!path.starts_with("docs")
-            && !path.starts_with("crates/auctioneer-core/tests/fixtures/resource_envelopes"))
+    // Runtime authoring is not a build input. Non-Rust evidence is excluded,
+    // while Rust owners in those evidence trees remain source.
+    path != Path::new("auctioneer.toml")
+        && (path.extension() == Some(OsStr::new("rs"))
+            || (!path.starts_with("docs")
+                && !path.starts_with("crates/auctioneer-core/tests/fixtures/resource_envelopes")))
 }
 
 fn file_digest(path: &Path) -> io::Result<Option<String>> {
@@ -130,6 +131,69 @@ pub fn snapshot(root: &Path) -> io::Result<Snapshot> {
 mod tests {
     use super::*;
     use std::env::var_os;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn runtime_file_is_never_read_while_product_data_remains_in_the_build_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let git = |args: &[&str]| {
+            let output = Command::new("git")
+                .current_dir(root)
+                .env_clear()
+                .env("PATH", var_os("PATH").unwrap())
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .args([
+                    "-c",
+                    "user.name=Snapshot Test",
+                    "-c",
+                    "user.email=snapshot@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.hooksPath=/dev/null",
+                ])
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{args:?}: {output:?}");
+        };
+        let product = root.join("crates/auctioneer-config-data/data/product-defaults.toml");
+        fs::create_dir_all(product.parent().unwrap()).unwrap();
+        fs::write(&product, b"[host]\n[account]\n").unwrap();
+        let operator = root.join("auctioneer.toml");
+        fs::write(&operator, b"schema_version = 1\n").unwrap();
+        git(&["init", "--quiet"]);
+        git(&["add", "."]);
+        git(&["commit", "--quiet", "-m", "baseline"]);
+        let baseline = snapshot(root).unwrap();
+        assert!(!baseline.files.contains_key("auctioneer.toml"));
+        assert!(
+            baseline.files["crates/auctioneer-config-data/data/product-defaults.toml"].is_some()
+        );
+        fs::write(&operator, b"not even TOML [").unwrap();
+        assert_eq!(snapshot(root).unwrap(), baseline);
+        fs::remove_file(&operator).unwrap();
+        assert_eq!(snapshot(root).unwrap(), baseline);
+        #[cfg(unix)]
+        {
+            symlink(root.join("missing-operator-target"), &operator).unwrap();
+            assert_eq!(snapshot(root).unwrap(), baseline);
+            fs::remove_file(&operator).unwrap();
+        };
+        fs::write(&product, b"[host]\nstatus_response = ''\n[account]\n").unwrap();
+        assert_ne!(snapshot(root).unwrap().sha256, baseline.sha256);
+        fs::remove_file(&product).unwrap();
+        assert_eq!(
+            snapshot(root)
+                .unwrap()
+                .files
+                .get("crates/auctioneer-config-data/data/product-defaults.toml"),
+            Some(&None)
+        );
+    }
 
     #[test]
     fn workflow_reference_checkouts_are_ignored_without_hiding_other_sources() {

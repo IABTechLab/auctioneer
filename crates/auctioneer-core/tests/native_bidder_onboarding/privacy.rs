@@ -162,8 +162,8 @@ fn request(flows: &[&Flow], inventory: &str, policy: Policy) -> Value {
 
 fn runtime(flows: &[&Flow], policy: Policy, scoped: bool) -> Value {
     let mut config = fixtures::config(flows);
-    config["ccpa"] = json!({"enforce":true});
-    config["lmt"] = json!({"enforce":true});
+    config["host"]["ccpa"] = json!({"enforce":true});
+    config["host"]["lmt"] = json!({"enforce":true});
     let mut activities = Map::new();
     for (activity, deny) in [
         ("transmitUfpd", policy.deny_ufpd),

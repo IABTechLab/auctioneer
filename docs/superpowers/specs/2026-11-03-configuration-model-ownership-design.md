@@ -9,15 +9,18 @@ request to retain package roles. No serving or resource approval is implied.
 
 ## Goal
 
-Declare Auctioneer-wide authoring, startup, operator, host/account and effective
+Declare Auctioneer-wide operator, host/account and effective
 policy models together in `auctioneer-config`. Keep bidder-owned settings and
 their validation in `auctioneer-bidder`. Core owns resolution, semantic admission
 and lifecycle orchestration, not another copy of those data models.
 
 This amends the file/ownership mapping in the
 [operator configuration design](2026-11-02-operator-runtime-configuration-design.md)
-and its implementation plan. Their wire semantics, runtime cutover group,
-startup/storage review and acceptance gates remain required.
+and its implementation plan. The 2026-11-04 direction supersedes the earlier
+startup/storage package: one direct `schema_version = 1` policy, existing typed
+SDK commands and bounded extraction. No startup/root/source-mode model remains.
+Runtime bounds and request-retention controls remain required; actual host
+ingestion/adoption and capacity/lifetime proof stay in #135.
 
 ## Why A Direct Move Is Circular
 
@@ -81,12 +84,14 @@ is needed to choose between two configuration mechanisms.
 - Config-data owns generated values, lookup tables and embedded external data,
   not operator-policy declarations. Generic immutable metadata descriptors may
   be shared config types; their bidder-owned manifest source remains unchanged.
-- Core retains explicit validation contexts, funded snapshot/domain handles,
+- Core retains explicit validation contexts, request-owned effective state,
   resolvers and errors involving registry/admission services. These are engine
   state, not independently authorable settings. Runtime budget derivations and
   SDK/provider types retain their existing owners; do not duplicate them here.
-- Adapter-specific bindings translate into shared startup intent. They must
-  not acquire a parallel host/account/operator configuration DTO.
+- Adapter bindings, physical facts and installed limits remain host-owned.
+  They do not translate into a new startup DTO. The shared typed-policy semantic
+  validator/resolvers use caller-owned input/context; actual host adoption is
+  #135, not a new constructor, storage proof or serving-readiness claim here.
 
 ### Bidder-Owned Settings
 

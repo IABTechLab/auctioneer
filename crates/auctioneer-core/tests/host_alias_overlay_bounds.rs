@@ -26,10 +26,12 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_bidder::BidderName;
+    use auctioneer_config::policy::HostPolicy;
+    use auctioneer_config::usersync::validate_catalog_size;
     use auctioneer_core::config::resolve::resolve_host;
     use auctioneer_core::config::{
         AuctioneerAppConfig, MAX_ALIAS_NAME_BYTES, MAX_ALIASES, validate_effective,
-        validate_effective_with_catalog,
+        validate_effective_with_catalog, validate_host_alias_overlay,
     };
     use std::collections::BTreeMap;
     use std::fmt::Write as _;
@@ -42,7 +44,7 @@ mod tests {
     /// How many entries an overlay carries, or `None` for no
     /// `[aliases]` section at all.
     fn entry_count(cfg: &AuctioneerAppConfig) -> Option<usize> {
-        cfg.aliases.as_ref().map(BTreeMap::len)
+        cfg.host.aliases.as_ref().map(BTreeMap::len)
     }
 
     /// Render an `[aliases]` overlay with `count` entries, each name
@@ -53,7 +55,7 @@ mod tests {
     /// below get their own fixtures, where the two deliberately
     /// disagree.
     fn overlay(count: usize, name_bytes: usize) -> String {
-        let mut out = String::from("[aliases]\n");
+        let mut out = String::from("schema_version = 1\n[host.aliases]\n");
         for index in 0..count {
             let suffix = format!("{index:04}");
             let prefix = if name_bytes <= MAX_ALIAS_NAME_BYTES {
@@ -79,7 +81,7 @@ mod tests {
     /// One `[aliases]` entry whose NAME is `name`, quoted so arbitrary
     /// UTF-8 survives the round trip through TOML.
     fn single_entry_overlay(name: &str) -> String {
-        format!("[aliases]\n{name:?} = \"fake_fixture_base\"\n")
+        format!("schema_version = 1\n[host.aliases]\n{name:?} = \"fake_fixture_base\"\n")
     }
 
     /// The bounds are the spec's figures. Pinned here so a silent
@@ -117,10 +119,28 @@ mod tests {
             let overrides = (0..runtime_count)
                 .map(|index| (format!("fake_runtime_{index:03}"), base.clone()))
                 .collect();
-            config.aliases = Some(overrides);
+            config.host.aliases = Some(overrides);
+            assert_eq!(host.aliases.len(), baked_count);
+            assert_eq!(config.host.aliases.as_ref().unwrap().len(), runtime_count);
+            assert!(
+                runtime_count <= 64,
+                "the runtime overlay has its own count bound"
+            );
             config.validate().unwrap();
             let merged = resolve_host(&config, &host);
             assert_eq!(compiled + merged.aliases.len(), total);
+            assert_eq!(
+                validate_catalog_size(compiled, merged.aliases.len()).is_ok(),
+                total <= 512,
+                "the catalog bound counts the inherited map and overlay together",
+            );
+            if total <= 512 && merged.aliases.len() > 64 {
+                assert!(baked_count > 0);
+                assert!(
+                    validate_host_alias_overlay(&merged.aliases).is_err(),
+                    "reapplying the runtime-only validator would wrongly reject this valid merged map"
+                );
+            }
             let result =
                 validate_effective(&config, &host, auctioneer_config_data::account_default())
                     .map_err(|error| error.to_string());
@@ -129,7 +149,8 @@ mod tests {
             } else {
                 assert_eq!(
                     result,
-                    Err("user-sync catalog exceeds 512 names".to_owned())
+                    Err("bidder configuration structure invalid".to_owned()),
+                    "the canonical validator refuses total catalog overflow with a fixed category",
                 );
             }
         }
@@ -142,18 +163,23 @@ mod tests {
                 .map(|index| BidderName::new(format!("fake_base_{index:03}")))
                 .collect();
             let config = AuctioneerAppConfig {
-                aliases: Some(
-                    (0_usize..64)
-                        .map(|index| (format!("fake_alias_{index:03}"), "fake_base_000".to_owned()))
-                        .collect(),
-                ),
+                host: HostPolicy {
+                    aliases: Some(
+                        (0_usize..64)
+                            .map(|index| {
+                                (format!("fake_alias_{index:03}"), "fake_base_000".to_owned())
+                            })
+                            .collect(),
+                    ),
+                    ..HostPolicy::default()
+                },
                 ..AuctioneerAppConfig::default()
             };
             config.validate().unwrap();
             let mut host = auctioneer_config_data::host_default().clone();
             host.aliases.clear();
             assert_eq!(
-                compiled_count + config.aliases.as_ref().unwrap().len(),
+                compiled_count + config.host.aliases.as_ref().unwrap().len(),
                 total
             );
             let result = validate_effective_with_catalog(
@@ -190,7 +216,7 @@ mod tests {
             ),
             Ok(())
         );
-        config.aliases = Some(BTreeMap::from([(
+        config.host.aliases = Some(BTreeMap::from([(
             "fake_one_alias".to_owned(),
             "fake_base_000".to_owned(),
         )]));
@@ -343,8 +369,8 @@ mod tests {
     /// regardless of what a request later declares.
     #[test]
     fn the_bounds_do_not_reach_the_request_level_alias_surface() {
-        let cfg: AuctioneerAppConfig =
-            toml::from_str("[aliases]\n").expect("an empty host overlay parses");
+        let cfg: AuctioneerAppConfig = toml::from_str("schema_version = 1\n[host.aliases]\n")
+            .expect("an empty host overlay parses");
         assert_eq!(
             entry_count(&cfg),
             Some(0),

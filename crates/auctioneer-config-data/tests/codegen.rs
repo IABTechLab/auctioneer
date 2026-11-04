@@ -34,14 +34,14 @@ mod tests {
         AccountCcpaConfig, AccountGdprConfigRaw, AccountPrivacyConfigRaw, AccountRaw,
         BidderInfoRaw, CapabilitiesRaw, CapabilityShapeRaw, CcpaRaw, ChannelEnabledRaw, DebugRaw,
         GdprRaw, HostCookieRaw, HostDefaultRaw, LmtRaw, MaintainerRaw, OpenRtbRaw,
-        PurposeEnforcementRaw, RenderError, ResourceLimitsRaw, RuntimeBootstrapRaw,
-        SpecialFeatureEnforcementRaw, SyncerEndpointRaw, Tcf2ConfigRaw, UserSyncRaw,
-        render_account_config, render_account_gdpr, render_account_privacy, render_bidder_info,
-        render_bidder_type_imports, render_channel_enabled, render_endpoint_macros,
-        render_enforce_algo, render_host_allowlist, render_host_config, render_host_vendor_id,
-        render_int_i64, render_int_usize, render_media_types, render_openrtb,
-        render_purpose_enforcement, render_resource_limits, render_special_feature_enforcement,
-        render_string_string_btreemap, render_syncer_endpoint, render_tcf2, render_user_sync,
+        PurposeEnforcementRaw, RenderError, ResourceLimitsRaw, SpecialFeatureEnforcementRaw,
+        SyncerEndpointRaw, Tcf2ConfigRaw, UserSyncRaw, render_account_config, render_account_gdpr,
+        render_account_privacy, render_bidder_info, render_bidder_type_imports,
+        render_channel_enabled, render_endpoint_macros, render_enforce_algo, render_host_allowlist,
+        render_host_config, render_host_vendor_id, render_int_i64, render_int_usize,
+        render_media_types, render_openrtb, render_purpose_enforcement, render_resource_limits,
+        render_special_feature_enforcement, render_string_string_btreemap, render_syncer_endpoint,
+        render_tcf2, render_user_sync,
     };
     use auctioneer_config_data::types::{AccountConfig, IpKeepBits};
     use quote::ToTokens as _;
@@ -1231,88 +1231,5 @@ dooh = "unset"
             &out,
             "ipv6: IpAnonConfig { anon_keep_bits: 56 }"
         ));
-    }
-
-    // -----------------------------------------------------------------
-    // runtime-bootstrap.toml — the deploy-immutable policy. The build
-    // bakes exactly two validated values, so the parser must be strict:
-    // a misspelled key or a wrongly-typed spelling is a build failure,
-    // never a silent default.
-    // -----------------------------------------------------------------
-
-    /// The full checked-in file, so a test spelling one key does not have
-    /// to restate the other.
-    const BOOTSTRAP_OK: &str =
-        "[runtime]\nallow_missing_config = false\nmax_config_fetch_ms = 2000\n";
-
-    #[test]
-    fn runtime_bootstrap_parses_the_checked_in_file_to_the_safer_default() {
-        let raw = include_str!("../data/runtime-bootstrap.toml");
-        let parsed: RuntimeBootstrapRaw = toml::from_str(raw).expect("checked-in file parses");
-        assert!(
-            !parsed.runtime.allow_missing_config,
-            "the shipped bootstrap must fail closed on a missing config",
-        );
-        assert!(
-            parsed.runtime.max_config_fetch_ms > 0,
-            "a zero fetch bound would expire every config read before it started",
-        );
-    }
-
-    #[test]
-    fn runtime_bootstrap_rejects_an_unknown_key() {
-        let err = toml::from_str::<RuntimeBootstrapRaw>(
-            "[runtime]\nallow_missing_config = false\nmax_config_fetch_ms = 2000\n\
-             allow_missing_confg = true\n",
-        )
-        .expect_err("a misspelled key must not be ignored");
-        assert!(err.to_string().contains("unknown field"), "{err}");
-    }
-
-    #[test]
-    fn runtime_bootstrap_rejects_a_non_boolean_spelling() {
-        for raw in [
-            "[runtime]\nallow_missing_config = \"true\"\nmax_config_fetch_ms = 2000\n",
-            "[runtime]\nallow_missing_config = 1\nmax_config_fetch_ms = 2000\n",
-        ] {
-            let err = toml::from_str::<RuntimeBootstrapRaw>(raw)
-                .expect_err("a non-boolean spelling must not parse as a bool");
-            assert!(err.to_string().contains("invalid type"), "{raw:?}: {err}");
-        }
-    }
-
-    /// The fetch bound is strictly integral milliseconds. A quoted or
-    /// fractional spelling must stop the build rather than round into a
-    /// production timeout nobody wrote.
-    #[test]
-    fn runtime_bootstrap_rejects_a_non_integer_fetch_bound() {
-        for raw in [
-            "[runtime]\nallow_missing_config = false\nmax_config_fetch_ms = \"2000\"\n",
-            "[runtime]\nallow_missing_config = false\nmax_config_fetch_ms = 2000.5\n",
-            "[runtime]\nallow_missing_config = false\nmax_config_fetch_ms = -1\n",
-        ] {
-            let err = toml::from_str::<RuntimeBootstrapRaw>(raw)
-                .expect_err("only a nonnegative integer parses as the fetch bound");
-            let message = err.to_string();
-            assert!(
-                message.contains("invalid type") || message.contains("invalid value"),
-                "{raw:?}: {message}",
-            );
-        }
-    }
-
-    #[test]
-    fn runtime_bootstrap_rejects_a_missing_key() {
-        for raw in [
-            "[runtime]\n",
-            "[runtime]\nallow_missing_config = false\n",
-            "[runtime]\nmax_config_fetch_ms = 2000\n",
-        ] {
-            let err =
-                toml::from_str::<RuntimeBootstrapRaw>(raw).expect_err("both keys are mandatory");
-            assert!(err.to_string().contains("missing field"), "{raw:?}: {err}");
-        }
-        toml::from_str::<RuntimeBootstrapRaw>(BOOTSTRAP_OK)
-            .expect("both keys present is what parses");
     }
 }

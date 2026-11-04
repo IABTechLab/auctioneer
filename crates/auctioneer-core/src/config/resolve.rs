@@ -1,4 +1,4 @@
-//! Overlay-over-baked resolution.
+//! Runtime policy resolution over neutral compiled product defaults.
 //!
 //! Each resolver takes the pushed `AuctioneerAppConfig` (from the config
 //! store) and the build-time TOML default, then returns an owned
@@ -12,15 +12,15 @@
 
 use crate::config::policy_account::AccountGdprFields;
 use crate::config::{
-    AccountOverride, AccountPrivacyOverride, AuctionConfig, AuctioneerAppConfig,
-    ChannelEnabledOverride, HostGdprOverride,
+    AccountPrivacyOverride, AuctionConfig, AuctioneerAppConfig, ChannelEnabledOverride,
+    HostGdprOverride,
 };
 use crate::host_primitives::gates::boot_limits;
 use auctioneer_bidder::BidderName;
 use auctioneer_config_data::activity::merge_activities;
 use auctioneer_config_data::types::{
-    AccountConfig, AccountGdprConfig, BidderInfo, ChannelEnabled, CooperativeConfig, HostConfig,
-    PurposeEnforcement, ResourceLimits, SpecialFeatureEnforcement, UserSyncConfig,
+    AccountConfig, AccountGdprConfig, BidderInfo, ChannelEnabled, HostConfig, PurposeEnforcement,
+    ResourceLimits, SpecialFeatureEnforcement,
 };
 use auctioneer_exchange::{AccountSource, AuctionError, ExchangeFeatures, UNRESOLVED_ACCOUNT_ID};
 use auctioneer_runtime::aux_work::MAX_CATALOG_IDENTITIES;
@@ -89,10 +89,10 @@ impl ResolvedAccountOwned {
 /// Resolve one request-population cap against what the boot envelope
 /// funds: the effective value is the smaller of the two.
 ///
-/// `configured` is what somebody ASKED for — the baked `auctioneer.toml`
-/// row, or a runtime override pushed over it. `funded` is what the
+/// `configured` comes from neutral compiled product defaults plus the direct
+/// runtime policy's `host.resource_limits` requests. `funded` is what the
 /// installed envelope BUDGETED memory for. They come from different
-/// places and the shipped rows disagree: the baked default permits 100
+/// places and the shipped rows disagree: the product default permits 100
 /// outbound calls while the wasm envelopes fund 32. Taking the
 /// configured value directly would authorise allocation and dispatch
 /// the envelope never reserved memory for, and a pushed override could
@@ -132,15 +132,15 @@ fn widen_u32(funded: u32) -> usize {
     usize::try_from(funded).unwrap_or(usize::MAX)
 }
 
-/// Build the effective `HostConfig` = baked TOML default with `auctioneer.toml`
-/// overrides applied, with the request-population caps resolved against
+/// Build the effective `HostConfig` from neutral compiled product defaults plus
+/// the direct runtime policy's `host` scope, with population caps resolved against
 /// the boot envelope.
 ///
 /// Auction resource limits, host aliases, GDPR/CCPA/LMT flags, and
 /// the status body all funnel through here.
 ///
 /// The seven caps the boot envelope also declares are resolved against
-/// it LAST, after the overlay, so one rule covers the baked default and
+/// it LAST, after the overlay, so one rule covers the product default and
 /// every override: see [`funded_cap`]. Those are the two that decide
 /// how many outbound calls an auction issues and how many bidder bodies
 /// it retains, the two outbound request caps (raw and encoded), the two
@@ -152,17 +152,7 @@ fn widen_u32(funded: u32) -> usize {
 /// funds separately — so they take the overlay value as given.
 #[must_use]
 pub fn resolved_host(app: &AuctioneerAppConfig, baked: &HostConfig) -> HostConfig {
-    let mut host = baked.clone();
-    apply_resource_overrides(&mut host.resource_limits, &app.auction);
-    if let Some(v) = app.status.banner.as_ref() {
-        host.status_response.clone_from(v);
-    }
-    if let Some(value) = app.ccpa.as_ref().and_then(|ccpa| ccpa.enforce) {
-        host.ccpa.enforce = value;
-    }
-    if let Some(value) = app.lmt.as_ref().and_then(|lmt| lmt.enforce) {
-        host.lmt.enforce = value;
-    }
+    let mut host = super::policy_host::requested_policy_host(baked, &app.host);
     // Each knob resolves against its OWN funded ceiling. One shared
     // minimum would collapse a row whose bidder and call ceilings
     // differ onto whichever is smaller.
@@ -249,99 +239,19 @@ pub fn limits_for_request(
     }
 }
 
-/// Build the fully-resolved `HostConfig`: the existing deployment-wide
-/// overlay, then cookie, sync, GDPR, and alias overlays layered on top.
+/// Build the fully-resolved `HostConfig` from neutral compiled product defaults
+/// and the direct runtime policy's `host` scope.
 ///
-/// It EXTENDS [`resolved_host`], never replaces it — the base call folds
-/// in the `[auction]` and `[status]` overlays, and every baked field the
-/// added sections do not name (resource limits, status body, and any GDPR
-/// sub-entry absent from the override) passes through untouched. Nested enforcement maps merge
-/// PER ENTRY, so a keyed override touches only that id and its sibling
-/// baked entries survive.
+/// Delegates to [`resolved_host`], including `host.resource_limits`,
+/// `host.status_response`, cookie, sync, GDPR, and alias policy. Omitted fields
+/// retain product defaults. Nested enforcement maps merge PER ENTRY, so a keyed
+/// override touches only that id and sibling product entries survive.
 ///
 /// `channel_enabled` is account-only, not a field on `HostConfig`, so it
 /// is not a concern here.
 #[must_use]
 pub fn resolve_host(app: &AuctioneerAppConfig, baked: &HostConfig) -> HostConfig {
-    // Base = the existing deployment-wide overlay. Never bypassed.
-    let mut host = resolved_host(app, baked);
-
-    if let Some(cookie) = &app.host_cookie {
-        if let Some(value) = &cookie.cookie_name {
-            host.host_cookie.cookie_name.clone_from(value);
-        }
-        if let Some(value) = &cookie.family {
-            host.host_cookie.family.clone_from(value);
-        }
-        if let Some(value) = &cookie.domain {
-            host.host_cookie.domain = Some(value.clone());
-        }
-        if let Some(value) = cookie.ttl_days {
-            host.host_cookie.ttl_days = value;
-        }
-        if let Some(value) = cookie.max_cookie_size_bytes {
-            host.host_cookie.max_cookie_size_bytes = value;
-        }
-        if let Some(optout) = &cookie.optout_cookie {
-            let target = host
-                .host_cookie
-                .optout_cookie
-                .get_or_insert_with(Default::default);
-            if let Some(value) = &optout.name {
-                target.name.clone_from(value);
-            }
-            if let Some(value) = &optout.value {
-                target.value.clone_from(value);
-            }
-        }
-    }
-    if let Some(sync) = &app.user_sync {
-        if host.user_sync.is_none() {
-            host.user_sync = sync
-                .external_url
-                .as_ref()
-                .map(|external_url| UserSyncConfig {
-                    external_url: external_url.clone(),
-                    redirect_url: None,
-                    cooperative: CooperativeConfig::default(),
-                    priority_groups: Vec::new(),
-                    allowed_origins: Vec::new(),
-                });
-        }
-        if let Some(target) = &mut host.user_sync {
-            if let Some(value) = &sync.external_url {
-                target.external_url.clone_from(value);
-            }
-            if let Some(value) = &sync.redirect_url {
-                target.redirect_url = Some(value.clone());
-            }
-            if let Some(value) = sync.cooperative.as_ref().and_then(|v| v.enabled_by_default) {
-                target.cooperative.enabled_by_default = value;
-            }
-            if let Some(value) = &sync.priority_groups {
-                target.priority_groups.clone_from(value);
-            }
-            if let Some(value) = &sync.allowed_origins {
-                target.allowed_origins.clone_from(value);
-            }
-        }
-    }
-
-    // Host `[gdpr]` overlay. Absent → the baked gdpr passes through whole.
-    if let Some(gdpr) = app.gdpr.as_ref() {
-        apply_host_gdpr_overlay(&mut host, gdpr);
-    }
-
-    // Host `[aliases]` overlay: per-KEY object merge (RFC 7396) — baked
-    // aliases the override does not name survive; a named key replaces
-    // its base bidder.
-    if let Some(overrides) = app.aliases.as_ref() {
-        for (alias, base_bidder) in overrides {
-            host.aliases.insert(alias.clone(), base_bidder.clone());
-        }
-    }
-
-    host
+    resolved_host(app, baked)
 }
 
 pub(super) fn apply_host_gdpr_overlay(host: &mut HostConfig, gdpr: &HostGdprOverride) {
@@ -707,50 +617,8 @@ pub fn resolve_selected_account(
 /// Layer 3: apply one `[accounts.<id>]` entry on top of the
 /// deployment-wide result. Present fields write; absent fields leave the
 /// deployment-wide value in place.
-fn merge_account(mut base: AccountConfig, overlay: &AccountOverride) -> AccountConfig {
-    if let Some(value) = overlay.disabled {
-        base.disabled = value;
-    }
-    if let Some(value) = overlay.debug_allow {
-        base.debug_allow = value;
-    }
-    if let Some(sync) = &overlay.cookie_sync {
-        if let Some(value) = sync.default_limit {
-            base.cookie_sync.default_limit = Some(value);
-        }
-        if let Some(value) = sync.max_limit {
-            base.cookie_sync.max_limit = Some(value);
-        }
-        if let Some(value) = sync.default_coop_sync {
-            base.cookie_sync.default_coop_sync = Some(value);
-        }
-        if let Some(value) = &sync.priority_groups {
-            base.cookie_sync.priority_groups = Some(value.clone());
-        }
-    }
-    if let Some(value) = overlay.bid_rounding.as_ref() {
-        base.bid_rounding.clone_from(value);
-    }
-    if let Some(value) = overlay.targeting_prefix.as_ref() {
-        base.targeting_prefix.clone_from(value);
-    }
-    if let Some(value) = overlay.truncate_target_attribute {
-        base.truncate_target_attribute = Some(value);
-    }
-    if let Some(gdpr) = overlay.gdpr.as_ref() {
-        merge_account_gdpr(&mut base.gdpr, gdpr);
-    }
-    if let Some(ccpa) = overlay.ccpa.as_ref() {
-        if let Some(value) = ccpa.enabled {
-            base.ccpa.enabled = value;
-        }
-        if let Some(channels) = ccpa.channel_enabled.as_ref() {
-            merge_channels(&mut base.ccpa.channel_enabled, channels);
-        }
-    }
-    if let Some(privacy) = overlay.privacy.as_ref() {
-        merge_account_privacy(&mut base, privacy);
-    }
+fn merge_account(mut base: AccountConfig, overlay: &super::policy::AccountPolicy) -> AccountConfig {
+    super::policy_account::merge_policy_account(&mut base, overlay);
     base
 }
 
@@ -848,18 +716,11 @@ pub(super) fn merge_account_privacy(base: &mut AccountConfig, overlay: &AccountP
     }
 }
 
-/// Build the effective `AccountConfig` = baked TOML default with
-/// `auctioneer.toml` overrides applied.
+/// Build the effective default `AccountConfig` from neutral compiled product
+/// defaults plus the direct runtime policy's `account_defaults` scope.
 #[must_use]
 pub fn resolved_account(app: &AuctioneerAppConfig, baked: &AccountConfig) -> AccountConfig {
-    let mut account = baked.clone();
-    if let Some(v) = app.targeting.prefix.as_ref() {
-        account.targeting_prefix.clone_from(v);
-    }
-    if let Some(v) = app.targeting.truncate_target_attribute {
-        account.truncate_target_attribute = Some(v);
-    }
-    account
+    super::policy_account::resolve_policy_account(baked, app, &AccountSelection::Default)
 }
 
 /// Return `true` iff the bidder is enabled after the overlay.
@@ -1045,7 +906,7 @@ mod tests {
     #[test]
     fn disabled_publisher_survives_unrelated_opaque_numeric_overflow() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.pub]\ndisabled=true\n").expect("config");
+            toml::from_str("schema_version = 1\n[accounts.pub]\ndisabled=true\n").expect("config");
         // Literal exemption: json! cannot preserve the out-of-range 1e400 token.
         let body =
             br#"{"site":{"publisher":{"id":"pub"}},"imp":[{"banner":{"ext":{"opaque":1e400}}}]}"#;
@@ -1062,7 +923,7 @@ mod tests {
     #[test]
     fn nonstring_publisher_candidates_do_not_mask_lower_priority_identity() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.pub]\ndisabled=true\n").expect("config");
+            toml::from_str("schema_version = 1\n[accounts.pub]\ndisabled=true\n").expect("config");
         for wire in [
             // Literal exemption: preserve the nonstring app's 1e400 token.
             br#"{"app":1e400,"site":{"publisher":{"id":"pub"}}}"#.as_slice(),
@@ -1178,11 +1039,11 @@ mod tests {
         account.privacy.ipv6.anon_keep_bits = 48;
         account.cookie_sync.default_limit = Some(7);
         for overlay in [
-            serde_json::json!({}),
-            serde_json::json!({"gdpr":null,"host_cookie":null,"user_sync":null,"accounts":{"pub":{"gdpr":null,"privacy":null,"cookie_sync":null}}}),
-            serde_json::json!({"gdpr":{},"host_cookie":{},"user_sync":{},"accounts":{"pub":{"gdpr":{},"privacy":{},"cookie_sync":{}}}}),
-            serde_json::json!({"gdpr":{"tcf2":null},"host_cookie":{"domain":null},"user_sync":{"cooperative":null,"priority_groups":null},"accounts":{"pub":{"gdpr":{"channel_enabled":null,"basic_enforcement_vendors":null},"privacy":{"ipv4":null,"ipv6":null},"cookie_sync":{"default_limit":null}}}}),
-            serde_json::json!({"gdpr":{"tcf2":{"enabled":null,"purpose_one_treatment":{}}},"user_sync":{"cooperative":{"enabled_by_default":null}},"accounts":{"pub":{"gdpr":{"channel_enabled":{"web":null}},"privacy":{"ipv4":{"anon_keep_bits":null},"ipv6":{}}}}}),
+            serde_json::json!({"schema_version": 1_u64}),
+            serde_json::json!({"schema_version": 1_u64, "host": {"gdpr": {}, "host_cookie": {}}, "accounts": {"pub": {"gdpr": {}, "privacy": {}, "cookie_sync": {}}}}),
+            serde_json::json!({ "schema_version": 1_u64, "host": {"gdpr":{}, "host_cookie":{}, "user_sync":{ "external_url": "https://sync.example.test", }}, "accounts":{"pub":{"gdpr":{},"privacy":{},"cookie_sync":{}}} }),
+            serde_json::json!({"schema_version": 1_u64, "host": {"gdpr": {"tcf2": {}}, "host_cookie": {}, "user_sync": {"external_url": "https://sync.example.test", "cooperative": {}}}, "accounts": {"pub": {"gdpr": {"channel_enabled": {}}, "privacy": {"ipv4": {}, "ipv6": {}}, "cookie_sync": {}}}}),
+            serde_json::json!({"schema_version": 1_u64, "host": {"gdpr": {"tcf2": {"purpose_one_treatment": {}}}, "user_sync": {"external_url": "https://sync.example.test", "cooperative": {}}}, "accounts": {"pub": {"gdpr": {"channel_enabled": {}}, "privacy": {"ipv4": {}, "ipv6": {}}}}}),
         ] {
             let app: AuctioneerAppConfig = serde_json::from_value(overlay).expect("overlay");
             let resolved = super::resolve_host(&app, &host);
@@ -1198,6 +1059,50 @@ mod tests {
             assert_eq!(
                 serde_json::to_value(selected.config).expect("account"),
                 serde_json::to_value(&account).expect("baked account")
+            );
+        }
+        let control = serde_json::json!({
+            "schema_version": 1_u64,
+            "host": {
+                "gdpr": {"tcf2": {"purpose_one_treatment": {}}},
+                "host_cookie": {},
+                "user_sync": {"external_url": "https://sync.example.test", "cooperative": {}}
+            },
+            "accounts": {"pub": {
+                "gdpr": {"channel_enabled": {}},
+                "privacy": {"ipv4": {}, "ipv6": {}},
+                "cookie_sync": {}
+            }}
+        });
+        serde_json::from_value::<AuctioneerAppConfig>(control.clone())
+            .expect("valid inherit control");
+        for path in [
+            "/host/gdpr",
+            "/host/host_cookie",
+            "/host/user_sync",
+            "/accounts/pub/gdpr",
+            "/accounts/pub/privacy",
+            "/accounts/pub/cookie_sync",
+            "/host/gdpr/tcf2",
+            "/host/host_cookie/domain",
+            "/host/user_sync/cooperative",
+            "/host/user_sync/priority_groups",
+            "/accounts/pub/gdpr/channel_enabled",
+            "/accounts/pub/gdpr/basic_enforcement_vendors",
+            "/accounts/pub/privacy/ipv4",
+            "/accounts/pub/privacy/ipv6",
+            "/accounts/pub/cookie_sync/default_limit",
+            "/host/gdpr/tcf2/enabled",
+            "/host/user_sync/cooperative/enabled_by_default",
+            "/accounts/pub/gdpr/channel_enabled/web",
+            "/accounts/pub/privacy/ipv4/anon_keep_bits",
+        ] {
+            let mut invalid = control.clone();
+            let (parent, field) = path.rsplit_once('/').expect("leaf path");
+            invalid.pointer_mut(parent).expect("present parent")[field] = serde_json::Value::Null;
+            assert!(
+                serde_json::from_value::<AuctioneerAppConfig>(invalid).is_err(),
+                "{path}: null is not inheritance"
             );
         }
     }
@@ -1226,11 +1131,7 @@ mod tests {
         account.privacy.ipv6.anon_keep_bits = 48;
         account.gdpr.basic_enforcement_vendors = vec!["fake_aaa".into()];
         for replacement in [Vec::<String>::new(), vec!["fake_pp".to_owned()]] {
-            let app: AuctioneerAppConfig = serde_json::from_value(serde_json::json!({
-                "host_cookie":{"optout_cookie":{"name":"","value":""},"max_cookie_size_bytes":0_i32},
-                "user_sync":{"cooperative":{"enabled_by_default":false},"priority_groups":[],"allowed_origins":[]},
-                "accounts":{"pub":{"debug_allow":false,"cookie_sync":{"default_limit":0_i32,"priority_groups":[]},"privacy":{"ipv4":{"anon_keep_bits":0_i32}},"gdpr":{"basic_enforcement_vendors":replacement}}}
-            })).expect("explicit overlay");
+            let app: AuctioneerAppConfig = serde_json::from_value(serde_json::json!({ "schema_version": 1_u64, "host": {"host_cookie":{"optout_cookie":{"name":"","value":""},"max_cookie_size_bytes":0_i32}, "user_sync":{ "external_url": "https://sync.example.test", "cooperative":{"enabled_by_default":false},"priority_groups":[],"allowed_origins":[]}}, "accounts":{"pub":{"debug_allow":false,"cookie_sync":{"default_limit":0_i32,"priority_groups":[]},"privacy":{"ipv4":{"anon_keep_bits":0_i32}},"gdpr":{"basic_enforcement_vendors":replacement}}} })).expect("explicit overlay");
             validate_effective(&app, &host, &account).expect("valid explicit values");
             let resolved = super::resolve_host(&app, &host);
             assert_eq!(resolved.host_cookie.domain, host.host_cookie.domain);
@@ -1300,10 +1201,7 @@ mod tests {
         account.gdpr.channel_enabled.web = TriState::Disabled;
         for (overlay, expected) in [
             (serde_json::json!({}), false),
-            (
-                serde_json::json!({"gdpr":{"channel_enabled":{"web":null}}}),
-                false,
-            ),
+            (serde_json::json!({"gdpr":{"channel_enabled":{}}}), false),
             (
                 serde_json::json!({"gdpr":{"channel_enabled":{"web":"unset"}}}),
                 true,
@@ -1313,9 +1211,10 @@ mod tests {
                 true,
             ),
         ] {
-            let app: AuctioneerAppConfig =
-                serde_json::from_value(serde_json::json!({"accounts":{"pub":overlay}}))
-                    .expect("overlay");
+            let app: AuctioneerAppConfig = serde_json::from_value(
+                serde_json::json!({ "schema_version": 1_u64, "accounts":{"pub":overlay} }),
+            )
+            .expect("overlay");
             let selected = super::resolve_selected_account(
                 super::AccountSelection::Named("pub".into()),
                 &app,
@@ -1367,7 +1266,7 @@ mod tests {
     #[test]
     fn alias_cannot_reenable_a_disabled_base_or_baked_syncer() {
         let disabled_base_cfg: AuctioneerAppConfig = toml::from_str(
-            "[bidders.fake_pp]\nusersync_enabled = false\n[bidders.fake_alias]\nusersync_enabled = true\n",
+            "schema_version = 1\n[bidders.fake_pp]\nusersync_enabled = false\n[bidders.fake_alias]\nusersync_enabled = true\n",
         )
         .expect("runtime TOML parses");
         let mut baked = BidderInfo {
@@ -1381,7 +1280,7 @@ mod tests {
             &baked
         ));
         let enabled_alias_cfg: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_alias]\nusersync_enabled = true\n")
+            toml::from_str("schema_version = 1\n[bidders.fake_alias]\nusersync_enabled = true\n")
                 .expect("runtime TOML parses");
         baked.disabled = true;
         assert!(!sync_bidder_enabled(
@@ -1543,8 +1442,7 @@ mod tests {
     #[test]
     fn overlay_overrides_tmax_and_status() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[auction]\ndefault_tmax_ms = 750\nmax_bidders_per_auction = 30\n\n\
-             [status]\nbanner = \"auctioneer dev\"\n",
+            "schema_version = 1\n[host.resource_limits]\ndefault_tmax_ms = 750\nmax_bidders_per_auction = 30\n\n[host]\nstatus_response = \"auctioneer dev\"\n",
         )
         .unwrap();
         let resolved = resolved_host(&app, &baked_host());
@@ -1557,7 +1455,9 @@ mod tests {
 
     #[test]
     fn overlay_overrides_targeting_prefix() {
-        let app: AuctioneerAppConfig = toml::from_str("[targeting]\nprefix = \"pb\"\n").unwrap();
+        let app: AuctioneerAppConfig =
+            toml::from_str("schema_version = 1\n[account_defaults]\ntargeting_prefix = \"pb\"\n")
+                .unwrap();
         let resolved = resolved_account(&app, &baked_account());
         assert_eq!(resolved.targeting_prefix, "pb");
         assert_eq!(resolved.bid_rounding, "down"); // untouched
@@ -1566,8 +1466,7 @@ mod tests {
     #[test]
     fn per_bidder_enabled_flag_honored() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[bidders.fake_aaa]\nenabled = false\n\n\
-             [bidders.fake_bbb]\nenabled = true\n",
+            "schema_version = 1\n[bidders.fake_aaa]\nenabled = false\n\n[bidders.fake_bbb]\nenabled = true\n",
         )
         .unwrap();
         assert!(!bidder_enabled(&app, &BidderName::new("fake_aaa")));
@@ -1590,25 +1489,29 @@ mod tests {
             ..BidderInfo::default()
         };
         for (overlay, base_enabled, alias_enabled) in [
-            ("", false, false),
-            ("[bidders.fake_alias]\nenabled = true\n", false, false),
+            ("schema_version = 1\n", false, false),
             (
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
-                true,
-                true,
-            ),
-            (
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = false\n",
-                true,
-                false,
-            ),
-            (
-                "[bidders.fake_base]\nenabled = false\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_alias]\nenabled = true\n",
                 false,
                 false,
             ),
             (
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                true,
+                true,
+            ),
+            (
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = false\n",
+                true,
+                false,
+            ),
+            (
+                "schema_version = 1\n[bidders.fake_base]\nenabled = false\n[bidders.fake_alias]\nenabled = true\n",
+                false,
+                false,
+            ),
+            (
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
                 true,
                 true,
             ),
@@ -1626,7 +1529,7 @@ mod tests {
             assert!(!super::effective_bidder_enabled(&app, &alias, |_| None));
         }
         let app: AuctioneerAppConfig = toml::from_str(
-            "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+            "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
         )
         .unwrap();
         let vetoed = BidderInfo {
@@ -1666,15 +1569,15 @@ mod tests {
         alias.user_sync.enabled = true;
         for (overlay, expected) in [
             (
-                "[bidders.fake_alias]\nenabled = true\nusersync_enabled = true\n",
+                "schema_version = 1\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = true\n",
                 false,
             ),
             (
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
                 true,
             ),
             (
-                "[bidders.fake_base]\nenabled = true\nusersync_enabled = false\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\nusersync_enabled = false\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = true\n",
                 false,
             ),
         ] {
@@ -1687,7 +1590,7 @@ mod tests {
             );
         }
         base.user_sync.enabled = false;
-        let app: AuctioneerAppConfig = toml::from_str("[bidders.fake_base]\nenabled = true\nusersync_enabled = true\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = true\n").unwrap();
+        let app: AuctioneerAppConfig = toml::from_str("schema_version = 1\n[bidders.fake_base]\nenabled = true\nusersync_enabled = true\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = true\n").unwrap();
         assert!(!super::sync_bidder_enabled_in_catalog(
             &app,
             "fake_host_alias",
@@ -1707,7 +1610,7 @@ mod tests {
     #[test]
     fn resolved_features_applies_overlay() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[features]\ngzip_outbound = false\nreturnallbidstatus_default = true\n",
+            "schema_version = 1\n[features]\ngzip_outbound = false\nreturnallbidstatus_default = true\n",
         )
         .unwrap();
         let features = super::resolved_features(&app);
@@ -1772,7 +1675,7 @@ mod tests {
         }
     }
 
-    /// The baked `auctioneer.toml` call count, restated so the table above
+    /// The neutral compiled product-default call count, restated so the table above
     /// states what it is comparing against.
     const BAKED_CALLS: usize = 100;
 
@@ -1781,7 +1684,7 @@ mod tests {
     /// budget.
     ///
     /// Every shipped adapter funds the same three figures — 256 KiB,
-    /// 256 KiB and 65536 — and the baked `auctioneer.toml` row declares
+    /// 256 KiB and 65536 — and the neutral compiled product defaults declare
     /// exactly those, so at the DEFAULT the clamp is a no-op by design.
     /// That makes a fixture built only from the shipped numbers useless:
     /// `min(x, x) == x` holds with the clamp deleted. So the overrides
@@ -1863,10 +1766,7 @@ mod tests {
     #[test]
     fn overlay_reaches_the_five_settable_byte_caps() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_outbound_raw_bytes = 16384\n\
-             max_outbound_request_bytes = 8192\n\
-             max_transport_bytes = 65536\nmax_decoded_bytes = 32768\n\
-             max_parsed_nodes = 4096\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_outbound_raw_bytes = 16384\nmax_outbound_request_bytes = 8192\nmax_transport_bytes = 65536\nmax_decoded_bytes = 32768\nmax_parsed_nodes = 4096\n",
         )
         .expect("the override parses");
         let resolved = resolved_host(&app, &baked_host());
@@ -1938,11 +1838,7 @@ mod tests {
     #[test]
     fn parsed_account_resolution_matches_bounded_bytes_and_shares_activities() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[accounts.pub.ccpa]\nenabled = 'enabled'\n\n\
-             [accounts.pub.cookie_sync]\ndefault_limit = 9\nmax_limit = 4\n\
-             default_coop_sync = false\npriority_groups = [['fake_pp']]\n\n\
-             [accounts.pub.privacy.allowactivities.fetchBids]\n\
-             default = false\nrules = [{ allow = true }]\n",
+            "schema_version = 1\n[accounts.pub.ccpa]\nenabled = 'enabled'\n\n[accounts.pub.cookie_sync]\ndefault_limit = 9\nmax_limit = 4\ndefault_coop_sync = false\npriority_groups = [['fake_pp']]\n\n[accounts.pub.privacy.allowactivities.fetchBids]\ndefault = false\nrules = [{ allow = true }]\n",
         )
         .expect("privacy and sync account overlay");
         let baked = baked_account();
@@ -1986,9 +1882,7 @@ mod tests {
     #[test]
     fn bounded_auction_lookup_keeps_sync_selection_but_rejects_disabled_accounts() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[accounts.pub]\ndisabled = true\n\n\
-             [accounts.pub.cookie_sync]\nmax_limit = 4\n\n\
-             [accounts.unknown]\ndisabled = true\n",
+            "schema_version = 1\n[accounts.pub]\ndisabled = true\n\n[accounts.pub.cookie_sync]\nmax_limit = 4\n\n[accounts.unknown]\ndisabled = true\n",
         )
         .expect("disabled sync account overlay");
         let baked = baked_account();
@@ -2032,8 +1926,7 @@ mod tests {
     #[test]
     fn resolved_bidder_timeouts_collects_overrides() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[bidders.fake_aaa]\ntimeout_ms = 250\n\n\
-             [bidders.fake_bbb]\nenabled = true\n",
+            "schema_version = 1\n[bidders.fake_aaa]\ntimeout_ms = 250\n\n[bidders.fake_bbb]\nenabled = true\n",
         )
         .unwrap();
         let timeouts = super::resolved_bidder_timeouts(&app);
@@ -2047,7 +1940,7 @@ mod tests {
     #[test]
     fn outbound_overlay_round_trips_and_preserves_smaller_caps() {
         let app: AuctioneerAppConfig = toml::from_str(
-            "[auction]\nmax_outbound_raw_bytes = 1024\nmax_outbound_request_bytes = 2048\n",
+            "schema_version = 1\n[host.resource_limits]\nmax_outbound_raw_bytes = 1024\nmax_outbound_request_bytes = 2048\n",
         )
         .unwrap();
         app.validate().unwrap();
@@ -2243,7 +2136,7 @@ mod tests {
                 "site": {"publisher": {"id": "acct-42"}},
                 "extra": {"deep": [{}, null]}
             });
-            let app_cfg = app("[accounts.acct-42]\ndisabled = true\n");
+            let app_cfg = app("schema_version = 1\n[accounts.acct-42]\ndisabled = true\n");
             let encoded = body(&request);
             // Seven nodes along the account path, six in the extra subtree.
             let at_limit = resolve_account(&encoded, &app_cfg, &baked_account(), 13);
@@ -2330,7 +2223,7 @@ mod tests {
 
         #[test]
         fn disabled_account_returns_account_disabled_code_7() {
-            let app_cfg = app("[accounts.acct-42]\ndisabled = true\n");
+            let app_cfg = app("schema_version = 1\n[accounts.acct-42]\ndisabled = true\n");
             let err = resolve_account(
                 &body(&serde_json::json!({
                     "id": "auc-1",
@@ -2350,8 +2243,9 @@ mod tests {
 
         #[test]
         fn configured_source_reported_when_accounts_entry_matches() {
-            let app_cfg =
-                app("[accounts.acct-42]\ntargeting_prefix = \"pb\"\ndebug_allow = true\n");
+            let app_cfg = app(
+                "schema_version = 1\n[accounts.acct-42]\ntargeting_prefix = \"pb\"\ndebug_allow = true\n",
+            );
             let owned = resolved(
                 &app_cfg,
                 &serde_json::json!({
@@ -2368,12 +2262,9 @@ mod tests {
 
         #[test]
         fn account_overlay_of_one_purpose_entry_preserves_sibling_purposes() {
-            let app_cfg = app("[accounts.acct-42.gdpr.purposes.2]\n\
-                 enforce_purpose = \"disabled\"\n\n\
-                 [accounts.acct-42.gdpr.special_features.1]\n\
-                 enforce = \"disabled\"\n\n\
-                 [accounts.acct-42.gdpr.channel_enabled]\n\
-                 web = \"disabled\"\n");
+            let app_cfg = app(
+                "schema_version = 1\n[accounts.acct-42.gdpr.purposes.2]\nenforce_purpose = \"disabled\"\n\n[accounts.acct-42.gdpr.special_features.1]\nenforce = \"disabled\"\n\n[accounts.acct-42.gdpr.channel_enabled]\nweb = \"disabled\"\n",
+            );
             let owned = resolved(
                 &app_cfg,
                 &serde_json::json!({
@@ -2439,7 +2330,8 @@ mod tests {
 
         #[test]
         fn account_privacy_overlay_sets_ipv4_only() {
-            let app_cfg = app("[accounts.acme.privacy.ipv4]\nanon_keep_bits = 16\n");
+            let app_cfg =
+                app("schema_version = 1\n[accounts.acme.privacy.ipv4]\nanon_keep_bits = 16\n");
             let owned = resolved(
                 &app_cfg,
                 &serde_json::json!({
@@ -2458,7 +2350,9 @@ mod tests {
         /// every publisher-less request at once.
         #[test]
         fn unresolved_fallback_id_skips_the_accounts_map_lookup() {
-            let app_cfg = app("[accounts.unknown]\ndisabled = true\ntargeting_prefix = \"zz\"\n");
+            let app_cfg = app(
+                "schema_version = 1\n[accounts.unknown]\ndisabled = true\ntargeting_prefix = \"zz\"\n",
+            );
             let owned = resolved(&app_cfg, &serde_json::json!({ "id": "auc-1", "imp": [] }));
             assert_eq!(owned.id, "unknown");
             assert_eq!(owned.source, AccountSource::DefaultFallback);
@@ -2468,7 +2362,7 @@ mod tests {
 
         #[test]
         fn host_gdpr_overlay_enabled_true_flips_baked_default_false() {
-            let app_cfg = app("[gdpr.tcf2]\nenabled = true\n");
+            let app_cfg = app("schema_version = 1\n[host.gdpr.tcf2]\nenabled = true\n");
             let host = resolve_host(&app_cfg, &baked_host());
             assert!(
                 host.gdpr.tcf2.enabled,
@@ -2478,7 +2372,9 @@ mod tests {
 
         #[test]
         fn resolve_host_preserves_auction_runtime_override_alongside_gdpr() {
-            let app_cfg = app("[auction]\ndefault_tmax_ms = 900\n\n[gdpr.tcf2]\nenabled = true\n");
+            let app_cfg = app(
+                "schema_version = 1\n[host.resource_limits]\ndefault_tmax_ms = 900\n\n[host.gdpr.tcf2]\nenabled = true\n",
+            );
             let host = resolve_host(&app_cfg, &baked_host());
             assert_eq!(
                 host.resource_limits.default_tmax_ms, 900,
@@ -2489,7 +2385,9 @@ mod tests {
 
         #[test]
         fn resolve_host_preserves_status_runtime_override_alongside_gdpr() {
-            let app_cfg = app("[status]\nbanner = \"up\"\n\n[gdpr.tcf2]\nenabled = true\n");
+            let app_cfg = app(
+                "schema_version = 1\n[host]\nstatus_response = \"up\"\n\n[host.gdpr.tcf2]\nenabled = true\n",
+            );
             let host = resolve_host(&app_cfg, &baked_host());
             assert_eq!(host.status_response, "up");
             assert!(host.gdpr.tcf2.enabled);
@@ -2497,7 +2395,9 @@ mod tests {
 
         #[test]
         fn resolve_host_overlay_of_one_purpose_entry_preserves_sibling_purposes() {
-            let app_cfg = app("[gdpr.tcf2.purposes.1]\nenforce_purpose = \"disabled\"\n");
+            let app_cfg = app(
+                "schema_version = 1\n[host.gdpr.tcf2.purposes.1]\nenforce_purpose = \"disabled\"\n",
+            );
             let host = resolve_host(&app_cfg, &baked_host());
             let purposes = &host.gdpr.tcf2.purposes;
             assert_eq!(
@@ -2524,7 +2424,9 @@ mod tests {
 
         #[test]
         fn resolve_host_overlay_of_one_special_feature_entry_preserves_siblings() {
-            let app_cfg = app("[gdpr.tcf2.special_features.1]\nenforce = \"disabled\"\n");
+            let app_cfg = app(
+                "schema_version = 1\n[host.gdpr.tcf2.special_features.1]\nenforce = \"disabled\"\n",
+            );
             let host = resolve_host(&app_cfg, &baked_host());
             let features = &host.gdpr.tcf2.special_features;
             assert_eq!(
@@ -2547,8 +2449,7 @@ mod tests {
         #[test]
         fn resolve_host_alias_overlay_preserves_baked_aliases() {
             let app_cfg = app(
-                "[aliases]\nfake_cc_alias = \"fake_pp\"\nfake_aaa_alias = \"fake_d\"\n\n\
-                 [gdpr.tcf2]\nenabled = true\n",
+                "schema_version = 1\n[host.aliases]\nfake_cc_alias = \"fake_pp\"\nfake_aaa_alias = \"fake_d\"\n\n[host.gdpr.tcf2]\nenabled = true\n",
             );
             let host = resolve_host(&app_cfg, &baked_host());
             assert_eq!(

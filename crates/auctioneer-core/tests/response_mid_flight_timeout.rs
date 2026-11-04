@@ -364,7 +364,7 @@ mod tests {
         request.extensions_mut().insert(TestRngHandle(rng));
 
         block_on(async {
-            let response = auction(ctx_with_config("", request))
+            let response = auction(ctx_with_config("schema_version = 1\n", request))
                 .await
                 .expect("the handler answers");
             let status = response.status();

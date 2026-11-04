@@ -61,9 +61,9 @@ mod tests {
         }
     }
 
-    const POLICY: &str = "[host_cookie.optout_cookie]\nname='optout'\nvalue='yes'\n[accounts.disabled]\ndisabled=true\n";
+    const POLICY: &str = "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n[host.host_cookie.optout_cookie]\nname='optout'\nvalue='yes'\n[accounts.disabled]\ndisabled=true\n";
 
-    const CPU_POLICY: &str = "[user_sync]\nallowed_origins=['https://publisher.example']\n[host_cookie.optout_cookie]\nname='optout'\nvalue='yes'\n";
+    const CPU_POLICY: &str = "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins=['https://publisher.example']\n[host.host_cookie.optout_cookie]\nname='optout'\nvalue='yes'\n";
 
     fn clocked_sync_request(
         method: Method,
@@ -243,8 +243,9 @@ mod tests {
 
     #[test]
     fn auction_syntax_nodes_and_disabled_account_precede_typed_field_validation() {
-        let app =
-            TestApp::new("[auction]\nmax_parsed_nodes=20\n[accounts.disabled]\ndisabled=true\n");
+        let app = TestApp::new(
+            "schema_version = 1\n[host.resource_limits]\nmax_parsed_nodes=20\n[accounts.disabled]\ndisabled=true\n",
+        );
         let cases = [
             // Literal exemption: preserve the incomplete imp array's syntax fault.
             (br#"{"site":{"publisher":{"id":"disabled"}},"imp":["#.to_vec(), StatusCode::BAD_REQUEST, "Invalid request"),
@@ -285,7 +286,7 @@ mod tests {
 
     #[test]
     fn auction_byte_and_depth_bounds_refuse_before_disabled_account_discovery() {
-        let app = TestApp::new("[accounts.disabled]\ndisabled=true\n");
+        let app = TestApp::new("schema_version = 1\n[accounts.disabled]\ndisabled=true\n");
         let too_deep = format!(
             "{{\"site\":{{\"publisher\":{{\"id\":\"disabled\"}}}},\"opaque\":{}0{}}}",
             "[".repeat(128),
@@ -321,7 +322,10 @@ mod tests {
     fn unrelated_invalid_account_in_blob_precedes_body_disabled_account_and_optout() {
         let app = TestApp::new(POLICY);
         let invalid = BlobEnvelope::new(
-            json!({"accounts":{"unrelated":{"targeting_prefix":""}, "disabled":{"disabled":true}}}),
+            json!({
+                "schema_version": 1_u64,
+                "accounts": {"unrelated":{"targeting_prefix":""}, "disabled":{"disabled":true}},
+            }),
             "1970-01-01T00:00:00Z".into(),
         );
         app.store()

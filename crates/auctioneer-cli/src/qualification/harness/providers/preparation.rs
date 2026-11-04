@@ -1,9 +1,13 @@
 use super::super::{HarnessError, Result, io, process};
 use super::{OVERRIDE_FEATURE, Provider};
 use auctioneer_cli::native_control::SOURCE_ROOT;
+use auctioneer_config::codegen::{
+    AccountRaw, HostDefaultRaw, render_account_config, render_host_config,
+};
+use auctioneer_config::types::{AccountConfig, HostConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::env::{current_exe, temp_dir, var_os};
+use std::env::{temp_dir, var_os};
 use std::ffi::OsString;
 use std::fs;
 use std::io::ErrorKind;
@@ -12,6 +16,9 @@ use std::io::Write as _;
 use std::os::unix::fs::symlink;
 use std::path::{Component, Path, PathBuf};
 use std::str::from_utf8;
+#[cfg(test)]
+use tests::harness_digest;
+use validator::Validate as _;
 
 pub(super) const INPUT_CAP: usize = 64 << 10;
 pub(super) const FILE_CAP: usize = 128 << 20;
@@ -22,11 +29,11 @@ const SOURCE_ROOTS: &[&str] = &[
     "Cargo.lock",
     "edgezero.toml",
     "fastly.toml",
-    "auctioneer.toml",
     "crates",
     ".cargo",
 ];
 const BIDDERS_ROOT: &str = "crates/auctioneer-bidder/src/bidders";
+const PRODUCT_DEFAULTS: &str = "crates/auctioneer-config-data/data/product-defaults.toml";
 const FIXTURE_REQUEST: &str = "docs/testing/fixtures/provider-handlers/banner-request.json";
 const FIXTURE_ROLE: &str = "fake_provider";
 const FIXTURE_ROOTS: &[&str] = &[
@@ -725,7 +732,14 @@ fn fixture_digest_at(root: &Path) -> Result<String> {
     io::canonical_digest(&(1_u32, inventory(root, FIXTURE_ROOTS, false)?))
 }
 
+#[expect(
+    clippy::cfg_not_test,
+    reason = "unit fixtures use an explicit executable through the same bounded hash helper"
+)]
+#[cfg(not(test))]
 fn harness_digest() -> Result<String> {
+    use std::env::current_exe;
+
     let root = canonical_directory(&repository_root(), "invalid_input")?;
     let executable = current_exe().map_err(|_error| HarnessError::new("invalid_input"))?;
     harness_digest_at(&root, &executable)
@@ -774,15 +788,7 @@ pub(super) async fn prepare(
     let production_files = production_receipts(supervisor, &repo).await?;
     let fixture_bidder = select_fixture_bidder(&repo, &production_files)?;
     let source_files = source_inventory(&repo)?;
-    let config = parse_toml(&strict_file(
-        &repo,
-        Path::new("auctioneer.toml"),
-        INPUT_CAP,
-    )?)?;
-    let baked = config
-        .get("baked")
-        .filter(|value| value.is_table())
-        .ok_or(HarnessError::new("invalid_input"))?;
+    let baked_config_sha256 = product_defaults_digest(&repo)?;
     let bidders_dir = workspace.join("bidders");
     let target_dir = workspace.join("cargo-target");
     private_directory(&bidders_dir)?;
@@ -847,7 +853,7 @@ pub(super) async fn prepare(
         profile: "release".to_owned(),
         harness_sha256: harness_digest()?,
         fixtures_sha256: fixture_digest()?,
-        baked_config_sha256: io::canonical_digest(baked)?,
+        baked_config_sha256,
         fixture_metadata_sha256: io::canonical_digest(&inventory(&bidders_dir, &[""], false)?)?,
         build_features: request.build_features,
         production_files,
@@ -860,6 +866,51 @@ pub(super) async fn prepare(
     supervisor.check_active().await?;
     io::write_json(&workspace.join("build-plan.json"), &result, RECEIPT_CAP)?;
     Ok(result)
+}
+
+fn product_defaults_digest(root: &Path) -> Result<String> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct ProductDefaults<Host, Account> {
+        host: Host,
+        account: Account,
+    }
+
+    let invalid = HarnessError::new("invalid_input");
+    let document = parse_toml(&strict_file(root, Path::new(PRODUCT_DEFAULTS), INPUT_CAP)?)?;
+    let raw: ProductDefaults<HostDefaultRaw, AccountRaw> =
+        document.clone().try_into().map_err(|_error| invalid)?;
+    raw.host
+        .resource_limits
+        .validate()
+        .map_err(|_error| invalid)?;
+    if raw.host.user_sync.is_some()
+        || !raw.host.aliases.is_empty()
+        || raw.host.gdpr.host_vendor_id != 0
+        || !raw.host.gdpr.non_standard_publishers.is_empty()
+        || raw.host.host_cookie.domain.is_some()
+        || raw.host.host_cookie.optout_cookie.is_some()
+        || !raw.host.status_response.is_empty()
+    {
+        return Err(invalid);
+    }
+    render_host_config(&raw.host)
+        .map(drop)
+        .map_err(|_error| invalid)?;
+    render_account_config(&raw.account)
+        .map(drop)
+        .map_err(|_error| invalid)?;
+    // JSON's typed map-key decoder handles the same numeric TCF keys as codegen.
+    let normalized: ProductDefaults<HostConfig, AccountConfig> =
+        serde_json::from_value(serde_json::to_value(document).map_err(|_error| invalid)?)
+            .map_err(|_error| invalid)?;
+    // Codegen emits Some(0), not None, even though the effective type is optional.
+    if normalized.host.gdpr.host_vendor_id != Some(0) {
+        return Err(invalid);
+    }
+    let bytes = serde_json::to_vec(&(normalized.host, normalized.account))
+        .map_err(|_error| HarnessError::new("invalid_input"))?;
+    Ok(io::sha256(&bytes))
 }
 
 pub(super) fn validate_preparation(preparation: &Preparation) -> Result<()> {
@@ -959,6 +1010,12 @@ pub async fn verify_frozen_inputs(
     {
         return Err(HarnessError::new("source_changed"));
     }
+    if product_defaults_digest(&preparation.repo_root)
+        .map_err(|_error| HarnessError::new("source_changed"))?
+        != preparation.baked_config_sha256
+    {
+        return Err(HarnessError::new("source_changed"));
+    }
     let frozen = (|| -> Result<()> {
         check_chain(&preparation.workspace, Path::new("bidders"))?;
         check_chain(&preparation.workspace, Path::new("cargo-target"))?;
@@ -983,8 +1040,235 @@ pub async fn verify_frozen_inputs(
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
+    use crate::bidders::resources::build_report;
 
     const FIXTURE_MANIFEST: &str = "fake_passthrough/bidder.toml";
+
+    pub(super) fn harness_digest() -> Result<String> {
+        let root = canonical_directory(&repository_root(), "invalid_input")?;
+        let fixture = harness_executable();
+        harness_digest_at(&root, fixture.path())
+    }
+
+    pub(super) fn harness_executable() -> tempfile::NamedTempFile {
+        // Provider unit fixtures hash an explicit binary, not libtest's debug
+        // executable, whose unrelated test code may exceed the production cap.
+        let fixture = tempfile::NamedTempFile::new().expect("synthetic harness executable");
+        fs::write(fixture.path(), b"fake_provider_harness").expect("write synthetic harness");
+        fixture
+    }
+
+    fn product_data_fixture(root: &Path) -> PathBuf {
+        let path = root.join(PRODUCT_DEFAULTS);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::copy(repository_root().join(PRODUCT_DEFAULTS), &path).unwrap();
+        path
+    }
+
+    fn product_fixture_root() -> tempfile::TempDir {
+        let temporary = canonical_directory(&temp_dir(), "invalid_input").unwrap();
+        tempfile::tempdir_in(temporary).unwrap()
+    }
+
+    #[test]
+    fn selected_product_defaults_decode_through_the_existing_schema_stages() {
+        let root = product_fixture_root();
+        product_data_fixture(root.path());
+        assert!(
+            check_chain(root.path(), Path::new(PRODUCT_DEFAULTS)).is_ok(),
+            "product_source_stage"
+        );
+        let bytes = strict_file(root.path(), Path::new(PRODUCT_DEFAULTS), INPUT_CAP)
+            .unwrap_or_else(|_error| panic!("product_source_stage"));
+        let document = parse_toml(&bytes).unwrap_or_else(|_error| panic!("product_toml_stage"));
+        let host: HostDefaultRaw = document["host"]
+            .clone()
+            .try_into()
+            .unwrap_or_else(|_error| panic!("product_raw_host_stage"));
+        let account: AccountRaw = document["account"]
+            .clone()
+            .try_into()
+            .unwrap_or_else(|_error| panic!("product_raw_account_stage"));
+        assert!(
+            host.resource_limits.validate().is_ok(),
+            "product_resource_stage"
+        );
+        assert!(
+            render_host_config(&host).is_ok(),
+            "product_host_renderer_stage"
+        );
+        assert!(
+            render_account_config(&account).is_ok(),
+            "product_account_renderer_stage"
+        );
+        let json =
+            serde_json::to_value(document).unwrap_or_else(|_error| panic!("product_json_stage"));
+        assert!(
+            serde_json::from_value::<HostConfig>(json["host"].clone()).is_ok(),
+            "product_typed_host_stage"
+        );
+        assert!(
+            serde_json::from_value::<AccountConfig>(json["account"].clone()).is_ok(),
+            "product_typed_account_stage"
+        );
+        assert!(
+            product_defaults_digest(root.path()).is_ok(),
+            "product_tuple_digest_stage"
+        );
+    }
+
+    #[test]
+    fn qualification_identity_uses_neutral_product_defaults_not_authored_policy() {
+        let host = auctioneer_config_data::product_host_default();
+        assert!(host.user_sync.is_none());
+        assert!(host.aliases.is_empty());
+        assert_eq!(host.gdpr.host_vendor_id, Some(0));
+        assert!(host.gdpr.non_standard_publishers.is_empty());
+        let root = product_fixture_root();
+        product_data_fixture(root.path());
+        let baseline = product_defaults_digest(root.path()).unwrap();
+        fs::write(root.path().join("auctioneer.toml"), b"not TOML [").unwrap();
+        assert_eq!(product_defaults_digest(root.path()).unwrap(), baseline);
+        fs::remove_file(root.path().join("auctioneer.toml")).unwrap();
+        assert_eq!(product_defaults_digest(root.path()).unwrap(), baseline);
+        let report = build_report().unwrap();
+        for row in &report.adapters {
+            assert_eq!(row.baked_config_sha256, baseline);
+        }
+    }
+
+    #[test]
+    fn selected_product_defaults_match_the_compiled_tuple_and_track_each_selected_layer() {
+        let compiled_host = auctioneer_config_data::product_host_default();
+        let compiled_account = auctioneer_config_data::product_account_default();
+        let compiled = io::sha256(&serde_json::to_vec(&(compiled_host, compiled_account)).unwrap());
+        for layer in ["host", "account"] {
+            let root = product_fixture_root();
+            let path = product_data_fixture(root.path());
+            let mut document = parse_toml(&fs::read(&path).unwrap()).unwrap();
+            assert_eq!(product_defaults_digest(root.path()).unwrap(), compiled);
+            let mut expected_host = compiled_host.clone();
+            let mut expected_account = compiled_account.clone();
+            if layer == "host" {
+                document["host"]["resource_limits"]["default_tmax_ms"] = toml::Value::Integer(1234);
+                expected_host.resource_limits.default_tmax_ms = 1234;
+            } else {
+                document["account"]["targeting_prefix"] = toml::Value::String("ad".to_owned());
+                expected_account.targeting_prefix = "ad".to_owned();
+            }
+            fs::write(path, toml::to_string(&document).unwrap()).unwrap();
+            let selected = product_defaults_digest(root.path()).unwrap();
+            assert_ne!(selected, compiled);
+            assert_eq!(
+                selected,
+                io::sha256(&serde_json::to_vec(&(expected_host, expected_account)).unwrap())
+            );
+        }
+    }
+
+    #[test]
+    fn selected_product_defaults_use_typed_numeric_tcf_keys_and_renderer_semantics() {
+        use auctioneer_config::types::{EnforceAlgo, PurposeEnforcement, TriState};
+        let root = product_fixture_root();
+        let path = product_data_fixture(root.path());
+        let mut document =
+            serde_json::to_value(parse_toml(&fs::read(&path).unwrap()).unwrap()).unwrap();
+        let entry = serde_json::json!({
+            "enforce_algo": "full", "enforce_purpose": "enabled",
+            "enforce_vendors": "disabled", "vendor_exceptions": []
+        });
+        document["host"]["gdpr"]["tcf2"]["purposes"]["2"] = entry.clone();
+        document["account"]["gdpr"]["purposes"]["3"] = entry;
+        fs::write(&path, toml::to_string(&document).unwrap()).unwrap();
+        let mut host = auctioneer_config_data::product_host_default().clone();
+        let mut account = auctioneer_config_data::product_account_default().clone();
+        let expected = PurposeEnforcement {
+            enforce_algo: EnforceAlgo::Full,
+            enforce_purpose: TriState::Enabled,
+            enforce_vendors: TriState::Disabled,
+            vendor_exceptions: Vec::new(),
+        };
+        host.gdpr.tcf2.purposes.insert(2, expected.clone());
+        account.gdpr.purposes.insert(3, expected);
+        assert_eq!(
+            product_defaults_digest(root.path()).unwrap(),
+            io::sha256(&serde_json::to_vec(&(host, account)).unwrap())
+        );
+        document["host"]["gdpr"]["tcf2"]["purposes"]["11"] =
+            document["host"]["gdpr"]["tcf2"]["purposes"]["2"].clone();
+        fs::write(&path, toml::to_string(&document).unwrap()).unwrap();
+        assert_eq!(
+            product_defaults_digest(root.path()).unwrap_err().code,
+            "invalid_input"
+        );
+    }
+
+    #[test]
+    fn selected_product_defaults_fail_closed_on_invalid_shape_values_and_source_bounds() {
+        let root = product_fixture_root();
+        let path = product_data_fixture(root.path());
+        let original = fs::read(&path).unwrap();
+        let baseline = serde_json::to_value(parse_toml(&original).unwrap()).unwrap();
+        product_defaults_digest(root.path()).unwrap();
+        for (pointer, value) in [
+            (
+                "/host/resource_limits/max_tmax_ms",
+                serde_json::json!(0_i64),
+            ),
+            (
+                "/account/privacy/ipv4/anon_keep_bits",
+                serde_json::json!(33_u8),
+            ),
+            ("/account/gdpr/enabled", serde_json::json!("invalid")),
+            ("/host/status_response", serde_json::json!("fake_operator")),
+        ] {
+            let mut document = baseline.clone();
+            *document.pointer_mut(pointer).unwrap() = value;
+            fs::write(&path, toml::to_string(&document).unwrap()).unwrap();
+            assert_eq!(
+                product_defaults_digest(root.path()).unwrap_err().code,
+                "invalid_input",
+                "{pointer}"
+            );
+        }
+        for pointer in ["", "/host", "/account"] {
+            let mut document = baseline.clone();
+            document
+                .pointer_mut(pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert("unexpected".to_owned(), serde_json::json!(true));
+            fs::write(&path, toml::to_string(&document).unwrap()).unwrap();
+            assert_eq!(
+                product_defaults_digest(root.path()).unwrap_err().code,
+                "invalid_input",
+                "{pointer}"
+            );
+        }
+        let mut incomplete = baseline;
+        assert!(
+            incomplete["host"]["gdpr"]
+                .as_object_mut()
+                .unwrap()
+                .remove("host_vendor_id")
+                .is_some()
+        );
+        fs::write(&path, toml::to_string(&incomplete).unwrap()).unwrap();
+        assert_eq!(
+            product_defaults_digest(root.path()).unwrap_err().code,
+            "invalid_input"
+        );
+        let mut oversized = original;
+        oversized.resize(INPUT_CAP.checked_add(1).unwrap(), b' ');
+        fs::write(&path, oversized).unwrap();
+        assert_eq!(
+            product_defaults_digest(root.path()).unwrap_err().code,
+            "input_limit"
+        );
+        fs::remove_file(&path).unwrap();
+        product_defaults_digest(root.path()).unwrap_err();
+    }
 
     fn write_digest_source(root: &Path, relative: &str, bytes: &[u8]) -> PathBuf {
         let file = root.join(relative);
@@ -1032,6 +1316,33 @@ pub(super) mod tests {
                 baseline
             );
         }
+    }
+
+    #[test]
+    fn harness_digest_binds_executable_bytes_and_keeps_the_production_file_cap() {
+        let root = digest_tree();
+        let executable = root.path().join("frozen-cli");
+        let baseline = harness_digest_at(root.path(), &executable).unwrap();
+        fs::write(&executable, b"changed harness bytes").unwrap();
+        assert_ne!(
+            harness_digest_at(root.path(), &executable).unwrap(),
+            baseline
+        );
+        fs::write(&executable, b"abc").unwrap();
+        assert_eq!(
+            harness_digest_at(root.path(), &executable).unwrap(),
+            baseline
+        );
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&executable)
+            .unwrap()
+            .set_len(u64::try_from(FILE_CAP).unwrap().checked_add(1).unwrap())
+            .unwrap();
+        assert_eq!(
+            harness_digest_at(root.path(), &executable).unwrap_err(),
+            HarnessError::new("input_limit")
+        );
     }
 
     #[test]
@@ -1200,7 +1511,7 @@ pub(super) mod tests {
             fs::create_dir_all(destination.parent().unwrap()).unwrap();
             fs::write(destination, bytes).unwrap();
         }
-        fs::write(root.path().join("auctioneer.toml"), b"[baked]\n").unwrap();
+        product_data_fixture(root.path());
         let schema = root
             .path()
             .join("crates/auctioneer-config/src/bidder_manifest.rs");
@@ -1599,6 +1910,7 @@ pub(super) mod tests {
             "production_metadata_changed",
         ));
         inputs.push((schema.to_owned(), "source_changed"));
+        inputs.push((PRODUCT_DEFAULTS.to_owned(), "source_changed"));
         for (relative, category) in inputs {
             let path = repo.join(&relative);
             let before = fs::read(&path).unwrap();
@@ -1738,7 +2050,7 @@ pub(super) mod tests {
             );
         }
         assert!(reference_input(
-            "crates/auctioneer-config-data/data/baked.toml"
+            "crates/auctioneer-config-data/data/product-defaults.toml"
         ));
         assert!(!reference_input("crates/auctioneer-core/src/lib.rs"));
     }
@@ -1808,7 +2120,6 @@ pub(super) mod tests {
             "Cargo.toml",
             "Cargo.lock",
             "edgezero.toml",
-            "auctioneer.toml",
             "crates/auctioneer-config-data/Cargo.toml",
             "crates/auctioneer-core/Cargo.toml",
             "crates/auctioneer-core/src/lib.rs",
@@ -1848,6 +2159,52 @@ pub(super) mod tests {
         };
         let plan = prepare(request, supervisor).await.unwrap();
         (root, workspace, plan)
+    }
+
+    #[tokio::test]
+    async fn preparation_binds_selected_product_data_without_capturing_runtime_authoring() {
+        let supervisor = process::Supervisor::new();
+        let (_root, _workspace, plan) = prepared("spin", &supervisor).await;
+        assert!(
+            plan.source_files
+                .iter()
+                .any(|(path, digest)| path == PRODUCT_DEFAULTS && digest.is_some())
+        );
+        assert!(
+            !plan
+                .source_files
+                .iter()
+                .any(|(path, _digest)| path == "auctioneer.toml")
+        );
+        let operator = plan.repo_root.join("auctioneer.toml");
+        assert!(!operator.exists());
+        fs::write(&operator, b"not TOML [").unwrap();
+        verify_frozen_inputs(&plan, &supervisor).await.unwrap();
+        fs::remove_file(&operator).unwrap();
+        verify_frozen_inputs(&plan, &supervisor).await.unwrap();
+        let mut forged = plan.clone();
+        forged.baked_config_sha256 = io::sha256(b"not the selected product data");
+        assert_ne!(forged.baked_config_sha256, plan.baked_config_sha256);
+        assert_eq!(
+            verify_frozen_inputs(&forged, &supervisor)
+                .await
+                .unwrap_err()
+                .code,
+            "source_changed"
+        );
+        let product = plan.repo_root.join(PRODUCT_DEFAULTS);
+        let before = fs::read(&product).unwrap();
+        fs::write(&product, b"changed selected product data").unwrap();
+        assert_eq!(
+            verify_frozen_inputs(&plan, &supervisor)
+                .await
+                .unwrap_err()
+                .code,
+            "source_changed"
+        );
+        fs::write(&product, before).unwrap();
+        verify_frozen_inputs(&plan, &supervisor).await.unwrap();
+        supervisor.cleanup().await.unwrap();
     }
 
     #[test]

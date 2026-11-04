@@ -359,12 +359,14 @@ baseline; do not add discovery or constructors to the per-auction path.
 
 ## 8. Runtime and Observable Behavior
 
-Retain the current `AuctioneerAppConfig` bidder overrides: `enabled`,
-`timeout_ms`, and `sample_rate`, plus the existing host alias map. An
+Retain `OperatorPolicy.bidders` overrides: `enabled`, `timeout_ms` and
+`sample_rate`, plus `host.aliases`. An
 operator can disable a compiled, baked-enabled bidder with:
 
 ```toml
-[runtime.bidders.appnexus]
+schema_version = 1
+
+[bidders.appnexus]
 enabled = false
 ```
 

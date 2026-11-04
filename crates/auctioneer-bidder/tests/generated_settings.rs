@@ -57,7 +57,135 @@ mod tests {
         let stdout = String::from_utf8(output.stdout).unwrap();
         reconcile_tests(&stdout);
         writeln!(stderr(), "{stdout}").unwrap();
+        run_catalog_resource_variants(&workspace);
+    }
+
+    const RESOURCE_TEST: &str = "sdk_validation_catalog_scratch_fits_config_charge";
+
+    fn run_catalog_resource_variants(workspace: &BuildWorkspace) {
+        let path = workspace
+            .root()
+            .join("crates/auctioneer-core/tests/generated_settings_contract.rs");
+        let mut contract = syn::parse_file(&fs::read_to_string(&path).unwrap()).unwrap();
+        let test: syn::Item = syn::parse_quote! {
+            #[test]
+            fn sdk_validation_catalog_scratch_fits_config_charge() {
+                sdk_validation_allocation::check();
+            }
+        };
+        contract.items.push(test);
+        fs::write(path, quote::quote!(#contract).to_string()).unwrap();
+
+        let string_path = workspace
+            .bidder()
+            .join("src/bidders/fake_string_probe/bidder.toml");
+        let mut string: toml::Value =
+            toml::from_str(&fs::read_to_string(&string_path).unwrap()).unwrap();
+        assert!(
+            string
+                .as_table_mut()
+                .unwrap()
+                .remove("definitions")
+                .is_some()
+        );
+        fs::write(string_path, toml::to_string(&string).unwrap()).unwrap();
+        let integer_path = workspace
+            .bidder()
+            .join("src/bidders/fake_integer_probe/bidder.toml");
+        let mut integer: toml::Value =
+            toml::from_str(&fs::read_to_string(&integer_path).unwrap()).unwrap();
+        let mut failures = Vec::new();
+        let mut previous_definitions = 3;
+        for count in [1_usize, 256, 512] {
+            assert_eq!(
+                integer["definitions"].as_table().unwrap().len(),
+                previous_definitions
+            );
+            let definitions = (0..count)
+                .map(|index| {
+                    (
+                        format!("fake_resource_{index:04}_{}", "n".repeat(45)),
+                        toml::Value::Table(toml::toml! {
+                            endpoint = "https://settings.example.test/openrtb"
+                            defaultEnabled = false
+                            [capabilities.site]
+                            mediaTypes = ["banner"]
+                        }),
+                    )
+                })
+                .collect::<toml::Table>();
+            integer["definitions"] = toml::Value::Table(definitions);
+            fs::write(&integer_path, toml::to_string(&integer).unwrap()).unwrap();
+            let output = workspace.cargo_package(
+                "auctioneer-core",
+                "test",
+                &[
+                    "--test",
+                    "generated_settings_contract",
+                    RESOURCE_TEST,
+                    "--",
+                    "--exact",
+                    "--nocapture",
+                    "--test-threads=1",
+                ],
+                true,
+            );
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            let diagnostic = String::from_utf8(output.stderr).unwrap();
+            writeln!(
+                stderr(),
+                "catalog resource variant definitions={count}:\n{stdout}\n{diagnostic}"
+            )
+            .unwrap();
+            reconcile_resource_test(&stdout, &diagnostic, count, output.status.success());
+            if !output.status.success() {
+                failures.push(format!("definitions={count}: {}", output.status));
+            }
+            previous_definitions = count;
+        }
         workspace.report();
+        assert!(
+            failures.is_empty(),
+            "catalog resource variants failed without changing config funding: {failures:?}"
+        );
+    }
+
+    fn reconcile_resource_test(stdout: &str, diagnostic: &str, definitions: usize, success: bool) {
+        let suffix = if success { " ... ok" } else { " ... FAILED" };
+        let passed: Vec<_> = stdout
+            .lines()
+            .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(suffix))
+            .collect();
+        assert_eq!(
+            passed,
+            [RESOURCE_TEST],
+            "the actual SDK allocation case must execute once: {stdout}"
+        );
+        let summary = if success {
+            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out"
+        } else {
+            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 31 filtered out"
+        };
+        assert!(stdout.contains(summary), "{stdout}");
+        let measurements: Vec<_> = diagnostic
+            .lines()
+            .filter(|line| line.starts_with("sdk-validation-allocation:"))
+            .collect();
+        assert_eq!(
+            measurements.len(),
+            2,
+            "both resource cases must report: {diagnostic}"
+        );
+        for (measurement, case, payload, cap, nodes, component, charge) in [
+            (measurements[0], "minimal", 20, 155, 6, 43_573, 228_789),
+            (measurements[1], "invalid-tmax", 69, 204, 9, 58_035, 243_251),
+        ] {
+            assert!(measurement.starts_with(&format!("sdk-validation-allocation: definitions={definitions} name_bytes=64 case={case} payload={payload} backend_cap={cap} blob_cap={cap} nodes={nodes} product_bytes=1447 component_charge={component} ")), "{measurement}");
+            assert!(
+                measurement.ends_with(&format!("charge={charge} callbacks=0")),
+                "{measurement}"
+            );
+        }
     }
 
     fn prepare_settings_contract(workspace: &BuildWorkspace) {
@@ -89,6 +217,7 @@ mod tests {
                 &core.join("tests").join(module).join("mod.rs"),
             );
         }
+        install_settings_observations(workspace.bidder());
         for (key, fields) in [
             (
                 "fake_integer_probe",
@@ -104,6 +233,38 @@ mod tests {
             let (owner_source, config_source) = synthetic_config_owner(key);
             fs::write(directory.join("mod.rs"), owner_source).unwrap();
             fs::write(directory.join("config.rs"), config_source).unwrap();
+            let path = directory.join("bidder.toml");
+            let mut manifest: toml::Value =
+                toml::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            let names: &[(&str, Option<&str>, bool)] = if key == "fake_integer_probe" {
+                &[
+                    ("fake_wire_base", None, false),
+                    ("fake_wire_parent", Some("fake_wire_base"), true),
+                    ("fake_wire_leaf", Some("fake_wire_parent"), true),
+                ]
+            } else {
+                &[("fake_wire_text", None, false)]
+            };
+            let definitions = names
+                .iter()
+                .map(|(name, parent, enabled)| {
+                    let mut definition = toml::toml! {
+                        endpoint = "https://settings.example.test/openrtb"
+                        [capabilities.site]
+                        mediaTypes = ["banner"]
+                    };
+                    definition.insert("defaultEnabled".into(), (*enabled).into());
+                    if let Some(parent) = parent {
+                        definition.insert("aliasOf".into(), (*parent).into());
+                    }
+                    ((*name).to_owned(), toml::Value::Table(definition))
+                })
+                .collect::<toml::Table>();
+            manifest
+                .as_table_mut()
+                .unwrap()
+                .insert("definitions".into(), toml::Value::Table(definitions));
+            fs::write(path, toml::to_string(&manifest).unwrap()).unwrap();
         }
         let string_manifest = workspace
             .bidder()
@@ -122,7 +283,11 @@ mod tests {
         fs::write(string_manifest, toml::to_string(&declaration).unwrap()).unwrap();
     }
 
-    const EXPECTED_TESTS: [&str; 27] = [
+    const EXPECTED_TESTS: [&str; 31] = [
+        "compiled_sdk::sdk_and_typed_paths_dispatch_discovered_callbacks_once_with_real_compiled_aliases",
+        "compiled_sdk::sdk_and_typed_paths_reject_bindings_before_any_discovered_callback",
+        "compiled_sdk::sdk_and_typed_paths_check_disabled_and_shadowed_supplied_settings",
+        "compiled_sdk::sdk_and_typed_paths_preserve_compiled_ancestry_and_per_identity_requiredness",
         "config_callbacks::complete_policy_validation_preserves_generated_settings_and_owner_refusals",
         "config_limits::aggregate_validation_delegates_structural_limits_with_fixed_redacted_errors",
         "config_callbacks::shared_admission_rejects_settings_for_unlinked_factories",
@@ -166,7 +331,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -188,7 +353,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }
@@ -200,6 +365,40 @@ mod tests {
         let mut renamed = EXPECTED_TESTS;
         renamed[0] = "fake_renamed_test";
         assert!(catch_unwind(|| reconcile_tests(&report(&renamed))).is_err());
+
+        let resource_stdout = format!(
+            "test {RESOURCE_TEST} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out\n"
+        );
+        let resource_diagnostic = "sdk-validation-allocation: definitions=256 name_bytes=64 case=minimal payload=20 backend_cap=155 blob_cap=155 nodes=6 product_bytes=1447 component_charge=43573 peak=1 retained=0 cumulative=1 charge=228789 callbacks=0\nsdk-validation-allocation: definitions=256 name_bytes=64 case=invalid-tmax payload=69 backend_cap=204 blob_cap=204 nodes=9 product_bytes=1447 component_charge=58035 peak=1 retained=0 cumulative=1 charge=243251 callbacks=0\n";
+        reconcile_resource_test(&resource_stdout, resource_diagnostic, 256, true);
+        for diagnostic in [
+            resource_diagnostic.replace("definitions=256", "definitions=1"),
+            resource_diagnostic.replace("name_bytes=64", "name_bytes=18"),
+            resource_diagnostic.replace("backend_cap=155", "backend_cap=156"),
+            resource_diagnostic.replace("product_bytes=1447", "product_bytes=1448"),
+            resource_diagnostic.replace("charge=228789", "charge=43573"),
+            resource_diagnostic.replace("charge=243251", "charge=58035"),
+            resource_diagnostic.replace("callbacks=0", "callbacks=1"),
+            resource_diagnostic.lines().next().unwrap().to_owned(),
+        ] {
+            assert!(
+                catch_unwind(|| reconcile_resource_test(&resource_stdout, &diagnostic, 256, true))
+                    .is_err()
+            );
+        }
+        assert!(
+            catch_unwind(|| reconcile_resource_test(
+                "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out",
+                resource_diagnostic,
+                256,
+                true
+            ))
+            .is_err()
+        );
+        let resource_failure = format!(
+            "test {RESOURCE_TEST} ... FAILED\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 31 filtered out\n"
+        );
+        reconcile_resource_test(&resource_failure, resource_diagnostic, 256, false);
     }
 
     fn synthetic_config_owner(key: &str) -> (String, String) {
@@ -259,6 +458,7 @@ mod tests {
             use validator::Validate as _;
             pub(crate) fn create_bidder() -> Box<dyn crate::Bidder> { crate::fake_synthetic::create_bidder() }
             pub(crate) fn validate_config(input: BidderConfigInput<'_>) -> Result<(), BidderConfigError> {
+                crate::settings_observations::record(#key, input);
                 config::Config(input).validate().map_err(config::error)
             }
         }.to_string();
@@ -280,5 +480,50 @@ mod tests {
         }
         .to_string();
         (root, config)
+    }
+
+    fn install_settings_observations(bidder: &Path) {
+        let path = bidder.join("src/lib.rs");
+        let mut library = syn::parse_file(&fs::read_to_string(&path).unwrap()).unwrap();
+        let observations: syn::File = syn::parse2(quote::quote! {
+            pub mod settings_observations {
+                use crate::{BidderConfigInput, BidderSettings};
+                use std::cell::RefCell;
+
+                #[derive(Debug, PartialEq, Eq)]
+                pub struct Observation {
+                    pub owner: &'static str,
+                    pub definition: Option<String>,
+                    pub enabled: bool,
+                    pub primary: Option<i64>,
+                    pub secondary: Option<i64>,
+                }
+
+                thread_local! {
+                    static SEEN: RefCell<Vec<Observation>> = const { RefCell::new(Vec::new()) };
+                }
+
+                pub fn record(owner: &'static str, input: BidderConfigInput<'_>) {
+                    let resolved = crate::bidder_settings::fake_integer_probe::resolve(
+                        input.requested.and_then(BidderSettings::as_fake_integer_probe),
+                        input.base.and_then(BidderSettings::as_fake_integer_probe),
+                    );
+                    SEEN.with_borrow_mut(|seen| seen.push(Observation {
+                        owner,
+                        definition: input.definition.map(|info| info.name.clone()),
+                        enabled: input.enabled,
+                        primary: resolved.primary_number(),
+                        secondary: resolved.secondary_number(),
+                    }));
+                }
+
+                pub fn take() -> Vec<Observation> {
+                    SEEN.with_borrow_mut(std::mem::take)
+                }
+            }
+        })
+        .unwrap();
+        library.items.extend(observations.items);
+        fs::write(path, quote::quote!(#library).to_string()).unwrap();
     }
 }

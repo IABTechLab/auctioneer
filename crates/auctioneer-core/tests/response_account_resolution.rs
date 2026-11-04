@@ -60,9 +60,9 @@ mod tests {
     /// key both overlays declare.
     const ACCOUNT_ID: &str = "acct-21";
 
-    const CONFIGURED_TOML: &str = "[accounts.acct-21]\ntargeting_prefix = \"acct\"\n";
-    const DISABLED_TOML: &str =
-        "[accounts.acct-21]\ndisabled = true\ntargeting_prefix = \"acct\"\n";
+    const CONFIGURED_TOML: &str =
+        "schema_version = 1\n[host]\n[accounts.acct-21]\ntargeting_prefix = \"acct\"\n";
+    const DISABLED_TOML: &str = "schema_version = 1\n[host]\n[accounts.acct-21]\ndisabled = true\ntargeting_prefix = \"acct\"\n";
 
     /// Answers every dispatched call with one banner bid on `imp-1`.
     struct BiddingFanout;
@@ -110,7 +110,7 @@ mod tests {
             "fake_ac".to_owned(),
             toml::Value::String(serving_catalog::passthrough_info().name.clone()),
         )]);
-        config
+        config["host"]
             .as_table_mut()
             .unwrap()
             .insert("aliases".into(), toml::Value::Table(aliases));
@@ -223,7 +223,10 @@ mod tests {
     /// 400. The pair is what pins the ordering.
     #[test]
     fn unconfigured_account_surfaces_the_malformed_tmax_as_a_400() {
-        let (status, _content_type, body) = drive("", &fixture("disabled_account_request.json"));
+        let (status, _content_type, body) = drive(
+            "schema_version = 1\n[host]\n",
+            &fixture("disabled_account_request.json"),
+        );
         let text = String::from_utf8(body).expect("the error body is UTF-8");
 
         assert_eq!(

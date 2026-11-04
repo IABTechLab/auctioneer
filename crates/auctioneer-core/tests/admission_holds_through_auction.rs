@@ -561,13 +561,13 @@ mod tests {
         reads: Option<Arc<AtomicUsize>>,
         pause: Option<ParkedFanout>,
     ) -> ConfigRegistry {
-        let mut aliases = cfg.aliases.clone().unwrap_or_default();
+        let mut aliases = cfg.host.aliases.clone().unwrap_or_default();
         aliases.insert(
             "fake_bb".to_owned(),
             serving_catalog::passthrough_info().name.clone(),
         );
         let mut data = serde_json::to_value(cfg).expect("config serialises to json");
-        data["aliases"] = serde_json::to_value(aliases).expect("aliases serialise to json");
+        data["host"]["aliases"] = serde_json::to_value(aliases).expect("aliases serialise to json");
         let envelope = BlobEnvelope::new(data, "1970-01-01T00:00:00Z".to_owned());
         let blob = serde_json::to_string(&envelope).expect("envelope serialises");
         StoreRegistry::single_id(
@@ -765,7 +765,8 @@ mod tests {
                     });
                     let mut request = auction_request(&body, fanout);
                     let cfg: AuctioneerAppConfig = serde_json::from_value(json!({
-                        "accounts": {"acct-admission": {"disabled": disabled}}
+                        "schema_version": 1_u64,
+                        "accounts": {"acct-admission": {"disabled": disabled}},
                     }))
                     .expect("config deserializes");
                     request.extensions_mut().insert(config_registry_with(&cfg));
@@ -826,8 +827,13 @@ mod tests {
                 request
                     .extensions_mut()
                     .insert(TestAuctionBudget(Arc::clone(&ledger)));
-                let cfg: AuctioneerAppConfig =
-                    serde_json::from_value(json!({"gdpr":{"enabled":!disabled}})).unwrap();
+                let cfg: AuctioneerAppConfig = serde_json::from_value(json!({
+                    "schema_version": 1_u64,
+                    "host": {
+                        "gdpr": {"enabled":!disabled},
+                    },
+                }))
+                .unwrap();
                 let reads = Arc::new(AtomicUsize::new(0));
                 request
                     .extensions_mut()
@@ -1029,7 +1035,10 @@ mod tests {
             );
             request.extensions_mut().insert(TestAuctionBudget(ledger));
             let cfg: AuctioneerAppConfig = serde_json::from_value(json!({
-                "lmt": {"enforce": true}
+                "schema_version": 1_u64,
+                "host": {
+                    "lmt": {"enforce": true},
+                },
             }))
             .unwrap();
             request.extensions_mut().insert(config_registry_with(&cfg));
@@ -1071,7 +1080,10 @@ mod tests {
         let mut request = auction_request(&body_json, Arc::new(UnavailableFanout));
         request.extensions_mut().insert(TestAuctionBudget(ledger));
         let cfg: AuctioneerAppConfig = serde_json::from_value(json!({
-            "lmt": {"enforce": true}
+            "schema_version": 1_u64,
+            "host": {
+                "lmt": {"enforce": true},
+            },
         }))
         .unwrap();
         request.extensions_mut().insert(config_registry_with(&cfg));
@@ -1154,10 +1166,17 @@ mod tests {
         let mut request = auction_request(&body_json, Arc::<CanonicalIpv6Fanout>::clone(&fanout));
         request.extensions_mut().insert(TestAuctionBudget(ledger));
         let cfg: AuctioneerAppConfig = serde_json::from_value(json!({
-            "lmt": {"enforce": true},
-            "accounts": {"acct-admission": {"privacy": {
-                "ipv6": {"anon_keep_bits": 112_u8}
-            }}}
+            "schema_version": 1_u64,
+            "host": {
+                "lmt": {"enforce": true},
+            },
+            "accounts": {
+                "acct-admission": {
+                    "privacy": {
+                        "ipv6": {"anon_keep_bits": 112_u8},
+                    },
+                },
+            },
         }))
         .unwrap();
         request.extensions_mut().insert(config_registry_with(&cfg));
@@ -1362,9 +1381,16 @@ mod tests {
         );
         request.extensions_mut().insert(TestAuctionBudget(ledger));
         let cfg: AuctioneerAppConfig = serde_json::from_value(json!({
-            "accounts": {"acct-admission": {"privacy": {"allowactivities": {
-                "fetchBids": {"default": false}
-            }}}}
+            "schema_version": 1_u64,
+            "accounts": {
+                "acct-admission": {
+                    "privacy": {
+                        "allowactivities": {
+                            "fetchBids": {"default": false},
+                        },
+                    },
+                },
+            },
         }))
         .unwrap();
         request.extensions_mut().insert(config_registry_with(&cfg));

@@ -6,6 +6,7 @@ cargo test --locked -p auctioneer-config-data --test build_failure_harness \
 test "$(grep -Ec '^running [0-9]+ tests?$' "$RUNNER_TEMP/config-build-failures.log")" -eq 1
 test "$(grep -c '^test result:' "$RUNNER_TEMP/config-build-failures.log")" -eq 1
 grep -Eq '^test result: ok\. [1-9][0-9]* passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in [0-9]+(\.[0-9]+)?s$' "$RUNNER_TEMP/config-build-failures.log"
+test "$(grep -Fxc 'test tests::release_product_output_is_independent_of_root_operator_file_and_override_controls ... ok' "$RUNNER_TEMP/config-build-failures.log")" -eq 1
 
 cargo clippy --locked -p auctioneer-config-data --test build_failure_harness -- -D warnings
 

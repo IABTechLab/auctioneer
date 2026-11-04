@@ -2,15 +2,34 @@ use auctioneer_config::codegen;
 
 #[cfg(test)]
 mod tests {
+    use super::codegen::usersync::{CooperativeConfig, UserSyncConfig};
     use super::codegen::{HostDefaultRaw, RenderError, render_host_config};
 
     fn source_host() -> HostDefaultRaw {
-        let source: toml::Value = toml::from_str(include_str!("../../../auctioneer.toml"))
-            .expect("committed config source");
-        source["baked"]["host"]
+        let source: toml::Value = toml::from_str(include_str!("../data/product-defaults.toml"))
+            .expect("neutral product defaults");
+        let mut host: HostDefaultRaw = source["host"]
             .clone()
             .try_into()
-            .expect("baked host config")
+            .expect("neutral product host config");
+        assert!(
+            host.user_sync.is_none(),
+            "neutral product defaults must not configure a callback service"
+        );
+        host.user_sync = Some(UserSyncConfig {
+            external_url: "https://sync.example.test".to_owned(),
+            redirect_url: Some(
+                "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&uid={{.UserMacro}}".to_owned(),
+            ),
+            cooperative: CooperativeConfig {
+                enabled_by_default: false,
+            },
+            priority_groups: Vec::new(),
+            allowed_origins: Vec::new(),
+        });
+        render_host_config(&host)
+            .expect("valid callback baseline renders before invalid mutations");
+        host
     }
 
     fn assert_user_sync_error(host: &HostDefaultRaw, expected: &str) {

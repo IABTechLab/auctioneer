@@ -1,16 +1,16 @@
 //! Runtime host-alias registry validation (Fanout-9).
 //!
-//! GDPR fanout's Task 18 rejects an unknown alias base in the BAKED
-//! `[baked.host]` in `auctioneer.toml` at `build.rs` time, but a runtime overlay
-//! arrives through the config store and never sees `build.rs`. Without a
-//! registry check on that path, a pushed `[aliases]` naming a base this
+//! Neutral compiled product defaults contain no operator aliases. The direct
+//! runtime policy's `[host.aliases]` arrives through the config store and must
+//! be validated against the linked catalog. Without a registry check on that
+//! path, an alias naming a base this
 //! build does not carry would resolve into an auction plan that can
 //! never bid — a config error surfaced as silent no-bids instead of the
 //! fail-loud 500 every other malformed-host shape produces.
 //!
 //! The store below returns a VALID envelope (integrity check passes)
 //! whose config is structurally well-formed TOML-shaped JSON; the only
-//! defect is semantic — `[aliases]` references a base bidder the
+//! defect is semantic — `[host.aliases]` references a base bidder the
 //! registry has never heard of. That must classify exactly like a
 //! malformed blob: `RuntimeConfigError::MalformedHost` from the helper,
 //! and the shared response mapper's fail-closed 500 on the wire, with
@@ -37,6 +37,7 @@ mod tests {
     use auctioneer_core::config::runtime::{RuntimeConfigError, resolve_runtime_config};
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{TestClockHandle, TestRngHandle};
+    use auctioneer_core::test_support::config_store as funded_config;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, TimeoutCause,
@@ -49,7 +50,6 @@ mod tests {
     };
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::StatusCode;
-    use edgezero_core::params::PathParams;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
     use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::executor::block_on;
@@ -61,7 +61,7 @@ mod tests {
     const STORE_ID: &str = "auctioneer_runtime";
     const WIDE_CAP: usize = 1 << 20;
 
-    /// A well-formed, integrity-valid blob whose `[aliases]` names a
+    /// A well-formed, integrity-valid blob whose `[host.aliases]` names a
     /// base bidder that is not in this build's registry.
     struct UnknownAliasBaseStore;
 
@@ -70,7 +70,10 @@ mod tests {
         async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
             let envelope = BlobEnvelope::new(
                 serde_json::json!({
-                    "aliases": { "fake_totally_real": "fake_nonexistent_bidder" }
+                    "schema_version": 1_u64,
+                    "host": {
+                        "aliases": { "fake_totally_real": "fake_nonexistent_bidder" },
+                    },
                 }),
                 "1970-01-01T00:00:00Z".to_owned(),
             );
@@ -108,7 +111,10 @@ mod tests {
         async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
             let envelope = BlobEnvelope::new(
                 serde_json::json!({
-                    "aliases": { "fake_generic_alias": passthrough_info().name }
+                    "schema_version": 1_u64,
+                    "host": {
+                        "aliases": { "fake_generic_alias": passthrough_info().name },
+                    },
                 }),
                 "1970-01-01T00:00:00Z".to_owned(),
             );
@@ -205,13 +211,13 @@ mod tests {
             .insert(TestFanoutHandle(handler_fanout));
         request.extensions_mut().insert(TestClockHandle(clock));
         request.extensions_mut().insert(TestRngHandle(rng));
-        RequestContext::new(request, PathParams::default())
+        funded_config::context(request)
     }
 
     #[test]
     fn runtime_host_alias_unknown_base_returns_malformed_host() {
-        // Helper-level: the exact error class, with both names in the
-        // detail so an operator can find the offending overlay line.
+        // Helper-level: the SDK exposes a fixed validation category and scope,
+        // never the store-controlled alias or base name.
         let ctx = context_with(
             Arc::new(UnknownAliasBaseStore),
             Arc::new(RecordingFanout::default()),
@@ -219,11 +225,17 @@ mod tests {
         let resolved = block_on(resolve_runtime_config(&ctx));
         match resolved {
             Err(RuntimeConfigError::MalformedHost { detail }) => {
-                assert!(
-                    detail.contains("fake_totally_real")
-                        && detail.contains("fake_nonexistent_bidder"),
-                    "detail must name the alias and its unknown base, got {detail:?}",
+                assert_eq!(
+                    detail,
+                    "config store extraction failed: Validation at runtime"
                 );
+                assert!(detail.len() < 512, "the diagnostic must remain bounded");
+                for canary in ["fake_totally_real", "fake_nonexistent_bidder"] {
+                    assert!(
+                        !detail.contains(canary),
+                        "a raw config name reached the diagnostic"
+                    );
+                }
             }
             other => panic!(
                 "an unknown runtime alias base must classify as MalformedHost, got {other:?}"
@@ -240,6 +252,15 @@ mod tests {
         block_on(async {
             let response = auction(wire_ctx).await.expect("the handler answers");
             assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            for value in response.headers().values() {
+                let text = value.to_str().expect("fixture response header is text");
+                for canary in ["fake_totally_real", "fake_nonexistent_bidder"] {
+                    assert!(
+                        !text.contains(canary),
+                        "a raw config name reached a response header"
+                    );
+                }
+            }
             let (_parts, body) = response.into_parts();
             let bytes = body
                 .into_bytes_bounded(WIDE_CAP)
@@ -266,7 +287,8 @@ mod tests {
         let resolved = block_on(resolve_runtime_config(&ctx));
         let cfg = resolved.expect("a registry-known base must resolve cleanly");
         assert_eq!(
-            cfg.aliases
+            cfg.host
+                .aliases
                 .as_ref()
                 .and_then(|aliases| aliases.get("fake_generic_alias"))
                 .map(String::as_str),
@@ -277,13 +299,13 @@ mod tests {
     mod policy_envelope {
         use super::{STORE_ID, registry_of};
         use async_trait::async_trait;
-        use auctioneer_core::config::policy::OperatorPolicy;
+        use auctioneer_core::config::SdkAuctioneerAppConfig;
         use auctioneer_core::test_support::config_store::runtime_registry;
-        use edgezero_core::app_config::{AppConfigMeta, SecretField};
         use edgezero_core::blob_envelope::BlobEnvelope;
         use edgezero_core::body::Body;
         use edgezero_core::config_store::{
-            BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
+            BoundedStoreRead, ConfigExtractionLimits, ConfigStore, ConfigStoreError,
+            ConfigStoreHandle, ConfigValue,
         };
         use edgezero_core::context::RequestContext;
         use edgezero_core::error::{EdgeError, StoreExtractionReason};
@@ -293,29 +315,11 @@ mod tests {
         use edgezero_core::time::{Deadline, MonotonicClock};
         use futures::executor::block_on;
         use http::Request;
-        use serde::Deserialize;
         use serde_json::json;
         use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::time::Duration;
-        use validator::{Validate, ValidationErrors};
-
-        // The serving reader intentionally retains its old DTO until cutover.
-        #[derive(Debug, Deserialize)]
-        #[serde(transparent)]
-        struct FakeSdkOperatorPolicy(OperatorPolicy);
-
-        impl AppConfigMeta for FakeSdkOperatorPolicy {
-            fn secret_fields() -> Vec<SecretField> {
-                Vec::new()
-            }
-        }
-
-        impl Validate for FakeSdkOperatorPolicy {
-            fn validate(&self) -> Result<(), ValidationErrors> {
-                self.0.validate()
-            }
-        }
+        use validator::Validate as _;
 
         struct FakeBoundedPolicyStore {
             inner: ConfigStoreHandle,
@@ -323,10 +327,7 @@ mod tests {
         }
 
         #[test]
-        fn startup_timeout_schema_matches_the_sdk_extraction_contract() {
-            use auctioneer_config::startup::StartupConfig;
-            use edgezero_core::config_store::ConfigExtractionLimits;
-
+        fn runtime_refuses_fetch_timeout_overrides_independently_of_sdk_duration_bounds() {
             let cases = [
                 (0_u32, false),
                 (1, true),
@@ -335,20 +336,23 @@ mod tests {
                 (u32::MAX, false),
             ];
             assert_eq!(cases.len(), 5);
+            let control: SdkAuctioneerAppConfig = serde_json::from_value(json!({
+                "schema_version": 1_u64,
+                "host": {"resource_limits": {}}
+            }))
+            .expect("the runtime policy control is valid");
+            control.validate().unwrap();
             for (milliseconds, accepted) in cases {
-                let startup: StartupConfig = serde_json::from_value(json!({
-                    "config": {"source": "store", "max_config_fetch_ms": milliseconds}
+                let rejected = serde_json::from_value::<SdkAuctioneerAppConfig>(json!({
+                    "schema_version": 1_u64,
+                    "host": {"resource_limits": {"max_config_fetch_ms": milliseconds}}
                 }))
-                .unwrap();
+                .expect_err("an operator cannot change the fixed extraction timeout");
+                assert!(rejected.to_string().contains("max_config_fetch_ms"));
                 let sdk = ConfigExtractionLimits {
                     timeout: Duration::from_millis(u64::from(milliseconds)),
                     ..ConfigExtractionLimits::default()
                 };
-                assert_eq!(
-                    startup.validate().is_ok(),
-                    accepted,
-                    "schema: {milliseconds}"
-                );
                 assert_eq!(sdk.validate().is_ok(), accepted, "SDK: {milliseconds}");
             }
         }
@@ -374,7 +378,7 @@ mod tests {
                 let remaining = deadline
                     .remaining_at(clock.now())
                     .expect("the SDK supplies a live extraction deadline");
-                assert!(remaining <= Duration::from_secs(30));
+                assert!(remaining <= ConfigExtractionLimits::default().timeout);
 
                 let read = self
                     .inner
@@ -405,7 +409,9 @@ mod tests {
             for (case, version, expected) in cases {
                 let mut document = json!({
                     "schema_version": 1_u64,
-                    "host": {"status_response": "fake_policy_ready"},
+                    "host": {
+                        "status_response": "fake_policy_ready",
+                    },
                     "accounts": {"fake_account": {"disabled": true}},
                 });
                 if let Some(application_version) = version {
@@ -437,14 +443,14 @@ mod tests {
                     .extensions_mut()
                     .insert(registry_of(Arc::<FakeBoundedPolicyStore>::clone(&store)));
                 let ctx = RequestContext::new(request, PathParams::default());
-                let result = block_on(AppConfig::<FakeSdkOperatorPolicy>::from_store(
+                let result = block_on(AppConfig::<SdkAuctioneerAppConfig>::from_store(
                     &ctx, STORE_ID, None,
                 ));
                 assert_eq!(store.bounded_reads.load(Ordering::SeqCst), 1, "{case}");
 
                 match expected {
                     Ok(()) => {
-                        let FakeSdkOperatorPolicy(policy) = result.expect(case);
+                        let SdkAuctioneerAppConfig(policy) = result.expect(case);
                         assert_eq!(
                             serde_json::to_value(policy.schema_version).unwrap(),
                             json!(1_u64)

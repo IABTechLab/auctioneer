@@ -3,7 +3,12 @@
 //! This does not install a process registry or fund catalog storage. Callers
 //! must fund metadata materialization and these indexes before construction.
 
-use crate::{Bidder, BidderConfigValidator, BidderDeclaration, BidderRegistration};
+use crate::{
+    Bidder, BidderConfigValidator, BidderDeclaration, BidderRegistration, bidder_declarations,
+    bidders::target_metadata_declarations,
+    compiled_bidders,
+    schema::{SchemaArtifactState, schema_artifact_state},
+};
 use auctioneer_config_data::types::{
     BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
 };
@@ -169,6 +174,28 @@ impl fmt::Debug for ValidatedRegistryPlan {
 }
 
 impl ValidatedRegistryPlan {
+    /// Validate this build's published catalog without constructing bidders.
+    /// The plan is caller-owned and transient; no serving registry or global
+    /// validation index is installed. Source ancestry comes from metadata.
+    ///
+    /// # Errors
+    /// Refuses unqualified schema artifacts or an inconsistent compiled join.
+    pub fn compiled() -> Result<Self, RegistryBuildError> {
+        if schema_artifact_state() == SchemaArtifactState::Unqualified {
+            return Err(RegistryBuildError::UnqualifiedSchemaArtifact);
+        }
+        let infos = auctioneer_config_data::bidders();
+        let aliases = metadata_aliases(infos)?;
+        Self::validate(RegistryInputs {
+            infos,
+            bindings: auctioneer_config_data::bidder_implementation_bindings(),
+            metadata_declarations: target_metadata_declarations(),
+            factory_declarations: bidder_declarations(),
+            factories: compiled_bidders(),
+            aliases: &aliases,
+        })
+    }
+
     /// Validate all declarations, active membership and alias ancestry.
     /// No bidder factory is called, including on successful validation.
     ///
@@ -254,6 +281,38 @@ impl ValidatedRegistryPlan {
         let (_, validator) = self.factories.get(implementation)?;
         *validator
     }
+}
+
+fn metadata_aliases(
+    infos: &'static [BidderInfo],
+) -> Result<Vec<RegistryAlias>, RegistryBuildError> {
+    let mut aliases = Vec::new();
+    for info in infos {
+        let Some(source_parent) = info.alias_of.as_deref() else {
+            continue;
+        };
+        let name = info.name.as_str();
+        let mut cursor = source_parent;
+        let mut canonical_base = None;
+        for _ in 0..infos.len() {
+            let parent = infos
+                .iter()
+                .find(|candidate| candidate.name == cursor)
+                .ok_or(RegistryBuildError::UnknownAliasParent { alias: name })?;
+            if let Some(next) = parent.alias_of.as_deref() {
+                cursor = next;
+            } else {
+                canonical_base = Some(parent.name.as_str());
+                break;
+            }
+        }
+        aliases.push(RegistryAlias {
+            name,
+            source_parent,
+            canonical_base: canonical_base.ok_or(RegistryBuildError::AliasCycle { alias: name })?,
+        });
+    }
+    Ok(aliases)
 }
 
 struct DeclarationIndexes {
@@ -482,6 +541,81 @@ impl AliasIndexes {
 #[cfg(test)]
 mod tests {
     use super::{RegistryAlias, RegistryBuildError, RegistryInputs, ValidatedRegistryPlan};
+
+    #[test]
+    fn metadata_aliases_keep_direct_parents_and_canonical_bases_without_factories() {
+        use auctioneer_config_data::types::BidderInfo;
+        let infos = Box::leak(Box::new([
+            BidderInfo {
+                name: "fake_leaf".into(),
+                alias_of: Some("fake_parent".into()),
+                ..BidderInfo::default()
+            },
+            BidderInfo {
+                name: "fake_base".into(),
+                ..BidderInfo::default()
+            },
+            BidderInfo {
+                name: "fake_parent".into(),
+                alias_of: Some("fake_base".into()),
+                ..BidderInfo::default()
+            },
+        ]));
+        assert_eq!(
+            super::metadata_aliases(infos).unwrap(),
+            vec![
+                RegistryAlias {
+                    name: "fake_leaf",
+                    source_parent: "fake_parent",
+                    canonical_base: "fake_base"
+                },
+                RegistryAlias {
+                    name: "fake_parent",
+                    source_parent: "fake_base",
+                    canonical_base: "fake_base"
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn metadata_aliases_reject_missing_parents_and_cycles() {
+        use auctioneer_config_data::types::BidderInfo;
+        for (parents, expected) in [
+            (
+                [Some("fake_missing"), None],
+                RegistryBuildError::UnknownAliasParent {
+                    alias: "fake_first",
+                },
+            ),
+            (
+                [Some("fake_second"), Some("fake_first")],
+                RegistryBuildError::AliasCycle {
+                    alias: "fake_first",
+                },
+            ),
+            (
+                [Some("fake_first"), None],
+                RegistryBuildError::AliasCycle {
+                    alias: "fake_first",
+                },
+            ),
+        ] {
+            let infos = Box::leak(Box::new([
+                BidderInfo {
+                    name: "fake_first".into(),
+                    alias_of: parents[0].map(str::to_owned),
+                    ..BidderInfo::default()
+                },
+                BidderInfo {
+                    name: "fake_second".into(),
+                    alias_of: parents[1].map(str::to_owned),
+                    ..BidderInfo::default()
+                },
+            ]));
+            assert_eq!(super::metadata_aliases(infos), Err(expected));
+        }
+    }
     use crate::{
         Bidder, BidderDeclaration, BidderError, BidderHttpResponse, BidderRegistration,
         BidderRequestInfo, BidderResponse, DebugBodySchema, OutboundRequestMeta,
@@ -1068,6 +1202,80 @@ mod tests {
         let mut fixture = Fixture::new();
         fixture.infos = &fixture.infos[1..];
         fixture.bindings.remove(0);
+        fixture.refusal(RegistryBuildError::FeatureActivationMismatch {
+            bidder: "fake_zIndependent",
+        });
+    }
+
+    #[test]
+    fn target_native_exclusion_preserves_candidates_and_active_join_refusals() {
+        let mut fixture = Fixture::new();
+        let portable = fixture.infos;
+        let native_info = BidderInfo {
+            name: "fake_native_public".into(),
+            ..BidderInfo::default()
+        };
+        fixture.infos = Box::leak(
+            portable
+                .iter()
+                .cloned()
+                .chain([native_info])
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+        fixture.metadata.push(BidderMetadataDeclaration {
+            bidder: "fake_native_public",
+            implementation: "fake_native_owner",
+            required_feature: None,
+        });
+        fixture.bindings.push(BidderImplementationBinding {
+            bidder: "fake_native_public",
+            implementation: "fake_native_owner",
+        });
+        fixture.declarations.push(BidderDeclaration {
+            key: "fake_native_owner",
+            required_feature: None,
+            has_settings: false,
+        });
+        fixture.factories.push(BidderRegistration {
+            key: "fake_native_owner",
+            factory: other,
+            config_validator: None,
+        });
+        let native = fixture.validate().unwrap();
+        assert_eq!(native.definitions().len(), 5);
+        assert_eq!(
+            native
+                .definition("fake_native_public")
+                .unwrap()
+                .implementation(),
+            "fake_native_owner"
+        );
+
+        // Guest publication removes source-native metadata, not its linked factory.
+        fixture.infos = portable;
+        fixture.bindings.pop().unwrap();
+        fixture.refusal(RegistryBuildError::FeatureActivationMismatch {
+            bidder: "fake_native_public",
+        });
+        let excluded = fixture.metadata.pop().unwrap();
+        assert_eq!(excluded.bidder, "fake_native_public");
+        let guest = fixture.validate().unwrap();
+        assert_eq!(guest.definitions().len(), 4);
+        assert!(guest.definition("fake_native_public").is_none());
+        assert!(guest.factory_keys().any(|key| key == "fake_native_owner"));
+        CALLS.with_borrow(|calls| assert!(calls.is_empty()));
+
+        fixture.bindings.remove(0);
+        fixture.refusal(RegistryBuildError::MissingBinding {
+            bidder: "fake_zIndependent",
+        });
+        fixture.infos = &portable[1..];
+        fixture.refusal(RegistryBuildError::FeatureActivationMismatch {
+            bidder: "fake_zIndependent",
+        });
+        fixture.bindings.clear();
+        fixture.infos = &[];
         fixture.refusal(RegistryBuildError::FeatureActivationMismatch {
             bidder: "fake_zIndependent",
         });

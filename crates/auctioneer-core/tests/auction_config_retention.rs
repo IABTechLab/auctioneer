@@ -74,8 +74,9 @@ mod tests {
         time::Duration,
     };
 
-    const SELECTED: &str = r#"
-[auction]
+    const SELECTED: &str = r#"schema_version = 1
+
+[host.resource_limits]
 max_transport_bytes = 4096
 max_decoded_bytes = 4096
 [accounts.publisher]
@@ -143,7 +144,7 @@ rules = [{allow = false, condition = {componentName = ["fake_retention_alias"]}}
     fn source(vendors: usize) -> String {
         let mut config: Value =
             serde_json::to_value(toml::from_str::<toml::Value>(SELECTED).unwrap()).unwrap();
-        config["aliases"] = json!({"fake_retention_alias": passthrough_info().name});
+        config["host"]["aliases"] = json!({"fake_retention_alias": passthrough_info().name});
         config["accounts"]["unselected"] = json!({
             "gdpr": {"basic_enforcement_vendors": vec!["fake_bidder"; vendors]}
         });

@@ -125,12 +125,12 @@ mod tests {
         }
     }
 
-    // A valid envelope over the canonical empty object keeps application
+    // A valid envelope over the minimal versioned policy keeps application
     // configuration independent of the health inputs being exercised.
     fn config_envelope() -> String {
         json!({
-            "data": {},
-            "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "data": {"schema_version": 1_u8},
+            "sha256": "a9d5f6d002d956b8af5787a05e0ca000d45c03977ffa54ee8fbed719fed5fd23",
             "version": 1_u32,
             "generated_at": "1970-01-01T00:00:00Z",
         })

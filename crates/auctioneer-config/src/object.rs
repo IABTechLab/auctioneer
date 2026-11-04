@@ -1,11 +1,39 @@
 //! Require object input while retaining Serde's typed field decoding.
 
 use core::{fmt, marker::PhantomData};
+#[cfg(test)]
+use serde::Deserialize;
 use serde::{
-    Deserialize, Deserializer,
+    Deserializer,
     de::{MapAccess, Visitor, value::MapAccessDeserializer},
 };
 
+/// Decode the canonical fields after the object-only guard has run.
+pub(crate) trait ObjectFields<'de>: Sized {
+    fn deserialize_fields<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error>;
+}
+
+pub(crate) fn deserialize_fields<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: ObjectFields<'de>,
+{
+    struct FieldsVisitor<T>(PhantomData<fn() -> T>);
+    impl<'de, T: ObjectFields<'de>> Visitor<'de> for FieldsVisitor<T> {
+        type Value = T;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a configuration object")
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
+            T::deserialize_fields(ObjectMapDeserializer(map))
+        }
+    }
+    deserializer.deserialize_map(FieldsVisitor(PhantomData))
+}
+
+#[cfg(test)]
 pub(crate) fn deserialize_object<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
@@ -14,8 +42,10 @@ where
     deserializer.deserialize_map(ObjectVisitor(PhantomData))
 }
 
+#[cfg(test)]
 struct ObjectVisitor<T>(PhantomData<fn() -> T>);
 
+#[cfg(test)]
 impl<'de, T: Deserialize<'de>> Visitor<'de> for ObjectVisitor<T> {
     type Value = T;
 

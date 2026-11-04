@@ -54,11 +54,14 @@ fn browser_bundle(publisher: &str, sync: &str) -> Result<Value> {
     let (info, endpoint) = browser_syncer(auctioneer_config_data::bidders())?;
     let url = Url::parse(&endpoint.url).context("parse selected sync metadata")?;
     let config: AuctioneerAppConfig = serde_json::from_value(json!({
-        "user_sync": {
-            "external_url": sync,
-            "allowed_origins": [publisher],
+        "schema_version": 1_u8,
+        "host": {
+            "user_sync": {
+                "external_url": sync,
+                "allowed_origins": [publisher],
+            },
+            "aliases": {(FIXTURE_BIDDER): info.name},
         },
-        "aliases": {(FIXTURE_BIDDER): info.name},
         "accounts": {"publisher": {}},
     }))
     .context("construct local browser config")?;
@@ -189,12 +192,16 @@ mod tests {
         envelope.verify().unwrap();
         let config: AuctioneerAppConfig = serde_json::from_value(envelope.data).unwrap();
         validate_effective_defaults(&config).unwrap();
-        assert_eq!(config.aliases.as_ref().unwrap().len(), 1);
-        assert_eq!(config.aliases.as_ref().unwrap()["fake_browser"], info.name);
-        let aliases = &bundle["envelope"]["data"]["aliases"];
+        assert_eq!(config.host.aliases.as_ref().unwrap().len(), 1);
+        assert_eq!(
+            config.host.aliases.as_ref().unwrap()["fake_browser"],
+            info.name
+        );
+        assert_eq!(bundle["envelope"]["data"]["schema_version"], 1_u8);
+        let aliases = &bundle["envelope"]["data"]["host"]["aliases"];
         assert_eq!(aliases, &json!({"fake_browser": info.name}));
         assert_eq!(
-            bundle["envelope"]["data"]["user_sync"]["external_url"],
+            bundle["envelope"]["data"]["host"]["user_sync"]["external_url"],
             "http://127.0.0.1:42002"
         );
         assert_eq!(

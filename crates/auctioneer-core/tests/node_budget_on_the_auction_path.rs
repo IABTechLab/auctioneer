@@ -186,9 +186,10 @@ mod tests {
     /// "there was no competing error".
     fn config_registry() -> ConfigRegistry {
         let overlay = serde_json::json!({
+            "schema_version": 1_u64,
             "accounts": {
-                DISABLED_ACCOUNT: { "disabled": true }
-            }
+                DISABLED_ACCOUNT: { "disabled": true },
+            },
         });
         let cfg: AuctioneerAppConfig =
             serde_json::from_value(overlay).expect("the overlay matches the config shape");

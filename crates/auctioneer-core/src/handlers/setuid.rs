@@ -50,7 +50,7 @@ async fn setuid_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config_data::host_default());
+    let host = resolve::resolve_host(&app, auctioneer_config_data::product_host_default());
     let Some(sync) = &host.user_sync else {
         return Ok(sync_http::unavailable());
     };
@@ -204,7 +204,7 @@ async fn respond_with_registry(
     let account = resolve::resolve_selected_account(
         resolve::AccountSelection::from_requested(parsed.first("account")),
         app,
-        auctioneer_config_data::account_default(),
+        auctioneer_config_data::product_account_default(),
     );
     if account.config.disabled {
         return bad("account is disabled, please reach out to the prebid server host");
@@ -509,7 +509,7 @@ pub(super) mod tests {
     #[test]
     fn catalog_loading_follows_query_optout_and_bidder_but_precedes_format_and_account() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.disabled]\ndisabled = true\n").unwrap();
+            toml::from_str("schema_version = 1\n[accounts.disabled]\ndisabled = true\n").unwrap();
         let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
@@ -763,7 +763,7 @@ pub(super) mod tests {
         assert_eq!(body(&query_error), b"invalid query encoding");
 
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.publisher]\ndisabled = true\n").unwrap();
+            toml::from_str("schema_version = 1\n[accounts.publisher]\ndisabled = true\n").unwrap();
         let format_error = respond(
             Some("bidder=fake_bbb&f=bad&account=publisher"),
             &HeaderMap::new(),
@@ -803,7 +803,7 @@ pub(super) mod tests {
     #[test]
     fn setuid_format_and_account_errors_precede_unsyncable_syncer_resolution() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.disabled]\ndisabled = true\n").unwrap();
+            toml::from_str("schema_version = 1\n[accounts.disabled]\ndisabled = true\n").unwrap();
         let format = respond(
             Some("bidder=fake_pp&f=invalid&account=disabled"),
             &HeaderMap::new(),
@@ -889,7 +889,7 @@ pub(super) mod tests {
         host.gdpr.tcf2.enabled = true;
         host.gdpr.host_vendor_id = Some(32);
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n")
+            toml::from_str("schema_version = 1\n[accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n")
                 .unwrap();
         let query = "bidder=fake_aaa&uid=x&gdpr=1&gdpr_consent=malformed-tcf&f=b";
         let denied = respond(

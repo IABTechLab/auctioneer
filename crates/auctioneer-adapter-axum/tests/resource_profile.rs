@@ -694,6 +694,7 @@ mod tests {
     struct Server {
         process: Process,
         addr: SocketAddr,
+        binary_sha256: String,
     }
 
     impl Server {
@@ -702,6 +703,7 @@ mod tests {
             let addr = listener.local_addr().unwrap();
             drop(listener);
             let mut command = fixture.command();
+            let binary_sha256 = sha256(&fs::read(command.get_program()).unwrap());
             command
                 .env("EDGEZERO__ADAPTER__HOST", "127.0.0.1")
                 .env("EDGEZERO__ADAPTER__PORT", addr.port().to_string())
@@ -711,6 +713,7 @@ mod tests {
             let mut server = Self {
                 process: Process(command.spawn().unwrap()),
                 addr,
+                binary_sha256,
             };
             let deadline = Instant::now().checked_add(Duration::from_secs(10)).unwrap();
             loop {
@@ -783,7 +786,8 @@ mod tests {
         .unwrap();
         // Zero sampling preserves a valid auction while prohibiting outbound work.
         let config_value = json!({
-            "status": {"banner": banner}, "auction": {"max_parsed_nodes": nodes},
+            "schema_version": 1_u8,
+            "host": {"status_response": banner, "resource_limits": {"max_parsed_nodes": nodes}},
             "bidders": {(snapshot_bidder_name()): {"sample_rate": 0.0_f64}},
         });
         let config: AuctioneerAppConfig = serde_json::from_value(config_value).unwrap();
@@ -800,10 +804,13 @@ mod tests {
                 "--exact",
                 "tests::native_store_keeps_startup_snapshot_until_restart",
             ]);
+        let (status, stdout, stderr) = fixture.run(&mut command);
         assert!(
-            fixture.run(&mut command).0.success(),
-            "typed push child must succeed"
+            status.success(),
+            "typed push child must succeed: {}",
+            String::from_utf8_lossy(&stderr)
         );
+        assert!(String::from_utf8_lossy(&stdout).contains("running 1 test"));
         let store_bytes = fs::read(
             fixture
                 .0
@@ -814,8 +821,22 @@ mod tests {
         let blob: BlobEnvelope =
             serde_json::from_str(store["auctioneer_runtime"].as_str().unwrap()).unwrap();
         blob.verify().unwrap();
-        assert_eq!(blob.data["status"]["banner"], banner);
-        assert_eq!(blob.data["auction"]["max_parsed_nodes"], nodes);
+        assert_eq!(blob.data["schema_version"], 1_u8);
+        assert_eq!(blob.data["host"]["status_response"], banner);
+        assert_eq!(
+            blob.data["host"]["resource_limits"]["max_parsed_nodes"],
+            nodes
+        );
+        for retired in [
+            "baked",
+            "startup",
+            "runtime",
+            "status",
+            "auction",
+            "targeting",
+        ] {
+            assert!(blob.data.get(retired).is_none(), "retired scope {retired}");
+        }
         blob.sha256
     }
 
@@ -844,20 +865,43 @@ mod tests {
             return;
         }
         let fixture = Fixture::new();
+        let isolated_fixture = Fixture::new();
+        assert_ne!(fixture.0, isolated_fixture.0);
+        let binary_sha256 =
+            sha256(&fs::read(env!("CARGO_BIN_EXE_auctioneer-adapter-axum")).unwrap());
         let snapshot_a = push_snapshot(&fixture, "snapshot_a", 32);
         let server_a = Server::start(&fixture);
+        assert_eq!(server_a.binary_sha256, binary_sha256);
         assert_eq!(server_a.request("/status", b""), (200, "snapshot_a".into()));
         let body = node_request(64);
         assert_eq!(
             server_a.request("/openrtb2/auction", &body),
             (400, "Invalid request: too many JSON nodes\n".into())
         );
-        let snapshot_b = push_snapshot(&fixture, "snapshot_b", 1_000_000);
+        let snapshot_b = push_snapshot(&isolated_fixture, "snapshot_b", 1_000_000);
         assert_ne!(snapshot_a, snapshot_b);
+        let isolated_server = Server::start(&isolated_fixture);
+        assert_eq!(isolated_server.binary_sha256, binary_sha256);
+        assert_eq!(
+            isolated_server.request("/status", b""),
+            (200, "snapshot_b".into())
+        );
+        let isolated_admitted = isolated_server.request("/openrtb2/auction", &body);
+        assert_eq!(isolated_admitted.0, 200, "{}", isolated_admitted.1);
         assert_eq!(server_a.request("/status", b""), (200, "snapshot_a".into()));
-        assert_eq!(server_a.request("/openrtb2/auction", &body).0, 400);
+        assert_eq!(
+            server_a.request("/openrtb2/auction", &body),
+            (400, "Invalid request: too many JSON nodes\n".into())
+        );
+        assert_eq!(push_snapshot(&fixture, "snapshot_b", 1_000_000), snapshot_b);
+        assert_eq!(server_a.request("/status", b""), (200, "snapshot_a".into()));
+        assert_eq!(
+            server_a.request("/openrtb2/auction", &body),
+            (400, "Invalid request: too many JSON nodes\n".into())
+        );
         drop(server_a);
         let server_b = Server::start(&fixture);
+        assert_eq!(server_b.binary_sha256, binary_sha256);
         assert_eq!(server_b.request("/status", b""), (200, "snapshot_b".into()));
         let admitted = server_b.request("/openrtb2/auction", &body);
         assert_eq!(admitted.0, 200, "{}", admitted.1);

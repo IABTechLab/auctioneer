@@ -19,14 +19,16 @@ Tracking: #124/#127, with product-default ownership under #126. This is an
 ownership prerequisite inside PR #140, not another runtime-format or SDK project.
 
 Status: package-role rename and implementation approved by the maintainer on
-2026-11-03. Serving adoption and startup/resource acceptance remain separate.
+2026-11-03. Shared runtime cutover and resource acceptance remain separate.
+The 2026-11-04 single-runtime direction supersedes the earlier startup/storage
+package; actual host ingestion/adoption and capacity/lifetime proof remain #135.
 
 ## Boundaries
 
 - This worktree is `implementation/operator-runtime-config` for PR #140.
   Existing uncommitted defaults/account/sync work is parent-owned; preserve it.
 - Do not publish, merge, update dependency pins, refresh archives, change
-  limits or waive operator-runtime startup/storage review in this task.
+  limits or waive runtime extraction/accounting/retention controls in this task.
 - Do not use handwritten include/path imports, parallel heavy Cargo jobs,
   real bidders as shared fakes, compatibility package aliases or opaque JSON
   in place of typed settings.
@@ -168,8 +170,8 @@ descriptions/development documentation.
 - [x] Independently review specification compliance and code quality. Fix and
   rerun concrete regressions before calling the ownership move complete.
 - [ ] Update current ownership documentation and continue the parent operator
-  runtime plan at shared semantic context/host resolution. Its startup/input
-  funding review, reader cutover and same-binary/two-config acceptance remain
+  runtime plan at shared typed-policy semantic validation/resolution. Real SDK
+  extraction bounds, request-retention controls, reader cutover and same-binary/two-config acceptance remain
   required; this move alone does not close #124 or PR #140.
 
 ## Execution Checkpoint
@@ -182,6 +184,7 @@ historical captures keep their original bytes, and all 698 baseline core case
 identities remain executable across their correct owners.
 
 The final continuation item above is deliberately open: complete operator-policy
-admission, bounded startup/storage review and the serving/CLI cutover are still
-parent-plan work. No provider readiness, memory fit or full hosted CI pass is
+admission, SDK extraction/accounting and the serving/CLI cutover are still
+parent-plan work. Actual host allocation ingestion/adoption remains #135, not
+an additional constructor/storage package. No provider readiness, memory fit or full hosted CI pass is
 claimed by this checkpoint.

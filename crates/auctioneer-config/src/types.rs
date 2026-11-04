@@ -409,23 +409,6 @@ pub struct OpenRtbCapabilities {
     pub gpp_supported: bool,
 }
 
-/// The deploy-immutable runtime bootstrap policy, baked from
-/// `data/runtime-bootstrap.toml` at build time as
-/// `auctioneer_config_data::RUNTIME_BOOTSTRAP`. Nothing at runtime — no environment
-/// variable, no config-store value — can change it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RuntimeBootstrap {
-    /// Whether a bound config store with no blob pushed is an
-    /// intentionally unconfigured deploy (degrade with a WARN) or a
-    /// misconfigured one (fail closed).
-    pub allow_missing_config: bool,
-    /// The bound on ONE typed-config extraction, in milliseconds,
-    /// installed as `ConfigExtractionLimits.timeout` so the host's own
-    /// extraction budget enforces it. Baked rather than pushed because
-    /// it bounds the very read that resolves the pushed config.
-    pub max_config_fetch_ms: u32,
-}
-
 #[cfg(test)]
 mod tests {
     use super::HostConfig;
