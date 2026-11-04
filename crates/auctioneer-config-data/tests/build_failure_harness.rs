@@ -3870,10 +3870,8 @@ userMacro = "bad&uid"
             integer(field(host, &["host_cookie", "max_cookie_size_bytes"]).unwrap()).unwrap(),
             0
         );
-        assert!(
-            !boolean(field(host, &["user_sync", "cooperative", "enabled_by_default"]).unwrap())
-                .unwrap()
-        );
+        let sync = some(field(host, &["user_sync"]).unwrap()).unwrap();
+        assert!(!boolean(field(sync, &["cooperative", "enabled_by_default"]).unwrap()).unwrap());
         let account = generated.initializer("account_default").unwrap();
         for name in ["default_limit", "max_limit"] {
             assert_eq!(

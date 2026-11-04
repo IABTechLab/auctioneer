@@ -4,7 +4,7 @@
 mod tests {
     use auctioneer_adapter_axum::envelope::resource_profile;
     use auctioneer_config_data::types::{BidderInfo, MediaType};
-    use auctioneer_core::config::AuctioneerAppConfig;
+    use auctioneer_core::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
     use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
     use auctioneer_privacy::gvl::GVL_PARSE_CACHE_MAX_ENTRIES;
     use auctioneer_runtime::{
@@ -840,7 +840,7 @@ mod tests {
             args.yes = true;
             args.no_env = true;
             args.no_diff = true;
-            edgezero_cli::run_config_push_typed::<AuctioneerAppConfig>(&args).unwrap();
+            edgezero_cli::run_config_push_typed::<SdkAuctioneerAppConfig>(&args).unwrap();
             return;
         }
         let fixture = Fixture::new();

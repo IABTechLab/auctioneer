@@ -1,6 +1,5 @@
 //! Bounded constructor and sealed-response allocation controls for the discovered factory.
 
-use auctioneer_bidder::BidderSettings;
 use crate::alloc_track::{
     self, AllowAllEndpoints, construction_budget, response as response_alloc_track,
     size_growth_is_bounded,
@@ -8,6 +7,7 @@ use crate::alloc_track::{
 use crate::response_allocation::{
     SHIPPED_DECODED_CAP, SHIPPED_RESPONSE_NODE_CAP, response_charge, syntactic_nodes,
 };
+use auctioneer_bidder::BidderSettings;
 use auctioneer_bidder::{
     Bidder, BidderHttpResponse, BidderName, BidderRequestInfo, BidderResponse, CallBudget,
     EntryPoint, OutboundBuildError, OutboundRequestSink, SinkLimits, compiled_bidders,
