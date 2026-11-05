@@ -92,8 +92,12 @@ jobs:
 
       # Cargo rechecks source, features and fingerprints in every lane.
       # One workspace owner saves the seed; consumers never cache test results.
+      # Fresh producer children cannot reuse this seed; leave disk for their builds.
+      - name: Report disk before native build cache
+        run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
       - name: Restore native Cargo build products
-        if: matrix.lane != 'secure'
+        if: matrix.lane == 'workspace-default' || matrix.lane == 'workspace-insecure' || matrix.lane == 'cli'
         id: native-build-cache
         uses: actions/cache/restore@v6
         with:
@@ -101,6 +105,9 @@ jobs:
           key: ${{ runner.os }}-cargo-native-build-v1-${{ hashFiles('.tool-versions', 'Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-native-build-v1-
+
+      - name: Report disk before toolchain and tests
+        run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
       - name: Retrieve Rust version
         id: rust-version

@@ -235,9 +235,12 @@ Large schema diagnostic reports are opt-in with
 `AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS=true`; assertions and artifact inspection
 do not depend on that flag.
 
-All workflows share one registry/Git download cache. Only slow native lanes
-restore `target/debug/`, with the default-workspace lane as its single writer;
-Cargo revalidates source, features and fingerprints. Toolchain-action implicit
+All workflows share one registry/Git download cache. Only the default-workspace,
+insecure-workspace and standalone CLI lanes restore `target/debug/`, with the
+default-workspace lane as its single writer. Fresh evidence producers use only
+the download cache, leaving disk for their isolated child builds instead of
+staging and expanding an unused workspace build archive. Cargo revalidates
+source, features and fingerprints. Toolchain-action implicit
 caching is disabled so it cannot duplicate that policy. Save-after-failure
 retains normal compilation products, not observations or passing test results.
 Nested scratch workspaces and guest artifacts are outside the compiled seed.
