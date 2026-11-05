@@ -1,16 +1,16 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-10-29T16:20:42.115924Z",
+  "generated_at": "2026-11-05T16:37:51.881795153Z",
   "retention": {
     "max_age_days": 180
   },
   "oversize_bundle_ack": false,
   "gcl": {
     "path": "gcl.json",
-    "sha256": "4edf2dc35546186154406a5d732b09304d1a8afe29b646a585a7c2e13aaac293",
-    "last_updated": "2026-10-29T16:00:21Z",
-    "fetched_at": "2026-10-29T16:20:38.626265Z",
-    "cache_max_age_secs": 604364
+    "sha256": "94adeba18a41d618d60099e933ce8f239a0d39187bed5de642ea54035f467e5d",
+    "last_updated": "2026-11-05T16:00:21Z",
+    "fetched_at": "2026-11-05T16:37:48.364448842Z",
+    "cache_max_age_secs": 603262
   },
   "entries": [
     {
@@ -23,13 +23,21 @@
     },
     {
       "spec": 3,
+      "vendor_list_version": 184,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-11-05T16:00:18Z",
+      "path": "spec3/vendor-list-v184.json",
+      "sha256": "293eb03c9458723608e858bda55c5498402ae6e003aebce669e102f2e7a41aef",
+      "fetched_at": "2026-11-05T16:37:48.060859932Z",
+      "cache_max_age_secs": 602590
+    },
+    {
+      "spec": 3,
       "vendor_list_version": 183,
       "tcf_policy_version": 5,
       "last_updated": "2026-10-29T16:00:18Z",
       "path": "spec3/vendor-list-v183.json",
-      "sha256": "6cdb38473ee7399c6b0dc353cf8c274f7acec3219d3ec035d58b0dca21f59699",
-      "fetched_at": "2026-10-29T16:20:38.303496Z",
-      "cache_max_age_secs": 603621
+      "sha256": "6cdb38473ee7399c6b0dc353cf8c274f7acec3219d3ec035d58b0dca21f59699"
     },
     {
       "spec": 3,
@@ -190,14 +198,6 @@
       "last_updated": "2026-06-11T16:00:18Z",
       "path": "spec3/vendor-list-v163.json",
       "sha256": "576aac579b17f1cdcac5a2f58378019259e911406778f9cfe09673463d60c8e0"
-    },
-    {
-      "spec": 3,
-      "vendor_list_version": 162,
-      "tcf_policy_version": 5,
-      "last_updated": "2026-06-04T16:00:18Z",
-      "path": "spec3/vendor-list-v162.json",
-      "sha256": "0f8b942bdf5d0c13f997fe5448cb5654cb39a36f865632e672a2119114929e5a"
     }
   ]
 }
