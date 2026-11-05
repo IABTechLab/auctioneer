@@ -90,22 +90,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-downloads-v1-
 
-      # Cargo rechecks source, features and fingerprints in every lane.
-      # One workspace owner saves the seed; consumers never cache test results.
-      # Fresh producer children cannot reuse this seed; leave disk for their builds.
-      - name: Report disk before native build cache
-        run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
-
-      - name: Restore native Cargo build products
-        if: matrix.lane == 'workspace-default' || matrix.lane == 'workspace-insecure' || matrix.lane == 'cli'
-        id: native-build-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: target/debug/
-          key: ${{ runner.os }}-cargo-native-build-v1-${{ hashFiles('.tool-versions', 'Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-native-build-v1-
-
+      # A whole-workspace compiled cache exhausted runners during restoration.
+      # Share downloads, but build products only within each job.
       - name: Report disk before toolchain and tests
         run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
@@ -391,12 +377,9 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ steps.download-cache.outputs.cache-primary-key }}
 
-      - name: Save native Cargo build products
-        if: ${{ always() && !cancelled() && matrix.lane == 'workspace-default' && steps.native-build-cache.outputs.cache-primary-key != '' && steps.native-build-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v6
-        with:
-          path: target/debug/
-          key: ${{ steps.native-build-cache.outputs.cache-primary-key }}
+      - name: Report disk after test commands
+        if: ${{ always() }}
+        run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
   compiler-conformance:
     name: cargo test (compiler conformance ${{ matrix.lane }})
