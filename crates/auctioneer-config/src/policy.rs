@@ -265,7 +265,13 @@ impl<Settings: Validate> validator::ValidateArgs<'_> for OperatorPolicy<Settings
     }
 }
 
-/// Shared structural checks only; effective policy admission belongs to the engine.
+/// Shared structural checks only; this result is not operator-policy admission.
+///
+/// In particular, `host.user_sync` URL, redirect and priority-group checks require
+/// the resolved host and remain in the engine's single effective validator. Use
+/// `auctioneer_core::config::validation::validate_effective_operator_policy`, or validation on
+/// `auctioneer_core::config::SdkAuctioneerAppConfig`, before admitting operator
+/// input. Do not manufacture effective defaults to validate an unresolved overlay.
 impl<Settings: Validate> Validate for OperatorPolicy<Settings> {
     fn validate(&self) -> Result<(), ValidationErrors> {
         let mut errors = ValidationErrors::new();

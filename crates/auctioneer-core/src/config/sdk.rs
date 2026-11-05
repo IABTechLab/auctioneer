@@ -128,6 +128,42 @@ mod tests {
     }
 
     #[test]
+    fn sdk_boundary_checks_resolved_sync_urls_and_priority_groups_without_leaking_values() {
+        let valid = json!({
+            "schema_version": 1_u8,
+            "host": {"user_sync": {
+                "external_url": "https://sync.example.test",
+                "priority_groups": vec![vec!["fake_sync"; 1]; 32],
+            }},
+        });
+        let accepted: SdkAuctioneerAppConfig = serde_json::from_value(valid.clone()).unwrap();
+        accepted.validate().unwrap();
+        for (field, rejected) in [
+            ("external_url", json!("fake_private_url_canary")),
+            (
+                "priority_groups",
+                json!(vec![vec!["fake_private_priority_canary"; 1]; 33]),
+            ),
+        ] {
+            let mut document = valid.clone();
+            document["host"]["user_sync"][field] = rejected;
+            let model: AuctioneerAppConfig = serde_json::from_value(document).unwrap();
+            model
+                .validate()
+                .expect("raw models establish structure, not effective sync safety");
+            let error = SdkAuctioneerAppConfig(model).validate().unwrap_err();
+            assert_eq!(
+                serde_json::to_value(&error).unwrap(),
+                json!({"runtime": [{"code": "invalid_effective_config", "message": null, "params": {}}]}),
+                "the real SDK boundary must reject {field}",
+            );
+            for diagnostic in [error.to_string(), format!("{error:?}")] {
+                assert!(!diagnostic.contains("fake_private_"));
+            }
+        }
+    }
+
+    #[test]
     fn sdk_wrapper_keeps_model_layout_and_existing_empty_secret_metadata() {
         assert_eq!(
             size_of::<SdkAuctioneerAppConfig>(),

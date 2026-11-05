@@ -499,6 +499,11 @@ impl Discovery {
                 |feature| quote::quote!(Some(#feature)),
             );
             let has_settings = declaration.has_settings;
+            let settings_obligation = match (has_settings, &declaration.required_feature) {
+                (true, Some(required_feature)) => quote::quote!(cfg!(feature = #required_feature)),
+                (true, None) => quote::quote!(true),
+                (false, _) => quote::quote!(false),
+            };
             let config_validator = if has_settings {
                 quote::quote!(Some(#owner::validate_config))
             } else {
@@ -508,7 +513,7 @@ impl Discovery {
             declarations.push(quote::quote!(BidderDeclaration {
                 key: #key,
                 required_feature: #feature,
-                has_settings: #has_settings,
+                has_settings: #settings_obligation,
             }));
             registrations.push(quote::quote!(#guard BidderRegistration {
                 key: #key,
@@ -2717,7 +2722,7 @@ mod tests {
             &quote::quote!(BidderDeclaration {
                 key: "fake_settings",
                 required_feature: Some("experimental"),
-                has_settings: true,
+                has_settings: cfg!(feature = "experimental"),
             })
         ));
         assert!(contains_tokens(
@@ -2774,6 +2779,16 @@ mod tests {
             }
             fn main() {
                 assert_eq!(bidders::compiled_bidders().len(), usize::from(cfg!(feature = "experimental")));
+                assert_eq!(bidders::ALL_DECLARATIONS.len(), 1);
+                let declaration = &bidders::ALL_DECLARATIONS[0];
+                assert_eq!(declaration.key, "fake_settings");
+                assert_eq!(declaration.required_feature, Some("experimental"));
+                assert_eq!(declaration.has_settings, cfg!(feature = "experimental"));
+                if let Some(registration) = bidders::compiled_bidders().first() {
+                    assert_eq!(registration.key, declaration.key);
+                    assert!(registration.config_validator.is_some());
+                }
+                println!("settings eligibility preserved");
             }
         }.to_string()).unwrap();
         let factory = quote::quote!(
@@ -2826,6 +2841,11 @@ mod tests {
                     assert!(stderr.contains(reason), "{stderr}");
                 } else {
                     assert!(compiled.status.success(), "{stderr}");
+                    let run =
+                        child_output(&mut Command::new(fixture.directory.join("probe"))).unwrap();
+                    let diagnostic = String::from_utf8_lossy(&run.stderr);
+                    assert!(run.status.success(), "{diagnostic}");
+                    assert_eq!(run.stdout, b"settings eligibility preserved\n");
                 }
             }
         }

@@ -258,6 +258,9 @@ mod sdk_validation_allocation {
                 );
             }
             assert_eq!(factory_calls(), factories_before);
+            // Compare the actual measured peak, not the outer report-parser's
+            // synthetic records. Check every population; catalog growth changes
+            // this scratch allocation even though the config charge stays fixed.
             if peak > charge {
                 failures.push(format!("definitions={definitions} case={case}: peak={peak} exceeds complete unchanged config charge={charge} (product_bytes={product_bytes}, component_charge={component_charge})"));
             }
@@ -1497,7 +1500,7 @@ mod config_callbacks {
     #[test]
     fn shared_admission_rejects_settings_for_unlinked_factories() {
         let before = auctioneer_bidder::fake_synthetic::factory_calls();
-        let declarations: Vec<_> = bidder_declarations()
+        let mut declarations: Vec<_> = bidder_declarations()
             .iter()
             .map(|row| BidderDeclaration {
                 key: row.key,
@@ -1518,6 +1521,26 @@ mod config_callbacks {
                 config_validator: row.config_validator,
             })
             .collect();
+        let invalid = RegistryInputs {
+            infos: &[],
+            bindings: &[],
+            metadata_declarations: &[],
+            factory_declarations: &declarations,
+            factories: &factories,
+            aliases: &[],
+        };
+        assert_eq!(
+            ValidatedRegistryPlan::validate(invalid).unwrap_err(),
+            auctioneer_bidder::RegistryBuildError::ConfigValidatorMismatch {
+                implementation: "fake_integer_probe",
+            }
+        );
+        let inactive = declarations
+            .iter_mut()
+            .find(|row| row.key == "fake_integer_probe")
+            .unwrap();
+        assert!(inactive.has_settings);
+        inactive.has_settings = false;
         let catalog = ValidatedRegistryPlan::validate(RegistryInputs {
             infos: &[],
             bindings: &[],

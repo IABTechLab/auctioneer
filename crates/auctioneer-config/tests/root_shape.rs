@@ -1,5 +1,4 @@
 //! The authoring document is the same direct versioned payload used at runtime.
-#![cfg(feature = "config-model")]
 
 #[cfg(test)]
 mod tests {

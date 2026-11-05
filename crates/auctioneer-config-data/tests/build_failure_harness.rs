@@ -861,18 +861,19 @@ fn read_build_directives(harness: &Harness) -> String {
 /// Copy selected build trees without Git state, target caches or symlinks.
 fn copy_build_sources(source: &Path, destination: &Path) -> io::Result<()> {
     fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let name = entry.file_name();
+    for result in fs::read_dir(source)? {
+        let dir_entry = result?;
+        let name = dir_entry.file_name();
         if name == "target" || name == ".git" {
             continue;
         }
         let target = destination.join(name);
-        let kind = entry.file_type()?;
-        if kind.is_dir() {
-            copy_build_sources(&entry.path(), &target)?;
-        } else if kind.is_file() {
-            fs::copy(entry.path(), target)?;
+        let source_path = dir_entry.path();
+        let metadata = fs::symlink_metadata(&source_path)?;
+        if metadata.is_dir() {
+            copy_build_sources(&source_path, &target)?;
+        } else if metadata.is_file() {
+            fs::copy(source_path, target)?;
         } else {
             return Err(io::Error::other(
                 "build source must be a regular file or directory",
@@ -1009,6 +1010,60 @@ mod tests {
     use std::collections::BTreeSet;
 
     #[test]
+    fn build_source_copy_preserves_files_but_excludes_git_and_target_trees() {
+        let harness = harness_dirs("copy_regular_sources");
+        let source = harness.fixture("source");
+        let destination = harness.fixture("destination");
+        for path in ["nested", ".git", "target", "nested/target"] {
+            fs::create_dir_all(source.join(path)).unwrap();
+        }
+        for path in [
+            "root.rs",
+            "nested/child.rs",
+            ".git/config",
+            "target/cache",
+            "nested/target/cache",
+        ] {
+            fs::write(source.join(path), path).unwrap();
+        }
+        copy_build_sources(&source, &destination).unwrap();
+        for path in ["root.rs", "nested/child.rs"] {
+            assert_eq!(fs::read_to_string(destination.join(path)).unwrap(), path);
+        }
+        for path in [".git", "target", "nested/target"] {
+            assert!(!destination.join(path).exists());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn build_source_copy_refuses_file_and_directory_symlinks_without_following_them() {
+        use std::os::unix::fs::symlink;
+
+        let harness = harness_dirs("copy_link_refusal");
+        for label in ["file", "directory"] {
+            let source = harness.fixture(label);
+            fs::create_dir_all(&source).unwrap();
+            let input = source.join("unexpected");
+            let outside = harness.fixture(format!("outside-{label}").as_str());
+            if label == "file" {
+                fs::write(&outside, "must not be copied").unwrap();
+            } else {
+                fs::create_dir_all(&outside).unwrap();
+            }
+            symlink(&outside, &input).unwrap();
+            let destination = harness.fixture(format!("copy-{label}").as_str());
+            let error = copy_build_sources(&source, &destination).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::Other);
+            assert_eq!(
+                error.to_string(),
+                "build source must be a regular file or directory"
+            );
+            assert!(!destination.join("unexpected").exists());
+        }
+    }
+
+    #[test]
     fn release_product_output_is_independent_of_root_operator_file_and_override_controls() {
         use quote::ToTokens as _;
 
@@ -1089,9 +1144,9 @@ mod tests {
                 host.to_token_stream().to_string(),
                 account.to_token_stream().to_string(),
             );
-            if let Some(expected) = &expected {
+            if let Some(first_product) = &expected {
                 assert_eq!(
-                    &product, expected,
+                    &product, first_product,
                     "operator bytes must not change product output"
                 );
             } else {

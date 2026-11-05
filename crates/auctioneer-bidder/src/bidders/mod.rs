@@ -19,7 +19,9 @@ pub struct BidderDeclaration {
     pub key: &'static str,
     /// The Cargo feature required to compile this implementation, if any.
     pub required_feature: Option<&'static str>,
-    /// Derived from this executable owner's manifest settings declaration.
+    /// This build owes a settings validator: the executable owner declares
+    /// settings and its required feature, if any, is active. The declaration
+    /// and feature ownership remain present even when this obligation is false.
     pub has_settings: bool,
 }
 

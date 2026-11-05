@@ -374,9 +374,13 @@ impl DeclarationIndexes {
                 return Err(RegistryBuildError::FeaturePredicateMismatch { bidder: row.bidder });
             }
         }
-        for (implementation, (feature, _)) in factory_features {
-            if feature.is_none() && !factories.contains_key(implementation) {
+        for (implementation, (feature, has_settings)) in factory_features {
+            let available = factories.contains_key(implementation);
+            if feature.is_none() && !available {
                 return Err(RegistryBuildError::UnavailableFactory { implementation });
+            }
+            if has_settings && !available {
+                return Err(RegistryBuildError::ConfigValidatorMismatch { implementation });
             }
         }
         let mut active_features = BTreeMap::new();
@@ -948,6 +952,20 @@ mod tests {
     }
 
     #[test]
+    fn settings_obligations_require_a_linked_validator_even_without_public_identities() {
+        let mut fixture = Fixture::new();
+        fixture.declarations[1].has_settings = true;
+        fixture.refusal(RegistryBuildError::ConfigValidatorMismatch {
+            implementation: "fake_unused",
+        });
+        fixture.declarations[1].has_settings = false;
+        let inactive = fixture.validate().unwrap();
+        assert_eq!(inactive.factory_keys().collect::<Vec<_>>(), ["fake_shared"]);
+        assert!(inactive.config_validator("fake_unused").is_none());
+        CALLS.with_borrow(|calls| assert!(calls.is_empty()));
+    }
+
+    #[test]
     fn validated_definitions_borrow_metadata_and_keep_independent_public_bases() {
         let fixture = Fixture::new();
         let plan = fixture.validate().unwrap();
@@ -1235,12 +1253,12 @@ mod tests {
         fixture.declarations.push(BidderDeclaration {
             key: "fake_native_owner",
             required_feature: None,
-            has_settings: false,
+            has_settings: true,
         });
         fixture.factories.push(BidderRegistration {
             key: "fake_native_owner",
             factory: other,
-            config_validator: None,
+            config_validator: Some(|_| panic!("catalog validation must not invoke callbacks")),
         });
         let native = fixture.validate().unwrap();
         assert_eq!(native.definitions().len(), 5);
@@ -1264,6 +1282,7 @@ mod tests {
         assert_eq!(guest.definitions().len(), 4);
         assert!(guest.definition("fake_native_public").is_none());
         assert!(guest.factory_keys().any(|key| key == "fake_native_owner"));
+        assert!(guest.config_validator("fake_native_owner").is_some());
         CALLS.with_borrow(|calls| assert!(calls.is_empty()));
 
         fixture.bindings.remove(0);

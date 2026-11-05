@@ -13,6 +13,10 @@ version = { workspace = true }
 [lints]
 workspace = true
 
+[[test]]
+name = "root_shape"
+required-features = ["config-model"]
+
 [features]
 # Shared effective configuration and validation, without parsers or code generators.
 config-model = [

@@ -215,7 +215,7 @@ jobs:
 
       - name: Run configuration schema tests (secure defaults)
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-config --lib --features build-support
+        run: cargo test --locked -p auctioneer-config --lib --test root_shape --features build-support
 
       - name: Run bidder, exchange and core tests (secure defaults)
         timeout-minutes: 25

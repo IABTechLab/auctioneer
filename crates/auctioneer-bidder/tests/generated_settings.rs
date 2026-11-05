@@ -132,14 +132,20 @@ mod tests {
             );
             let stdout = String::from_utf8(output.stdout).unwrap();
             let diagnostic = String::from_utf8(output.stderr).unwrap();
-            writeln!(
-                stderr(),
-                "catalog resource variant definitions={count}:\n{stdout}\n{diagnostic}"
-            )
-            .unwrap();
             reconcile_resource_test(&stdout, &diagnostic, count, output.status.success());
+            // Keep actual measurements visible without leaking the filtered
+            // child libtest reports into the outer report-count gate.
+            for measurement in diagnostic
+                .lines()
+                .filter(|line| line.starts_with("sdk-validation-allocation:"))
+            {
+                writeln!(stderr(), "{measurement}").unwrap();
+            }
             if !output.status.success() {
-                failures.push(format!("definitions={count}: {}", output.status));
+                failures.push(format!(
+                    "definitions={count}: {}\n{stdout}\n{diagnostic}",
+                    output.status
+                ));
             }
             previous_definitions = count;
         }
@@ -159,14 +165,14 @@ mod tests {
         assert_eq!(
             passed,
             [RESOURCE_TEST],
-            "the actual SDK allocation case must execute once: {stdout}"
+            "the actual SDK allocation case must execute once: {stdout}\n{diagnostic}"
         );
         let summary = if success {
             "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out"
         } else {
             "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 31 filtered out"
         };
-        assert!(stdout.contains(summary), "{stdout}");
+        assert!(stdout.contains(summary), "{stdout}\n{diagnostic}");
         let measurements: Vec<_> = diagnostic
             .lines()
             .filter(|line| line.starts_with("sdk-validation-allocation:"))
@@ -177,7 +183,15 @@ mod tests {
             "both resource cases must report: {diagnostic}"
         );
         for (measurement, case, payload, cap, nodes, component, charge) in [
-            (measurements[0], "minimal", 20, 155, 6, 43_573, 228_789),
+            (
+                measurements[0],
+                "minimal",
+                20_usize,
+                155_usize,
+                6_usize,
+                43_573_usize,
+                228_789_usize,
+            ),
             (measurements[1], "invalid-tmax", 69, 204, 9, 58_035, 243_251),
         ] {
             assert!(measurement.starts_with(&format!("sdk-validation-allocation: definitions={definitions} name_bytes=64 case={case} payload={payload} backend_cap={cap} blob_cap={cap} nodes={nodes} product_bytes=1447 component_charge={component} ")), "{measurement}");
@@ -254,8 +268,8 @@ mod tests {
                         mediaTypes = ["banner"]
                     };
                     definition.insert("defaultEnabled".into(), (*enabled).into());
-                    if let Some(parent) = parent {
-                        definition.insert("aliasOf".into(), (*parent).into());
+                    if let Some(alias_base) = parent {
+                        definition.insert("aliasOf".into(), (*alias_base).into());
                     }
                     ((*name).to_owned(), toml::Value::Table(definition))
                 })
@@ -369,6 +383,8 @@ mod tests {
         let resource_stdout = format!(
             "test {RESOURCE_TEST} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out\n"
         );
+        // Synthetic report-parser input, not captured SDK allocation evidence.
+        // Actual allocation measurements come from run_catalog_resource_variants.
         let resource_diagnostic = "sdk-validation-allocation: definitions=256 name_bytes=64 case=minimal payload=20 backend_cap=155 blob_cap=155 nodes=6 product_bytes=1447 component_charge=43573 peak=1 retained=0 cumulative=1 charge=228789 callbacks=0\nsdk-validation-allocation: definitions=256 name_bytes=64 case=invalid-tmax payload=69 backend_cap=204 blob_cap=204 nodes=9 product_bytes=1447 component_charge=58035 peak=1 retained=0 cumulative=1 charge=243251 callbacks=0\n";
         reconcile_resource_test(&resource_stdout, resource_diagnostic, 256, true);
         for diagnostic in [
