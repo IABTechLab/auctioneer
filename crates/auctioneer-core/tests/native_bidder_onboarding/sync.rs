@@ -1,5 +1,5 @@
 use super::fixtures::{Flow, config};
-use auctioneer_config::usersync::SyncType;
+use auctioneer_config_data::usersync::SyncType;
 use auctioneer_core::{
     handlers::usersync_keys::KEYRING_SECRET_NAME,
     host_primitives::{boot_gates, clock_handle},
@@ -197,7 +197,7 @@ fn dispatch(
 
 fn runtime(flow: &Flow) -> Value {
     let mut runtime = config(&[flow]);
-    runtime["user_sync"] = json!({"external_url":CALLBACK_ORIGIN, "allowed_origins":[ORIGIN],
+    runtime["host"]["user_sync"] = json!({"external_url":CALLBACK_ORIGIN, "allowed_origins":[ORIGIN],
         "cooperative":{"enabled_by_default":false}});
     runtime["accounts"] = json!({(flow.account()):{}});
     for ancestor in &flow.ancestry {

@@ -40,12 +40,13 @@ use crate::host_primitives::edgezero_proxy::{EdgeZeroFanout, EdgeZeroProxyAdapte
 use crate::host_primitives::fanout::DevFanout;
 use crate::host_primitives::registry::{TestClockHandle, TestRngHandle};
 use crate::host_primitives::strategy::RaceTimersStrategy;
+use crate::test_support::config_store::context as captured_context;
 use async_trait::async_trait;
 use auctioneer_bidder::{
     Bidder, BidderError, BidderHttpResponse, BidderName, BidderRegistry, BidderRequestInfo,
     BidderResponse, DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
 };
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use auctioneer_exchange::fanout::{TransportError, TransportErrorKind};
 use auctioneer_exchange::scrub::DisclosureAudit;
 use auctioneer_exchange::{
@@ -72,7 +73,6 @@ use edgezero_core::config_store::DEFAULT_CONFIG_JSON_NODES;
 use edgezero_core::config_store::{
     BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
 };
-use edgezero_core::context::RequestContext;
 use edgezero_core::error::{BadGatewayReason, EdgeError};
 use edgezero_core::http::{HeaderMap, StatusCode};
 use edgezero_core::outbound::{
@@ -82,7 +82,6 @@ use edgezero_core::outbound::{
     OutboundPreparedBatch, OutboundProgressRuntime, OutboundRequest, OutboundResponse,
     OutboundResponseContext, OutboundSendMode, OutboundTime,
 };
-use edgezero_core::params::PathParams;
 use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
 use edgezero_core::time::{Deadline, MonotonicClock, MonotonicInstant};
 use fake_bidder::FakeBidder;
@@ -111,7 +110,7 @@ const BIDDER_C: &str = "https://bidder-c.example/rtb";
 const GENEROUS_MS: u64 = 1000;
 
 /// Auction budget pinned on the fixture request instead of inherited
-/// from `[baked.host]` in `auctioneer.toml`.
+/// from product defaults.
 ///
 /// The rows that drive `run_auction` do it on a `FakeClock` that never
 /// advances, so the whole budget is still unspent when the exchange
@@ -1082,8 +1081,8 @@ fn drive_run_auction_with(
     clock: &FakeClock,
     registry: &BidderRegistry,
 ) -> Result<BidResponse, AuctionError> {
-    let host = auctioneer_config::host_default().clone();
-    let account = auctioneer_config::account_default();
+    let host = auctioneer_config_data::product_host_default().clone();
+    let account = auctioneer_config_data::product_account_default();
     let resolved = ResolvedAccount {
         id: UNRESOLVED_ACCOUNT_ID.to_owned(),
         source: AccountSource::DefaultFallback,
@@ -1784,7 +1783,7 @@ pub fn equal_call_timeout_and_deadline_ties_to_bidder_cause(target: FanoutUnderT
 /// `AuctionError::FanoutUnavailable`, and the handler turns THAT into a
 /// plain-text 500.
 ///
-/// A bound config store holding the baked default, so a handler-path
+/// A bound config store inheriting product defaults, so a handler-path
 /// row exercises the seam it names rather than the loader's fail-closed
 /// answer to an unbound store.
 struct DefaultConfigStore;
@@ -1792,7 +1791,10 @@ struct DefaultConfigStore;
 #[async_trait(?Send)]
 impl ConfigStore for DefaultConfigStore {
     async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
-        let envelope = BlobEnvelope::new(serde_json::json!({}), "1970-01-01T00:00:00Z".to_owned());
+        let envelope = BlobEnvelope::new(
+            serde_json::json!({"schema_version": 1_u8}),
+            "1970-01-01T00:00:00Z".to_owned(),
+        );
         Ok(Some(
             serde_json::to_string(&envelope).unwrap_or_default().into(),
         ))
@@ -1877,7 +1879,7 @@ pub fn no_outbound_capability_maps_to_fanout_unavailable_and_500() {
             .extensions_mut()
             .insert(TestClockHandle(handler_clock));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = RequestContext::new(request, PathParams::default());
+        let ctx = captured_context(request);
         let Ok(response) = auction_handler(ctx).await else {
             return (StatusCode::OK, String::new(), Vec::new());
         };

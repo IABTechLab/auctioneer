@@ -9,7 +9,7 @@ use auctioneer_bidder::{
     Bidder, BidderHttpResponse, BidderName, BidderRequestInfo, CallBudget, EntryPoint,
     FloorConversion, OutboundBuildError, OutboundRequestSink, SinkLimits,
 };
-use auctioneer_config::{currency::FloorCurrencyConfig, types::MediaType};
+use auctioneer_config_data::{currency::FloorCurrencyConfig, types::MediaType};
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, hint::black_box, thread};

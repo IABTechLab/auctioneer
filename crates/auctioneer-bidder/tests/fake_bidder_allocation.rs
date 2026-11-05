@@ -13,7 +13,7 @@ static COUNTING_ALLOC: alloc_track::CountingAllocator = alloc_track::CountingAll
 mod floor_currency_tests {
     use super::alloc_track;
     use auctioneer_bidder::{FloorConversion, FloorConversionError};
-    use auctioneer_config::FloorCurrencyConfig;
+    use auctioneer_config_data::FloorCurrencyConfig;
     use std::{collections::BTreeMap, hint::black_box};
 
     fn snapshot(count: usize) -> FloorCurrencyConfig {

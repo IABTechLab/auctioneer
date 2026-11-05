@@ -49,6 +49,7 @@ mod tests {
         process_id: u32,
         installs: u32,
         retained: Value,
+        captured_extraction: Value,
         warnings: Vec<String>,
     }
 
@@ -69,7 +70,20 @@ mod tests {
     }
 
     fn assert_receipt_controls() {
-        let valid = json!({"case": "explicit", "process_id": 17_u32, "installs": 1_u32, "retained": {}, "warnings": []});
+        let valid = json!({
+            "case": "explicit", "process_id": 17_u32, "installs": 1_u32,
+            "retained": {},
+            "captured_extraction": {
+                "max_backend_bytes": 7919_u64,
+                "max_blob_bytes": 3571_u64,
+                "max_json_depth": 64_u32,
+                "max_json_nodes": 127_u32,
+                "max_secret_bytes": 0x0010_0000_u64,
+                "max_total_bytes": 0x0100_0000_u64,
+                "timeout_ms": 2_000_u64,
+            },
+            "warnings": [],
+        });
         let line = format!("{PREFIX}{valid}\n");
         receipt(line.as_bytes(), "explicit", 17).unwrap();
         for (invalid, error) in [
@@ -110,9 +124,9 @@ mod tests {
                 Err(error)
             );
         }
-        for field in ["retained", "warnings"] {
+        for field in ["retained", "captured_extraction", "warnings"] {
             let mut invalid = valid.clone();
-            invalid.as_object_mut().unwrap().remove(field);
+            assert!(invalid.as_object_mut().unwrap().remove(field).is_some());
             assert_eq!(
                 receipt(format!("{PREFIX}{invalid}\n").as_bytes(), "explicit", 17).map(|_| ()),
                 Err("invalid receipt")
@@ -253,6 +267,19 @@ mod tests {
                 if mask & bit == 0 { explicit } else { default }
             );
         }
+        assert_eq!(
+            installed.captured_extraction,
+            json!({
+                "max_backend_bytes": row["effective_limits"]["max_runtime_config_bytes"],
+                "max_blob_bytes": row["effective_limits"]["max_runtime_config_blob_bytes"],
+                "max_json_depth": 64_u32,
+                "max_json_nodes": row["effective_limits"]["max_config_json_nodes"],
+                "max_secret_bytes": 0x0010_0000_u64,
+                "max_total_bytes": 0x0100_0000_u64,
+                "timeout_ms": 2_000_u64,
+            }),
+            "{case}: captured SDK extraction limits"
+        );
         // The boot probe independently serializes its actual compiled tuple.
         // Parent --all-targets feature unification must not supply this oracle.
         assert!(row["baked_config_bytes"].as_u64().unwrap() > 0);

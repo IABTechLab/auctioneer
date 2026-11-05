@@ -148,22 +148,22 @@ Use EdgeZero's existing application path, not an adapter-specific router:
 
 ### 4.1 Configuration Shape
 
-Extend the existing baked/override model, not the historical standalone
-host/account config-store scheme. `auctioneer.toml` remains the source:
+Use the direct `OperatorPolicy` payload in `auctioneer.toml`, with required
+root `schema_version = 1`; no baked/startup/runtime wrappers or legacy wire
+aliases. Neutral compiled defaults are code-owned data, not operator config.
+Omitting the sync service leaves it unconfigured; sync routes refuse before
+signing-key/callback work while auctions and info remain independent.
 
 | Source path                                        | Fields                                                                                                 |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `baked.host.host_cookie`                           | `cookie_name`, `family`, `domain`, `ttl_days`, `max_cookie_size_bytes`, `optout_cookie`                |
-| `baked.host.user_sync`                             | `external_url`, `redirect_url`, `cooperative.enabled_by_default`, `priority_groups`, `allowed_origins` |
-| `baked.account.cookie_sync`                        | `default_limit`, `max_limit`, `default_coop_sync`, optional `priority_groups`                          |
-| `runtime.host_cookie`                              | Optional per-field host cookie overrides                                                               |
-| `runtime.user_sync`                                | Optional per-field host sync overrides                                                                 |
-| `runtime.accounts.<id>.cookie_sync`                | Optional per-account sync overrides                                                                    |
-| `runtime.bidders.<name>.usersync_enabled`          | Optional sync disable/enable control, bounded by baked eligibility                                     |
-| `baked.host.gdpr.tcf2.purpose_one_treatment`       | `enabled`, `access_allowed`; both default true as in the pinned reference                              |
-| `baked.account.gdpr.purpose_one_treatment`         | Optional per-field overrides of the host treatment settings                                            |
-| `runtime.gdpr.tcf2.purpose_one_treatment`          | Optional host treatment overrides                                                                      |
-| `runtime.accounts.<id>.gdpr.purpose_one_treatment` | Optional account treatment overrides                                                                   |
+| `host.host_cookie` | `cookie_name`, `family`, `domain`, `ttl_days`, `max_cookie_size_bytes`, `optout_cookie` |
+| `host.user_sync` | Explicit service `external_url`, optional `redirect_url`, `cooperative.enabled_by_default`, `priority_groups`, `allowed_origins` |
+| `account_defaults.cookie_sync` | Deployment-wide `default_limit`, `max_limit`, `default_coop_sync`, optional `priority_groups` |
+| `accounts.<id>.cookie_sync` | Per-account overrides over `account_defaults` |
+| `bidders.<name>.usersync_enabled` | Optional sync disable/enable, bounded by compiled eligibility |
+| `host.gdpr.tcf2.purpose_one_treatment` | Host `enabled` and `access_allowed`; neutral product defaults retain the reviewed values |
+| `account_defaults.gdpr.purpose_one_treatment` | Optional deployment-wide account treatment settings |
+| `accounts.<id>.gdpr.purpose_one_treatment` | Optional named-account treatment overrides |
 
 Keep baked bidder endpoints, UID macro text, syncer keys, supported types,
 GVL IDs, and regulation-skip metadata in bidder-info. Normalize existing
@@ -175,8 +175,8 @@ There is no API compatibility requirement for the old `UserSync` or
 `SyncerLookup` shapes. Update code generation, defaults, all struct literal
 callers, fixture builders, schema tests, and docs atomically.
 
-The fixed Auctioneer cookie name is `uids`. `host_cookie.cookie_name` names a
-separate host identity cookie to import under `host_cookie.family`; it does
+The fixed Auctioneer cookie name is `uids`. `host.host_cookie.cookie_name` names a
+separate host identity cookie to import under `host.host_cookie.family`; it does
 not rename `uids`. Require a nonempty name and family, disallow `uids` as the
 host identity name, and validate cookie names and attributes as cookie/header
 data. Reject control characters, CR/LF, invalid domains, and overflow in TTL
@@ -187,9 +187,11 @@ bytes. It never disables the hard output limits in section 10.
 Opt-out configuration absent or both strings empty disables host opt-out.
 Exactly one empty string is invalid. `Some(false)`, zero, empty strings
 where allowed, and an explicit empty priority list must not be treated as
-missing. Account priority groups, when present, replace the host list even
-when empty; otherwise inherit it. No generic RFC 7396 engine or unrelated
-runtime schema rewrite is needed.
+missing. Account priority groups, when present, replace the inherited list even
+when empty. Omission inherits; the operator contract's nullable-field whitelist
+uses strict `{ clear = true }` to restore documented no-value/host fallback.
+Direct null and clears on unsupported fields refuse; bidder settings retain
+their owner-declared null rules. No generic RFC 7396 engine is introduced.
 
 Resolve cooperative mode in order: request `coopSync`, account
 `default_coop_sync`, host default. Resolve the selection limit from request,

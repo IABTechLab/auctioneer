@@ -32,7 +32,7 @@ mod tests {
         assert_credential_eligibility, banner, body, context, outbound, request,
     };
     use crate::bidders::rubicon::{RubiconBidder, tests as conformance};
-    use auctioneer_config::currency::FloorCurrencyConfig;
+    use auctioneer_config_data::currency::FloorCurrencyConfig;
     use serde_json::{Value, json};
 
     fn floor_snapshot(rate: f64) -> FloorCurrencyConfig {

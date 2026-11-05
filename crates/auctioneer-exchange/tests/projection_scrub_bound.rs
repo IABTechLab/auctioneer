@@ -24,7 +24,7 @@ mod tests {
         Bidder as _, BidderName, BidderRegistry, BidderRequestInfo, CallBudget, EntryPoint,
         OutboundRequestSink, SinkLimits, outbound_meta_bytes,
     };
-    use auctioneer_config::types::{BidderInfo, IpKeepBits};
+    use auctioneer_config_data::types::{BidderInfo, IpKeepBits};
     use auctioneer_exchange::{
         context::RequestConstructionLimits,
         resolve_aliases,
@@ -153,8 +153,8 @@ mod tests {
         // Parser transients match Axum's 1 MiB, but this is still a synthetic
         // descriptor; adapter envelope APIs are not dependencies here.
         let baked = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         // This synthetic row proves auction phases, but must also fund user sync's

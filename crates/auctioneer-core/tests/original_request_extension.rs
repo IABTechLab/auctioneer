@@ -77,8 +77,11 @@ mod tests {
             .extensions_mut()
             .insert(TestRngHandle(Arc::new(SeededRng::new(42))));
         let config = toml::to_string(&json!({
-            "gdpr":{"enabled":false},
-            "aliases":{"fake_bidder":serving_catalog::passthrough_info().name}
+            "schema_version": 1_u64,
+            "host": {
+                "gdpr": {"enabled":false},
+                "aliases": {"fake_bidder":serving_catalog::passthrough_info().name},
+            },
         }))
         .unwrap();
         let response = block_on(auction(support::ctx_with_config(&config, request))).unwrap();

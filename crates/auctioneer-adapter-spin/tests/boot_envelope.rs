@@ -106,10 +106,12 @@ mod tests {
         .unwrap();
         let gates = boot_gates().unwrap();
         let baked = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
+        // Neutral host (764) + account (680) + tuple delimiters (3).
+        assert_eq!(baked, 1_447);
         let proof = derive_isolate_budget_with_baked_config(
             &gates.limits,
             &target,

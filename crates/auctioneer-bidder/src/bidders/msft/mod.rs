@@ -1,5 +1,6 @@
 //! MSFT protocol candidate; public activation and selected-flow acceptance remain separate.
 
+mod config;
 mod parameters;
 mod request;
 mod response;
@@ -18,6 +19,15 @@ pub struct MsftBidder;
 
 pub(crate) fn create_bidder() -> Box<dyn Bidder> {
     Box::new(MsftBidder)
+}
+
+pub(super) fn validate_config(
+    input: crate::BidderConfigInput<'_>,
+) -> Result<(), crate::BidderConfigError> {
+    use validator::Validate as _;
+    config::Config::from(input)
+        .validate()
+        .map_err(config::error)
 }
 
 impl Bidder for MsftBidder {

@@ -194,7 +194,7 @@ mod tests {
                 .insert(TestFanoutHandle(Arc::new(EmptyFanout)));
         }
         ctx_with_config(
-            "[gdpr]\nenabled = false\n[auction]\nmax_bidders_per_auction = 50\nmax_outbound_requests = 100\n",
+            "schema_version = 1\n[host.gdpr]\nenabled = false\n[host.resource_limits]\nmax_bidders_per_auction = 50\nmax_outbound_requests = 100\n",
             request,
         )
     }

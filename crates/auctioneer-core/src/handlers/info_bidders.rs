@@ -10,7 +10,7 @@ use crate::handlers::auction as auction_helpers;
 use crate::handlers::aux_egress::with_aux_egress;
 use crate::serialize::serialize_json_exact;
 use auctioneer_bidder::BidderName;
-use auctioneer_config::types::{BidderInfo, MediaType};
+use auctioneer_config_data::types::{BidderInfo, MediaType};
 use edgezero_core::action;
 use edgezero_core::body::Body;
 use edgezero_core::context::RequestContext;
@@ -50,8 +50,8 @@ struct InfoCatalog {
 
 impl InfoCatalog {
     /// Built from the RESOLVED host config, never the baked statics:
-    /// `resolve_host` is what layers the runtime `[aliases]` overlay
-    /// onto the baked map, and reading `host_config_handle().aliases`
+    /// `resolve_host` is what layers the runtime `[host.aliases]` overlay
+    /// onto the product map, and reading `host_config_handle().aliases`
     /// directly would leave a pushed alias invisible to `/info`.
     fn from_app_config(
         app_cfg: &AuctioneerAppConfig,
@@ -432,10 +432,11 @@ mod tests {
     };
     use crate::bidder_fixture::fake_bidder::FakeBidder;
     use crate::bidder_registry::BidderInfoIndex;
+    use crate::config::policy::HostPolicy;
     use crate::config::resolve::resolve_host;
     use crate::handlers::auction as auction_helpers;
     use auctioneer_bidder::registry::BidderRegistry;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use auctioneer_exchange::alias::resolve_aliases;
     use auctioneer_exchange::split::split_by_bidder;
     use auctioneer_openrtb::types::bid_request::BidRequest;
@@ -627,7 +628,10 @@ mod tests {
                 ..HostConfig::default()
             };
             let app = AuctioneerAppConfig {
-                aliases: Some(names[inherited..].iter().cloned().collect()),
+                host: HostPolicy {
+                    aliases: Some(names[inherited..].iter().cloned().collect()),
+                    ..HostPolicy::default()
+                },
                 ..AuctioneerAppConfig::default()
             };
             let host = resolve_host(&app, &baked_host);
@@ -775,7 +779,7 @@ mod tests {
     #[test]
     fn info_catalog_projection_and_encoding_fit_the_auxiliary_manifest_reservation() {
         use crate::bidder_registry::info_work;
-        use auctioneer_config::types::MediaType;
+        use auctioneer_config_data::types::MediaType;
         use auctioneer_runtime::budget::AUX_MANIFEST_BYTES;
         use auctioneer_runtime::test_support::alloc_track::{peak_since, reset_peak};
         use std::hint::black_box;
@@ -958,7 +962,7 @@ mod tests {
         let bidders = super::info_index().unwrap().infos();
         let base = bidders.iter().find(|info| !info.disabled).unwrap();
         let app: AuctioneerAppConfig = toml::from_str(&format!(
-            "[aliases]\nfake_runtime_conformance_alias = '{}'\n[bidders.{}]\nenabled = false\n",
+            "schema_version = 1\n[host.aliases]\nfake_runtime_conformance_alias = '{}'\n[bidders.{}]\nenabled = false\n",
             base.name, base.name,
         ))
         .unwrap();
@@ -978,7 +982,7 @@ mod tests {
     #[test]
     fn shadowing_alias_with_overlay_disabled_base_matches_detail_all_and_auction() {
         let catalog = catalog_from(
-            "[aliases]\nfake_bbb = \"fake_aaa\"\n[bidders.fake_aaa]\nenabled = false\n",
+            "schema_version = 1\n[host.aliases]\nfake_bbb = \"fake_aaa\"\n[bidders.fake_aaa]\nenabled = false\n",
         );
         assert_catalog_matches_auction(&bidders(), &catalog);
     }
@@ -1000,7 +1004,7 @@ mod tests {
     #[test]
     fn shadowing_alias_disabled_by_name_matches_detail_all_and_auction() {
         let catalog = catalog_from(
-            "[aliases]\nfake_bbb = \"fake_aaa\"\n[bidders.fake_bbb]\nenabled = false\n",
+            "schema_version = 1\n[host.aliases]\nfake_bbb = \"fake_aaa\"\n[bidders.fake_bbb]\nenabled = false\n",
         );
         assert_catalog_matches_auction(&bidders(), &catalog);
     }
@@ -1021,7 +1025,9 @@ mod tests {
 
     #[test]
     fn rejected_unknown_base_alias_does_not_shadow_enabled_compiled_name() {
-        let catalog = catalog_from("[aliases]\nfake_bbb = \"fake_no_such_bidder\"\n");
+        let catalog = catalog_from(
+            "schema_version = 1\n[host.aliases]\nfake_bbb = \"fake_no_such_bidder\"\n",
+        );
         assert!(!catalog.aliases.contains_key("fake_bbb"));
         assert_catalog_matches_auction(&bidders(), &catalog);
     }
@@ -1123,7 +1129,7 @@ mod tests {
         // typo would advertise a name that `detail` immediately 404s, so
         // `effective_host_aliases` has to drop it on the way in.
         let catalog = catalog_from(
-            "[aliases]\nfake_runtime_alias = \"fake_bbb\"\nfake_ghost_alias = \"fake_no_such_bidder\"\n",
+            "schema_version = 1\n[host.aliases]\nfake_runtime_alias = \"fake_bbb\"\nfake_ghost_alias = \"fake_no_such_bidder\"\n",
         );
         let bidders = &bidders();
         let (status, _, body) = list(
@@ -1137,7 +1143,7 @@ mod tests {
         let names = names_from(&body);
         assert!(
             names.iter().any(|name| name == "fake_runtime_alias"),
-            "an alias pushed through the `[aliases]` overlay must reach /info/bidders, got {names:?}",
+            "an alias pushed through the `[host.aliases]` overlay must reach /info/bidders, got {names:?}",
         );
         assert!(
             !names.iter().any(|name| name == "fake_ghost_alias"),
@@ -1157,7 +1163,7 @@ mod tests {
 
     #[test]
     fn info_bidders_omits_runtime_disabled_bidders_when_enabledonly_yes() {
-        let catalog = catalog_from("[bidders.fake_bbb]\nenabled = false\n");
+        let catalog = catalog_from("schema_version = 1\n[bidders.fake_bbb]\nenabled = false\n");
         let bidders = &bidders();
         let (status, _, body) = list(
             bidders,
@@ -1181,7 +1187,8 @@ mod tests {
 
     #[test]
     fn info_bidder_by_name_returns_alias_metadata_from_runtime_overlay() {
-        let catalog = catalog_from("[aliases]\nfake_runtime_alias = \"fake_bbb\"\n");
+        let catalog =
+            catalog_from("schema_version = 1\n[host.aliases]\nfake_runtime_alias = \"fake_bbb\"\n");
         let bidders = &bidders();
         let (status, _, body) = detail(
             bidders,

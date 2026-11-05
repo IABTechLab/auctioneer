@@ -33,10 +33,7 @@ mod tests {
     use tc_encode::VendorSectionSpec;
 
     const ORIGIN: &str = "https://publisher.example";
-    const POLICY: &str = "[user_sync]\nallowed_origins = ['https://publisher.example']\n\
-                     [host_cookie.optout_cookie]\nname = 'optout'\nvalue = 'yes'\n\
-                     [accounts.disabled]\ndisabled = true\n\
-                     [accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n";
+    const POLICY: &str = "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n[host.host_cookie.optout_cookie]\nname = 'optout'\nvalue = 'yes'\n[accounts.disabled]\ndisabled = true\n[accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n";
     type HeaderFields<'a> = &'a [(&'a str, &'a str)];
     type CookieSyncCase<'a> = (&'a str, HeaderFields<'a>, Vec<u8>, StatusCode, &'a [u8]);
 
@@ -57,9 +54,7 @@ mod tests {
         tc_encode::with_minimal_dv(&tc_encode::encode_core(&spec))
     }
 
-    const GDPR_POLICY: &str = "[gdpr]\nenabled = true\nhost_vendor_id = 32\n\
-                              [gdpr.tcf2]\nenabled = true\n\
-                              [gdpr.tcf2.purposes.1]\nenforce_purpose = 'enabled'\nenforce_vendors = 'enabled'\n";
+    const GDPR_POLICY: &str = "[host.gdpr]\nenabled = true\nhost_vendor_id = 32\n[host.gdpr.tcf2]\nenabled = true\n[host.gdpr.tcf2.purposes.1]\nenforce_purpose = 'enabled'\nenforce_vendors = 'enabled'\n";
 
     fn assert_wire(
         response: &Response,
@@ -516,7 +511,9 @@ mod tests {
 
     #[test]
     fn routed_valid_tcf_consent_allows_and_denies_purpose_one() {
-        let app = TestApp::new(GDPR_POLICY);
+        let app = TestApp::new(&format!(
+            "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n{GDPR_POLICY}"
+        ));
         for (purpose_one, expected_count, expected_setuid) in [
             (true, 1, StatusCode::OK),
             (false, 0, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS),
@@ -567,11 +564,13 @@ mod tests {
             ("1", 0, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS),
         ] {
             let config = GDPR_POLICY.replacen(
-                "[gdpr]\n",
-                &format!("[gdpr]\ndefault_value = '{default_value}'\n"),
+                "[host.gdpr]\n",
+                &format!("[host.gdpr]\ndefault_value = '{default_value}'\n"),
                 1,
             );
-            let app = TestApp::new(&config);
+            let app = TestApp::new(&format!(
+                "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n{config}"
+            ));
             let denied_tc = consent(false);
             let payload = serde_json::json!({
                 "bidders": [live_catalog::redirect().name()],
@@ -847,10 +846,7 @@ mod tests {
     #[test]
     fn activity_denial_precedes_deferred_malformed_tcf_permission() {
         let app = TestApp::new(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n\
-         [gdpr]\nenabled = true\nhost_vendor_id = 32\n\
-         [gdpr.tcf2]\nenabled = true\n\
-         [accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n[host.gdpr]\nenabled = true\nhost_vendor_id = 32\n[host.gdpr.tcf2]\nenabled = true\n[accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n",
         );
         let base =
             live_catalog::iframe().setuid("uid=buyer-1&gdpr=1&gdpr_consent=malformed-tcf&f=b");
@@ -912,8 +908,7 @@ mod tests {
     #[test]
     fn setuid_disabled_base_syncer_precedes_alias_uid_and_cookie_transaction_limits() {
         let allowed = format!(
-            "{POLICY}[aliases]\nfake_callback_alias = '{}'\n\
-             [bidders.fake_callback_alias]\nusersync_enabled = true\n",
+            "{POLICY}[host.aliases]\nfake_callback_alias = '{}'\n[bidders.fake_callback_alias]\nusersync_enabled = true\n",
             live_catalog::redirect().name()
         );
         let disabled = format!(
@@ -1015,7 +1010,7 @@ mod tests {
     #[test]
     fn config_failures_have_no_cors_and_store_outage_preserves_retry_after() {
         let app = TestApp::new(POLICY);
-        app.store().set_config("[user_sync]\nexternal_url = 'http://unsafe.example'\nallowed_origins = ['https://publisher.example']\n");
+        app.store().set_config("schema_version = 1\n[host.user_sync]\nexternal_url = 'http://unsafe.example'\nallowed_origins = ['https://publisher.example']\n");
         let invalid = app.dispatch(
             Method::GET,
             "/getuids",
@@ -1051,10 +1046,33 @@ mod tests {
     #[test]
     fn invalid_optout_and_callback_config_refuses_before_uid_write() {
         for invalid in [
-            serde_json::json!({"host_cookie": {"optout_cookie": {"name": "opt{out}", "value": "1"}}}),
-            serde_json::json!({"host_cookie": {"optout_cookie": {"name": "stop", "value": "bad\\value"}}}),
-            serde_json::json!({"host_cookie": {"optout_cookie": {"name": "stop", "value": "bad\"value"}}}),
-            serde_json::json!({"user_sync": {"redirect_url": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&x=}}&uid={{.UserMacro}}"}}),
+            serde_json::json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "host_cookie": {"optout_cookie": {"name": "opt{out}", "value": "1"}},
+                },
+            }),
+            serde_json::json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "host_cookie": {"optout_cookie": {"name": "stop", "value": "bad\\value"}},
+                },
+            }),
+            serde_json::json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "host_cookie": {"optout_cookie": {"name": "stop", "value": "bad\"value"}},
+                },
+            }),
+            serde_json::json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "user_sync": {
+                        "external_url": "https://sync.example.test",
+                        "redirect_url": "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&x=}}&uid={{.UserMacro}}",
+                    },
+                },
+            }),
         ] {
             let app = TestApp::new(&toml::to_string(&invalid).unwrap());
             let response = app.dispatch(
@@ -1100,9 +1118,8 @@ mod tests {
 
     #[test]
     fn callback_rechecks_policy_between_requests_but_cors_uses_one_snapshot() {
-        let allowed =
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n[accounts.publisher]\n";
-        let denied = "[user_sync]\nallowed_origins = []\n[accounts.publisher]\ndisabled = true\n";
+        let allowed = "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n[accounts.publisher]\n";
+        let denied = "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = []\n[accounts.publisher]\ndisabled = true\n";
         let app = TestApp::new(allowed);
         app.store().replace_after_next_read(denied);
         let uri = live_catalog::iframe().setuid("uid=first&gdpr=0&f=b&account=publisher");

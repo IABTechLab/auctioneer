@@ -19,7 +19,7 @@ mod tests {
     use futures::executor::block_on;
 
     use auctioneer_bidder::{Bidder, BidderHttpResponse, BidderRegistry};
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, Capabilities, HostConfig, MediaType, ResourceLimits,
     };
     use auctioneer_exchange::scrub::DisclosureAudit;

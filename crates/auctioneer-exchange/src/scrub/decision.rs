@@ -1,8 +1,8 @@
 //! Pure actions shared by model slots and classified flattened values.
 
 use super::{ChangeKind, ScrubDecisions};
-use auctioneer_config::disclosure::{Delegate, FieldRule, Rule, SchemaId, Transform};
-use auctioneer_config::types::IpKeepBits;
+use auctioneer_config_data::disclosure::{Delegate, FieldRule, Rule, SchemaId, Transform};
+use auctioneer_config_data::types::IpKeepBits;
 
 /// Resolved location disclosure; COPPA dominates coarsening.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,8 +162,8 @@ pub(crate) const fn clear_object(schema: SchemaId, disclosure: Disclosure) -> bo
 mod tests {
     use super::{Action, Disclosure, GeoMode, Input, action};
     use crate::scrub::{ChangeKind, ScrubDecisions};
-    use auctioneer_config::disclosure::{Delegate, FieldId, Rule, SchemaId, Shape, Transform};
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::disclosure::{Delegate, FieldId, Rule, SchemaId, Shape, Transform};
+    use auctioneer_config_data::types::IpKeepBits;
 
     const ALLOW: ScrubDecisions = ScrubDecisions {
         pass_id: true,

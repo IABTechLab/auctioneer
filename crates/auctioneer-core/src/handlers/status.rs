@@ -6,7 +6,7 @@ use crate::config::runtime::{CONFIG_STATUS_HEADER, RuntimeConfigError, resolve_r
 use crate::handlers::auction as auction_helpers;
 use crate::handlers::aux_egress::with_aux_egress;
 use crate::handlers::probe_config;
-use auctioneer_config::limits::MAX_STATUS_BANNER_BYTES;
+use auctioneer_config_data::limits::MAX_STATUS_BANNER_BYTES;
 use edgezero_core::action;
 use edgezero_core::body::Body;
 use edgezero_core::context::RequestContext;
@@ -243,7 +243,7 @@ mod tests {
 
     use super::{Body, CONFIG_STATUS_HEADER, RequestContext, StatusCode, status};
     use crate::config::runtime::ConfigStatusCode;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use edgezero_core::params::PathParams;
     use futures::executor::block_on;
     use http::{Method, Request, Uri};

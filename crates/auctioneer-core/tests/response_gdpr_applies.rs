@@ -93,7 +93,7 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_bidder::{BidderHttpResponse, BidderRegistry};
-    use auctioneer_config::types::{BidderInfo, Capabilities, MediaType, TriState};
+    use auctioneer_config_data::types::{BidderInfo, Capabilities, MediaType, TriState};
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::budgets::resolve_budgets;
     use auctioneer_core::config::resolve::{resolve_account, resolve_host};
@@ -178,7 +178,7 @@ mod tests {
         let roles = handler_roles();
         if name == "gdpr_applies.toml" {
             let mut config: toml::Value = toml::from_str(&fixture(name)).unwrap();
-            let aliases = config["aliases"].as_table_mut().unwrap();
+            let aliases = config["host"]["aliases"].as_table_mut().unwrap();
             assert_eq!(aliases.len(), roles.len());
             for (role, row) in &roles {
                 let base = aliases.get_mut(*role).unwrap();
@@ -509,11 +509,11 @@ mod tests {
 
     /// Capture actual serialized transport bytes after core config resolution.
     fn outbound_body(app: &AuctioneerAppConfig, request_body: &str) -> (Value, AuctionPermissions) {
-        let host = resolve_host(app, auctioneer_config::host_default());
+        let host = resolve_host(app, auctioneer_config_data::host_default());
         let owned = resolve_account(
             request_body.as_bytes(),
             app,
-            auctioneer_config::account_default(),
+            auctioneer_config_data::account_default(),
             u32::MAX,
         )
         .expect("the fixture account is not disabled");
@@ -705,6 +705,7 @@ mod tests {
         let mut app: AuctioneerAppConfig =
             toml::from_str(&fixture("gdpr_section2_geo_scrub.toml")).expect("fixture TOML parses");
         let tcf2 = app
+            .host
             .gdpr
             .as_mut()
             .expect("fixture enables GDPR")

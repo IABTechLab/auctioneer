@@ -1,4 +1,5 @@
 use super::{RubiconBidder, tests as conformance};
+use crate::BidderSettings;
 use crate::bidders::harness;
 use crate::correlation::CorrelationMedia;
 use crate::{
@@ -6,7 +7,6 @@ use crate::{
     EndpointRejectReason, EndpointValidator, EntryPoint, FloorConversion, META_BYTES_CAPACITY,
     OutboundRequestMeta, OutboundRequestMetaBuilder,
 };
-use auctioneer_config::BidderSettings;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use serde_json::{Value, json};
 use std::cell::Cell;

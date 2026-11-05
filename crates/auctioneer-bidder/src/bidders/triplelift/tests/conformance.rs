@@ -9,7 +9,7 @@ mod tests {
         BidderError, BidderErrorKind, BidderHttpRequest, BidderName, BidderRequestInfo,
         BidderResponse, EntryPoint, OutboundRequestMeta,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, error::Category, json};
     use std::panic::catch_unwind;

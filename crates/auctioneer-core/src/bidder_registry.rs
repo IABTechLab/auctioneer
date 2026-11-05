@@ -7,8 +7,8 @@
 //! handler-layer symbols, so the singleton lives here and both sides
 //! import it.
 
-use auctioneer_bidder::{BidderName, BidderRegistry, RegistryBuildError};
-use auctioneer_config::types::BidderInfo;
+use auctioneer_bidder::{BidderRegistry, RegistryBuildError};
+use auctioneer_config_data::types::BidderInfo;
 #[cfg(test)]
 use std::cell::Cell;
 use std::cmp::Ordering;
@@ -126,15 +126,6 @@ fn cached_registry(
     cell.get_or_init(build).as_ref().map_err(|error| *error)
 }
 
-/// Every base bidder name this build's registry carries. A disabled
-/// bidder is still a valid alias base — disabling is a runtime overlay
-/// decision, while this list is the compile-time roster.
-pub(crate) fn live_name_slice() -> Result<&'static [BidderName], RegistryBuildError> {
-    static NAMES: OnceLock<Vec<BidderName>> = OnceLock::new();
-    let registry = registry_handle()?;
-    Ok(NAMES.get_or_init(|| registry.base_names()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{BidderInfo, registry_handle};
@@ -209,7 +200,7 @@ mod tests {
 
     #[test]
     fn shared_registry_borrows_original_generated_rows() {
-        let infos = auctioneer_config::bidders();
+        let infos = auctioneer_config_data::bidders();
         let registry = registry_handle().unwrap();
         let repeated = registry_handle().unwrap();
         assert!(

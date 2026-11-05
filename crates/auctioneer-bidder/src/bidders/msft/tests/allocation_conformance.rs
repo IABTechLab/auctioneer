@@ -397,7 +397,7 @@ fn msft_allocation_payload_grid(
 
 #[test]
 fn msft_chunk_construction_is_funded_across_payload_slots_caps_and_settings() {
-    use auctioneer_config::BidderSettings;
+    use auctioneer_bidder::BidderSettings;
 
     thread::spawn(|| {
         let bidder = (auctioneer_bidder::compiled_bidders()

@@ -1,6 +1,6 @@
 //! Bounded protocol facts associated with one accepted outbound call.
 
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use std::{fmt, mem};
 
 /// Maximum protocol-header payload stored alongside a call, never on the wire.
@@ -167,7 +167,7 @@ const _: () = {
 #[cfg(test)]
 mod tests {
     use super::{CallCorrelation, CorrelationError, CorrelationMedia};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
 
     #[test]
     fn media_codes_are_exact_and_invalid_values_never_become_a_hint() {

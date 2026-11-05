@@ -1,13 +1,15 @@
-//! Explicit funding for test contexts constructed with the SDK's default caps.
+//! Explicit funding and SDK-captured limits for standalone handler fixtures.
 
 /// Unmodified seed row, also reused by fixtures with custom boot assertions.
 pub(crate) use crate::fanout_limits as envelope;
 
+use auctioneer_core::config::runtime::CONFIG_FETCH_TIMEOUT;
+use auctioneer_core::configure::configure_app;
 use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
 use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
 use auctioneer_runtime::budget::{ASSEMBLY_FACTOR, derive_aux_work_for_profile};
 use auctioneer_runtime::{ResolvedIsolateLimits, TargetPlatformConstants, serialized_json_bytes};
-use edgezero_core::config_store::ConfigExtractionLimits;
+use edgezero_core::{app::App, config_store::ConfigExtractionLimits, router::RouterService};
 use std::sync::OnceLock;
 
 /// Fund the SDK's captured default caps and their derived auxiliary allowance.
@@ -20,8 +22,8 @@ pub fn fund_sdk_defaults(limits: &mut ResolvedIsolateLimits, target: &TargetPlat
     limits.max_runtime_config_blob_bytes = caps.max_blob_bytes;
     limits.max_config_json_nodes = caps.max_json_nodes;
     let baked = serialized_json_bytes(&(
-        auctioneer_config::host_default(),
-        auctioneer_config::account_default(),
+        auctioneer_config_data::host_default(),
+        auctioneer_config_data::account_default(),
     ))
     .unwrap();
     limits.aux_route_peak_bytes = limits.aux_route_peak_bytes.max(
@@ -41,7 +43,7 @@ pub fn install() {
         let mut limits = envelope::limits();
         // Standalone handlers previously resolved the baked workload ceilings.
         // Fund those too, so installing config funding does not narrow fanout.
-        let workload = &auctioneer_config::host_default().resource_limits;
+        let workload = &auctioneer_config_data::host_default().resource_limits;
         limits.egress_permits = 64;
         limits.max_bidders_per_auction = u32::try_from(workload.max_bidders_per_auction).unwrap();
         limits.max_outbound_requests = u32::try_from(workload.max_outbound_requests).unwrap();
@@ -80,4 +82,13 @@ pub fn install() {
     assert!(caps.max_backend_bytes <= funded.max_runtime_config_bytes);
     assert!(caps.max_blob_bytes <= funded.max_runtime_config_blob_bytes);
     assert!(caps.max_json_nodes <= funded.max_config_json_nodes);
+    let mut app = App::new(RouterService::builder().build());
+    configure_app(&mut app).unwrap();
+    assert_eq!(
+        app.config_extraction_limits(),
+        ConfigExtractionLimits {
+            timeout: CONFIG_FETCH_TIMEOUT,
+            ..caps
+        }
+    );
 }

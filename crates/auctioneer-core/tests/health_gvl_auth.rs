@@ -52,7 +52,7 @@ mod tests {
 
     async fn status_for(bearer: Option<HeaderValue>) -> StatusCode {
         let generated =
-            OffsetDateTime::parse(auctioneer_config::gvl_archive_generated_at(), &Rfc3339)
+            OffsetDateTime::parse(auctioneer_config_data::gvl_archive_generated_at(), &Rfc3339)
                 .expect("baked generated_at parses as RFC 3339");
         let clock: Arc<dyn Clock + Send + Sync> =
             Arc::new(FakeClock::new(generated.saturating_add(Duration::days(1))));

@@ -10,7 +10,9 @@ use std::fmt;
 
 use permission::ConsentState;
 
-use auctioneer_config::types::{AccountConfig, BidderInfo, HostConfig, SyncerConfig, TriState};
+use auctioneer_config_data::types::{
+    AccountConfig, BidderInfo, HostConfig, SyncerConfig, TriState,
+};
 use time::OffsetDateTime;
 
 use crate::{

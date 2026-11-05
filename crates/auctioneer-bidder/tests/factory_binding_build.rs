@@ -53,7 +53,7 @@ fn verify_endpoint_binding() {
         let mut meta = OutboundRequestMetaBuilder::new(&mut pool, 1);
         meta.set_method("POST").unwrap();
         reset_on_this_thread();
-        let pairs = auctioneer_config::bidder_endpoint::fake_binding_alpha::Values { token: &input }.as_pairs();
+        let pairs = auctioneer_bidder::bidder_endpoint::fake_binding_alpha::Values { token: &input }.as_pairs();
         let result = EndpointBuilder::from_request(&info, &pairs).expand_into(&mut meta);
         let peak = peak_on_this_thread();
         assert_eq!(peak, 0, "generated endpoint binding width {width}");
@@ -100,19 +100,19 @@ fn main() {
         assert_eq!(body["imp"][0]["id"], "binding-imp");
         executed.push(factory.key);
     }
-    let values = auctioneer_config::bidder_endpoint::fake_binding_alpha::Values { token: "a b/c" };
+    let values = auctioneer_bidder::bidder_endpoint::fake_binding_alpha::Values { token: "a b/c" };
     assert_eq!(values.as_pairs(), [("SyntheticToken", "a b/c")]);
     println!("{}", serde_json::json!({
         "compiled": factories.iter().map(|row| row.key).collect::<Vec<_>>(),
         "executed": executed,
         "declarations": auctioneer_bidder::bidder_declarations().iter()
             .map(|row| (row.key, row.required_feature)).collect::<Vec<_>>(),
-        "metadata": auctioneer_config::bidder_metadata_declarations().iter()
+        "metadata": auctioneer_config_data::bidder_metadata_declarations().iter()
             .map(|row| (row.bidder, row.implementation, row.required_feature))
             .collect::<Vec<_>>(),
-        "bindings": auctioneer_config::bidder_implementation_bindings().iter()
+        "bindings": auctioneer_config_data::bidder_implementation_bindings().iter()
             .map(|row| (row.bidder, row.implementation)).collect::<Vec<_>>(),
-        "overrides": auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED,
+        "overrides": auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED,
     }));
 }
 "#;
@@ -421,7 +421,11 @@ mediaTypes = ["banner"]
         }
         let mismatch = harness.workspace.cargo(
             "check",
-            &["--lib", "--features", "auctioneer-config/insecure-bidders"],
+            &[
+                "--lib",
+                "--features",
+                "auctioneer-config-data/insecure-bidders",
+            ],
             true,
         );
         assert!(

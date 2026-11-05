@@ -37,6 +37,6 @@ jobs:
       - name: Compare upstream with the reviewed source pin
         run: >
           cargo run --locked -p auctioneer-cli --no-default-features -- openrtb catalogue check
-          --manifest crates/auctioneer-config/data/openrtb-2.6-source.toml
+          --manifest crates/auctioneer-config-data/data/openrtb-2.6-source.toml
           --source "$RUNNER_TEMP/openrtb-2.6-upstream.md"
-          --catalogue crates/auctioneer-config/data/openrtb-2.6-catalogue.toml
+          --catalogue crates/auctioneer-config-data/data/openrtb-2.6-catalogue.toml

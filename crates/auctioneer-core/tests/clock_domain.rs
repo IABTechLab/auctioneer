@@ -220,7 +220,7 @@ mod tests {
         const TMAX_MS: u64 = 300;
 
         let config = format!(
-            "[aliases]\n{BIDDER}={:?}\n",
+            "schema_version = 1\n[host.aliases]\n{BIDDER}={:?}\n",
             serving_catalog::passthrough_info().name,
         );
         config_funding::install();

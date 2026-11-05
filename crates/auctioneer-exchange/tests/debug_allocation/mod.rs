@@ -13,7 +13,7 @@ use auctioneer_bidder::{
     BidderRequestInfo, BidderResponse, CallBudget, DebugBodySchema, EntryPoint,
     OutboundRequestMeta, OutboundRequestSink, SinkLimits,
 };
-use auctioneer_config::types::{AccountConfig, BidderInfo, HostConfig};
+use auctioneer_config_data::types::{AccountConfig, BidderInfo, HostConfig};
 use auctioneer_exchange::debug::dto::DebugHttpCall;
 use auctioneer_exchange::scrub::DisclosureAudit;
 use auctioneer_exchange::{
@@ -364,7 +364,7 @@ impl Engine {
         request_mime: Option<String>,
     ) -> Self {
         let alias = "fake_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned();
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host.resource_limits.max_outbound_requests = usize::try_from(ceiling).unwrap();
         host.resource_limits.max_outbound_raw_bytes = 64 * 1024;

@@ -6,7 +6,7 @@ use auctioneer_bidder::{
         serving_catalog::{self, ServingBidder},
     },
 };
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use auctioneer_runtime::ResolvedIsolateLimits;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -51,6 +51,7 @@ struct Member {
 
 #[derive(Clone, Deserialize)]
 pub(super) struct FactoryCase {
+    pub name: String,
     pub request: Value,
     pub context: Value,
     pub outbound: Vec<Outbound>,
@@ -246,13 +247,13 @@ fn flow_from_member(
     loop {
         assert!(!info.disabled, "source safety veto cannot be waived");
         assert!(
-            ancestry.len() < auctioneer_config::bidders().len(),
+            ancestry.len() < auctioneer_config_data::bidders().len(),
             "compiled alias ancestry is acyclic"
         );
         ancestry.push(info);
         match info.alias_of.as_deref() {
             Some(parent) => {
-                info = auctioneer_config::bidder(parent).expect("compiled ancestor metadata");
+                info = auctioneer_config_data::bidder(parent).expect("compiled ancestor metadata");
             }
             None => break,
         }
@@ -712,15 +713,25 @@ pub(super) fn config(flows: &[&Flow]) -> Value {
             bidders.get_mut(flow.name()).unwrap()["settings"] = settings.clone();
         }
     }
-    json!({"gdpr":{"enabled":false}, "features":{"gzip_outbound":true},
-        "auction":{"default_tmax_ms":1_000_i32, "max_tmax_ms":1_000_i32,
-            "max_bidders_per_auction":limits.max_bidders_per_auction,
-            "max_outbound_requests":limits.max_outbound_requests,
-            "max_outbound_raw_bytes":limits.max_outbound_raw_bytes,
-            "max_outbound_request_bytes":limits.max_outbound_request_bytes,
-            "max_transport_bytes":limits.max_transport_bytes,
-            "max_decoded_bytes":limits.max_decoded_bytes,
-            "max_parsed_nodes":limits.max_parsed_nodes}, "bidders":bidders})
+    json!({
+        "schema_version": 1_u64,
+        "host": {
+            "gdpr": {"enabled":false},
+            "resource_limits": {
+                "default_tmax_ms": 1_000_i32,
+                "max_tmax_ms": 1_000_i32,
+                "max_bidders_per_auction": limits.max_bidders_per_auction,
+                "max_outbound_requests": limits.max_outbound_requests,
+                "max_outbound_raw_bytes": limits.max_outbound_raw_bytes,
+                "max_outbound_request_bytes": limits.max_outbound_request_bytes,
+                "max_transport_bytes": limits.max_transport_bytes,
+                "max_decoded_bytes": limits.max_decoded_bytes,
+                "max_parsed_nodes": limits.max_parsed_nodes,
+            },
+        },
+        "features": {"gzip_outbound":true},
+        "bidders": bidders,
+    })
 }
 
 pub(super) fn limits() -> ResolvedIsolateLimits {

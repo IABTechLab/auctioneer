@@ -1,5 +1,6 @@
 //! The Trade Desk protocol construction and response normalization.
 
+mod config;
 mod request;
 mod response;
 
@@ -16,6 +17,15 @@ pub struct TheTradeDeskBidder;
 
 pub(crate) fn create_bidder() -> Box<dyn Bidder> {
     Box::new(TheTradeDeskBidder)
+}
+
+pub(super) fn validate_config(
+    input: crate::BidderConfigInput<'_>,
+) -> Result<(), crate::BidderConfigError> {
+    use validator::Validate as _;
+    config::Config::from(input)
+        .validate()
+        .map_err(config::error)
 }
 
 impl Bidder for TheTradeDeskBidder {
@@ -48,9 +58,9 @@ mod tests {
     mod conformance;
 
     use super::TheTradeDeskBidder;
+    use crate::BidderSettings;
     use crate::bidders::harness;
     use crate::{BidderHttpRequest, BidderName, BidderRequestInfo, EntryPoint};
-    use auctioneer_config::BidderSettings;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 

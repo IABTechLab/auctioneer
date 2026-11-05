@@ -75,7 +75,9 @@ mod tests {
 
     fn config_registry() -> ConfigRegistry {
         let config = BlobEnvelope::new(
-            serde_json::to_value(AuctioneerAppConfig::default()).unwrap(),
+            serde_json::to_value(toml::from_str::<AuctioneerAppConfig>(
+                "schema_version = 1\n[host.user_sync]\nexternal_url='https://sync.example.test'\n",
+            ).unwrap()).unwrap(),
             "1970-01-01T00:00:00Z".to_owned(),
         );
         StoreRegistry::single_id(
@@ -93,7 +95,7 @@ mod tests {
     fn cookie_sync_rejects_non_object_json_before_reading_signing_keys() {
         let origin = "https://publisher.example";
         let app = usersync_app::TestApp::new(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n",
         );
         for payload in [
             json!([]),
@@ -163,7 +165,7 @@ mod tests {
     #[test]
     fn cookie_sync_body_timeout_uses_bounded_request_timeout_response() {
         let app = usersync_app::TestApp::new(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n",
         );
         let response = app.dispatch(
             Method::POST,
@@ -196,7 +198,9 @@ mod tests {
 
     #[test]
     fn cookie_sync_body_timeout_outlives_cpu_deadline_and_retains_admission_until_egress() {
-        let _serial = usersync_app::TestApp::new("");
+        let _serial = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let gate = aux_gate().unwrap();
         assert_eq!(gate.in_use(), 0);
         let mut app =

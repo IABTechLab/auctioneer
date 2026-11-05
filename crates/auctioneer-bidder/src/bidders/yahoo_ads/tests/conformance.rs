@@ -10,7 +10,7 @@ mod tests {
         ConstructionDiagnostic, EndpointRejectReason, EndpointValidator, EntryPoint, SinkLimits,
         SinkOutcome,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::Value;
     use sha2::{Digest as _, Sha256};

@@ -17,7 +17,7 @@ target/
 # itself, gvl_archive.lock, refresh.lock, and any transient
 # gvl_archive.old are NOT ignored — the archive and lock sentinels are
 # checked in.
-crates/auctioneer-config/data/.gvl_refresh.*/
+crates/auctioneer-config-data/data/.gvl_refresh.*/
 
 # Fastly's local CLI synchronization lock, not deployment configuration.
 /.fastly.toml.edgezero-lock

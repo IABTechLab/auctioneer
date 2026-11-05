@@ -3,11 +3,11 @@
 use std::env;
 
 use anyhow::{Context as _, Result, ensure};
-use auctioneer_config::{
+use auctioneer_config_data::{
     types::BidderInfo,
     usersync::{SyncResponseFormat, SyncType, SyncerEndpoint},
 };
-use auctioneer_core::config::AuctioneerAppConfig;
+use auctioneer_core::config::{AuctioneerAppConfig, validate_effective_defaults};
 use edgezero_core::blob_envelope::BlobEnvelope;
 use serde_json::{Value, json};
 use url::Url;
@@ -51,20 +51,21 @@ fn browser_syncer(bidders: &[BidderInfo]) -> Result<(&BidderInfo, &SyncerEndpoin
 }
 
 fn browser_bundle(publisher: &str, sync: &str) -> Result<Value> {
-    let (info, endpoint) = browser_syncer(auctioneer_config::bidders())?;
+    let (info, endpoint) = browser_syncer(auctioneer_config_data::bidders())?;
     let url = Url::parse(&endpoint.url).context("parse selected sync metadata")?;
     let config: AuctioneerAppConfig = serde_json::from_value(json!({
-        "user_sync": {
-            "external_url": sync,
-            "allowed_origins": [publisher],
+        "schema_version": 1_u8,
+        "host": {
+            "user_sync": {
+                "external_url": sync,
+                "allowed_origins": [publisher],
+            },
+            "aliases": {(FIXTURE_BIDDER): info.name},
         },
-        "aliases": {(FIXTURE_BIDDER): info.name},
         "accounts": {"publisher": {}},
     }))
     .context("construct local browser config")?;
-    config
-        .validate_effective_defaults()
-        .map_err(anyhow::Error::msg)?;
+    validate_effective_defaults(&config).map_err(anyhow::Error::msg)?;
     let envelope = BlobEnvelope::new(
         serde_json::to_value(config)?,
         "1970-01-01T00:00:00Z".to_owned(),
@@ -107,7 +108,7 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auctioneer_config::{
+    use auctioneer_config_data::{
         types::BidderInfo,
         usersync::{SyncResponseFormat, SyncType, SyncerConfig, SyncerEndpoint},
     };
@@ -170,9 +171,9 @@ mod tests {
 
     #[test]
     fn bundle_uses_a_fixture_alias_and_exact_published_metadata_without_rewriting_it() {
-        let before = serde_json::to_value(auctioneer_config::bidders()).unwrap();
+        let before = serde_json::to_value(auctioneer_config_data::bidders()).unwrap();
         let bundle = browser_bundle("http://127.0.0.1:42001", "http://127.0.0.1:42002").unwrap();
-        let (info, endpoint) = browser_syncer(auctioneer_config::bidders()).unwrap();
+        let (info, endpoint) = browser_syncer(auctioneer_config_data::bidders()).unwrap();
         let url = Url::parse(&endpoint.url).unwrap();
         assert_eq!(
             bundle["fixture"],
@@ -190,17 +191,21 @@ mod tests {
         let envelope: BlobEnvelope = serde_json::from_value(bundle["envelope"].clone()).unwrap();
         envelope.verify().unwrap();
         let config: AuctioneerAppConfig = serde_json::from_value(envelope.data).unwrap();
-        config.validate_effective_defaults().unwrap();
-        assert_eq!(config.aliases.as_ref().unwrap().len(), 1);
-        assert_eq!(config.aliases.as_ref().unwrap()["fake_browser"], info.name);
-        let aliases = &bundle["envelope"]["data"]["aliases"];
+        validate_effective_defaults(&config).unwrap();
+        assert_eq!(config.host.aliases.as_ref().unwrap().len(), 1);
+        assert_eq!(
+            config.host.aliases.as_ref().unwrap()["fake_browser"],
+            info.name
+        );
+        assert_eq!(bundle["envelope"]["data"]["schema_version"], 1_u8);
+        let aliases = &bundle["envelope"]["data"]["host"]["aliases"];
         assert_eq!(aliases, &json!({"fake_browser": info.name}));
         assert_eq!(
-            bundle["envelope"]["data"]["user_sync"]["external_url"],
+            bundle["envelope"]["data"]["host"]["user_sync"]["external_url"],
             "http://127.0.0.1:42002"
         );
         assert_eq!(
-            serde_json::to_value(auctioneer_config::bidders()).unwrap(),
+            serde_json::to_value(auctioneer_config_data::bidders()).unwrap(),
             before
         );
         assert_eq!(

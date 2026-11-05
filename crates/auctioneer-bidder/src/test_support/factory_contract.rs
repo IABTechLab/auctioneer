@@ -1,12 +1,12 @@
 //! Native-only conformance for discovered factories using adjacent, independent cases.
 
+use crate::BidderSettings;
 use crate::bidders::harness;
 use crate::{
     BidderError, BidderHttpRequest, BidderName, BidderRequestInfo, BidderResponse, EntryPoint,
     compiled_bidders,
 };
-use auctioneer_config::BidderSettings;
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::bidder_credentials::BidderCredentials;
 use serde::Deserialize;

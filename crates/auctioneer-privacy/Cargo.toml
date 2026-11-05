@@ -11,7 +11,7 @@ version = { workspace = true }
 workspace = true
 
 [features]
-insecure-bidders = ["auctioneer-config/insecure-bidders"]
+insecure-bidders = ["auctioneer-config-data/insecure-bidders"]
 # Canonical test encoders shared with privacy, core, and exchange tests.
 test-support = []
 # Optional wall-clock sanity ceiling (10 ms) layered onto the
@@ -25,7 +25,7 @@ timing-tests = []
 log = { workspace = true }
 # Entry-count-bounded LRU behind GvlStore's lazy parse cache.
 lru = { workspace = true }
-auctioneer-config = { workspace = true }
+auctioneer-config-data = { workspace = true }
 # Runtime lowering delegates to the shared validator — the ONE GVL/GCL
 # parse path; no serde/serde_json dependency here.
 auctioneer-gvl-schema = { workspace = true }

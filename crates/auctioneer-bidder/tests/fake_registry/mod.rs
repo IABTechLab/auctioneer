@@ -2,7 +2,7 @@
 
 use auctioneer_bidder::test_support::fake_bidder::create_bidder;
 use auctioneer_bidder::{BidderDeclaration, BidderRegistration, RegistryInputs};
-use auctioneer_config::types::{
+use auctioneer_config_data::types::{
     BidderImplementationBinding, BidderInfo, BidderMetadataDeclaration,
 };
 use std::sync::OnceLock;
@@ -36,10 +36,12 @@ pub fn inputs() -> RegistryInputs<'static> {
     static DECLARATIONS: &[BidderDeclaration] = &[BidderDeclaration {
         key: "fake_registry_fake",
         required_feature: None,
+        has_settings: false,
     }];
     static FACTORIES: &[BidderRegistration] = &[BidderRegistration {
         key: "fake_registry_fake",
         factory: create_bidder,
+        config_validator: None,
     }];
     static BINDINGS: &[BidderImplementationBinding] = &[
         BidderImplementationBinding {

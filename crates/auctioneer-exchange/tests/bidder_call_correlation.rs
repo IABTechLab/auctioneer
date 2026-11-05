@@ -11,7 +11,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRegistry, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta, OutboundRequestSink, TypedBid,
     };
-    use auctioneer_config::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,

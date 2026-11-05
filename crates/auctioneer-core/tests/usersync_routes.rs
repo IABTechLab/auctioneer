@@ -21,7 +21,9 @@ mod tests {
     use std::time::Duration;
 
     use auctioneer_core::config::runtime::CONFIG_STATUS_HEADER;
-    use auctioneer_core::config::{AuctioneerAppConfig, MAX_ALIAS_NAME_BYTES, MAX_ALIASES};
+    use auctioneer_core::config::{
+        AuctioneerAppConfig, MAX_ALIAS_NAME_BYTES, MAX_ALIASES, validate_effective_defaults,
+    };
     use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, boot_gates,
@@ -52,7 +54,9 @@ mod tests {
 
     static TEST_LOCK: Mutex<()> = Mutex::new(());
     const ORIGIN: &str = "https://publisher.example";
-    const BROWSER_CONFIG: &str = "[user_sync]\nallowed_origins = ['https://publisher.example']\n";
+    const SYNC_CONFIG: &str =
+        "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n";
+    const BROWSER_CONFIG: &str = "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n";
     const COOKIE_NOW: OffsetDateTime = time::macros::datetime!(2026-09-30 12:00:00.100000001 UTC);
 
     struct SigningStore;
@@ -114,8 +118,8 @@ mod tests {
             egress_handoff_factor: 2,
         };
         let baked = auctioneer_runtime::serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .expect("baked config size");
         limits.aux_route_peak_bytes = derive_aux_work_for_profile(&limits, &target, baked)
@@ -188,7 +192,7 @@ mod tests {
             .take(compiled_slots.min(32))
             .cloned()
             .collect::<Vec<_>>();
-        let mut config = format!("{BROWSER_CONFIG}[aliases]\n");
+        let mut config = format!("{BROWSER_CONFIG}[host.aliases]\n");
         for index in 0..alias_count {
             let name = format!("fake_diagnostic_{index:03}_{}", "x".repeat(44));
             if name.len() != MAX_ALIAS_NAME_BYTES {
@@ -262,7 +266,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let DebugFixture { config, bidders } = debug_fixture(&compiled).unwrap();
             let parsed: AuctioneerAppConfig = toml::from_str(&config).unwrap();
-            let aliases = parsed.aliases.as_ref().unwrap();
+            let aliases = parsed.host.aliases.as_ref().unwrap();
             assert_eq!(aliases.len(), expected_aliases);
             assert_eq!(bidders.len(), 256);
             assert_eq!(bidders.iter().collect::<BTreeSet<_>>().len(), 256);
@@ -328,7 +332,7 @@ mod tests {
         request: Request,
         request_start: MonotonicInstant,
     ) -> ResponseEgressEnvelope {
-        dispatch_configured_envelope_at(app, request, request_start, "")
+        dispatch_configured_envelope_at(app, request, request_start, SYNC_CONFIG)
     }
 
     fn dispatch_configured_envelope_at(
@@ -427,12 +431,12 @@ mod tests {
         let app = app();
         assert_eq!(MAX_SYNC_REQUESTED_NAMES, 256);
         assert_eq!(MAX_SYNC_DEBUG_ROWS, 256);
-        let compiled: Vec<String> = auctioneer_config::bidders()
+        let compiled: Vec<String> = auctioneer_config_data::bidders()
             .iter()
             .map(|bidder| bidder.name.clone())
             .collect();
         let DebugFixture { config, bidders } = debug_fixture(&compiled).unwrap();
-        let unconfigured: BTreeSet<&str> = auctioneer_config::bidders()
+        let unconfigured: BTreeSet<&str> = auctioneer_config_data::bidders()
             .iter()
             .filter(|bidder| {
                 bidder.user_sync.iframe.is_none() && bidder.user_sync.redirect.is_none()
@@ -443,9 +447,7 @@ mod tests {
             bidders.len(),
             usize::try_from(MAX_SYNC_REQUESTED_NAMES).unwrap()
         );
-        toml::from_str::<AuctioneerAppConfig>(&config)
-            .unwrap()
-            .validate_effective_defaults()
+        validate_effective_defaults(&toml::from_str::<AuctioneerAppConfig>(&config).unwrap())
             .unwrap();
         let mut payload = diagnostic_payload(&bidders);
         let bytes = serde_json::to_vec(&payload).unwrap();
@@ -489,7 +491,7 @@ mod tests {
                 } else {
                     name
                 };
-                let bidder = auctioneer_config::bidders()
+                let bidder = auctioneer_config_data::bidders()
                     .iter()
                     .find(|bidder| bidder.name == base)
                     .unwrap();
@@ -539,7 +541,7 @@ mod tests {
     fn cookie_sync_rejects_257_requested_rows_before_dedup_without_partial_list() {
         let _serial = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         let app = app();
-        let compiled = auctioneer_config::bidders()
+        let compiled = auctioneer_config_data::bidders()
             .iter()
             .map(|bidder| bidder.name.clone())
             .collect::<Vec<_>>();
@@ -645,7 +647,7 @@ mod tests {
     fn setuid_cookie_serialization_hard_ceiling_refuses_without_partial_cookie() {
         let _serial = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         let app = app();
-        let config = format!("{BROWSER_CONFIG}[host_cookie]\nmax_cookie_size_bytes = 0\n");
+        let config = format!("{BROWSER_CONFIG}[host.host_cookie]\nmax_cookie_size_bytes = 0\n");
         let first = dispatch_configured(
             &app,
             Method::GET,
@@ -755,7 +757,7 @@ mod tests {
         let _serial = TEST_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         let mut app = app();
         let installed_limits = app.config_extraction_limits();
-        let mut large_config = format!("{BROWSER_CONFIG}[aliases]\n");
+        let mut large_config = format!("{BROWSER_CONFIG}[host.aliases]\n");
         for index in 0_usize..64 {
             let name = format!("config-{index:03}-{}", "x".repeat(90));
             writeln!(
@@ -1206,7 +1208,7 @@ mod tests {
                 .body(body)
                 .expect("request builds");
             let fixture_request = support::ctx_with_config(
-                "[user_sync]\nallowed_origins = ['https://publisher.example']\n",
+                "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n",
                 request,
             )
             .into_request()
@@ -1290,7 +1292,7 @@ mod tests {
             .body(Body::empty())
             .expect("request builds");
         let fixture_request = support::ctx_with_config(
-            "[user_sync]\nallowed_origins = ['https://publisher.example']\n",
+            "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n",
             request,
         )
         .into_request()

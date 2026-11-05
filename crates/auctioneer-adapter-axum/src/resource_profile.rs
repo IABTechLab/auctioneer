@@ -281,7 +281,7 @@ fn digest<T: Serialize + ?Sized>(value: &T) -> anyhow::Result<String> {
 }
 
 fn reference_digest() -> anyhow::Result<String> {
-    let archive: Vec<_> = auctioneer_config::gvl_archive()
+    let archive: Vec<_> = auctioneer_config_data::gvl_archive()
         .iter()
         .map(|entry| {
             (
@@ -295,19 +295,19 @@ fn reference_digest() -> anyhow::Result<String> {
         .collect();
     digest(&(
         archive,
-        auctioneer_config::gvl_archive_generated_at(),
-        auctioneer_config::gvl_archive_max_age_days(),
-        auctioneer_config::gcl_expires_at_unix_secs(),
-        auctioneer_config::baked_gcl_json(),
-        auctioneer_config::eea_set(),
-        auctioneer_config::bidders(),
+        auctioneer_config_data::gvl_archive_generated_at(),
+        auctioneer_config_data::gvl_archive_max_age_days(),
+        auctioneer_config_data::gcl_expires_at_unix_secs(),
+        auctioneer_config_data::baked_gcl_json(),
+        auctioneer_config_data::eea_set(),
+        auctioneer_config_data::bidders(),
     ))
 }
 
 fn profile(boot: BootEnvelope<'_>, baked_config_bytes: u64, sdk: Sdk) -> anyhow::Result<Profile> {
     let baked = (
-        auctioneer_config::host_default(),
-        auctioneer_config::account_default(),
+        auctioneer_config_data::host_default(),
+        auctioneer_config_data::account_default(),
     );
     let derived = terms(&derive_isolate_budget_with_baked_config(
         boot.limits,

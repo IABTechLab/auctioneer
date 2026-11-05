@@ -166,13 +166,14 @@ dependency boundaries within one system, not independently deployed services.
 | Crate                                                     | Responsibility                                                                                                     | Important boundary                                                                                             |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | [`auctioneer-openrtb`](../crates/auctioneer-openrtb/src/lib.rs)   | Typed requests, responses, extensions, validation, implicit field preparation                                      | `prepare()` produces the externally nonconstructible `NormalizedBidRequest`; it does not parse consent strings |
-| [`auctioneer-config`](../crates/auctioneer-config/src/lib.rs)     | Effective host/account/bidder types, embedded defaults, generated accessors, reference-data archive                | Build-time file reading/code generation; no request-time filesystem access                                     |
+| [`auctioneer-config`](../crates/auctioneer-config/src/lib.rs) | Shared authoring, operator, host/account and effective configuration models and pure validation | No generated product-data, bidder implementation or provider dependency |
+| [`auctioneer-config-data`](../crates/auctioneer-config-data/src/lib.rs) | Compiled defaults, generated metadata/accessors, disclosure tables and reference-data archive | Build-time file reading/code generation; no request-time filesystem access |
 | [`auctioneer-runtime`](../crates/auctioneer-runtime/src/lib.rs)   | Clock/RNG/timer abstractions, portable limits, budgets, admission and egress accounting                            | Models resource policy without importing provider SDKs                                                         |
 | [`auctioneer-privacy`](../crates/auctioneer-privacy/src/lib.rs)   | Signal resolution, TCF parsing, GVL/GCL lookup, legal-basis and bidder permissions                                 | Determines policy; does not send HTTP or own the bidder registry                                               |
 | [`auctioneer-bidder`](../crates/auctioneer-bidder/src/lib.rs)     | Bidder trait, registry, endpoint/request helpers, protocol-specific bidder implementations                         | Synchronous conversion, no network I/O                                                                         |
 | [`auctioneer-exchange`](../crates/auctioneer-exchange/src/lib.rs) | Aliases, request splitting, privacy enforcement, limits, fanout scheduling interface, targeting, response assembly | Reusable auction engine, no EdgeZero dependency                                                                |
 
-These six libraries do not depend on EdgeZero, Tokio, reqwest, or provider
+These seven libraries do not depend on EdgeZero, Tokio, reqwest, or provider
 SDKs. Production host interactions enter through injected interfaces such
 as `Clock`, `Rng`, `Timer`, and `BidderFanout`. The
 [dependency-purity test](../crates/auctioneer-core/tests/dependency_purity.rs)
@@ -187,7 +188,6 @@ guards the separation.
 | [`auctioneer-adapter-cloudflare`](../crates/auctioneer-adapter-cloudflare/) | Workers entry point and Workers-specific host primitives                                                                                                                              |
 | [`auctioneer-adapter-fastly`](../crates/auctioneer-adapter-fastly/)         | Compute entry point and Fastly-specific host primitives                                                                                                                               |
 | [`auctioneer-adapter-spin`](../crates/auctioneer-adapter-spin/)             | Spin component entry point and WASI-specific host primitives                                                                                                                          |
-| [`auctioneer-config-schema`](../crates/auctioneer-config-schema/src/lib.rs) | Shared authoring/config-file shape used by build-time tooling and CLI; not a policy evaluator                                                                                         |
 | [`auctioneer-gvl-schema`](../crates/auctioneer-gvl-schema/src/lib.rs)       | Shared GVL archive/index schema and validation for build/runtime/refresh tooling                                                                                                      |
 | [`auctioneer-cli`](../crates/auctioneer-cli/src/main.rs)                    | Config validation/selection, EdgeZero operator tooling and qualification; bidder reference inspection, GVL refresh, reference-evidence checks and OpenRTB catalogue generation/checks |
 | [`auctioneer-openrtb-catalogue`](../crates/auctioneer-openrtb-catalogue/)   | Pinned field-inventory extraction and build-time catalogue validation library; independent of the CLI and not an auction-time dependency                                              |
@@ -205,14 +205,14 @@ protocol implementation boundary; bidder implementations remain modules rather
 than additional workspace packages. Runtime primitives are shared by those
 libraries without importing the HTTP application layer.
 
-The small schema packages are intentional: config code generation uses them as
+The shared model and schema packages are intentional: data code generation uses them as
 build dependencies and the CLI shares their types. The CLI's default
 `application` feature includes config, application and qualification commands.
 With `--no-default-features`, bidder reference inspection, GVL refresh,
 reference-evidence checking and OpenRTB catalogue commands remain available
-without a dependency on `auctioneer-config` or the application. A stale or corrupt
+without a dependency on `auctioneer-config-data` or the application. A stale or corrupt
 embedded archive therefore cannot prevent building its repair command.
-`auctioneer-openrtb-catalogue` remains a separate library used by config's build
+`auctioneer-openrtb-catalogue` remains a separate library used by config-data's build
 script and the CLI; config builds do not depend on the operator executable.
 
 The native transport fixtures live in the Axum adapter's `tests/` directory,
@@ -227,14 +227,15 @@ The main normal-dependency direction is:
 
 ```text
 provider adapters -> auctioneer-core -> auctioneer-exchange
-                               -> auctioneer-config / openrtb / privacy / bidder / runtime
-                     auctioneer-exchange -> bidder / privacy / config / openrtb / runtime
-                     auctioneer-bidder   -> config / openrtb
-                     auctioneer-privacy  -> config / gvl-schema / openrtb / runtime
-                     auctioneer-config   -> gvl-schema
+                               -> config / config-data / openrtb / privacy / bidder / runtime
+                     auctioneer-exchange -> bidder / privacy / config-data / openrtb / runtime
+                     auctioneer-bidder   -> config-data / openrtb
+                     auctioneer-privacy  -> config-data / gvl-schema / openrtb / runtime
+                     auctioneer-config-data -> config / gvl-schema
+                     auctioneer-config      -> runtime
 ```
 
-Build dependencies add `auctioneer-config-schema`, `auctioneer-gvl-schema` and
+Build dependencies add `auctioneer-config`, `auctioneer-gvl-schema` and
 `auctioneer-openrtb-catalogue` to config generation; the CLI reuses those libraries
 in its corresponding command modes. Test-only dependencies are omitted above.
 These libraries prevent tools and build scripts from importing the application
@@ -332,7 +333,7 @@ This is not a claim of compatibility with the entire upstream bidder catalog.
 
 [Automatic bidder registration](superpowers/specs/2026-09-27-bidder-registry-design.md)
 is implemented by the [bidder build script](../crates/auctioneer-bidder/build.rs)
-and [discovery generator](../crates/auctioneer-config-schema/src/bidder_discovery.rs).
+and [discovery generator](../crates/auctioneer-config/src/bidder_discovery.rs).
 Bidder-owned `src/bidders/<bidder_key>/bidder.toml` declarations accompany
 `mod.rs` and conventional `create_bidder()` factories. The build discovers
 implementations, validates metadata bindings, and generates factory selection;
@@ -429,16 +430,16 @@ Configuration has two different lifecycles:
 
 | Layer                       | Input and owner                                                                                        | Activation                                           |
 | --------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Baked defaults and metadata | `auctioneer-config` build inputs; bidder info, host/account defaults, bootstrap settings, EEA/GVL/GCL data | Rebuild and deploy an artifact                       |
-| Runtime overrides           | Auctioneer runtime DTOs delivered through EdgeZero's config/secret-store integration                       | Validated configuration used by application handlers |
+| Compiled product data | Reviewed neutral host/account defaults, bidder metadata and EEA/GVL/GCL data owned by `auctioneer-config-data` | Rebuild and deploy an artifact |
+| Runtime policy | One direct `OperatorPolicy`, existing EdgeZero typed commands/extraction and shared semantic validation/resolution over caller-owned input/context | Validated policy used under the backend's activation lifecycle; actual host ingestion/adoption capacity/lifetimes remain #135 |
 
 ```text
-authoring config / reference-data files
+code-owned product defaults / reference-data files
   -> schema and semantic validation
   -> build generation -> embedded artifact defaults
 
 operator runtime config
-  -> auctioneer-cli validation / runtime-payload selection
+  -> existing EdgeZero typed validate/diff/push / shared validators
   -> EdgeZero config push and hash-bearing envelope
   -> provider config store
   -> EdgeZero extraction / integrity checking
@@ -446,14 +447,19 @@ operator runtime config
   -> one effective configuration for this request
 ```
 
-The authoring file is [`auctioneer.toml`](../auctioneer.toml). Its `[baked.*]`
-sections are consumed by the build, while the CLI pushes only `[runtime]`
-to the logical `auctioneer_runtime` store. Accounts are carried in that runtime
+The authoring file [`auctioneer.toml`](../auctioneer.toml) is the direct payload:
+required root `schema_version = 1`, `host`, `account_defaults`, `accounts`,
+`bidders`, `features` and `floor_currency`. There are no baked/startup/runtime
+root wrappers, source modes or backward wire aliases. Builds never read operator
+policy. The SDK trait wrapper preserves model and wire layout. Accounts are carried in that runtime
 blob, not fetched from separate account records. Runtime-field environment
 overrides are applied at push time to keys already present in the source;
 they are not a live, per-instance policy override channel. Boot health
 credentials are a separate provider-specific input.
 
+Host/adapter facts, store/trust bindings and installed limits retain their
+existing owners; they are not another Auctioneer startup config. Runtime policy
+may request supported existing caps, not resize gates or authorize its own read.
 These layers are not interchangeable. Bounded fanout requires runtime policy to
 stay within the boot envelope installed by the default adapter entry points.
 Field-specific merge rules preserve omitted versus explicit values; aliases,
@@ -461,10 +467,9 @@ per-account settings, bidder kill switches, sampling, and timeouts are resolved 
 than applied by mutating the shared bidder registry.
 
 Invalid or unavailable runtime configuration is not permission to switch
-off privacy. The runtime-config resolver distinguishes permitted missing configuration
-from extraction, integrity, parsing, and validation failures and uses
-explicit error responses. Missing config defaults only when the separately
-baked `allow_missing_config` permits it; its checked-in value is false.
+off privacy. The runtime-config resolver refuses missing required policy and
+distinguishes extraction, integrity, parsing and validation failures with
+explicit error responses. No failed or missing load selects product defaults.
 Invalid config is a 500; backend unavailability/extraction timeout is a 503
 with `Retry-After: 5`. `/status` remains available to report degradation.
 Do not add an ad hoc fallback or a second config cache in a handler.
@@ -670,7 +675,7 @@ This describes technical enforcement, not legal certification.
 | Route                      | Purpose                                                                      |
 | -------------------------- | ---------------------------------------------------------------------------- |
 | `POST /openrtb2/auction`   | Live auction entry point                                                     |
-| `GET /status`              | Liveness and `x-auctioneer-config-status` config verdict                         |
+| `GET /status`              | Liveness and `x-auctioneer-config-data-status` config verdict                         |
 | `GET /info/bidders`        | Registry/alias catalog with configured visibility controls                   |
 | `GET /info/bidders/{name}` | Bidder metadata, including the supported aggregate form                      |
 | `GET /_auctioneer/health/gvl`  | Operator reference-data health and unavailable-lookup/staleness observations |
@@ -685,9 +690,9 @@ an installed access policy. Tokenless opt-in requires an ingress path
 restriction; see [internal-route deployment guidance](deployment/restrict-operational-endpoints.md).
 
 The sync routes use the auxiliary admission class and a validated runtime
-config snapshot. The configured public `user_sync.external_url` supplies
+config snapshot. The configured public `host.user_sync.external_url` supplies
 the callback origin and optional base path; request `Host` and forwarded
-headers do not. `user_sync.allowed_origins` controls exact-origin
+headers do not. `host.user_sync.allowed_origins` controls exact-origin
 credentialed JavaScript access, not privacy permission. After config
 resolution, application responses can carry those CORS headers; earlier
 admission, config, framework, or transport failures have narrower header

@@ -96,10 +96,16 @@ impl Frozen {
         supervisor: &Supervisor,
     ) -> Result<Value> {
         self.verify()?;
-        let installed =
-            snapshots::install_variant(&self.cli(), repo, scratch, candidate, 1, supervisor)
-                .await
-                .map_err(|failure| phase_error(failure, "frozen_install"))?;
+        let installed = snapshots::install_historical_variant(
+            &self.cli(),
+            repo,
+            scratch,
+            candidate,
+            1,
+            supervisor,
+        )
+        .await
+        .map_err(|failure| phase_error(failure, "frozen_install"))?;
         self.verify()?;
         let consents = consents::fixtures(repo)?;
         let selected = consents

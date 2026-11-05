@@ -10,6 +10,7 @@ mod tests {
     const LIB_CRATES: &[&str] = &[
         "auctioneer-openrtb",
         "auctioneer-config",
+        "auctioneer-config-data",
         "auctioneer-runtime",
         "auctioneer-privacy",
         "auctioneer-bidder",
@@ -47,13 +48,16 @@ mod tests {
 
         let mut violations: Vec<String> = Vec::new();
         for &lib in LIB_CRATES {
-            let Some(lib_id) = packages
-                .iter()
-                .find(|p| p["name"] == lib)
-                .map(|p| p["id"].as_str().unwrap().to_owned())
-            else {
-                continue;
-            };
+            let lib_id =
+                packages
+                    .iter()
+                    .find(|p| p["name"] == lib)
+                    .unwrap_or_else(|| {
+                        panic!("required library missing from Cargo metadata: {lib}")
+                    })["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned();
             let reachable = walk(&lib_id, nodes);
             for dep_id in &reachable {
                 let name = packages
@@ -69,6 +73,34 @@ mod tests {
             }
         }
         assert!(violations.is_empty(), "{}", violations.join("\n"));
+
+        let model = packages
+            .iter()
+            .find(|package| package["name"] == "auctioneer-config")
+            .unwrap();
+        assert!(model["targets"].as_array().unwrap().iter().all(|target| {
+            target["kind"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|kind| kind != "custom-build")
+        }));
+        let reachable = walk(model["id"].as_str().unwrap(), nodes);
+        for forbidden in [
+            "auctioneer-config-data",
+            "auctioneer-bidder",
+            "auctioneer-core",
+        ] {
+            for package in packages
+                .iter()
+                .filter(|package| package["name"] == forbidden)
+            {
+                assert!(
+                    !reachable.contains(package["id"].as_str().unwrap()),
+                    "shared models must not depend on {forbidden}",
+                );
+            }
+        }
     }
 
     fn walk(start: &str, nodes: &[serde_json::Value]) -> BTreeSet<String> {

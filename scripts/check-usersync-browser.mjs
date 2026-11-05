@@ -166,6 +166,9 @@ try {
   const syncOrigin = await listen(reserve);
   await closeServer(reserve);
   const { envelope, fixture } = JSON.parse(execFileSync(configCommand, [allowedOrigin, syncOrigin], { encoding: 'utf8', timeout }));
+  assert.equal(envelope.data.schema_version, 1);
+  assert.equal(envelope.data.host.user_sync.external_url, syncOrigin);
+  for (const retired of ['baked', 'startup', 'runtime']) assert.equal(envelope.data[retired], undefined);
   assert.equal(fixture.bidder, 'fake_browser');
   assert.equal(fixture.sync_type, 'redirect');
   assert.ok(fixture.family && fixture.family !== fixture.bidder);

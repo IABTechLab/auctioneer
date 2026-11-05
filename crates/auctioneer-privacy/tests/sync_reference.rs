@@ -5,7 +5,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::path::Path;
 
-    use auctioneer_config::types::{AccountConfig, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
     use auctioneer_privacy::{
         GdprSignalIn, Signal, SyncEndpoint, SyncPrivacyContext, SyncPrivacyInput, gcl::Gcl,
         gvl::GvlStore, resolve_sync_privacy,

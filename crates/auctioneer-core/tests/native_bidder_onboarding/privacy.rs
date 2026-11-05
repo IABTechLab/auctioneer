@@ -3,7 +3,7 @@
 
 use super::fixtures::{self, Flow};
 use super::harness::{self, ObservedCall, Secrets};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_privacy::{gpp::Limits as GppLimits, sources::normalize};
 use edgezero_core::app::App;
 use serde_json::{Map, Value, json};
@@ -162,8 +162,8 @@ fn request(flows: &[&Flow], inventory: &str, policy: Policy) -> Value {
 
 fn runtime(flows: &[&Flow], policy: Policy, scoped: bool) -> Value {
     let mut config = fixtures::config(flows);
-    config["ccpa"] = json!({"enforce":true});
-    config["lmt"] = json!({"enforce":true});
+    config["host"]["ccpa"] = json!({"enforce":true});
+    config["host"]["lmt"] = json!({"enforce":true});
     let mut activities = Map::new();
     for (activity, deny) in [
         ("transmitUfpd", policy.deny_ufpd),

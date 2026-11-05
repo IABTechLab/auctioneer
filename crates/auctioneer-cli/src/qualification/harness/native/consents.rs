@@ -110,7 +110,7 @@ fn variant(seed: &str, entry: &Entry) -> Result<Consent> {
 
 pub fn fixtures(root: &Path) -> Result<Vec<Consent>> {
     let manifest: Manifest = io::read_json(
-        &root.join("crates/auctioneer-config/data/gvl_archive/manifest.json"),
+        &root.join("crates/auctioneer-config-data/data/gvl_archive/manifest.json"),
         1 << 20_u32,
     )
     .map_err(|_error| HarnessError::new("reference_unavailable"))?;

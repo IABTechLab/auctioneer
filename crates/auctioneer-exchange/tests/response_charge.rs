@@ -19,7 +19,7 @@ mod tests {
     use auctioneer_bidder::{
         Bidder as _, BidderHttpResponse, BidderName, BidderRegistry, OutboundRequestMetaBuilder,
     };
-    use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+    use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
     use auctioneer_exchange::construction_costs;
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn actual_auction_targeting_and_assembly_fit_the_held_response_charge() {
-        use auctioneer_config::types::{AccountConfig, BidderInfo};
+        use auctioneer_config_data::types::{AccountConfig, BidderInfo};
         use auctioneer_exchange::{
             AccountSource, AuctionContext, AuctionPlan, ResolvedAccount, resolve_aliases,
             run_auction,
@@ -213,7 +213,7 @@ mod tests {
                 let req = prepare(serde_json::from_value(input).unwrap(), &RequestHeaders::default(), &PrepareLimits {max_impressions:100, ..PrepareLimits::default()}).unwrap();
                 let mut registry = auctioneer_bidder::BidderRegistry::new();
                 registry.register(Box::leak(Box::new(BidderInfo {name:"fake_bb".into(), endpoint:"https://example.test/bid".into(), ..BidderInfo::default()})), Box::new(FakeBidder::default())).expect("unique test bidder");
-                let mut host = auctioneer_config::host_default().clone();
+                let mut host = auctioneer_config_data::host_default().clone();
                 host.gdpr.enabled = false;
                 let plan = AuctionPlan::new(
                     resolve_aliases(&req, &registry, &BTreeSet::new(), &BTreeMap::new()).unwrap(),
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn bookkeeping_refuses_visible_rows_before_copying_large_imp_ids() {
-        use auctioneer_config::types::{AccountConfig, BidderInfo};
+        use auctioneer_config_data::types::{AccountConfig, BidderInfo};
         use auctioneer_exchange::{
             AccountSource, AuctionContext, AuctionError, AuctionPlan, ResolvedAccount,
             resolve_aliases, run_auction,
@@ -320,7 +320,7 @@ mod tests {
                         Box::new(FakeBidder::default()),
                     )
                     .expect("unique test bidder");
-                let mut host = auctioneer_config::host_default().clone();
+                let mut host = auctioneer_config_data::host_default().clone();
                 host.gdpr.enabled = false;
                 host.resource_limits.max_bidders_per_auction = 1;
                 let plan = AuctionPlan::new(
@@ -481,7 +481,7 @@ mod tests {
     }
 
     fn browser_registry(coverage: Option<Vec<Vec<&'static str>>>) -> BidderRegistry {
-        use auctioneer_config::types::BidderInfo;
+        use auctioneer_config_data::types::BidderInfo;
 
         // Keep identity and endpoint byte widths stable for the resource controls.
         let mut registry = BidderRegistry::new();
@@ -509,7 +509,7 @@ mod tests {
         coverage: Option<Vec<Vec<&'static str>>>,
         held_response: Option<u64>,
     ) -> BrowserObserved {
-        use auctioneer_config::types::AccountConfig;
+        use auctioneer_config_data::types::AccountConfig;
         use auctioneer_exchange::{
             AccountSource, AuctionContext, AuctionPlan, ResolvedAccount, resolve_aliases,
             run_auction,
@@ -533,7 +533,7 @@ mod tests {
             .unwrap_or_else(|| vec![vec!["i"]; bodies.len()]);
         let registry = browser_registry(coverage);
         let calls = u32::try_from(bodies.len()).unwrap();
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host.resource_limits.max_bidders_per_auction = 16;
         host.resource_limits.max_outbound_requests = usize::try_from(calls).unwrap();
@@ -1296,7 +1296,7 @@ mod tests {
         deny: bool,
         metadata_bytes: u64,
     ) -> ReceiptObserved {
-        use auctioneer_config::types::{AccountConfig, BidderInfo};
+        use auctioneer_config_data::types::{AccountConfig, BidderInfo};
         use auctioneer_exchange::{
             AccountSource, AuctionContext, AuctionPlan, ResolvedAccount, resolve_aliases,
             run_auction,
@@ -1326,7 +1326,7 @@ mod tests {
                 Box::new(FakeBidder::default()),
             )
             .expect("unique test bidder");
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host.resource_limits.max_bidders_per_auction = 16;
         host.resource_limits.max_outbound_requests = usize::try_from(calls).unwrap();

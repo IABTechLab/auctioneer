@@ -3,7 +3,7 @@
 pub mod envelope;
 pub mod timer;
 
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 
 /// Linked policy features, including dependency feature unification.
 #[must_use]
@@ -21,7 +21,7 @@ pub fn build_features() -> Vec<&'static str> {
     if auctioneer_core::CONFORMANCE_SUITE_ENABLED {
         features.push("conformance_suite");
     }
-    if auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED {
+    if auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED {
         features.push("test_harness_override");
     }
     features

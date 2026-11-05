@@ -1,3 +1,4 @@
+schema_version = 1
 # One `AuctioneerAppConfig` blob per deployment: the host GDPR overlay, the
 # host-declared aliases, and the per-account overlay all ride in this
 # single TOML.
@@ -13,21 +14,21 @@
 # aliasgvlids-over-alias behaviour is covered where it is actually
 # reachable -- `auctioneer-privacy` `auction_context` (the permission walk)
 # and `auctioneer-exchange` `config_overlay` (the resolver).
-[aliases]
+[host.aliases]
 "fake_alias" = "fake_base"
 "fake_consented_bidder" = "fake_consented_base"
 "fake_bidder" = "fake_no_vendor_base"
 
 # Host GDPR overlay. Without it the baked default leaves
 # `gdpr.tcf2.enabled = false` and nothing is ever enforced.
-[gdpr]
+[host.gdpr]
 enabled = true
 
-[gdpr.tcf2]
+[host.gdpr.tcf2]
 enabled = true
 
 # Purpose 2 (Basic Ads) is the `AllowBidRequest` gate (spec §7.3).
-[gdpr.tcf2.purposes.2]
+[host.gdpr.tcf2.purposes.2]
 enforce_algo    = "full"
 enforce_purpose = "enabled"
 enforce_vendors = "enabled"

@@ -61,7 +61,7 @@ pub fn pick_winner(
 #[cfg(test)]
 mod tests {
     use super::{BidderName, TypedBid, pick_winner};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_response::Bid;
 
     /// Borrow an owned fixture as the slice form `pick_winner` takes.

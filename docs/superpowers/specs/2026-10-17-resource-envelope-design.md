@@ -761,7 +761,8 @@ facts, Axum ceiling/population and any other selected-platform facts to be
 published and verified under section 5.3. Native's unknown metadata must not
 be bypassed merely because resource qualification's allocation changes focus on WASM.
 
-Update `ISSUES.md`, the roadmap and bidder catalog status with actual results and blockers.
+Update the [resource epic's owning issues](https://github.com/IABTechLab/auctioneer/issues/9),
+the roadmap and bidder catalog status with actual results and blockers.
 Hand publisher pilot the approved artifact/profile/SDK/toolchain identities, workload and
 limits, retained accounting reports, target observations, unresolved external
 facts, and the existing hosted acceptance runbooks. Do not mark credentialed

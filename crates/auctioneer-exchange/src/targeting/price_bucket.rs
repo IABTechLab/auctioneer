@@ -11,7 +11,7 @@
 )]
 
 use crate::response::ErrorEntry;
-use auctioneer_config::types::AccountConfig;
+use auctioneer_config_data::types::AccountConfig;
 use auctioneer_openrtb::WarningCode;
 use auctioneer_runtime::{Rng, gen_range};
 use std::num::NonZeroU64;

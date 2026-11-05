@@ -1,5 +1,19 @@
 # Auctioneer OpenRTB Server Design on EdgeZero
 
+## Current Operator Configuration (2026-11-04)
+
+The [operator runtime contract](2026-11-02-operator-runtime-configuration-design.md)
+supersedes this design's historical authoring, DTO and bootstrap examples below.
+Use one direct `OperatorPolicy`: root `schema_version = 1`, `host`,
+`account_defaults`, `accounts`, `bidders`, `features` and `floor_currency`.
+Existing EdgeZero typed validate/diff/push and bounded SDK extraction reuse
+shared validators; no baked/startup/runtime wrappers, source modes or wire aliases.
+Neutral product defaults are code-owned data. Physical facts, store bindings
+and installed limits stay host-owned. Caller-owned typed-policy validation is
+not actual host ingestion/adoption or capacity/lifetime proof; that remains #135.
+Earlier quoted proposals and revision-specific code below are historical, not
+copyable configuration instructions or supported compatibility models.
+
 > Editorial normalization (2026-11-02): delivery labels and displayed local/branch names were replaced with capability names. Displayed locations are illustrative, not an exact execution transcript or a new run. Recorded revisions, results and qualification limitations are unchanged.
 
 ## bounded fanout Review Contract (2026-10-05)
@@ -3477,7 +3491,7 @@ remain auction-local and do not appear there.
 
 ---
 
-## 6. `auctioneer-config` — Build-Time Config Generation
+## 6. Historical Build-Time Config Generation (Superseded)
 
 WASM edge runtimes have no filesystem, so **embedded defaults** for
 all configuration are generated at build time. Host and account config

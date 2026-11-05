@@ -22,7 +22,7 @@ mod tests {
         Bidder as _, BidderName, BidderRegistry, BidderRequestInfo, CallBudget, EntryPoint,
         OutboundRequestSink, SinkLimits,
     };
-    use auctioneer_config::types::IpKeepBits;
+    use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_exchange::{
         resolve_aliases,
         scrub::{DisclosureAudit, ScrubDecisions, apply_classified},

@@ -1,13 +1,124 @@
-//! Fixed runtime-config fixtures; no boot state, policy or expected limits.
+//! Fixed runtime-config fixtures and SDK-captured request contexts.
 
+use crate::configure::configure_app;
+use auctioneer_config_data::types::{CooperativeConfig, HostConfig, UserSyncConfig};
+use edgezero_core::app::App;
 use edgezero_core::blob_envelope::BlobEnvelope;
+use edgezero_core::body::Body;
 use edgezero_core::config_store::{
     BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
 };
 use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
 use edgezero_core::time::{Deadline, MonotonicClock};
+use edgezero_core::{
+    context::RequestContext,
+    error::EdgeError,
+    http::{Request, Response},
+    ingress::{IngressDispatchOutcome, IngressFraming, IngressHeadAccounting},
+    router::RouterService,
+};
+use futures::FutureExt as _;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::sync::Arc;
+
+thread_local! {
+    static CAPTURED: RefCell<Option<RequestContext>> = const { RefCell::new(None) };
+}
+
+/// Capture production extraction limits without installing Auctioneer admission.
+/// Raw constructors remain available to deliberately unfunded test controls.
+///
+/// # Panics
+/// Panics if configured SDK dispatch cannot capture the untouched request.
+#[must_use]
+pub fn context(request: Request) -> RequestContext {
+    let route = request.uri().path().to_owned();
+    context_for_route(request, &route, MonotonicClock::default())
+}
+
+/// Preserve explicit route parameters and clock injection through real SDK dispatch.
+///
+/// # Panics
+/// Panics if the route does not match or capture needs body/provider work.
+#[must_use]
+#[expect(
+    clippy::panic,
+    reason = "A non-admitted capture is a test-fixture setup failure, never a production serving path."
+)]
+pub fn context_for_route(request: Request, route: &str, clock: MonotonicClock) -> RequestContext {
+    CAPTURED.with(|slot| assert!(slot.borrow().is_none(), "no nested context capture"));
+    let mut configured = App::new(RouterService::builder().build());
+    configure_app(&mut configured)
+        .expect("production extraction limits must configure for capture");
+    let limits = configured.config_extraction_limits();
+    let router = RouterService::builder()
+        .route(
+            route,
+            request.method().clone(),
+            |ctx: RequestContext| async move {
+                CAPTURED.with(|slot| {
+                    assert!(
+                        slot.borrow_mut().replace(ctx).is_none(),
+                        "the capture route must run exactly once"
+                    );
+                });
+                Ok::<_, EdgeError>(Response::new(Body::empty()))
+            },
+        )
+        .build();
+    let mut app = App::new(router);
+    app.set_config_extraction_limits(limits)
+        .expect("configured extraction limits must be accepted by the capture app");
+    app.set_monotonic_clock(clock);
+    // Capture is synchronous and never polls the body, so this also works inside
+    // a fixture's existing executor without entering a second executor.
+    let IngressDispatchOutcome::Response(mut response) = app
+        .dispatch_ingress(
+            request,
+            app.monotonic_now(),
+            IngressHeadAccounting::HostManaged,
+            IngressFraming::HostManaged,
+        )
+        .now_or_never()
+        .expect("fixture context capture must not wait for body or store work")
+        .expect("the capture request must dispatch successfully")
+    else {
+        panic!("fixture context capture must be admitted");
+    };
+    assert_eq!(
+        response.response_mut().status(),
+        200,
+        "the capture route must complete successfully"
+    );
+    let ctx = CAPTURED.with(|slot| {
+        slot.borrow_mut()
+            .take()
+            .expect("the capture route must retain its routed request context")
+    });
+    assert_eq!(
+        ctx.config_extraction_limits(),
+        limits,
+        "the captured context must retain the complete configured extraction tuple"
+    );
+    ctx
+}
+
+/// Explicit synthetic service for tests whose subject needs configured sync.
+/// Production host defaults deliberately have no external sync origin.
+#[must_use]
+pub fn configured_sync_host() -> HostConfig {
+    HostConfig {
+        user_sync: Some(UserSyncConfig {
+            external_url: "https://sync.example.test".to_owned(),
+            redirect_url: None,
+            cooperative: CooperativeConfig::default(),
+            priority_groups: Vec::new(),
+            allowed_origins: Vec::new(),
+        }),
+        ..HostConfig::default()
+    }
+}
 
 /// Build the real loader's binding with a deterministic integrity envelope.
 /// The caller owns the config and installs the registry on its own request.
@@ -103,7 +214,10 @@ mod tests {
 
     #[test]
     fn runtime_binding_carries_the_callers_config_in_a_verified_envelope() {
-        let config = json!({"accounts": {"fake_account": {"disabled": true}}});
+        let config = json!({
+            "schema_version": 1_u64,
+            "accounts": {"fake_account": {"disabled": true}},
+        });
         let registry = runtime_registry(&config);
         assert!(registry.named("not_the_runtime_store").is_none());
         let binding = registry.named("auctioneer_runtime").unwrap();

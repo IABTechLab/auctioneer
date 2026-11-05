@@ -10,7 +10,7 @@ mod tests {
     use std::process::{self, Command, Output};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    const SOURCE: &str = include_str!("../../auctioneer-config/data/openrtb-2.6-source.md");
+    const SOURCE: &str = include_str!("../../auctioneer-config-data/data/openrtb-2.6-source.md");
     static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
     struct Inputs(PathBuf);

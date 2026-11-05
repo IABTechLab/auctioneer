@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::{BidderSettings, bidder_settings::msft};
+    use crate::{BidderSettings, bidder_settings::msft};
     use serde_json::json;
 
     #[test]

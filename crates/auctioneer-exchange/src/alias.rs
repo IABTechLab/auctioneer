@@ -3,7 +3,7 @@
 use crate::error::AuctionError;
 use crate::response::ErrorEntry;
 use auctioneer_bidder::{BidderName, BidderRegistry};
-use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -264,7 +264,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_openrtb::ext::request_prebid::ExtRequestPrebid;
     use auctioneer_openrtb::types::bid_request::BidRequestExt;
     use std::collections::{BTreeMap, BTreeSet};

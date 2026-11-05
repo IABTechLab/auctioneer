@@ -5,7 +5,7 @@ use crate::{
     BidderError, BidderHttpResponse, BidderResponse, BrowserAuctionConfig, OutboundRequestMeta,
     TypedBid,
 };
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use serde_json::Value;
 

@@ -113,9 +113,11 @@ mod tests {
 
     use super::bidder_fixture::{fake_bidder::FakeBidder, registry as synthetic_registry};
     use auctioneer_bidder::{BidderName, BidderRegistry};
-    use auctioneer_config::types::{AccountConfig, HostConfig};
+    use auctioneer_config::override_value::FieldOverride;
+    use auctioneer_config::policy::{HostCookiePolicy, HostPolicy, UserSyncPolicy};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
     use auctioneer_core::{
-        config::{AuctioneerAppConfig, HostCookieOverride, UserSyncOverride},
+        config::{AuctioneerAppConfig, validate_effective_with_catalog},
         host_primitives::boot_gates,
         usersync::{
             catalog::Catalog,
@@ -472,7 +474,9 @@ mod tests {
 
     #[test]
     fn fixed_fixture_overhead_is_checked_without_uid_or_chooser_work() {
-        let app = usersync_app::TestApp::new("");
+        let app = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let (response, count) = measure(&app, Method::GET, "/getuids", &[], Vec::new());
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(usersync_app::body(&response), b"{}\n");
@@ -481,7 +485,9 @@ mod tests {
 
     #[test]
     fn generated_app_cookie_decode_and_readback_scale_with_uid_bytes_and_families() {
-        let app = usersync_app::TestApp::new("");
+        let app = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let mut uid_reference = None;
         let mut family_reference = None;
         for (families, uid_bytes) in [
@@ -533,14 +539,20 @@ mod tests {
 
     fn write_config(cap: usize) -> String {
         let config = AuctioneerAppConfig {
-            host_cookie: Some(HostCookieOverride {
-                max_cookie_size_bytes: Some(cap),
-                ..HostCookieOverride::default()
-            }),
-            user_sync: Some(UserSyncOverride {
-                priority_groups: Some(vec![vec![live_catalog::redirect().name().to_owned()]]),
-                ..UserSyncOverride::default()
-            }),
+            host: HostPolicy {
+                host_cookie: Some(HostCookiePolicy {
+                    max_cookie_size_bytes: Some(cap),
+                    ..HostCookiePolicy::default()
+                }),
+                user_sync: FieldOverride::Value(UserSyncPolicy {
+                    external_url: "https://sync.example.test".to_owned(),
+                    redirect_url: FieldOverride::Inherit,
+                    cooperative: None,
+                    priority_groups: Some(vec![vec![live_catalog::redirect().name().to_owned()]]),
+                    allowed_origins: None,
+                }),
+                ..HostPolicy::default()
+            },
             ..AuctioneerAppConfig::default()
         };
         toml::to_string(&config).unwrap()
@@ -694,11 +706,17 @@ mod tests {
         ];
         bidders.extend(aliases.keys().cloned());
         let config = AuctioneerAppConfig {
-            aliases: Some(aliases),
-            user_sync: Some(UserSyncOverride {
-                priority_groups: Some(vec![bidders.clone()]),
-                ..UserSyncOverride::default()
-            }),
+            host: HostPolicy {
+                aliases: Some(aliases),
+                user_sync: FieldOverride::Value(UserSyncPolicy {
+                    external_url: "https://sync.example.test".to_owned(),
+                    redirect_url: FieldOverride::Inherit,
+                    cooperative: None,
+                    priority_groups: Some(vec![bidders.clone()]),
+                    allowed_origins: None,
+                }),
+                ..HostPolicy::default()
+            },
             ..AuctioneerAppConfig::default()
         };
         let body = json!({
@@ -954,7 +972,9 @@ mod tests {
 
     #[test]
     fn catalog_and_chooser_peak_is_funded_with_limit_one_and_small_callers() {
-        let _serial = usersync_app::TestApp::new("");
+        let _serial = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let fixture = CatalogChooserFixture::new();
         let mut cases = 0_u64;
         let mut stages = 0_u64;
@@ -964,13 +984,16 @@ mod tests {
                 for mixed_case in [false, true] {
                     let host = catalog_host(catalog_names, name_bytes, mixed_case);
                     assert!(
-                        fixture.app.aliases.is_none(),
+                        fixture.app.host.aliases.is_none(),
                         "aliases are baked, not an overlay"
                     );
-                    fixture
-                        .app
-                        .validate_effective_with_catalog(&host, &fixture.account, &fixture.names)
-                        .unwrap();
+                    validate_effective_with_catalog(
+                        &fixture.app,
+                        &host,
+                        &fixture.account,
+                        &fixture.names,
+                    )
+                    .unwrap();
                     let alias = host.aliases.keys().next().unwrap();
                     let lower_name = alias.to_ascii_lowercase();
                     assert_eq!(alias != &lower_name, mixed_case);
@@ -1121,7 +1144,9 @@ mod tests {
 
     #[test]
     fn generated_app_keyring_source_and_retained_keys_scale_independently() {
-        let app = usersync_app::TestApp::new("");
+        let app = usersync_app::TestApp::new(
+            "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+        );
         let query = format!(
             "bidder={}&uid=probe&f=b&gdpr=0",
             live_catalog::redirect().name()

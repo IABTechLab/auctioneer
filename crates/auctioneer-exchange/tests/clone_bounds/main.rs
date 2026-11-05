@@ -23,7 +23,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRegistry, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta,
     };
-    use auctioneer_config::types::{AccountConfig, BidderInfo};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo};
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::split::{group_by_bidder, materialize_per_bidder};
     use auctioneer_exchange::{
@@ -139,7 +139,7 @@ mod tests {
             .unwrap();
             let disabled = BTreeSet::new();
             let aliases = resolve_aliases(&req, &registry, &disabled, &BTreeMap::new()).unwrap();
-            let mut host = auctioneer_config::host_default().clone();
+            let mut host = auctioneer_config_data::host_default().clone();
             host.resource_limits.max_bidders_per_auction = cap;
             host.resource_limits.default_tmax_ms = 1000;
             host.resource_limits.max_tmax_ms = 5000;

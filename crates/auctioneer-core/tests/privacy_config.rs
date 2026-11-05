@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::AccountConfig;
+    use auctioneer_config_data::types::AccountConfig;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{resolve_account, resolve_host};
     use serde_json::{Value, json};
@@ -24,23 +24,54 @@ mod tests {
 
     #[test]
     fn host_switches_are_optional_boolean_overlays() {
-        let mut baked = auctioneer_config::host_default().clone();
+        let mut baked = auctioneer_config_data::host_default().clone();
         assert!(!baked.ccpa.enforce);
         assert!(!baked.lmt.enforce);
         baked.ccpa.enforce = true;
         baked.lmt.enforce = true;
-        let inherited = resolve_host(&app(json!({"ccpa":{}, "lmt":{}})), &baked);
+        let inherited = resolve_host(
+            &app(json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "ccpa": {},
+                    "lmt": {},
+                },
+            })),
+            &baked,
+        );
         assert!(inherited.ccpa.enforce);
         assert!(inherited.lmt.enforce);
-        let disabled = resolve_host(&app(json!({"ccpa":{"enforce":false}})), &baked);
+        let disabled = resolve_host(
+            &app(json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "ccpa": {"enforce":false},
+                },
+            })),
+            &baked,
+        );
         assert!(!disabled.ccpa.enforce);
         assert!(disabled.lmt.enforce);
-        let lmt_disabled = resolve_host(&app(json!({"lmt":{"enforce":false}})), &baked);
+        let lmt_disabled = resolve_host(
+            &app(json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "lmt": {"enforce":false},
+                },
+            })),
+            &baked,
+        );
         assert!(lmt_disabled.ccpa.enforce);
         assert!(!lmt_disabled.lmt.enforce);
         let enabled = resolve_host(
-            &app(json!({"ccpa":{"enforce":true}, "lmt":{"enforce":true}})),
-            auctioneer_config::host_default(),
+            &app(json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "ccpa": {"enforce":true},
+                    "lmt": {"enforce":true},
+                },
+            })),
+            auctioneer_config_data::host_default(),
         );
         assert!(enabled.ccpa.enforce);
         assert!(enabled.lmt.enforce);
@@ -49,14 +80,22 @@ mod tests {
     #[test]
     fn ccpa_unset_replaces_baked_while_omissions_inherit() {
         let mut baked_value =
-            serde_json::to_value(auctioneer_config::account_default()).expect("baked");
+            serde_json::to_value(auctioneer_config_data::account_default()).expect("baked");
         baked_value["ccpa"] = json!({"enabled":"enabled", "channel_enabled":{
             "web":"enabled", "app":"disabled", "amp":"enabled", "video":"disabled", "dooh":"enabled"
         }});
         let baked: AccountConfig = serde_json::from_value(baked_value).expect("effective account");
-        let config = app(json!({"accounts":{"pub":{"ccpa":{
-            "enabled":"unset", "channel_enabled":{"web":"unset", "app":"enabled"}
-        }}}}));
+        let config = app(json!({
+            "schema_version": 1_u64,
+            "accounts": {
+                "pub": {
+                    "ccpa": {
+                        "enabled": "unset",
+                        "channel_enabled": {"web":"unset", "app":"enabled"},
+                    },
+                },
+            },
+        }));
         let resolved = serde_json::to_value(account(&config, &baked)).expect("resolved");
         assert_eq!(
             resolved["ccpa"],
@@ -69,24 +108,67 @@ mod tests {
     #[test]
     fn ccpa_and_host_switch_schema_is_strict() {
         for invalid in [
-            json!({"ccpa":{"enforce":"true"}}),
-            json!({"lmt":{"enforce":1_i32}}),
-            json!({"ccpa":{"Enforce":true}}),
-            json!({"lmt":{"enfroce":true}}),
-            json!({"accounts":{"pub":{"ccpa":{"enabled":true}}}}),
-            json!({"accounts":{"pub":{"ccpa":{"enabled":"ENABLED"}}}}),
-            json!({"accounts":{"pub":{"ccpa":{"Enabled":"enabled"}}}}),
-            json!({"accounts":{"pub":{"ccpa":{"channel_enabled":{"APP":"enabled"}}}}}),
-            json!({"accounts":{"pub":{"ccpa":{"channel_enabled":{"app":"invalid"}}}}}),
+            json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "ccpa": {"enforce":"true"},
+                },
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "lmt": {"enforce":1_i32},
+                },
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "ccpa": {"Enforce":true},
+                },
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "lmt": {"enfroce":true},
+                },
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "accounts": {"pub":{"ccpa":{"enabled":true}}},
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "accounts": {"pub":{"ccpa":{"enabled":"ENABLED"}}},
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "accounts": {"pub":{"ccpa":{"Enabled":"enabled"}}},
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "accounts": {"pub":{"ccpa":{"channel_enabled":{"APP":"enabled"}}}},
+            }),
+            json!({
+                "schema_version": 1_u64,
+                "accounts": {"pub":{"ccpa":{"channel_enabled":{"app":"invalid"}}}},
+            }),
         ] {
             serde_json::from_value::<AuctioneerAppConfig>(invalid).expect_err("invalid schema");
         }
         for state in ["enabled", "disabled", "unset"] {
-            let config = app(json!({"accounts":{"pub":{"ccpa":{"enabled":state,
-                "channel_enabled":{"web":state,"app":state,"video":state,"amp":state,"dooh":state}
-            }}}}));
+            let config = app(json!({
+                "schema_version": 1_u64,
+                "accounts": {
+                    "pub": {
+                        "ccpa": {
+                            "enabled": state,
+                            "channel_enabled": {"web":state,"app":state,"video":state,"amp":state,"dooh":state},
+                        },
+                    },
+                },
+            }));
             let encoded =
-                serde_json::to_value(account(&config, auctioneer_config::account_default()))
+                serde_json::to_value(account(&config, auctioneer_config_data::account_default()))
                     .expect("resolved");
             for channel in ["web", "app", "video", "amp", "dooh"] {
                 assert_eq!(encoded["ccpa"]["channel_enabled"][channel], state);
@@ -97,7 +179,7 @@ mod tests {
     #[test]
     fn activity_merge_is_per_key_per_field_with_whole_rule_replacement() {
         let mut baked_value =
-            serde_json::to_value(auctioneer_config::account_default()).expect("baked");
+            serde_json::to_value(auctioneer_config_data::account_default()).expect("baked");
         baked_value["privacy"]["allowactivities"] = json!({
             "fetchBids":{"default":false,"rules":[{"allow":false}]},
             "transmitUfpd":{"default":true,"rules":[{"allow":false}]},
@@ -109,11 +191,20 @@ mod tests {
             {"allow":true,"condition":{"componentName":["fake_Future\u{212a}","fake_Future\u{212a}"],"componentType":["BIDDER"]}},
             {"allow":false}, {"allow":true}
         ]);
-        let config = app(json!({"accounts":{"pub":{"privacy":{"allowactivities":{
-            "fetchBids":{"rules":replacement},
-            "transmitUfpd":{"default":false},
-            "transmitTid":{"rules":[]}
-        }}}}}));
+        let config = app(json!({
+            "schema_version": 1_u64,
+            "accounts": {
+                "pub": {
+                    "privacy": {
+                        "allowactivities": {
+                            "fetchBids": {"rules":replacement},
+                            "transmitUfpd": {"default":false},
+                            "transmitTid": {"rules":[]},
+                        },
+                    },
+                },
+            },
+        }));
         let resolved = serde_json::to_value(account(&config, &baked)).expect("resolved");
         let activities = &resolved["privacy"]["allowactivities"];
         assert_eq!(activities["fetchBids"]["default"], false);
@@ -152,11 +243,22 @@ mod tests {
             "enrichUfpd",
             "transmitUniqueRequestIds",
         ] {
-            let config = app(json!({"accounts":{"pub":{"privacy":{"allowactivities":{
-                key:{"rules":[{"allow":false},{"allow":true,"condition":{}},{"allow":false,"condition":{"componentName":[],"componentType":[]}}]}
-            }}}}}));
+            let config = app(json!({
+                "schema_version": 1_u64,
+                "accounts": {
+                    "pub": {
+                        "privacy": {
+                            "allowactivities": {
+                                key: {
+                                    "rules": [{"allow":false},{"allow":true,"condition":{}},{"allow":false,"condition":{"componentName":[],"componentType":[]}}],
+                                },
+                            },
+                        },
+                    },
+                },
+            }));
             let resolved =
-                serde_json::to_value(account(&config, auctioneer_config::account_default()))
+                serde_json::to_value(account(&config, auctioneer_config_data::account_default()))
                     .expect("resolved");
             assert_eq!(
                 resolved["privacy"]["allowactivities"][key]["default"],
@@ -187,21 +289,33 @@ mod tests {
             "componentName":vec!["fake_x";128],"componentType":["bidder"]
         }}]}}));
         for activities in invalid {
-            let result = serde_json::from_value::<AuctioneerAppConfig>(
-                json!({"accounts":{"pub":{"privacy":{"allowactivities":activities}}}}),
-            );
+            let result = serde_json::from_value::<AuctioneerAppConfig>(json!({
+                "schema_version": 1_u64,
+                "accounts": {"pub":{"privacy":{"allowactivities":activities}}},
+            }));
             assert!(result.is_err() || result.expect("DTO").validate().is_err());
         }
     }
 
     #[test]
     fn activity_bounds_are_inclusive() {
-        let config = app(json!({"accounts":{"pub":{"privacy":{"allowactivities":{
-            "fetchBids":{"rules":vec![json!({"allow":true,"condition":{
+        let config = app(json!({
+            "schema_version": 1_u64,
+            "accounts": {
+                "pub": {
+                    "privacy": {
+                        "allowactivities": {
+                            "fetchBids": {
+                                "rules": vec![json!({"allow":true,"condition":{
                 "componentName":vec![format!("fake_a{}", "\u{e9}".repeat(61));124],
                 "componentType":["BIDDER","ANALYTICS","RTD","GENERAL"]
-            }});128]}
-        }}}}}));
+            }});128],
+                            },
+                        },
+                    },
+                },
+            },
+        }));
         config.validate().expect("inclusive bounds are valid");
     }
 }

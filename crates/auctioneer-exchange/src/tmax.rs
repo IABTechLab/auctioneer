@@ -9,7 +9,7 @@
 
 use crate::error::AuctionError;
 use crate::fanout::{AuctionDeadline, TmaxSource};
-use auctioneer_config::types::HostConfig;
+use auctioneer_config_data::types::HostConfig;
 use auctioneer_runtime::MonotonicInstant;
 use std::time::Duration;
 
@@ -38,7 +38,7 @@ pub fn resolve_tmax(
     request_start: MonotonicInstant,
 ) -> Result<TmaxResolution, AuctionError> {
     // `default_tmax_ms` / `max_tmax_ms` are validated `> 0` by the
-    // build-time `ResourceLimitsRaw::validate()` derive in auctioneer-config,
+    // build-time `ResourceLimitsRaw::validate()` derive in auctioneer-config-data,
     // so the i64 -> u64 conversion is infallible in practice. The
     // `.max(0)` + `try_from(...).unwrap_or(0)` form is the safe
     // fallback if a future config bug slips a negative value past the

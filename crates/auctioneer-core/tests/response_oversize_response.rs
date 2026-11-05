@@ -63,7 +63,7 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
@@ -683,7 +683,7 @@ mod tests {
         // An EMPTY deployment blob: every cap and endpoint in play here
         // is the baked one, and the row is about a response verdict
         // rather than about configuration.
-        let ctx = ctx_with_config("", request);
+        let ctx = ctx_with_config("schema_version = 1\n", request);
 
         block_on(async {
             let response = auction(ctx).await.expect("the handler answers");

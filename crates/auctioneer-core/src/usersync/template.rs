@@ -1,7 +1,7 @@
 //! Bounded callback and bidder URL construction. Request values are never
 //! parsed as template source after substitution.
 
-use auctioneer_config::usersync::{
+use auctioneer_config_data::usersync::{
     MAX_SYNC_QUERY_PARAMS, SyncType, SyncerEndpoint, UserSyncConfig, validate_sync_query_encoding,
     validate_url_spelling, validate_user_macro, validate_user_sync,
 };
@@ -306,7 +306,7 @@ mod tests {
         SyncPrivacyMacros, SyncTemplateInput, TemplateError, build_sync_url, callback_with_account,
         validate_emitted_endpoint,
     };
-    use auctioneer_config::usersync::{
+    use auctioneer_config_data::usersync::{
         MAX_SYNC_QUERY_PARAMS, SyncType, SyncerEndpoint, UserSyncConfig,
     };
     use url::form_urlencoded;

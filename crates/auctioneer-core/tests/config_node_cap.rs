@@ -463,8 +463,8 @@ mod tests {
         let mut effective = *declared;
         effective.max_config_json_nodes = expected_nodes;
         let baked_bytes = serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
         declared.aux_route_peak_bytes = declared.aux_route_peak_bytes.max(

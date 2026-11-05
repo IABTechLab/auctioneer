@@ -1,10 +1,10 @@
 //! Pinned Rubicon captures; imported bytes are never repaired or used as generated output.
 
 use super::super::RubiconBidder;
+use crate::BidderSettings;
 use crate::bidders::harness::{self, protocol_fixtures, verify_protocol_capture};
 use crate::correlation::CorrelationMedia;
 use crate::{Bidder as _, BidderHttpRequest, BidderName, BidderRequestInfo, EntryPoint};
-use auctioneer_config::BidderSettings;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::bidder_credentials::BidderCredentials;
 use serde_json::{Value, json};

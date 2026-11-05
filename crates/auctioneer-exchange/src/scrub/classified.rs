@@ -4,7 +4,7 @@ use super::decision::Disclosure;
 use super::value::{Mutation, TransformScratch};
 use super::{DisclosureAudit, ScrubDecisions, fields, limits};
 use crate::AuctionError;
-use auctioneer_config::types::IpKeepBits;
+use auctioneer_config_data::types::IpKeepBits;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 
 /// Apply already-resolved disclosure restrictions in place.

@@ -123,7 +123,7 @@ mod tests {
     use auctioneer_bidder::{
         Bidder as _, BidderHttpResponse, META_BYTES_CAPACITY, OutboundRequestMetaBuilder,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_exchange::scrub::construction_costs;
     use auctioneer_exchange::{
         BidderResultBundle, ResponseInput, ResponseTimeStat, build_response,
@@ -1504,7 +1504,7 @@ mod tests {
     #[test]
     fn debug_permission_inspection_allocates_nothing_for_any_gate_outcome() {
         use auctioneer_bidder::{BidderName, BidderRegistry};
-        use auctioneer_config::types::{AccountConfig, BidderInfo};
+        use auctioneer_config_data::types::{AccountConfig, BidderInfo};
         use auctioneer_exchange::{AliasMap, debug::DebugPermission};
 
         thread::spawn(|| {

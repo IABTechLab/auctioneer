@@ -3,6 +3,7 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_core::test_support::live_catalog;
+    use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::{Value, json};
     use std::env::{temp_dir, var_os};
     use std::fmt::Write as _;
@@ -21,12 +22,31 @@ mod tests {
 
     static NEXT_DIR: AtomicU64 = AtomicU64::new(0);
     const ALLOWED_ORIGIN: &str = "https://publisher.example";
-    // Literal exemption: a const &str cannot hold json!'s Value; retain this
-    // prehashed configuration envelope as a static transport fixture.
-    const ALLOWED_CONFIG: &str = r#"{"data":{"user_sync":{"allowed_origins":["https://publisher.example"]}},"generated_at":"1970-01-01T00:00:00Z","sha256":"dda348ccc1d3ff9add8c99b9c68039aa04727b3650fb23e5acac0a47d7fbbb27","version":1}"#;
-    // Literal exemption: the feature-enabled test also needs a const &str
-    // envelope with its pinned configuration digest, not a runtime Value.
-    const LOOPBACK_CONFIG: &str = r#"{"data":{"user_sync":{"external_url":"http://127.0.0.1:8999"}},"generated_at":"1970-01-01T00:00:00Z","sha256":"f78c7ccaa2e4add76a52440a56b35c2201f18e105bd1037d8a35abbd4ab27818","version":1}"#;
+
+    fn allowed_config() -> String {
+        serde_json::to_string(&BlobEnvelope::new(
+            json!({
+                "schema_version": 1_u8,
+                "host": {"user_sync": {
+                    "external_url": "https://sync.example.test",
+                    "allowed_origins": [ALLOWED_ORIGIN],
+                }},
+            }),
+            "1970-01-01T00:00:00Z".to_owned(),
+        ))
+        .expect("serialize allowed-origin config envelope")
+    }
+
+    fn loopback_config() -> String {
+        serde_json::to_string(&BlobEnvelope::new(
+            json!({
+                "schema_version": 1_u8,
+                "host": {"user_sync": {"external_url": "http://127.0.0.1:8999"}},
+            }),
+            "1970-01-01T00:00:00Z".to_owned(),
+        ))
+        .expect("serialize loopback config envelope")
+    }
 
     struct Server {
         child: Option<Child>,
@@ -445,7 +465,7 @@ mod tests {
 
     #[test]
     fn real_binary_preflight_sync_callback_and_readback() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let preflight = server.request(
             "OPTIONS",
             "/cookie_sync",
@@ -548,7 +568,7 @@ mod tests {
 
     #[test]
     fn real_binary_logs_do_not_expose_sync_inputs_or_cookie_values() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let consent = "private-consent-token";
         let gdpr = "private-gdpr-token";
         let query = "private-query-token";
@@ -618,7 +638,7 @@ mod tests {
 
     #[test]
     fn real_binary_remains_available_after_partial_body_disconnect() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let mut slow = TcpStream::connect_timeout(&server.addr, Duration::from_secs(2))
             .expect("connect slow request");
         slow.write_all(
@@ -634,7 +654,7 @@ mod tests {
 
     #[test]
     fn real_binary_recovers_all_aux_slots_after_stream_disconnects() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let aux_slots = server.aux_slots();
         let first_wave = repeat_with(|| server.hold_streaming_body())
             .take(aux_slots)
@@ -662,7 +682,7 @@ mod tests {
 
     #[tokio::test]
     async fn real_binary_recovers_all_aux_slots_after_slow_response_disconnects() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let aux_slots = server.aux_slots();
         let consent = "<".repeat(4_000);
         let body = serde_json::to_string(&json!({
@@ -751,7 +771,7 @@ mod tests {
 
     #[test]
     fn real_binary_enforces_setuid_query_limit_and_parameter_count() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let prefix = format!(
             "bidder={}&uid=x&gdpr=0&f=b&x=",
             live_catalog::redirect().name()
@@ -782,7 +802,7 @@ mod tests {
 
     #[test]
     fn real_binary_enforces_cookie_sync_body_limit() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let oversized_body = vec![b' '; 0x8001];
         let rejected = server.request(
             "POST",
@@ -799,7 +819,7 @@ mod tests {
 
     #[test]
     fn real_binary_rejects_encoding_before_waiting_for_oversized_body() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let started = Instant::now();
         let rejected = server.request(
             "POST",
@@ -821,7 +841,7 @@ mod tests {
 
     #[test]
     fn real_binary_enforces_header_count_and_bytes() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let mut many = Vec::new();
         for i in 0_usize..130_usize {
             many.push((format!("X-Field-{i}"), "x".to_owned()));
@@ -840,7 +860,7 @@ mod tests {
 
     #[test]
     fn real_binary_keeps_application_and_config_errors_separate() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let bad_json = server.request(
             "POST",
             "/cookie_sync",
@@ -901,7 +921,7 @@ mod tests {
 
     #[test]
     fn linked_binary_exposes_bidder_and_loopback_callback() {
-        let server = Server::start(Some(ALLOWED_CONFIG));
+        let server = Server::start(Some(&allowed_config()));
         let bidders = server.request("GET", "/info/bidders", &[], b"");
         assert_eq!(bidders.status, 200);
         let names: Vec<String> = serde_json::from_slice(&bidders.body).expect("bidder list");
@@ -913,7 +933,7 @@ mod tests {
             );
         }
 
-        let local = Server::start(Some(LOOPBACK_CONFIG));
+        let local = Server::start(Some(&loopback_config()));
         let sync = local.request(
             "POST",
             "/cookie_sync",
@@ -932,11 +952,11 @@ mod tests {
     fn secure_production_binary_rejects_loopback_callback_config() {
         let binary = var_os("AUCTIONEER__TEST__SECURE_AXUM_BINARY")
             .expect("the secure-default check must supply its production binary");
-        let server = Server::start_binary(Some(LOOPBACK_CONFIG), binary.as_ref());
+        let server = Server::start_binary(Some(&loopback_config()), binary.as_ref());
         let rejected = server.request("GET", "/getuids", &[], b"");
         assert_eq!(rejected.status, 500);
         assert_eq!(rejected.header("cache-control"), Some("no-store"));
-        let defaults = Server::start_binary(Some(ALLOWED_CONFIG), binary.as_ref());
+        let defaults = Server::start_binary(Some(&allowed_config()), binary.as_ref());
         let bidders = defaults.request("GET", "/info/bidders", &[], b"");
         assert_eq!(bidders.status, 200);
         let names: Vec<String> = serde_json::from_slice(&bidders.body).expect("secure bidder list");

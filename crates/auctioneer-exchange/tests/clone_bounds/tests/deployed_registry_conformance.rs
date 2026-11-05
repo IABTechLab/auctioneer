@@ -5,7 +5,7 @@
 use super::*;
 
 fn alias_base() -> &'static str {
-    auctioneer_config::bidders()
+    auctioneer_config_data::bidders()
         .iter()
         .min_by_key(|info| (info.name.len(), info.name.as_str()))
         .unwrap()
@@ -18,7 +18,7 @@ fn dense_fixture(participants: usize, host: &BTreeMap<String, String>) -> Value 
         .keys()
         .map(String::as_str)
         .chain(
-            auctioneer_config::bidders()
+            auctioneer_config_data::bidders()
                 .iter()
                 .map(|info| info.name.as_str()),
         )
@@ -37,7 +37,7 @@ fn dense_fixture(participants: usize, host: &BTreeMap<String, String>) -> Value 
     for name in host.keys() {
         bidders.insert(name.clone(), json!(0_i32));
     }
-    for bidder in auctioneer_config::bidders() {
+    for bidder in auctioneer_config_data::bidders() {
         bidders.insert(bidder.name.clone(), json!(0_i32));
     }
     json!({
@@ -54,7 +54,7 @@ fn dense_fixture_does_not_redeclare_reserved_names() {
     let aliases = fixture["ext"]["prebid"]["aliases"].as_object().unwrap();
     assert_eq!(aliases.len(), 100);
     for name in host.keys().map(String::as_str).chain(
-        auctioneer_config::bidders()
+        auctioneer_config_data::bidders()
             .iter()
             .map(|info| info.name.as_str()),
     ) {
@@ -94,7 +94,7 @@ fn grouping_factor_guard_at_input_derived_maximum_cardinality() {
     thread::spawn(|| {
     let calls = Arc::new(AtomicUsize::new(0));
     let mut registry = BidderRegistry::new();
-    for info in auctioneer_config::bidders() {
+    for info in auctioneer_config_data::bidders() {
         registry.register(info, Box::new(NoRequests(Arc::clone(&calls)))).expect("unique test bidder");
     }
     let host: BTreeMap<String, String> = (0..HOST_ALIASES)
@@ -116,7 +116,7 @@ fn grouping_factor_guard_at_input_derived_maximum_cardinality() {
     let group_peak = alloc_track::peak_since(baseline);
     let bookkeeping_peak = group_peak.checked_sub(value_bytes).unwrap();
     let count = grouped.bidder_imps().len();
-    assert_eq!(count, participants + HOST_ALIASES + auctioneer_config::bidders().len());
+    assert_eq!(count, participants + HOST_ALIASES + auctioneer_config_data::bidders().len());
     assert!(grouped.bidder_imps().values().all(|indices| indices == &[0]));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     let group_allowance = u64::try_from(INBOUND_BYTES).unwrap() * GROUPING_FACTOR;

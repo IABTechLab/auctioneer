@@ -3,7 +3,7 @@
 
 use crate::BidderRequestInfo;
 use crate::meta::{META_BIDDER_REGION_BYTES, OutboundRequestMetaBuilder, SinkAbort, UrlBuffer};
-use auctioneer_config::types::BidderInfo;
+use auctioneer_config_data::types::BidderInfo;
 use percent_encoding::{AsciiSet, CONTROLS, percent_decode, utf8_percent_encode};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -472,7 +472,7 @@ mod tests {
     use crate::{
         META_BIDDER_REGION_BYTES, META_BYTES_CAPACITY, OutboundRequestMetaBuilder, SinkAbort,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
 
     fn typed_info<'a>(endpoint: &'a str, macros: &'a [&'a str]) -> crate::BidderRequestInfo<'a> {
         crate::BidderRequestInfo::new(

@@ -82,7 +82,10 @@ mod tests {
     fn host_config() -> AuctioneerAppConfig {
         toml::from_str(
             &toml::to_string(&serde_json::json!({
-                "aliases": {"fake_bidder": serving_catalog::passthrough_info().name}
+                "schema_version": 1_u64,
+                "host": {
+                    "aliases": {"fake_bidder": serving_catalog::passthrough_info().name},
+                },
             }))
             .unwrap(),
         )
@@ -123,8 +126,8 @@ mod tests {
         // Use the same host + account config the handler wires so the
         // direct-path and handler-path responses match byte-for-byte.
         let app_config = host_config();
-        let host = resolve_host(&app_config, auctioneer_config::host_default());
-        let acct = auctioneer_config::account_default();
+        let host = resolve_host(&app_config, auctioneer_config_data::host_default());
+        let acct = auctioneer_config_data::account_default();
         let resolved = ResolvedAccount {
             id: "unknown".into(),
             source: AccountSource::DefaultFallback,

@@ -5,7 +5,7 @@ use auctioneer_bidder::{
     OutboundRequestSink, RegistryInputs, SinkLimits, ValidatedRegistryPlan, bidder_declarations,
     compiled_bidders,
 };
-use auctioneer_config::{bidder_implementation_bindings, bidder_metadata_declarations, bidders};
+use auctioneer_config_data::{bidder_implementation_bindings, bidder_metadata_declarations, bidders};
 use auctioneer_openrtb::types::bid_request::{BidRequest, Imp};
 use serde_json::{Value, json};
 
@@ -117,8 +117,8 @@ fn main() {
             "declarations": bidder_declarations().iter().map(|row| (row.key, row.required_feature)).collect::<Vec<_>>(),
             "metadata_declarations": bidder_metadata_declarations().iter().map(|row| (row.bidder, row.implementation, row.required_feature)).collect::<Vec<_>>(),
             "lookup": lookups.map(|name| (name, plan.definition(name).is_some())),
-            "metadata_lookup": lookups.map(|name| (name, auctioneer_config::bidder(name).is_some())),
-            "overrides": auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED,
+            "metadata_lookup": lookups.map(|name| (name, auctioneer_config_data::bidder(name).is_some())),
+            "overrides": auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED,
             "execution_count": executions.len(),
             "executed": executions,
         })

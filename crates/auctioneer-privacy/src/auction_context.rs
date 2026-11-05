@@ -15,8 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::mem;
 
-use auctioneer_config::activity::ActivityConfigs;
-use auctioneer_config::types::{EnforceAlgo, PurposeEnforcement, SpecialFeatureEnforcement};
+use auctioneer_config_data::activity::ActivityConfigs;
+use auctioneer_config_data::types::{EnforceAlgo, PurposeEnforcement, SpecialFeatureEnforcement};
 use time::OffsetDateTime;
 
 #[cfg(test)]
@@ -274,7 +274,7 @@ impl PrivacyContext {
         };
         let resolved = match declared {
             Some(id) => Some(id),
-            None => auctioneer_config::bidder(core_name).and_then(|info| info.gvl_vendor_id),
+            None => auctioneer_config_data::bidder(core_name).and_then(|info| info.gvl_vendor_id),
         };
         resolved.map_or(0, |id| u16::try_from(id).unwrap_or(0))
     }
@@ -357,7 +357,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
 
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, EnforceAlgo, HostConfig, PurposeEnforcement, SpecialFeatureEnforcement,
         TriState,
     };
@@ -534,8 +534,8 @@ mod tests {
     #[test]
     fn synthetic_alias_id_resolves_without_a_baked_core() {
         let ctx = Ctx::default().build();
-        assert!(auctioneer_config::bidder(CORE).is_none());
-        assert!(auctioneer_config::bidder(NO_GVL_BIDDER).is_none());
+        assert!(auctioneer_config_data::bidder(CORE).is_none());
+        assert!(auctioneer_config_data::bidder(NO_GVL_BIDDER).is_none());
         assert_eq!(ctx.vendor_id(CORE, CORE_ALIAS), CORE_VENDOR);
         assert_eq!(ctx.vendor_id(CORE, CORE), 0);
     }
@@ -1433,7 +1433,7 @@ mod tests {
         use super::*;
 
         fn baked_vendor_excluding(excluded: &[u16]) -> Option<(&'static str, u16)> {
-            auctioneer_config::bidders().iter().find_map(|info| {
+            auctioneer_config_data::bidders().iter().find_map(|info| {
                 let id = u16::try_from(info.gvl_vendor_id?).ok()?;
                 if [0, ALIAS_VENDOR, DELETED_VENDOR].contains(&id) || excluded.contains(&id) {
                     None
@@ -1446,7 +1446,7 @@ mod tests {
         #[test]
         fn core_vendor_id_and_missing_id_match_shipped_metadata() {
             let ctx = Ctx::default().build();
-            let metadata = auctioneer_config::bidders();
+            let metadata = auctioneer_config_data::bidders();
             assert!(metadata.iter().any(|info| info.gvl_vendor_id.is_some()));
             assert!(metadata.iter().any(|info| info.gvl_vendor_id.is_none()));
             for info in metadata {

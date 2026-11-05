@@ -769,7 +769,8 @@ not the production registry or the full acceptance target.
       refusal. Fixed markers stay outside measurement; a deadline retains at most
       4 KiB of UTF-8 stderr after kill/reap/joins. All 64 fresh native control
       processes passed while a two-job workspace Clippy process was active. This
-      did not reproduce the timeout: its cause remains open in ISSUES.md, not
+      did not reproduce the timeout: its cause remains open in
+      [investigation #32](https://github.com/IABTechLab/auctioneer/issues/32), not
       replaced by a parallel-run stability claim. Investigate the retained phase
       on recurrence; do not retry measurements or increase the ten-second deadline.
 
@@ -1908,7 +1909,10 @@ unfinished priority-local obligations. Preserve evidence-led wave selection.
 **Owner: remaining catalog closure, not bidder catalog, per the 2026-10-26 correction.** Repeat full-catalog
 acceptance after Task 20; this is not a delayed bidder catalog completion gate.
 
-**Files:** `docs/bidders/catalog.toml`, source-bound family/evidence reports, `docs/roadmap.md`, `docs/architecture.md` and `ISSUES.md`.
+**Files:** `docs/bidders/catalog.toml`, source-bound family/evidence reports,
+`docs/roadmap.md` and `docs/architecture.md`. Track remaining completion work in
+[catalog acceptance #122](https://github.com/IABTechLab/auctioneer/issues/122)
+under epic #25.
 
 - [ ] Repeat Task 20's full evidence-driver and `bidders check --require-complete --evidence-root PATH --run-id ID` commands under a new run identity/output directory: exactly 358 source rows derive migrated, 261 base bindings/259 implementations reconcile, schemas/aliases reconcile and local-only definitions remain separate. This must use real current implementations and source-owned behavioral evidence, not synthetic completion fixtures or a replay of Task 20's receipts.
 - [ ] Repeat Task 19's complete 14-flow publisher handoff, including APS's separately reviewed contract and current executable evidence, as an remaining catalog closure regression gate. bidder catalog already requires these flows; this rerun does not postpone their acceptance to remaining catalog closure. Do not inflate the pinned 358-source-row count to include APS.

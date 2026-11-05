@@ -29,7 +29,8 @@ see the [vision](vision.md) for the distinction from the existing library.
 | [`crates/auctioneer-core`](crates/auctioneer-core/)                             | EdgeZero app, HTTP routes and handlers, host integration, and response serialization                                                                                         |
 | [`crates/auctioneer-runtime`](crates/auctioneer-runtime/)                       | Host-environment seams: `Clock` + `Rng` traits with deterministic test impls (`FakeClock`, `SeededRng`), Fisher-Yates `shuffle`, Lemire `gen_range`                            |
 | [`crates/auctioneer-openrtb`](crates/auctioneer-openrtb/)                       | OpenRTB 2.6 typed model + `prepare(req, headers)` — the sole construction gate for a `NormalizedBidRequest`                                                                    |
-| [`crates/auctioneer-config`](crates/auctioneer-config/)                         | Host / account / bidder configuration. Build-time codegen reads bidder-owned `bidder.toml` manifests, `auctioneer.toml`, and shared reference data, then emits typed accessors |
+| [`crates/auctioneer-config`](crates/auctioneer-config/) | Shared configuration models, pure validation and optional native build support; no compiled deployment data |
+| [`crates/auctioneer-config-data`](crates/auctioneer-config-data/) | Compiled product defaults, bidder metadata, disclosure tables and reference archives; build-time generation reuses the shared models |
 | [`crates/auctioneer-adapter-axum`](crates/auctioneer-adapter-axum/)             | Axum (native) entry point                                                                                                                                                      |
 | [`crates/auctioneer-adapter-cloudflare`](crates/auctioneer-adapter-cloudflare/) | Cloudflare Workers (wasm32-unknown-unknown) entry point                                                                                                                        |
 | [`crates/auctioneer-adapter-fastly`](crates/auctioneer-adapter-fastly/)         | Fastly Compute@Edge (wasm32-wasip1) entry point                                                                                                                                |
@@ -104,11 +105,11 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The `insecure-bidders` cargo feature on `auctioneer-config` enables
+The `insecure-bidders` cargo feature on `auctioneer-config-data` enables
 deterministic loopback test bidders:
 
 ```
-cargo test --workspace --features auctioneer-config/insecure-bidders
+cargo test --workspace --features auctioneer-config-data/insecure-bidders
 ```
 
 Axum's default `cargo test -p auctioneer-adapter-axum --all-targets` also runs the
@@ -118,8 +119,12 @@ CCPA and all three disclosure activities independently.
 
 ## Auction privacy configuration
 
-The executable examples in [`auctioneer.toml`](auctioneer.toml) cover baked defaults
-and pushed runtime overrides. CCPA and LMT enforcement default off; activity
+[`auctioneer.toml`](auctioneer.toml) is the direct runtime policy: root
+`schema_version = 1`, `host`, `account_defaults`, `accounts`, `bidders`,
+`features` and `floor_currency`. Existing EdgeZero typed validate/diff/push
+commands consume that payload without `baked`, `startup` or `runtime` wrappers.
+Neutral compiled defaults are product data, never operator input to a build.
+CCPA and LMT enforcement default off; activity
 controls default to allow. GDPR enablement does not bypass independent
 CCPA, LMT, COPPA, or activity decisions. COPPA has no disable override.
 Activity configuration accepts at most 128 rules per activity, 128 combined
@@ -145,9 +150,9 @@ an empty or invalid active TCF section never retries granting legacy consent.
 See the [privacy enforcement design](docs/superpowers/specs/2026-09-26-privacy-enforcement-design.md)
 for precedence, scrubs, and the remaining acceptance requirements.
 
-`[baked.host.resource_limits]` defines independent `max_outbound_raw_bytes`
-and `max_outbound_request_bytes` ceilings for raw and transport-encoded bidder
-bodies. Set the same fields under `[runtime.auction]` for pushed overrides.
+`[host.resource_limits]` requests independent `max_outbound_raw_bytes`
+and `max_outbound_request_bytes` caps for raw and transport-encoded bidder
+bodies. Physical facts, bindings and installed capacity remain host-owned.
 Both default to 256 KiB, accept 1 KiB through 16 MiB, and are clamped
 to the installed boot envelope. An oversized bidder request is a bidder-local
 code-5 refusal; exceeding an auction's prepaid resource allowance instead
@@ -161,31 +166,32 @@ Unsigned/tampered cookies are rejected; unavailable keys return 503 without
 cookie writes. A valid signature protects issued state, not ownership of the
 public callback's supplied UID or an authorization/consent grant.
 
-The example [`auctioneer.toml`](auctioneer.toml) uses
-`https://sync.example.test` only as a demonstration callback base. Set
-`baked.host.user_sync.external_url` (or its `runtime.user_sync` override)
+Neutral product defaults have no configured sync service. In
+[`auctioneer.toml`](auctioneer.toml), set `host.user_sync.external_url`
 to the public HTTPS origin and optional base path that actually reaches
 this deployment, for example `https://sync.publisher.example/auctioneer`.
 The default redirect template then builds callbacks under that base path.
 Do not derive the callback from request `Host`, `Origin`, or forwarded
-headers. Baked changes require a rebuild; runtime changes require a config
-push and take effect on a subsequent request. Invalid effective sync config
+headers. Policy changes require a config push and the backend's existing
+activation lifecycle; the native startup snapshot requires restart. Invalid effective sync config
 is rejected rather than replaced by permissive defaults.
+Unconfigured sync routes refuse before reading signing keys; auctions and info
+do not require a sync service.
 
-`host_cookie.cookie_name` and `family` identify a separate host cookie to
+`host.host_cookie.cookie_name` and `family` identify a separate host cookie to
 import; Auctioneer's writable UID cookie is always named `uids`. Configure an
 optional cookie `domain`, positive `ttl_days` (default 90), and optional
 opt-out cookie `name` and `value` together. `max_cookie_size_bytes = 0`
 disables only the logical eviction threshold, not the hard Set-Cookie cap.
 Account `cookie_sync` settings select default/cooperative limits and can
 replace host priority groups, including with an empty list. A missing or
-empty account selects baked/default policy; a supplied account ID selects
-its named override when present. `runtime.bidders.<name>.usersync_enabled`
+empty account selects product policy plus `account_defaults`; a supplied account
+ID selects its named overlay when present. `bidders.<name>.usersync_enabled`
 can disable sync independently of auction participation, but cannot create
 a syncer absent from the baked bidder metadata.
 
 Cross-origin JavaScript access is off by default. Add exact
-scheme/host/port origins to `user_sync.allowed_origins`, without paths or
+scheme/host/port origins to `host.user_sync.allowed_origins`, without paths or
 wildcards, and send browser requests with credentials when cookies are
 needed. Allowed application responses use credentialed CORS and
 `Vary: Origin`; `OPTIONS /cookie_sync` permits POST with `Content-Type`.

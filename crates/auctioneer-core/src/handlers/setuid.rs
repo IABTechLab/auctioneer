@@ -21,7 +21,7 @@ use crate::{
     },
 };
 use auctioneer_bidder::{BidderRegistry, RegistryBuildError};
-use auctioneer_config::{
+use auctioneer_config_data::{
     types::{AccountConfig, HostConfig},
     usersync::SyncResponseFormat,
 };
@@ -50,8 +50,11 @@ async fn setuid_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         Ok(app) => app,
         Err(error) => return error.into_response(),
     };
-    let host = resolve::resolve_host(&app, auctioneer_config::host_default());
-    let policy = sync_http::SyncBrowserPolicy::new(&host.user_sync);
+    let host = resolve::resolve_host(&app, auctioneer_config_data::product_host_default());
+    let Some(sync) = &host.user_sync else {
+        return Ok(sync_http::unavailable());
+    };
+    let policy = sync_http::SyncBrowserPolicy::new(sync);
     if deadline.is_expired_at(ctx.monotonic_clock().now()) {
         return Ok(sync_http::cpu_overloaded_with_policy(
             &policy,
@@ -152,6 +155,9 @@ async fn respond_with_registry(
         host,
         registry: load_registry,
     } = context;
+    if host.user_sync.is_none() {
+        return sync_http::unavailable();
+    }
     let parsed = match parse_setuid_query(query) {
         Ok(parsed) => parsed,
         Err(error) => return sync_http::setuid_wire_error(error),
@@ -198,7 +204,7 @@ async fn respond_with_registry(
     let account = resolve::resolve_selected_account(
         resolve::AccountSelection::from_requested(parsed.first("account")),
         app,
-        auctioneer_config::account_default(),
+        auctioneer_config_data::product_account_default(),
     );
     if account.config.disabled {
         return bad("account is disabled, please reach out to the prebid server host");
@@ -383,8 +389,9 @@ pub(super) mod tests {
     use super::*;
     use crate::bidder_fixture::fixtures::registry;
     use crate::handlers::tests::bidder_registry;
+    use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::signed::CookieKeyring;
-    use auctioneer_config::usersync::OptoutCookie;
+    use auctioneer_config_data::usersync::OptoutCookie;
     use edgezero_core::http::{HeaderValue, header::COOKIE};
     use futures::executor::block_on;
     use serde_json::json;
@@ -449,6 +456,31 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn unconfigured_service_refuses_before_registry_or_signing_keys() {
+        let host = HostConfig::default();
+        assert!(host.user_sync.is_none());
+        let response = block_on(super::respond_with_registry(
+            Some("bidder=fake_bidder&uid=fake_uid"),
+            &HeaderMap::new(),
+            ResponseContext {
+                app: &AuctioneerAppConfig::default(),
+                host: &host,
+                registry: || panic!("unconfigured sync must not load the registry"),
+            },
+            now(),
+            async { panic!("unconfigured sync must not poll signing keys") },
+        ));
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body(&response), b"user sync is not configured");
+        assert!(!response.headers().contains_key("set-cookie"));
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-credentials")
+        );
+    }
+
+    #[test]
     fn registry_failure_is_not_an_unsupported_bidder() {
         let keys_polled = Cell::new(false);
         let response = block_on(super::respond_with_registry(
@@ -456,7 +488,7 @@ pub(super) mod tests {
             &HeaderMap::new(),
             ResponseContext {
                 app: &AuctioneerAppConfig::default(),
-                host: &HostConfig::default(),
+                host: &configured_sync_host(),
                 registry: || {
                     Err(RegistryBuildError::MissingBinding {
                         bidder: "fake_missing",
@@ -477,8 +509,8 @@ pub(super) mod tests {
     #[test]
     fn catalog_loading_follows_query_optout_and_bidder_but_precedes_format_and_account() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.disabled]\ndisabled = true\n").unwrap();
-        let mut host = HostConfig::default();
+            toml::from_str("schema_version = 1\n[accounts.disabled]\ndisabled = true\n").unwrap();
+        let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
             value: "yes".into(),
@@ -549,7 +581,7 @@ pub(super) mod tests {
 
     #[test]
     fn synthetic_syncers_preserve_alias_families_and_distinct_default_formats() {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.aliases
             .insert("fake_alias_a".into(), "fake_aaa".into());
         for (bidder, format, content_type, byte_count, family) in [
@@ -615,7 +647,7 @@ pub(super) mod tests {
     }
 
     fn active_gdpr_host() -> HostConfig {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.gdpr.enabled = true;
         host.gdpr.tcf2.enabled = true;
         host.gdpr.host_vendor_id = Some(32);
@@ -676,7 +708,7 @@ pub(super) mod tests {
 
     #[test]
     fn setuid_optout_precedes_missing_bidder() {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
             value: "yes".into(),
@@ -702,7 +734,7 @@ pub(super) mod tests {
             Some(&query),
             &HeaderMap::new(),
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
         );
 
@@ -713,7 +745,7 @@ pub(super) mod tests {
 
     #[test]
     fn setuid_query_error_precedes_host_optout_and_format_precedes_account() {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.host_cookie.optout_cookie = Some(OptoutCookie {
             name: "optout".into(),
             value: "yes".into(),
@@ -731,12 +763,12 @@ pub(super) mod tests {
         assert_eq!(body(&query_error), b"invalid query encoding");
 
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.publisher]\ndisabled = true\n").unwrap();
+            toml::from_str("schema_version = 1\n[accounts.publisher]\ndisabled = true\n").unwrap();
         let format_error = respond(
             Some("bidder=fake_bbb&f=bad&account=publisher"),
             &HeaderMap::new(),
             &app,
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
         );
         assert_eq!(format_error.status(), StatusCode::BAD_REQUEST);
@@ -757,7 +789,7 @@ pub(super) mod tests {
             Some("bidder=fake_pp&uid=should-not-write&gdpr=0"),
             &headers,
             &AuctioneerAppConfig::default(),
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
         );
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -771,12 +803,12 @@ pub(super) mod tests {
     #[test]
     fn setuid_format_and_account_errors_precede_unsyncable_syncer_resolution() {
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.disabled]\ndisabled = true\n").unwrap();
+            toml::from_str("schema_version = 1\n[accounts.disabled]\ndisabled = true\n").unwrap();
         let format = respond(
             Some("bidder=fake_pp&f=invalid&account=disabled"),
             &HeaderMap::new(),
             &app,
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
         );
         assert_eq!(
@@ -787,7 +819,7 @@ pub(super) mod tests {
             Some("bidder=fake_pp&f=b&account=disabled"),
             &HeaderMap::new(),
             &app,
-            &HostConfig::default(),
+            &configured_sync_host(),
             now(),
         );
         assert_eq!(
@@ -798,7 +830,7 @@ pub(super) mod tests {
 
     #[test]
     fn setuid_gdpr_error_redacts_input_when_sid_does_not_override() {
-        let host = HostConfig::default();
+        let host = configured_sync_host();
         let app = AuctioneerAppConfig::default();
         let invalid = respond(
             Some("bidder=fake_aaa&uid=x&gdpr=2&f=b"),
@@ -852,12 +884,12 @@ pub(super) mod tests {
 
     #[test]
     fn setuid_activity_denial_precedes_deferred_malformed_tcf_permission_error() {
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.gdpr.enabled = true;
         host.gdpr.tcf2.enabled = true;
         host.gdpr.host_vendor_id = Some(32);
         let app: AuctioneerAppConfig =
-            toml::from_str("[accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n")
+            toml::from_str("schema_version = 1\n[accounts.denied.privacy.allowactivities.syncUser]\ndefault = false\n")
                 .unwrap();
         let query = "bidder=fake_aaa&uid=x&gdpr=1&gdpr_consent=malformed-tcf&f=b";
         let denied = respond(

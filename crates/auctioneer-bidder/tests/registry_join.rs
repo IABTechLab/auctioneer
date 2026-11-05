@@ -25,7 +25,7 @@ mod tests {
         OutboundRequestSink, RegistryAlias, RegistryBuildError, RegistryInputs, SinkLimits,
         ValidatedRegistryPlan,
     };
-    use auctioneer_config::types::{BidderImplementationBinding, BidderMetadataDeclaration};
+    use auctioneer_config_data::types::{BidderImplementationBinding, BidderMetadataDeclaration};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
     use std::ptr;
@@ -668,20 +668,24 @@ mod tests {
             auctioneer_bidder::BidderDeclaration {
                 key: "fake_registry_fake",
                 required_feature: None,
+                has_settings: false,
             },
             auctioneer_bidder::BidderDeclaration {
                 key: "fake_registry_other",
                 required_feature: None,
+                has_settings: false,
             },
         ];
         let factories = [
             auctioneer_bidder::BidderRegistration {
                 key: "fake_registry_fake",
                 factory: distinct_factory,
+                config_validator: None,
             },
             auctioneer_bidder::BidderRegistration {
                 key: "fake_registry_other",
                 factory: super::fake_bidder::create_bidder,
+                config_validator: None,
             },
         ];
         ValidatedRegistryPlan::validate(RegistryInputs {

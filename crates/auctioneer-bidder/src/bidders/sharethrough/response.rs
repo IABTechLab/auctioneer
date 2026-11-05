@@ -3,7 +3,7 @@ use crate::bidders::{
     status::{bad_input_or_server, standard_status},
 };
 use crate::{BidderError, BidderHttpResponse, BidderResponse, OutboundRequestMeta};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 
 pub(super) fn make_bids(
@@ -94,7 +94,7 @@ mod tests {
         Bidder as _, BidderErrorKind, BidderHttpResponse, BidderResponse, META_BYTES_CAPACITY,
         OutboundRequestMeta, OutboundRequestMetaBuilder,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use serde_json::{Value, json};
 
     fn sent(media_option: Option<CorrelationMedia>, ids: &[&str]) -> OutboundRequestMeta {

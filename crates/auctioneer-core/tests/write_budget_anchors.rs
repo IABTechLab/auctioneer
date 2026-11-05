@@ -38,6 +38,7 @@ mod tests {
     use crate::serving_catalog;
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
+    use auctioneer_config::policy::HostPolicy;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
@@ -242,10 +243,13 @@ mod tests {
 
     fn config_registry() -> ConfigRegistry {
         let cfg = AuctioneerAppConfig {
-            aliases: Some(BTreeMap::from([(
-                "fake_bb".to_owned(),
-                serving_catalog::passthrough_info().name.clone(),
-            )])),
+            host: HostPolicy {
+                aliases: Some(BTreeMap::from([(
+                    "fake_bb".to_owned(),
+                    serving_catalog::passthrough_info().name.clone(),
+                )])),
+                ..HostPolicy::default()
+            },
             ..AuctioneerAppConfig::default()
         };
         let data = serde_json::to_value(&cfg).expect("config serialises to json");

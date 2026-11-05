@@ -1,13 +1,10 @@
 //! A DECLARED config store whose provider open failed must reach
 //! `/status` as a named fault, not as an absent binding.
 //!
-//! The distinction is the whole point. `resolve_runtime_config` answers
-//! "no config store binding" from the bootstrap's `allow_missing_config`
-//! rule, because a deploy that declared no `[stores.config]` is the
-//! local-dev shape. A deploy that DID declare one and could not open it
-//! is a broken deploy, and it must never borrow that rule: the
-//! permissive setting would hand it `AuctioneerAppConfig::default()`, which
-//! leaves GDPR enforcement OFF.
+//! A failed declared binding and an absent binding must remain distinguishable
+//! even though neither may serve an auction without its required policy.
+//! In particular, a failed provider open must retain its transient or malformed
+//! failure classification instead of masquerading as an absent publication.
 //!
 //! Upstream used to make the two indistinguishable. Cloudflare and
 //! Fastly omitted a binding they failed to open, so the declared store
@@ -38,11 +35,11 @@ mod tests {
     use auctioneer_core::config::runtime::CONFIG_STATUS_HEADER;
     use auctioneer_core::handlers::probe_config::__probe_isolation_for_tests;
     use auctioneer_core::handlers::status;
+    use auctioneer_core::test_support::config_store as funded_config;
     use edgezero_core::body::Body;
     use edgezero_core::config_store::{ConfigStoreHandle, ConfigStoreOpenFailure};
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::{Response, StatusCode};
-    use edgezero_core::params::PathParams;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
@@ -73,7 +70,7 @@ mod tests {
         request
             .extensions_mut()
             .insert(failed_open_registry(failure));
-        RequestContext::new(request, PathParams::default())
+        funded_config::context(request)
     }
 
     fn status_body_and_headers(response: Response) -> (StatusCode, String, Vec<(String, String)>) {
@@ -162,9 +159,8 @@ mod tests {
     /// The binding must still be RESOLVABLE. This is the half of the
     /// contract that fails if an adapter returns to omitting a failed
     /// open: `config_store_binding` would answer `None`,
-    /// `resolve_runtime_config` would take its absent-binding path, and
-    /// a deploy with `allow_missing_config = true` would then serve the
-    /// baked default with GDPR enforcement off instead of degrading.
+    /// `resolve_runtime_config` would take its absent-binding path and lose
+    /// the provider-open fault's distinct classification.
     #[test]
     fn a_failed_declared_open_stays_registered_rather_than_absent() {
         for failure in [

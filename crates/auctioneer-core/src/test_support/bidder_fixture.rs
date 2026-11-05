@@ -7,8 +7,8 @@ pub use fixtures::registry;
 pub mod fixtures {
     use super::fake_bidder::FakeBidder;
     use auctioneer_bidder::BidderRegistry;
-    use auctioneer_config::types::{BidderInfo, Capabilities, MediaType};
-    use auctioneer_config::usersync::{SyncerConfig, SyncerEndpoint};
+    use auctioneer_config_data::types::{BidderInfo, Capabilities, MediaType};
+    use auctioneer_config_data::usersync::{SyncerConfig, SyncerEndpoint};
     use std::sync::OnceLock;
 
     /// Shared registry for synthetic handler fixtures.

@@ -193,7 +193,7 @@ mod tests {
             user_geo,
             device_geo,
             host_default_value,
-            eea_countries: auctioneer_config::eea_set(),
+            eea_countries: auctioneer_config_data::eea_set(),
         })
     }
 
@@ -394,7 +394,7 @@ mod tests {
                 }),
                 device_geo: None,
                 host_default_value: "0",
-                eea_countries: auctioneer_config::eea_set(),
+                eea_countries: auctioneer_config_data::eea_set(),
             }),
             Signal::Yes
         );

@@ -1,4 +1,4 @@
-//! Refreshes `crates/auctioneer-config/data/gvl_archive/`: fetches the IAB
+//! Refreshes `crates/auctioneer-config-data/data/gvl_archive/`: fetches the IAB
 //! Global Vendor List corpus (frozen spec-2 list, current spec-3 list,
 //! archived spec-3 versions) plus the Global CMP List, validates
 //! everything through `auctioneer-gvl-schema`, and atomically swaps the
@@ -388,7 +388,7 @@ fn resolve_raw_cap() -> anyhow::Result<u64> {
 }
 
 fn data_dir() -> anyhow::Result<PathBuf> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../auctioneer-config/data");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../auctioneer-config-data/data");
     dir.canonicalize()
         .with_context(|| format!("resolve data dir {}", dir.display()))
 }
@@ -1373,8 +1373,8 @@ mod tests {
         // The committed archive (produced by this tool at the default
         // retention) must keep the growth margin free under the raw
         // cap, or weekly growth would break builds between refreshes.
-        let archive_dir =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../auctioneer-config/data/gvl_archive");
+        let archive_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../auctioneer-config-data/data/gvl_archive");
         let manifest_raw =
             fs::read_to_string(archive_dir.join("manifest.json")).expect("read live manifest");
         let live: LiveManifest = serde_json::from_str(&manifest_raw).expect("parse live manifest");

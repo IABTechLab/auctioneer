@@ -22,7 +22,9 @@ normal builds continue to reject insecure configuration. Do not deploy this
 test build as production qualification.
 
 The test-only example uses the existing typed configuration, validation, and
-`BlobEnvelope` builder. It does not implement another loader or integrity
+`BlobEnvelope` builder. Its `data` is the direct `schema_version = 1` policy;
+the configured callback service lives at `host.user_sync`. There are no
+baked/startup/runtime root wrappers. It does not implement another loader or integrity
 protocol. Each run creates isolated temporary storage, ephemeral loopback ports,
 an isolated browser context, and a child process, then cleans them up.
 It supplies a public synthetic test keyring directly to the child's EdgeZero

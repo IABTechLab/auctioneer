@@ -4,7 +4,7 @@ use crate::bidders::{
     wire_fields::{IntegerFieldError, signed_byte},
 };
 use crate::{BidderError, BidderHttpResponse, BidderResponse, OutboundRequestMeta};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use std::mem;
 
@@ -59,7 +59,7 @@ mod tests {
     use super::super::RiseBidder;
     use crate::bidders::harness;
     use crate::{Bidder as _, BidderError, BidderErrorKind};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 

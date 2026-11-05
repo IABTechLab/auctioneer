@@ -94,7 +94,7 @@ mod tests {
         Bidder, BidderError, BidderHttpResponse, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_openrtb::ext::imp::ImpExt;
     use auctioneer_openrtb::ext::request_prebid::ExtRequestPrebid;
     use auctioneer_openrtb::types::bid_request::{BidRequestExt, Imp};

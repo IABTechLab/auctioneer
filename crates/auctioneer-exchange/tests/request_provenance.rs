@@ -14,8 +14,8 @@ mod tests {
     use auctioneer_bidder::{
         BidderRegistry, BidderRequestInfo, DebugBodySchema, EntryPoint, FloorConversion,
     };
-    use auctioneer_config::currency::FloorCurrencyConfig;
-    use auctioneer_config::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
+    use auctioneer_config_data::currency::FloorCurrencyConfig;
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,

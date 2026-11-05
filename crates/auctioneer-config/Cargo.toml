@@ -1,6 +1,9 @@
+# Dependency-neutral by design: serde-only by default, never depending on
+# auctioneer-core or auctioneer-config-data. Portable operator models live
+# under config-model; build scripts consume native build-support separately.
 [package]
 name = "auctioneer-config"
-description = "Host + account configuration model and build-time codegen for auctioneer."
+description = "Configuration schemas and optional native build support shared by auctioneer crates."
 authors = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
@@ -10,83 +13,63 @@ version = { workspace = true }
 [lints]
 workspace = true
 
-# This hermetic child-build suite has one mandatory explicit CI owner.
 [[test]]
-name = "build_failure_harness"
-test = false
+name = "root_shape"
+required-features = ["config-model"]
 
 [features]
-# The insecure-bidders feature gates the local loopback fixture endpoint
-# through build.rs syncer-URL template validation. Forwarded from
-# auctioneer-bidder/auctioneer-exchange/auctioneer-core/adapter crates.
-insecure-bidders = [
-    "auctioneer-config-schema/insecure-bidders",
+# Shared effective configuration and validation, without parsers or code generators.
+config-model = [
+    "dep:ipnetwork",
+    "dep:auctioneer-runtime",
+    "dep:percent-encoding",
+    "dep:unicode-case-mapping",
+    "dep:url",
+    "dep:validator",
+    "serde/rc",
 ]
-# Enables the AUCTIONEER__BIDDERS__DIR and AUCTIONEER__DEFAULTS__PATH_OVERRIDE
-# env-var overrides in
-# addition to AUCTIONEER__DISCLOSURE__DIR for independent disclosure fixtures in
-# build.rs. Used ONLY by tests/build_failure_harness.rs to point codegen
-# at per-test fixtures. Production / default builds MUST NOT enable
-# this — without it the build script ignores the env vars and reads
-# only the committed bidder and data source trees, preserving the
-# build-time-fixed outbound-host guarantee.
-test-harness-override = []
+# Native tooling and build scripts only. Serving dependencies use config-model.
+build-support = [
+    "config-model",
+    "dep:hex",
+    "dep:auctioneer-openrtb",
+    "dep:auctioneer-openrtb-catalogue",
+    "dep:proc-macro2",
+    "dep:quote",
+    "dep:serde_json",
+    "dep:sha2",
+    "dep:syn",
+    "dep:time",
+    "dep:toml",
+]
+insecure-bidders = []
 
 [dependencies]
-ipnetwork = { workspace = true }
-auctioneer-config-schema = { workspace = true, features = ["config-model"] }
-auctioneer-gvl-schema = { workspace = true }
-auctioneer-openrtb = { workspace = true }
-auctioneer-runtime = { workspace = true }
-percent-encoding = { workspace = true }
-# Shared activity maps and rule slices must not deep-clone per auction.
-serde = { workspace = true, features = ["rc"] }
-serde_json = { workspace = true }
-unicode-case-mapping = { workspace = true }
-url = { workspace = true }
-
-[build-dependencies]
-proc-macro2 = { workspace = true }
-quote = { workspace = true }
-auctioneer-openrtb-catalogue = { workspace = true }
-brotli = { workspace = true }
-# Shared archive-read lock: build.rs reads the GVL archive under the
-# advisory lock the refresh tool swaps under.
-fs2 = { workspace = true }
-hex = { workspace = true }
-ipnetwork = { workspace = true }
-# A build-dependency on a sibling path crate is legal and has no cycle:
-# the sibling has no build.rs of its own. It owns the shared configuration
-# model and native build support, without depending on config or core.
-auctioneer-config-schema = { workspace = true, features = ["build-support"] }
-auctioneer-gvl-schema = { workspace = true }
-auctioneer-runtime = { workspace = true }
-percent-encoding = { workspace = true }
-serde = { workspace = true, features = ["rc"] }
-serde_json = { workspace = true }
-sha2 = { workspace = true }
-syn = { workspace = true }
-time = { workspace = true }
-toml = { workspace = true }
-url = { workspace = true }
-unicode-case-mapping = { workspace = true }
-validator = { workspace = true }
+serde = { workspace = true }
+hex = { workspace = true, optional = true }
+ipnetwork = { workspace = true, optional = true }
+auctioneer-runtime = { workspace = true, optional = true }
+auctioneer-openrtb = { workspace = true, optional = true }
+auctioneer-openrtb-catalogue = { workspace = true, optional = true }
+percent-encoding = { workspace = true, optional = true }
+proc-macro2 = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+syn = { workspace = true, optional = true }
+time = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+unicode-case-mapping = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+validator = { workspace = true, optional = true }
 
 [dev-dependencies]
-auctioneer-config-schema = { workspace = true, features = ["build-support"] }
-# Integration coverage consumes the real renderer, never core's source files.
-proc-macro2 = { workspace = true }
-quote = { workspace = true }
-auctioneer-openrtb-catalogue = { workspace = true }
-time = { workspace = true }
-# Native codegen tests consume config-schema's build-support API. The
-# disclosure compiler tests also exercise build-only source analysis.
-# hex + sha2 back the archive-accessor SHA-pin regression.
-hex = { workspace = true }
-ipnetwork = { workspace = true }
+# The config-model root-shape tests compare direct typed JSON/TOML payloads.
 serde = { workspace = true }
-sha2 = { workspace = true }
-syn = { workspace = true }
+serde_json = { workspace = true }
 toml = { workspace = true }
-url = { workspace = true }
-validator = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+auctioneer-macros = { workspace = true }
+rustix = { workspace = true }
+tempfile = { workspace = true }

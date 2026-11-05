@@ -7,7 +7,7 @@ use auctioneer_bidder::{
     BidderError, BidderHttpRequest, DebugBodyProjection, DebugBodySchema, DebugBodyStatus,
     project_request_body,
 };
-use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
 use auctioneer_runtime::debug_budget::{
     MAX_DEBUG_CALL_ROWS, MAX_DEBUG_RETAINED_BYTES, MAX_DEBUG_SERIALIZED_BYTES,
 };
@@ -479,7 +479,7 @@ mod tests {
         DebugBodyStatus, EntryPoint, FinalizeError, OutboundRequestSink, SinkLimits,
         TransportFinalize, finalize_for_transport,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_runtime::{Clock, FakeClock, MonotonicInstant};
     use serde_json::{Value, json};
     use std::iter;

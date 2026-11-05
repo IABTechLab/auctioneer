@@ -46,9 +46,9 @@ test = false
 
 [features]
 # Canonical home of the insecure-bidders feature.
-# Forwards into auctioneer-config so build.rs's syncer-URL template-validation
+# Forwards into auctioneer-config-data so build.rs's syncer-URL template-validation
 # pass also relaxes its scheme rule under the feature.
-insecure-bidders = ["auctioneer-config/insecure-bidders"]
+insecure-bidders = ["auctioneer-config-data/insecure-bidders"]
 test-support = ["dep:toml"]
 # Inspection only; enables the unqualified build, never serving admission.
 # Guest graphs include the candidate only in this inspection lane. Normal native
@@ -56,11 +56,12 @@ test-support = ["dep:toml"]
 schema-artifact-staging = ["dep:jsonschema", "dep:regex-automata", "dep:uuid-simd"]
 
 [dependencies]
+auctioneer-config = { workspace = true, features = ["config-model"] }
 flate2 = { workspace = true }
 # These optional dependencies support guest inspection. Native serving selects
 # the same reviewed compiler/runtime through the target dependencies below.
 jsonschema = { workspace = true, optional = true }
-auctioneer-config  = { workspace = true }
+auctioneer-config-data  = { workspace = true }
 auctioneer-openrtb = { workspace = true }
 # `bounded_json` is the node-budgeted parse every bidder decodes its
 # bidder response through. The crate carries no async, no I/O and no
@@ -73,6 +74,7 @@ regex-automata = { workspace = true, optional = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 url         = { workspace = true }
+validator = { workspace = true }
 uuid-simd = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -83,7 +85,7 @@ toml = { workspace = true, optional = true }
 
 [dev-dependencies]
 auctioneer-bidder = { workspace = true, features = ["test-support"] }
-auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-config = { workspace = true, features = ["build-support"] }
 auctioneer-runtime = { workspace = true, features = ["test-support"] }
 # Compiler-fixture source generation is linted on guest targets too.
 quote = { workspace = true }
@@ -92,8 +94,8 @@ toml = { workspace = true }
 [build-dependencies]
 # Data-only declarations let discovery compare inactive feature ownership.
 # Configuration generation must never depend on bidder implementations.
-auctioneer-config = { workspace = true }
-auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-config-data = { workspace = true }
+auctioneer-config = { workspace = true, features = ["build-support"] }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 serde = { workspace = true }

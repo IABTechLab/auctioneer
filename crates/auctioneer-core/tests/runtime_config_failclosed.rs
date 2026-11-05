@@ -61,6 +61,7 @@ mod tests {
     use auctioneer_core::handlers::probe_config::__probe_isolation_for_tests;
     use auctioneer_core::handlers::{TestFanoutHandle, auction, info_bidders, status};
     use auctioneer_core::host_primitives::{TestClockHandle, TestRngHandle};
+    use auctioneer_core::test_support::config_store as funded_config;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, TimeoutCause,
@@ -73,7 +74,6 @@ mod tests {
     };
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::{Response, StatusCode};
-    use edgezero_core::params::PathParams;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
     use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::executor::block_on;
@@ -89,7 +89,10 @@ mod tests {
     fn pushed_alias_base_refusal_has_a_bounded_diagnostic() {
         config_funding::install();
         let source = toml::to_string(&serde_json::json!({
-            "aliases": {"fake_short_alias": format!("fake_{}", "x".repeat(0x0001_0000 - 5))}
+            "schema_version": 1_u64,
+            "host": {
+                "aliases": {"fake_short_alias": format!("fake_{}", "x".repeat(0x0001_0000 - 5))},
+            },
         }))
         .unwrap();
         let request = Request::builder()
@@ -133,7 +136,12 @@ mod tests {
     impl ConfigStore for CorruptStore {
         async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
             let mut envelope = BlobEnvelope::new(
-                serde_json::json!({ "gdpr": { "enabled": true } }),
+                serde_json::json!({
+                    "schema_version": 1_u64,
+                    "host": {
+                        "gdpr": { "enabled": true },
+                    },
+                }),
                 "1970-01-01T00:00:00Z".to_owned(),
             );
             envelope.sha256 = WRONG_SHA.to_owned();
@@ -282,8 +290,11 @@ mod tests {
         async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
             let envelope = BlobEnvelope::new(
                 serde_json::json!({
-                    "status": { "banner": HOSTILE_BANNER },
-                    "aliases": { CANARY_ALIAS: CANARY_BASE },
+                    "schema_version": 1_u64,
+                    "host": {
+                        "status_response": HOSTILE_BANNER,
+                        "aliases": { CANARY_ALIAS: CANARY_BASE },
+                    },
                 }),
                 "1970-01-01T00:00:00Z".to_owned(),
             );
@@ -321,7 +332,12 @@ mod tests {
     impl ConfigStore for HealthyStore {
         async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
             let envelope = BlobEnvelope::new(
-                serde_json::json!({ "status": { "banner": HOSTILE_BANNER } }),
+                serde_json::json!({
+                    "schema_version": 1_u64,
+                    "host": {
+                        "status_response": HOSTILE_BANNER,
+                    },
+                }),
                 "1970-01-01T00:00:00Z".to_owned(),
             );
             Ok(Some(
@@ -495,7 +511,7 @@ mod tests {
             .insert(TestFanoutHandle(handler_fanout));
         request.extensions_mut().insert(TestClockHandle(clock));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = RequestContext::new(request, PathParams::default());
+        let ctx = funded_config::context(request);
 
         let driven = block_on(async {
             let response = auction(ctx).await.expect("the handler answers");
@@ -604,7 +620,7 @@ mod tests {
     /// what proves the row above turns on the rejected key rather than on
     /// the store type.
     #[test]
-    fn accepted_store_key_with_no_blob_fails_closed_under_default_bootstrap() {
+    fn accepted_store_key_with_no_blob_fails_closed_without_a_runtime_policy() {
         let driven = drive(Some(registry_keyed(
             STORE_ID.to_owned(),
             Arc::new(RejectingKeyStore),
@@ -612,8 +628,8 @@ mod tests {
         assert_eq!(
             driven.status,
             StatusCode::INTERNAL_SERVER_ERROR,
-            "a key the backend accepts but holds no blob is a misconfigured deploy under the \
-             baked `allow_missing_config = false`; body {body}",
+            "a key the backend accepts but holds no blob cannot supply the required runtime \
+             policy; body {body}",
             body = driven.body,
         );
         assert_eq!(driven.body, "Malformed host configuration");
@@ -621,22 +637,18 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // The missing-blob row is a DEPLOY CHOICE, baked at build time: the
-    // checked-in `data/runtime-bootstrap.toml` sets
-    // `allow_missing_config = false`, so a bound store with nothing
-    // pushed is a lost production key until a deploy says otherwise.
-    // The `true` branch is pinned by the loader's unit tests, which
-    // exercise the rule directly rather than rebuilding the crate.
+    // A bound store without a publication cannot supply the required policy.
+    // Product defaults are not a substitute for a lost production key.
     // -----------------------------------------------------------------
 
     #[test]
-    fn missing_blob_fails_closed_under_default_bootstrap() {
+    fn missing_blob_fails_closed_without_a_runtime_policy() {
         let driven = drive(Some(registry_of(Arc::new(EmptyStore))));
         assert_eq!(
             driven.status,
             StatusCode::INTERNAL_SERVER_ERROR,
             "`no blob pushed yet` is indistinguishable from a deleted production key, and the \
-             baked bootstrap does not allow it; body {body}",
+             required runtime policy cannot be supplied; body {body}",
             body = driven.body,
         );
         assert_eq!(driven.body, "Malformed host configuration");
@@ -648,21 +660,19 @@ mod tests {
     }
 
     // -----------------------------------------------------------------
-    // No [stores.config] binding at all takes the SAME immutable rule as
-    // a bound store with no blob: under the checked-in
-    // `allow_missing_config = false` it is a broken deploy, not a
-    // fresh one — a production manifest missing its store must not
+    // No [stores.config] binding at all takes the same required-policy rule as
+    // a bound store with no blob. A production manifest missing its store must not
     // silently run with GDPR enforcement off.
     // -----------------------------------------------------------------
 
     #[test]
-    fn absent_store_binding_fails_closed_under_default_bootstrap() {
+    fn absent_store_binding_fails_closed_without_a_runtime_policy() {
         let driven = drive(None);
         assert_eq!(
             driven.status,
             StatusCode::INTERNAL_SERVER_ERROR,
             "a deploy that declared no [stores.config] is a misconfigured deploy under the \
-             baked bootstrap; body {body}",
+             required-runtime-policy rule; body {body}",
             body = driven.body,
         );
         assert_eq!(driven.body, "Malformed host configuration");
@@ -697,7 +707,7 @@ mod tests {
         let tracked = registry_keyed(default_key, store);
         request.extensions_mut().insert(tracked.registry);
         request.extensions_mut().insert(tracked.reads);
-        RequestContext::new(request, PathParams::default())
+        funded_config::context(request)
     }
 
     fn rejected_key() -> String {

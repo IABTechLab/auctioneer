@@ -51,12 +51,7 @@ mod tests {
     /// outbound call: under the unusable-consent default row
     /// `AllowBidRequest = !p2_enforced`, so the bidder survives fan-out
     /// while its identifiers are still stripped.
-    const CONFIG: &str = "[gdpr]\n\
-                          enabled = true\n\n\
-                          [gdpr.tcf2]\n\
-                          enabled = true\n\n\
-                          [gdpr.tcf2.purposes.2]\n\
-                          enforce_purpose = \"disabled\"\n";
+    const CONFIG: &str = "schema_version = 1\n[host.gdpr]\nenabled = true\n\n[host.gdpr.tcf2]\nenabled = true\n\n[host.gdpr.tcf2.purposes.2]\nenforce_purpose = \"disabled\"\n";
 
     /// A `(spec 3, list)` pair the baked archive does not carry. The
     /// archive holds spec-3 lists in the low 100s; `999` is inside the
@@ -256,7 +251,7 @@ mod tests {
     #[test]
     fn auction_with_missing_gvl_pair_increments_health_counter() {
         let config = format!(
-            "[aliases]\nfake_bb={:?}\n{CONFIG}",
+            "{CONFIG}[host.aliases]\nfake_bb={:?}\n",
             serving_catalog::passthrough_info().name,
         );
         config_funding::install();

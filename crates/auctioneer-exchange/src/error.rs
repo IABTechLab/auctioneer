@@ -69,7 +69,7 @@ impl From<PrivacyError> for AuctionError {
 #[cfg(test)]
 mod tests {
     use super::{AuctionError, PrivacyError};
-    use auctioneer_config::types::{AccountConfig, HostConfig};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_openrtb::types::inventory::Site;
     use auctioneer_openrtb::types::regs::Regs;

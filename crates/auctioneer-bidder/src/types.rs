@@ -11,7 +11,7 @@ use crate::finalize::finalize;
 use crate::meta::{MetaField, OutboundRequestMeta, SinkAbort};
 use crate::native_adm::{project_value, unwrap_in_place};
 use crate::response_decode::{CandidatePolicy, DecodeReceipt, decode_source_with_policy};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_response::{Bid, BidResponse};
 use auctioneer_runtime::bounded_json::{self, BoundedJsonError};
 use serde_json::Value;

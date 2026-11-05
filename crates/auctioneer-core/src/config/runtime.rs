@@ -6,9 +6,8 @@
 //! `AppConfig` extractor itself, so the load policy — and the wire shape
 //! of a load failure — is defined in exactly one place.
 //!
-//! That policy is fail-closed wherever the failure can be told apart
-//! from a legitimate fresh deploy: a corrupt or untrusted blob is a 500,
-//! so is a store key the backend refuses, and a store outage is a 503,
+//! That policy is fail-closed: a missing, corrupt or untrusted blob is a 500,
+//! so is a missing binding or a store key the backend refuses, and a store outage is a 503,
 //! because serving any of them from the baked default would silently
 //! turn GDPR enforcement off. See [`resolve_runtime_config`] for the
 //! per-class reasoning.
@@ -22,9 +21,9 @@
 //! place rather than reconstructing it from four handlers.
 
 use crate::bidder_registry::{cached_registry_error, registry_handle};
-use crate::config::AuctioneerAppConfig;
+use crate::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
+use crate::configure::extraction_limits_for;
 use crate::host_primitives::boot_gates;
-use auctioneer_config::RUNTIME_BOOTSTRAP;
 use edgezero_core::body::Body;
 use edgezero_core::config_store::ConfigExtractionLimits;
 use edgezero_core::context::RequestContext;
@@ -35,6 +34,9 @@ use std::time::Duration;
 
 /// The logical config-store id the deploy binds `auctioneer.toml` to.
 const CONFIG_STORE_ID: &str = "auctioneer_runtime";
+
+/// Fixed bound for the SDK's root-config and secret extraction, independent of operator policy.
+pub const CONFIG_FETCH_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// `Retry-After` for a transient config-store outage. The pinned
 /// `EdgeZero` `ServiceUnavailable` carries no backend hint, so this is
@@ -98,7 +100,7 @@ impl ConfigStatusCode {
 pub enum UnfundedExtractionReason {
     /// The complete boot gates have not been installed.
     BootMissing,
-    /// At least one captured byte/value cap exceeds its installed funding.
+    /// At least one captured extraction cap exceeds its installed funding.
     CapturedCapsAboveFunding,
 }
 
@@ -308,70 +310,20 @@ impl RuntimeConfigError {
 
 /// Resolve the runtime app-config for a request.
 ///
-/// Degrading a failed load to `AuctioneerAppConfig::default()` is a privacy
-/// decision, not a convenience one: the baked default carries
-/// `[gdpr.tcf2] enabled = false`, so every degraded request forwards
-/// `user.id`, `user.buyeruid`, `device.ifa`, unmasked `device.geo` and
-/// the full client IP to every bidder. It is therefore allowed only
-/// where the failure genuinely cannot be told apart from a legitimate
-/// fresh deploy.
+/// A runtime publication is required: absent bindings and missing blobs fail
+/// closed just like malformed publications. There is no operator-configurable
+/// missing-config fallback. The SDK performs typed and full semantic validation;
+/// successful extraction is not validated a second time here.
 ///
-/// The pinned `EdgeZero` extractor documents four error classes on the
-/// `from_store` path, and only one pair is genuinely ambiguous. What
-/// follows pins the DISPOSITION each class gets, not the full set of
-/// upstream failures that can reach it:
+/// Cached registry failures take precedence, and cold registry construction and
+/// store reads require the context's complete captured extraction tuple to fit
+/// the funded host declaration. Backend/secret outages and deadline expiry stay
+/// transient (503 with `Retry-After`); invalid keys retain their distinct refusal
+/// code and permanent 500 disposition. The bound key comes from the selected
+/// store binding, not [`CONFIG_STORE_ID`], which only selects the binding.
 ///
-/// - `Internal` — envelope parse failure, sha mismatch, or an
-///   unrecognised envelope version. `EdgeZero`'s own comment calls this
-///   "a corrupt/tampered store entry". A blob that exists but cannot be
-///   trusted is never a fresh deploy → [`RuntimeConfigError::MalformedHost`]
-///   → 500.
-/// - `ServiceUnavailable` — the store backend is transiently down. Also
-///   never a fresh deploy → [`RuntimeConfigError::ConfigStoreUnavailable`]
-///   → 503 with `Retry-After`.
-/// - `ConfigOutOfDate` — missing blob, a missing secret key, or a blob
-///   whose `data` fails to deserialise / validate against the deployed
-///   type. THIS pair is the ambiguous one: "no blob pushed yet" and
-///   "blob is malformed" arrive as the same opaque variant, and the
-///   first is a legitimate fresh-deploy state. Degrades with a WARN
-///   naming the fallback reason, so an operator grepping logs sees why.
-///   Tightening it needs a typed store error `EdgeZero` does not
-///   expose yet. The list of failures folded into this variant is
-///   upstream's to grow, and it HAS grown: the pin's optional
-///   secret-path segments add "a present-but-malformed optional
-///   parent" to it. Unreachable for auctioneer — `AuctioneerAppConfig`
-///   declares no secret paths, so the secret walk visits nothing —
-///   and harmless if that changes, since every such failure lands in
-///   the same degrade arm. Treat the classes above as the
-///   dispositions auctioneer commits to, not as a closed enumeration of
-///   what upstream can put in each.
-/// - `BadRequest` — the backend rejected the key it was asked for. This
-///   is REACHABLE. `from_store(ctx, id, None)` passes no explicit key, so
-///   the extractor reads the binding's `default_key` — a value the deploy
-///   resolves from `[stores.config]` in `edgezero.toml`, not
-///   [`CONFIG_STORE_ID`], which only selects WHICH binding to use. A
-///   backend that rejects that key (Fastly's `KeyInvalid` / `KeyTooLong`,
-///   say) surfaces as `ConfigStoreError::InvalidKey` → `BadRequest`, and
-///   a key the backend will never accept is a misconfigured deploy rather
-///   than a fresh one: no push can land under it. That is a host-config
-///   fault → [`RuntimeConfigError::StoreKeyRejected`] → 500, the same
-///   disposition as a corrupt blob, reported under its own code so an
-///   operator can tell a refused key from a corrupt blob. The typed
-///   extractor reaches the same fault as
-///   `StoreExtractionReason::InvalidKey`, which is classified the same
-///   way — both paths, or `/status` would name the wrong one.
-///
-/// An ABSENT store binding is handled before the extractor runs. It is
-/// not a corrupt blob — there is no blob — it is a deploy that declared
-/// no `[stores.config]` at all, which is the local-dev shape (`curl -X
-/// POST /openrtb2/auction` has to answer without a prior `auctioneer config
-/// push`). Routing it through `Internal` would 500 every dev request,
-/// so it degrades explicitly and visibly instead.
-///
-/// The signature is `Result<AuctioneerAppConfig, RuntimeConfigError>` so
-/// every caller (`auction`, `status`, `info_bidders`, `info_bidder`)
-/// inherits any later tightening of the remaining degrade arm without an
-/// edit.
+/// `/status` alone may explicitly take [`RuntimeConfigError::degrade_to_default`]
+/// after recording the closed fault code, because it makes no privacy decision.
 ///
 /// # Errors
 /// Returns [`RuntimeConfigError::MalformedHost`] when the stored blob
@@ -384,7 +336,7 @@ impl RuntimeConfigError {
 /// full map over the store-extraction taxonomy is
 /// [`classify_store_extraction`]. Returns [`RuntimeConfigError::UnfundedExtraction`]
 /// before any store read if the installed boot gates do not fund the
-/// context's captured extraction caps. Missing bindings retain their own policy.
+/// context's captured extraction caps. Missing bindings always fail closed.
 pub async fn resolve_runtime_config(
     ctx: &RequestContext,
 ) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
@@ -397,9 +349,7 @@ pub async fn resolve_runtime_config(
             })?;
             check_extraction_caps(
                 ctx.config_extraction_limits(),
-                gates.limits.max_runtime_config_bytes,
-                gates.limits.max_runtime_config_blob_bytes,
-                gates.limits.max_config_json_nodes,
+                extraction_limits_for(Some(&gates.limits)),
             )
         },
         || registry_handle().map(|_registry| ()),
@@ -417,33 +367,37 @@ async fn resolve_with_registry(
         return Err(error.into());
     }
     if ctx.config_store_binding(CONFIG_STORE_ID).is_none() {
-        // No [stores.config] binding at all. Same policy as a bound store
-        // with no blob: the immutable bootstrap decides whether "no
-        // config" is an intentionally unconfigured deploy or a broken
-        // one — a log line saying "dev-only" is not an enforcement
-        // boundary.
-        return missing_config(
-            "no config store binding",
-            RUNTIME_BOOTSTRAP.allow_missing_config,
-            None,
-        );
+        return Err(missing_config("no config store binding", None));
     }
     check_funding()?;
     initialize_registry()?;
-    let loaded = AppConfig::<AuctioneerAppConfig>::from_store(ctx, CONFIG_STORE_ID, None).await;
-    classify_load(loaded)
+    AppConfig::<SdkAuctioneerAppConfig>::from_store(ctx, CONFIG_STORE_ID, None)
+        .await
+        .map(|config| config.0)
+        .map_err(classify_load_error)
 }
 
-// The installed, normalized caps are independent ceilings, not a shared minimum.
+// The complete SDK tuple is bounded independently by the host's funded declaration.
 fn check_extraction_caps(
     captured: ConfigExtractionLimits,
-    backend_bytes: u64,
-    blob_bytes: u64,
-    json_nodes: u32,
+    funded: ConfigExtractionLimits,
 ) -> Result<(), RuntimeConfigError> {
-    if captured.max_backend_bytes > backend_bytes
-        || captured.max_blob_bytes > blob_bytes
-        || captured.max_json_nodes > json_nodes
+    let ConfigExtractionLimits {
+        max_backend_bytes,
+        max_blob_bytes,
+        max_json_depth,
+        max_json_nodes,
+        max_secret_bytes,
+        max_total_bytes,
+        timeout,
+    } = captured;
+    if max_backend_bytes > funded.max_backend_bytes
+        || max_blob_bytes > funded.max_blob_bytes
+        || max_json_depth > funded.max_json_depth
+        || max_json_nodes > funded.max_json_nodes
+        || max_secret_bytes > funded.max_secret_bytes
+        || max_total_bytes > funded.max_total_bytes
+        || timeout > funded.timeout
     {
         return Err(RuntimeConfigError::UnfundedExtraction {
             reason: UnfundedExtractionReason::CapturedCapsAboveFunding,
@@ -452,71 +406,57 @@ fn check_extraction_caps(
     Ok(())
 }
 
-/// The pure classification of a `from_store` outcome, split from the
+/// The pure classification of a `from_store` error, split from the
 /// async resolver so every arm — including the `#[non_exhaustive]`
 /// remainder — is unit-testable with constructed errors.
-fn classify_load(
-    loaded: Result<AuctioneerAppConfig, EdgeError>,
-) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
-    match loaded {
-        Ok(cfg) => {
-            cfg.validate_effective_defaults()?;
-            Ok(cfg)
-        }
-        Err(EdgeError::StoreExtraction {
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "All residual SDK errors, including future variants, intentionally share this value-free fail-closed category."
+)]
+fn classify_load_error(error: EdgeError) -> RuntimeConfigError {
+    match error {
+        EdgeError::StoreExtraction {
             reason, field_path, ..
-        }) => classify_store_extraction(reason, field_path.as_deref()),
+        } => classify_store_extraction(reason, field_path.as_deref()),
         // The residual untyped arms carry no upstream text either: an
         // `Internal` source or a backend message can quote stored
         // values, and `detail` reaches the log line.
-        Err(EdgeError::Internal { .. }) => Err(RuntimeConfigError::MalformedHost {
+        EdgeError::Internal { .. } => RuntimeConfigError::MalformedHost {
             detail: "config store extraction failed: internal error".to_owned(),
-        }),
-        Err(EdgeError::ServiceUnavailable { .. }) => {
-            Err(RuntimeConfigError::ConfigStoreUnavailable {
-                detail: "config store unavailable".to_owned(),
-                retry_after: CONFIG_STORE_RETRY_AFTER,
-            })
-        }
-        Err(EdgeError::BadRequest { .. }) => Err(RuntimeConfigError::StoreKeyRejected {
+        },
+        EdgeError::ServiceUnavailable { .. } => RuntimeConfigError::ConfigStoreUnavailable {
+            detail: "config store unavailable".to_owned(),
+            retry_after: CONFIG_STORE_RETRY_AFTER,
+        },
+        EdgeError::BadRequest { .. } => RuntimeConfigError::StoreKeyRejected {
             detail: "config store rejected the bound key".to_owned(),
-        }),
+        },
         // `EdgeError` is `#[non_exhaustive]`, so this arm cannot be
         // spelled out variant by variant — and a variant this build has
         // never seen is a config it cannot vouch for. It fails closed
         // with fixed text: the error's `Display` can quote stored
         // values, so it is neither logged nor rendered.
-        Err(_unclassified) => Err(RuntimeConfigError::MalformedHost {
+        _unclassified => RuntimeConfigError::MalformedHost {
             detail: "config store extraction failed: unclassified error".to_owned(),
-        }),
+        },
     }
 }
 
 /// The one rule for "there is no config to load" — whether because no
-/// store is bound or because the bound store holds no blob. The
-/// immutable bootstrap decides; nothing at runtime can.
+/// store is bound or because the bound store holds no blob. Always fails closed.
 /// An established registry failure remains fatal without initializing a registry here.
 fn missing_config(
     what: &'static str,
-    allow_missing_config: bool,
     registry_error: Option<auctioneer_bidder::RegistryBuildError>,
-) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
+) -> RuntimeConfigError {
     if let Some(error) = registry_error {
-        return Err(error.into());
+        return error.into();
     }
-    if allow_missing_config {
-        log::warn!(
-            "{CONFIG_STORE_ID}: {what}, and the baked bootstrap allows a missing config. Using \
-             AuctioneerAppConfig::default(), which leaves GDPR enforcement OFF."
-        );
-        return Ok(AuctioneerAppConfig::default());
-    }
-    Err(RuntimeConfigError::MalformedHost {
+    RuntimeConfigError::MalformedHost {
         detail: format!(
-            "config store extraction failed: {what} (the baked bootstrap does not allow a \
-             missing config)"
+            "config store extraction failed: {what} (runtime configuration is required)"
         ),
-    })
+    }
 }
 
 /// The total map over upstream's `#[non_exhaustive]` store-extraction
@@ -527,44 +467,29 @@ fn missing_config(
 fn classify_store_extraction(
     reason: StoreExtractionReason,
     field_path: Option<&str>,
-) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
-    classify_store_extraction_with(reason, field_path, RUNTIME_BOOTSTRAP.allow_missing_config)
-}
-
-/// [`classify_store_extraction`] with the bootstrap policy as an explicit
-/// input, so both branches of the missing-blob rule are testable without
-/// rebuilding the crate against a different `runtime-bootstrap.toml`.
-fn classify_store_extraction_with(
-    reason: StoreExtractionReason,
-    field_path: Option<&str>,
-    allow_missing_config: bool,
-) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
+) -> RuntimeConfigError {
     use StoreExtractionReason as Reason;
     let detail = match field_path {
         Some(path) => format!("config store extraction failed: {reason:?} at {path}"),
         None => format!("config store extraction failed: {reason:?}"),
     };
     match reason {
-        // No blob pushed yet. Whether that is an intentionally
-        // unconfigured deploy or a deleted production key is a DEPLOY
-        // choice baked into the binary, never a runtime one.
-        Reason::MissingBlob => {
-            missing_config("MissingBlob", allow_missing_config, cached_registry_error())
-        }
+        // Missing and deleted publications are both unconfigured, never permissive.
+        Reason::MissingBlob => missing_config("MissingBlob", cached_registry_error()),
         // Transient on the backend side, the secret backend and the read
         // deadline included: a retry can succeed, so the caller answers
         // 503 with `Retry-After` rather than a permanent 500.
         Reason::BackendUnavailable
         | Reason::SecretBackendUnavailable
-        | Reason::DeadlineExceeded => Err(RuntimeConfigError::ConfigStoreUnavailable {
+        | Reason::DeadlineExceeded => RuntimeConfigError::ConfigStoreUnavailable {
             detail,
             retry_after: CONFIG_STORE_RETRY_AFTER,
-        }),
+        },
         // The typed extractor's route to the same fault the untyped
         // `BadRequest` arm carries. It leaves the malformed family so
         // `/status` reports it distinctly; its disposition does not
         // change.
-        Reason::InvalidKey => Err(RuntimeConfigError::StoreKeyRejected { detail }),
+        Reason::InvalidKey => RuntimeConfigError::StoreKeyRejected { detail },
         // `StructuralLimit` is the stored blob exceeding the extractor's
         // JSON depth or node cap before any of it is materialized. It
         // belongs with `Deserialization`, `IntegrityMismatch` and
@@ -572,8 +497,7 @@ fn classify_store_extraction_with(
         // caps are fixed for the life of the process, so the identical
         // blob fails identically on every retry — there is nothing for a
         // `Retry-After` to wait for. It is not `MissingBlob` either; it
-        // can only arise AFTER a read returned a value, so the
-        // `allow_missing_config` fallback cannot absorb it.
+        // can only arise AFTER a read returned a value.
         Reason::BackendFailure
         | Reason::Deserialization
         | Reason::IntegrityMismatch
@@ -585,11 +509,11 @@ fn classify_store_extraction_with(
         | Reason::UnknownStore
         | Reason::UnsupportedVersion
         | Reason::Validation
-        | Reason::ValueTooLarge => Err(RuntimeConfigError::MalformedHost { detail }),
+        | Reason::ValueTooLarge => RuntimeConfigError::MalformedHost { detail },
         // A reason this build has never seen is a config it cannot trust.
-        unknown => Err(RuntimeConfigError::MalformedHost {
+        unknown => RuntimeConfigError::MalformedHost {
             detail: format!("config store extraction failed: unrecognised reason {unknown:?}"),
-        }),
+        },
     }
 }
 
@@ -597,14 +521,24 @@ fn classify_store_extraction_with(
 mod tests {
     use super::{
         AuctioneerAppConfig, CONFIG_STORE_RETRY_AFTER, ConfigStatusCode, RuntimeConfigError,
-        StatusCode, classify_load, classify_store_extraction_with, missing_config,
+        StatusCode, missing_config,
     };
-    use crate::config::EffectiveConfigError;
+    use crate::config::{EffectiveConfigError, validate_effective_defaults};
     use edgezero_core::config_store::ConfigExtractionLimits;
     use edgezero_core::context::RequestContext;
     use edgezero_core::error::{EdgeError, StoreExtractionReason};
     use futures::executor::block_on;
     use std::{cell::Cell, sync::Arc, time::Duration};
+
+    // Preserve pure effective-validation controls without repeating validation
+    // after the SDK's production extractor has already accepted a publication.
+    fn classify_load(
+        loaded: Result<AuctioneerAppConfig, EdgeError>,
+    ) -> Result<AuctioneerAppConfig, RuntimeConfigError> {
+        let config = loaded.map_err(super::classify_load_error)?;
+        validate_effective_defaults(&config)?;
+        Ok(config)
+    }
 
     #[test]
     fn cached_failure_precedes_funding_but_cold_initialization_requires_funding() {
@@ -665,12 +599,45 @@ mod tests {
         let source = auctioneer_bidder::RegistryBuildError::MissingBinding {
             bidder: "fake_missing",
         };
-        for allowed in [false, true] {
-            let result = super::missing_config("no config store binding", allowed, Some(source));
+        for absence in ["no config store binding", "MissingBlob"] {
+            let result = super::missing_config(absence, Some(source));
             assert!(
-                matches!(result, Err(RuntimeConfigError::RegistryBuildFailed { error }) if error == source)
+                matches!(result, RuntimeConfigError::RegistryBuildFailed { error } if error == source)
             );
         }
+    }
+
+    #[test]
+    fn absent_binding_fails_closed_without_funding_registry_or_store_work() {
+        use edgezero_core::{body::Body, http::request_builder, params::PathParams};
+
+        let request = request_builder()
+            .uri("/status")
+            .body(Body::empty())
+            .unwrap();
+        let context = RequestContext::new(request, PathParams::default());
+        let funding_calls = Cell::new(0_u32);
+        let registry_calls = Cell::new(0_u32);
+        let error = block_on(super::resolve_with_registry(
+            &context,
+            || None,
+            || {
+                funding_calls.set(funding_calls.get() + 1);
+                Ok(())
+            },
+            || {
+                registry_calls.set(registry_calls.get() + 1);
+                Ok(())
+            },
+        ))
+        .unwrap_err();
+        assert_eq!(error.status_code(), ConfigStatusCode::MalformedConfig);
+        let response = error.into_response().unwrap();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert!(!response.headers().contains_key("retry-after"));
+        assert_eq!(funding_calls.get(), 0);
+        assert_eq!(registry_calls.get(), 0);
     }
 
     #[test]
@@ -822,23 +789,52 @@ mod tests {
     }
 
     #[test]
-    fn extraction_caps_accept_equality_and_narrower_contexts() {
+    fn extraction_caps_accept_equality_and_independently_narrower_contexts() {
         let equal = ConfigExtractionLimits {
             max_backend_bytes: 7919,
             max_blob_bytes: 3571,
+            max_json_depth: 17,
             max_json_nodes: 127,
-            ..Default::default()
+            max_secret_bytes: 521,
+            max_total_bytes: 12_347,
+            timeout: Duration::from_millis(1973),
         };
         for captured in [
             equal,
             ConfigExtractionLimits {
                 max_backend_bytes: equal.max_backend_bytes - 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
                 max_blob_bytes: equal.max_blob_bytes - 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
+                max_json_depth: equal.max_json_depth - 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
                 max_json_nodes: equal.max_json_nodes - 1,
                 ..equal
             },
+            ConfigExtractionLimits {
+                max_secret_bytes: equal.max_secret_bytes - 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
+                max_total_bytes: equal.max_total_bytes - 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
+                timeout: equal
+                    .timeout
+                    .checked_sub(Duration::from_nanos(1))
+                    .expect("one-nanosecond narrowing stays within the positive timeout"),
+                ..equal
+            },
         ] {
-            super::check_extraction_caps(captured, 7919, 3571, 127).unwrap();
+            assert_eq!(captured.validate().unwrap(), captured);
+            super::check_extraction_caps(captured, equal).unwrap();
         }
     }
 
@@ -847,8 +843,11 @@ mod tests {
         let equal = ConfigExtractionLimits {
             max_backend_bytes: 7919,
             max_blob_bytes: 3571,
+            max_json_depth: 17,
             max_json_nodes: 127,
-            ..Default::default()
+            max_secret_bytes: 521,
+            max_total_bytes: 12_347,
+            timeout: Duration::from_millis(1973),
         };
         for captured in [
             ConfigExtractionLimits {
@@ -860,11 +859,28 @@ mod tests {
                 ..equal
             },
             ConfigExtractionLimits {
+                max_json_depth: equal.max_json_depth + 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
                 max_json_nodes: equal.max_json_nodes + 1,
                 ..equal
             },
+            ConfigExtractionLimits {
+                max_secret_bytes: equal.max_secret_bytes + 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
+                max_total_bytes: equal.max_total_bytes + 1,
+                ..equal
+            },
+            ConfigExtractionLimits {
+                timeout: equal.timeout + Duration::from_nanos(1),
+                ..equal
+            },
         ] {
-            let error = super::check_extraction_caps(captured, 7919, 3571, 127).unwrap_err();
+            assert_eq!(captured.validate().unwrap(), captured);
+            let error = super::check_extraction_caps(captured, equal).unwrap_err();
             assert!(matches!(
                 error,
                 RuntimeConfigError::UnfundedExtraction {
@@ -905,6 +921,9 @@ mod tests {
                 response.body().as_bytes().unwrap(),
                 b"Unfunded configuration extraction"
             );
+            RuntimeConfigError::UnfundedExtraction { reason }
+                .degrade_to_default()
+                .expect("liveness remains available without beginning an unfunded extraction");
         }
     }
 
@@ -934,12 +953,11 @@ mod tests {
     #[test]
     fn transient_reasons_map_to_503_with_retry_after_and_discriminant_only_detail() {
         for reason in TRANSIENT {
-            let err = classify_store_extraction_with(reason, Some("gdpr.tcf2"), false)
-                .expect_err("transient reasons never yield a config");
+            let err = super::classify_store_extraction(reason, Some("host.gdpr.tcf2"));
             match &err {
                 RuntimeConfigError::ConfigStoreUnavailable { detail, .. } => assert_eq!(
                     detail,
-                    &format!("config store extraction failed: {reason:?} at gdpr.tcf2"),
+                    &format!("config store extraction failed: {reason:?} at host.gdpr.tcf2"),
                 ),
                 RuntimeConfigError::RegistryBuildFailed { .. }
                 | RuntimeConfigError::UnfundedExtraction { .. }
@@ -958,51 +976,41 @@ mod tests {
         }
     }
 
-    /// Every transient reason classifies identically under BOTH
-    /// bootstrap policies, the read deadline included.
-    ///
-    /// `allow_missing_config` governs ABSENCE — a bound store with no
-    /// blob, or no binding at all — and nothing else. A slow or briefly
-    /// unreachable backend is not absence: the blob may be present and
-    /// perfectly valid. If the permissive setting swallowed a transient
-    /// fault into `AuctioneerAppConfig::default()`, a deploy that opted into
-    /// fallback for its own fresh-deploy window would answer auctions
-    /// with GDPR enforcement OFF every time its store hiccuped. That is
-    /// the fail-open this asserts cannot happen, and it is asserted on
-    /// the policy input rather than on the baked constant, because a
-    /// test cannot rebuild the crate against the other value.
+    /// Transient errors stay closed on privacy routes; only liveness may degrade.
     #[test]
-    fn transient_reasons_ignore_the_bootstrap_policy() {
+    fn transient_reasons_remain_errors_and_liveness_can_degrade() {
         for reason in TRANSIENT {
-            for allow_missing_config in [false, true] {
-                let err = classify_store_extraction_with(reason, None, allow_missing_config)
-                    .expect_err("a transient fault is never a config, under either policy");
+            for field_path in [None, Some("host.gdpr")] {
+                let err = super::classify_store_extraction(reason, field_path);
                 match &err {
                     RuntimeConfigError::ConfigStoreUnavailable { detail, .. } => {
+                        let suffix = field_path.map_or(String::new(), |path| format!(" at {path}"));
                         assert_eq!(
                             detail,
-                            &format!("config store extraction failed: {reason:?}"),
-                            "the detail names the reason, not the missing-config rule",
+                            &format!("config store extraction failed: {reason:?}{suffix}"),
                         );
                     }
                     RuntimeConfigError::RegistryBuildFailed { .. }
                     | RuntimeConfigError::UnfundedExtraction { .. }
                     | RuntimeConfigError::MalformedHost { .. }
-                    | RuntimeConfigError::StoreKeyRejected { .. } => panic!(
-                        "{reason:?} must stay transient with allow_missing_config = \
-                         {allow_missing_config}, got {err:?}"
-                    ),
+                    | RuntimeConfigError::StoreKeyRejected { .. } => {
+                        panic!("{reason:?} must stay transient, got {err:?}")
+                    }
                 }
                 let response = err.into_response().expect("response builds");
                 assert_eq!(
                     response.status(),
                     StatusCode::SERVICE_UNAVAILABLE,
-                    "{reason:?} / {allow_missing_config}",
+                    "{reason:?} / {field_path:?}",
                 );
                 assert!(
                     response.headers().contains_key("retry-after"),
-                    "{reason:?} / {allow_missing_config}",
+                    "{reason:?} / {field_path:?}",
                 );
+                let degraded = super::classify_store_extraction(reason, field_path)
+                    .degrade_to_default()
+                    .expect("liveness can degrade a transient config fault");
+                assert!(degraded.host.aliases.is_none());
             }
         }
     }
@@ -1010,8 +1018,7 @@ mod tests {
     #[test]
     fn malformed_family_maps_to_500_with_discriminant_only_detail() {
         for reason in MALFORMED {
-            let err = classify_store_extraction_with(reason, None, false)
-                .expect_err("malformed reasons never yield a config");
+            let err = super::classify_store_extraction(reason, None);
             match &err {
                 RuntimeConfigError::MalformedHost { detail } => assert_eq!(
                     detail,
@@ -1033,50 +1040,38 @@ mod tests {
         }
     }
 
-    /// Every malformed reason classifies identically under BOTH
-    /// bootstrap policies — the companion to
-    /// [`transient_reasons_ignore_the_bootstrap_policy`], and load-bearing
-    /// for a DECLARED store that failed to open.
-    ///
-    /// A declared binding whose provider open fails is resolvable and
-    /// typed: upstream hands back a failing handle rather than omitting
-    /// the binding, so the read returns an error and the extractor
-    /// reports `BackendFailure` (structural) or `BackendUnavailable`
-    /// (transient). Neither is `MissingBlob`, which only a SUCCESSFUL
-    /// read with no value produces. So a broken declared store can never
-    /// borrow the absence rule, and that is what this pins: a failure is
-    /// a fault under either policy, because `allow_missing_config`
-    /// governs absence and nothing else. Were a future upstream to route
-    /// an open failure through `MissingBlob` instead, the permissive
-    /// policy would answer auctions from a baked default nobody
-    /// vouched for, with GDPR enforcement OFF — this asserts the half
-    /// of that contract auctioneer owns.
+    /// Malformed publications remain permanent faults, with explicit liveness degradation.
     #[test]
-    fn malformed_reasons_ignore_the_bootstrap_policy() {
+    fn malformed_reasons_remain_errors_and_liveness_can_degrade() {
         for reason in MALFORMED {
-            for allow_missing_config in [false, true] {
-                let err = classify_store_extraction_with(reason, None, allow_missing_config)
-                    .expect_err("a malformed fault is never a config, under either policy");
+            for field_path in [None, Some("host.gdpr")] {
+                let err = super::classify_store_extraction(reason, field_path);
                 match &err {
-                    RuntimeConfigError::MalformedHost { detail } => assert_eq!(
-                        detail,
-                        &format!("config store extraction failed: {reason:?}"),
-                        "the detail names the reason, not the missing-config rule",
-                    ),
+                    RuntimeConfigError::MalformedHost { detail } => {
+                        let suffix = field_path.map_or(String::new(), |path| format!(" at {path}"));
+                        assert_eq!(
+                            detail,
+                            &format!("config store extraction failed: {reason:?}{suffix}")
+                        );
+                    }
                     RuntimeConfigError::RegistryBuildFailed { .. }
                     | RuntimeConfigError::UnfundedExtraction { .. }
                     | RuntimeConfigError::ConfigStoreUnavailable { .. }
-                    | RuntimeConfigError::StoreKeyRejected { .. } => panic!(
-                        "{reason:?} must stay malformed with allow_missing_config = \
-                         {allow_missing_config}, got {err:?}"
-                    ),
+                    | RuntimeConfigError::StoreKeyRejected { .. } => {
+                        panic!("{reason:?} must stay malformed, got {err:?}")
+                    }
                 }
                 let response = err.into_response().expect("response builds");
                 assert_eq!(
                     response.status(),
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "{reason:?} / {allow_missing_config}",
+                    "{reason:?} / {field_path:?}",
                 );
+                assert!(!response.headers().contains_key("retry-after"));
+                let degraded = super::classify_store_extraction(reason, field_path)
+                    .degrade_to_default()
+                    .expect("liveness can degrade a malformed publication");
+                assert!(degraded.host.aliases.is_none());
             }
         }
     }
@@ -1088,8 +1083,7 @@ mod tests {
     /// shipped path still reported `malformed_config`.
     #[test]
     fn invalid_key_reason_reports_store_key_rejected() {
-        let err = classify_store_extraction_with(StoreExtractionReason::InvalidKey, None, false)
-            .expect_err("a refused key never yields a config");
+        let err = super::classify_store_extraction(StoreExtractionReason::InvalidKey, None);
         assert!(
             matches!(err, RuntimeConfigError::StoreKeyRejected { .. }),
             "a refused key is its own fault, not a malformed blob: {err:?}",
@@ -1174,18 +1168,8 @@ mod tests {
     }
 
     #[test]
-    fn missing_blob_degrades_only_when_the_bootstrap_allows_it() {
-        let allowed =
-            classify_store_extraction_with(StoreExtractionReason::MissingBlob, None, true)
-                .expect("an allowed missing blob degrades to the baked default");
-        assert!(
-            allowed.aliases.is_none(),
-            "the degrade is the baked default, nothing else"
-        );
-
-        let refused =
-            classify_store_extraction_with(StoreExtractionReason::MissingBlob, None, false)
-                .expect_err("a refused missing blob fails closed");
+    fn missing_blob_is_always_a_closed_runtime_fault() {
+        let refused = super::classify_store_extraction(StoreExtractionReason::MissingBlob, None);
         match &refused {
             RuntimeConfigError::MalformedHost { detail } => {
                 assert!(detail.starts_with("config store extraction failed: MissingBlob"));
@@ -1250,15 +1234,13 @@ mod tests {
     #[test]
     fn missing_config_is_one_rule_for_absent_binding_and_missing_blob() {
         for what in ["no config store binding", "MissingBlob"] {
-            let refused =
-                missing_config(what, false, None).expect_err("refused under the safer policy");
+            let refused = missing_config(what, None);
             match refused {
                 RuntimeConfigError::MalformedHost { detail } => {
                     assert_eq!(
                         detail,
                         format!(
-                            "config store extraction failed: {what} (the baked bootstrap does \
-                             not allow a missing config)"
+                            "config store extraction failed: {what} (runtime configuration is required)"
                         ),
                     );
                 }
@@ -1269,9 +1251,10 @@ mod tests {
                     panic!("a missing config is never transient")
                 }
             }
-            let degraded =
-                missing_config(what, true, None).expect("allowed under the permissive policy");
-            assert!(degraded.aliases.is_none());
+            let degraded = missing_config(what, None)
+                .degrade_to_default()
+                .expect("only the explicit liveness disposition can degrade a missing config");
+            assert!(degraded.host.aliases.is_none());
         }
     }
 
@@ -1289,8 +1272,7 @@ mod tests {
             .chain(MALFORMED)
             .chain([StoreExtractionReason::InvalidKey])
         {
-            let err = classify_store_extraction_with(reason, Some(canary), false)
-                .expect_err("every non-missing reason is an error");
+            let err = super::classify_store_extraction(reason, Some(canary));
             let detail = match err {
                 RuntimeConfigError::MalformedHost { detail }
                 | RuntimeConfigError::StoreKeyRejected { detail }
@@ -1370,14 +1352,24 @@ mod tests {
     #[test]
     fn loaded_sync_override_is_validated_after_merging() {
         let invalid: AuctioneerAppConfig =
-            toml::from_str("[host_cookie]\ncookie_name = 'uids'\n").unwrap();
-        let err = classify_load(Ok(invalid)).expect_err("merged invalid config fails closed");
+            toml::from_str("schema_version = 1\n[host.host_cookie]\ncookie_name = 'uids'\n")
+                .unwrap();
+        let sdk_invalid = super::SdkAuctioneerAppConfig(invalid);
+        assert!(
+            validator::Validate::validate(&sdk_invalid).is_err(),
+            "the SDK boundary must apply semantic validation"
+        );
+        let err = classify_load(Ok(sdk_invalid.0)).expect_err("merged invalid config fails closed");
         assert!(matches!(err, RuntimeConfigError::MalformedHost { .. }));
 
         let valid: AuctioneerAppConfig = toml::from_str(
-            "[host_cookie]\nmax_cookie_size_bytes = 0\n[user_sync]\npriority_groups = []\n",
+            "schema_version = 1\n[host.host_cookie]\nmax_cookie_size_bytes = 0\n\
+             [host.user_sync]\nexternal_url = 'https://sync.example.test'\npriority_groups = []\n",
         )
         .unwrap();
-        classify_load(Ok(valid)).expect("explicit zero and empty priority are valid");
+        let sdk_valid = super::SdkAuctioneerAppConfig(valid);
+        validator::Validate::validate(&sdk_valid)
+            .expect("SDK validation accepts explicit zero and empty priority");
+        classify_load(Ok(sdk_valid.0)).expect("explicit zero and empty priority are valid");
     }
 }

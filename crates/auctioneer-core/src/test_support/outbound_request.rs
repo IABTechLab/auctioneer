@@ -4,7 +4,7 @@ use auctioneer_bidder::{
     BidderHttpRequest, BidderName, BidderRequestInfo, CallBudget, EntryPoint, OutboundBuildError,
     OutboundRequestSink, SinkLimits,
 };
-use auctioneer_config::types::{BidderInfo, Capabilities, OpenRtbCapabilities, SyncerConfig};
+use auctioneer_config_data::types::{BidderInfo, Capabilities, OpenRtbCapabilities, SyncerConfig};
 use auctioneer_exchange::ExchangeEndpointValidator;
 
 /// Build a request through the same checked sink used by bidders.

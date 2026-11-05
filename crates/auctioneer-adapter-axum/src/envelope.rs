@@ -321,8 +321,8 @@ const MAX_RUNTIME_CONFIG_BLOB_BYTES: u64 = 64 << 10;
 ///
 /// One aux slot and the independent probe-config slot each retain a
 /// 128 MiB reservation. The full production derivation at these caps,
-/// including 1,592 serialized baked-config bytes, requires 58,647,552
-/// non-GVL bytes per slot. The 75,570,176-byte slack is structural sizing,
+/// including 1,447 serialized baked-config bytes, requires 58,628,992
+/// non-GVL bytes per slot. The 75,588,736-byte slack is structural sizing,
 /// not a new allocation factor or measured resident peak. Boot checks
 /// the complete floor, not only config extraction and manifests.
 const AUX_ROUTE_PERMITS: u32 = 1;
@@ -657,17 +657,18 @@ mod tests {
         }
     }
 
+    // Independent neutral contract: 764 host + 680 account + 3 tuple bytes.
     fn baked_config_bytes() -> u64 {
         auctioneer_runtime::serialized_json_bytes(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap()
     }
 
     #[test]
     fn baked_cookie_identity_bytes_are_funded_per_admitted_auction() {
-        let host = auctioneer_config::host_default();
+        let host = auctioneer_config_data::host_default();
         assert_eq!(host.host_cookie.cookie_name, "auctioneer_uid");
         assert_eq!(host.host_cookie.family, "auctioneer");
         let mut shorter = host.clone();
@@ -675,11 +676,11 @@ mod tests {
         shorter.host_cookie.family = "fake_a".to_owned();
         let shorter_bytes = auctioneer_runtime::serialized_json_bytes(&(
             &shorter,
-            auctioneer_config::account_default(),
+            auctioneer_config_data::account_default(),
         ))
         .unwrap();
-        assert_eq!(shorter_bytes, 1_584);
-        assert_eq!(baked_config_bytes(), 1_592);
+        assert_eq!(shorter_bytes, 1_439);
+        assert_eq!(baked_config_bytes(), 1_447);
         let row = super::limits();
         let derive = |bytes| {
             auctioneer_runtime::derive_isolate_budget_with_baked_config(
@@ -710,14 +711,14 @@ mod tests {
         let row = selected_native_candidate();
         let aux =
             derive_aux_work_for_profile(&row, &super::target(), baked_config_bytes()).unwrap();
-        assert_eq!(baked_config_bytes(), 1_592);
-        assert_eq!(aux.peak_bytes(), 58_647_552);
+        assert_eq!(baked_config_bytes(), 1_447);
+        assert_eq!(aux.peak_bytes(), 58_628_992);
         assert_eq!(row.aux_route_peak_bytes, 0x0800_0000);
         assert_eq!(
             row.aux_route_peak_bytes
                 .checked_sub(aux.peak_bytes())
                 .unwrap(),
-            75_570_176
+            75_588_736
         );
         assert_eq!(aux.pinned_gvl_bytes(), 512_000);
         assert!(aux.peak_bytes() <= row.aux_route_peak_bytes);
@@ -732,7 +733,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             derived.total_bytes,
-            2_536_791_800 + 2 * 128 * 1024 + 26_214_400
+            2_536_754_680 + 2 * 128 * 1024 + 26_214_400
         );
         assert!(derived.total_bytes + (256_u64 << 20_u32) <= row.isolate_total_bytes);
         let mut underfunded = row;
@@ -809,11 +810,11 @@ mod tests {
         // One sequential credential bank per admitted auction, not per call.
         assert_eq!(
             previous.total_bytes,
-            2_355_375_864 + 2 * (1_576_960 + 128 * 1024) + 26_214_400
+            2_355_338_744 + 2 * (1_576_960 + 128 * 1024) + 26_214_400
         );
         assert_eq!(
             previous.per_auction_peak,
-            565_749_980 + 1_576_960 + 128 * 1024 + 0x0008_0000
+            565_731_420 + 1_576_960 + 128 * 1024 + 0x0008_0000
         );
         assert_eq!(previous.bookkeeping_term, 917_504);
         assert_eq!(
@@ -889,16 +890,16 @@ mod tests {
         assert_eq!(row.isolate_total_bytes, 4_u64 << 30_u32);
         assert_eq!(
             derived.total_bytes,
-            2_536_791_800 + 2 * 128 * 1024 + 26_214_400
+            2_536_754_680 + 2 * 128 * 1024 + 26_214_400
         );
         assert_eq!(
             derived.per_auction_peak,
-            654_880_988 + 1_576_960 + 128 * 1024 + 0x0008_0000
+            654_862_428 + 1_576_960 + 128 * 1024 + 0x0008_0000
         );
         assert_eq!(derived.bookkeeping_term, 3_276_800);
         assert_eq!(
             derived.margin_bytes,
-            1_761_329_416 - 2 * (1_576_960 + 128 * 1024) - 26_214_400
+            1_761_366_536 - 2 * (1_576_960 + 128 * 1024) - 26_214_400
         );
         assert_eq!(
             derived.total_bytes,

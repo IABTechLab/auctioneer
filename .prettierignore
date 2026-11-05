@@ -20,6 +20,6 @@
 /crates/auctioneer-bidder/src/bidders/*/parameters.json
 /crates/auctioneer-bidder/src/bidders/*/schemas/*.schema.json
 /crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline*.toml
-/crates/auctioneer-config/data/gvl_archive/
-/crates/auctioneer-config/data/openrtb-2.6-source.md
+/crates/auctioneer-config-data/data/gvl_archive/
+/crates/auctioneer-config-data/data/openrtb-2.6-source.md
 /vendor/

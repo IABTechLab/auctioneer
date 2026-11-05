@@ -64,7 +64,7 @@ mod tests {
     use crate::types::BidderHttpRequest;
     use crate::types::{BidderHttpResponse, BidderName};
     #[cfg(not(target_arch = "wasm32"))]
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_runtime::bounded_json::{JsonFieldShape, count_json_nodes_with_field};
     use serde::Serialize;

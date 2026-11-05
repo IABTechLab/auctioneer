@@ -1,548 +1,358 @@
-# `auctioneer.toml` — the single source an operator edits. Every auctioneer
-# knob AND its default lives here.
+# Complete reference for the supported runtime operator policy. Values below are
+# examples, not production recommendations. Replace fictional domains and names.
+# No bidder is enabled by this file; bidder-specific examples stay commented.
 #
-# ------------------------------------------------------------------
-# The two namespaces
-# ------------------------------------------------------------------
-#   [baked.host]     the host-scoped defaults    — REBUILD REQUIRED
-#   [baked.account]  the account-scoped defaults — REBUILD REQUIRED
-#   [runtime]        pushed by `auctioneer-cli config push`, effective on
-#                    the next request
+# This file is authored and pushed directly by EdgeZero's typed config commands;
+# it is not compiled into the application. Product defaults are neutral. Omitted
+# fields inherit within this document: product defaults, then account_defaults,
+# then the selected accounts entry. Each push replaces the complete policy, not
+# just fields from the previous blob. Unknown fields are rejected. Nullable fields
+# use explicit { clear = true } resets, not JSON null. Some optional bidder/activity
+# leaves interpret null as omission; prefer the explicit TOML forms shown here.
 #
-# `[baked.*]` is read by `crates/auctioneer-config/build.rs` and compiled
-# into the binary as `host_default()` / `account_default()`. Changing a
-# value there takes a rebuild: `config push` cannot reach it and
-# neither can a restart, because the same binary re-reads the same
-# constant.
+# auctioneer-cli config validate --app-config auctioneer.toml
+# auctioneer-cli config diff --adapter axum --app-config auctioneer.toml
+# auctioneer-cli config push --adapter axum --app-config auctioneer.toml
 #
-# `[runtime]` maps 1:1 to the `AuctioneerAppConfig` struct in
-# `crates/auctioneer-core/src/config/mod.rs`. There is no `[config]` wrapper.
+# The SDK applies environment overrides at authoring time only, and only to keys
+# already present in this file. For example:
+# `AUCTIONEER__HOST__RESOURCE_LIMITS__DEFAULT_TMAX_MS=1500`
+# An omitted/commented key cannot be created through the environment. --no-env
+# disables the overlay. Running instances read the stored envelope, not this file
+# or these environment variables. CLI authoring hardening remains tracked in #142.
+# Envelope integrity detects drift; config-store write access is the trust boundary.
 #
-# THIS FILE IS NEVER READ AT RUNTIME and is never baked into the binary
-# wholesale. It is the SOURCE artifact: the build extracts the
-# `[baked.*]` values from it, and `auctioneer-cli config push` sends the
-# `[runtime]` subtree to the store the runtime reads.
-#
-# ------------------------------------------------------------------
-# Overlay-over-baked semantics
-# ------------------------------------------------------------------
-# Every `[runtime]` field is `Option<_>`. Absent (or commented-out)
-# fields fall through to the `[baked.*]` values compiled in above.
-# `Some(value)` overrides the baked default at request time, which also
-# means a present key PINS its value and stops inheriting future baked
-# defaults — so leave a key commented unless you mean to pin it.
-#
-# Handlers call `auctioneer_core::config::resolve::resolved_host()` /
-# `resolved_account()` once per request to merge the two.
-#
-# ------------------------------------------------------------------
-# Push flow
-# ------------------------------------------------------------------
-#   auctioneer-cli config push --adapter <axum|cloudflare|fastly|spin>
-#
-# The CLI projects `[runtime]` out of this document and delegates it to
-# EdgeZero's config-push pipeline, which hashes it, wraps it in a blob
-# envelope and writes it to the store id declared in `[stores.config]`
-# in `edgezero.toml` (currently `"auctioneer_runtime"`). The envelope's
-# SHA-256 is a drift / integrity signal, not a signature: it proves the
-# data matches the hash, nothing about who wrote it. Store-write access
-# is the trust boundary.
-#
-# ------------------------------------------------------------------
-# Env-var overlay
-# ------------------------------------------------------------------
-# A `[runtime]` key THE FILE ALREADY SETS can be overridden by
-# `AUCTIONEER__RUNTIME__<SECTION>__…__<KEY>` — applied AT PUSH TIME by
-# `auctioneer-cli config push`, which runs the env-aware loader on the
-# operator's machine and bakes the result into the pushed blob. The
-# runtime reads the stored envelope verbatim and consults no instance
-# environment, so changing one of these variables takes effect on the
-# NEXT push, not on a running instance. Prefix is the project name
-# uppercased with `-`→`_`; sections joined by `__`.
-#
-# A COMMENTED-OUT OR OMITTED KEY IS NOT ENV-OVERRIDABLE. The overlay
-# only overrides keys that already exist in the parsed tree, so
-# `AUCTIONEER__RUNTIME__AUCTION__DEFAULT_TMAX_MS=1500` reaches
-# `[runtime.auction] default_tmax_ms` only once that line is
-# uncommented — at which point the value is deliberately pinned, which
-# is the correct semantics rather than a workaround.
-#
-# `AUCTIONEER__BAKED__…` affects nothing at all: the build script reads
-# this file directly and applies no env overlay. Baked values change by
-# editing the file and rebuilding, full stop.
+# Adapter bindings, installed capacity, compiled capabilities and raw secret values
+# are not operator-policy fields. Configure deployment bindings through EdgeZero
+# and put credentials in its secret store, never in this document.
 
-# ==================================================================
-# [baked.host] — host-scoped defaults. REBUILD REQUIRED.
-# ==================================================================
-[baked.host]
-# Body returned by `GET /status`. Empty → 204 No Content.
-status_response = ""
+schema_version = 1
 
-[baked.host.gdpr]
-# GDPR master switch. `enabled` here is a plain `bool`; the account
-# side's `enabled` is a tri-state STRING. They are different paths with
-# different types and never meet.
+[host]
+# Plain-text response used by the status handler.
+status_response = "auctioneer local"
+
+# Requested limits can lower, but never expand, independently installed capacity.
+# Durations are milliseconds, sizes are bytes, and counts are integers.
+[host.resource_limits]
+# Timeout requests: 1..30000 ms; actual dispatch still obeys the auction deadline.
+default_tmax_ms = 1000
+max_tmax_ms = 2000
+# Legacy bidder-response cap: 1024..16777216 bytes.
+max_bidder_response_bytes = 262144
+# Syntactic ranges: 1..500 bidders and 1..1000 outbound calls per auction.
+max_bidders_per_auction = 50
+max_outbound_requests = 100
+# Request-body caps: 1024..16777216 bytes, before and after encoding.
+max_outbound_raw_bytes = 262144
+max_outbound_request_bytes = 262144
+# Response caps: 1024..104857600 bytes, on the wire and after decoding.
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+# JSON structural cap: 1..1048576 nodes. Applies to inbound auction parsing before
+# account selection and to bidder response parsing; it is not response-only.
+max_parsed_nodes = 65536
+
+[host.gdpr]
 enabled = true
-# Geo-ambiguous fallback consent scope; "0" or "1".
+# "0" or "1": fallback when request/geo signals do not settle applicability.
 default_value = "0"
-# GVL id for the host itself; 0 = none declared.
+# 0 means no declared host GVL vendor id; set the actual id when applicable.
 host_vendor_id = 0
-# Account ids the host exempts from the enforcement stack. Matched
-# against the RESOLVED account id, so it only ever names publishers a
-# request actually carries — the reserved fallback id for a request
-# with no publisher is never matched. Host-owned, not account-owned.
+# Publisher ids exempted from the ordinary GDPR path; empty means no exceptions.
 non_standard_publishers = []
 
-# Empty maps are legit defaults; the `[runtime]` overlay and the
-# per-account sections populate. `special_features` is where PassGeo
-# derivation consults SF1 enforcement + exceptions.
-[baked.host.gdpr.tcf2]
-enabled = false
-purposes = {}
-special_features = {}
+[host.gdpr.tcf2]
+enabled = true
 
-[baked.host.gdpr.tcf2.purpose_one_treatment]
+[host.gdpr.tcf2.purpose_one_treatment]
 enabled = true
 access_allowed = true
 
-[baked.host.ccpa]
-enforce = false
+# Purpose ids are 1..10. Repeat this shape with the required id, not a new field.
+# enforce_algo: "full" or "basic". Enforcement tri-states: "unset", "enabled",
+# "disabled". Vendor exception entries are bidder identities, not GVL numbers.
+[host.gdpr.tcf2.purposes.2]
+enforce_algo = "full"
+enforce_purpose = "enabled"
+enforce_vendors = "enabled"
+vendor_exceptions = []
 
-[baked.host.lmt]
-enforce = false
+# Special-feature ids are 1..12; the same tri-state and name-list rules apply.
+[host.gdpr.tcf2.special_features.1]
+enforce = "enabled"
+vendor_exceptions = []
 
-[baked.host.host_cookie]
-# Source identity cookie, distinct from Auctioneer's fixed writable `uids` cookie.
+# CCPA and LMT enforcement are independent of the GDPR master switch.
+[host.ccpa]
+enforce = true
+
+[host.lmt]
+enforce = true
+
+[host.host_cookie]
+# Source identity cookie, distinct from Auctioneer's fixed writable uids cookie.
 cookie_name = "auctioneer_uid"
 family = "auctioneer"
+# Omit to inherit; { clear = true } removes Domain (a host-only cookie).
+domain = "sync.example.test"
 ttl_days = 90
-# Zero removes only the logical eviction threshold, not the 16 KiB
-# Set-Cookie field cap. An explicit positive threshold must be >= 500.
+# Zero disables logical eviction, not the complete Set-Cookie field-size cap.
 max_cookie_size_bytes = 0
-# Optional validated DNS domain; omitted means a host-only `uids` cookie.
-# domain = "sync.publisher.example"
-# Optional opt-out requires both nonempty fields.
-# [baked.host.host_cookie.optout_cookie]
-# name = "auctioneer_optout"
-# value = "1"
 
-# Replace this demonstration HTTPS callback origin before deployment.
-# An optional base path is allowed, e.g. https://sync.publisher.example/auctioneer.
-# Sync callbacks are never derived from Host, Origin, or forwarded headers.
-[baked.host.user_sync]
+[host.host_cookie.optout_cookie]
+# The whole opt-out cookie may be cleared; its individual leaves inherit if absent.
+name = "auctioneer_optout"
+value = "1"
+
+# This explicit demonstration service exists only in this runtime policy.
+# Replace its origin before deployment; omission leaves sync unconfigured unless
+# an explicit parent supplies it. { clear = true } disables an inherited service.
+[host.user_sync]
 external_url = "https://sync.example.test"
-# Omit redirect_url to use the default /setuid callback template under
-# external_url's base path; a custom value is a validated macro template.
-# redirect_url = "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&uid={{.UserMacro}}"
+# Template macros are literal here, not environment-variable expansion. Keep uid
+# last and a single bidder binding. The standard template below carries every
+# privacy signal. BidderName is also supported in place of SyncerKey.
+redirect_url = "{{.ExternalURL}}/setuid?bidder={{.SyncerKey}}&gdpr={{.GDPR}}&gdpr_consent={{.GDPRConsent}}&us_privacy={{.USPrivacy}}&gpp={{.GPP}}&gpp_sid={{.GPPSID}}&f={{.SyncType}}&uid={{.UserMacro}}"
+# Groups are arrays of bidder-name arrays; [] clears the inherited ordering.
+# Example ordering: [["fake_first", "fake_second"], ["fake_third"]].
 priority_groups = []
-# Exact browser origins only (scheme, host, optional port); no path,
-# wildcard, or automatic Origin reflection. Empty permits no cross-origin
-# JavaScript access. CORS is separate from privacy permission.
+# Exact browser origins; for example ["https://publisher.example"].
 allowed_origins = []
-# Example origin: https://publisher.example
 
-[baked.host.user_sync.cooperative]
+[host.user_sync.cooperative]
 enabled_by_default = false
 
-# The same fields `[runtime.auction]` overrides, under their baked
-# names. The baked default and its runtime override now sit in one
-# file, so neither can silently disagree with the other.
-#
-# The two outbound caps and the three response/parse caps below are
-# ALSO declared by each adapter's boot envelope, which is what actually
-# funds them — seven of this table's ten rows have an envelope
-# counterpart once the two population caps are counted. Config
-# can only LOWER them: a value above the funded one would falsify the
-# boot-time envelope proof, while lowering is always safe because every
-# envelope term is a worst-case charge. The resolver clamps in that one
-# direction, so the values here are the documented defaults rather than
-# a second authority.
-[baked.host.resource_limits]
-default_tmax_ms = 1000
-max_tmax_ms = 2000
-max_bidder_response_bytes = 262144
-max_bidders_per_auction = 50
-max_outbound_requests = 100
-# Pre-encoding cap on one adapter-built outbound body, enforced as the
-# sink writes it. 256 KiB.
-max_outbound_raw_bytes = 262144
-# Cap on the final ENCODED outbound body, gzip expansion counted.
-# 256 KiB.
-max_outbound_request_bytes = 262144
-# Compressed on-the-wire cap for one bidder response. 256 KiB.
-max_transport_bytes = 262144
-# Post-decode cap for one bidder response. 256 KiB. The largest single
-# term in the per-auction charge.
-max_decoded_bytes = 262144
-# Syntactic JSON node budget for the inbound request parse. 65536.
-max_parsed_nodes = 65536
-
-# Host-declared bidder aliases. Ships as an empty map — a host operator
-# adds `alias_name = "core_bidder"` entries here and they surface
-# through `/info/bidders` without any code change. A base bidder this
-# build's registry does not carry fails the build.
-[baked.host.aliases]
-
-# ==================================================================
-# [baked.account] — account-scoped defaults. REBUILD REQUIRED.
-# ==================================================================
-[baked.account]
-disabled = false
-debug_allow = false
-bid_rounding = "down"
-# Account-level `hb_*` targeting prefix. `hb` is the default; an empty
-# string means "no account override" and the resolver falls back to the
-# built-in default.
-targeting_prefix = "hb"
-# Cap on the emitted `hb_*` key length. Left unset so `build_keys` uses
-# the default `MaxKeyLength = 20`.
-# truncate_target_attribute = 20
-
-# `enabled = "unset"` is the account-level tri-state the channel
-# resolver checks BEFORE falling through to the host's `tcf2.enabled`.
-# No `non_standard_publisher` here — it lives on the host and matches by
-# account id.
-[baked.account.gdpr]
-enabled = "unset"
-purposes = {}
-special_features = {}
-basic_enforcement_vendors = []
-
-[baked.account.gdpr.purpose_one_treatment]
-
-[baked.account.cookie_sync]
-# A positive max_limit caps even an otherwise unlimited request/default.
-# default_limit = 5
-# max_limit = 10
-# default_coop_sync = false
-# priority_groups = []  # Present empty list replaces host groups.
-
-[baked.account.gdpr.channel_enabled]
-web = "unset"
-app = "unset"
-amp = "unset"
-video = "unset"
-dooh = "unset"
-
-# CCPA resolves trusted inventory channel, then account, then host.
-# Explicit "unset" restores fallback; it is not an alias for "disabled".
-[baked.account.ccpa]
-enabled = "unset"
-
-[baked.account.ccpa.channel_enabled]
-web = "unset"
-app = "unset"
-amp = "unset"
-video = "unset"
-dooh = "unset"
-
-# The same activity schema is accepted here and in runtime account overrides.
-# Defaults allow all activities; these commented examples do not activate them.
-# [baked.account.privacy.allowactivities.transmitUfpd]
-# default = true
-# rules = []
-
-# The account IP-anon block is account-scoped (no host fall-through).
-# Matches the `Default` impl, so an absent block parses identically.
-[baked.account.privacy.ipv4]
-anon_keep_bits = 24
-
-[baked.account.privacy.ipv6]
-anon_keep_bits = 56
-
-# ==================================================================
-# [runtime] — the pushed overlay. No rebuild; effective next request.
-# ==================================================================
-[runtime]
-
-# ==================================================================
-# [runtime.auction] — resource limits; overrides the baked
-# `resource_limits` table above.
-# ==================================================================
-[runtime.auction]
-# Default `tmax` ceiling enforced by the auction handler when the
-# request omits `req.tmax`. Baked default = 1000 ms.
-# default_tmax_ms = 1000
-
-# Hard ceiling on the resolved auction budget. Baked default = 2000.
-# max_tmax_ms = 2000
-
-# Maximum bidders selected per auction (§5.3 / §5.9). Baked = 50.
-# max_bidders_per_auction = 50
-
-# Maximum total outbound requests across all bidders. Baked = 100.
-# max_outbound_requests = 100
-
-# Per-bidder response size cap before code-4 BadServerResponse.
-# Baked default = 262144 (256 KiB). Range: 1 KiB..=16 MiB.
-# max_bidder_response_bytes = 262144
-
-# The five caps the boot envelope funds. Each one is resolved against
-# the envelope's OWN figure for it, and only DOWNWARD: a value below
-# what the envelope funds takes effect as written, a value above it is
-# clamped to the funded number rather than accepted. Lowering any of
-# them is how a deployment tunes its per-auction memory charge without
-# a rebuild; raising one past the envelope is not available here,
-# because the boot-time proof that the envelope fits already assumed
-# the funded figure.
-
-# Pre-encoding cap on one adapter-built outbound body, enforced as the
-# per-bidder sink writes it. Baked default = 262144 (256 KiB). Charged
-# by the envelope's per-call term together with the encoded cap below,
-# so lowering either lowers the same term.
-# max_outbound_raw_bytes = 262144
-
-# Cap on the final ENCODED outbound body — post-serialization and
-# post-compression, with gzip expansion counted. Baked default = 262144
-# (256 KiB).
-# max_outbound_request_bytes = 262144
-
-# Compressed on-the-wire cap for one bidder response.
-# Baked default = 262144 (256 KiB).
-# max_transport_bytes = 262144
-
-# Post-decode cap for one bidder response. Baked default = 262144
-# (256 KiB). The per-auction response-parse term is this value times
-# the call count times the parse factor, so it is the first knob to
-# lower under a tight isolate budget.
-# max_decoded_bytes = 262144
-
-# Syntactic JSON node budget for the inbound request parse. Baked
-# default is 65536. Counted as nodes rather than bytes because a byte
-# cap does not bound what a parse retains.
-# max_parsed_nodes = 65536
-
-# ==================================================================
-# [runtime.targeting] — hb_* key emission; overrides the baked
-# account defaults above.
-# ==================================================================
-[runtime.targeting]
-# Runtime override for `AccountConfig.targeting_prefix`. Length capped
-# at 8 chars so the resolved key still fits Appendix E.3's
-# `MaxKeyLength` = 20 with a `_pb_<bidder>` suffix. Baked = "hb".
-# prefix = "hb"
-
-# Runtime override for `AccountConfig.truncate_target_attribute`.
-# 12..=20 per Appendix E.3.
-# truncate_target_attribute = 20
-
-# ==================================================================
-# [runtime.status] — /status handler body
-# ==================================================================
-[runtime.status]
-# Override for `[baked.host] status_response`. Empty string → 204 No
-# Content. Deployers set an env-name / banner for prod probes.
-# banner = "auctioneer prod-eu build 1.2.3"
-
-# ==================================================================
-# [runtime.features] — kill-switches (operator toggles, no rebuild)
-# ==================================================================
-[runtime.features]
-# Send outbound `Content-Encoding: gzip` when a bidder declares
-# `endpoint_compression = "gzip"` in its bidder-info TOML.
-# Kill-switch: set to `false` when a downstream proxy incorrectly
-# strips gzip.
-# gzip_outbound = true
-
-# Default value of `returnallbidstatus` when the request omits it.
-# Appendix E.6 baseline is `false`; flip to `true` for auditability.
-# returnallbidstatus_default = false
-
-# Non-USD response handling is not a runtime knob: the response
-# builder hardcodes `cur = "USD"`, so any bid whose currency isn't USD
-# is dropped with a code-10004 warning. Full response-currency conversion
-# requires currency-aware bundles; request-floor conversion does not change
-# this policy. A toggle needs a meaningful non-USD implementation first.
-
-# ==================================================================
-# [runtime.bidders.<name>] — per-bidder runtime overrides
-# ==================================================================
-# Keys are public bidder names discovered from bidder-owned declarations.
-# Examples use synthetic names; substitute an enabled public definition.
-# Absent overrides keep the owner's build-time defaults.
-#
-# NOTE: `enabled = false` drops the bidder before fan-out. The auction
-# response carries an observable code-6 `BidderTemporarilyDisabled`
-# warning under the bidder's own name (`ext.warnings.<name>`) rather
-# than silently omitting it.
-#
-# NOTE: `sample_rate` is the QUIET counterpart. A sampled-out bidder is
-# dropped before fan-out with no `ext.warnings` entry and no
-# `seatnonbid` row, which is the usual RTB convention for load control.
-# Reach for `enabled = false` when you want the drop to be observable,
-# and `sample_rate` when you only want to shed traffic. `sample_rate =
-# 0.0` therefore drops the bidder SILENTLY -- it is not a quieter
-# spelling of `enabled = false`. Must be finite: NaN and +/-inf are
-# rejected at config load.
-
-# [runtime.bidders.fake_bidder]
-# enabled     = true
-# usersync_enabled = false     # Sync kill switch; cannot create a new syncer.
-# timeout_ms  = 300           # override BidderInfo.bidder_timeout_ms
-# sample_rate = 1.0           # 0.0..=1.0, finite
-
-# [runtime.bidders.fake_second_bidder]
-# enabled     = true
-# timeout_ms  = 250
-
-# ==================================================================
-# [runtime.gdpr] — host GDPR overlay; overrides the baked host gdpr
-# block.
-# ==================================================================
-# THIS SECTION IS HOW ENFORCEMENT GETS TURNED ON. The baked default
-# ships `[baked.host.gdpr.tcf2] enabled = false`, so without an overlay
-# here every request resolves permissively.
-
-# [runtime.gdpr]
-# enabled = true                 # GDPR master switch. Baked = true.
-# default_value = "0"            # geo-ambiguous fallback; "0" or "1".
-# host_vendor_id = 0             # GVL id for the host itself; 0 = none.
-# Account ids the host exempts from GDPR only. CCPA, LMT, COPPA, activity
-# controls, and privacy input validation remain active. Matched
-# against the RESOLVED account id, so it only ever names publishers
-# the request actually carries — the reserved fallback id for a
-# request with no publisher is never matched.
-# non_standard_publishers = ["acct-42"]
-
-# [runtime.gdpr.tcf2]
-# enabled = true                 # TCF2 channel gate. Baked = false.
-
-# [runtime.gdpr.tcf2.purpose_one_treatment]
-# enabled = true
-# access_allowed = true
-
-# Per-purpose enforcement, keys 1..=10. A keyed table overrides ONLY
-# the fields it names on that id; sibling purposes are untouched.
-# [runtime.gdpr.tcf2.purposes.2]
-# enforce_algo      = "full"      # "full" | "basic"
-# enforce_purpose   = "enabled"   # "unset" | "enabled" | "disabled"
-# enforce_vendors   = "enabled"
-# vendor_exceptions = ["fake_bidder"]
-
-# Per-special-feature enforcement, keys 1..=12 (1 = geolocation).
-# [runtime.gdpr.tcf2.special_features.1]
-# enforce           = "enabled"
-# vendor_exceptions = []
-
-# Independent switches, unaffected by GDPR or non-standard-publisher settings.
-# [runtime.ccpa]
-# enforce = true
-# [runtime.lmt]
-# enforce = true
-
-# ==================================================================
-# [runtime.aliases] — host-declared bidder aliases, alias -> core
-# bidder.
-# ==================================================================
-# Per-key merge onto the baked `[baked.host.aliases]`: a named key
-# replaces its base bidder, unnamed baked aliases survive.
-
-# [runtime.aliases]
+# Alias names resolve to compiled public bidder definitions, not new implementations.
+# Replace both placeholders with identities appropriate for the deployed catalog.
+[host.aliases]
 # fake_alias = "fake_bidder"
 
-# ==================================================================
-# [runtime.host_cookie] / [runtime.user_sync] — optional user sync host
-# overrides. Pushed values take effect on a subsequent request.
-# ==================================================================
-# [runtime.host_cookie]
-# cookie_name = "auctioneer_uid"     # Source cookie; `uids` name is fixed.
-# family = "auctioneer"
-# domain = "sync.publisher.example"
-# ttl_days = 90
-# max_cookie_size_bytes = 0
-# [runtime.host_cookie.optout_cookie]
-# name = "auctioneer_optout"
-# value = "1"
+# The complete account shape below is shared by account_defaults and accounts.<id>.
+# Named accounts may override any subset; omitted leaves retain the earlier layer.
+[account_defaults]
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+disabled = false
+# Debug must also be requested by the auction; this is permission, not activation.
+debug_allow = false
+# Primary modes: "down", "up", "nearest", "timesplit".
+bid_rounding = "down"
+# Prefix length: 1..8 characters. Targeting attribute truncation: 12..20.
+targeting_prefix = "hb"
+truncate_target_attribute = 20
 
-# [runtime.user_sync]
-# external_url = "https://sync.publisher.example/auctioneer"
-# allowed_origins = ["https://publisher.example"]
-# priority_groups = [["fake_bidder"]]
-# [runtime.user_sync.cooperative]
-# enabled_by_default = false
+[account_defaults.gdpr]
+# Channel -> account -> host TCF2 fallback. "unset" defers to the next level.
+enabled = "unset"
+# Bidder names that opt into basic enforcement; [] means no exceptions.
+basic_enforcement_vendors = []
 
-# Cross-origin fetches require browser credentials as well as an exact
-# allowed origin. The /cookie_sync preflight permits POST/Content-Type;
-# early config/admission failures do not promise CORS allow headers.
-# Browser policy may still reject a third-party `uids` cookie.
+[account_defaults.gdpr.purpose_one_treatment]
+# Boolean values, unlike the tri-states above. Clear either to fall back to host.
+enabled = true
+access_allowed = true
 
-# ==================================================================
-# [runtime.accounts.<id>] — per-publisher overrides
-# ==================================================================
-# Keyed by the publisher id (or `ext.prebid.parentAccount`) the
-# request carries. A publisher with no section here is NOT an error:
-# it resolves to `[baked.account]` and the auction proceeds.
-# `disabled = true` refuses the request with 503 BEFORE the OpenRTB
-# validation pass, so an account-side refusal wins over a structural
-# error.
+[account_defaults.gdpr.channel_enabled]
+web = "unset"
+app = "unset"
+amp = "unset"
+video = "unset"
+dooh = "unset"
 
-# [runtime.accounts.acct-42]
-# disabled                  = false
-# debug_allow               = false
-# bid_rounding              = "down"
-# targeting_prefix          = "hb"
-# truncate_target_attribute = 20
+# Keyed account overrides leave unnamed purpose/feature entries unchanged.
+[account_defaults.gdpr.purposes.2]
+enforce_algo = "full"
+enforce_purpose = "unset"
+enforce_vendors = "unset"
+vendor_exceptions = []
 
-# [runtime.accounts.acct-42.cookie_sync]
-# default_limit = 5
-# max_limit = 10
-# default_coop_sync = true
-# priority_groups = []           # Explicit empty list replaces host groups.
-# Missing/empty request account uses baked defaults, not an
-# `accounts.unknown` override; a literal account="unknown" is named.
+[account_defaults.gdpr.special_features.1]
+enforce = "unset"
+vendor_exceptions = []
 
-# [runtime.accounts.acct-42.gdpr]
-# enabled                    = "unset"   # falls through to the host
-# basic_enforcement_vendors  = []        # whole-list replace
+# CCPA resolves the trusted inventory channel, then account, then host.
+[account_defaults.ccpa]
+enabled = "unset"
 
-# [runtime.accounts.acct-42.gdpr.channel_enabled]
-# web   = "unset"
-# app   = "unset"
-# video = "unset"
-# amp   = "unset"
-# dooh  = "unset"
+[account_defaults.ccpa.channel_enabled]
+web = "unset"
+app = "unset"
+amp = "unset"
+video = "unset"
+dooh = "unset"
 
-# Same keyed shape as the host maps; `unset` on a tri-state means
-# "no account opinion — fall through to the host at request time".
-# [runtime.accounts.acct-42.gdpr.purposes.3]
-# enforce_purpose = "disabled"
+# Address bits retained during anonymization: IPv4 0..32, IPv6 0..128.
+[account_defaults.privacy.ipv4]
+anon_keep_bits = 24
 
-# [runtime.accounts.acct-42.gdpr.special_features.1]
-# enforce = "disabled"
+[account_defaults.privacy.ipv6]
+anon_keep_bits = 56
 
-# [runtime.accounts.acct-42.ccpa]
-# enabled = "unset"
-# [runtime.accounts.acct-42.ccpa.channel_enabled]
-# web = "enabled"
-# app = "unset"
-# dooh = "unset"
+# Activities use the first matching rule, then default (true when absent).
+# Conditions AND name/type clauses and OR entries within a clause. Names use
+# Unicode simple folding against the requested bidder/alias, not wildcard syntax.
+# componentType values: "bidder", "analytics", "rtd", "general".
+# An override replaces the whole rules array; [] clears it. Per activity: at most
+# 128 rules, 128 combined condition entries per rule, 128 UTF-8 bytes per name.
+# A conditional-denial example follows the named publisher below.
+[account_defaults.privacy.allowactivities.fetchBids]
+default = true
+rules = []
 
-# Activities: first matching rule wins, then default (true if absent).
-# Conditions AND the name/type clauses, OR entries within each clause.
-# Names use Unicode simple folding against the requested bidder/alias only.
-# An override replaces the whole rules array; an empty array clears it.
-# Per activity: at most 128 rules, 128 combined condition entries per rule,
-# and 128 UTF-8 bytes per component name. Unknown fields/names are errors.
-# [runtime.accounts.acct-42.privacy.allowactivities.fetchBids]
+[account_defaults.privacy.allowactivities.transmitUfpd]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitPreciseGeo]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitTid]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.syncUser]
+default = true
+rules = []
+
+# These names are accepted policy, but config alone does not activate consumers.
+[account_defaults.privacy.allowactivities.reportAnalytics]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.enrichUfpd]
+default = true
+rules = []
+
+[account_defaults.privacy.allowactivities.transmitUniqueRequestIds]
+default = true
+rules = []
+
+# COPPA has no disable switch; activity grants do not override privacy denials.
+[account_defaults.cookie_sync]
+default_limit = 5
+max_limit = 10
+default_coop_sync = false
+priority_groups = []
+
+# Fictional publisher demonstrates the final account layer, not a compiled tenant.
+# Unknown/missing publisher ids use account_defaults. All account fields shown
+# above are also valid beneath this table; there is no separate named-account API.
+[accounts.fake_publisher]
+debug_allow = true
+targeting_prefix = "ad"
+
+[accounts.fake_publisher.cookie_sync]
+priority_groups = []
+
+# Named-account examples use the same shape as account_defaults above.
+# Uncomment these tables to override only the illustrated leaves.
+# [accounts.fake_publisher.gdpr.channel_enabled]
+# web = "unset"
+#
+# [accounts.fake_publisher.privacy.ipv4]
+# anon_keep_bits = 24
+#
+# [accounts.fake_publisher.ccpa.channel_enabled]
+# web = "unset"
+
+# Append this block to apply a conditional rule to the fictional publisher.
+# A missing/empty condition matches every component. Rules still need allow.
+# BEGIN ACTIVITY RULE EXAMPLE
+# [accounts.fake_publisher.privacy.allowactivities.transmitUfpd]
 # default = true
-# rules = []
-# [runtime.accounts.acct-42.privacy.allowactivities.transmitUfpd]
-# default = true
-# [[runtime.accounts.acct-42.privacy.allowactivities.transmitUfpd.rules]]
+# [[accounts.fake_publisher.privacy.allowactivities.transmitUfpd.rules]]
 # allow = false
 # condition = { componentName = ["fake_alias"], componentType = ["bidder"] }
-# [runtime.accounts.acct-42.privacy.allowactivities.transmitPreciseGeo]
-# default = false
-# [runtime.accounts.acct-42.privacy.allowactivities.transmitTid]
-# default = false
-# `syncUser` is consumed by user-sync permission checks; other accepted
-# activities include reportAnalytics, enrichUfpd, and
-# transmitUniqueRequestIds. Config alone does not activate their consumers.
-# COPPA always applies when regs.coppa is 1; there is no disable switch.
+# END ACTIVITY RULE EXAMPLE
 
-# IP anonymisation is account-scoped (no host fall-through). Each
-# family is independent; an absent one keeps its baked default.
-# [runtime.accounts.acct-42.privacy.ipv4]
-# anon_keep_bits = 24
-# [runtime.accounts.acct-42.privacy.ipv6]
-# anon_keep_bits = 56
+[features]
+# Only affects bidders declaring outbound gzip support; false sends plaintext.
+gzip_outbound = true
+# Default when the auction does not request its own returnallbidstatus value.
+returnallbidstatus_default = false
+
+[bidders]
+# Each public bidder or alias has the common knobs shown below. A cap resolves
+# per field through the observable name, base, selected account and host, and
+# remains bounded by installed capacity. timeout_ms is 1..30000; sample_rate is
+# finite 0.0..1.0. enabled=false disables with a warning; sample_rate=0 silently
+# excludes traffic. Settings do not register a new implementation or endpoint.
+#
+# This block is a FIELD REFERENCE, not a deployable combined settings object.
+# Replace fake_bidder with a compiled public name, implementation with its owner,
+# and keep ONLY values declared by that owner's bidder.toml [settings.fields].
+# The values table lists every currently supported bidder-owned field across all
+# implementations. Do not paste that union into a single bidder's settings.
+# hb_source/hb_source_video: integer protocol source values.
+# supply_id: nonempty routing identifier when required by the implementation.
+# credentials_secret: a secret-store key, never the credential bundle itself.
+# external_url: publisher-facing URL used by the owning protocol.
+# region: "us-east", "us-west", "eu" or "apac" for the regional implementation.
+# BEGIN BIDDER EXAMPLE
+# [bidders.fake_bidder]
+# enabled = true
+# usersync_enabled = false
+# timeout_ms = 300
+# sample_rate = 1.0
+# max_transport_bytes = 131072
+# max_decoded_bytes = 262144
+#
+# [bidders.fake_bidder.settings]
+# implementation = "fake_implementation"
+#
+# [bidders.fake_bidder.settings.values]
+# hb_source = 5
+# hb_source_video = 6
+# supply_id = "fake_supply"
+# credentials_secret = "fake_credential_bundle"
+# external_url = "https://publisher.example"
+# region = "us-east"
+# END BIDDER EXAMPLE
+
+# Optional floor-only currency conversion. Append this block to opt in; response
+# currency stays USD. expires_at is an exclusive Unix-second expiry, not a TTL.
+# Up to 256 three-uppercase-letter rates: finite positive USD per foreign unit.
+# USD is implicit identity and cannot be overridden. QAA is an illustrative code;
+# replace the code, rate and expiry with a fresh operator-owned snapshot.
+# BEGIN FLOOR CURRENCY EXAMPLE
+# [floor_currency]
+# expires_at = 2000000000
+# [floor_currency.usd_per_unit]
+# QAA = 2.5
+# END FLOOR CURRENCY EXAMPLE
+
+# Explicit clears are supported ONLY on the nullable fields listed below.
+# Replace corresponding values/tables; do not append duplicate TOML keys.
+# This is a standalone policy illustrating all compatible clears, not an overlay
+# that preserves the rest of the active reference when pushed. Clear is not false,
+# zero, [], "unset" or omission. Non-nullable leaves cannot use { clear = true }.
+# BEGIN CLEAR EXAMPLES
+# schema_version = 1
+# [host]
+# user_sync = { clear = true }
+# [host.host_cookie]
+# domain = { clear = true }
+# optout_cookie = { clear = true }
+# [account_defaults]
+# truncate_target_attribute = { clear = true }
+# [account_defaults.cookie_sync]
+# default_limit = { clear = true }
+# max_limit = { clear = true }
+# default_coop_sync = { clear = true }
+# priority_groups = { clear = true }
+# [account_defaults.gdpr.purpose_one_treatment]
+# enabled = { clear = true }
+# access_allowed = { clear = true }
+# END CLEAR EXAMPLES
+
+# Redirect clear is separate because it needs a configured service. It removes an
+# inherited redirect override and uses the service's standard redirect template;
+# it does not disable the service itself. Again, this is a standalone policy.
+# BEGIN SYNC REDIRECT CLEAR EXAMPLE
+# schema_version = 1
+# [host.user_sync]
+# external_url = "https://sync.example.test"
+# redirect_url = { clear = true }
+# END SYNC REDIRECT CLEAR EXAMPLE

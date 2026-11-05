@@ -3,7 +3,7 @@ use crate::bidders::{
     status::{debug_status_error, standard_status},
 };
 use crate::{BidderError, BidderHttpResponse, BidderResponse, OutboundRequestMeta};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use serde_json::Value;
 use std::mem;
@@ -84,7 +84,7 @@ mod tests {
         Bidder as _, BidderError, BidderErrorKind, BidderHttpRequest, BidderHttpResponse,
         BidderResponse,
     };
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
 

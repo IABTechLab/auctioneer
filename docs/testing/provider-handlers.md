@@ -520,9 +520,10 @@ targets in publisher pilot; unrelated providers do not gate that publisher's pil
 Use the prepared `WORK/banner-request.json` with sequential numeric case IDs and
 the selected passthrough factory. Derive staging account/debug permissions through typed config;
 never turn privacy enforcement off or put live identifiers/consent into fixtures.
-Use the existing `runtime.accounts.handler_fixture_allowed.debug_allow = true`
-and `runtime.accounts.handler_fixture_denied.debug_allow = false` fields in the
-private typed config for the corresponding synthetic publisher IDs. Debug cases
+Use `accounts.handler_fixture_allowed.debug_allow = true` and
+`accounts.handler_fixture_denied.debug_allow = false` in the direct private
+typed policy with root `schema_version = 1`; no `runtime` wrapper is accepted.
+These correspond to the synthetic publisher IDs. Debug cases
 set `ext.prebid.debug` through structured JSON; retain the normal consent checks.
 
 Require returned banner ID/imp/price/currency plus dispatch; for bidder failure

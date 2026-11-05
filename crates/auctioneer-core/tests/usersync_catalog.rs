@@ -6,7 +6,7 @@ pub use auctioneer_core::test_support::bidder_fixture;
 #[cfg(test)]
 mod tests {
     use super::bidder_fixture::registry;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::usersync::catalog::{Catalog, CatalogError};
 
@@ -66,8 +66,9 @@ mod tests {
     fn disabled_entries_remain_lookupable_and_auction_tunables_do_not_gate_sync() {
         let mut host = HostConfig::default();
         host.aliases.insert("fake_alias".into(), "fake_aaa".into());
-        let disabled = app("[bidders.fake_aaa]\nusersync_enabled = false\n\
-         [bidders.fake_alias]\nusersync_enabled = true\n");
+        let disabled = app(
+            "schema_version = 1\n[bidders.fake_aaa]\nusersync_enabled = false\n[bidders.fake_alias]\nusersync_enabled = true\n",
+        );
         let catalog = Catalog::from_registry(&host, &disabled, registry()).unwrap();
         let candidate = catalog
             .lookup("fake_alias")
@@ -75,7 +76,8 @@ mod tests {
         assert!(candidate.configured);
         assert!(!candidate.enabled);
 
-        let sampled = app("[bidders.fake_aaa]\nsample_rate = 0.0\ntimeout_ms = 1\n");
+        let sampled =
+            app("schema_version = 1\n[bidders.fake_aaa]\nsample_rate = 0.0\ntimeout_ms = 1\n");
         let sampled_catalog = Catalog::from_registry(&host, &sampled, registry()).unwrap();
         assert!(sampled_catalog.lookup("fake_alias").unwrap().enabled);
     }
@@ -85,7 +87,7 @@ mod tests {
         let mut host = HostConfig::default();
         host.aliases
             .insert("fake_z_alias".into(), "fake_aaa".into());
-        let app = app("[bidders.fake_aaa]\nusersync_enabled = false\n");
+        let app = app("schema_version = 1\n[bidders.fake_aaa]\nusersync_enabled = false\n");
         let catalog = Catalog::from_registry(&host, &app, registry()).unwrap();
         assert_eq!(
             catalog.available_names(),
@@ -111,7 +113,7 @@ mod tests {
     fn catalog_build_does_not_mutate_host_or_runtime_config() {
         let mut host = HostConfig::default();
         host.aliases.insert("fake_alias".into(), "fake_bbb".into());
-        let app = app("[bidders.fake_alias]\nusersync_enabled = false\n");
+        let app = app("schema_version = 1\n[bidders.fake_alias]\nusersync_enabled = false\n");
         let host_before = serde_json::to_value(&host).unwrap();
         let app_before = serde_json::to_value(&app).unwrap();
         let _catalog = Catalog::from_registry(&host, &app, registry()).unwrap();

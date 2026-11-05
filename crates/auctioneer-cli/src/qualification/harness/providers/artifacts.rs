@@ -135,7 +135,7 @@ fn select_artifact(provider: &str, lines: &str) -> Result<PathBuf> {
             message
                 .target
                 .as_ref()
-                .is_some_and(|target| target.name == "auctioneer_config")
+                .is_some_and(|target| target.name == "auctioneer_config_data")
         })
         .collect();
     if config.is_empty()
@@ -1013,7 +1013,7 @@ pub(super) mod tests {
 
     fn messages(provider: &str, artifact: &Path) -> Vec<Value> {
         vec![
-            json!({"reason":"compiler-artifact","target":{"name":"auctioneer_config"},"features":["test-harness-override"],"filenames":[]}),
+            json!({"reason":"compiler-artifact","target":{"name":"auctioneer_config_data"},"features":["test-harness-override"],"filenames":[]}),
             json!({"reason":"compiler-artifact","target":{"name":format!("auctioneer_adapter_{provider}")},
                 "features":[provider],"filenames":[artifact],"profile":{"opt_level":"3","debug_assertions":false,"test":false},"fresh":false}),
             json!({"reason":"build-finished","success":true}),

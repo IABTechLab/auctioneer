@@ -3,8 +3,8 @@
 use std::cmp::Ordering;
 
 use auctioneer_bidder::BidderRegistry;
-use auctioneer_config::types::{BidderInfo, HostConfig};
-use auctioneer_config::usersync::validate_catalog_size;
+use auctioneer_config_data::types::{BidderInfo, HostConfig};
+use auctioneer_config_data::usersync::validate_catalog_size;
 
 use crate::{
     bidder_registry::registry_handle,
@@ -216,7 +216,7 @@ mod tests {
     use super::{Catalog, CatalogError, folded_cmp};
     use crate::bidder_fixture::registry;
     use crate::config::AuctioneerAppConfig;
-    use auctioneer_config::types::HostConfig;
+    use auctioneer_config_data::types::HostConfig;
     use std::collections::BTreeMap;
 
     #[test]
@@ -297,7 +297,7 @@ mod tests {
     fn sync_catalog_uses_snapshot_activation_and_compiled_ancestry_for_host_aliases() {
         use crate::bidder_fixture::fake_bidder::FakeBidder;
         use auctioneer_bidder::BidderRegistry;
-        use auctioneer_config::types::BidderInfo;
+        use auctioneer_config_data::types::BidderInfo;
 
         let mut registry = BidderRegistry::new();
         for (name, parent) in [
@@ -320,21 +320,21 @@ mod tests {
             ..HostConfig::default()
         };
         for (overlay, expected) in [
-            ("", false),
+            ("schema_version = 1\n", false),
             (
-                "[bidders.fake_compiled_alias]\nenabled = true\n[bidders.fake_host_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_compiled_alias]\nenabled = true\n[bidders.fake_host_alias]\nenabled = true\n",
                 false,
             ),
             (
-                "[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
                 true,
             ),
             (
-                "[bidders.fake_controlled]\nenabled = false\n[bidders.fake_compiled_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_controlled]\nenabled = false\n[bidders.fake_compiled_alias]\nenabled = true\n",
                 false,
             ),
             (
-                "[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_controlled]\nenabled = true\n[bidders.fake_compiled_alias]\nenabled = true\n",
                 true,
             ),
         ] {
@@ -353,44 +353,48 @@ mod tests {
     fn replacing_a_compiled_name_retains_original_and_replacement_sync_vetoes() {
         use crate::bidder_fixture::fake_bidder::FakeBidder;
         use auctioneer_bidder::BidderRegistry;
-        use auctioneer_config::types::BidderInfo;
+        use auctioneer_config_data::types::BidderInfo;
 
         for (baked_veto, overlay, expected) in [
-            (false, "", false),
-            (false, "[bidders.fake_alias]\nenabled = true\n", false),
+            (false, "schema_version = 1\n", false),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_alias]\nenabled = true\n",
+                false,
+            ),
+            (
+                false,
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
                 true,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = false\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = false\n[bidders.fake_alias]\nenabled = true\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\nusersync_enabled = false\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\nusersync_enabled = false\n[bidders.fake_alias]\nenabled = true\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = false\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\nusersync_enabled = false\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nenabled = false\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nenabled = false\n",
                 false,
             ),
             (
                 false,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nusersync_enabled = false\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n[bidders.fake_replacement]\nusersync_enabled = false\n",
                 false,
             ),
             (
                 true,
-                "[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
+                "schema_version = 1\n[bidders.fake_base]\nenabled = true\n[bidders.fake_alias]\nenabled = true\n",
                 false,
             ),
         ] {

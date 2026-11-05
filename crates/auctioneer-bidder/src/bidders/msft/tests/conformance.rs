@@ -8,13 +8,14 @@ mod tests {
         response::{status_error, unsupported_bid_type as unsupported_bid_type_error},
     };
     use crate::Bidder as _;
+    use crate::BidderSettings;
     use crate::bidders::harness::{self, protocol_fixtures, verify_protocol_capture};
     use crate::{
         BidderError, BidderHttpRequest, BidderName, BidderRequestInfo, BidderResponse,
         ConstructionDiagnostic, EndpointRejectReason, EndpointValidator, EntryPoint, SinkLimits,
         SinkOutcome, TypedBid,
     };
-    use auctioneer_config::{BidderSettings, types::MediaType};
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
     use auctioneer_runtime::bounded_json::JsonFieldShape;
     use serde_json::{Value, json};

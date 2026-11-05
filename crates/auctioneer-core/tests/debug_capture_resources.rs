@@ -49,7 +49,7 @@ mod tests {
 
     fn config() -> String {
         format!(
-            "[aliases]\nfake_bb={:?}\n[gdpr]\nenabled=false\n[accounts.publisher]\ndebug_allow=true\n",
+            "schema_version = 1\n[host.aliases]\nfake_bb={:?}\n[host.gdpr]\nenabled=false\n[accounts.publisher]\ndebug_allow=true\n",
             serving_catalog::passthrough_info().name,
         )
     }

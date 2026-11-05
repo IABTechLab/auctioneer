@@ -2,7 +2,7 @@
 
 use crate::alloc_track::response as alloc_track;
 use auctioneer_bidder::{BidderHttpResponse, META_BYTES_CAPACITY, OutboundRequestMetaBuilder};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::budget::{MIN_RESPONSE_NODE_PEAK_BYTES, MIN_RESPONSE_PARSE_FACTOR};
 use serde_json::json;

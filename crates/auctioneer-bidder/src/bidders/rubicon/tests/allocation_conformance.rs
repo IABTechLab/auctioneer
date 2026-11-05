@@ -7,11 +7,12 @@ use crate::alloc_track::{
 use crate::response_allocation::{
     SHIPPED_DECODED_CAP, SHIPPED_RESPONSE_NODE_CAP, response_charge, syntactic_nodes,
 };
+use auctioneer_bidder::BidderSettings;
 use auctioneer_bidder::{
     Bidder, BidderHttpResponse, BidderName, BidderRequestInfo, BidderResponse, CallBudget,
     EntryPoint, OutboundBuildError, OutboundRequestSink, SinkLimits, compiled_bidders,
 };
-use auctioneer_config::{BidderSettings, types::MediaType};
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::bidder_credentials::BidderCredentials;
 use serde_json::{Value, json};

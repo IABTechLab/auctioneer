@@ -1,6 +1,6 @@
 //! Fixed, identity-free disclosure diagnostics.
 
-use auctioneer_config::disclosure::{SCHEMAS, SchemaId};
+use auctioneer_config_data::disclosure::{SCHEMAS, SchemaId};
 
 /// Aggregate reasons for actual changes, not attempted field visits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,7 +121,7 @@ fn add(counter: &mut u64, value: u64, saturated: &mut bool) {
 #[cfg(test)]
 mod tests {
     use super::{ChangeKind, DisclosureAudit};
-    use auctioneer_config::disclosure::SchemaId;
+    use auctioneer_config_data::disclosure::SchemaId;
     use std::mem::needs_drop;
 
     #[test]

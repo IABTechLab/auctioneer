@@ -1,9 +1,7 @@
 //! Shared build-time identity selection; no serving or qualification claim.
 
-use auctioneer_config_schema::schema_staging::select as select_bindings;
-pub use auctioneer_config_schema::schema_staging::{
-    Declaration as Identity, Member, Schema, Selection,
-};
+use auctioneer_config::schema_staging::select as select_bindings;
+pub use auctioneer_config::schema_staging::{Declaration as Identity, Member, Schema, Selection};
 
 /// Exercise the build owner's selector with the original test-only root view.
 pub fn select<'a>(

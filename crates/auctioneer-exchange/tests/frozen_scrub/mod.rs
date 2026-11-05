@@ -16,7 +16,7 @@
 //! same-field shadows are scrubbed; unrelated vendor payloads elsewhere
 //! are not recursively scanned for identifiers.
 
-use auctioneer_config::types::IpKeepBits;
+use auctioneer_config_data::types::IpKeepBits;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_openrtb::types::device::Geo;
 use auctioneer_openrtb::types::field::JsonField;

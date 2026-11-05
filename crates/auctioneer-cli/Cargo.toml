@@ -22,7 +22,7 @@ application = [
     "dep:edgezero-core", "dep:edgezero-adapter-axum", "dep:log",
     "dep:auctioneer-privacy",
     "dep:auctioneer-core", "dep:tokio-rustls", "dep:rustls", "dep:url", "dep:validator", "dep:tar",
-    "dep:auctioneer-config", "dep:auctioneer-adapter-axum", "dep:auctioneer-adapter-cloudflare",
+    "dep:auctioneer-config-data", "dep:auctioneer-adapter-axum", "dep:auctioneer-adapter-cloudflare",
     "dep:auctioneer-adapter-fastly", "dep:auctioneer-adapter-spin",
     "dep:edgezero-adapter-cloudflare", "dep:edgezero-adapter-fastly", "dep:edgezero-adapter-spin",
 ]
@@ -51,15 +51,13 @@ edgezero-cli = { workspace = true, optional = true, features = [
     "edgezero-adapter-fastly",
     "edgezero-adapter-spin",
 ] }
-# `AuctioneerPushSource` hand-writes `AppConfigMeta` / `Validate` rather
-# than deriving `AppConfig`, so the CLI needs the trait definitions
-# directly.
+# Application commands and qualification use the SDK config/envelope contracts.
 edgezero-core = { workspace = true, optional = true }
 edgezero-adapter-axum = { workspace = true, optional = true }
 edgezero-adapter-cloudflare = { workspace = true, optional = true }
 edgezero-adapter-fastly = { workspace = true, optional = true }
 edgezero-adapter-spin = { workspace = true, optional = true }
-auctioneer-config = { workspace = true, optional = true }
+auctioneer-config-data = { workspace = true, optional = true }
 auctioneer-adapter-axum = { workspace = true, optional = true }
 auctioneer-adapter-cloudflare = { workspace = true, optional = true }
 auctioneer-adapter-fastly = { workspace = true, optional = true }
@@ -74,7 +72,7 @@ sha2 = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 yaml-rust2 = { workspace = true }
-auctioneer-config-schema = { workspace = true, features = ["build-support"] }
+auctioneer-config = { workspace = true, features = ["build-support"] }
 auctioneer-core = { workspace = true, optional = true }
 serde = { workspace = true }
 tempfile = { workspace = true }
@@ -84,8 +82,6 @@ tokio = { workspace = true, features = ["fs", "io-std", "io-util", "net", "proce
 tokio-rustls = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
-# The `[baked.*]` tables ride through the push wrapper as opaque
-# values; `toml::Value` is what holds them.
 toml = { workspace = true }
 validator = { workspace = true, optional = true }
 

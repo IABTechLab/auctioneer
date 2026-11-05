@@ -5,7 +5,7 @@
 mod tests {
     use auctioneer_adapter_axum::{envelope::resource_profile, timer::TokioTimer};
     use auctioneer_bidder::test_support::serving_catalog;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::host_primitives::{
         DevRng, SystemClock, axum_production_strategy, boot_gates, bootstrap_adapter_with_envelope,
@@ -180,9 +180,12 @@ mod tests {
         bidder: &str,
     ) -> Request<Body> {
         let config_json = json!({
-            "aliases": {(BIDDER_ALIAS): bidder},
-            "gdpr": {"enabled": false}, "ccpa": {"enforce": policy.enforce_ccpa},
-            "lmt": {"enforce": false},
+            "schema_version": 1_u8,
+            "host": {
+                "aliases": {(BIDDER_ALIAS): bidder},
+                "gdpr": {"enabled": false}, "ccpa": {"enforce": policy.enforce_ccpa},
+                "lmt": {"enforce": false},
+            },
             "features": {"gzip_outbound": false},
             "accounts": {"wire-account": {"privacy": {
                 "ipv4": {"anon_keep_bits": 24_i32},

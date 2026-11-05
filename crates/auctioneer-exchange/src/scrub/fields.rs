@@ -4,7 +4,7 @@ use super::ChangeKind;
 use super::decision::{Action, GeoMode, Input, action, clear_object};
 use super::value::{self, Mutation, Transformed};
 use crate::AuctionError;
-use auctioneer_config::disclosure::{FieldId, SchemaId, Shape, Transform};
+use auctioneer_config_data::disclosure::{FieldId, SchemaId, Shape, Transform};
 use auctioneer_openrtb::ext::imp::ImpExt;
 use auctioneer_openrtb::ext::misc::{DeviceExt, DeviceExtPrebid, DeviceInterstitial, UserExt};
 use auctioneer_openrtb::types::bid_request::{BidRequest, Imp};

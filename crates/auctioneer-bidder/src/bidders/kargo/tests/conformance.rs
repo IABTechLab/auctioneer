@@ -6,7 +6,7 @@ mod tests {
     use crate::Bidder as _;
     use crate::bidders::harness::{self, protocol_fixtures, verify_protocol_capture};
     use crate::{BidderName, BidderRequestInfo, EntryPoint, OutboundRequestMeta};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_openrtb::types::field::JsonField;
     use serde_json::{Value, json};

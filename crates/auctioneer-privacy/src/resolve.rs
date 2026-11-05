@@ -16,8 +16,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use auctioneer_config::activity::ActivityConfigs;
-use auctioneer_config::types::{
+use auctioneer_config_data::activity::ActivityConfigs;
+use auctioneer_config_data::types::{
     AccountConfig, AccountGdprConfig, ChannelEnabled, HostConfig, PurposeEnforcement,
     SpecialFeatureEnforcement, Tcf2Config, TriState,
 };
@@ -213,7 +213,7 @@ impl PrivacyContext {
             user_geo: geo_view(req.user.as_ref().and_then(|user| user.geo.as_ref())),
             device_geo: geo_view(req.device.as_ref().and_then(|device| device.geo.as_ref())),
             host_default_value: &host.gdpr.default_value,
-            eea_countries: auctioneer_config::eea_set(),
+            eea_countries: auctioneer_config_data::eea_set(),
         });
         let channel_enabled = channel_enabled(&account.gdpr, host, channel_of(req));
 
@@ -549,7 +549,7 @@ mod tests {
     use std::fs;
     use std::sync::Arc;
 
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, EnforceAlgo, PurposeEnforcement, SpecialFeatureEnforcement, TriState,
     };
     use auctioneer_openrtb::WarningCode;

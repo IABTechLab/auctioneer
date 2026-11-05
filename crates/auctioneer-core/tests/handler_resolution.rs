@@ -107,7 +107,7 @@ mod tests {
 
         fn config(name: &str, fields: &str) -> String {
             format!(
-                "[bidders.{name:?}]\n{fields}\n[accounts.publisher]\nmax_transport_bytes = 1024\n"
+                "schema_version = 1\n[bidders.{name:?}]\n{fields}\n[accounts.publisher]\nmax_transport_bytes = 1024\n"
             )
         }
 
@@ -218,7 +218,7 @@ mod tests {
         const DISABLED_ACCOUNT: &str = "acct-42";
         const UNCONFIGURED_ACCOUNT: &str = "acct-99";
 
-        const CONFIG: &str = "[accounts.acct-42]\ndisabled = true\n";
+        const CONFIG: &str = "schema_version = 1\n[accounts.acct-42]\ndisabled = true\n";
 
         /// The handler resolves its fanout before anything else, so every
         /// row needs one installed even when no call is ever dispatched.
@@ -312,13 +312,7 @@ mod tests {
         /// GDPR enforced with purpose 2 ON, so a publisher the host does NOT
         /// exempt has its bidder dropped before fan-out — and the one it DOES
         /// exempt keeps it.
-        const CONFIG: &str = "[gdpr]\n\
-                              enabled = true\n\
-                              non_standard_publishers = [\"acct-exempt\"]\n\n\
-                              [gdpr.tcf2]\n\
-                              enabled = true\n\n\
-                              [gdpr.tcf2.purposes.2]\n\
-                              enforce_purpose = \"enabled\"\n";
+        const CONFIG: &str = "schema_version = 1\n[host.gdpr]\nenabled = true\nnon_standard_publishers = [\"acct-exempt\"]\n\n[host.gdpr.tcf2]\nenabled = true\n\n[host.gdpr.tcf2.purposes.2]\nenforce_purpose = \"enabled\"\n";
 
         #[derive(Default)]
         struct CountingFanout {
@@ -507,7 +501,10 @@ mod tests {
             let serialized =
                 serde_json::to_vec(&fixture_request()).expect("the fixture serializes");
             let config = toml::to_string(&serde_json::json!({
-                "aliases": { BASE: passthrough_info().name }
+                "schema_version": 1_u64,
+                "host": {
+                    "aliases": { BASE: passthrough_info().name },
+                },
             }))
             .expect("host alias serializes");
             let ctx = auction_ctx(&config, serialized, Arc::new(BiddingFanout));

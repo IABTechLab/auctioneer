@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::types::{AccountConfig, HostConfig, PurposeEnforcement, TriState};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig, PurposeEnforcement, TriState};
     use auctioneer_openrtb::{NonFatalWarning, types::bid_request::BidRequest};
     use auctioneer_privacy::gcl::{CmpRecord, Gcl};
     use auctioneer_privacy::gpp::Limits;

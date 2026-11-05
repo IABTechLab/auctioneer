@@ -38,7 +38,7 @@ const SOURCE_ROOTS: &[&str] = &[
     "Cargo.toml",
     "Cargo.lock",
     "edgezero.toml",
-    "auctioneer.toml",
+    "fastly.toml",
     "crates",
     ".cargo",
 ];
@@ -913,6 +913,8 @@ mod tests {
     use super::*;
     use serde_json::{Value, json};
     use std::fs;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
     use tempfile::TempDir;
 
     const CANDIDATE: &[u8] = include_bytes!(concat!(
@@ -1404,10 +1406,11 @@ mod tests {
         );
         write(root.path(), "Cargo.lock", b"# fixed fixture lock\n");
         write(root.path(), "edgezero.toml", b"[app]\nname=\"sample\"\n");
+        write(root.path(), "fastly.toml", b"manifest_version = 3\n");
         write(
             root.path(),
-            "auctioneer.toml",
-            b"[auction]\ndefault_tmax_ms=500\n",
+            "crates/auctioneer-config-data/data/product-defaults.toml",
+            b"[host]\n[account]\n",
         );
         write(root.path(), ".cargo/config.toml", b"[build]\njobs=1\n");
         write(
@@ -1553,6 +1556,91 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn source_commit_accepts_the_tracked_fastly_manifest_and_refuses_its_removal() {
+        let supervisor = Supervisor::new();
+        let (root, initial) = repository(&supervisor).await;
+        let expected = Revision::try_from(initial.clone()).unwrap();
+        let manifest = root.path().join("fastly.toml");
+        let original = fs::read(&manifest).unwrap();
+        assert_eq!(
+            local_git(&supervisor, root.path(), &["show", "HEAD:fastly.toml"]).await,
+            original
+        );
+        assert!(
+            preparation::source_inventory(root.path())
+                .unwrap()
+                .iter()
+                .any(|(path, digest)| path == "fastly.toml" && digest.is_some())
+        );
+        assert_eq!(
+            source_commit(root.path(), Some(&initial), &supervisor)
+                .await
+                .expect("tracked Fastly manifest must not make clean source dirty"),
+            expected
+        );
+        fs::remove_file(&manifest).unwrap();
+        assert_eq!(
+            source_commit(root.path(), Some(&initial), &supervisor)
+                .await
+                .unwrap_err(),
+            HarnessError::new("source_dirty")
+        );
+        fs::write(&manifest, original).unwrap();
+        assert_eq!(
+            source_commit(root.path(), Some(&initial), &supervisor)
+                .await
+                .unwrap(),
+            expected
+        );
+        supervisor.cleanup().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn source_commit_ignores_runtime_authoring_without_reading_its_bytes() {
+        let supervisor = Supervisor::new();
+        let (root, initial) = repository(&supervisor).await;
+        let expected = Revision::try_from(initial.clone()).unwrap();
+        let baseline = preparation::source_inventory(root.path()).unwrap();
+        let operator = write(root.path(), "auctioneer.toml", b"schema_version = 1\n");
+        commit_all(&supervisor, root.path()).await;
+        assert_eq!(
+            source_commit(root.path(), Some(&initial), &supervisor)
+                .await
+                .unwrap(),
+            expected
+        );
+        fs::write(&operator, b"not even TOML [").unwrap();
+        assert_eq!(
+            source_commit(root.path(), Some(&initial), &supervisor)
+                .await
+                .unwrap(),
+            expected
+        );
+        fs::remove_file(&operator).unwrap();
+        assert_eq!(
+            source_commit(root.path(), Some(&initial), &supervisor)
+                .await
+                .unwrap(),
+            expected
+        );
+        #[cfg(unix)]
+        {
+            symlink(root.path().join("missing-operator-target"), &operator).unwrap();
+            assert_eq!(
+                source_commit(root.path(), Some(&initial), &supervisor)
+                    .await
+                    .unwrap(),
+                expected
+            );
+        };
+        assert_eq!(
+            preparation::source_inventory(root.path()).unwrap(),
+            baseline
+        );
+        supervisor.cleanup().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn source_commit_refuses_each_tracked_build_input_change_or_deletion() {
         let supervisor = Supervisor::new();
         let (root, initial) = repository(&supervisor).await;
@@ -1560,7 +1648,8 @@ mod tests {
             "Cargo.toml",
             "Cargo.lock",
             "edgezero.toml",
-            "auctioneer.toml",
+            "fastly.toml",
+            "crates/auctioneer-config-data/data/product-defaults.toml",
             ".cargo/config.toml",
             "crates/sample/src/lib.rs",
         ] {
@@ -2538,7 +2627,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn harness_executable_hashing_refuses_symlinks_and_hardlinks() {
-        use std::os::unix::fs::symlink;
         let root = source_tree();
         let executable = write(root.path(), "cli", b"abc");
         let link = root.path().join("cli-link");

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use auctioneer_config::activity::{ActivityConfig, ActivityConfigs};
-    use auctioneer_config::types::{AccountConfig, HostConfig};
+    use auctioneer_config_data::activity::{ActivityConfig, ActivityConfigs};
+    use auctioneer_config_data::types::{AccountConfig, HostConfig};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_privacy::gcl::Gcl;
     use auctioneer_privacy::gvl::GvlStore;

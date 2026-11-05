@@ -31,7 +31,7 @@ mod tests {
     use crate::serving_catalog::{ServingBidder, default_active_publications};
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
@@ -186,9 +186,10 @@ mod tests {
     /// "there was no competing error".
     fn config_registry() -> ConfigRegistry {
         let overlay = serde_json::json!({
+            "schema_version": 1_u64,
             "accounts": {
-                DISABLED_ACCOUNT: { "disabled": true }
-            }
+                DISABLED_ACCOUNT: { "disabled": true },
+            },
         });
         let cfg: AuctioneerAppConfig =
             serde_json::from_value(overlay).expect("the overlay matches the config shape");

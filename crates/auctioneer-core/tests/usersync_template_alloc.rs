@@ -9,7 +9,7 @@ static ALLOCATOR: alloc_track::CountingAllocator = alloc_track::CountingAllocato
 #[cfg(test)]
 mod tests {
     use super::alloc_track;
-    use auctioneer_config::usersync::{SyncType, SyncerEndpoint, UserSyncConfig};
+    use auctioneer_config_data::usersync::{SyncType, SyncerEndpoint, UserSyncConfig};
     use auctioneer_core::usersync::template::{
         SyncPrivacyMacros, SyncTemplateInput, TemplateError, build_sync_url,
     };

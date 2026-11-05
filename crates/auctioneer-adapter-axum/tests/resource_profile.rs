@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_adapter_axum::envelope::resource_profile;
-    use auctioneer_config::types::{BidderInfo, MediaType};
-    use auctioneer_core::config::AuctioneerAppConfig;
+    use auctioneer_config_data::types::{BidderInfo, MediaType};
+    use auctioneer_core::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
     use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
     use auctioneer_privacy::gvl::GVL_PARSE_CACHE_MAX_ENTRIES;
     use auctioneer_runtime::{
@@ -526,8 +526,8 @@ mod tests {
                     .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
             );
         }
-        let host = auctioneer_config::host_default();
-        let account = auctioneer_config::account_default();
+        let host = auctioneer_config_data::host_default();
+        let account = auctioneer_config_data::account_default();
         assert_eq!(
             profile["baked_host_sha256"],
             sha256(&serde_json::to_vec(host).unwrap())
@@ -561,7 +561,7 @@ mod tests {
         if auctioneer_core::CONFORMANCE_SUITE_ENABLED {
             features.push("conformance_suite");
         }
-        if auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED {
+        if auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED {
             features.push("test_harness_override");
         }
         assert_eq!(profile["build_features"], json!(features));
@@ -581,10 +581,13 @@ mod tests {
     #[test]
     fn config_override_probe_checks_explicit_expectations() {
         for (expected_state, should_succeed) in [
-            ("enabled", auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED),
+            (
+                "enabled",
+                auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED,
+            ),
             (
                 "disabled",
-                !auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED,
+                !auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED,
             ),
             ("", false),
             ("true", false),
@@ -618,7 +621,7 @@ mod tests {
         let exported_override = features.contains(&json!("test_harness_override"));
         assert_eq!(
             exported_override,
-            auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED
+            auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED
         );
         if let Some(expected_state) = var_os("AUCTIONEER__TEST__EXPECT_CONFIG_OVERRIDE") {
             let expected_override = match expected_state.to_str() {
@@ -661,7 +664,7 @@ mod tests {
     #[test]
     fn reference_identity_hashes_the_baked_archive_and_lookup_data() {
         let profile = Fixture::new().profile(&[]);
-        let entries: Vec<_> = auctioneer_config::gvl_archive()
+        let entries: Vec<_> = auctioneer_config_data::gvl_archive()
             .iter()
             .map(|entry| {
                 (
@@ -675,12 +678,12 @@ mod tests {
             .collect();
         let references = (
             entries,
-            auctioneer_config::gvl_archive_generated_at(),
-            auctioneer_config::gvl_archive_max_age_days(),
-            auctioneer_config::gcl_expires_at_unix_secs(),
-            auctioneer_config::baked_gcl_json(),
-            auctioneer_config::eea_set(),
-            auctioneer_config::bidders(),
+            auctioneer_config_data::gvl_archive_generated_at(),
+            auctioneer_config_data::gvl_archive_max_age_days(),
+            auctioneer_config_data::gcl_expires_at_unix_secs(),
+            auctioneer_config_data::baked_gcl_json(),
+            auctioneer_config_data::eea_set(),
+            auctioneer_config_data::bidders(),
         );
         assert_eq!(
             profile["reference_data_sha256"],
@@ -691,6 +694,7 @@ mod tests {
     struct Server {
         process: Process,
         addr: SocketAddr,
+        binary_sha256: String,
     }
 
     impl Server {
@@ -699,6 +703,7 @@ mod tests {
             let addr = listener.local_addr().unwrap();
             drop(listener);
             let mut command = fixture.command();
+            let binary_sha256 = sha256(&fs::read(command.get_program()).unwrap());
             command
                 .env("EDGEZERO__ADAPTER__HOST", "127.0.0.1")
                 .env("EDGEZERO__ADAPTER__PORT", addr.port().to_string())
@@ -708,6 +713,7 @@ mod tests {
             let mut server = Self {
                 process: Process(command.spawn().unwrap()),
                 addr,
+                binary_sha256,
             };
             let deadline = Instant::now().checked_add(Duration::from_secs(10)).unwrap();
             loop {
@@ -755,7 +761,7 @@ mod tests {
     }
 
     fn snapshot_bidder_name() -> &'static str {
-        &auctioneer_config::bidders()
+        &auctioneer_config_data::bidders()
             .iter()
             .find(|info| !info.disabled && info.capabilities.site.contains(&MediaType::Banner))
             .expect("the serving catalog has an enabled site banner bidder")
@@ -780,7 +786,8 @@ mod tests {
         .unwrap();
         // Zero sampling preserves a valid auction while prohibiting outbound work.
         let config_value = json!({
-            "status": {"banner": banner}, "auction": {"max_parsed_nodes": nodes},
+            "schema_version": 1_u8,
+            "host": {"status_response": banner, "resource_limits": {"max_parsed_nodes": nodes}},
             "bidders": {(snapshot_bidder_name()): {"sample_rate": 0.0_f64}},
         });
         let config: AuctioneerAppConfig = serde_json::from_value(config_value).unwrap();
@@ -797,10 +804,13 @@ mod tests {
                 "--exact",
                 "tests::native_store_keeps_startup_snapshot_until_restart",
             ]);
+        let (status, stdout, stderr) = fixture.run(&mut command);
         assert!(
-            fixture.run(&mut command).0.success(),
-            "typed push child must succeed"
+            status.success(),
+            "typed push child must succeed: {}",
+            String::from_utf8_lossy(&stderr)
         );
+        assert!(String::from_utf8_lossy(&stdout).contains("running 1 test"));
         let store_bytes = fs::read(
             fixture
                 .0
@@ -811,8 +821,22 @@ mod tests {
         let blob: BlobEnvelope =
             serde_json::from_str(store["auctioneer_runtime"].as_str().unwrap()).unwrap();
         blob.verify().unwrap();
-        assert_eq!(blob.data["status"]["banner"], banner);
-        assert_eq!(blob.data["auction"]["max_parsed_nodes"], nodes);
+        assert_eq!(blob.data["schema_version"], 1_u8);
+        assert_eq!(blob.data["host"]["status_response"], banner);
+        assert_eq!(
+            blob.data["host"]["resource_limits"]["max_parsed_nodes"],
+            nodes
+        );
+        for retired in [
+            "baked",
+            "startup",
+            "runtime",
+            "status",
+            "auction",
+            "targeting",
+        ] {
+            assert!(blob.data.get(retired).is_none(), "retired scope {retired}");
+        }
         blob.sha256
     }
 
@@ -837,24 +861,47 @@ mod tests {
             args.yes = true;
             args.no_env = true;
             args.no_diff = true;
-            edgezero_cli::run_config_push_typed::<AuctioneerAppConfig>(&args).unwrap();
+            edgezero_cli::run_config_push_typed::<SdkAuctioneerAppConfig>(&args).unwrap();
             return;
         }
         let fixture = Fixture::new();
+        let isolated_fixture = Fixture::new();
+        assert_ne!(fixture.0, isolated_fixture.0);
+        let binary_sha256 =
+            sha256(&fs::read(env!("CARGO_BIN_EXE_auctioneer-adapter-axum")).unwrap());
         let snapshot_a = push_snapshot(&fixture, "snapshot_a", 32);
         let server_a = Server::start(&fixture);
+        assert_eq!(server_a.binary_sha256, binary_sha256);
         assert_eq!(server_a.request("/status", b""), (200, "snapshot_a".into()));
         let body = node_request(64);
         assert_eq!(
             server_a.request("/openrtb2/auction", &body),
             (400, "Invalid request: too many JSON nodes\n".into())
         );
-        let snapshot_b = push_snapshot(&fixture, "snapshot_b", 1_000_000);
+        let snapshot_b = push_snapshot(&isolated_fixture, "snapshot_b", 1_000_000);
         assert_ne!(snapshot_a, snapshot_b);
+        let isolated_server = Server::start(&isolated_fixture);
+        assert_eq!(isolated_server.binary_sha256, binary_sha256);
+        assert_eq!(
+            isolated_server.request("/status", b""),
+            (200, "snapshot_b".into())
+        );
+        let isolated_admitted = isolated_server.request("/openrtb2/auction", &body);
+        assert_eq!(isolated_admitted.0, 200, "{}", isolated_admitted.1);
         assert_eq!(server_a.request("/status", b""), (200, "snapshot_a".into()));
-        assert_eq!(server_a.request("/openrtb2/auction", &body).0, 400);
+        assert_eq!(
+            server_a.request("/openrtb2/auction", &body),
+            (400, "Invalid request: too many JSON nodes\n".into())
+        );
+        assert_eq!(push_snapshot(&fixture, "snapshot_b", 1_000_000), snapshot_b);
+        assert_eq!(server_a.request("/status", b""), (200, "snapshot_a".into()));
+        assert_eq!(
+            server_a.request("/openrtb2/auction", &body),
+            (400, "Invalid request: too many JSON nodes\n".into())
+        );
         drop(server_a);
         let server_b = Server::start(&fixture);
+        assert_eq!(server_b.binary_sha256, binary_sha256);
         assert_eq!(server_b.request("/status", b""), (200, "snapshot_b".into()));
         let admitted = server_b.request("/openrtb2/auction", &body);
         assert_eq!(admitted.0, 200, "{}", admitted.1);

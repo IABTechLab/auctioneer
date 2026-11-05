@@ -29,8 +29,7 @@ mod tests {
     use serde_json::{Value, json};
 
     const ORIGIN: &str = "https://publisher.example";
-    const ALLOWED: &str =
-        "[user_sync]\nallowed_origins = ['https://publisher.example']\n[accounts.publisher]\n";
+    const ALLOWED: &str = "schema_version = 1\n[host.user_sync]\nexternal_url = \"https://sync.example.test\"\nallowed_origins = ['https://publisher.example']\n[accounts.publisher]\n";
     const CONFIG_CANARY: &str = "synthetic-config-secret-id";
     const WRONG_SHA: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -99,11 +98,23 @@ mod tests {
 
     fn denied_config(cors: bool) -> String {
         toml::to_string(&json!({
-            "user_sync": {"allowed_origins": if cors { vec![ORIGIN] } else { vec![] }},
-            "accounts": {"publisher": {"privacy": {"allowactivities": {
-                "syncUser": {"default": false}
-            }}}},
-            "host_cookie": {"optout_cookie": {"name": "stop", "value": "yes"}},
+            "schema_version": 1_u64,
+            "host": {
+                "user_sync": {
+                    "external_url": "https://sync.example.test",
+                    "allowed_origins": if cors { vec![ORIGIN] } else { vec![] },
+                },
+                "host_cookie": {"optout_cookie": {"name": "stop", "value": "yes"}},
+            },
+            "accounts": {
+                "publisher": {
+                    "privacy": {
+                        "allowactivities": {
+                            "syncUser": {"default": false},
+                        },
+                    },
+                },
+            },
         }))
         .unwrap()
     }
@@ -290,7 +301,6 @@ mod tests {
     }
 
     fn assert_lifecycle(endpoint: Endpoint) {
-        const { assert!(!auctioneer_config::RUNTIME_BOOTSTRAP.allow_missing_config) };
         testing_logger::setup();
         let app = TestApp::new(ALLOWED);
         assert_allowed(endpoint, &endpoint.dispatch(&app));
@@ -299,10 +309,15 @@ mod tests {
         assert_denied(endpoint, &endpoint.dispatch(&app), true);
 
         let mut tampered = BlobEnvelope::new(
-            json!({"user_sync": {
-                "allowed_origins": [ORIGIN],
-                "external_url": format!("https://{CONFIG_CANARY}.example"),
-            }}),
+            json!({
+                "schema_version": 1_u64,
+                "host": {
+                    "user_sync": {
+                        "allowed_origins": [ORIGIN],
+                        "external_url": format!("https://{CONFIG_CANARY}.example"),
+                    },
+                },
+            }),
             "1970-01-01T00:00:00Z".to_owned(),
         );
         tampered.sha256 = WRONG_SHA.to_owned();
@@ -316,14 +331,20 @@ mod tests {
             ),
             (
                 encoded_envelope(json!({
-                    "user_sync": {"allowed_origins": [ORIGIN]},
-                    "auction": {"default_tmax_ms": CONFIG_CANARY},
+                    "schema_version": 1_u64,
+                    "host": {
+                        "user_sync": { "external_url": "https://sync.example.test", "allowed_origins": [ORIGIN]},
+                        "resource_limits": {"default_tmax_ms": CONFIG_CANARY},
+                    },
                 })),
                 "Deserialization",
             ),
             (
                 encoded_envelope(json!({
-                    "user_sync": {"allowed_origins": [ORIGIN]},
+                    "schema_version": 1_u64,
+                    "host": {
+                        "user_sync": { "external_url": "https://sync.example.test", "allowed_origins": [ORIGIN]},
+                    },
                     "bidders": {(live_catalog::iframe().name()): {"timeout_ms": 0_i32}},
                 })),
                 "Validation",

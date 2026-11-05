@@ -111,7 +111,7 @@ mod tests {
     use auctioneer_bidder::{
         BidderRequestInfo, CallBudget, EntryPoint, OutboundRequestSink, SinkLimits,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_openrtb::types::bid_request::BidRequest;
 
     fn pbr(name: &str) -> PerBidderRequest {

@@ -28,6 +28,18 @@ synthetic test inputs and the shared fake.
 
 ## Tracking Work
 
+The [GitHub issues](https://github.com/IABTechLab/auctioneer/issues) are the
+backlog of record. Use an existing or reviewed new epic for every remaining
+task, story or bug, and native blocking relationships for unconditional
+prerequisites. Specs, plans and evidence retain technical contracts and results;
+they do not replace issue status or create another local backlog.
+
+The local `ISSUES.md` ledger is retired. Its remaining work was reconciled in
+[#26](https://github.com/IABTechLab/auctioneer/issues/26); resolved entries remain
+available in the [historical ledger](https://github.com/IABTechLab/auctioneer/blob/58bca6101759d044986838549bb8cb1894a8976b/ISSUES.md).
+Older dated records may still name that historical file. Do not recreate it or
+rewrite frozen captures to change their recorded names.
+
 Issues belong to this repository and use the existing organization-wide board.
 The [shared project policy](.github/PROJECT.md) is the only local reference for
 its IDs, fields, issue types and status transitions. Preserve another project's

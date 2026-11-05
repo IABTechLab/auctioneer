@@ -184,7 +184,7 @@ cargo test --locked -p auctioneer-bidder --test generated_settings -- --test-thr
 cargo test --locked -p auctioneer-bidder --test insecure_bidders_snapshot -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test response_body_is_sealed -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test feature_exports_source_conformance -- --test-threads=1
-cargo test --locked -p auctioneer-config --test build_failure_harness
+cargo test --locked -p auctioneer-config-data --test build_failure_harness
 cargo test --locked -p auctioneer-cli --test resource_boot_parity
 ```
 
@@ -235,12 +235,13 @@ Large schema diagnostic reports are opt-in with
 `AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS=true`; assertions and artifact inspection
 do not depend on that flag.
 
-All workflows share one registry/Git download cache. Only slow native lanes
-restore `target/debug/`, with the default-workspace lane as its single writer;
-Cargo revalidates source, features and fingerprints. Toolchain-action implicit
-caching is disabled so it cannot duplicate that policy. Save-after-failure
-retains normal compilation products, not observations or passing test results.
-Nested scratch workspaces and guest artifacts are outside the compiled seed.
+All workflows share one registry/Git download cache. Compiled outputs are not
+restored or saved across jobs: the whole-workspace archive exhausted runners
+during restoration, before any tests executed. Cargo still reuses compilation
+products within each job. Toolchain-action implicit caching is disabled so it
+cannot restore a second compiled cache. Save-after-failure retains dependency
+downloads, not observations or passing test results. Nested scratch workspaces
+and guest artifacts keep their existing fresh-build ownership.
 Every job and long acceptance step has an explicit safety limit. New cache
 footprint and whole-CI timing still require complete hosted measurement.
 

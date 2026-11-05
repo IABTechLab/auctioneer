@@ -53,12 +53,7 @@ mod tests {
     /// outbound call: under the unusable-consent default row
     /// `AllowBidRequest = !p2_enforced`, so the bidder survives fan-out
     /// while its identifiers are still stripped.
-    const CONFIG: &str = "[gdpr]\n\
-                          enabled = true\n\n\
-                          [gdpr.tcf2]\n\
-                          enabled = true\n\n\
-                          [gdpr.tcf2.purposes.2]\n\
-                          enforce_purpose = \"disabled\"\n";
+    const CONFIG: &str = "schema_version = 1\n[host.gdpr]\nenabled = true\n\n[host.gdpr.tcf2]\nenabled = true\n\n[host.gdpr.tcf2.purposes.2]\nenforce_purpose = \"disabled\"\n";
 
     /// A `(spec 3, list)` pair the baked archive does not carry. The
     /// staleness check fires BEFORE vendor-list selection, so this
@@ -262,7 +257,7 @@ mod tests {
     #[test]
     fn auction_past_the_gcl_expiry_increments_the_stale_counter() {
         let config = format!(
-            "[aliases]\nfake_bb={:?}\n{CONFIG}",
+            "{CONFIG}[host.aliases]\nfake_bb={:?}\n",
             serving_catalog::passthrough_info().name,
         );
         config_funding::install();
@@ -270,7 +265,7 @@ mod tests {
         // Derived from the baked expiry rather than a hardcoded date so
         // the fixture stays correct across every archive refresh.
         let expiry =
-            OffsetDateTime::from_unix_timestamp(auctioneer_config::gcl_expires_at_unix_secs())
+            OffsetDateTime::from_unix_timestamp(auctioneer_config_data::gcl_expires_at_unix_secs())
                 .expect("the baked GCL expiry is a representable instant");
         let now = expiry.saturating_add(time::Duration::hours(1));
         let clock = Arc::new(FakeClock::new(now));

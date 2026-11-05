@@ -1,12 +1,12 @@
 //! Context passed to `Bidder::make_requests`.
 
+use crate::BidderSettings;
+use crate::bidder_settings::ensure_limits as ensure_settings_limits;
 use crate::{
     bidder::{BidderError, EntryPoint},
     currency::FloorConversion,
     types::BidderName,
 };
-use auctioneer_config::BidderSettings;
-use auctioneer_config::bidder_settings::ensure_limits as ensure_settings_limits;
 use auctioneer_runtime::bidder_credentials::BidderCredentials;
 use auctioneer_runtime::bounded_json::JsonFieldShape;
 

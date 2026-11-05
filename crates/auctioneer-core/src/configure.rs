@@ -87,17 +87,17 @@
 //! later: this callback captures per-App limits rather than a live view
 //! of the process-global envelope.
 //!
-//! The TIMEOUT is unaffected either way, because it is baked rather
+//! The TIMEOUT is unaffected either way, because it is fixed rather
 //! than envelope-derived, which is why the fetch bound is live on all
 //! four targets.
 
+use crate::config::runtime::CONFIG_FETCH_TIMEOUT;
 use crate::handlers::egress_deadline::REFUSAL_WRITE_BUDGET;
 use crate::host_primitives::error_renderer::render_error_response;
 use crate::host_primitives::gates::{boot_limits, boot_target};
 use crate::host_primitives::static_egress::detached_egress_decision;
 use crate::ingress::decide as decide_admission;
 use auctioneer_bidder::schema::{SchemaArtifactState, schema_artifact_state};
-use auctioneer_config::RUNTIME_BOOTSTRAP;
 use auctioneer_runtime::BudgetError;
 use edgezero_core::app::App;
 use edgezero_core::config_store::ConfigExtractionLimits;
@@ -105,7 +105,6 @@ use edgezero_core::error::EdgeError;
 use edgezero_core::ingress::IngressHeadLimits;
 use edgezero_core::response_egress::{ResponseEgressHead, ResponseEgressPolicy};
 use edgezero_core::time::{Deadline, MonotonicInstant};
-use std::time::Duration;
 
 /// Apply auctioneer's per-`App` configuration.
 ///
@@ -115,11 +114,10 @@ use std::time::Duration;
 ///
 /// # Errors
 /// Returns the host's typed startup-policy error when the extraction
-/// limits are rejected. The baked fetch bound is checked for being
-/// nonzero at BUILD time, and the byte caps come from an envelope the
-/// boot sequence already validated, so a rejection here means the two
-/// validators disagree — which is a boot failure, not something to
-/// serve through.
+/// limits are rejected. The fixed fetch bound is nonzero, and the byte
+/// caps come from an envelope the boot sequence already validated, so a
+/// rejection here means the two validators disagree, which is a boot
+/// failure, not something to serve through.
 pub fn configure_app(app: &mut App) -> Result<(), EdgeError> {
     if schema_artifact_state() == SchemaArtifactState::Unqualified {
         return Err(EdgeError::internal(BudgetError::UnqualifiedSchemaArtifact));
@@ -225,10 +223,10 @@ fn head_limits() -> Result<Option<IngressHeadLimits>, EdgeError> {
     Ok(Some(installed))
 }
 
-/// The extraction limits auctioneer installs, from the baked fetch bound and
+/// The extraction limits auctioneer installs, from the fixed fetch bound and
 /// whatever byte and node caps the boot envelope declares.
 ///
-/// The TIMEOUT is always auctioneer's: it is a baked constant, available
+/// The TIMEOUT is always auctioneer's: it is a fixed constant, available
 /// before any envelope is, and it is the whole point of this seam. The
 /// host turns it into an absolute deadline anchored at EXTRACTION entry
 /// -- `started_at + timeout` inside its own extraction budget -- so the
@@ -273,7 +271,7 @@ pub(crate) fn extraction_limits_for(
     envelope: Option<&auctioneer_runtime::ResolvedIsolateLimits>,
 ) -> ConfigExtractionLimits {
     let defaults = ConfigExtractionLimits::default();
-    let timeout = Duration::from_millis(u64::from(RUNTIME_BOOTSTRAP.max_config_fetch_ms));
+    let timeout = CONFIG_FETCH_TIMEOUT;
     let Some(limits) = envelope else {
         return ConfigExtractionLimits {
             timeout,
@@ -314,13 +312,26 @@ pub(crate) fn extraction_limits_for(
 
 #[cfg(test)]
 mod tests {
-    use super::{REFUSAL_WRITE_BUDGET, extraction_limits_for, fallback_egress_policy};
+    use super::{
+        CONFIG_FETCH_TIMEOUT, REFUSAL_WRITE_BUDGET, extraction_limits_for, fallback_egress_policy,
+    };
     use auctioneer_runtime::ResolvedIsolateLimits;
     use edgezero_core::config_store::ConfigExtractionLimits;
     use edgezero_core::http::{HeaderMap, StatusCode, Version};
     use edgezero_core::response_egress::ResponseEgressHead;
     use edgezero_core::time::{Deadline, MonotonicInstant};
     use std::time::Duration;
+
+    #[test]
+    fn extraction_timeout_is_fixed_before_and_after_boot() {
+        let envelope = limits();
+        assert_eq!(CONFIG_FETCH_TIMEOUT, Duration::from_secs(2));
+        for declaration in [None, Some(&envelope)] {
+            let extraction = extraction_limits_for(declaration);
+            assert_eq!(extraction.timeout, CONFIG_FETCH_TIMEOUT);
+            assert_eq!(extraction.validate().unwrap(), extraction);
+        }
+    }
 
     fn limits() -> ResolvedIsolateLimits {
         ResolvedIsolateLimits {

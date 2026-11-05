@@ -10,7 +10,7 @@ mod tests {
         Bidder as _, BidderName, BidderRequestInfo, CallBudget, EndpointRejectReason, EntryPoint,
         OutboundBuildError, OutboundRequestSink, SinkLimits,
     };
-    use auctioneer_config::types::BidderInfo;
+    use auctioneer_config_data::types::BidderInfo;
     use auctioneer_exchange::{ExchangeEndpointValidator, validate_endpoint};
     use serde_json::json;
     use std::cell::Cell;

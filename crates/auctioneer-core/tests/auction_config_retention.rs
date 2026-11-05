@@ -30,7 +30,7 @@ mod tests {
         let info = passthrough_info();
         assert!(ptr::eq(
             info,
-            auctioneer_config::bidder(&info.name).unwrap()
+            auctioneer_config_data::bidder(&info.name).unwrap()
         ));
         let before = alloc_track::reset_peak();
         let cached = black_box(passthrough_info());
@@ -43,7 +43,7 @@ mod tests {
     use crate::serving_catalog::passthrough_info;
     use auctioneer_bidder::{BidderHttpResponse, DebugBodyEligibility};
     use auctioneer_core::{
-        config::AuctioneerAppConfig,
+        config::{AuctioneerAppConfig, validate_effective_defaults},
         handlers::{TestFanoutHandle, auction::TestAuctionBudget},
         host_primitives::{
             TestClockHandle, TestMonotonicClockHandle, TestRngHandle, gates::boot_gates,
@@ -74,8 +74,9 @@ mod tests {
         time::Duration,
     };
 
-    const SELECTED: &str = r#"
-[auction]
+    const SELECTED: &str = r#"schema_version = 1
+
+[host.resource_limits]
 max_transport_bytes = 4096
 max_decoded_bytes = 4096
 [accounts.publisher]
@@ -143,7 +144,7 @@ rules = [{allow = false, condition = {componentName = ["fake_retention_alias"]}}
     fn source(vendors: usize) -> String {
         let mut config: Value =
             serde_json::to_value(toml::from_str::<toml::Value>(SELECTED).unwrap()).unwrap();
-        config["aliases"] = json!({"fake_retention_alias": passthrough_info().name});
+        config["host"]["aliases"] = json!({"fake_retention_alias": passthrough_info().name});
         config["accounts"]["unselected"] = json!({
             "gdpr": {"basic_enforcement_vendors": vec!["fake_bidder"; vendors]}
         });
@@ -152,7 +153,7 @@ rules = [{allow = false, condition = {componentName = ["fake_retention_alias"]}}
 
     fn fixture_shape(source: &str, vendors: usize) -> (usize, u32) {
         let config: AuctioneerAppConfig = toml::from_str(source).unwrap();
-        config.validate_effective_defaults().unwrap();
+        validate_effective_defaults(&config).unwrap();
         assert_eq!(
             config.accounts["unselected"]
                 .gdpr

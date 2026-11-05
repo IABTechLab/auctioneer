@@ -14,7 +14,7 @@ mod tests {
     use auctioneer_bidder::{
         BidderHttpRequest, BidderHttpResponse, BidderRegistry, BidderRequestInfo,
     };
-    use auctioneer_config::types::{BidderInfo, Compression};
+    use auctioneer_config_data::types::{BidderInfo, Compression};
     use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_core::handlers::{TestFanoutHandle, auction::auction_for_conformance};
     use auctioneer_core::host_primitives::{RequestClock, resolve_budget_inputs};
@@ -47,8 +47,8 @@ mod tests {
     use time::OffsetDateTime;
 
     const HOST: &str = "bidder.example";
-    const CONFIG: &str = "[gdpr]\nenabled=false\n";
-    const CREDENTIAL_CONFIG: &str = "[gdpr]\nenabled=false\n[auction]\nmax_bidders_per_auction=2\nmax_outbound_requests=2\n[aliases]\nfake_alias='fake_bidder'\n";
+    const CONFIG: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n";
+    const CREDENTIAL_CONFIG: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.resource_limits]\nmax_bidders_per_auction=2\nmax_outbound_requests=2\n[host.aliases]\nfake_alias='fake_bidder'\n";
 
     #[derive(Default)]
     struct CapturedEndpoints(Mutex<Vec<BidderHttpRequest>>);
@@ -214,8 +214,12 @@ mod tests {
     }
 
     fn fake_bundle(username: &str, password: &str, tracker: &str) -> Value {
-        json!({"schema_version": 1_u8, "username": username,
-            "password": password, "tracker": tracker})
+        json!({
+            "schema_version": 1_u8,
+            "username": username,
+            "password": password,
+            "tracker": tracker,
+        })
     }
 
     fn credential_registry(
@@ -432,8 +436,12 @@ mod tests {
     fn missing_or_malformed_request_secret_refuses_only_the_affected_bidder() {
         for snapshot in [
             None,
-            Some(json!({"schema_version": 1_u8,
-            "username": "fake_user", "password": null, "tracker": "fake_tracker"})),
+            Some(json!({
+                "schema_version": 1_u8,
+                "username": "fake_user",
+                "password": null,
+                "tracker": "fake_tracker",
+            })),
         ] {
             let declarations = Arc::new(Mutex::new(Vec::new()));
             let constructions = Arc::new(Mutex::new(Vec::new()));

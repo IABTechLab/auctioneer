@@ -564,7 +564,7 @@ mod tests {
         let mut violations = Vec::new();
         for path in files {
             let relative = path.strip_prefix(crates.parent().unwrap()).unwrap();
-            if relative.starts_with("crates/auctioneer-config/data/gvl_archive")
+            if relative.starts_with("crates/auctioneer-config-data/data/gvl_archive")
                 && path.extension().is_some_and(|ext| ext == "json")
             {
                 continue;
@@ -871,11 +871,11 @@ mod tests {
     const SEMANTIC_SURFACES: &[&str] = &[
         "auctioneer-bidder/src/request_info.rs",
         "auctioneer-bidder/src/endpoint_builder.rs",
-        "auctioneer-config/src/bidder_settings.rs",
-        "auctioneer-config/src/bidder_endpoint.rs",
+        "auctioneer-bidder/src/bidder_settings.rs",
+        "auctioneer-bidder/src/bidder_endpoint.rs",
         "auctioneer-bidder/src/registry/mod.rs",
         "auctioneer-bidder/src/types.rs",
-        "auctioneer-config-schema/src/bidder_reconcile.rs",
+        "auctioneer-config/src/bidder_reconcile.rs",
         "auctioneer-exchange/src/alias.rs",
         "auctioneer-exchange/src/registry_order.rs",
         "auctioneer-exchange/src/plan.rs",
@@ -944,14 +944,14 @@ mod tests {
         "auctioneer-openrtb/src/ext/bid.rs",
         "auctioneer-openrtb/src/ext/request_prebid.rs",
         "auctioneer-runtime/src/body_caps.rs",
-        "auctioneer-config-schema/src/bindings.rs",
-        "auctioneer-config/tests/codegen.rs",
-        "auctioneer-config/tests/smoke.rs",
-        "auctioneer-config/tests/bidder_storage.rs",
-        "auctioneer-config/tests/bidder_bindings.rs",
-        "auctioneer-config/tests/build_failure_harness.rs",
-        "auctioneer-config/tests/url_safety.rs",
-        "auctioneer-config/tests/usersync_callback_validation.rs",
+        "auctioneer-config/src/bindings.rs",
+        "auctioneer-config-data/tests/codegen.rs",
+        "auctioneer-config-data/tests/smoke.rs",
+        "auctioneer-config-data/tests/bidder_storage.rs",
+        "auctioneer-config-data/tests/bidder_bindings.rs",
+        "auctioneer-config-data/tests/build_failure_harness.rs",
+        "auctioneer-config-data/tests/url_safety.rs",
+        "auctioneer-config-data/tests/usersync_callback_validation.rs",
         "auctioneer-cli/src/bidders/source.rs",
         "auctioneer-cli/src/bidders/import.rs",
     ];
@@ -1023,7 +1023,7 @@ mod tests {
             let mut found = BTreeSet::new();
             if path.extension().unwrap() == "toml" {
                 let document: toml::Value = toml::from_str(&source).unwrap();
-                let aliases = document["aliases"].as_table().unwrap();
+                let aliases = document["host"]["aliases"].as_table().unwrap();
                 assert!(!aliases.is_empty());
                 for (alias, base) in aliases {
                     assert!(alias.starts_with("fake_"));
@@ -1249,11 +1249,11 @@ mod tests {
         };
         for source in [
             "use example::FakeSupplierFixtureBidder;",
-            "use auctioneer_config::bidder_settings::fake_supplier_fixture;",
-            "use auctioneer_config::bidder_endpoint::fake_supplier_fixture::Values;",
-            "use auctioneer_config::bidder_endpoint::{fake_supplier_fixture::Values};",
-            "use auctioneer_config::bidder_settings::{fake_supplier_fixture as Selected};",
-            "use auctioneer_config::{bidder_settings::{fake_supplier_fixture::{self, Settings as Selected}}};",
+            "use auctioneer_bidder::bidder_settings::fake_supplier_fixture;",
+            "use auctioneer_bidder::bidder_endpoint::fake_supplier_fixture::Values;",
+            "use auctioneer_bidder::bidder_endpoint::{fake_supplier_fixture::Values};",
+            "use auctioneer_bidder::bidder_settings::{fake_supplier_fixture as Selected};",
+            "use auctioneer_bidder::{bidder_settings::{fake_supplier_fixture::{self, Settings as Selected}}};",
             "let _ = settings.as_fake_supplier_fixture();",
             "outer! { inner!(\"fake_supplier_fixture\") }",
             "include_str!(\"../src/bidders/fake_supplier_fixture/parameters.json\");",

@@ -20,7 +20,7 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_bidder::{BidderHttpRequest, BidderHttpResponse};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
@@ -114,24 +114,7 @@ mod tests {
 
     fn runtime_config(allow: bool) -> String {
         format!(
-            "
-[gdpr]
-enabled = false
-[ccpa]
-enforce = true
-[lmt]
-enforce = true
-[accounts.fake_tenant.privacy.ipv4]
-anon_keep_bits = 24
-[accounts.fake_tenant.privacy.ipv6]
-anon_keep_bits = 64
-[accounts.fake_tenant.privacy.allowactivities.transmitUfpd]
-default = {allow}
-[accounts.fake_tenant.privacy.allowactivities.transmitPreciseGeo]
-default = {allow}
-[accounts.fake_tenant.privacy.allowactivities.transmitTid]
-default = {allow}
-"
+            "schema_version = 1\n\n[host.gdpr]\nenabled = false\n[host.ccpa]\nenforce = true\n[host.lmt]\nenforce = true\n[accounts.fake_tenant.privacy.ipv4]\nanon_keep_bits = 24\n[accounts.fake_tenant.privacy.ipv6]\nanon_keep_bits = 64\n[accounts.fake_tenant.privacy.allowactivities.transmitUfpd]\ndefault = {allow}\n[accounts.fake_tenant.privacy.allowactivities.transmitPreciseGeo]\ndefault = {allow}\n[accounts.fake_tenant.privacy.allowactivities.transmitTid]\ndefault = {allow}\n"
         )
     }
 

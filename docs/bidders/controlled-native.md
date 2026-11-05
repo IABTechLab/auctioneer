@@ -14,31 +14,34 @@ configuration path; no application rebuild or registry reconstruction is needed.
 The existing published priority definition keeps its previous default behavior.
 Guest publication excludes the new native-only definitions.
 
-For example, these sections belong in the existing `auctioneer.toml` source:
+For example, the direct `auctioneer.toml` payload contains a required root
+version and bidder sections, not a `runtime` wrapper:
 
 ```toml
-[runtime.bidders.msft]
+schema_version = 1
+
+[bidders.msft]
 enabled = true
 
-[runtime.bidders.thetradedesk]
+[bidders.thetradedesk]
 enabled = true
 
-[runtime.bidders.thetradedesk.settings]
+[bidders.thetradedesk.settings]
 implementation = "thetradedesk"
 
-[runtime.bidders.thetradedesk.settings.values]
+[bidders.thetradedesk.settings.values]
 supply_id = "operator-issued-supply-id"
 
-[runtime.bidders.ttd]
+[bidders.ttd]
 enabled = true
 
-[runtime.bidders.rubicon]
+[bidders.rubicon]
 enabled = true
 
-[runtime.bidders.rubicon.settings]
+[bidders.rubicon.settings]
 implementation = "rubicon"
 
-[runtime.bidders.rubicon.settings.values]
+[bidders.rubicon.settings.values]
 region = "us-east"
 credentials_secret = "operator-managed-credential-bundle"
 ```

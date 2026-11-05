@@ -1,6 +1,6 @@
 use crate::{BidderBudgets, ResolvedBudgets};
 use auctioneer_bidder::BidderRegistry;
-use auctioneer_config::types::HostConfig;
+use auctioneer_config_data::types::HostConfig;
 
 #[must_use]
 pub fn response_budgets(registry: &BidderRegistry, host: &HostConfig) -> ResolvedBudgets {

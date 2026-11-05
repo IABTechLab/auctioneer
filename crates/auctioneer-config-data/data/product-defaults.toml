@@ -1,0 +1,85 @@
+# Versioned product data, not operator configuration. No deployment identities,
+# callbacks, aliases, account roster, physical bindings or credentials belong here.
+
+[host]
+status_response = ""
+
+[host.gdpr]
+enabled = true
+default_value = "0"
+host_vendor_id = 0
+non_standard_publishers = []
+
+[host.gdpr.tcf2]
+enabled = false
+purposes = {}
+special_features = {}
+
+[host.gdpr.tcf2.purpose_one_treatment]
+enabled = true
+access_allowed = true
+
+[host.ccpa]
+enforce = false
+
+[host.lmt]
+enforce = false
+
+[host.host_cookie]
+cookie_name = "auctioneer_uid"
+family = "auctioneer"
+ttl_days = 90
+max_cookie_size_bytes = 0
+
+[host.resource_limits]
+default_tmax_ms = 1000
+max_tmax_ms = 2000
+max_bidder_response_bytes = 262144
+max_bidders_per_auction = 50
+max_outbound_requests = 100
+max_outbound_raw_bytes = 262144
+max_outbound_request_bytes = 262144
+max_transport_bytes = 262144
+max_decoded_bytes = 262144
+max_parsed_nodes = 65536
+
+[host.aliases]
+
+[account]
+disabled = false
+debug_allow = false
+bid_rounding = "down"
+targeting_prefix = "hb"
+
+[account.gdpr]
+enabled = "unset"
+purposes = {}
+special_features = {}
+basic_enforcement_vendors = []
+
+[account.gdpr.purpose_one_treatment]
+
+[account.gdpr.channel_enabled]
+web = "unset"
+app = "unset"
+amp = "unset"
+video = "unset"
+dooh = "unset"
+
+[account.cookie_sync]
+
+[account.ccpa]
+enabled = "unset"
+
+[account.ccpa.channel_enabled]
+web = "unset"
+app = "unset"
+amp = "unset"
+video = "unset"
+dooh = "unset"
+
+[account.privacy.ipv4]
+anon_keep_bits = 24
+
+[account.privacy.ipv6]
+anon_keep_bits = 56

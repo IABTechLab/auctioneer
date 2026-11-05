@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fmt, marker::PhantomData};
 
-use auctioneer_config::usersync::{
+use auctioneer_config_data::usersync::{
     MAX_SYNC_QUERY_PARAMS, SyncQueryEncodingError, validate_sync_query_encoding,
 };
 use auctioneer_runtime::{BoundedJsonError, count_json_nodes};

@@ -13,7 +13,7 @@ use std::{hint::black_box, thread};
 
 #[test]
 fn typed_settings_binding_and_field_resolution_allocate_nothing() {
-    use auctioneer_config::{BidderSettings, bidder_settings::thetradedesk};
+    use auctioneer_bidder::{BidderSettings, bidder_settings::thetradedesk};
     for width in [1, 64, 4_096] {
         thread::spawn(move || {
             let base: BidderSettings = serde_json::from_value(json!({
@@ -243,8 +243,8 @@ fn assert_ttd_payload_grid(
 
 #[test]
 fn thetradedesk_construction_is_bounded_across_independent_payload_axes() {
+    use auctioneer_bidder::BidderSettings;
     use auctioneer_bidder::compiled_bidders;
-    use auctioneer_config::BidderSettings;
 
     thread::spawn(|| {
         let bidder = (compiled_bidders()

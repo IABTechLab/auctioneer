@@ -9,7 +9,7 @@ use auctioneer_bidder::{
     Bidder, BidderError, BidderHttpRequest, BidderHttpResponse, BidderName, BidderRegistry,
     BidderRequestInfo, BidderResponse, DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
 };
-use auctioneer_config::types::{
+use auctioneer_config_data::types::{
     AccountConfig, BidderInfo, HostConfig, PurposeEnforcement, ResourceLimits, TriState,
 };
 use auctioneer_exchange::scrub::DisclosureAudit;

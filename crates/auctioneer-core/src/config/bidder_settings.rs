@@ -1,8 +1,8 @@
 //! Runtime settings keep their extracted owner; resolving an alias borrows it.
 
 use super::{AuctioneerAppConfig, BidderOverrides};
+use auctioneer_bidder::BidderSettings;
 use auctioneer_bidder::request_info::BidderSettingsSource;
-use auctioneer_config::BidderSettings;
 use std::collections::BTreeMap;
 
 /// The original parsed bidder map, pruned in place without rebuilding settings.
@@ -32,6 +32,7 @@ mod tests {
     #[test]
     fn retaining_settings_drops_all_entries_without_settings() {
         let config = serde_json::from_value::<AuctioneerAppConfig>(serde_json::json!({
+            "schema_version": 1_u8,
             "bidders": {"fake_unrelated": {"enabled": false}},
             "accounts": {"fake_discarded": {"targeting_prefix": "discarded"}}
         }))

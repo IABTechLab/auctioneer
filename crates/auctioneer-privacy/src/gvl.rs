@@ -443,7 +443,7 @@ pub struct GvlStore {
 /// process-wide static initializes once per process).
 fn build_baked_store() -> GvlStore {
     let mut raw_index = HashMap::new();
-    for entry in auctioneer_config::gvl_archive() {
+    for entry in auctioneer_config_data::gvl_archive() {
         raw_index.insert((entry.spec, entry.vendor_list_version), entry.raw);
     }
     let entries_nz = NonZeroUsize::new(GVL_PARSE_CACHE_MAX_ENTRIES).unwrap_or(NonZeroUsize::MIN);
@@ -457,7 +457,7 @@ fn build_baked_store() -> GvlStore {
 
 impl GvlStore {
     /// Process-wide baked store. Populated from
-    /// `auctioneer_config::gvl_archive()` on first call; no per-entry
+    /// `auctioneer_config_data::gvl_archive()` on first call; no per-entry
     /// parsing at init.
     #[must_use]
     pub fn baked() -> &'static GvlStore {
@@ -737,7 +737,7 @@ mod tests {
     #[test]
     fn baked_gvl_loads_without_panic() {
         let store = GvlStore::baked();
-        let entry = auctioneer_config::gvl_archive()
+        let entry = auctioneer_config_data::gvl_archive()
             .first()
             .expect("archive has entries");
         assert!(
@@ -765,7 +765,7 @@ mod tests {
             raw.iter().filter_map(|&p| u8::try_from(p).ok()).collect()
         }
 
-        for entry in auctioneer_config::gvl_archive() {
+        for entry in auctioneer_config_data::gvl_archive() {
             let raw_str = str::from_utf8(entry.raw)
                 .expect("build.rs validated UTF-8 for every archive entry");
             // ONE authoritative validation, via the standalone crate.
@@ -796,7 +796,7 @@ mod tests {
     #[test]
     fn baked_gvl_selected_when_exact_pair_matches() {
         let store = GvlStore::baked();
-        let entry = auctioneer_config::gvl_archive()
+        let entry = auctioneer_config_data::gvl_archive()
             .iter()
             .find(|entry| entry.spec == 3)
             .expect("spec-3 entry bundled");
@@ -842,7 +842,7 @@ mod tests {
         // TCF v2.4-era strings carry tcfPolicyVersion 5 → spec-3, and
         // the baked archive serves that pair.
         assert_eq!(gvl_spec_for_policy(5), 3);
-        let entry = auctioneer_config::gvl_archive()
+        let entry = auctioneer_config_data::gvl_archive()
             .iter()
             .find(|entry| entry.spec == 3 && entry.tcf_policy_version == 5)
             .expect("v2.4-era entry bundled");
@@ -958,7 +958,7 @@ mod tests {
     #[test]
     fn gvl_store_bundle_total_size_under_bundle_max_bytes() {
         let mut total: u64 = 0;
-        for entry in auctioneer_config::gvl_archive() {
+        for entry in auctioneer_config_data::gvl_archive() {
             total = total.saturating_add(u64::try_from(entry.raw.len()).unwrap_or(u64::MAX));
         }
         assert!(

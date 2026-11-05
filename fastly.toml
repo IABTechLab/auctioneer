@@ -13,7 +13,7 @@ service_id = ""
 format = "inline-toml"
 
 [local_server.config_stores.auctioneer_runtime.contents]
-auctioneer_runtime = '{"data":{"accounts":{},"aliases":null,"auction":{"default_tmax_ms":null,"max_bidder_response_bytes":null,"max_bidders_per_auction":null,"max_decoded_bytes":null,"max_outbound_raw_bytes":null,"max_outbound_request_bytes":null,"max_outbound_requests":null,"max_parsed_nodes":null,"max_tmax_ms":null,"max_transport_bytes":null},"bidders":{},"features":{"gzip_outbound":null,"returnallbidstatus_default":null},"gdpr":null,"status":{"banner":null},"targeting":{"prefix":null,"truncate_target_attribute":null}},"generated_at":"2026-10-07T04:35:15Z","sha256":"37c0072bfbc2fc66625579242a043d5a5704885e2dd9ffe431817b63995bffa6","version":1}'
+auctioneer_runtime = '{"data":{"account_defaults":{},"accounts":{},"bidders":{},"features":{},"host":{"resource_limits":{}},"schema_version":1},"generated_at":"2026-10-07T04:35:15Z","sha256":"6aa4c01132d4dd3425c13e28cab5c2fb1fec177d6303f1b3e3a863b08adc7778","version":1}'
 
 # Health remains closed unless a local development token is supplied.
 allow_unauthenticated_health = "false"

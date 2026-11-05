@@ -27,16 +27,20 @@ mod tests {
     use edgezero_core::http::{Method, Request, StatusCode, request_builder};
     use edgezero_core::ingress::{IngressDispatchOutcome, IngressFraming, IngressHeadAccounting};
     use edgezero_core::response_egress::ResponseEgressEnvelope;
-    use edgezero_core::store_registry::{ConfigStoreBinding, StoreRegistry};
+    use edgezero_core::secret_store::{SecretError, SecretHandle, SecretStore};
+    use edgezero_core::store_registry::{
+        BoundSecretStore, ConfigStoreBinding, SecretRegistry, StoreRegistry,
+    };
     use edgezero_core::time::{Deadline, MonotonicClock, MonotonicInstant};
     use futures::executor::block_on;
     use futures::future::pending;
     use futures::task::noop_waker;
     use std::future::Future as _;
     use std::iter::repeat_with;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::task::Context;
+    use std::time::Duration;
 
     const STORE_ID: &str = "auctioneer_runtime";
     const BANNER: &str = "funded-runtime";
@@ -45,12 +49,18 @@ mod tests {
         value: ConfigValue,
         reads: Mutex<Vec<[u64; 2]>>,
         suspended: AtomicBool,
+        secret_reads: AtomicUsize,
     }
 
     impl RecordingStore {
         fn new() -> Arc<Self> {
             let value = serde_json::to_string(&BlobEnvelope::new(
-                serde_json::json!({"status": {"banner": BANNER}}),
+                serde_json::json!({
+                    "schema_version": 1_u64,
+                    "host": {
+                        "status_response": BANNER,
+                    },
+                }),
                 "2026-10-18T00:00:00Z".into(),
             ))
             .unwrap()
@@ -59,11 +69,40 @@ mod tests {
                 value,
                 reads: Mutex::new(Vec::new()),
                 suspended: AtomicBool::new(false),
+                secret_reads: AtomicUsize::new(0),
             })
         }
 
         fn read_count(&self) -> usize {
             self.reads.lock().unwrap().len()
+        }
+    }
+
+    #[async_trait::async_trait(?Send)]
+    impl SecretStore for RecordingStore {
+        async fn get_bytes(
+            &self,
+            _store: &str,
+            _key: &str,
+        ) -> Result<Option<bytes::Bytes>, SecretError> {
+            self.secret_reads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn get_bytes_bounded(
+            &self,
+            _store: &str,
+            _key: &str,
+            _clock: &MonotonicClock,
+            _deadline: Deadline,
+            _max_backend_bytes: u64,
+            _max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<bytes::Bytes>, SecretError> {
+            self.secret_reads.fetch_add(1, Ordering::SeqCst);
+            Ok(BoundedStoreRead {
+                backend_bytes: 0,
+                value: None,
+            })
         }
     }
 
@@ -122,6 +161,14 @@ mod tests {
                     handle: ConfigStoreHandle::new(Arc::<RecordingStore>::clone(store)),
                 },
             ));
+            let secrets: SecretRegistry = StoreRegistry::single_id(
+                "default".into(),
+                BoundSecretStore::new(
+                    SecretHandle::new(Arc::<RecordingStore>::clone(store)),
+                    "default".into(),
+                ),
+            );
+            request.extensions_mut().insert(secrets);
         }
         request
     }
@@ -154,12 +201,14 @@ mod tests {
         path: &str,
     ) -> ResponseEgressEnvelope {
         let before = store.read_count();
+        let secret_before = store.secret_reads.load(Ordering::SeqCst);
         let mut egress = dispatch(app, path, Some(store));
         assert_eq!(
             store.read_count(),
             before,
             "refusal must precede every KV read"
         );
+        assert_eq!(store.secret_reads.load(Ordering::SeqCst), secret_before);
         let response = egress.response_mut();
         let body = response.body().as_bytes().unwrap();
         if path == "/status" {
@@ -329,54 +378,146 @@ mod tests {
         assert_eq!(boot_gates().unwrap().aux_work_budget.in_use(), 0);
     }
 
+    fn independent_cap_axes(
+        equal: ConfigExtractionLimits,
+    ) -> [(&'static str, ConfigExtractionLimits, ConfigExtractionLimits); 7] {
+        [
+            (
+                "backend",
+                ConfigExtractionLimits {
+                    max_backend_bytes: equal.max_backend_bytes.checked_sub(1).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    max_backend_bytes: equal.max_backend_bytes.checked_add(1).unwrap(),
+                    ..equal
+                },
+            ),
+            (
+                "blob",
+                ConfigExtractionLimits {
+                    max_blob_bytes: equal.max_blob_bytes.checked_sub(1).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    max_blob_bytes: equal.max_blob_bytes.checked_add(1).unwrap(),
+                    ..equal
+                },
+            ),
+            (
+                "depth",
+                ConfigExtractionLimits {
+                    max_json_depth: equal.max_json_depth.checked_sub(1).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    max_json_depth: equal.max_json_depth.checked_add(1).unwrap(),
+                    ..equal
+                },
+            ),
+            (
+                "nodes",
+                ConfigExtractionLimits {
+                    max_json_nodes: equal.max_json_nodes.checked_sub(1).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    max_json_nodes: equal.max_json_nodes.checked_add(1).unwrap(),
+                    ..equal
+                },
+            ),
+            (
+                "secret",
+                ConfigExtractionLimits {
+                    max_secret_bytes: equal.max_secret_bytes.checked_sub(1).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    max_secret_bytes: equal.max_secret_bytes.checked_add(1).unwrap(),
+                    ..equal
+                },
+            ),
+            (
+                "total",
+                ConfigExtractionLimits {
+                    max_total_bytes: equal.max_total_bytes.checked_sub(1).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    max_total_bytes: equal.max_total_bytes.checked_add(1).unwrap(),
+                    ..equal
+                },
+            ),
+            (
+                "timeout",
+                ConfigExtractionLimits {
+                    timeout: equal.timeout.checked_sub(Duration::from_nanos(1)).unwrap(),
+                    ..equal
+                },
+                ConfigExtractionLimits {
+                    timeout: equal.timeout.checked_add(Duration::from_nanos(1)).unwrap(),
+                    ..equal
+                },
+            ),
+        ]
+    }
+
     fn assert_independent_caps(funded: &ResolvedIsolateLimits) {
         let store = RecordingStore::new();
         let mut app = app();
         let equal = app.config_extraction_limits();
-        assert_eq!(equal.max_backend_bytes, funded.max_runtime_config_bytes);
-        assert_eq!(equal.max_blob_bytes, funded.max_runtime_config_blob_bytes);
-        assert_eq!(equal.max_json_nodes, funded.max_config_json_nodes);
-        for caps in [
+        let sdk = ConfigExtractionLimits::default();
+        assert_eq!(
             equal,
             ConfigExtractionLimits {
-                max_backend_bytes: equal.max_backend_bytes.checked_sub(1).unwrap(),
-                max_blob_bytes: equal.max_blob_bytes.checked_sub(1).unwrap(),
-                max_json_nodes: equal.max_json_nodes.checked_sub(1).unwrap(),
-                ..equal
-            },
-        ] {
-            app.set_config_extraction_limits(caps).unwrap();
-            let mut output = dispatch(&app, "/status", Some(&store));
-            assert_eq!(output.response_mut().headers()[CONFIG_STATUS_HEADER], "ok");
-            assert_eq!(
-                output.response_mut().body().as_bytes().unwrap(),
-                BANNER.as_bytes()
-            );
-        }
-        assert_eq!(store.read_count(), 2);
-        for caps in [
-            ConfigExtractionLimits {
-                max_backend_bytes: equal.max_backend_bytes.checked_add(1).unwrap(),
-                ..equal
-            },
-            ConfigExtractionLimits {
-                max_blob_bytes: equal.max_blob_bytes.checked_add(1).unwrap(),
-                max_total_bytes: equal.max_total_bytes.checked_add(1).unwrap(),
-                ..equal
-            },
-            ConfigExtractionLimits {
-                max_json_nodes: equal.max_json_nodes.checked_add(1).unwrap(),
-                ..equal
-            },
-        ] {
-            app.set_config_extraction_limits(caps).unwrap();
+                max_backend_bytes: funded.max_runtime_config_bytes,
+                max_blob_bytes: funded.max_runtime_config_blob_bytes,
+                max_json_nodes: funded.max_config_json_nodes,
+                max_json_depth: sdk.max_json_depth,
+                max_secret_bytes: sdk.max_secret_bytes,
+                max_total_bytes: sdk.max_total_bytes,
+                timeout: Duration::from_secs(2),
+            }
+        );
+        let axes = independent_cap_axes(equal);
+        assert_eq!(axes.len(), 7);
+        for (cap_field, narrower, above) in axes {
+            assert_eq!(narrower.validate().unwrap(), narrower, "{cap_field}");
+            assert_eq!(above.validate().unwrap(), above, "{cap_field}");
             for path in ["/status", "/info/bidders"] {
-                assert_unfunded(&app, &store, path);
+                app.set_config_extraction_limits(equal).unwrap();
+                assert_funded(&app, &store, path);
+                app.set_config_extraction_limits(narrower).unwrap();
+                assert_funded(&app, &store, path);
+                app.set_config_extraction_limits(above).unwrap();
+                assert_eq!(app.config_extraction_limits(), above, "{cap_field}");
+                drop(assert_unfunded(&app, &store, path));
+                app.set_config_extraction_limits(equal).unwrap();
+                assert_funded(&app, &store, path);
             }
         }
-        assert_eq!(store.read_count(), 2);
-        app.set_config_extraction_limits(equal).unwrap();
-        drop(dispatch(&app, "/status", Some(&store)));
-        assert_eq!(store.read_count(), 3);
+        assert_eq!(store.read_count(), 7 * 2 * 3);
+        assert_eq!(store.secret_reads.load(Ordering::SeqCst), 0);
+    }
+
+    fn assert_funded(app: &App, store: &Arc<RecordingStore>, path: &str) {
+        let before = store.read_count();
+        let mut output = dispatch(app, path, Some(store));
+        assert_eq!(
+            store.read_count(),
+            before.checked_add(1).unwrap(),
+            "positive control reaches extraction"
+        );
+        assert_eq!(store.secret_reads.load(Ordering::SeqCst), 0);
+        let response = output.response_mut();
+        assert_eq!(response.status(), StatusCode::OK);
+        if path == "/status" {
+            assert_eq!(response.headers()[CONFIG_STATUS_HEADER], "ok");
+            assert_eq!(response.body().as_bytes().unwrap(), BANNER.as_bytes());
+        } else {
+            let names: Vec<String> =
+                serde_json::from_slice(response.body().as_bytes().unwrap()).unwrap();
+            assert!(!names.is_empty());
+        }
     }
 }

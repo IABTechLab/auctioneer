@@ -19,7 +19,7 @@
 //! an alias whose name happens to collide with a policy entry cannot
 //! inherit an unrelated grant.
 
-use auctioneer_config::types::{EnforceAlgo, TriState};
+use auctioneer_config_data::types::{EnforceAlgo, TriState};
 
 use crate::auction_context::PrivacyContext;
 use crate::gvl::Vendor;
@@ -274,7 +274,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
 
-    use auctioneer_config::types::{EnforceAlgo, PurposeEnforcement, TriState};
+    use auctioneer_config_data::types::{EnforceAlgo, PurposeEnforcement, TriState};
     use time::macros::datetime;
 
     use super::{EnforceFlags, purpose_allowed, purpose_allowed_basic, purpose_effective_algo};

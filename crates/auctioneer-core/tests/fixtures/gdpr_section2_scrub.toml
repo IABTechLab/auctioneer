@@ -1,3 +1,4 @@
+schema_version = 1
 # GDPR enforcement is ACTIVE but purpose 2 enforcement is OFF, so a
 # request whose consent is unusable still reaches fan-out: the
 # unusable-consent row is `AllowBidRequest = !p2_enforced`, `PassID =
@@ -7,13 +8,13 @@
 # `PassGeo` stays true and the geo/IP scrub is inactive — the ID scrub is
 # then observable on the outbound body on its own.
 
-[gdpr]
+[host.gdpr]
 enabled = true
 
-[gdpr.tcf2]
+[host.gdpr.tcf2]
 enabled = true
 
-[gdpr.tcf2.purposes.2]
+[host.gdpr.tcf2.purposes.2]
 enforce_algo    = "full"
 enforce_purpose = "disabled"
 enforce_vendors = "disabled"

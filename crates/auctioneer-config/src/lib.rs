@@ -1,46 +1,71 @@
-//! Host / account / bidder configuration.
+//! Shared configuration leaves and the direct versioned runtime policy.
 //!
-//! The `data/` table (bidder TOMLs, host/account defaults, EEA country list,
-//! the GVL/GCL archive) is baked at build time into `OUT_DIR/generated.rs`
-//! plus `OUT_DIR/gvl_archive.rs` by `build.rs` and re-exported through this
-//! crate's public surface.
+//! With `config-model`, `policy::OperatorPolicy` is the single operator
+//! authoring and runtime payload, generic over generated bidder settings.
+//! There are no startup, baked or runtime document wrappers. Build tooling
+//! owns compiled product artifacts separately from operator policy.
+//!
+//! The default feature set remains Serde-only. `config-model` adds portable
+//! models and validation; `build-support` adds native manifest admission and
+//! code generation. Neither feature depends on `auctioneer-core` or
+//! `auctioneer-config-data`, which consume this crate.
 
-pub mod bidder_endpoint;
-pub mod bidder_settings;
+#[cfg(feature = "config-model")]
+pub mod activity;
+#[cfg(feature = "config-model")]
 pub mod currency;
-pub mod disclosure;
-mod gvl_archive;
-
-use auctioneer_config_schema::disclosure_types;
-pub use auctioneer_config_schema::{activity, bidder_storage, limits, types, usersync};
-
-pub use bidder_settings::BidderSettings;
-pub use currency::FloorCurrencyConfig;
-pub use gvl_archive::BakedGvlEntry;
-// A plain re-export of the sibling crate — no `include!`, no `#[path]`,
-// no duplicated source file. Keeps `auctioneer_config::gvl_schema::…` call
-// paths resolving for runtime callers and tests alike.
-pub use auctioneer_gvl_schema as gvl_schema;
-
-/// Whether this linked build permits development-only configuration overrides.
-pub const TEST_HARNESS_OVERRIDE_ENABLED: bool = cfg!(feature = "test-harness-override");
-
-include!(concat!(env!("OUT_DIR"), "/generated.rs"));
-include!(concat!(env!("OUT_DIR"), "/gvl_archive.rs"));
-
-#[cfg(test)]
-mod tests {
-    use std::hint::black_box;
-
-    #[cfg(not(feature = "test-harness-override"))]
-    #[test]
-    fn production_build_disallows_harness_overrides() {
-        assert!(!black_box(super::TEST_HARNESS_OVERRIDE_ENABLED));
-    }
-
-    #[cfg(feature = "test-harness-override")]
-    #[test]
-    fn explicit_harness_build_reports_override_support() {
-        assert!(black_box(super::TEST_HARNESS_OVERRIDE_ENABLED));
-    }
-}
+#[cfg(feature = "config-model")]
+mod object;
+#[cfg(feature = "config-model")]
+pub use currency::{FloorCurrencyConfig, MAX_FLOOR_CURRENCY_RATES};
+#[cfg(feature = "config-model")]
+mod model_validation;
+#[cfg(feature = "config-model")]
+pub mod override_value;
+#[cfg(feature = "config-model")]
+pub mod policy;
+#[cfg(feature = "config-model")]
+pub mod source;
+#[cfg(feature = "config-model")]
+pub use source::*;
+#[cfg(feature = "build-support")]
+pub mod bidder_discovery;
+#[cfg(feature = "build-support")]
+pub mod bidder_endpoint_codegen;
+#[cfg(feature = "build-support")]
+pub mod bidder_manifest;
+#[cfg(feature = "build-support")]
+pub mod bidder_reconcile;
+#[cfg(feature = "build-support")]
+pub mod bidder_settings_codegen;
+#[cfg(feature = "config-model")]
+pub mod bidder_storage;
+#[cfg(feature = "build-support")]
+pub mod bindings;
+#[cfg(feature = "build-support")]
+pub mod build_catalog;
+#[cfg(feature = "build-support")]
+pub mod build_disclosure;
+#[cfg(feature = "build-support")]
+pub mod codegen;
+pub mod disclosure_types;
+#[cfg(feature = "build-support")]
+pub mod endpoint_contract;
+#[cfg(feature = "config-model")]
+pub mod limits;
+/// Non-serving schema artifact planning, available only to native build tooling.
+#[cfg(feature = "build-support")]
+pub mod schema_staging;
+#[cfg(feature = "build-support")]
+pub mod schema_staging_build;
+#[cfg(feature = "build-support")]
+pub mod schema_staging_codegen;
+#[cfg(feature = "config-model")]
+pub mod types;
+/// Build-facing URL admission and macro validation. Serving policy is internal.
+#[cfg(feature = "build-support")]
+pub mod url_safety;
+#[cfg(all(feature = "config-model", not(feature = "build-support")))]
+mod url_safety;
+#[cfg(feature = "config-model")]
+pub mod usersync;

@@ -164,7 +164,7 @@ async fn health_gvl_body(ctx: RequestContext) -> Result<Response, EdgeError> {
     }
     let clock = clock_handle(&ctx);
     let now = clock.now();
-    let generated_at_raw = auctioneer_config::gvl_archive_generated_at();
+    let generated_at_raw = auctioneer_config_data::gvl_archive_generated_at();
     let generated_dt = OffsetDateTime::parse(generated_at_raw, &Rfc3339)
         .map_err(|e| EdgeError::internal(anyhow::anyhow!("manifest.generated_at parse: {e}")))?;
     // Whole days elapsed since the manifest was generated, clamped to
@@ -175,9 +175,9 @@ async fn health_gvl_body(ctx: RequestContext) -> Result<Response, EdgeError> {
         .checked_sub(generated_dt.unix_timestamp())
         .map_or(0_i64, |secs| secs.div_euclid(86_400))
         .max(0_i64);
-    let max_age_days = auctioneer_config::gvl_archive_max_age_days();
+    let max_age_days = auctioneer_config_data::gvl_archive_max_age_days();
     let (mut s2, mut s3) = (Vec::new(), Vec::new());
-    for entry in auctioneer_config::gvl_archive() {
+    for entry in auctioneer_config_data::gvl_archive() {
         match entry.spec {
             2 => s2.push(entry.vendor_list_version),
             3 => s3.push(entry.vendor_list_version),
@@ -194,7 +194,7 @@ async fn health_gvl_body(ctx: RequestContext) -> Result<Response, EdgeError> {
     // the GCL's RFC 9111 lifetime is far shorter than the archive's
     // freshness window, so health must gate on BOTH or report green
     // through a live fail-closed deployment.
-    let gcl_expires_unix = auctioneer_config::gcl_expires_at_unix_secs();
+    let gcl_expires_unix = auctioneer_config_data::gcl_expires_at_unix_secs();
     let gcl_expired = now.unix_timestamp() >= gcl_expires_unix;
     // An unrepresentable expiry reads as already stale, matching the
     // runtime `Gcl` boot lowering rather than contradicting it.

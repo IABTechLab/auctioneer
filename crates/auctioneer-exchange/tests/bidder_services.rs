@@ -11,7 +11,7 @@ mod tests {
     use super::support::response_budgets;
     use async_trait::async_trait;
     use auctioneer_bidder::{BidderHttpResponse, BidderRegistry, BidderRequestInfo};
-    use auctioneer_config::types::{AccountConfig, BidderInfo};
+    use auctioneer_config_data::types::{AccountConfig, BidderInfo};
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionError, AuctionPlan, BidderCall,
@@ -245,7 +245,7 @@ mod tests {
             &PrepareLimits::default(),
         )
         .unwrap();
-        let mut host = auctioneer_config::host_default().clone();
+        let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
         host.resource_limits.default_tmax_ms = 1_000;
         host.resource_limits.max_tmax_ms = 1_000;

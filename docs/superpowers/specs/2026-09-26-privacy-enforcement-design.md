@@ -522,59 +522,63 @@ the evaluator also serves future consumers and aliases.
 
 ### 7.3 Configuration Merge and Bounds
 
-Maintain the existing baked/runtime split and account resolution order.
-Add host runtime `ccpa.enforce` and `lmt.enforce`, account CCPA `enabled` and
-channel overrides, and account activity overrides. Defaults keep CCPA/LMT
+Use the direct versioned `OperatorPolicy` contract: host = neutral product
+defaults + `host`; account = neutral product defaults + `account_defaults` +
+the selected `accounts.<id>`. Keep host `ccpa.enforce` and `lmt.enforce`, account
+CCPA `enabled`/channel settings and account activity overrides. Defaults keep CCPA/LMT
 off and activities allowed. Existing GDPR permission rules remain unchanged;
 privacy enforcement intentionally replaces the temporary GDPR enforcement GPP-selection behavior with
 section 5's source-selection contract.
 
 Reuse the existing `TriState` encoding for account CCPA settings:
 `"enabled"`, `"disabled"`, and `"unset"`. An omitted runtime field inherits
-its baked value; explicit `"unset"` replaces that value and restores the
+its parent/product value; explicit `"unset"` replaces that value and restores the
 channel/account/host fallback at that level. Host switches and activity
 `default`/`allow` remain booleans. For example, these are the privacy enforcement runtime
-tables in `auctioneer.toml`, not accepted by the starting implementation:
+tables in the direct `auctioneer.toml` payload:
 
 ```toml
-[runtime.ccpa]
+schema_version = 1
+
+[host.ccpa]
 enforce = true
 
-[runtime.lmt]
+[host.lmt]
 enforce = true
 
-[runtime.accounts.publisher-1.ccpa]
+[accounts.publisher-1.ccpa]
 enabled = "enabled"
 
-[runtime.accounts.publisher-1.ccpa.channel_enabled]
+[accounts.publisher-1.ccpa.channel_enabled]
 app = "disabled"
 
-[runtime.accounts.publisher-1.privacy.allowactivities.transmitUfpd]
+[accounts.publisher-1.privacy.allowactivities.transmitUfpd]
 default = false
 rules = [
   { condition = { componentName = ["trusted-alias"], componentType = ["bidder"] }, allow = true },
 ]
 ```
 
-The corresponding defaults use `[baked.host.ccpa]`, `[baked.host.lmt]`,
-`[baked.account.ccpa]`, and `[baked.account.privacy.allowactivities...]`.
-CLI push validation and runtime deserialization must use the same DTO
-contract; no second schema or signing step is introduced.
+Deployment-wide account policy belongs in `account_defaults.ccpa` and
+`account_defaults.privacy.allowactivities`; neutral compiled defaults remain
+code-owned product data. CLI push, bounded extraction and the typed host API
+reuse the same model and semantic validators. Reject baked/startup/runtime root
+wrappers and legacy wire aliases; no second schema or signing step is introduced.
 
-Overlay an activity by key. An absent activity inherits the baked value;
+Overlay an activity by key. An absent activity inherits the parent/product value;
 within a present activity, absent fields inherit. Explicit `default=false`
 must survive deserialization. A supplied `rules` array replaces the entire
 inherited array in order; `rules=[]` clears inherited rules. Do not append,
 sort, deduplicate, or deep-merge individual rules. CCPA channel fields merge
-independently: omitted override fields inherit their baked values; an
-explicit `"unset"` replaces the baked value and falls through to the next
+independently: omitted override fields inherit their parent/product values; an
+explicit `"unset"` replaces that value and falls through to the next
 enablement level during policy evaluation.
 
-Validate at both baked generation and runtime override boundaries and again
-on the effective merged object where cross-field limits apply. Reject an
+Validate neutral product data at generation, runtime policy at admission and
+the effective merged object where cross-field limits apply. Reject an
 invalid config through the existing config error path; never fall back to
-allow-all because rule parsing failed. The last accepted config remains
-governed by existing bounded fanout activation behavior, not a new privacy enforcement cache.
+allow-all because rule parsing failed. Required store load/validation failures
+refuse rather than selecting previous/default policy; no privacy-enforcement cache.
 
 Use initial ceilings of 128 rules per activity, 128 combined name/type
 entries per rule, and 128 UTF-8 bytes per component name. Existing global

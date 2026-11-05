@@ -3,7 +3,7 @@
 
 use super::schema_qualification::{self, Draft, SchemaAudit, SchemaInventory, SchemaWitness};
 use super::schema_selection::{self, Identity, Schema};
-use auctioneer_config_schema::build_catalog::{self, Catalog, Category, Provenance};
+use auctioneer_config::build_catalog::{self, Catalog, Category, Provenance};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
@@ -232,7 +232,7 @@ fn load() -> Result<Inputs, String> {
         definitions,
         schemas,
         sources,
-        published: auctioneer_config::bidder_metadata_declarations()
+        published: auctioneer_config_data::bidder_metadata_declarations()
             .iter()
             .map(|row| row.bidder.to_owned())
             .collect(),
@@ -386,7 +386,7 @@ fn source_definitions(
 }
 
 fn check_publications(catalog: &Catalog) -> Result<(), String> {
-    let declarations = auctioneer_config::bidder_metadata_declarations();
+    let declarations = auctioneer_config_data::bidder_metadata_declarations();
     let expected: BTreeSet<_> = catalog
         .manifests
         .values()
@@ -418,7 +418,7 @@ fn check_publications(catalog: &Catalog) -> Result<(), String> {
         })
         .map(|(name, implementation, _)| (*name, *implementation))
         .collect();
-    let active = auctioneer_config::bidder_implementation_bindings();
+    let active = auctioneer_config_data::bidder_implementation_bindings();
     if active
         .iter()
         .map(|row| (row.bidder, row.implementation))
@@ -437,7 +437,7 @@ fn add_extra_roots(
     schemas: &SchemaMap,
     supplemental: &SupplementalProjection,
 ) -> Result<(), String> {
-    for (name, implementation) in auctioneer_config::bidder_metadata_declarations()
+    for (name, implementation) in auctioneer_config_data::bidder_metadata_declarations()
         .iter()
         .map(|row| (row.bidder, row.implementation))
         .chain(
@@ -623,7 +623,7 @@ impl Inputs {
                 "size_limit": 0x0001_0000_u32, "dfa_size_limit": 0x0001_0000_u32, "methods": ["is_valid"]},
             "planned_roots": self.planned, "published_roots_all_features": self.published,
             "actual_cargo_insecure_bidders": cfg!(feature = "insecure-bidders"),
-            "actual_active_published_bindings": auctioneer_config::bidder_implementation_bindings().iter()
+            "actual_active_published_bindings": auctioneer_config_data::bidder_implementation_bindings().iter()
                 .map(|row| (row.bidder, row.implementation)).collect::<Vec<_>>(),
             "lanes": {"secure": &secure.manifest, "development": &development.manifest}});
         let selected = match lane {

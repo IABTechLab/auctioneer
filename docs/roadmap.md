@@ -6,6 +6,10 @@ Status: Capability scope and dependencies; active priorities and blockers are tr
 The [shared GitHub project](https://github.com/orgs/IABTechLab/projects/3/)
 tracks epics, stories, tasks and bugs. This document retains their technical
 scope and dependency contracts, not a separate numbered delivery schedule.
+The retired local issue ledger's remaining work is assigned to GitHub epics;
+see the [reconciliation](https://github.com/IABTechLab/auctioneer/issues/26).
+Do not maintain a second local backlog or infer current status from old review
+records.
 
 Auctioneer has delivered bidder foundations and all 14 publisher-priority
 flows under the controlled-native contract. Trusted Server embedding and

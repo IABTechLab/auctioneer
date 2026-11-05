@@ -1,4 +1,4 @@
-# Standalone by design: NO build.rs and NO dependency on auctioneer-config,
+# Standalone by design: NO build.rs and NO dependency on auctioneer-config-data,
 # so this crate always builds even when the checked-in GVL archive is
 # broken — the refresh tool depends on it to repair the archive, and a
 # schema crate that failed to build with the archive would wedge that

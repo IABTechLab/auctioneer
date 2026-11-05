@@ -218,7 +218,7 @@ mod tests {
             features
                 .iter()
                 .any(|feature| feature == "test_harness_override"),
-            auctioneer_config::TEST_HARNESS_OVERRIDE_ENABLED
+            auctioneer_config_data::TEST_HARNESS_OVERRIDE_ENABLED
         );
     }
 

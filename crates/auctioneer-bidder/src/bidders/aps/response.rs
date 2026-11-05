@@ -5,7 +5,7 @@ use crate::bidders::{
 };
 use crate::meta::OutboundRequestMeta;
 use crate::types::{BidderHttpResponse, BidderResponse};
-use auctioneer_config::types::MediaType;
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::BidResponse};
 
 pub(super) fn make_bids(
@@ -45,7 +45,7 @@ mod tests {
     use super::super::tests::{NA, minimal, response};
     use crate::bidder::{Bidder as _, BidderErrorKind};
     use crate::meta::{META_BYTES_CAPACITY, OutboundRequestMeta, OutboundRequestMetaBuilder};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::Video;
     use serde_json::json;
 

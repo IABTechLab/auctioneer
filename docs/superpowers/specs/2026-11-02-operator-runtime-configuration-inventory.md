@@ -2,58 +2,60 @@
 
 Date: 2026-11-02
 
-Status: Draft supporting
-[the proposed configuration contract](2026-11-02-operator-runtime-configuration-design.md).
-Current-source facts are pinned to Auctioneer
-`7d7fee7704e2d9552457068ac7de4861b6c7169e`; destinations are proposals, not
-implemented readers. Issue: [#125](https://github.com/IABTechLab/auctioneer/issues/125).
+Status: Field census with active dispositions aligned on 2026-11-04 to
+[the single-runtime contract](2026-11-02-operator-runtime-configuration-design.md).
+Historical source facts remain pinned to Auctioneer
+`7d7fee7704e2d9552457068ac7de4861b6c7169e`; retired names below identify migration
+inputs, not accepted interfaces or implementation completion. Issue:
+[#125](https://github.com/IABTechLab/auctioneer/issues/125).
 
 ## 1. Reading The Inventory
 
 - `C`: compiled product code, declarations, reviewed defaults or safety facts.
-- `S`: operator/host startup intent; validate before loading policy and freeze
-  for the configuration domain. Defaults may be product-owned, not customer-owned.
+- `S`: existing host/adapter deployment inputs, bindings and installed limits;
+  not an Auctioneer startup DTO, operator payload or new configuration mode.
 - `P`: operator runtime policy; replace as a validated coherent snapshot.
 - `V`: a secret value supplied by the host secret service, not ordinary config.
 - `D`: derived/effective state; no independent public setter.
 
-Paths in the tables name current Rust fields unless a current authoring path is
+Paths in the tables name baseline Rust fields unless an active authoring path is
 explicitly shown. They are not promises that those exact Rust structs can be
 deserialized safely as future public input. Nested groups below enumerate their
 leaves; `{a,b}` means both named fields, not an unspecified prose bucket.
 
-For `P` rows, source/trust is the selected operator-policy source from the main
-contract; validation is shared typed and effective semantic validation in core;
-lifetime is one snapshot plus its admitted readers. Request-time copies remain
-charged to auction, auxiliary or probe work. `S` rows use the pre-established
-startup input bound, pure validation and the installed host/adapter profile;
-startup and retained storage must be funded. `C`, `V` and `D` rows retain their
+For `P` rows, one direct `OperatorPolicy` supplies root `schema_version = 1`,
+`host`, `account_defaults`, `accounts`, `bidders`, `features` and `floor_currency`.
+Existing EdgeZero typed validate/diff/push and bounded SDK extraction reuse shared
+semantic validation. Typed-policy helpers accept caller-owned input/context;
+actual host ingestion/adoption and capacity/lifetime proof remain #135.
+Request-time copies stay charged to auction, auxiliary or probe work. `S` rows
+retain existing host/adapter validation, funding and installation, without a
+new startup package or numeric reservation. `C`, `V` and `D` rows retain their
 owning crate/host's reviewed admission and accounting rules. These are common
 columns, not authorization to bypass a more specific rule below.
 
 ## 2. Authoring And Build Inputs
 
-| Current source | Current behavior | Disposition |
+| Historical source | Baseline behavior | Active disposition |
 | --- | --- | --- |
-| `AuctioneerConfigSource.{baked.host,baked.account,runtime}` | All required. Build types the baked pair; CLI types runtime. | Reject `baked` in the new normal authoring path; strictly type `startup` and `runtime`. Build consumes neither operator subtree. |
+| Retired `AuctioneerConfigSource.{baked.host,baked.account,runtime}` and staged `OperatorConfigSource` | Build/CLI split or startup/runtime root | Direct `OperatorPolicy` only; reject baked/startup/runtime wrappers and backward wire aliases. The SDK wrapper adds no layout or projection. |
 | `HostDefaultRaw` | `{gdpr,ccpa,lmt,host_cookie,user_sync,status_response,resource_limits,aliases}` | Leaf dispositions are section 3. Retain only reviewed neutral defaults as `C`; operator values move to `P`. |
 | `AccountRaw` | `{disabled,debug_allow,bid_rounding,targeting_prefix,truncate_target_attribute,gdpr,cookie_sync,ccpa,privacy}` | Leaf dispositions are section 4. Add a real `P` account-default scope; named accounts are not a substitute. |
-| `runtime-bootstrap.toml` | Compiled `{runtime.{allow_missing_config,max_config_fetch_ms}}` | Replace with `S` source selection and extraction timeout. No operator-specific rebuild. |
+| Retired `runtime-bootstrap.toml` | Compiled missing-policy fallback and extraction timeout | No startup file, source modes or default-source fallback. Required policy absence refuses; extraction timeout remains host-owned. |
 | `bidder.toml`, `parameters.json`, provenance/witnesses | Build-owned discovery, typed settings vocabulary, schemas and publication gates | `C`; not moved to operator policy or a runtime compiler. |
 | Disclosure sources, field classification, EEA data, GVL/GCL archive and lock | Reviewed/pinned code/data and archive admission | `C`; preserve source checks and archive refresh controls; not arbitrary operator policy. |
-| `AUCTIONEER__DEFAULTS__PATH_OVERRIDE`, `AUCTIONEER__BIDDERS__DIR`, `AUCTIONEER__DISCLOSURE__DIR`, `AUCTIONEER__RUNTIME_BOOTSTRAP__PATH_OVERRIDE` | Test-harness source replacement controls | Test controls only; never release configuration. Remove/retarget obsolete default-generation probes without weakening the feature-export boundary. |
+| Product-default, bidder and disclosure test-harness overrides; retired bootstrap-file override | Test-harness source replacement controls | Test controls only; never release configuration. Retire bootstrap-file probes and preserve neutral product-data/feature-export rejection controls. |
 | `AUCTIONEER__GVL__ARCHIVE__{DIR,MAX_AGE_DAYS,BUNDLE_MAX_RAW_MIB,BUNDLE_MAX_COMPRESSED_MIB,SKIP_BUNDLE_CHECK}` | Archive input/validation controls, not application policy; skip-bundle use is harness-gated | Preserve the archive/build-tool owner and witness checks; no startup/hot-policy alias is invented. |
 
-Sources: [root schema](../../../crates/auctioneer-config-schema/src/lib.rs),
-[raw DTO/codegen](../../../crates/auctioneer-config-schema/src/codegen/mod.rs),
-[build owner](../../../crates/auctioneer-config/build.rs).
+Sources: [policy model](../../../crates/auctioneer-config/src/policy.rs),
+[raw product DTO/codegen](../../../crates/auctioneer-config/src/codegen/mod.rs),
+[build owner](../../../crates/auctioneer-config-data/build.rs).
 
 ## 3. Effective Host Fields
 
-All current host leaves have setter-shaped runtime overrides. That does not
-make them independent of compiled fallbacks or give them complete clear/reset
-semantics. The new host scope must replace that fallback ownership, not merely
-rename the current optional overlay.
+The baseline host leaves map to `host` policy over neutral compiled defaults.
+Use the contract's explicit clear/reset rules; declaring an optional overlay
+alone is not semantic or resource admission.
 
 | HostConfig path | Class / proposed source | Validation and resolution notes |
 | --- | --- | --- |
@@ -70,23 +72,21 @@ rename the current optional overlay.
 | `host_cookie.optout_cookie.{name,value}` | `P` optional policy | Optional configured opt-out cookie; no customer value in product defaults. Preserve denial-only semantics. |
 | `user_sync.external_url`, `user_sync.redirect_url` | `P` explicit service configuration | No example/customer URL is a configured product default. Proposed unconfigured service state is explicit; configured URLs retain current safety/template validation. |
 | `user_sync.cooperative.enabled_by_default`, `user_sync.priority_groups`, `user_sync.allowed_origins` | `P` service policy | Ordered/whole-list rules, family/name limits and credentialed CORS remain. Product origin and priority lists are empty. |
-| `status_response` | `P` host policy over a generic product banner | Existing bounded banner; degraded liveness never echoes arbitrary failed config. Current overlay spelling is `status.banner`. |
+| `status_response` | `P` host policy over a generic product banner | Active path `host.status_response`; bounded banner, with no arbitrary failed config in degraded liveness. |
 | `aliases.<alias>` | `P` host policy; product operator-alias map empty | Namespace/case/cycle/base/catalog checks. Distinct from immutable bidder metadata `aliasOf`. |
 | `resource_limits.{default_tmax_ms,max_tmax_ms}` | `P` requested time limits | Preserve range/cross-field constraints and absolute deadline ownership. |
-| `resource_limits.{max_bidder_response_bytes,max_bidders_per_auction,max_outbound_requests}` | `P` requested caps | Current overlay is `auction.*`; resolve each independently against funded `S` limits and keep warnings attributed to the observable bidder. |
+| `resource_limits.{max_bidder_response_bytes,max_bidders_per_auction,max_outbound_requests}` | `P` requested caps | Active path `host.resource_limits.*`; resolve independently against funded host-owned limits and attribute warnings to the observable bidder. |
 | `resource_limits.{max_outbound_raw_bytes,max_outbound_request_bytes,max_transport_bytes,max_decoded_bytes,max_parsed_nodes}` | `P` requested caps | Raw/encoded, transport/decoded and syntax-node limits are distinct; they can narrow, never resize installed capacity. |
 
-Sources: [effective fields](../../../crates/auctioneer-config-schema/src/types.rs),
-[cookie/sync fields and validators](../../../crates/auctioneer-config-schema/src/usersync.rs),
+Sources: [effective fields](../../../crates/auctioneer-config/src/types.rs),
+[cookie/sync fields and validators](../../../crates/auctioneer-config/src/usersync.rs),
 [current runtime setters](../../../crates/auctioneer-core/src/config/mod.rs),
 [host resolution](../../../crates/auctioneer-core/src/config/resolve.rs).
 
 ## 4. Account Defaults And Named Accounts
 
-These leaves all become `P` in `account_defaults` and in named `accounts`.
-Today only targeting prefix and truncation have a global runtime overlay;
-the other default-account leaves remain compiled even though named accounts
-can override them. Product defaults cannot be a customer-specific account.
+These leaves are `P` in `account_defaults` and named `accounts`, replacing the
+baseline's incomplete global overlay. Product defaults cannot identify a customer.
 
 | AccountConfig path | Validation / merge owner |
 | --- | --- |
@@ -111,14 +111,14 @@ Activity vocabulary is `fetchBids`, `transmitUfpd`, `transmitPreciseGeo`,
 Current limits are 128 rules/activity, 128 combined condition entries/rule,
 and 128 UTF-8 bytes/component name; this design does not alter them.
 
-`AccountOverride.max_transport_bytes` and `max_decoded_bytes` are also `P` for
+`AccountPolicy.max_transport_bytes` and `max_decoded_bytes` are also `P` for
 both deployment account defaults and named accounts, even though they are not
 fields of effective `AccountConfig`. The shared response-budget resolver owns
 their additional precedence layer. Account identity selection/source remains
 derived request state, not a configurable replacement for a publisher ID.
 
-Sources: [effective account fields](../../../crates/auctioneer-config-schema/src/types.rs),
-[activity model](../../../crates/auctioneer-config-schema/src/activity.rs),
+Sources: [effective account fields](../../../crates/auctioneer-config/src/types.rs),
+[activity model](../../../crates/auctioneer-config/src/activity.rs),
 [current account overlays](../../../crates/auctioneer-core/src/config/mod.rs),
 [selection/merge](../../../crates/auctioneer-core/src/config/resolve.rs),
 [budget precedence](../../../crates/auctioneer-core/src/config/budgets.rs).
@@ -127,11 +127,12 @@ Sources: [effective account fields](../../../crates/auctioneer-config-schema/src
 
 | Field group | Class and owner |
 | --- | --- |
-| Proposed `runtime.schema_version` | `C` supported application format, carried as required constant `1` in the new payload and checked separately from SDK envelope version. Not an operator-selected compatibility mode. |
+| Root `schema_version` | Required constant `1` in the direct policy, checked separately from SDK envelope version. No missing default or operator-selected compatibility mode. |
 | `features.{gzip_outbound,returnallbidstatus_default}` | `P`; preserve typed feature behavior. A runtime flag does not create a missing compiled feature. |
 | `floor_currency.{expires_at,usd_per_unit.<currency>}` | `P`; finite/positive rates, currency codes and freshness stay validated by their current owner; no external feed added. |
 | `bidders.<identity>.{settings,max_transport_bytes,max_decoded_bytes,enabled,usersync_enabled,timeout_ms,sample_rate}` | `P`; generated settings value types, catalog/alias eligibility, per-field fallback, range/sample validation and implemented readers. Admission is not inferred from a field merely being declared. |
 | Per-owner setting names/types and endpoint macro vocabulary | `C`, generated from the owning `bidder.toml`; values admitted through `P` and existing bounded secret references. |
+| Bidder-owned configuration validation | Proposed `C` owner-local borrowed `validator::Validate` view, reached by existing discovery through one registration adapter; not operator-supplied rules, a second validation mechanism or an existing callback. See design section 5.1. All policy sources use the same dispatcher before admission. |
 | Manifest `{key,factory,required_feature,native_only,endpoint.fields,settings.fields,definitions,provenance}` | `C`; source discovery and target/feature eligibility, not policy setters. |
 | Metadata identity, implementation and alias ancestry | `C`: definition key/name, implementation binding, `aliasOf`, `required_feature`, `native_only`. |
 | Metadata `{defaultEnabled,disabled,debug.allow,bidderTimeoutMs}` | `C` release defaults/restrictions. Runtime can use supported activation/timeout/debug rules, never override an immutable disable or manufacture eligibility. |
@@ -143,23 +144,22 @@ Sources: [effective account fields](../../../crates/auctioneer-config-schema/src
 
 Sources: [current runtime DTOs](../../../crates/auctioneer-core/src/config/mod.rs),
 [currency](../../../crates/auctioneer-config/src/currency.rs),
-[metadata raw DTO](../../../crates/auctioneer-config-schema/src/codegen/mod.rs),
-[manifest schema](../../../crates/auctioneer-config-schema/src/bidder_manifest.rs),
-[discovery](../../../crates/auctioneer-config-schema/src/bidder_discovery.rs).
+[metadata raw DTO](../../../crates/auctioneer-config/src/codegen/mod.rs),
+[manifest schema](../../../crates/auctioneer-config/src/bidder_manifest.rs),
+[discovery](../../../crates/auctioneer-config/src/bidder_discovery.rs).
 
-## 6. Startup, Resource Intent And Actual Facts
+## 6. Host-Owned Limits And Actual Facts
 
-Current `ResolvedIsolateLimits` fields are source-owned adapter declarations;
-they are not currently a public runtime input document. Their proposed
-startup exposure must preserve a real installed enforcement point. A field
-that only charges an allowance is not advertised as an active workload knob.
+`ResolvedIsolateLimits` stays host/adapter-owned, not public policy or a new
+startup input model. `P` can request only supported existing caps within those
+installed limits. A charge-only allowance is not an active workload knob.
 
 | Current field(s) | Class / proposed rule |
 | --- | --- |
-| `RuntimeBootstrap.allow_missing_config` | `S`; replace the boolean fallback with explicit source selection. Required store/host failures never select defaults mode. |
-| `RuntimeBootstrap.max_config_fetch_ms` | `S`; extraction-wide timeout installed before reads, including the SDK secret walk. |
-| Config logical binding/key, approved physical binding and source selection | `S`; provider/host registry, not runtime data. Provider-specific key constraints must be validated rather than assumed portable. |
-| ConfigExtractionLimits `{max_backend_bytes,max_blob_bytes,max_json_depth,max_json_nodes,max_secret_bytes,max_total_bytes,timeout}` | Exact pinned SDK fields. `S` only with an explicit installed enforcement/accounting mapping; otherwise fixed `C` settings. The existing row directly funds backend/blob/value caps, not automatic new secret/depth/total knobs. JSON nodes here count values, not syntactic keys. Distinct from the raw startup-file read bound. |
+| Retired `RuntimeBootstrap.allow_missing_config` | No policy fallback/source mode; required policy absence refuses. |
+| Retired `RuntimeBootstrap.max_config_fetch_ms` | Existing host-owned extraction deadline, including the SDK secret walk; no startup model/file. |
+| Config logical binding/key and approved physical/trust binding | `S`; existing provider/host registry, never runtime policy. Keep provider-specific key constraints. |
+| ConfigExtractionLimits `{max_backend_bytes,max_blob_bytes,max_json_depth,max_json_nodes,max_secret_bytes,max_total_bytes,timeout}` | Complete captured SDK tuple, with existing host enforcement/accounting. No new policy knobs. Backend/blob/value caps remain independent; JSON values are not syntactic keys. |
 | `isolate_total_bytes` | `S` configured ceiling; preserve independent known platform ceiling/unknown facts and headroom rules. |
 | `baseline_bytes` | `C` / `D` measured baseline plus documented reserves. Only separately identified additional reserve may be requested; never accept a smaller claimed actual baseline. |
 | `inbound_request_bytes`, `max_outbound_request_bytes`, `max_outbound_raw_bytes`, `max_transport_bytes`, `max_decoded_bytes`, `final_response_bytes` | `S` supported byte-cap intent; enforce the corresponding actual read/construction/serialization boundary and existing floors. |
@@ -180,9 +180,9 @@ that only charges an allowance is not advertised as an active workload knob.
 | `CatalogResourceCosts.{resident_bytes,initialization_bytes,schema_validation_per_auction_bytes,context_per_auction_bytes}` | `C` / `D` existing catalog/schema cost owner, not operator-policy bytes. |
 | Boot normalized limits, totals/charges/margins, host services, resolved policy/account/alias/budget objects | `D`; opaque validated construction, no public deserialization shortcut. |
 
-Zero currently normalizes the three config caps to SDK defaults. The new
-startup validator must distinguish omission/defaulting from an invalid explicit
-value; it must not import that internal sentinel into a public unlimited mode.
+Zero internally normalizes the three config caps to SDK defaults. Host-owned
+validation keeps omission/defaulting distinct from invalid explicit input;
+the internal sentinel is not a public unlimited mode or new policy setter.
 The requested/default/normalized triple must remain visible to diagnostics.
 
 Sources: [limit and target types](../../../crates/auctioneer-runtime/src/budget.rs),
@@ -201,9 +201,9 @@ Sources: [limit and target types](../../../crates/auctioneer-runtime/src/budget.
 | `AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH` / provider mapping | `S` health-only authorization intent, distinct from fatal domain settings. Malformed input never opens health or logs its raw value. Preserve Axum-fatal versus edge-Closed resolution; installation conflicts remain fatal. |
 | `AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` / provider secret mapping | `V`; current platform reads directly materialize values outside the runtime extractor. #128/#130 and provider ports must establish accepted-size, materialization and applicable time bounds. Core does not read provider environment values. Current health policy is frozen, not freely rotating per request. |
 | `usersync_cookie_keyring` | `V`, one existing bounded secret read at the route's UID stage; preserve active/previous key rotation and deadline/cancellation behavior. |
-| Bidder credential references and coherent bundles | Permitted typed references through `P` within startup-approved bindings; secret values `V` through the existing post-privacy/schema bounded reader. No raw secrets in output policy. |
+| Bidder credential references and coherent bundles | Permitted typed references through `P` within host-approved bindings; secret values `V` through the existing post-privacy/schema bounded reader. No raw secrets in output policy. |
 | SDK logging settings and host service implementations | `S`; establish the logging sink before diagnostics and keep startup materialization/residency accounted. |
-| CLI config push/diff selector fields `{adapter,app_config,manifest,store,key,local,runtime_config,staging}` | Invocation/deployment intent, not policy leaves. SDK `runtime_config` chooses Spin backend configuration; it is not the Auctioneer `runtime` subtree. |
+| CLI config push/diff selector fields `{adapter,app_config,manifest,store,key,local,runtime_config,staging}` | Existing SDK invocation/deployment intent, not policy leaves or another Auctioneer config. SDK `runtime_config` chooses Spin backend configuration, not a payload subtree. |
 | CLI switches `{dry_run,no_diff,no_env,yes,format,exit_code,strict}` | Invocation controls, not deployed policy or persistent bypasses. Keep the applicable command's actual options; not all commands own all switches. |
 | CLI deploy `{adapter,adapter_args,application_release,service_id,staging}` | Deployment invocation, external authorization and release identity; no customer data enters executable generation. |
 
@@ -214,13 +214,17 @@ and validate the final source/target combination; it cannot claim full environme
 isolation just because the policy overlay was disabled.
 
 Sources: [CLI application](../../../crates/auctioneer-cli/src/application.rs),
-[typed push source](../../../crates/auctioneer-cli/src/config_source.rs),
+[zero-layout SDK trait boundary](../../../crates/auctioneer-core/src/config/sdk.rs),
 [bounded cookie-key reader](../../../crates/auctioneer-core/src/handlers/usersync_keys.rs),
 [health policy](../../../crates/auctioneer-core/src/host_primitives/registry.rs),
 [logical declarations](../../../edgezero.toml), four adapter entrypoints and
 their provider manifests.
 
-## 8. Known Gaps, Not Granted Capabilities
+## 8. Historical Baseline Gaps, Not Granted Capabilities
+
+The following describes the pinned source census, not current progress. The
+active destinations above supersede its operator-fallback/startup proposals;
+no historical capture or evidence is rewritten to claim cutover acceptance.
 
 - The complete default-account policy is not currently hot-configurable.
 - Runtime overlay validation still references compiled operator fallbacks.
@@ -238,3 +242,24 @@ their provider manifests.
   protection or an application-schema compatibility negotiation.
 - Successful boot, a metadata row, a native test, or a shared code hash is not
   guest eligibility, platform fit, live authorization or publisher acceptance.
+
+## 9. Active Documentation And Script Surfaces
+
+The 2026-11-04 reference census separates active instructions from historical
+source records. This is a migration inventory, not runtime acceptance evidence.
+
+| Surface | Active contract / retained boundary |
+| --- | --- |
+| `README.md`, `docs/architecture.md` | Direct versioned policy, `host`/`account_defaults`, neutral product data, no compiled operator fallbacks or startup source modes. |
+| `docs/bidders/controlled-native.md`, bidder-registry design section 8 | Root version and `bidders` examples; aliases and immutable catalog vetoes stay unchanged. |
+| Privacy-enforcement design section 7.3; user-sync design section 4.1 | `host`, `account_defaults` and named-account paths; independent privacy, inheritance and clear semantics. |
+| Diagnostics/qualification design section 7 | Same typed-policy semantics, strict null/clear rules, no missing-policy fallback; retain SDK/request error and side-effect ordering. |
+| Configuration-model ownership spec/plan | No startup/source DTO or new host normalization package; actual host ingestion/adoption proof is #135. |
+| `docs/testing/provider-handlers.md` | Direct versioned synthetic account/debug policy, without mutating frozen provider captures. |
+| `docs/testing/usersync-browser.md`, `scripts/check-usersync-browser.mjs`, `scripts/tests/usersync-browser-shutdown.test.mjs` | Generated envelope `data.schema_version = 1` and `data.host.user_sync`; keep JavaScript, real subprocess cleanup and existing credential isolation. |
+| `scripts/raw-json-fixtures.allow` | Active product-default snapshot path retains its exact raw-fixture budget; no old snapshot-target alias. Workflow selector edits stay with their owner. |
+| Main server design and older implementation/audit records | Authoring/DTO/bootstrap excerpts are historical, explicitly superseded by the current operator contract; they do not define supported wire aliases. |
+
+Pinned `docs/testing/evidence`, frozen qualification/provider fixtures and external
+privacy/reference captures remain byte-preserved. Compiled bidder/reference
+metadata still legitimately uses "baked" terminology; it is not operator config.

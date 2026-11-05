@@ -7,7 +7,7 @@ use super::{
     inputs::{self, Candidate},
 };
 use crate::qualification::profile::Digest;
-use auctioneer_config::types::{BidderInfo, BidderMetadataDeclaration, MediaType};
+use auctioneer_config_data::types::{BidderInfo, BidderMetadataDeclaration, MediaType};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
@@ -77,6 +77,32 @@ pub async fn install_variant(
     supervisor: &Supervisor,
 ) -> Result<InstalledVariant> {
     let document = config_document(candidate, id)?;
+    install_document(cli, repo, dir, candidate, id, &document, supervisor).await
+}
+
+// Historical binaries still author their historical schema. This fixture-only
+// path never enters current config validate/diff/push or rewrites saved evidence.
+pub(super) async fn install_historical_variant(
+    cli: &Path,
+    repo: &Path,
+    dir: &Path,
+    candidate: &Candidate,
+    id: u16,
+    supervisor: &Supervisor,
+) -> Result<InstalledVariant> {
+    let document = historical_config_document(candidate, id)?;
+    install_document(cli, repo, dir, candidate, id, &document, supervisor).await
+}
+
+async fn install_document(
+    cli: &Path,
+    repo: &Path,
+    dir: &Path,
+    candidate: &Candidate,
+    id: u16,
+    document: &toml::Value,
+    supervisor: &Supervisor,
+) -> Result<InstalledVariant> {
     let nodes = variant_nodes(candidate, id)?;
     let banner_sha256 = Digest::of(variant_banner(id)?.as_bytes());
     let settings_sha256 = Digest::canonical(&json!({
@@ -99,8 +125,7 @@ pub async fn install_variant(
         let bytes = strict_bytes(&repository.join(relative), SNAPSHOT_CAP)?;
         replace_private(&variant_dir.join(relative), &bytes)?;
     }
-    let encoded =
-        toml::to_string(&document).map_err(|_error| HarnessError::new("invalid_input"))?;
+    let encoded = toml::to_string(document).map_err(|_error| HarnessError::new("invalid_input"))?;
     if encoded.len() > SNAPSHOT_CAP {
         return Err(HarnessError::new("output_limit"));
     }
@@ -183,17 +208,17 @@ pub fn assert_artifact(path: &Path, digest: &Digest) -> Result<()> {
 fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
     let nodes = variant_nodes(candidate, id)?;
     let bidder = fixture_bidder(
-        auctioneer_config::bidder_metadata_declarations(),
-        auctioneer_config::bidders(),
+        auctioneer_config_data::bidder_metadata_declarations(),
+        auctioneer_config_data::bidders(),
     )?;
     let aliases = geometry::aliases(candidate.maximum_load.calls)?
         .into_iter()
         .map(|name| (name, bidder))
         .collect::<BTreeMap<_, _>>();
     let document = json!({
-        "baked": {"host": {}, "account": {}},
-        "runtime": {
-            "auction": {
+        "schema_version": 1_u32,
+        "host": {
+            "resource_limits": {
                 "default_tmax_ms": 500_u16, "max_tmax_ms": 1000_u16,
                 "max_parsed_nodes": nodes,
                 "max_outbound_requests": candidate.maximum_load.calls,
@@ -201,14 +226,32 @@ fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
                 "max_transport_bytes": candidate.maximum_load.encoded_bytes,
                 "max_decoded_bytes": candidate.maximum_load.decoded_bytes,
             },
-            "status": {"banner": variant_banner(id)?},
+            "status_response": variant_banner(id)?,
             "aliases": aliases,
-            "accounts": {"q2_allowed": {"debug_allow": true}, "q2_refused": {"debug_allow": false}},
             "gdpr": {
                 "enabled": true, "default_value": "0",
                 "tcf2": {"enabled": true, "purposes": {"2": PURPOSE_TWO}},
             },
-            "bidders": {(bidder): {"timeout_ms": 500_u16, "sample_rate": 1.0_f64}},
+        },
+        "accounts": {"q2_allowed": {"debug_allow": true}, "q2_refused": {"debug_allow": false}},
+        "bidders": {(bidder): {"timeout_ms": 500_u16, "sample_rate": 1.0_f64}},
+    });
+    toml::Value::try_from(document).map_err(|_error| HarnessError::new("invalid_input"))
+}
+
+fn historical_config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
+    let current = config_document(candidate, id)?;
+    let invalid = HarnessError::new("invalid_input");
+    let host = current.get("host").ok_or(invalid)?;
+    let document = json!({
+        "baked": {"host": {}, "account": {}},
+        "runtime": {
+            "auction": host.get("resource_limits").ok_or(invalid)?,
+            "status": {"banner": host.get("status_response").ok_or(invalid)?},
+            "aliases": host.get("aliases").ok_or(invalid)?,
+            "gdpr": host.get("gdpr").ok_or(invalid)?,
+            "accounts": current.get("accounts").ok_or(invalid)?,
+            "bidders": current.get("bidders").ok_or(invalid)?,
         },
     });
     toml::Value::try_from(document).map_err(|_error| HarnessError::new("invalid_input"))
@@ -470,8 +513,8 @@ fn freeze_permissions(file: &File) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config_source::AuctioneerPushSource;
-    use auctioneer_config::types::{Capabilities, Compression};
+    use auctioneer_config_data::types::{Capabilities, Compression};
+    use auctioneer_core::config::SdkAuctioneerAppConfig;
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::{Value, json};
     use std::ffi::OsString;
@@ -496,7 +539,7 @@ mod tests {
 
     fn valid_store() -> Value {
         let envelope = BlobEnvelope::new(
-            json!({"status": {"banner": "q2_a"}}),
+            json!({"schema_version": 1_u32, "host": {"status_response": "q2_a"}}),
             "2026-10-15T00:00:00Z".to_owned(),
         );
         json!({"auctioneer_runtime": serde_json::to_string(&envelope).unwrap(), "other_store": "PRESERVE_OTHER_STORE"})
@@ -575,39 +618,55 @@ mod tests {
     }
 
     #[test]
-    fn structured_toml_preserves_the_native_fixture_fields_in_the_typed_push_source() {
+    fn structured_toml_preserves_the_native_fixture_fields_in_the_direct_runtime_model() {
         let document = config_document(&candidate(), 1).unwrap();
         let encoded = toml::to_string(&document).unwrap();
-        let source: AuctioneerPushSource = toml::from_str(&encoded).unwrap();
+        let source: SdkAuctioneerAppConfig = toml::from_str(&encoded).unwrap();
         let runtime = serde_json::to_value(source).unwrap();
         assert!(runtime.get("baked").is_none());
         assert!(runtime.get("runtime").is_none());
-        assert_eq!(runtime["auction"]["default_tmax_ms"], 500_u16);
-        assert_eq!(runtime["auction"]["max_tmax_ms"], 1000_u16);
-        assert_eq!(runtime["auction"]["max_outbound_requests"], 16_u32);
-        assert_eq!(runtime["auction"]["max_bidders_per_auction"], 16_u32);
-        assert_eq!(runtime["auction"]["max_transport_bytes"], 0x0000_4000_u64);
-        assert_eq!(runtime["auction"]["max_decoded_bytes"], 0x0000_8000_u64);
+        assert_eq!(runtime["schema_version"], 1_u32);
+        assert_eq!(
+            runtime["host"]["resource_limits"]["default_tmax_ms"],
+            500_u16
+        );
+        assert_eq!(runtime["host"]["resource_limits"]["max_tmax_ms"], 1000_u16);
+        assert_eq!(
+            runtime["host"]["resource_limits"]["max_outbound_requests"],
+            16_u32
+        );
+        assert_eq!(
+            runtime["host"]["resource_limits"]["max_bidders_per_auction"],
+            16_u32
+        );
+        assert_eq!(
+            runtime["host"]["resource_limits"]["max_transport_bytes"],
+            0x0000_4000_u64
+        );
+        assert_eq!(
+            runtime["host"]["resource_limits"]["max_decoded_bytes"],
+            0x0000_8000_u64
+        );
         assert_eq!(runtime["accounts"]["q2_allowed"]["debug_allow"], true);
         assert_eq!(runtime["accounts"]["q2_refused"]["debug_allow"], false);
-        assert_eq!(runtime["gdpr"]["enabled"], true);
-        assert_eq!(runtime["gdpr"]["default_value"], "0");
-        assert_eq!(runtime["gdpr"]["tcf2"]["enabled"], true);
+        assert_eq!(runtime["host"]["gdpr"]["enabled"], true);
+        assert_eq!(runtime["host"]["gdpr"]["default_value"], "0");
+        assert_eq!(runtime["host"]["gdpr"]["tcf2"]["enabled"], true);
         assert_eq!(
-            runtime["gdpr"]["tcf2"]["purposes"]["2"],
+            runtime["host"]["gdpr"]["tcf2"]["purposes"]["2"],
             json!({
-                "enforce_algo": "full", "enforce_purpose": "enabled", "enforce_vendors": "enabled", "vendor_exceptions": null,
+                "enforce_algo": "full", "enforce_purpose": "enabled", "enforce_vendors": "enabled",
             })
         );
         let bidder = fixture_bidder(
-            auctioneer_config::bidder_metadata_declarations(),
-            auctioneer_config::bidders(),
+            auctioneer_config_data::bidder_metadata_declarations(),
+            auctioneer_config_data::bidders(),
         )
         .unwrap();
         assert_eq!(runtime["bidders"].as_object().unwrap().len(), 1);
         assert_eq!(runtime["bidders"][bidder]["timeout_ms"], 500_u16);
         assert_eq!(runtime["bidders"][bidder]["sample_rate"], 1.0_f64);
-        let aliases = runtime["aliases"].as_object().unwrap();
+        let aliases = runtime["host"]["aliases"].as_object().unwrap();
         assert_eq!(aliases.len(), 16);
         for index in 0..16_u8 {
             assert_eq!(aliases[&format!("fake_{index:02}")], bidder);
@@ -615,10 +674,38 @@ mod tests {
     }
 
     #[test]
+    fn historical_cli_input_retains_its_original_shape_and_values() {
+        let current = config_document(&candidate(), 1).unwrap();
+        let historical = historical_config_document(&candidate(), 1).unwrap();
+        assert_eq!(historical.as_table().unwrap().len(), 2);
+        assert!(historical.get("schema_version").is_none());
+        assert!(historical["baked"]["host"].as_table().unwrap().is_empty());
+        assert!(
+            historical["baked"]["account"]
+                .as_table()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(historical["runtime"].as_table().unwrap().len(), 6);
+        assert_eq!(
+            historical["runtime"]["auction"],
+            current["host"]["resource_limits"]
+        );
+        assert_eq!(
+            historical["runtime"]["status"]["banner"].as_str(),
+            Some("q2_a")
+        );
+        assert_eq!(historical["runtime"]["aliases"], current["host"]["aliases"]);
+        assert_eq!(historical["runtime"]["gdpr"], current["host"]["gdpr"]);
+        assert_eq!(historical["runtime"]["accounts"], current["accounts"]);
+        assert_eq!(historical["runtime"]["bidders"], current["bidders"]);
+    }
+
+    #[test]
     fn structured_toml_uses_the_real_semantic_validator_without_enabling_fixture_metadata() {
         let mut document = config_document(&candidate(), 1).unwrap();
         // Secure-default binaries omit local transport; validate against active HTTPS metadata.
-        let bidder_name = auctioneer_config::bidders()
+        let bidder_name = auctioneer_config_data::bidders()
             .iter()
             .find(|bidder| {
                 bidder.uses_https && !bidder.disabled && bidder.endpoint_macros.is_empty()
@@ -626,25 +713,35 @@ mod tests {
             .expect("enabled fixed-endpoint HTTPS bidder")
             .name
             .as_str();
-        for (_name, bidder) in document["runtime"]["aliases"]
+        for (_name, bidder) in document["host"]["aliases"]
             .as_table_mut()
             .unwrap()
             .iter_mut()
         {
             *bidder = toml::Value::String(bidder_name.to_owned());
         }
-        document["runtime"]["bidders"] = toml::Value::try_from(
+        document["bidders"] = toml::Value::try_from(
             json!({(bidder_name):{"timeout_ms":500_u16,"sample_rate":1.0_f64}}),
         )
         .unwrap();
         let encoded = toml::to_string(&document).unwrap();
-        let source: AuctioneerPushSource = toml::from_str(&encoded).unwrap();
+        let source: SdkAuctioneerAppConfig = toml::from_str(&encoded).unwrap();
         source.validate().unwrap();
-        document["runtime"]["auction"]["max_parsed_nodes"] = toml::Value::Integer(0);
-        let invalid: AuctioneerPushSource =
+        document["host"]["resource_limits"]["max_parsed_nodes"] = toml::Value::Integer(0);
+        let invalid: SdkAuctioneerAppConfig =
             toml::from_str(&toml::to_string(&document).unwrap()).unwrap();
+        let structural = serde_json::to_value(invalid.0.validate().unwrap_err()).unwrap();
+        assert_eq!(
+            structural["host"]["resource_limits"]["max_parsed_nodes"][0]["code"],
+            "range"
+        );
         let error = serde_json::to_value(invalid.validate().unwrap_err()).unwrap();
-        assert_eq!(error["auction"]["max_parsed_nodes"][0]["code"], "range");
+        assert_eq!(
+            error,
+            json!({"runtime": [{
+                "code": "invalid_effective_config", "message": null, "params": {}
+            }]})
+        );
     }
 
     #[test]
@@ -655,23 +752,23 @@ mod tests {
         let restored = config_document(&candidate, 3).unwrap();
         assert_eq!(first, restored);
         assert_eq!(
-            first["runtime"]["auction"]["max_parsed_nodes"].as_integer(),
+            first["host"]["resource_limits"]["max_parsed_nodes"].as_integer(),
             Some(2048)
         );
         assert_eq!(
-            second["runtime"]["auction"]["max_parsed_nodes"].as_integer(),
+            second["host"]["resource_limits"]["max_parsed_nodes"].as_integer(),
             Some(1024)
         );
-        assert_eq!(first["runtime"]["status"]["banner"].as_str(), Some("q2_a"));
-        assert_eq!(second["runtime"]["status"]["banner"].as_str(), Some("q2_b"));
+        assert_eq!(first["host"]["status_response"].as_str(), Some("q2_a"));
+        assert_eq!(second["host"]["status_response"].as_str(), Some("q2_b"));
         let mut expected = first;
-        expected["runtime"]["auction"]["max_parsed_nodes"] = toml::Value::Integer(1024);
-        expected["runtime"]["status"]["banner"] = toml::Value::String("q2_b".to_owned());
+        expected["host"]["resource_limits"]["max_parsed_nodes"] = toml::Value::Integer(1024);
+        expected["host"]["status_response"] = toml::Value::String("q2_b".to_owned());
         assert_eq!(second, expected);
         let mut base_dominates = candidate;
         base_dominates.base_load.nodes = 1536;
         assert_eq!(
-            config_document(&base_dominates, 2).unwrap()["runtime"]["auction"]["max_parsed_nodes"]
+            config_document(&base_dominates, 2).unwrap()["host"]["resource_limits"]["max_parsed_nodes"]
                 .as_integer(),
             Some(1536)
         );

@@ -237,10 +237,10 @@ mod tests {
     use std::hint::{black_box, spin_loop};
     use std::sync::Arc;
     use std::thread;
-    use std::time::Duration;
 
-    use auctioneer_config::activity::{Activity, ActivityOverride, Condition, Rule};
-    use auctioneer_core::config::{AccountOverride, AccountPrivacyOverride};
+    use auctioneer_config::policy::AccountPolicy;
+    use auctioneer_config_data::activity::{Activity, ActivityOverride, Condition, Rule};
+    use auctioneer_core::config::{AccountPrivacyOverride, validate_effective};
     use std::collections::BTreeMap;
     use validator::Validate as _;
 
@@ -276,9 +276,9 @@ mod tests {
                 });
                 (
                     format!("account-{index}"),
-                    AccountOverride {
+                    AccountPolicy {
                         privacy,
-                        ..AccountOverride::default()
+                        ..AccountPolicy::default()
                     },
                 )
             })
@@ -288,7 +288,7 @@ mod tests {
             ..AuctioneerAppConfig::default()
         };
         // Exclude one-time initialization from the request-time measurement.
-        let _baked = auctioneer_config::account_default();
+        let _baked = auctioneer_config_data::account_default();
         let root_defaults = AuctioneerAppConfig::default();
         root_defaults.validate().expect("valid root defaults");
         // The derive's nested validators allocate scratch maps even on success.
@@ -308,11 +308,49 @@ mod tests {
             "validation must inspect supplied rules without merging baked defaults per account"
         );
     }
-    use auctioneer_config::types::{HostConfig, TriState};
+
+    #[test]
+    fn effective_validation_does_not_copy_inherited_policy_per_named_account() {
+        let host = auctioneer_config_data::product_host_default();
+        let mut account = auctioneer_config_data::product_account_default().clone();
+        account.gdpr.basic_enforcement_vendors = (0_usize..128_usize)
+            .map(|i| format!("fake_inherited_vendor_{i:03}"))
+            .collect();
+        let empty = AuctioneerAppConfig::default();
+        let populated = AuctioneerAppConfig {
+            accounts: (0_usize..4_000_usize)
+                .map(|i| (format!("fake_account_{i}"), AccountPolicy::default()))
+                .collect(),
+            ..AuctioneerAppConfig::default()
+        };
+        // Initialize immutable metadata before comparing request-time work.
+        validate_effective(&empty, host, &account).unwrap();
+        let structural = |config: &AuctioneerAppConfig| {
+            let before = allocated_on_this_thread();
+            config.validate().unwrap();
+            allocated_on_this_thread().checked_sub(before).unwrap()
+        };
+        let semantic = |config: &AuctioneerAppConfig| {
+            let before = allocated_on_this_thread();
+            validate_effective(config, host, &account).unwrap();
+            allocated_on_this_thread().checked_sub(before).unwrap()
+        };
+        let structural_growth = structural(&populated)
+            .checked_sub(structural(&empty))
+            .unwrap();
+        let semantic_growth = semantic(&populated).checked_sub(semantic(&empty)).unwrap();
+        assert_eq!(
+            semantic_growth, structural_growth,
+            "validating empty named overlays must not copy inherited GDPR/privacy state"
+        );
+    }
+    use auctioneer_config_data::types::{HostConfig, TriState};
     use auctioneer_core::config::resolve::{
         ResolvedAccountOwned, resolve_account_from_value, resolve_host,
     };
-    use auctioneer_core::config::runtime::{RuntimeConfigError, resolve_runtime_config};
+    use auctioneer_core::config::runtime::{
+        CONFIG_FETCH_TIMEOUT, RuntimeConfigError, resolve_runtime_config,
+    };
     use auctioneer_core::config::{AuctioneerAppConfig, MAX_ALIASES};
     use auctioneer_exchange::AccountSource;
     use auctioneer_runtime::budget::{
@@ -322,6 +360,7 @@ mod tests {
     use edgezero_adapter_axum::config_store::AxumConfigStore;
     use edgezero_adapter_axum::config_store_limits::ConfigStoreLimits;
     use edgezero_core::app::App;
+    use edgezero_core::blob_envelope::BlobEnvelope;
     use edgezero_core::body::Body;
     use edgezero_core::canonical_form::canonical_data_sha256;
     use edgezero_core::config_store::{ConfigExtractionLimits, ConfigStoreHandle};
@@ -419,9 +458,7 @@ mod tests {
                     max_total_bytes: raw_bytes,
                     max_secret_bytes: 1,
                     max_json_nodes: nodes,
-                    timeout: Duration::from_millis(u64::from(
-                        auctioneer_config::RUNTIME_BOOTSTRAP.max_config_fetch_ms,
-                    )),
+                    timeout: CONFIG_FETCH_TIMEOUT,
                     ..defaults
                 },
             }
@@ -481,8 +518,8 @@ mod tests {
             );
             // Initialize immutable baked defaults and preparse the request outside
             // measurement. The resolvers' owned default clones remain inside it.
-            let baked_host = auctioneer_config::host_default();
-            let baked_account = auctioneer_config::account_default();
+            let baked_host = auctioneer_config_data::host_default();
+            let baked_account = auctioneer_config_data::account_default();
             let publisher = Arc::new(json!({"site": {"publisher": {"id": "0"}}}));
             let router = RouterService::builder()
                 .get("/resolve-config", move |ctx: RequestContext| {
@@ -614,7 +651,12 @@ mod tests {
 
     #[test]
     fn config_funding_changes_independently_with_backend_blob_and_node_caps() {
-        let initial = Fixture::new(&envelope(&json!({"status": {"banner": CANARY}})));
+        let initial = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        })));
         let wire = u64::try_from(initial.raw.len()).expect("raw length fits");
         let backend = wire + 17;
         let blob = wire + 101;
@@ -631,14 +673,24 @@ mod tests {
 
         // Only one installed limit changes at a time. Equal caps would hide
         // attributing either factor to the other cap in min_aux_route_peak_bytes.
-        let backend_only = Fixture::new(&envelope(&json!({"status": {"banner": CANARY}})))
-            .with_byte_caps(backend + 1, blob);
+        let backend_only = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        })))
+        .with_byte_caps(backend + 1, blob);
         assert_eq!(
             backend_only.charged() - charged,
             1 + CONFIG_ENVELOPE_VALUE_FACTOR,
         );
-        let blob_only = Fixture::new(&envelope(&json!({"status": {"banner": CANARY}})))
-            .with_byte_caps(backend, blob + 1);
+        let blob_only = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        })))
+        .with_byte_caps(backend, blob + 1);
         assert_eq!(blob_only.charged() - charged, CONFIG_PARSE_FACTOR);
         let mut node_only = fixture;
         node_only.limits.max_json_nodes += 1;
@@ -647,7 +699,12 @@ mod tests {
 
     #[test]
     fn production_resolution_enforces_backend_byte_cap_independently_of_blob_cap() {
-        let initial = Fixture::new(&envelope(&json!({"status": {"banner": CANARY}})));
+        let initial = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        })));
         let wire = u64::try_from(initial.raw.len()).expect("raw length fits");
         let fixture = initial.with_byte_caps(wire, wire + 128);
         let resolved = guard_production_peak("exact-backend-cap-larger-blob-cap", &fixture);
@@ -660,7 +717,12 @@ mod tests {
 
     #[test]
     fn production_resolution_enforces_blob_byte_cap_independently_of_backend_cap() {
-        let initial = Fixture::new(&envelope(&json!({"status": {"banner": CANARY}})));
+        let initial = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        })));
         let wire = u64::try_from(initial.raw.len()).expect("raw length fits");
         let fixture = initial.with_byte_caps(wire + 128, wire);
         let resolved = guard_production_peak("exact-blob-cap-larger-backend-cap", &fixture);
@@ -673,18 +735,26 @@ mod tests {
 
     #[test]
     fn production_resolution_peak_fits_funding_for_minimal_config() {
-        let fixture = Fixture::new(&envelope(&json!({})));
+        let fixture = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+        })));
         let resolved = guard_production_peak("minimal", &fixture);
         assert_eq!(
             resolved.host.status_response,
-            auctioneer_config::host_default().status_response
+            auctioneer_config_data::host_default().status_response
         );
         assert_eq!(resolved.account.source, AccountSource::DefaultFallback);
     }
 
     #[test]
     fn production_resolution_peak_fits_funding_for_node_bounded_empty_accounts() {
-        let mut data = json!({"accounts": {}, "status": {"banner": CANARY}});
+        let mut data = json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+            "accounts": {},
+        });
         let available =
             ConfigExtractionLimits::default().max_json_nodes - json_nodes(&envelope(&data));
         let accounts = data
@@ -711,11 +781,18 @@ mod tests {
 
     #[test]
     fn production_resolution_peak_fits_funding_for_many_account_overlays_and_aliases() {
-        let base = &auctioneer_config::bidders()
+        let base = &auctioneer_config_data::bidders()
             .first()
             .expect("production alias validation requires a baked base")
             .name;
-        let mut data = json!({"accounts": {}, "aliases": {}, "status": {"banner": CANARY}});
+        let mut data = json!({
+            "schema_version": 1_u64,
+            "host": {
+                "aliases": {},
+                "status_response": CANARY,
+            },
+            "accounts": {},
+        });
         let accounts = data
             .get_mut("accounts")
             .expect("accounts")
@@ -731,6 +808,8 @@ mod tests {
             );
         }
         let aliases = data
+            .get_mut("host")
+            .expect("host")
             .get_mut("aliases")
             .expect("aliases")
             .as_object_mut()
@@ -754,7 +833,12 @@ mod tests {
     #[test]
     fn production_resolution_peak_fits_funding_for_dense_ignored_envelope_metadata() {
         let defaults = ConfigExtractionLimits::default();
-        let mut raw_envelope = envelope(&json!({"status": {"banner": CANARY}}));
+        let mut raw_envelope = envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        }));
         raw_envelope
             .as_object_mut()
             .expect("envelope")
@@ -792,8 +876,11 @@ mod tests {
     fn production_resolution_peak_fits_funding_for_escaped_publisher_strings() {
         let publishers = vec!["\0\\\"\n"; 7_680];
         let fixture = Fixture::new(&envelope(&json!({
-            "status": {"banner": CANARY},
-            "gdpr": {"enabled": true, "non_standard_publishers": publishers},
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+                "gdpr": {"enabled": true, "non_standard_publishers": publishers},
+            },
         })));
         assert!(
             fixture.raw.contains("\\u0000"),
@@ -839,22 +926,41 @@ mod tests {
         let RuntimeConfigError::MalformedHost { detail } = err else {
             panic!("expected malformed config, got {err:?}");
         };
+        assert!(
+            detail.len() < 512,
+            "a rejection diagnostic must remain bounded"
+        );
+        assert!(!detail.contains("fake_unregistered_base"));
+        assert!(!detail.contains("fake_private_alias_canary"));
+        if reason.starts_with("config store extraction failed:") {
+            assert_eq!(
+                detail, reason,
+                "the SDK refusal category and scope are fixed"
+            );
+        }
         assert!(detail.contains(reason), "expected {reason}, got {detail}");
     }
 
     #[test]
     fn production_resolution_checks_raw_envelope_integrity_and_version() {
-        let mut tampered = envelope(&json!({"status": {"banner": CANARY}}));
+        let mut tampered = envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        }));
         tampered
             .get_mut("data")
             .expect("data")
-            .get_mut("status")
-            .expect("status")
+            .get_mut("host")
+            .expect("host")
             .as_object_mut()
             .expect("map")
-            .insert("banner".to_owned(), json!("tampered"));
+            .insert("status_response".to_owned(), json!("tampered"));
         assert_production_error(&Fixture::new(&tampered), "IntegrityMismatch");
-        let mut future_version = envelope(&json!({}));
+        let mut future_version = envelope(&json!({
+            "schema_version": 1_u64,
+        }));
         future_version
             .as_object_mut()
             .expect("envelope")
@@ -865,20 +971,59 @@ mod tests {
     #[test]
     fn production_resolution_performs_typed_conversion_and_validation() {
         for (data, reason) in [
-            (json!({"accounts": []}), "Deserialization"),
-            (json!({"targeting": {"prefix": ""}}), "Validation"),
             (
-                json!({"aliases": {"fake_a": "fake_unregistered_base"}}),
-                "unknown base",
+                json!({
+                    "schema_version": 1_u64,
+                    "accounts": [],
+                }),
+                "Deserialization",
+            ),
+            (
+                json!({
+                    "schema_version": 1_u64,
+                    "account_defaults": {"targeting_prefix": ""},
+                }),
+                "Validation",
+            ),
+            (
+                json!({
+                    "schema_version": 1_u64,
+                    "host": {
+                        "aliases": {"fake_private_alias_canary": "fake_unregistered_base"},
+                    },
+                }),
+                "config store extraction failed: Validation at runtime",
             ),
         ] {
-            assert_production_error(&Fixture::new(&envelope(&data)), reason);
+            if data.pointer("/host/aliases").is_some() {
+                let structural: AuctioneerAppConfig = serde_json::from_value(data.clone())
+                    .expect("unknown base has valid policy shape");
+                structural
+                    .validate()
+                    .expect("unknown base is semantic, not structural");
+                assert!(
+                    auctioneer_config_data::bidders()
+                        .iter()
+                        .all(|info| info.name != "fake_unregistered_base")
+                );
+            }
+            let encoded = envelope(&data);
+            serde_json::from_value::<BlobEnvelope>(encoded.clone())
+                .expect("complete SDK envelope")
+                .verify()
+                .expect("each typed-error row passes envelope integrity");
+            assert_production_error(&Fixture::new(&encoded), reason);
         }
     }
 
     #[test]
     fn production_resolution_enforces_installed_raw_byte_and_node_caps() {
-        let mut fixture = Fixture::new(&envelope(&json!({"status": {"banner": CANARY}})));
+        let mut fixture = Fixture::new(&envelope(&json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": CANARY,
+            },
+        })));
         fixture.limits.max_blob_bytes -= 1;
         assert_production_error(&fixture, "ValueTooLarge");
         fixture.limits.max_blob_bytes += 1;
@@ -888,10 +1033,13 @@ mod tests {
 
     #[test]
     fn production_resolution_funds_oversized_bidder_key_rejection() {
-        use auctioneer_config::types::MAX_BIDDER_NAME_BYTES;
+        use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
         for key_bytes in [MAX_BIDDER_NAME_BYTES + 1, 0x0001_0000] {
             let key = "b".repeat(key_bytes);
-            let mut data = json!({"bidders": {}});
+            let mut data = json!({
+                "schema_version": 1_u64,
+                "bidders": {},
+            });
             data.get_mut("bidders")
                 .expect("bidders")
                 .as_object_mut()
@@ -905,23 +1053,20 @@ mod tests {
     /// the config carries, each one an owned key and an owned value.
     /// Entry COUNT, not blob size, is what drives this factor.
     fn adversarial_config_toml() -> String {
-        let mut src = String::new();
+        let mut src = String::from("schema_version = 1\n");
 
         // Per-account overlays: each one an owned account key plus an
         // owned nested GDPR overlay with its own owned vendor list.
         for account in 0_usize..256_usize {
             let _written = write!(
                 src,
-                "[accounts.\"acct-{account}\".gdpr]\n\
-                 enabled = \"enabled\"\n\
-                 channel_enabled = {{ web = \"enabled\" }}\n\
-                 basic_enforcement_vendors = [\"fake_bbb\"]\n\n"
+                "[accounts.\"acct-{account}\".gdpr]\nenabled = \"enabled\"\nchannel_enabled = {{ web = \"enabled\" }}\nbasic_enforcement_vendors = [\"fake_bbb\"]\n\n"
             );
         }
 
         // Host-declared aliases at the envelope's default cap: the
         // densest owned-key-to-owned-value map the config carries.
-        src.push_str("[aliases]\n");
+        src.push_str("[host.aliases]\n");
         for alias in 0_usize..64_usize {
             let _written = writeln!(src, "\"fake_alias_{alias}\" = \"fake_bbb\"");
         }

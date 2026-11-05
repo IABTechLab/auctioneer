@@ -755,11 +755,9 @@ mod tests {
 
     #[test]
     fn staged_snapshot_compiler_inputs_are_watched_and_changed_bytes_refuse() {
-        use auctioneer_config_schema::bidder_discovery::scan;
-        use auctioneer_config_schema::schema_staging::BuildContext;
-        use auctioneer_config_schema::schema_staging_build::{
-            BuildRequest, generate, write_snapshots,
-        };
+        use auctioneer_config::bidder_discovery::scan;
+        use auctioneer_config::schema_staging::BuildContext;
+        use auctioneer_config::schema_staging_build::{BuildRequest, generate, write_snapshots};
         use std::{collections::BTreeMap, fs, path::Path};
 
         let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -771,7 +769,7 @@ mod tests {
             crate_dir,
             out_dir: &out_dir,
             discovery: &discovery,
-            metadata: auctioneer_config::bidder_metadata_declarations(),
+            metadata: auctioneer_config_data::bidder_metadata_declarations(),
             context: BuildContext {
                 target: "fake_target",
                 profile: "fake_profile",
@@ -2521,11 +2519,11 @@ mod tests {
     fn check_current(manifest: &Value) -> Result<(), &'static str> {
         // The producer independently reconciles these generated declarations
         // and target-gated bindings against bidder-owned source manifests.
-        let declarations = auctioneer_config::bidder_metadata_declarations();
+        let declarations = auctioneer_config_data::bidder_metadata_declarations();
         let published: BTreeSet<_> = declarations.iter().map(|row| row.bidder).collect();
         let planned = super::schema_selection_source::planned_source_roots()
             .map_err(|_error| "planned source/publication membership")?;
-        let active: Vec<_> = auctioneer_config::bidder_implementation_bindings()
+        let active: Vec<_> = auctioneer_config_data::bidder_implementation_bindings()
             .iter()
             .map(|row| (row.bidder, row.implementation))
             .collect();

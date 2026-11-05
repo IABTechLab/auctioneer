@@ -28,11 +28,12 @@ pub use status::status;
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::config_store::configured_sync_host;
     pub(super) mod bidder_registry {
         use std::{collections::BTreeMap, sync::OnceLock};
 
         use auctioneer_bidder::BidderRegistry;
-        use auctioneer_config::{
+        use auctioneer_config_data::{
             types::BidderInfo,
             usersync::{SyncType, SyncerEndpoint},
         };
@@ -133,8 +134,7 @@ mod tests {
     use crate::usersync::wire::parse_cookie_sync_body;
     use crate::usersync::{cookie as payload_cookie, limits::CookieLimits};
     use crate::{config::AuctioneerAppConfig, handlers::sync_http};
-    use auctioneer_config::types::HostConfig;
-    use auctioneer_config::usersync::UserSyncConfig;
+    use auctioneer_config_data::usersync::UserSyncConfig;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use cookie::Cookie;
     use edgezero_core::{body::Body, http::Response};
@@ -337,16 +337,16 @@ mod tests {
             case.id
         );
         let now = OffsetDateTime::parse(&corpus.reference.now, &Rfc3339).unwrap();
-        let mut host = HostConfig::default();
+        let mut host = configured_sync_host();
         host.host_cookie.ttl_days = input.host_cookie.ttl_days;
         host.gdpr.default_value.clone_from(&input.host_default_gdpr);
         host.gdpr.enabled = true;
         host.gdpr.tcf2.enabled = true;
         host.gdpr.host_vendor_id = Some(32);
-        host.user_sync.external_url = "https://sync.example.com".to_owned();
-        host.user_sync.redirect_url = Some(CALLBACK.to_owned());
+        host.user_sync.as_mut().unwrap().external_url = "https://sync.example.com".to_owned();
+        host.user_sync.as_mut().unwrap().redirect_url = Some(CALLBACK.to_owned());
         let app: AuctioneerAppConfig = toml::from_str(
-            "[accounts.disabled]\ndisabled = true\n\
+            "schema_version = 1\n[accounts.disabled]\ndisabled = true\n\
              [accounts.activity-deny.privacy.allowactivities.syncUser]\ndefault = false\n",
         )
         .unwrap();

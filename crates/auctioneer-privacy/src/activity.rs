@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-pub use auctioneer_config::activity::Activity;
-use auctioneer_config::activity::{ActivityConfig, ComponentType, Condition, simple_fold_eq};
+pub use auctioneer_config_data::activity::Activity;
+use auctioneer_config_data::activity::{ActivityConfig, ComponentType, Condition, simple_fold_eq};
 
 /// A target the activity rule applies to. Lifetime-borrowed so callers can
 /// hand-tag bidder names from request-scoped slices without allocating.

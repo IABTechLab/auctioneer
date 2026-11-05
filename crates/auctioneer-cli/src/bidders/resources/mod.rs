@@ -395,8 +395,8 @@ fn profile_digest(row: &AdapterRow) -> Result<String, Error> {
 
 fn baked_identity() -> Result<(u64, String), Error> {
     let baked = serde_json::to_vec(&(
-        auctioneer_config::host_default(),
-        auctioneer_config::account_default(),
+        auctioneer_config_data::product_host_default(),
+        auctioneer_config_data::product_account_default(),
     ))
     .map_err(|_error| Error::ResourceInput)?;
     let baked_digest = hex::encode(Sha256::digest(&baked));
@@ -1130,13 +1130,16 @@ mod tests {
         // Construct the oracle from known members, not the inventory under test.
         for (relative, bytes) in [
             ("Cargo.lock", b"version = 4\n".to_vec()),
-            ("auctioneer.toml", b"[baked]\n".to_vec()),
             (
-                "crates/auctioneer-config/build.rs",
+                "crates/auctioneer-config-data/data/product-defaults.toml",
+                b"[host]\n[account]\n".to_vec(),
+            ),
+            (
+                "crates/auctioneer-config-data/build.rs",
                 b"// fixture build input\n".to_vec(),
             ),
             (
-                "crates/auctioneer-config/data/gvl_archive/gcl.json",
+                "crates/auctioneer-config-data/data/gvl_archive/gcl.json",
                 serde_json::to_vec(&serde_json::json!({})).unwrap(),
             ),
             (
@@ -1217,9 +1220,9 @@ mod tests {
         );
         let mut rejected = Vec::new();
         for relative in [
-            "auctioneer.toml",
-            "crates/auctioneer-config/build.rs",
-            "crates/auctioneer-config/data/gvl_archive/gcl.json",
+            "crates/auctioneer-config-data/data/product-defaults.toml",
+            "crates/auctioneer-config-data/build.rs",
+            "crates/auctioneer-config-data/data/gvl_archive/gcl.json",
             "crates/auctioneer-exchange/src/scrub/value.rs",
             "crates/auctioneer-core/src/handlers/request_disclosure_audit.rs",
         ] {
@@ -1256,6 +1259,32 @@ mod tests {
         assert!(
             rejected.iter().all(|(_path, refused)| *refused),
             "{rejected:?}"
+        );
+    }
+
+    #[test]
+    fn runtime_authoring_does_not_invalidate_the_compiled_source_identity() {
+        let (root, built) = source_fixture();
+        let baseline = source_identity_with_build(root.path(), &built)
+            .unwrap()
+            .source_sha256;
+        let operator = root.path().join("auctioneer.toml");
+        assert!(!operator.exists());
+        for bytes in [b"schema_version = 1\n".as_slice(), b"not TOML ["] {
+            fs::write(&operator, bytes).unwrap();
+            assert_eq!(
+                source_identity_with_build(root.path(), &built)
+                    .unwrap()
+                    .source_sha256,
+                baseline
+            );
+        }
+        fs::remove_file(&operator).unwrap();
+        assert_eq!(
+            source_identity_with_build(root.path(), &built)
+                .unwrap()
+                .source_sha256,
+            baseline
         );
     }
 
@@ -1344,7 +1373,7 @@ mod tests {
     }
 
     #[test]
-    fn report_uses_normalized_baked_inputs_and_all_runtime_owned_terms() {
+    fn report_uses_neutral_product_defaults_and_all_runtime_owned_terms() {
         let report = build_report().unwrap();
         assert_eq!(
             report
@@ -1355,12 +1384,16 @@ mod tests {
             AdapterId::ALL
         );
         let baked = serde_json::to_vec(&(
-            auctioneer_config::host_default(),
-            auctioneer_config::account_default(),
+            auctioneer_config_data::product_host_default(),
+            auctioneer_config_data::product_account_default(),
         ))
         .unwrap();
         for row in &report.adapters {
             assert_eq!(row.baked_config_bytes, u64::try_from(baked.len()).unwrap());
+            assert_eq!(
+                row.baked_config_sha256,
+                hex::encode(sha2::Sha256::digest(&baked))
+            );
             assert_eq!(row.terms.values().sum::<u64>(), row.derived.total_bytes);
             assert_eq!(
                 row.auction_receipts.total().unwrap(),

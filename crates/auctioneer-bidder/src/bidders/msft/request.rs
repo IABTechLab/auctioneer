@@ -6,7 +6,7 @@ use crate::{
     BidderError, BidderRequestInfo, EndpointBuilder, EntryPoint, OutboundRequestMetaBuilder,
     OutboundRequestSink, SinkAbort,
 };
-use auctioneer_config::{BidderSettings, bidder_settings::msft};
+use crate::{BidderSettings, bidder_settings::msft};
 use auctioneer_openrtb::types::bid_request::{Banner, BidRequest, BidRequestExt, Imp};
 use auctioneer_runtime::bounded_json::JsonFieldShape;
 use serde::{
@@ -522,7 +522,7 @@ mod tests {
         BidderRequestInfo, ConstructionDiagnostic, EndpointRejectReason, EndpointValidator,
         EntryPoint, SinkLimits,
     };
-    use auctioneer_config::{BidderSettings, bidder_settings::msft};
+    use crate::{BidderSettings, bidder_settings::msft};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_runtime::bounded_json::JsonFieldShape;
     use serde_json::{Value, json};

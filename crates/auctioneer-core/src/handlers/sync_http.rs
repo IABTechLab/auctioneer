@@ -7,7 +7,7 @@ use std::{
     str::from_utf8,
 };
 
-use auctioneer_config::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
+use auctioneer_config_data::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
 use auctioneer_runtime::aux_work::{
     MAX_SYNC_OUTPUT_BYTES, MAX_SYNC_RESPONSE_HEADER_BYTES, MAX_SYNC_RESPONSE_HEADER_COUNT,
 };
@@ -33,6 +33,15 @@ use crate::{
 const PIXEL: &[u8; 86] = include_bytes!("assets/pixel.png");
 const TEXT_PLAIN: HeaderValue = HeaderValue::from_static("text/plain; charset=utf-8");
 const JSON: HeaderValue = HeaderValue::from_static("application/json; charset=utf-8");
+
+/// A deployment without an explicit sync origin never reads signing keys or
+/// constructs callbacks. This response grants no browser credentials policy.
+pub(crate) fn unavailable() -> Response {
+    setuid_error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "user sync is not configured",
+    )
+}
 
 /// Fixed application-body ceiling; refuses output if the target cannot represent it.
 #[must_use]
@@ -697,6 +706,7 @@ fn bounded_json_line(
 #[cfg(test)]
 mod tests {
     use super::{Response, ResponseBuildError, bounded_json_line};
+    use crate::test_support::config_store::configured_sync_host;
     use crate::usersync::wire::{MAX_COOKIE_SYNC_BODY_BYTES, WireError};
     use crate::{
         handlers::sync_http::{
@@ -710,7 +720,7 @@ mod tests {
             limits::CookieLimits,
         },
     };
-    use auctioneer_config::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
+    use auctioneer_config_data::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
     use bytes::Bytes;
     use edgezero_core::body::Body;
     use edgezero_core::error::{EdgeError, RequestBodyOverflowOrigin};
@@ -1476,7 +1486,6 @@ mod tests {
         }
     }
 
-    use auctioneer_config::types::HostConfig;
     use auctioneer_runtime::aux_work::MAX_SYNC_OUTPUT_BYTES;
 
     #[test]
@@ -1507,8 +1516,8 @@ mod tests {
 
     #[test]
     fn setuid_decorator_keeps_other_headers_bounded() {
-        let host = HostConfig::default();
-        let policy = SyncBrowserPolicy::new(&host.user_sync);
+        let host = configured_sync_host();
+        let policy = SyncBrowserPolicy::new(host.user_sync.as_ref().unwrap());
         let mut response = Response::new(Body::empty());
         response
             .headers_mut()

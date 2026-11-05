@@ -5,7 +5,8 @@ mod request;
 mod response;
 
 pub use controls::{
-    IdentityEnvelope, QueryMode, RequestMode, RequestObserver, ResponseCoverage, info,
+    IdentityEnvelope, QueryMode, RequestMode, RequestObserver, ResponseCoverage, factory_calls,
+    info,
 };
 
 use crate::{
@@ -70,6 +71,7 @@ impl Default for FakeBidder<'_> {
 
 #[must_use]
 pub fn create_bidder() -> Box<dyn Bidder> {
+    controls::record_factory_call();
     Box::<FakeBidder>::default()
 }
 

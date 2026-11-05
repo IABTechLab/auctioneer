@@ -31,7 +31,7 @@ pub(super) fn make_bids(
 mod tests {
     use super::super::MocktioneerBidder;
     use crate::bidders::harness;
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
 
     #[test]
     fn make_bids_preserves_valid_siblings_across_seats() {

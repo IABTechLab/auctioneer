@@ -19,9 +19,10 @@ mod tests {
     use auctioneer_bidder::{
         RegistryInputs, ValidatedRegistryPlan, bidder_declarations, compiled_bidders,
     };
-    use auctioneer_config::{
+    use auctioneer_config_data::{
         bidder_implementation_bindings, bidder_metadata_declarations, bidders,
     };
+    use quote::quote;
     use serde_json::Value;
     use std::ptr;
     use std::{fs, path::Path};
@@ -254,7 +255,13 @@ mod tests {
     }
 
     fn require_owner_modules(implementation: &syn::File) -> Result<(), String> {
-        for name in ["request", "response"] {
+        let has_config_adapter = implementation.items.iter().any(|item| {
+            matches!(item, syn::Item::Fn(function) if function.sig.ident == "validate_config")
+        });
+        for name in ["request", "response"]
+            .into_iter()
+            .chain(has_config_adapter.then_some("config"))
+        {
             let modules: Vec<_> = implementation
                 .items
                 .iter()
@@ -275,6 +282,7 @@ mod tests {
         for item in &implementation.items {
             if let syn::Item::Fn(function) = item
                 && function.sig.ident != "create_bidder"
+                && function.sig.ident != "validate_config"
             {
                 return Err(format!(
                     "protocol helper {} belongs in its owner module",
@@ -287,47 +295,75 @@ mod tests {
 
     #[test]
     fn owner_layout_rejects_missing_inline_duplicate_modules_and_root_helpers() {
-        let valid = "mod request; mod response; fn create_bidder() {}";
-        assert_eq!(
-            require_owner_modules(&syn::parse_file(valid).unwrap()),
-            Ok(())
-        );
+        let valid = quote! { mod request; mod response; fn create_bidder() {} };
+        assert_eq!(require_owner_modules(&syn::parse2(valid).unwrap()), Ok(()));
         for (source, expected) in [
             (
-                "mod response;",
+                quote! { mod response; },
                 "request must have one ordinary owner module",
             ),
             (
-                "mod request;",
+                quote! { mod request; },
                 "response must have one ordinary owner module",
             ),
             (
-                "mod request {} mod response;",
+                quote! { mod request {} mod response; },
                 "request must have one ordinary owner module",
             ),
             (
-                "mod request; mod response {}",
+                quote! { mod request; mod response {} },
                 "response must have one ordinary owner module",
             ),
             (
-                "mod request; mod request; mod response;",
+                quote! { mod request; mod request; mod response; },
                 "request must have one ordinary owner module",
             ),
             (
-                "mod request; mod response; mod response;",
+                quote! { mod request; mod response; mod response; },
                 "response must have one ordinary owner module",
             ),
             (
-                "mod request; mod response; fn decode() {}",
+                quote! { mod request; mod response; fn decode() {} },
                 "protocol helper decode belongs in its owner module",
             ),
         ] {
+            let implementation = syn::parse2(source).unwrap();
+            assert_eq!(require_owner_modules(&implementation), Err(expected.into()));
+        }
+    }
+
+    #[test]
+    fn configuration_adapter_requires_an_ordinary_owner_module() {
+        let valid = quote! {
+            mod request;
+            mod response;
+            mod config;
+            fn create_bidder() {}
+            fn validate_config() {}
+        };
+        assert_eq!(require_owner_modules(&syn::parse2(valid).unwrap()), Ok(()));
+        for malformed in [
+            quote! { mod request; mod response; fn validate_config() {} },
+            quote! { mod request; mod response; mod config {} fn validate_config() {} },
+            quote! { mod request; mod response; mod config; mod config; fn validate_config() {} },
+        ] {
+            let implementation = syn::parse2(malformed).unwrap();
             assert_eq!(
-                require_owner_modules(&syn::parse_file(source).unwrap()),
-                Err(expected.into()),
-                "{source}"
+                require_owner_modules(&implementation),
+                Err("config must have one ordinary owner module".into())
             );
         }
+        let misplaced = quote! {
+            mod request;
+            mod response;
+            mod config;
+            fn validate_config() {}
+            fn decode() {}
+        };
+        assert_eq!(
+            require_owner_modules(&syn::parse2(misplaced).unwrap()),
+            Err("protocol helper decode belongs in its owner module".into())
+        );
     }
 
     #[test]
@@ -430,7 +466,7 @@ mod tests {
                 "{}",
                 declaration.key,
             );
-            let metadata: Vec<_> = auctioneer_config::bidder_metadata_declarations()
+            let metadata: Vec<_> = auctioneer_config_data::bidder_metadata_declarations()
                 .iter()
                 .filter(|row| row.implementation == declaration.key)
                 .collect();
@@ -441,7 +477,7 @@ mod tests {
             for row in metadata {
                 assert_eq!(row.required_feature, declaration.required_feature);
                 assert_eq!(
-                    auctioneer_config::bidder(row.bidder).is_some(),
+                    auctioneer_config_data::bidder(row.bidder).is_some(),
                     cfg!(feature = "insecure-bidders")
                 );
             }
@@ -518,25 +554,15 @@ mod tests {
             toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
         let temporary = tempfile::tempdir().unwrap();
         let (bidder, config) = prepare_workspace(&root, temporary.path(), &original, &[]);
-        let sibling = bidder
-            .parent()
-            .unwrap()
-            .join("auctioneer-config-schema/src");
+        let sibling = bidder.parent().unwrap().join("auctioneer-config/src");
         assert_eq!(
             sibling,
-            config
-                .parent()
-                .unwrap()
-                .join("auctioneer-config-schema/src")
+            config.parent().unwrap().join("auctioneer-config/src")
         );
         for filename in ["build_catalog.rs", "bidder_manifest.rs"] {
             assert_eq!(
                 fs::read(sibling.join(filename)).unwrap(),
-                fs::read(
-                    root.join("crates/auctioneer-config-schema/src")
-                        .join(filename)
-                )
-                .unwrap(),
+                fs::read(root.join("crates/auctioneer-config/src").join(filename)).unwrap(),
             );
         }
         let declarations = auctioneer_bidder::bidder_declarations();

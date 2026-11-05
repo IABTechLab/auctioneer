@@ -21,7 +21,7 @@ mod tests {
     use super::app::{self, TestApp};
     use crate::serving_catalog::{ServingBidder, default_active_publications};
     use auctioneer_bidder::{BidderHttpResponse, DebugBodyEligibility};
-    use auctioneer_config::types::MediaType;
+    use auctioneer_config_data::types::MediaType;
     use auctioneer_core::{
         handlers::TestFanoutHandle,
         host_primitives::{TestMonotonicClockHandle, gates::boot_gates},
@@ -58,13 +58,13 @@ mod tests {
 
     fn revision_a(base: &str) -> String {
         format!(
-            "[aliases]\nfake_lifecycle_alias={base:?}\n[auction]\nmax_transport_bytes=4096\nmax_decoded_bytes=4096\n[accounts.publisher]\ndebug_allow=true\n"
+            "schema_version = 1\n[host.aliases]\nfake_lifecycle_alias={base:?}\n[host.resource_limits]\nmax_transport_bytes=4096\nmax_decoded_bytes=4096\n[accounts.publisher]\ndebug_allow=true\n"
         )
     }
 
     fn revision_b(base: &str) -> String {
         format!(
-            "[aliases]\nfake_lifecycle_alias={base:?}\n[auction]\nmax_bidders_per_auction=100\nmax_outbound_requests=100\nmax_transport_bytes=1048576\nmax_decoded_bytes=1048576\n[accounts.publisher]\ndebug_allow=false\n"
+            "schema_version = 1\n[host.aliases]\nfake_lifecycle_alias={base:?}\n[host.resource_limits]\nmax_bidders_per_auction=100\nmax_outbound_requests=100\nmax_transport_bytes=1048576\nmax_decoded_bytes=1048576\n[accounts.publisher]\ndebug_allow=false\n"
         )
     }
 
@@ -225,11 +225,20 @@ mod tests {
             )
         };
         parsed(&dispatch());
-        let valid =
-            serde_json::to_value(BlobEnvelope::new(json!({}), "1970-01-01T00:00:00Z".into()))
-                .unwrap();
+        let valid = serde_json::to_value(BlobEnvelope::new(
+            json!({
+                "schema_version": 1_u64,
+            }),
+            "1970-01-01T00:00:00Z".into(),
+        ))
+        .unwrap();
         let mut corrupt = valid;
-        corrupt["data"] = json!({"status":{"banner":"integrity-canary"}});
+        corrupt["data"] = json!({
+            "schema_version": 1_u64,
+            "host": {
+                "status_response": "integrity-canary",
+            },
+        });
         for (index, replacement) in [
             Some("{".into()),
             Some(serde_json::to_string(&corrupt).unwrap()),
@@ -260,7 +269,7 @@ mod tests {
 
     #[test]
     fn disabled_publisher_with_opaque_overflow_number_refuses_before_typed_preparation() {
-        let app = TestApp::new("[accounts.publisher]\ndisabled=true\n");
+        let app = TestApp::new("schema_version = 1\n[accounts.publisher]\ndisabled=true\n");
         // Literal exemption: json! cannot preserve the exact out-of-range 1e400 token.
         let wire = br#"{"id":"r","site":{"publisher":{"id":"publisher"}},"imp":[{"id":"i","banner":{"ext":{"opaque":1e400}}}]}"#;
         auctioneer_runtime::count_json_nodes(wire, 100).unwrap();

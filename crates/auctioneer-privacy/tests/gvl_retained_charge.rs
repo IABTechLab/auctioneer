@@ -101,7 +101,7 @@ mod tests {
 
     /// Every bundled entry as `(spec, list, raw)`.
     fn archive_entries() -> Vec<(u32, u32, &'static [u8])> {
-        auctioneer_config::gvl_archive()
+        auctioneer_config_data::gvl_archive()
             .iter()
             .map(|entry| (entry.spec, entry.vendor_list_version, entry.raw))
             .collect()

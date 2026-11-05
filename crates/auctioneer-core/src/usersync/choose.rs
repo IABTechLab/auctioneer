@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use auctioneer_config::types::{BidderInfo, SyncType};
+use auctioneer_config_data::types::{BidderInfo, SyncType};
 use auctioneer_privacy::{SyncDecision, SyncPrivacyContext, SyncerLookup};
 use auctioneer_runtime::{
     Rng,
@@ -471,7 +471,7 @@ mod tests {
     use crate::bidder_fixture::{self, fake_bidder::FakeBidder};
     use crate::{config::AuctioneerAppConfig, usersync::cookie::UidCookie};
     use auctioneer_bidder::BidderRegistry;
-    use auctioneer_config::types::{
+    use auctioneer_config_data::types::{
         AccountConfig, BidderInfo, HostConfig, SkipWhen, SyncType, SyncerConfig, SyncerEndpoint,
     };
     use auctioneer_privacy::{
@@ -652,8 +652,10 @@ mod tests {
     fn disabled_automatic_candidates_do_not_reserve_a_shared_sync_family() {
         for flag in ["enabled", "usersync_enabled"] {
             let host = HostConfig::default();
-            let app: AuctioneerAppConfig =
-                toml::from_str(&format!("[bidders.fake_disabled]\n{flag} = false\n")).unwrap();
+            let app: AuctioneerAppConfig = toml::from_str(&format!(
+                "schema_version = 1\n[bidders.fake_disabled]\n{flag} = false\n"
+            ))
+            .unwrap();
             let catalog = shared_family_catalog(&host, &app);
             for priority in [
                 vec![],
@@ -703,8 +705,10 @@ mod tests {
     #[test]
     fn disabled_automatic_candidates_are_removed_before_each_group_shuffle() {
         let host = HostConfig::default();
-        let app: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_disabled]\nusersync_enabled = false\n").unwrap();
+        let app: AuctioneerAppConfig = toml::from_str(
+            "schema_version = 1\n[bidders.fake_disabled]\nusersync_enabled = false\n",
+        )
+        .unwrap();
         let catalog = shared_family_catalog(&host, &app);
         for priority in [
             vec![],
@@ -746,8 +750,10 @@ mod tests {
     #[test]
     fn explicitly_requested_disabled_candidate_still_reserves_its_sync_family() {
         let host = HostConfig::default();
-        let app: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_disabled]\nusersync_enabled = false\n").unwrap();
+        let app: AuctioneerAppConfig = toml::from_str(
+            "schema_version = 1\n[bidders.fake_disabled]\nusersync_enabled = false\n",
+        )
+        .unwrap();
         let catalog = shared_family_catalog(&host, &app);
         for debug in [false, true] {
             let result = choose_with_privacy(
@@ -780,8 +786,10 @@ mod tests {
     #[test]
     fn enabled_explicit_candidate_keeps_precedence_over_a_disabled_family_sibling() {
         let host = HostConfig::default();
-        let app: AuctioneerAppConfig =
-            toml::from_str("[bidders.fake_disabled]\nusersync_enabled = false\n").unwrap();
+        let app: AuctioneerAppConfig = toml::from_str(
+            "schema_version = 1\n[bidders.fake_disabled]\nusersync_enabled = false\n",
+        )
+        .unwrap();
         let catalog = shared_family_catalog(&host, &app);
         let result = choose_with_privacy(
             ChooseInput {
@@ -841,7 +849,7 @@ mod tests {
                     .register(info, Box::<FakeBidder>::default())
                     .expect("unique test bidder");
                 let app: AuctioneerAppConfig = toml::from_str(
-                    "[bidders.fake_alias_one]\nenabled = true\nusersync_enabled = true\n",
+                    "schema_version = 1\n[bidders.fake_alias_one]\nenabled = true\nusersync_enabled = true\n",
                 )
                 .unwrap();
                 let catalog = Catalog::from_registry(&host, &app, &registry).unwrap();

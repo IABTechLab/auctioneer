@@ -1,6 +1,6 @@
 use crate::bidders::url::json_utf8_headers;
 use crate::{BidderError, BidderRequestInfo, EndpointBuilder, OutboundRequestSink};
-use auctioneer_config::{BidderSettings, bidder_endpoint, bidder_settings::thetradedesk};
+use crate::{BidderSettings, bidder_endpoint, bidder_settings::thetradedesk};
 use auctioneer_openrtb::types::{
     bid_request::{Banner, BidRequest, Imp},
     field::JsonField,
@@ -442,12 +442,12 @@ mod tests {
     use super::super::TheTradeDeskBidder;
     use super::super::tests::{ENDPOINT, calls, info, minimal, request};
     use super::{invalid_parameters, missing_supply, route_refused};
+    use crate::BidderSettings;
     use crate::bidders::harness;
     use crate::{
         BidderError, BidderHttpRequest, BidderRequestInfo, EndpointRejectReason, EndpointValidator,
         OutboundBuildError, SinkLimits,
     };
-    use auctioneer_config::BidderSettings;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_openrtb::types::field::JsonField;
     use serde_json::{Value, json};
