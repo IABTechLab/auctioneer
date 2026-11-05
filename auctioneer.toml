@@ -16,7 +16,7 @@
 #
 # The SDK applies environment overrides at authoring time only, and only to keys
 # already present in this file. For example:
-# AUCTIONEER__HOST__RESOURCE_LIMITS__DEFAULT_TMAX_MS=1500
+# `AUCTIONEER__HOST__RESOURCE_LIMITS__DEFAULT_TMAX_MS=1500`
 # An omitted/commented key cannot be created through the environment. --no-env
 # disables the overlay. Running instances read the stored envelope, not this file
 # or these environment variables. CLI authoring hardening remains tracked in #142.
@@ -245,6 +245,17 @@ targeting_prefix = "ad"
 
 [accounts.fake_publisher.cookie_sync]
 priority_groups = []
+
+# Named-account examples use the same shape as account_defaults above.
+# Uncomment these tables to override only the illustrated leaves.
+# [accounts.fake_publisher.gdpr.channel_enabled]
+# web = "unset"
+#
+# [accounts.fake_publisher.privacy.ipv4]
+# anon_keep_bits = 24
+#
+# [accounts.fake_publisher.ccpa.channel_enabled]
+# web = "unset"
 
 # Append this block to apply a conditional rule to the fictional publisher.
 # A missing/empty condition matches every component. Rules still need allow.

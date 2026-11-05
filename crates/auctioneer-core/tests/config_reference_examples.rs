@@ -1,4 +1,4 @@
-//! Every commented operator example is a direct, versioned runtime policy.
+//! Inline operator knobs and independently delimited runtime-policy examples.
 //! Prose comments must not begin with `<ident> =`: the extraction below
 //! deliberately treats that spelling as an uncommentable assignment.
 
@@ -6,8 +6,11 @@
 mod tests {
     use auctioneer_config_data::types::TriState;
     use auctioneer_config_data::{account_default, host_default};
-    use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{resolve_host, resolved_account};
+    use auctioneer_core::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
+    use serde_json::json;
+    use std::collections::BTreeMap;
+    use std::panic::catch_unwind;
     use validator::Validate as _;
 
     const REFERENCE: &str = include_str!("../../../auctioneer.toml");
@@ -27,34 +30,89 @@ mod tests {
                 .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-')
     }
 
-    /// Uncomment every line that is an example rather than prose: a
-    /// `[table.header]` on its own, or an assignment. Live (already
-    /// uncommented) lines pass through, so the result is the document a
-    /// deployer would hold after enabling every documented knob.
-    fn uncommented(src: &str) -> String {
+    /// Keep marked alternatives separate from the main document's uncommented knobs.
+    fn reference_documents(src: &str) -> (String, BTreeMap<&str, String>) {
         let mut out = String::new();
+        let mut examples = BTreeMap::new();
+        let mut active: Option<(&str, String)> = None;
         for raw in src.lines() {
             let Some(commented) = raw.trim().strip_prefix('#') else {
+                assert!(active.is_none(), "marked examples must stay commented");
                 out.push_str(raw);
                 out.push('\n');
                 continue;
             };
             let body = commented.trim();
+            if let Some(name) = body.strip_prefix("BEGIN ") {
+                assert!(!name.is_empty());
+                assert!(active.is_none(), "example markers must not nest");
+                active = Some((name, String::new()));
+                continue;
+            }
+            if let Some(name) = body.strip_prefix("END ") {
+                let (opened, document) = active.take().expect("an end marker needs a begin marker");
+                assert_eq!(opened, name, "example marker names must match");
+                assert!(
+                    examples.insert(opened, document).is_none(),
+                    "example marker names must be unique",
+                );
+                continue;
+            }
+            if let Some((_, document)) = &mut active {
+                document.push_str(body);
+                document.push('\n');
+                continue;
+            }
             let is_table = body.starts_with('[') && body.ends_with(']');
             if is_table || looks_like_assignment(body) {
                 out.push_str(body);
                 out.push('\n');
             }
         }
-        out
+        assert!(
+            active.is_none(),
+            "every example needs a matching end marker"
+        );
+        (out, examples)
     }
 
-    /// The whole direct policy with every example enabled.
+    fn uncommented(src: &str) -> String {
+        reference_documents(src).0
+    }
+
+    /// The main policy's knobs; marked alternatives are checked independently.
     fn uncommented_root() -> toml::Table {
         let document = uncommented(REFERENCE);
         toml::from_str(&document).unwrap_or_else(|err| {
             panic!("the uncommented reference document must parse as TOML: {err}\n---\n{document}")
         })
+    }
+
+    #[test]
+    fn standalone_examples_do_not_reopen_tables_in_the_main_document() {
+        let source = "schema_version = 1\n[host]\nstatus_response = 'main'\n\
+            # BEGIN CLEAR EXAMPLE\n# schema_version = 1\n# [host]\n\
+            # user_sync = { clear = true }\n# END CLEAR EXAMPLE\n";
+        let root: toml::Table = toml::from_str(&uncommented(source)).unwrap();
+        assert_eq!(root["host"]["status_response"].as_str(), Some("main"));
+        assert!(root["host"].get("user_sync").is_none());
+    }
+
+    #[test]
+    fn extraction_refuses_missing_nested_mismatched_and_duplicate_example_markers() {
+        for source in [
+            "# BEGIN FIRST\n# schema_version = 1\n",
+            "# END FIRST\n",
+            "# BEGIN FIRST\n# END SECOND\n",
+            "# BEGIN FIRST\n# BEGIN SECOND\n# END SECOND\n# END FIRST\n",
+            "# BEGIN FIRST\n# END FIRST\n# BEGIN FIRST\n# END FIRST\n",
+            "# BEGIN FIRST\nschema_version = 1\n# END FIRST\n",
+        ] {
+            assert!(
+                catch_unwind(|| uncommented(source)).is_err(),
+                "malformed example markers must not silently discard coverage: {source}",
+            );
+        }
     }
 
     #[test]
@@ -85,8 +143,6 @@ mod tests {
             "[host.ccpa]",
             "[host.lmt]",
             "[accounts.fake_publisher.ccpa.channel_enabled]",
-            "[accounts.fake_publisher.privacy.allowactivities.transmitUfpd]",
-            "[[accounts.fake_publisher.privacy.allowactivities.transmitUfpd.rules]]",
         ] {
             assert!(
                 rendered.contains(required),
@@ -145,6 +201,72 @@ mod tests {
                 .is_some_and(|channels| channels.web.is_some()),
             "the channel_enabled example must yield a parsed `web` tri-state",
         );
+    }
+
+    #[test]
+    fn marked_examples_keep_complete_coverage_without_merging_alternative_policies() {
+        let (_, examples) = reference_documents(REFERENCE);
+        assert_eq!(
+            examples.keys().copied().collect::<Vec<_>>(),
+            [
+                "ACTIVITY RULE EXAMPLE",
+                "BIDDER EXAMPLE",
+                "CLEAR EXAMPLES",
+                "FLOOR CURRENCY EXAMPLE",
+                "SYNC REDIRECT CLEAR EXAMPLE",
+            ],
+        );
+        for (name, document) in &examples {
+            let table: toml::Table = toml::from_str(document).unwrap();
+            assert!(!table.is_empty(), "the {name} capture must not be empty");
+        }
+        let activity = &examples["ACTIVITY RULE EXAMPLE"];
+        let activity_table: toml::Table = toml::from_str(activity).unwrap();
+        let rendered_activity = toml::to_string(&activity_table).unwrap();
+        for required in [
+            "[accounts.fake_publisher.privacy.allowactivities.transmitUfpd]",
+            "[[accounts.fake_publisher.privacy.allowactivities.transmitUfpd.rules]]",
+        ] {
+            assert!(
+                rendered_activity.contains(required),
+                "the extraction dropped {required}"
+            );
+        }
+        for name in ["ACTIVITY RULE EXAMPLE", "FLOOR CURRENCY EXAMPLE"] {
+            let document = format!("{REFERENCE}\n{}", examples[name]);
+            let policy: SdkAuctioneerAppConfig = toml::from_str(&document).unwrap();
+            policy.validate().unwrap();
+        }
+        // The bidder union is a field reference, not one implementation's config.
+        // The CLI contract checks its fields against discovered settings owners.
+        for (name, paths) in [
+            (
+                "CLEAR EXAMPLES",
+                &[
+                    "/host/user_sync",
+                    "/host/host_cookie/domain",
+                    "/host/host_cookie/optout_cookie",
+                    "/account_defaults/truncate_target_attribute",
+                    "/account_defaults/cookie_sync/default_limit",
+                    "/account_defaults/cookie_sync/max_limit",
+                    "/account_defaults/cookie_sync/default_coop_sync",
+                    "/account_defaults/cookie_sync/priority_groups",
+                    "/account_defaults/gdpr/purpose_one_treatment/enabled",
+                    "/account_defaults/gdpr/purpose_one_treatment/access_allowed",
+                ][..],
+            ),
+            (
+                "SYNC REDIRECT CLEAR EXAMPLE",
+                &["/host/user_sync/redirect_url"],
+            ),
+        ] {
+            let policy: SdkAuctioneerAppConfig = toml::from_str(&examples[name]).unwrap();
+            policy.validate().unwrap();
+            let value = serde_json::to_value(policy).unwrap();
+            for path in paths {
+                assert_eq!(value.pointer(path), Some(&json!({"clear": true})), "{path}");
+            }
+        }
     }
 
     #[test]
