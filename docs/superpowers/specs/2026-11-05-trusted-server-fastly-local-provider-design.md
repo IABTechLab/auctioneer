@@ -2,7 +2,7 @@
 
 Date: 2026-11-05
 
-Status: Draft for joint spec/plan review. AG requested reviewing this contract and its plan together in one planning PR; preparing the plan is authorized, but implementation and merge are not. No integration implementation or deployment is claimed.
+Status: Maintainer-approved contract and delivery decomposition, merged through [PR #152](https://github.com/IABTechLab/auctioneer/pull/152) at `9b83deaa680ad8e867169db3b4ebb195b8a1b33c` under the head-specific independent-approval exception recorded in section 12. Package-specific API/configuration designs, implementation review and resource/serving acceptance remain required. No integration implementation or deployment is claimed.
 
 Tracking: [Auctioneer #34](https://github.com/IABTechLab/auctioneer/issues/34), under [Direct Trusted Server Integration](https://github.com/IABTechLab/auctioneer/issues/8).
 
@@ -228,18 +228,36 @@ Hosted corruption/restoration, live bidder authorization and publisher rollout r
 
 Do not implement all architecture work in the #34 contract PR. Keep the existing integration epic and reuse these owners:
 
-| Work                                                        | Owner / Relationship                                                                                                                        |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reviewed source-pinned host contract and decomposition      | #34; this document                                                                                                                          |
-| Shared typed preparation and host bridge                    | #51; split implementation into reviewable preparation and service/result-binding tasks without inventing another configuration API task     |
-| Production local executor in Trusted Server's compiled plan | Trusted Server-owned task linked to #51, using this contract; create only if no equivalent issue exists                                     |
-| Shared discovery/schema qualification and flag retirement   | #46/#47 with the existing build/discovery owners; no new registry or delivery-cohort source                                                 |
-| Actual per-adapter resource fit                             | #72 Axum, #73 Fastly, #74 Cloudflare and #75 hosted Spin, including their existing schema, decoder, lifetime and SDK-fact prerequisites     |
-| Qualified guest schema/registry serving                     | #88 Fastly, #89 Cloudflare and #90 Spin; coordinate the common flag-retirement cutover only after the four-adapter candidate artifacts pass |
-| Actual linked host artifact and discovered display demand   | #76, after #51 and applicable qualification/serving acceptance; the first host artifact remains Fastly                                      |
-| Selected hosted/publisher deployment evidence               | Existing selected-path/pilot issues; not completion of unrelated providers                                                                  |
+| Work                                                        | Owner / Relationship                                                                                                                                                                                     |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reviewed source-pinned host contract and decomposition      | #34; this document                                                                                                                                                                                       |
+| Shared typed preparation and host bridge                    | #51; split implementation into reviewable preparation and service/result-binding tasks without inventing another configuration API task                                                                  |
+| Production local executor in Trusted Server's compiled plan | [Trusted Server #1505](https://github.com/IABTechLab/trusted-server/issues/1505) coordinates the host-owned work linked to #51; reuse its existing scope before proposing a narrower implementation task |
+| Shared discovery/schema qualification and flag retirement   | #46/#47 with the existing build/discovery owners; no new registry or delivery-cohort source                                                                                                              |
+| Actual per-adapter resource fit                             | #72 Axum, #73 Fastly, #74 Cloudflare and #75 hosted Spin, including their existing schema, decoder, lifetime and SDK-fact prerequisites                                                                  |
+| Qualified guest schema/registry serving                     | #88 Fastly, #89 Cloudflare and #90 Spin; coordinate the common flag-retirement cutover only after the four-adapter candidate artifacts pass                                                              |
+| Actual linked host artifact and discovered display demand   | #76, after #51 and applicable qualification/serving acceptance; the first host artifact remains Fastly                                                                                                   |
+| Selected hosted/publisher deployment evidence               | Existing selected-path/pilot issues; not completion of unrelated providers                                                                                                                               |
 
 Qualification/serving requirements gate the accepted uniform catalog and flag retirement, not writing/reviewing #34 or independent bridge design. Their open requirements must not be hidden until final integration. A staged artifact may remain explicitly unqualified and fail closed, but cannot be labeled a qualified adapter or an accepted host integration. The wider Auctioneer bidder matrix does not add Trusted Server integration on its other hosts to this initial Fastly delivery.
+
+### Contract Tracking Reconciliation
+
+The source revisions in section 2 and the planning merge above are unchanged. The existing [Trusted Server #1505](https://github.com/IABTechLab/trusted-server/issues/1505) already owns SDK alignment, host services and local-provider integration; no duplicate integration issue is needed. Its umbrella completion references Auctioneer #34/#51/#76/#91, so do not make those issues depend unconditionally on completion of that umbrella: that would introduce a dependency cycle. Record a concrete reviewed host prerequisite on its owning task when one is established, while keeping the umbrella as coordination.
+
+The following reconciles existing ticket acceptance with the approved contract. It is not evidence that the corresponding production change or qualification has passed. A ticket's existing priority, size, status and assignment are not changed by this map.
+
+| Existing Owner       | Required Acceptance Reconciliation                                                                                                                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #34                  | Accept the source-pinned contract and decomposition independently of downstream delivery; planning merge alone does not close it.                                                                                                                                              |
+| #51                  | Review the shared preparation/result API and lifetime owners before code; preserve one runtime policy, actual local selection, original deadlines and host/engine privacy intersection.                                                                                        |
+| #46/#47              | Derive schema selection from discovery rather than delivery cohorts; qualify residency, initialization, work, scratch and stack without treating unimplemented source identities as callable.                                                                                  |
+| #72-#75              | Qualify every declared implemented identity/alias on the corresponding actual adapter artifact, using exact complete-catalog reports and explicit `skipped: not_implemented` rows; preserve target-specific fit prerequisites.                                                 |
+| #88-#90              | Remove `native_only` and target-based publication/schema-admission selection through the common qualified cutover, not by a direct-factory bypass or a replacement allowlist. All four adapter candidates must pass before that cutover is accepted.                           |
+| #76                  | Require the shared bridge and actual Fastly serving path; prove local execution, original-deadline start/collect/abandon, typed targeting in direct and publisher delivery, and combined host-resource ownership. Cloudflare/Spin host integration is not added to this issue. |
+| Trusted Server #1505 | Reuse the existing host-owned SDK/local-executor/integration scope. Freeze the concrete API/configuration and independently review its implementation there; no test-only registration or fabricated remote endpoint.                                                          |
+
+The 12 existing Auctioneer ticket bodies above have been updated and read back against this contract. Their types, status, priority, size, assignment and milestones were preserved; no issues were created. #76's native blocked-by links now name #51 and #88 for the selected Fastly host. This records tracking reconciliation, not downstream acceptance. Keep unrelated acceptance criteria and project fields intact in future updates. Whole-catalog four-adapter release acceptance remains distinct from the Fastly host's own dependency path; do not add Cloudflare or Spin host dependencies solely because bidder portability is required.
 
 Trusted Server #1336 concerns wider protocol modularity. This contract keeps the new executor boundary independent of a wholesale rewrite; record and coordinate any actual interface change without assuming that entire workstream blocks Fastly integration. Trusted Server #1484 concerns multi-provider collection on Cloudflare/Spin and is not a Fastly prerequisite. Revisit that relationship only if the selected host interface changes.
 
@@ -248,6 +266,8 @@ Trusted Server #1336 concerns wider protocol modularity. This contract keeps the
 ## 12. Review And Publication Gates
 
 At AG's explicit request, this written contract and its [delivery plan](../plans/2026-11-05-trusted-server-fastly-local-provider.md) are reviewed together in one planning PR. This changes the document-review sequence, not the implementation or merge gates. The planning PR must contain both documents, use `Refs #34`, and remain distinct from subsequent implementation PRs. Implementation requires approval and merge of the planning PR under PRfection. Do not close #34 or claim downstream acceptance merely by drafting or opening the plan.
+
+For PR #152's reviewed head `a066d6de500828993f69940e6aed09d5f63fa955`, the maintainer [explicitly authorized the merge](https://github.com/IABTechLab/auctioneer/pull/152#issuecomment-6678011506) using the recorded positive reviewer verdict without a formal independent GitHub `APPROVE` event. Independent approval was excepted for that head, not satisfied; all submitted reviews were `COMMENTED` from the PR author's account. All 25 checks passed and no CI check was waived. This one-time exception does not apply to closeout PR #153 or packages 2-7. Each later PR requires a formal `APPROVE` from an eligible independent reviewer covering its current head, accepted review findings, the full current-head suite and separate merge authorization. A comment verdict or self-review does not satisfy that approval gate.
 
 Record exact executed documentation checks separately from the future C1-C10 evidence. The full prescribed current-head suite is required at the planning/implementation review handoff; an unchanged-code baseline or targeted document check is not that full suite. Do not weaken tests or required checks to accelerate the handoff.
 
