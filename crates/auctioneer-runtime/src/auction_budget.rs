@@ -9,6 +9,7 @@
 use std::alloc::Layout;
 use std::error::Error;
 use std::fmt;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Stable categories for accounting diagnostics, never request-derived text.
@@ -69,6 +70,28 @@ impl AuctionCharges {
             budget.try_reserve(ChargeKind::Projection, self.projection)?,
             budget.try_reserve(ChargeKind::Outbound, self.outbound)?,
             budget.try_reserve(ChargeKind::Response, self.response)?,
+        ])
+    }
+
+    /// Reserve every phase on the existing ledger, retaining an `Arc` per
+    /// receipt so suspended work can outlive the caller's budget handle.
+    /// Like [`Self::prepay`], an error releases all preceding reservations.
+    /// Keep successful receipts through response serialization and suspended work.
+    /// No additional allocation is needed after constructing the budget's `Arc`.
+    ///
+    /// # Errors
+    /// Returns the first exhausted phase without leaving partial charges held.
+    pub fn prepay_owned(
+        &self,
+        budget: &Arc<AuctionBudget>,
+    ) -> Result<[Reservation<'static>; 6], ResourceError> {
+        Ok([
+            budget.try_reserve_owned(ChargeKind::RuntimeConfig, self.config)?,
+            budget.try_reserve_owned(ChargeKind::Ingress, self.ingress)?,
+            budget.try_reserve_owned(ChargeKind::Privacy, self.privacy)?,
+            budget.try_reserve_owned(ChargeKind::Projection, self.projection)?,
+            budget.try_reserve_owned(ChargeKind::Outbound, self.outbound)?,
+            budget.try_reserve_owned(ChargeKind::Response, self.response)?,
         ])
     }
 }
@@ -139,30 +162,71 @@ impl AuctionBudget {
         kind: ChargeKind,
         bytes: u64,
     ) -> Result<Reservation<'_>, ResourceError> {
-        self.in_use
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |held| {
-                held.checked_add(bytes).filter(|total| *total <= self.limit)
-            })
-            .map_err(|_held| ResourceError::Exhausted { kind })?;
-        Ok(Reservation {
-            budget: self,
-            bytes,
-            kind,
-        })
+        Reservation::reserve(ReservationBudget::Borrowed(self), kind, bytes)
+    }
+
+    /// Reserve on this same ledger while retaining its existing `Arc`.
+    /// The non-cloneable receipt can outlive the caller's budget handle;
+    /// reserving and releasing do not allocate.
+    ///
+    /// # Errors
+    /// Returns [`ResourceError::Exhausted`] without changing the ledger when
+    /// the sum overflows or exceeds this auction's ceiling.
+    pub fn try_reserve_owned(
+        self: &Arc<Self>,
+        kind: ChargeKind,
+        bytes: u64,
+    ) -> Result<Reservation<'static>, ResourceError> {
+        Reservation::reserve(ReservationBudget::Owned(Arc::clone(self)), kind, bytes)
+    }
+}
+
+#[derive(Debug)]
+enum ReservationBudget<'a> {
+    Borrowed(&'a AuctionBudget),
+    Owned(Arc<AuctionBudget>),
+}
+
+impl ReservationBudget<'_> {
+    fn as_budget(&self) -> &AuctionBudget {
+        match self {
+            Self::Borrowed(budget) => budget,
+            Self::Owned(budget) => budget,
+        }
     }
 }
 
 /// A non-cloneable charge that releases on drop, including early exits and
-/// cancellation. Borrowing prevents the ledger from disappearing first.
+/// cancellation. A borrow or an owned `Arc` keeps the ledger alive until release.
 #[derive(Debug)]
 #[must_use = "keep the reservation alive until the charged data is dropped"]
 pub struct Reservation<'a> {
-    budget: &'a AuctionBudget,
+    budget: ReservationBudget<'a>,
     bytes: u64,
     kind: ChargeKind,
 }
 
-impl Reservation<'_> {
+impl<'a> Reservation<'a> {
+    fn reserve(
+        budget: ReservationBudget<'a>,
+        kind: ChargeKind,
+        bytes: u64,
+    ) -> Result<Self, ResourceError> {
+        let ledger = budget.as_budget();
+        ledger
+            .in_use
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |held| {
+                held.checked_add(bytes)
+                    .filter(|total| *total <= ledger.limit)
+            })
+            .map_err(|_held| ResourceError::Exhausted { kind })?;
+        Ok(Self {
+            budget,
+            bytes,
+            kind,
+        })
+    }
+
     #[must_use]
     pub const fn kind(&self) -> ChargeKind {
         self.kind
@@ -189,7 +253,10 @@ impl Drop for Reservation<'_> {
     fn drop(&mut self) {
         // Only a successful checked increment constructs this non-cloneable
         // lease, so its single release cannot underflow the held total.
-        self.budget.in_use.fetch_sub(self.bytes, Ordering::AcqRel);
+        self.budget
+            .as_budget()
+            .in_use
+            .fetch_sub(self.bytes, Ordering::AcqRel);
     }
 }
 
@@ -208,7 +275,8 @@ pub fn checked_allocation_capacity(bytes: u64) -> Result<usize, ResourceError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        AuctionBudget, AuctionCharges, ChargeKind, ResourceError, checked_allocation_capacity,
+        AuctionBudget, AuctionCharges, ChargeKind, Reservation, ResourceError,
+        checked_allocation_capacity,
     };
     use crate::alloc_track::allocated_on_this_thread;
     use futures::{FutureExt as _, future::pending};
@@ -216,6 +284,283 @@ mod tests {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::sync::{Arc, Barrier};
     use std::thread;
+
+    #[test]
+    fn owned_reservations_share_the_original_ledger() {
+        let budget = Arc::new(AuctionBudget::new(100));
+        let borrowed = budget.try_reserve(ChargeKind::RuntimeConfig, 60).unwrap();
+        let owned: Reservation<'static> = budget
+            .try_reserve_owned(ChargeKind::Projection, 40)
+            .unwrap();
+        assert_eq!(budget.in_use(), 100);
+        assert_eq!(Arc::strong_count(&budget), 2);
+        assert_eq!(owned.kind(), ChargeKind::Projection);
+        assert_eq!(owned.ensure_capacity(ChargeKind::Projection, 40), Ok(()));
+        assert_eq!(
+            owned.ensure_capacity(ChargeKind::Projection, 41),
+            Err(ResourceError::Exhausted {
+                kind: ChargeKind::Projection
+            })
+        );
+        assert_eq!(
+            owned.ensure_capacity(ChargeKind::Privacy, 1),
+            Err(ResourceError::Exhausted {
+                kind: ChargeKind::Privacy
+            })
+        );
+        assert_eq!(
+            budget
+                .try_reserve_owned(ChargeKind::Outbound, 1)
+                .unwrap_err(),
+            ResourceError::Exhausted {
+                kind: ChargeKind::Outbound
+            }
+        );
+        assert_eq!(
+            budget.try_reserve(ChargeKind::Response, 1).unwrap_err(),
+            ResourceError::Exhausted {
+                kind: ChargeKind::Response
+            }
+        );
+        assert_eq!(budget.in_use(), 100);
+        assert_eq!(Arc::strong_count(&budget), 2);
+        drop(borrowed);
+        assert_eq!(budget.in_use(), 40);
+        let replacement = budget.try_reserve(ChargeKind::Privacy, 60).unwrap();
+        assert_eq!(budget.in_use(), 100);
+        drop(owned);
+        assert_eq!(budget.in_use(), 60);
+        assert_eq!(Arc::strong_count(&budget), 1);
+        drop(replacement);
+        assert_eq!(budget.in_use(), 0);
+    }
+
+    #[test]
+    fn owned_prepayment_rolls_back_each_failed_phase() {
+        let phases = [
+            ChargeKind::RuntimeConfig,
+            ChargeKind::Ingress,
+            ChargeKind::Privacy,
+            ChargeKind::Projection,
+            ChargeKind::Outbound,
+            ChargeKind::Response,
+        ];
+        let mut refused = [false; 6];
+        for varied_phase in 0..6 {
+            for varied_bytes in [0, 1, 17] {
+                let mut amounts = [1_u64, 2, 4, 8, 16, 32];
+                amounts[varied_phase] = varied_bytes;
+                let charges = AuctionCharges {
+                    config: amounts[0],
+                    ingress: amounts[1],
+                    privacy: amounts[2],
+                    projection: amounts[3],
+                    outbound: amounts[4],
+                    response: amounts[5],
+                };
+                for limit in 3..=90 {
+                    let budget = Arc::new(AuctionBudget::new(limit));
+                    let borrowed = budget.try_reserve(ChargeKind::Privacy, 3).unwrap();
+                    let mut expected_total = 3_u64;
+                    let exhausted = amounts.iter().position(|bytes| {
+                        expected_total = expected_total.checked_add(*bytes).unwrap();
+                        expected_total > limit
+                    });
+                    if let Some(index) = exhausted {
+                        assert_eq!(
+                            charges.prepay_owned(&budget).unwrap_err(),
+                            ResourceError::Exhausted {
+                                kind: phases[index]
+                            }
+                        );
+                        refused[index] = true;
+                    } else {
+                        let paid = charges.prepay_owned(&budget).unwrap();
+                        assert_eq!(budget.in_use(), expected_total);
+                        assert_eq!(Arc::strong_count(&budget), 7);
+                        for ((receipt, kind), bytes) in paid.iter().zip(phases).zip(amounts) {
+                            assert_eq!(receipt.kind(), kind);
+                            assert_eq!(receipt.ensure_capacity(kind, bytes), Ok(()));
+                            assert_eq!(
+                                receipt.ensure_capacity(kind, bytes.checked_add(1).unwrap()),
+                                Err(ResourceError::Exhausted { kind })
+                            );
+                        }
+                        drop(paid);
+                    }
+                    assert_eq!(budget.in_use(), 3);
+                    assert_eq!(Arc::strong_count(&budget), 1);
+                    drop(borrowed);
+                    assert_eq!(budget.in_use(), 0);
+                }
+            }
+        }
+        assert_eq!(refused, [true; 6]);
+    }
+
+    #[test]
+    fn owned_receipts_survive_the_callers_budget_handle() {
+        let charges = AuctionCharges {
+            config: 1,
+            ingress: 2,
+            privacy: 4,
+            projection: 8,
+            outbound: 16,
+            response: 32,
+        };
+        let budget = Arc::new(AuctionBudget::new(63));
+        let weak = Arc::downgrade(&budget);
+        let paid: [Reservation<'static>; 6] = charges.prepay_owned(&budget).unwrap();
+        assert_eq!(budget.in_use(), 63);
+        assert_eq!(Arc::strong_count(&budget), 7);
+        drop(budget);
+        assert_eq!(weak.strong_count(), 6);
+        assert_eq!(weak.upgrade().unwrap().in_use(), 63);
+        let [config, ingress, privacy, projection, outbound, response] = paid;
+        drop(config);
+        assert_eq!(weak.upgrade().unwrap().in_use(), 62);
+        drop((ingress, privacy, projection, outbound));
+        assert_eq!(weak.strong_count(), 1);
+        assert_eq!(weak.upgrade().unwrap().in_use(), 32);
+        drop(response);
+        assert!(weak.upgrade().is_none());
+    }
+
+    #[test]
+    fn owned_reservations_accept_zero_and_refuse_sum_overflow() {
+        for limit in [0, u64::MAX] {
+            let budget = Arc::new(AuctionBudget::new(limit));
+            let full = budget
+                .try_reserve_owned(ChargeKind::Ingress, limit)
+                .unwrap();
+            let empty = budget.try_reserve_owned(ChargeKind::Privacy, 0).unwrap();
+            assert_eq!(budget.in_use(), limit);
+            assert_eq!(Arc::strong_count(&budget), 3);
+            assert_eq!(
+                budget
+                    .try_reserve_owned(ChargeKind::Outbound, 1)
+                    .unwrap_err(),
+                ResourceError::Exhausted {
+                    kind: ChargeKind::Outbound
+                }
+            );
+            assert_eq!(
+                budget.try_reserve(ChargeKind::Response, 1).unwrap_err(),
+                ResourceError::Exhausted {
+                    kind: ChargeKind::Response
+                }
+            );
+            drop(empty);
+            assert_eq!(budget.in_use(), limit);
+            assert_eq!(Arc::strong_count(&budget), 2);
+            drop(full);
+            assert_eq!(budget.in_use(), 0);
+            assert_eq!(Arc::strong_count(&budget), 1);
+        }
+        let budget = Arc::new(AuctionBudget::new(u64::MAX));
+        let charges = AuctionCharges {
+            config: u64::MAX,
+            ingress: 1,
+            privacy: 0,
+            projection: 0,
+            outbound: 0,
+            response: 0,
+        };
+        assert_eq!(
+            charges.prepay_owned(&budget).unwrap_err(),
+            ResourceError::Exhausted {
+                kind: ChargeKind::Ingress
+            }
+        );
+        assert_eq!(budget.in_use(), 0);
+        assert_eq!(Arc::strong_count(&budget), 1);
+    }
+
+    #[test]
+    fn owned_prepayment_releases_on_cancellation_and_unwind() {
+        let charges = AuctionCharges {
+            config: 1,
+            ingress: 2,
+            privacy: 4,
+            projection: 8,
+            outbound: 16,
+            response: 32,
+        };
+        let budget = Arc::new(AuctionBudget::new(70));
+        let borrowed = budget.try_reserve(ChargeKind::Privacy, 7).unwrap();
+        let weak = Arc::downgrade(&budget);
+        let paid = charges.prepay_owned(&budget).unwrap();
+        assert_eq!(budget.in_use(), 70);
+        let auction = async move {
+            let _retained = paid;
+            assert_eq!(weak.upgrade().unwrap().in_use(), 70);
+            pending::<()>().await;
+        };
+        assert!(auction.now_or_never().is_none());
+        assert_eq!(budget.in_use(), 7);
+        assert_eq!(Arc::strong_count(&budget), 1);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let _retained = charges.prepay_owned(&budget).unwrap();
+            assert_eq!(budget.in_use(), 70);
+            panic!("exercise owned reservation unwind");
+        }));
+        let _panic = result.unwrap_err();
+        assert_eq!(budget.in_use(), 7);
+        assert_eq!(Arc::strong_count(&budget), 1);
+        drop(borrowed);
+        assert_eq!(budget.in_use(), 0);
+    }
+
+    #[test]
+    fn owned_accounting_allocates_nothing_after_arc_construction() {
+        let budget = Arc::new(AuctionBudget::new(10));
+        let weak = Arc::downgrade(&budget);
+        let charges = AuctionCharges {
+            config: 1,
+            ingress: 2,
+            privacy: 1,
+            projection: 2,
+            outbound: 1,
+            response: 3,
+        };
+        let before = allocated_on_this_thread();
+        let borrowed = budget.try_reserve(ChargeKind::Privacy, 4).unwrap();
+        let owned = budget.try_reserve_owned(ChargeKind::Projection, 6).unwrap();
+        let empty = budget.try_reserve_owned(ChargeKind::Ingress, 0).unwrap();
+        assert_eq!(budget.in_use(), 10);
+        assert_eq!(owned.ensure_capacity(ChargeKind::Projection, 6), Ok(()));
+        assert_eq!(
+            budget
+                .try_reserve_owned(ChargeKind::Response, 1)
+                .unwrap_err(),
+            ResourceError::Exhausted {
+                kind: ChargeKind::Response
+            }
+        );
+        drop((borrowed, owned, empty));
+        assert_eq!(budget.in_use(), 0);
+        let paid = charges.prepay_owned(&budget).unwrap();
+        assert_eq!(budget.in_use(), 10);
+        drop(paid);
+        assert_eq!(budget.in_use(), 0);
+        assert_eq!(
+            AuctionCharges {
+                response: 4,
+                ..charges
+            }
+            .prepay_owned(&budget)
+            .unwrap_err(),
+            ResourceError::Exhausted {
+                kind: ChargeKind::Response
+            }
+        );
+        assert_eq!(budget.in_use(), 0);
+        assert_eq!(Arc::strong_count(&budget), 1);
+        drop(budget);
+        assert!(weak.upgrade().is_none());
+        let after = allocated_on_this_thread();
+        assert_eq!(after, before);
+    }
 
     #[test]
     fn phase_prepayment_rolls_back_at_every_boundary() {
