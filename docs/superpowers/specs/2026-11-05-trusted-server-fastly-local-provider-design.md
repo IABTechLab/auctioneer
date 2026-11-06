@@ -2,7 +2,7 @@
 
 Date: 2026-11-05
 
-Status: Draft for maintainer review. Architecture direction and delivery scope were discussed with AG; the written contract is not yet approved. No integration implementation or deployment is claimed.
+Status: Draft for joint spec/plan review. AG requested reviewing this contract and its plan together in one planning PR; preparing the plan is authorized, but implementation and merge are not. No integration implementation or deployment is claimed.
 
 Tracking: [Auctioneer #34](https://github.com/IABTechLab/auctioneer/issues/34), under [Direct Trusted Server Integration](https://github.com/IABTechLab/auctioneer/issues/8).
 
@@ -237,7 +237,7 @@ Trusted Server #1336 concerns wider protocol modularity. This contract keeps the
 
 ## 12. Review And Publication Gates
 
-This is the written-spec review gate, not an implementation approval. Complete the document review, get maintainer approval of the written contract, then write/review the implementation plan through PRfection. A planning PR must contain the spec and plan, use `Refs #34`, and remain distinct from subsequent implementation PRs. Do not close #34 or claim downstream acceptance merely by drafting or opening the plan.
+At AG's explicit request, this written contract and its [delivery plan](../plans/2026-11-05-trusted-server-fastly-local-provider.md) are reviewed together in one planning PR. This changes the document-review sequence, not the implementation or merge gates. The planning PR must contain both documents, use `Refs #34`, and remain distinct from subsequent implementation PRs. Implementation requires approval and merge of the planning PR under PRfection. Do not close #34 or claim downstream acceptance merely by drafting or opening the plan.
 
 Record exact executed documentation checks separately from the future C1-C10 evidence. The full prescribed current-head suite is required at the planning/implementation review handoff; an unchanged-code baseline or targeted document check is not that full suite. Do not weaken tests or required checks to accelerate the handoff.
 
