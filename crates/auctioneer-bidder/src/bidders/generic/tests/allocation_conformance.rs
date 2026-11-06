@@ -2,17 +2,22 @@
 
 use crate::alloc_track::response as alloc_track;
 use crate::alloc_track::response::live as live_on_this_thread;
+use crate::alloc_track::{finish as finish_allocations, start as start_allocations};
 use auctioneer_bidder::{
-    Bidder, BidderHttpResponse, META_BYTES_CAPACITY, OutboundRequestMetaBuilder,
+    Bidder, BidderHttpResponse, META_BYTES_CAPACITY, OutboundRequestMetaBuilder, TypedBid,
 };
+use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::{Banner, BidRequest, Imp};
-use auctioneer_openrtb::types::bid_response::BidResponse;
+use auctioneer_openrtb::types::bid_response::{Bid, BidResponse};
 use auctioneer_runtime::budget::{
     MIN_RESPONSE_NODE_PEAK_BYTES, MIN_RESPONSE_PARSE_FACTOR, RESPONSE_PARSE_FACTOR,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+use std::hint::black_box;
 use std::io::{self, Write as _};
+use std::mem::size_of;
+use std::sync::Arc;
 use std::thread;
 
 fn bidder() -> Box<dyn Bidder> {
@@ -307,20 +312,42 @@ fn mixed_bid_classification_and_errors_fit_the_funded_response_charge() {
     }
 }
 
-/// The adapter path MOVES each bid out of the parsed tree rather
-/// than cloning it.
-///
-/// Asserted as a separation, not an absolute: the cloning version
-/// holds the parsed tree and two typed copies at the peak, so it
-/// costs a full `Vec<TypedBid>` more than the moving one. At 4 000
-/// minimal bids that is about 900 KB, so a bound set a comfortable
-/// margin below the cloning cost cannot be met by a clone and is
-/// met with room by a move.
-///
-/// Needed because the factor guard alone would not catch a return
-/// to cloning once the factor funds the moving path with headroom —
-/// which is exactly how the previous revision's headroom hid the
-/// defect.
+/// Measure complete decoder work, optionally adding a real deep-copy control.
+/// Fixture construction and request context precede the allocation window.
+fn creative_copy_cost(bids: usize, creative_bytes: usize, copy_control: bool) -> usize {
+    thread::spawn(move || {
+        let mut value: Value = serde_json::from_str(&minimal_bid_body(bids)).unwrap();
+        for bid in value["seatbid"][0]["bid"].as_array_mut().unwrap() {
+            bid["adm"] = json!("x".repeat(creative_bytes));
+        }
+        let body = serde_json::to_string(&value).unwrap();
+        assert!(u64::try_from(body.len()).unwrap() <= SHIPPED_DECODED_CAP);
+        auctioneer_runtime::count_json_nodes(body.as_bytes(), SHIPPED_RESPONSE_NODE_CAP).unwrap();
+        let request = request_for_response(&body);
+        let response = BidderHttpResponse::new(200, vec![], body.into_bytes())
+            .within_node_budget(SHIPPED_RESPONSE_NODE_CAP);
+        let sent = sent_meta();
+        let bidder = bidder();
+        start_allocations();
+        let decoded = bidder.make_bids(&request, &sent, &response).unwrap();
+        assert_eq!(decoded.bids.len(), bids);
+        assert!(decoded.errors.is_empty());
+        for bid in &decoded.bids {
+            assert_eq!(bid.bid.adm.as_ref().unwrap().len(), creative_bytes);
+        }
+        let copied = copy_control.then(|| decoded.bids.clone());
+        black_box((&decoded, &copied));
+        let allocated = finish_allocations().allocated();
+        assert!(allocated > 0);
+        allocated
+    })
+    .join()
+    .unwrap()
+}
+
+/// Preserve the structural peak guard while accounting for actual source-seat
+/// metadata. Independent cumulative creative-size deltas distinguish moving
+/// from cloning, including copies that do not increase the overall peak.
 #[test]
 fn the_adapter_path_moves_bids_rather_than_cloning_them() {
     // The widest fixture, where the per-bid term dominates and the
@@ -329,18 +356,63 @@ fn the_adapter_path_moves_bids_rather_than_cloning_them() {
     let body = minimal_bid_body(BIDS);
     let (peak, decoded) = adapter_path_peak(&body);
     let (parse_retained, _same_decoded) = parse_cost(&body);
-    // A clone holds the parsed tree plus TWO typed copies' worth at
-    // the peak; a move holds the tree plus one. So the overhead a
-    // move adds over the parse alone must stay under the parse's own
-    // retained size — the cloning version measured ~2.5x that.
+    let inline_provenance = size_of::<Option<Arc<str>>>();
+    assert_eq!(
+        size_of::<TypedBid>(),
+        size_of::<(Bid, MediaType)>()
+            .checked_add(inline_provenance)
+            .unwrap(),
+        "review any additional typed wrapper storage before changing this oracle"
+    );
+    let source_owner = thread::spawn(|| {
+        let baseline = live_on_this_thread();
+        let owner = black_box(Arc::<str>::from("s"));
+        let bytes = u64::try_from(live_on_this_thread().checked_sub(baseline).unwrap()).unwrap();
+        assert!(bytes > 1, "the actual owner includes its control block");
+        drop(owner);
+        assert_eq!(live_on_this_thread(), baseline);
+        bytes
+    })
+    .join()
+    .unwrap();
+    let provenance_storage = u64::try_from(BIDS.checked_mul(inline_provenance).unwrap())
+        .unwrap()
+        .checked_add(source_owner)
+        .unwrap();
     let overhead = peak.saturating_sub(parse_retained);
+    let bid_overhead = overhead.checked_sub(provenance_storage).unwrap();
     assert!(
-        overhead < parse_retained,
+        bid_overhead < parse_retained,
         "the adapter path peaked at {peak} B over a parse retaining \
          {parse_retained} B ({decoded} B decoded), so its typed assembly added \
-         {overhead} B — more than the parsed tree itself, which is the signature \
-         of cloning each bid out of the tree instead of moving it",
+         {overhead} B including {provenance_storage} B of source-seat metadata; \
+         its remaining {bid_overhead} B exceeds the parsed tree",
     );
+    for count in [1_usize, 32, 256] {
+        let measurements: Vec<_> = [16_usize, 64, 256]
+            .into_iter()
+            .map(|bytes| {
+                (
+                    bytes,
+                    creative_copy_cost(count, bytes, false),
+                    creative_copy_cost(count, bytes, true),
+                )
+            })
+            .collect();
+        for pair in measurements.windows(2) {
+            let expected = count
+                .checked_mul(pair[1].0.checked_sub(pair[0].0).unwrap())
+                .unwrap();
+            let moved = pair[1].1.checked_sub(pair[0].1).unwrap();
+            let copied = pair[1].2.checked_sub(pair[0].2).unwrap();
+            assert_eq!(moved, expected, "one creative allocation per admitted bid");
+            assert_eq!(copied, expected.checked_mul(2).unwrap());
+            assert_ne!(
+                copied, expected,
+                "the clone control must fail the move oracle"
+            );
+        }
+    }
 }
 
 /// Response node cap in every shipped transport envelope.

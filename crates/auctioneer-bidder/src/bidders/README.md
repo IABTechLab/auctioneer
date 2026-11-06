@@ -310,6 +310,7 @@ Do not treat metadata relocation as completed catalog delivery or qualification.
   siblings when a failure is candidate-local; keep whole-response failures
   distinct. Status, currency and media rules must follow the reviewed bidder
   contract; intentional source differences must be explicit.
+- Preserve `SeatBid.seat` in `TypedBid.source_seat` before flattening parsed seats. Share one immutable owner across the bids from each nonempty seat; missing or empty seats stay absent. Shared response classification does this automatically. Custom decoders must preserve the same rule, never substituting a requested alias, implementation, marketplace label or host provider ID. Exchange-owned wire attribution remains separate.
 - Move optional browser-auction configurations from the sealed parsed extension
   into `BidderResponse.auction_configs`. Do not copy their JSON, parse the body
   again, or supply authoritative bidder/adapter labels. The exchange checks

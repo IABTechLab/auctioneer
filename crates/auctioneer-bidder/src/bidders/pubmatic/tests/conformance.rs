@@ -225,7 +225,22 @@ mod tests {
                 } else {
                     assert!(fixture.get("expectedMakeBidsErrors").is_none());
                 }
-                assert_success(&decoded.unwrap(), &responses[0]);
+                let successful = decoded.unwrap();
+                if path == "supplemental/extra-bid.json" {
+                    let source = mock["body"]["seatbid"].as_array().unwrap();
+                    assert_eq!(source.len(), 2);
+                    assert_eq!(source[0]["seat"], "958");
+                    assert_eq!(source[1]["seat"], "123");
+                    assert_eq!(source[1]["bid"][0]["ext"]["marketplace"], "groupm");
+                    assert_eq!(successful.bids.len(), 2);
+                    assert_eq!(successful.bids[0].source_seat.as_deref(), Some("958"));
+                    assert_eq!(successful.bids[1].source_seat.as_deref(), Some("123"));
+                    let marketplace =
+                        successful.bids[1].bid.ext.as_ref().unwrap().other["marketplace"].as_str();
+                    assert_eq!(marketplace, Some("groupm"));
+                    assert_ne!(successful.bids[1].source_seat.as_deref(), marketplace);
+                }
+                assert_success(&successful, &responses[0]);
             }
         }
     }
@@ -302,8 +317,8 @@ mod tests {
             }
             assert_eq!(serde_json::to_value(&actual.bid).unwrap(), bid);
             if let Some(seat) = row.get("seat") {
-                // TypedBid intentionally has no authoritative seat/bidder slot.
-                // Provider marketplace survives as payload only, not a targeting identity.
+                // Marketplace is payload, not upstream-seat provenance or
+                // exchange-owned bidder attribution.
                 assert_eq!(seat, "groupm");
                 assert_eq!(bid["ext"]["marketplace"], "groupm");
                 assert!(bid["ext"]["prebid"].get("targetbiddercode").is_none());

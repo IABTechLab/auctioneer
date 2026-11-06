@@ -129,7 +129,7 @@ mod tests {
         BidderResultBundle, ResponseInput, ResponseTimeStat, build_response,
     };
     use auctioneer_openrtb::types::bid_request::{Banner, BidRequest, Imp};
-    use auctioneer_openrtb::types::bid_response::{BidResponse, SeatBid};
+    use auctioneer_openrtb::types::bid_response::{Bid, BidResponse, SeatBid};
     use auctioneer_runtime::bounded_json::NODE_RETAINED_BYTES;
     use auctioneer_runtime::budget::{
         ASSEMBLY_FACTOR, MAX_GVL_PARSED_BYTES, MIN_INBOUND_PARSE_FACTOR,
@@ -139,6 +139,9 @@ mod tests {
     };
     use serde_json::json;
     use std::collections::{BTreeMap, BTreeSet};
+    use std::io::{self, Write as _};
+    use std::iter::repeat_with;
+    use std::sync::Arc;
     use std::thread;
 
     const _: () = assert!(RESPONSE_PARSE_FACTOR == 256);
@@ -158,6 +161,122 @@ mod tests {
             .unwrap()
     }
 
+    fn source_seat_cost(seat_bytes: usize, bid_count: usize) -> (u64, u64, u64, u64) {
+        thread::spawn(move || {
+            let source_text = "s".repeat(seat_bytes);
+            let request: BidRequest = serde_json::from_value(json!({
+                "id":"r", "imp":[{"id":"i", "banner":{}}]
+            })).unwrap();
+            let rows: Vec<_> = repeat_with(|| json!({
+                "id":"b", "impid":"i", "price":1_i32
+            })).take(bid_count).collect();
+            let bytes = serde_json::to_vec(&json!({
+                "id":"r", "cur":"USD", "seatbid":[{"seat":source_text, "bid":rows}]
+            })).unwrap();
+            assert!(bytes.len() <= 256 * 1024);
+            auctioneer_runtime::count_json_nodes(&bytes, SHIPPED_RESPONSE_NODE_CAP).unwrap();
+            let wire_bytes = u64::try_from(bytes.len()).unwrap();
+            let response = BidderHttpResponse::new(200, vec![], bytes)
+                .within_node_budget(SHIPPED_RESPONSE_NODE_CAP);
+            let sent = sent_meta();
+
+            // Measure the real Arc allocation, including its control block and
+            // alignment, independently of the decoder and bid vector.
+            let owner_start = alloc_track::reset_peak();
+            let owner_allocated = alloc_track::allocated();
+            let measured_owner = (!source_text.is_empty()).then(|| Arc::<str>::from(source_text.as_str()));
+            let owner_bytes = u64::try_from(alloc_track::live().checked_sub(owner_start).unwrap()).unwrap();
+            assert_eq!(alloc_track::allocated().checked_sub(owner_allocated).unwrap(), owner_bytes);
+            if seat_bytes == 0 {
+                assert_eq!(owner_bytes, 0);
+            } else {
+                assert!(owner_bytes > u64::try_from(seat_bytes).unwrap());
+            }
+            drop(measured_owner);
+            assert_eq!(alloc_track::live(), owner_start);
+
+            let start = alloc_track::reset_peak();
+            let allocated = alloc_track::allocated();
+            let decoded = FakeBidder::default().make_bids(&request, &sent, &response).unwrap();
+            let retained = u64::try_from(alloc_track::live().checked_sub(start).unwrap()).unwrap();
+            let peak = alloc_track::peak_since(start);
+            let cumulative = alloc_track::allocated().checked_sub(allocated).unwrap();
+            assert_eq!(decoded.bids.len(), bid_count);
+            assert!(decoded.errors.is_empty());
+            let bid_storage = decoded.bids.capacity().checked_mul(size_of::<TypedBid>()).unwrap();
+            assert!(retained >= u64::try_from(bid_storage).unwrap().checked_add(owner_bytes).unwrap());
+            assert!(size_of::<TypedBid>() >= size_of::<Bid>()
+                .checked_add(size_of::<Option<Arc<str>>>()).unwrap());
+            assert!(peak >= retained && cumulative >= peak && retained > 0);
+            let funded = wire_bytes.checked_mul(MIN_RESPONSE_PARSE_FACTOR).unwrap();
+            for (name, measured) in [("retained", retained), ("peak", peak), ("cumulative", cumulative)] {
+                let with_margin = measured.checked_mul(6).unwrap().div_ceil(5);
+                assert!(with_margin <= funded,
+                    "seat={seat_bytes} bids={bid_count} {name}={measured} margin={with_margin} byte_funding={funded}");
+                assert!(with_margin <= response_charge(wire_bytes));
+            }
+            let before_clone = alloc_track::allocated();
+            let owner = decoded.bids[0].source_seat.clone();
+            assert_eq!(alloc_track::allocated(), before_clone);
+            for bid in &decoded.bids {
+                if let Some(shared) = &owner {
+                    assert_eq!(bid.source_seat.as_deref(), Some(source_text.as_str()));
+                    assert!(Arc::ptr_eq(shared, bid.source_seat.as_ref().unwrap()));
+                } else {
+                    assert!(bid.source_seat.is_none());
+                }
+            }
+            if let Some(shared) = &owner {
+                assert_eq!(Arc::strong_count(shared), bid_count.checked_add(1).unwrap());
+            }
+            drop(decoded);
+            assert_eq!(u64::try_from(alloc_track::live().checked_sub(start).unwrap()).unwrap(), owner_bytes);
+            drop(owner);
+            assert_eq!(alloc_track::live(), start);
+            writeln!(io::stderr().lock(), "source_seat seat={seat_bytes} bids={bid_count} typed_bid={} owner={owner_bytes} retained={retained} peak={peak} cumulative={cumulative} byte_funding={funded}", size_of::<TypedBid>()).unwrap();
+            (retained, peak, cumulative, owner_bytes)
+        }).join().unwrap()
+    }
+
+    #[test]
+    fn source_seat_length_and_bid_population_are_independently_funded_without_per_bid_copies() {
+        let mut lengths = Vec::new();
+        for seat_bytes in [0_usize, 8, 1024, 32 * 1024] {
+            let row: Vec<_> = [1_usize, 32, 256]
+                .into_iter()
+                .map(|count| source_seat_cost(seat_bytes, count))
+                .collect();
+            for measurement in &row {
+                assert_eq!(
+                    measurement.3, row[0].3,
+                    "one real shared owner regardless of population"
+                );
+            }
+            assert!(
+                row[2].0 > row[0].0,
+                "the typed bid population must be measured"
+            );
+            lengths.push(row);
+        }
+        for pair in lengths[1..].windows(2) {
+            let retained_delta = pair[1][0].0.checked_sub(pair[0][0].0).unwrap();
+            let cumulative_delta = pair[1][0].2.checked_sub(pair[0][0].2).unwrap();
+            assert!(retained_delta > 0 && cumulative_delta > 0);
+            for (short, long) in pair[0].iter().zip(&pair[1]).skip(1) {
+                assert_eq!(
+                    long.0.checked_sub(short.0).unwrap(),
+                    retained_delta,
+                    "seat text must not be retained once per bid"
+                );
+                assert_eq!(
+                    long.2.checked_sub(short.2).unwrap(),
+                    cumulative_delta,
+                    "seat text must not be transiently copied once per bid"
+                );
+            }
+        }
+    }
+
     #[test]
     fn dense_and_padded_response_retention_is_actually_funded() {
         for (bid_count, padding) in [(200, 0), (1000, 0), (4000, 0), (200, 1024), (1000, 1024)] {
@@ -174,10 +293,13 @@ mod tests {
             let bids = parsed
                 .seatbid
                 .into_iter()
-                .flat_map(|seat| seat.bid)
-                .map(|bid| TypedBid {
-                    bid,
-                    media_type: MediaType::Banner,
+                .flat_map(|seat| {
+                    let source_seat = (!seat.seat.is_empty()).then(|| Arc::<str>::from(seat.seat));
+                    seat.bid.into_iter().map(move |bid| TypedBid {
+                        bid,
+                        media_type: MediaType::Banner,
+                        source_seat: source_seat.clone(),
+                    })
                 })
                 .collect();
             let input = ResponseInput {
@@ -271,10 +393,13 @@ mod tests {
             let bids: Vec<TypedBid> = parsed
                 .seatbid
                 .into_iter()
-                .flat_map(|seat: SeatBid| seat.bid)
-                .map(|bid| TypedBid {
-                    bid,
-                    media_type: MediaType::Banner,
+                .flat_map(|seat: SeatBid| {
+                    let source_seat = (!seat.seat.is_empty()).then(|| Arc::<str>::from(seat.seat));
+                    seat.bid.into_iter().map(move |bid| TypedBid {
+                        bid,
+                        media_type: MediaType::Banner,
+                        source_seat: source_seat.clone(),
+                    })
                 })
                 .collect();
             let mut bundles = BTreeMap::new();

@@ -44,26 +44,28 @@ Extend existing targets named in each task. Wire-focused callers consume the new
 
 **Files:** Existing core `tests/{handler_resolution,resolve_runtime_config,auction_config_lifecycle,auction_config_retention,privacy_config_parity,response_account_resolution}.rs`; exchange `tests/{determinism,response_projection,bid_impression_correlation,bidder_call_correlation}.rs`, `tests/targeting_prefix/`; corresponding current implementation modules.
 
-- [ ] Inventory every `run_auction` caller and `TypedBid` constructor using `rg -n 'run_auction\(|TypedBid\s*\{' crates`. Record actual feature gates and test counts from Cargo selection, not a guessed count in this plan.
-- [ ] Extend current characterization tests for wire/account error precedence, default versus named account selection, equal-price/deal selection, disabled winner targeting, multiple bids per bidder/imp, browser-only results and bidder errors with no bids. Keep expected values independent of the future shared helper.
+- [x] Inventory every `run_auction` caller and `TypedBid` constructor using `rg -n 'run_auction\(|TypedBid\s*\{' crates`. Record actual feature gates and test counts from Cargo selection, not a guessed count in this plan.
+- [x] Extend current characterization tests for wire/account error precedence, default versus named account selection, equal-price/deal selection, disabled winner targeting, multiple bids per bidder/imp, browser-only results and bidder errors with no bids. Keep expected values independent of the future shared helper.
 - [ ] In the existing targets, add the future equivalence and retained-selection assertions as the API lands in subsequent tasks; first prove the baseline oracles reject deliberately wrong local expected values without changing production source.
-- [ ] Run the baseline commands below. Expected: actual nonzero tests and green current behavior. Capture failures before editing; missing prerequisites are blocked verification, not baseline bugs or permission to weaken controls.
-- [ ] Commit only self-contained green characterization changes. Do not claim the still-missing shared API is tested by those controls.
+- [x] Run the baseline commands below. Expected: actual nonzero tests and green current behavior. Capture failures before editing; missing prerequisites are blocked verification, not baseline bugs or permission to weaken controls.
+- [x] Commit only self-contained green characterization changes. Do not claim the still-missing shared API is tested by those controls.
 
 ```sh
 cargo test --locked -p auctioneer-core --test handler_resolution --test resolve_runtime_config --test response_account_resolution
 cargo test --locked -p auctioneer-exchange --test determinism --test targeting_prefix --test response_projection --test bid_impression_correlation --test bidder_call_correlation
 ```
 
+Executed checkpoint `d4adbd2`: both command selections above passed with `--offline`, `CARGO_BUILD_JOBS=2` and the existing shared target directory. The baseline dispatched core counts `8/4/3` and exchange counts `8/2/2/2/23`; the final characterization dispatch was core `8/4/4` and exchange `8/2/2/2/26`, all with zero failures and zero ignored tests. Temporarily substituting a wrong account targeting key and wrong deal winner each produced `0 passed; 1 failed` in its named test; both substitutions were restored and the complete selections rerun successfully. Clippy for all three changed test targets passed under `-D warnings`. Independent internal specification and quality reviews passed after adding literal price-key coverage. These are baseline controls, not shared-API or full-matrix acceptance.
+
 ## Task 2: Add Owned Receipt Backing To The Existing Ledger
 
 **Files:** Runtime `src/auction_budget.rs`; inline unit tests. Extend existing core `tests/auction_budget_concurrency.rs` only for cross-component ownership controls after the bridge exists.
 
-- [ ] Add failing unit cases named `owned_reservations_share_the_original_ledger`, `owned_prepayment_rolls_back_each_failed_phase` and `owned_receipts_survive_the_callers_budget_handle`. Independently vary each phase charge and ledger ceiling; verify the positive live allocation/count before checking release.
-- [ ] Run `cargo test --locked -p auctioneer-runtime --lib auction_budget:: -- --list`, confirm each new name, then execute the same filter. Expected red: missing owned operations or failed ownership assertions, never zero matched tests.
-- [ ] Add the private borrowed/shared budget owner and owned prepayment to the existing `Reservation`/`AuctionCharges`. Share the atomic reserve/check/drop implementation. Do not derive `Clone` for receipts, construct a second budget from the same limit, widen capacity or add an unsafe lifetime conversion.
-- [ ] Test move/drop, partial failure, mixed borrowed/owned receipts on the same ledger, under/at/over cap, capacity overflow and cancellation/unwind. Drop an external `Arc` and prove the live receipt still owns its exact charge. Charge layout/control-block ownership in the later resource checkpoint; do not call it zero-cost.
-- [ ] Run runtime units and lint, retain actual output and commit the green ownership primitive without changing numeric costs. If its required storage cannot fit current funded owners, stop activation and return to resource review.
+- [x] Add failing unit cases named `owned_reservations_share_the_original_ledger`, `owned_prepayment_rolls_back_each_failed_phase` and `owned_receipts_survive_the_callers_budget_handle`. Independently vary each phase charge and ledger ceiling; verify the positive live allocation/count before checking release.
+- [x] Run `cargo test --locked -p auctioneer-runtime --lib auction_budget:: -- --list`, confirm each new name, then execute the same filter. Expected red: missing owned operations or failed ownership assertions, never zero matched tests.
+- [x] Add the private borrowed/shared budget owner and owned prepayment to the existing `Reservation`/`AuctionCharges`. Share the atomic reserve/check/drop implementation. Do not derive `Clone` for receipts, construct a second budget from the same limit, widen capacity or add an unsafe lifetime conversion.
+- [x] Test move/drop, partial failure, mixed borrowed/owned receipts on the same ledger, under/at/over cap, capacity overflow and cancellation/unwind. Drop an external `Arc` and prove the live receipt still owns its exact charge. Charge layout/control-block ownership in the later resource checkpoint; do not call it zero-cost.
+- [x] Run runtime units and lint, retain actual output and commit the green ownership primitive without changing numeric costs. If its required storage cannot fit current funded owners, stop activation and return to resource review.
 
 ```sh
 cargo test --locked -p auctioneer-runtime --lib auction_budget::
@@ -71,15 +73,17 @@ cargo test --locked -p auctioneer-runtime --lib
 cargo clippy --locked -p auctioneer-runtime --lib --tests -- -D warnings
 ```
 
+Executed checkpoint `9271dfb`: the initial test build failed with 16 missing-owned-method diagnostics. After implementation, the listed module filter executed `18 passed; 0 failed`, the complete runtime library executed `272 passed; 0 failed; 0 ignored`, and Clippy passed with `--lib --tests -- -D warnings`; verification used the same offline/shared-target setup. Independent internal specification and quality reviews passed. On the native ABI, the receipt grew from 24 to 32 bytes at alignment 8, adding 48 bytes across six receipts. This checkpoint introduces no numeric cost change or serving cutover: funding the receipt/control-block layouts and guest qualification remain open in Task 7.
+
 ## Task 3: Retain Upstream Seat Provenance Once
 
 **Files:** Bidder `src/types.rs`, `src/bidders/media_type.rs`, actual direct decoder construction sites; inline units and existing owner-local conformance; exchange `tests/{response_projection,response_factors}.rs` as affected.
 
-- [ ] Add red shared-classifier cases for absent/empty seat, two different seats, multiple bids sharing one seat, valid siblings around a bad bid and repeated response calls. Assert requested bidder and source seat differ in the before-state.
-- [ ] Extend `TypedBid` with optional shared immutable source-seat provenance. Establish one shared string owner per decoded nonempty source seat before flattening; do not clone the string for each bid or synthesize the alias/provider ID. Retain canonical missing/empty behavior.
-- [ ] Update every actual constructor discovered by Task 1. Use the shared helper for common response handling; source-specific decoders capture only information their protocol actually contains. Do not add a names-based registry or a hand-maintained sibling exception list.
-- [ ] Add resource controls varying seat byte length and bid population independently; compare one versus many shared references and prove the value is not copied per bid. Include the shared owner/control block and `TypedBid` layout in current decoder/response accounting. Wire projection must continue to use the requested bidder/alias seat.
-- [ ] Run current bidder/response owners and compile all callers, preserving assertions and feature gates. Record the discovered migration set and commit only when no constructor silently loses observable provenance.
+- [x] Add red shared-classifier cases for absent/empty seat, two different seats, multiple bids sharing one seat, valid siblings around a bad bid and repeated response calls. Assert requested bidder and source seat differ in the before-state.
+- [x] Extend `TypedBid` with optional shared immutable source-seat provenance. Establish one shared string owner per decoded nonempty source seat before flattening; do not clone the string for each bid or synthesize the alias/provider ID. Retain canonical missing/empty behavior.
+- [x] Update every actual constructor discovered by Task 1. Use the shared helper for common response handling; source-specific decoders capture only information their protocol actually contains. Do not add a names-based registry or a hand-maintained sibling exception list.
+- [x] Add resource controls varying seat byte length and bid population independently; compare one versus many shared references and prove the value is not copied per bid. Include the shared owner/control block and `TypedBid` layout in current decoder/response accounting. Wire projection must continue to use the requested bidder/alias seat.
+- [x] Run current bidder/response owners and compile all callers, preserving assertions and feature gates. Record the discovered migration set and commit only when no constructor silently loses observable provenance.
 
 ```sh
 cargo test --locked -p auctioneer-bidder --lib
@@ -87,6 +91,10 @@ cargo test --locked -p auctioneer-bidder --test fake_bidder_contract
 cargo test --locked -p auctioneer-exchange --test response_projection --test response_factors --test response_charge
 cargo check --locked --workspace --all-targets
 ```
+
+Executed native checkpoint: the red shared-classifier build produced 12 missing-field diagnostics. All ten discovered construction literals were migrated: the shared classifier, four direct protocol decoders, the fake bidder, the winner fixture, two response-factor fixtures and the call-correlation fixture. The final bidder selection executed `1205 passed; 0 failed; 9 ignored` in the library, followed by allocation `67`, response conformance `32`, fake contract `18` and source isolation `16`, each with zero failures and zero ignored cases. The four exchange response/correlation owners executed `2/16/19/3`, all passing. Native workspace all-target compilation passed before the final test-only repairs; final bidder/exchange Clippy checked both libraries and ordinary test targets with `--lib --tests -- -D warnings`. Verification used the same offline/shared-target setup. The pre-existing nine ignored source/environment cases are not claimed as executed acceptance.
+
+The allocation sweep independently varied seat byte lengths `0/8/1024/32768` and bid populations `1/32/256`. It measured the current 432-byte native `TypedBid` and actual shared-owner allocations `0/24/1040/32784`, including control blocks, and checked retained, peak and cumulative work against unchanged funding with the existing margin. Independent size deltas and pointer ownership reject per-bid text copies. The previous bare-bid no-copy heuristic initially failed after wrapper growth; its structural margin is now preserved after accounting for the compiler-checked additional metadata and one measured owner. Exact cumulative creative-size controls separately distinguish one parse allocation from an actual deep-clone positive control. No funded floor, ceiling, margin or capture was changed. The existing marketplace capture also now distinguishes upstream seats from its marketplace payload. Internal specification and quality reviews passed. This checkpoint does not implement the engine outcome, resource-retaining bridge, guest qualification or concrete host handoff in later tasks.
 
 ## Task 4: Make The Existing Engine Return Its Typed Outcome
 

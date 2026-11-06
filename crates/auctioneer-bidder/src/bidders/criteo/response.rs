@@ -1,5 +1,5 @@
 use crate::bidders::{
-    media_type::classify_bid,
+    media_type::{classify_bid, source_seat_bids},
     status::{bad_input_or_server, standard_status},
 };
 use crate::{
@@ -35,7 +35,7 @@ pub(super) fn make_bids(
         errors: parse_errors,
         auction_configs,
     };
-    for mut bid in parsed.seatbid.into_iter().flat_map(|seat| seat.bid) {
+    for (mut bid, source_seat) in parsed.seatbid.into_iter().flat_map(source_seat_bids) {
         let classified = prepare_bid(&mut bid).and_then(|()| {
             if !sent
                 .covered_imp_ids()
@@ -48,7 +48,11 @@ pub(super) fn make_bids(
             classify_bid(request, &bid, None)
         });
         match classified {
-            Ok(media_type) => decoded.bids.push(TypedBid { bid, media_type }),
+            Ok(media_type) => decoded.bids.push(TypedBid {
+                bid,
+                media_type,
+                source_seat,
+            }),
             Err(error) => decoded.errors.push(error),
         }
     }
@@ -187,6 +191,7 @@ mod tests {
     use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
+    use std::sync::Arc;
 
     const ENDPOINT: &str = "https://bidder.example.test/openrtb?profile=230";
 
@@ -228,6 +233,58 @@ mod tests {
             &harness::sent_meta_with_ids(ENDPOINT, ["i", "v"]),
             &response(value),
         )
+    }
+
+    #[test]
+    fn source_seat_retains_protocol_provenance_and_shares_only_within_each_seat() {
+        let value = json!({"id":"r", "seatbid":[
+            {"bid":[bid("missing", "i", "banner")]},
+            {"seat":"", "bid":[bid("empty", "i", "banner")]},
+            {"seat":"upstream_a", "bid":[bid("before", "i", "banner"),
+                bid("bad", "i", "unsupported"), bid("after", "i", "banner")]},
+            {"seat":"upstream_b", "bid":[bid("other", "i", "banner")]}
+        ]});
+        assert_ne!(value["seatbid"][2]["seat"], json!("fake_alias"));
+        let first = decode(&value).unwrap();
+        let second = decode(&value).unwrap();
+        assert_eq!(first.errors.len(), 1);
+        assert_eq!(first.bids.len(), 5);
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|bid| bid.bid.id.as_str())
+                .collect::<Vec<_>>(),
+            ["missing", "empty", "before", "after", "other"]
+        );
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|bid| bid.source_seat.as_deref())
+                .collect::<Vec<_>>(),
+            [
+                None,
+                None,
+                Some("upstream_a"),
+                Some("upstream_a"),
+                Some("upstream_b")
+            ]
+        );
+        let owner = first.bids[2].source_seat.as_ref().unwrap();
+        assert!(Arc::ptr_eq(
+            owner,
+            first.bids[3].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(Arc::strong_count(owner), 2);
+        assert!(!Arc::ptr_eq(
+            owner,
+            first.bids[4].source_seat.as_ref().unwrap()
+        ));
+        assert!(!Arc::ptr_eq(
+            owner,
+            second.bids[2].source_seat.as_ref().unwrap()
+        ));
     }
 
     fn codes(errors: &[BidderError]) -> Vec<u32> {

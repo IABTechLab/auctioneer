@@ -14,6 +14,7 @@ mod tests {
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
     use std::num::NonZeroUsize;
+    use std::sync::Arc;
 
     struct Accept;
     impl EndpointValidator for Accept {
@@ -140,6 +141,77 @@ mod tests {
         assert_eq!(exposed.bids[0].media_type, MediaType::Video);
         assert_eq!(exposed.errors.len(), 1);
         assert_eq!(exposed.errors[0].code, 4);
+    }
+
+    #[test]
+    fn source_seat_contract_keeps_alias_implementation_and_upstream_separate() {
+        let bidder = FakeBidder::default();
+        let input = request();
+        let context = info();
+        let budget = CallBudget::new(1);
+        let mut sink = OutboundRequestSink::new(SinkLimits::new(4096, 4), &budget, &Accept);
+        bidder.make_requests(&input, &context, &mut sink).unwrap();
+        let sent = sink.into_outcome().accepted.pop().unwrap();
+        let bid = |id: &str, media| json!({"id":id,"impid":"a","price":1_i32,"mtype":media});
+        let payload = json!({"id":"r", "seatbid":[
+            {"bid":[bid("missing", 1_i32)]},
+            {"seat":"", "bid":[bid("empty", 1_i32)]},
+            {"seat":"fake_upstream", "bid":[bid("before", 1_i32), bid("bad", 9_i32),
+                bid("after", 1_i32)]},
+            {"seat":"other_upstream", "bid":[bid("other", 1_i32)]}
+        ]});
+        assert_ne!(payload["seatbid"][2]["seat"], json!("fake_alias"));
+        assert_ne!(payload["seatbid"][2]["seat"], json!("fake_bidder"));
+        let decode = || {
+            bidder
+                .make_bids(
+                    &input,
+                    sent.meta(),
+                    &BidderHttpResponse::new(200, vec![], serde_json::to_vec(&payload).unwrap())
+                        .within_node_budget(512),
+                )
+                .unwrap()
+        };
+        let first = decode();
+        let second = decode();
+        assert_eq!(first.errors.len(), 1);
+        assert_eq!(first.bids.len(), 5);
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|typed| typed.bid.id.as_str())
+                .collect::<Vec<_>>(),
+            ["missing", "empty", "before", "after", "other"]
+        );
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|typed| typed.source_seat.as_deref())
+                .collect::<Vec<_>>(),
+            [
+                None,
+                None,
+                Some("fake_upstream"),
+                Some("fake_upstream"),
+                Some("other_upstream")
+            ]
+        );
+        let owner = first.bids[2].source_seat.as_ref().unwrap();
+        assert!(Arc::ptr_eq(
+            owner,
+            first.bids[3].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(Arc::strong_count(owner), 2);
+        assert!(!Arc::ptr_eq(
+            owner,
+            first.bids[4].source_seat.as_ref().unwrap()
+        ));
+        assert!(!Arc::ptr_eq(
+            owner,
+            second.bids[2].source_seat.as_ref().unwrap()
+        ));
     }
 
     #[test]
