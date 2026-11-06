@@ -400,6 +400,153 @@ mod tests {
             .collect()
     }
 
+    fn wire_winners(response: &BidResponse) -> Vec<(&str, &str)> {
+        response
+            .seatbid
+            .iter()
+            .flat_map(|seat| {
+                seat.bid.iter().filter_map(move |bid| {
+                    bid.ext
+                        .as_ref()?
+                        .prebid
+                        .as_ref()?
+                        .targeting
+                        .contains_key("hb_bidder")
+                        .then_some((seat.seat.as_str(), bid.id.as_str()))
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn equal_prices_keep_the_first_bid_in_bidder_then_bid_order() {
+        block_on(async {
+            for (bidders, expected_bidder) in [
+                (&["fake_bb"][..], "fake_bb"),
+                (&["fake_aa", "fake_bb"][..], "fake_aa"),
+            ] {
+                let mut request = base_request();
+                request.imp[0].ext.as_mut().unwrap().bidder =
+                    JsonField::Value(serde_json::Value::Object(
+                        bidders
+                            .iter()
+                            .map(|name| ((*name).into(), serde_json::json!({})))
+                            .collect(),
+                    ));
+                let body = serde_json::to_vec(&serde_json::json!({
+                    "id": "tie", "cur": "USD", "seatbid": [{"bid": [
+                        {"id": "first", "impid": "imp-1", "price": 1.25_f64, "mtype": 1_i32},
+                        {"id": "second", "impid": "imp-1", "price": 1.25_f64, "mtype": 1_i32}
+                    ]}]
+                }))
+                .unwrap();
+                let response =
+                    drive_with_bidders(request, &AccountConfig::default(), body, bidders).await;
+                assert_eq!(response.seatbid.len(), bidders.len());
+                for seat in &response.seatbid {
+                    assert_eq!(
+                        seat.bid
+                            .iter()
+                            .map(|bid| bid.id.as_str())
+                            .collect::<Vec<_>>(),
+                        ["first", "second"]
+                    );
+                }
+                assert_eq!(wire_winners(&response), [(expected_bidder, "first")]);
+            }
+        });
+    }
+
+    #[test]
+    fn request_deal_preference_changes_only_the_selected_local_bid() {
+        block_on(async {
+            for (prefer_deals, expected_id) in [(false, "higher"), (true, "deal")] {
+                let mut request = base_request();
+                request.ext = Some(BidRequestExt {
+                    prebid: Some(ExtRequestPrebid {
+                        targeting: Some(ExtRequestTargeting {
+                            preferdeals: Some(prefer_deals),
+                            ..ExtRequestTargeting::default()
+                        }),
+                        ..ExtRequestPrebid::default()
+                    }),
+                    ..BidRequestExt::default()
+                });
+                let body = serde_json::to_vec(&serde_json::json!({
+                    "id": "deal-preference", "cur": "USD", "seatbid": [{"bid": [
+                        {"id": "higher", "impid": "imp-1", "price": 5.0_f64, "mtype": 1_i32},
+                        {"id": "deal", "impid": "imp-1", "price": 1.0_f64, "dealid": "fake_deal", "mtype": 1_i32}
+                    ]}]
+                })).unwrap();
+                let response = drive_with_body(request, &AccountConfig::default(), body).await;
+                assert_eq!(
+                    response.seatbid[0]
+                        .bid
+                        .iter()
+                        .map(|bid| bid.id.as_str())
+                        .collect::<Vec<_>>(),
+                    ["higher", "deal"]
+                );
+                assert_eq!(wire_winners(&response), [("fake_bb", expected_id)]);
+            }
+        });
+    }
+
+    #[test]
+    fn disabling_winner_keys_preserves_bids_and_bidder_keys() {
+        block_on(async {
+            for include_winners in [true, false] {
+                let mut request = base_request();
+                request.ext = Some(BidRequestExt {
+                    prebid: Some(ExtRequestPrebid {
+                        targeting: Some(ExtRequestTargeting {
+                            includewinners: Some(include_winners),
+                            includebidderkeys: Some(true),
+                            ..ExtRequestTargeting::default()
+                        }),
+                        ..ExtRequestPrebid::default()
+                    }),
+                    ..BidRequestExt::default()
+                });
+                let body = serde_json::to_vec(&serde_json::json!({
+                    "id": "winner-keys", "cur": "USD", "seatbid": [{"bid": [
+                        {"id": "lower", "impid": "imp-1", "price": 1.0_f64, "mtype": 1_i32},
+                        {"id": "higher", "impid": "imp-1", "price": 2.0_f64, "mtype": 1_i32}
+                    ]}]
+                }))
+                .unwrap();
+                let response = drive_with_body(request, &AccountConfig::default(), body).await;
+                assert_eq!(response.seatbid.len(), 1);
+                let bids = &response.seatbid[0].bid;
+                assert_eq!(
+                    bids.iter().map(|bid| bid.id.as_str()).collect::<Vec<_>>(),
+                    ["lower", "higher"]
+                );
+                for (bid, price_bucket) in bids.iter().zip(["1.00", "2.00"]) {
+                    let targeting = &bid.ext.as_ref().unwrap().prebid.as_ref().unwrap().targeting;
+                    assert_eq!(
+                        targeting.get("hb_bidder_fake_bb").map(String::as_str),
+                        Some("fake_bb")
+                    );
+                    assert_eq!(
+                        targeting.get("hb_pb_fake_bb").map(String::as_str),
+                        Some(price_bucket)
+                    );
+                    assert_eq!(
+                        targeting.get("hb_pb").map(String::as_str),
+                        (include_winners && bid.id == "higher").then_some("2.00")
+                    );
+                }
+                let expected = if include_winners {
+                    vec![("fake_bb", "higher")]
+                } else {
+                    Vec::new()
+                };
+                assert_eq!(wire_winners(&response), expected);
+            }
+        });
+    }
+
     async fn assert_auction_prefix(
         prefix: &str,
         truncate: Option<usize>,

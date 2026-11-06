@@ -313,6 +313,22 @@ mod tests {
             false,
         );
         assert_eq!(admitted_ids(&response, "fake_bb"), ["valid-1", "valid-2"]);
+        let bids = &response.seatbid[0].bid;
+        for (id, imp_id, price_bucket) in
+            [("valid-1", "own-1", "1.00"), ("valid-2", "own-2", "2.00")]
+        {
+            let bid = bids.iter().find(|bid| bid.id == id).unwrap();
+            assert_eq!(bid.impid, imp_id);
+            let targeting = &bid.ext.as_ref().unwrap().prebid.as_ref().unwrap().targeting;
+            assert_eq!(
+                targeting.get("hb_bidder").map(String::as_str),
+                Some("fake_bb")
+            );
+            assert_eq!(
+                targeting.get("hb_pb").map(String::as_str),
+                Some(price_bucket)
+            );
+        }
         let wire = serde_json::to_value(&response).unwrap();
         assert_eq!(
             wire["ext"]["errors"]["fake_bb"].as_array().unwrap().len(),

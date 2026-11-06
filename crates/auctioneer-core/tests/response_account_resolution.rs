@@ -190,6 +190,41 @@ mod tests {
     }
 
     #[test]
+    fn publisher_absence_does_not_select_the_explicit_unknown_account() {
+        let config = "schema_version = 1\n[host]\n[account_defaults]\ntargeting_prefix = \"default\"\n[accounts.unknown]\ntargeting_prefix = \"named\"\n";
+        for (named, expected_key, excluded_key) in [
+            (false, "default_bidder", "named_bidder"),
+            (true, "named_bidder", "default_bidder"),
+        ] {
+            let mut request: serde_json::Value =
+                serde_json::from_str(&fixture("configured_overlay_request.json")).unwrap();
+            assert_eq!(request["site"]["publisher"]["id"], ACCOUNT_ID);
+            if named {
+                request["site"]["publisher"]["id"] = serde_json::json!("unknown");
+            } else {
+                let removed = request["site"]["publisher"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("id")
+                    .expect("the before-state contains the publisher identity");
+                assert_eq!(removed, ACCOUNT_ID);
+            }
+            let (status, content_type, body) = drive(config, &request.to_string());
+            assert_eq!(status, StatusCode::OK, "named={named}");
+            assert_eq!(content_type.as_deref(), Some("application/json"));
+            let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            let seats = response["seatbid"].as_array().unwrap();
+            assert_eq!(seats.len(), 1);
+            let bids = seats[0]["bid"].as_array().unwrap();
+            assert_eq!(bids.len(), 1);
+            assert_eq!(bids[0]["id"], "bid-1");
+            let targeting = bids[0]["ext"]["prebid"]["targeting"].as_object().unwrap();
+            assert_eq!(targeting[expected_key], "fake_ac", "named={named}");
+            assert!(!targeting.contains_key(excluded_key), "named={named}");
+        }
+    }
+
+    #[test]
     fn disabled_account_overlay_is_a_503_with_the_plain_text_body() {
         let (status, content_type, body) =
             drive(DISABLED_TOML, &fixture("disabled_account_request.json"));
