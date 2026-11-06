@@ -8,7 +8,7 @@
 
 **Tech Stack:** Existing Rust workspace crates, serde/validator, existing EdgeZero/Fastly services, current bidder/schema generation, Viceroy and the existing Rust qualification and host-integration harnesses. No new dependency, crate, runtime plugin, configuration loader or numeric limit is authorized.
 
-**Contract:** [Trusted Server Fastly local-provider design](../specs/2026-11-05-trusted-server-fastly-local-provider-design.md). Both documents are pending maintainer approval. The maintainer explicitly requested joint spec/plan review; this is not implementation approval.
+**Contract:** [Trusted Server Fastly local-provider design](../specs/2026-11-05-trusted-server-fastly-local-provider-design.md). Both documents were approved and merged through [PR #152](https://github.com/IABTechLab/auctioneer/pull/152), commit `9b83deaa680ad8e867169db3b4ebb195b8a1b33c`. This approves the contract and decomposition, not unreviewed downstream APIs, changed limits or an integration-readiness claim.
 
 ---
 
@@ -40,11 +40,14 @@ Do not restructure unrelated bidder modules, refactor all host protocol code or 
 
 **Files:** This spec and plan. **Remote tracking:** #34, #51, #46/#47, #72-#75, #88-#90, #76 and the existing integration epic #8. No new implementation files.
 
-- [ ] Read the current issue discussions, pinned source files and actual dependency graph. Record the source revisions, required identities, plan-backed execution gap, SDK mismatch, targeting reconstruction and HTTP-only pending-handle gap against the code, not an earlier review.
-- [ ] Review C1-C10 with the host owner. Confirm that the local provider offers Auctioneer's selected candidate per slot to outer competition; accepted local candidates remain available for their bounded existing purposes, but are not reranked by an unrelated CPM-only reducer. Explicitly distinguish engine equivalence from host mediation/floors/creative outcomes.
-- [ ] Search both repositories for existing tasks before creating any. Keep shared preparation/host binding in #51, production local execution Trusted Server-owned, common discovery/schema work in #46/#47, fit in #72-#75, guest serving in #88-#90 and the combined host artifact in #76. Reconcile their acceptance/dependency descriptions with the discovered all-adapter contract before implementation; preserve existing project fields. Do not recreate #135, a parallel registry or another configuration epic.
-- [ ] Propose independently reviewable implementation tasks/PR boundaries and native blocked-by links. Preserve existing issue fields. New tasks use the existing shared project/type taxonomy and proposed P1 priority only after authorization; leave Size/assignee/dates unset unless approved. Cross-repository changes remain with their repository owner.
-- [ ] Review the written spec and plan together, record findings in their original threads and obtain maintainer approval. Run the full prescribed current-head acceptance matrix before claiming a completed planning handoff. Keep #34 open when the planning PR merges; verify its own contract/decomposition criteria and obtain closeout authorization separately. Do not make #34's contract acceptance depend on completing the downstream integration issues.
+- [x] Read the current issue discussions, pinned source files and actual dependency graph. Record the source revisions, required identities, plan-backed execution gap, SDK mismatch, targeting reconstruction and HTTP-only pending-handle gap against the code, not an earlier review.
+- [x] Review C1-C10 with the host owner. Confirm that the local provider offers Auctioneer's selected candidate per slot to outer competition; accepted local candidates remain available for their bounded existing purposes, but are not reranked by an unrelated CPM-only reducer. Explicitly distinguish engine equivalence from host mediation/floors/creative outcomes.
+- [x] Search both repositories for existing tasks before creating any. Keep shared preparation/host binding in #51, production local execution Trusted Server-owned, common discovery/schema work in #46/#47, fit in #72-#75, guest serving in #88-#90 and the combined host artifact in #76. Reconcile their acceptance/dependency descriptions with the discovered all-adapter contract before implementation; preserve existing project fields. Do not recreate #135, a parallel registry or another configuration epic.
+- [x] Propose independently reviewable implementation tasks/PR boundaries and native blocked-by links. Preserve existing issue fields. New tasks use the existing shared project/type taxonomy and proposed P1 priority only after authorization; leave Size/assignee/dates unset unless approved. Cross-repository changes remain with their repository owner.
+- [x] Review the written spec and plan together, record findings in their original threads and obtain maintainer approval. Run the full prescribed current-head acceptance matrix before claiming a completed planning handoff. Keep #34 open when the planning PR merges.
+- [ ] Complete review of #34's contract/decomposition closeout and obtain merge authorization before integrating it and closing the issue. Do not make its contract acceptance depend on completing the downstream integration issues.
+
+**Closeout progress:** PR #152 delivered the reviewed contract, with all 25 current-head checks passing before merge; that is planning evidence, not execution of C1-C10. The existing host coordination owner is [Trusted Server #1505](https://github.com/IABTechLab/trusted-server/issues/1505), so no duplicate host integration issue was created. The 12 existing Auctioneer ticket bodies in this package were reconciled and read back against the contract, preserving issue types, status, priority, size, assignment and milestones. #76 now has native blocked-by links to #51 and #88. Section 11 of the spec records the ownership and cycle constraints. #34 remains open pending closeout review and authorized integration; packages 2-7 remain unimplemented by this work.
 
 **Expected outcome:** A reviewed contract and executable ownership/dependency map. No new guest-serving capability, resource certification or host artifact is claimed.
 
@@ -209,8 +212,10 @@ Record missing facts or failed/external checks as nonpassing, with exact output 
 
 ## Planning PR Handoff
 
-- [ ] Update the spec's status to joint spec/plan review without representing it as approved for implementation.
-- [ ] Run a whole-pair independent document review and address material findings in both documents.
-- [ ] Verify only these planning documents differ from main, commit them without generated/co-author trailers, and push the dedicated planning branch after the authorized checks.
-- [ ] Open one non-draft planning PR against `main`, with `PRfection phase: plan`, `Refs #34`, links to both documents, source baseline, actual verification receipts and unexecuted/blocked checks. Do not use an issue-closing keyword.
-- [ ] Read back the URL, open/non-draft state, intended head/base and check status. Ask for joint document review; do not implement, close #34, resolve reviewer threads, or merge merely because the PR exists.
+Completed through PR #152 at the planning merge recorded above; these checks describe that historical handoff, not verification of a later implementation artifact.
+
+- [x] Update the spec's status to joint spec/plan review without representing it as approved for implementation.
+- [x] Run a whole-pair independent document review and address material findings in both documents.
+- [x] Verify only these planning documents differ from main, commit them without generated/co-author trailers, and push the dedicated planning branch after the authorized checks.
+- [x] Open one non-draft planning PR against `main`, with `PRfection phase: plan`, `Refs #34`, links to both documents, source baseline, actual verification receipts and unexecuted/blocked checks. Do not use an issue-closing keyword.
+- [x] Read back the URL, open/non-draft state, intended head/base and check status. Ask for joint document review; do not implement, close #34, resolve reviewer threads, or merge merely because the PR exists.
