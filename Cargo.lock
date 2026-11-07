@@ -195,7 +195,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "simple_logger",
  "tokio",
  "toml 0.8.23",
@@ -291,7 +291,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "syn 2.0.118",
  "tar",
  "tempfile",
@@ -346,7 +346,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "syn 2.0.118",
  "tar",
  "tempfile",
@@ -375,7 +375,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "syn 2.0.118",
  "tempfile",
  "time",
@@ -403,7 +403,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "syn 2.0.118",
  "time",
  "toml 0.8.23",
@@ -439,7 +439,7 @@ dependencies = [
  "png",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "subtle",
  "testing_logger",
  "thiserror 1.0.69",
@@ -516,7 +516,7 @@ dependencies = [
  "hex",
  "pulldown-cmark",
  "serde",
- "sha2 0.10.9",
+ "sha2 0.11.1",
  "thiserror 1.0.69",
  "time",
  "toml 0.8.23",
@@ -3499,17 +3499,6 @@ dependencies = [
  "cpufeatures 0.2.17",
  "digest 0.9.0",
  "opaque-debug",
-]
-
-[[package]]
-name = "sha2"
-version = "0.10.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.2.17",
- "digest 0.10.7",
 ]
 
 [[package]]
