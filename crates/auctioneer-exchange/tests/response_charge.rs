@@ -22,6 +22,7 @@ mod tests {
     use auctioneer_config_data::types::MAX_BIDDER_NAME_BYTES;
     use auctioneer_exchange::construction_costs;
     use auctioneer_exchange::scrub::DisclosureAudit;
+    use auctioneer_exchange::targeting::Winner;
     use auctioneer_exchange::{
         AuctionDeadline, AuctionError, BidderCall, BidderCallResult, BidderFanout,
         BidderResultBundle, FanoutInternalError, ResponseInput, build_response,
@@ -202,7 +203,7 @@ mod tests {
                 json!({"id":"b","impid":"i","price":1_i32}),
             ),
         ] {
-            let result = thread::spawn(move || {
+            let (peak, margin, funded) = thread::spawn(move || {
                 assert!(bidder.len() <= MAX_BIDDER_NAME_BYTES);
                 let raw = response(&bid, count);
                 assert!(raw.len() <= 256 * 1024);
@@ -227,21 +228,24 @@ mod tests {
                 let rng = SeededRng::new(42);
                 let decoded = u64::try_from(raw.len()).unwrap() * (1 + ASSEMBLY_FACTOR + RESPONSE_PARSE_FACTOR + RESPONSE_ASSEMBLY_FACTOR) + HEADER_MAP_CHARGE;
                 let bidder_bytes = serialized_json_bytes(&bidder).unwrap();
-                // Response ID/global containers and one candidate identity;
-                // unrelated request fields do not belong to this allowance.
+                // Preserve the original allocation-margin oracle separately
+                // from the exact synthetic receipt's new identity preflight.
                 let metadata_bytes = u64::try_from(req.id.len() + 128 + 2 * bidder.len() + 128).unwrap();
                 let bookkeeping = 4 * (metadata_bytes + 32 * 384);
+                assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
+                let retained_identity = 4 * (64 + 1 + u64::try_from(bidder.len()).unwrap() + 8 * 384);
                 let targeting = u64::try_from(count).unwrap() * (serialized_json_bytes(&prefix).unwrap() + bidder_bytes + 64) * RESPONSE_ASSEMBLY_FACTOR;
                 let ordinary_funded = bookkeeping + decoded + targeting;
                 let debug = debug_peak_bytes(u32::try_from(host.resource_limits.max_outbound_requests).unwrap()).unwrap();
-                let funded = ordinary_funded + debug;
+                let funded = ordinary_funded + retained_identity + debug;
                 let budget = AuctionBudget::new(funded);
                 let receipt = budget.try_reserve(ChargeKind::Response, funded).unwrap();
                 let fanout = MeasuredFanout {body:raw, baseline:AtomicI64::new(0)};
                 let mut ctx = AuctionContext::with_request_start(clock.now_monotonic(), &host, &account, &registry, &fanout, &clock, &rng, GvlStore::baked(), Gcl::baked(), clock.now(), false);
                 ctx.response_reservation = Some(&receipt);
                 let mut audit = DisclosureAudit::default();
-                let output = block_on(run_auction(&req, &ctx, &plan, &mut audit)).unwrap();
+                let output = block_on(run_auction(&req, &ctx, &plan, &mut audit)).unwrap()
+                    .into_bid_response().unwrap();
                 assert_eq!(output.seatbid.iter().map(|seat| seat.bid.len()).sum::<usize>(), count);
                 assert!(output.seatbid[0].bid[0].ext.as_ref().unwrap().prebid.as_ref().unwrap().targeting.contains_key("hb_bidder"));
                 serde_json::to_writer(io::sink(), &output).unwrap();
@@ -254,10 +258,7 @@ mod tests {
             }).join().unwrap();
             writeln!(
                 io::stderr(),
-                "auction/{name}: peak={} margin={} funded={}",
-                result.0,
-                result.1,
-                result.2
+                "auction/{name}: peak={peak} margin={margin} funded={funded}"
             )
             .unwrap();
         }
@@ -354,7 +355,8 @@ mod tests {
                 );
                 let before = alloc_track::reset_peak();
                 let mut audit = DisclosureAudit::default();
-                let result = block_on(run_auction(&req, &ctx, &plan, &mut audit));
+                let result = block_on(run_auction(&req, &ctx, &plan, &mut audit))
+                    .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
                 let peak = alloc_track::peak_since(before);
                 assert!(
                     peak < 4 * host.resource_limits.max_outbound_raw_bytes,
@@ -509,6 +511,16 @@ mod tests {
         coverage: Option<Vec<Vec<&'static str>>>,
         held_response: Option<u64>,
     ) -> BrowserObserved {
+        browser_receipt_case_inspecting(input, bodies, coverage, held_response, |_| {})
+    }
+
+    fn browser_receipt_case_inspecting(
+        input: Value,
+        bodies: &[(u16, Vec<u8>)],
+        coverage: Option<Vec<Vec<&'static str>>>,
+        held_response: Option<u64>,
+        inspect: impl FnOnce(&auctioneer_exchange::AuctionOutcome),
+    ) -> BrowserObserved {
         use auctioneer_config_data::types::AccountConfig;
         use auctioneer_exchange::{
             AccountSource, AuctionContext, AuctionPlan, ResolvedAccount, resolve_aliases,
@@ -580,7 +592,10 @@ mod tests {
         let mut audit = DisclosureAudit::default();
         let before = alloc_track::reset_peak();
         let allocated_before = alloc_track::allocated();
-        let result = block_on(run_auction(&request, &ctx, &plan, &mut audit));
+        let result = block_on(run_auction(&request, &ctx, &plan, &mut audit)).and_then(|outcome| {
+            inspect(&outcome);
+            outcome.into_bid_response()
+        });
         // Snapshot before serialization so acceptance/refusal timing compares
         // the same engine work, even when an earlier parse peak is larger.
         let allocated = alloc_track::allocated()
@@ -618,11 +633,30 @@ mod tests {
         let payload = json!({"bidder": "fake_forged", "adapter": "fake_forged", "nested": [1_i32, {"k": true}]});
         let row = browser_config("i", &payload);
         let body = browser_response(&[row], "USD", 0);
-        let observed = browser_receipt_case(
+        let observed = browser_receipt_case_inspecting(
             browser_request(&names),
             &[(200, body.clone()), (200, body)],
             None,
             None,
+            |outcome| {
+                assert_eq!(outcome.impression_ids(), ["i"]);
+                assert_eq!(outcome.winners().len(), 1);
+                assert!(outcome.winners()[0].is_none());
+                assert!(outcome.selected_bid(0).is_none());
+                assert_eq!(outcome.bidders().len(), 2);
+                for name in ["fake_a", "fake_z"] {
+                    let bundle = &outcome.bidders()[&BidderName::new(name)];
+                    assert!(bundle.bids.is_empty());
+                    assert!(bundle.errors.is_empty());
+                    assert!(bundle.dispatched);
+                    let browser = bundle.browser_auctions.as_ref().unwrap();
+                    assert_eq!(browser.adapter.as_str(), "fake_bb____");
+                    assert_eq!(browser.configs.len(), 1);
+                    assert_eq!(browser.configs[0].imp_id, "i");
+                    assert_eq!(browser.configs[0].config, payload);
+                }
+                assert!(outcome.response_material().prebid_errors.is_empty());
+            },
         );
         assert_eq!(observed.dispatched, 2);
         let wire = browser_wire(&observed);
@@ -951,7 +985,9 @@ mod tests {
         let body = browser_response(&entries, "USD", 0);
         assert!(body.len() <= 32 * 1024);
         assert!(count_json_nodes(&body, 512).unwrap() <= 512);
-        let bookkeeping = 4 * (1 + 128 + 2 * u64::try_from(alias.len()).unwrap() + 128 + 32 * 384);
+        assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
+        let bookkeeping =
+            4 * (1 + 128 + 3 * u64::try_from(alias.len()).unwrap() + 128 + 64 + 1 + 40 * 384);
         let decoded = u64::try_from(body.len()).unwrap()
             * (1 + ASSEMBLY_FACTOR + RESPONSE_PARSE_FACTOR + RESPONSE_ASSEMBLY_FACTOR)
             + HEADER_MAP_CHARGE;
@@ -1378,10 +1414,12 @@ mod tests {
         // Add the already-live response buffers/metadata to the engine peak;
         // retaining them while decoding/assembling is not allocation-free.
         let before = alloc_track::reset_peak();
-        let result = block_on(run_auction(&request, &ctx, &plan, &mut audit)).map(|output| {
-            serde_json::to_writer(io::sink(), &output).unwrap();
-            serde_json::to_value(output).unwrap()
-        });
+        let result = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+            .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response)
+            .map(|output| {
+                serde_json::to_writer(io::sink(), &output).unwrap();
+                serde_json::to_value(output).unwrap()
+            });
         let peak = alloc_track::peak_since(before)
             .checked_add(fanout.retained)
             .unwrap();
@@ -1462,7 +1500,10 @@ mod tests {
             for over in [false, true] {
                 thread::spawn(move || {
                     let imp_id = "\0\n\"\\";
-                    let id_bytes = if visible { 206_usize } else { 242 } + usize::from(over);
+                    // The fixed 512-byte cap now also admits a 64-byte identity/
+                    // selection slot, four impression bytes and seven name bytes.
+                    assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
+                    let id_bytes = if visible { 131_usize } else { 167 } + usize::from(over);
                     let id = "\0".repeat(id_bytes);
                     let input = json!({"id": id, "site": {"id": "s"},
                         "imp": [{"id": imp_id, "banner": {"w": 300_i32, "h": 250_i32}, "ext": {"bidder": {"fake_bb": {}}}}],
@@ -1493,9 +1534,10 @@ mod tests {
     fn zero_call_global_warning_and_response_id_share_the_metadata_cap() {
         for over in [false, true] {
             thread::spawn(move || {
-                // Response ID/global fields, one identity and one fixed global
-                // warning use exactly 512 bytes, without a decoded-call term.
-                let id = "\0".repeat(184 + usize::from(over));
+                // Response/global fields, bidder and impression/selection
+                // identities, and the warning use the same exact 512-byte cap.
+                assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
+                let id = "\0".repeat(112 + usize::from(over));
                 let input = json!({"id": id, "test": 1_i32, "site": {"id": "s"},
                     "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32}, "ext": {"bidder": {"fake_bb": {}}}}]});
                 let observed = runtime_receipt_case(input, 0, true, 512);

@@ -100,11 +100,11 @@ The allocation sweep independently varied seat byte lengths `0/8/1024/32768` and
 
 **Files:** Exchange `src/{lib,response,outcome}.rs`, `src/run/mod.rs`; every existing caller from Task 1, including the current core handler. Existing `run_auction`, `determinism`, `targeting_prefix`, correlation and response allocation owners.
 
-- [ ] Add red outcome tests for retained selection when winner keys are disabled, nondefault/truncated targeting prefixes, equal prices, deal preference, repeated impression matches and multiple bids in one bidder vector. Assert candidate presence and the exact selected bid index, not only a price.
-- [ ] Make `apply_targeting` return/move its existing impression-aligned winners instead of dropping them. Construct private `AuctionOutcome` from the existing owned typed response material, retained request/impression identity, selection and finalized permitted debug; add read-only typed candidate/diagnostic/browser views. Admit the bounded retained identity owner before allocating it. No second winner reducer or reconstructed targeting map.
-- [ ] Change the existing `run_auction` return type and all early exits to that outcome. Add its consuming `into_bid_response` projection around existing `build_response`; preserve ID, timestamps, error/nonbid behavior, debug deadline/permissions, media and full bid objects.
-- [ ] Migrate every current wire-oriented caller explicitly to the projection in this same green checkpoint. Do not add `run_auction_with_*` compatibility alternatives or clone all bids to satisfy borrowing. Ensure the debug capture is finalized once while its clock/context is still valid.
-- [ ] Compare typed selections and the unchanged wire projection against independent expected results. Prove browser-only success, bidder-local errors and timeout diagnostics survive no-winner exits. Run allocation/retention controls, commit the green hard cut and preserve low-level caller funding responsibilities.
+- [x] Add red outcome tests for retained selection when winner keys are disabled, nondefault/truncated targeting prefixes, equal prices, deal preference, repeated impression matches and multiple bids in one bidder vector. Assert candidate presence and the exact selected bid index, not only a price.
+- [x] Make `apply_targeting` return/move its existing impression-aligned winners instead of dropping them. Construct private `AuctionOutcome` from the existing owned typed response material, retained request/impression identity, selection and finalized permitted debug; add read-only typed candidate/diagnostic/browser views. Admit the bounded retained identity owner before allocating it. No second winner reducer or reconstructed targeting map.
+- [x] Change the existing `run_auction` return type and all early exits to that outcome. Add its consuming `into_bid_response` projection around existing `build_response`; preserve ID, timestamps, error/nonbid behavior, debug deadline/permissions, media and full bid objects.
+- [x] Migrate every current wire-oriented caller explicitly to the projection in this same green checkpoint. Do not add `run_auction_with_*` compatibility alternatives or clone all bids to satisfy borrowing. Ensure the debug capture is finalized once while its clock/context is still valid.
+- [x] Compare typed selections and the unchanged wire projection against independent expected results. Prove browser-only success, bidder-local errors and timeout diagnostics survive no-winner exits. Run allocation/retention controls, commit the green hard cut and preserve low-level caller funding responsibilities.
 
 ```sh
 cargo test --locked -p auctioneer-exchange --lib targeting::winner::
@@ -113,6 +113,8 @@ cargo test --locked -p auctioneer-exchange --test response_charge --test respons
 cargo test --locked -p auctioneer-core --test handler_resolution
 cargo check --locked --workspace --all-targets
 ```
+
+Executed native outcome checkpoint: the missing public outcome produced the expected red build. The final exchange command selection (library plus the ten outcome/response owners, including expired diagnostics) executed `390 passed; 0 failed; 0 ignored`. The four migrated core caller owners executed `21 passed; 0 failed`, and source-import isolation executed `16 passed; 0 failed`. Workspace all-target compilation and strict core/exchange library/test Clippy passed; the final receipt-test-only lint also passed. Exact synthetic receipts now include the measured 64-byte native impression/selection slots and their retained names, while the original allocation-margin oracles, production limits and additive funding remain unchanged. Their one-byte-under refusal and parser-invocation assertions are preserved. Static internal specification and quality reviews found no remaining contract gap. These controls do not complete the shared preparation/funding API or the final feature/guest/host matrix.
 
 ## Task 5: Factor Explicit Preparation, Restrictions And Timing
 

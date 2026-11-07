@@ -205,7 +205,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("the auction answers");
+                .expect("the auction answers")
+                .into_bid_response()
+                .unwrap();
             serde_json::to_value(resp.ext.as_ref().expect("ext is present"))
                 .expect("ext serializes")
         })

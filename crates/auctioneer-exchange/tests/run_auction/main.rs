@@ -21,6 +21,7 @@ mod tests {
     use auctioneer_bidder::{BidderHttpResponse, BidderName, BidderRegistry, DebugBodySchema};
     use auctioneer_config_data::types::{AccountConfig, BidderInfo, HostConfig, ResourceLimits};
     use auctioneer_exchange::scrub::DisclosureAudit;
+    use auctioneer_exchange::targeting::Winner;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,
         BidderFanout, FanoutInternalError, ResolvedAccount, ResolvedAliases, run_auction,
@@ -200,7 +201,10 @@ mod tests {
             BTreeMap::new(),
         );
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(&request, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let timings = response.ext.as_ref().unwrap()["responsetimemillis"]
             .as_object()
             .unwrap();
@@ -503,13 +507,16 @@ mod tests {
                     (0_u32..32).map(|n| json!({"id":n.to_string(),"impid":"i","price":1_i32})).collect::<Vec<_>>()
                 }]})).unwrap()] };
             let bidder_bytes = serialized_json_bytes(&name).unwrap();
-            // Response ID/global fields and one candidate identity, each with
-            // 16 nodes. Prefix/FPD bytes are not request-derived metadata.
+            // Include retained impression/selection owners in the exact test
+            // receipt; prefix/FPD bytes remain outside this metadata allowance.
+            assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
             let metadata_bytes = u64::try_from(req.id.len()).unwrap()
                 + 128
-                + 2 * u64::try_from(name.len()).unwrap()
-                + 128;
-            let bookkeeping = 4 * (metadata_bytes + 32 * NODE_RETAINED_BYTES);
+                + 3 * u64::try_from(name.len()).unwrap()
+                + 128
+                + 64
+                + 1;
+            let bookkeeping = 4 * (metadata_bytes + 40 * NODE_RETAINED_BYTES);
             let decoded = u64::try_from(fanout.bodies[0].len()).unwrap()
                 * (1 + ASSEMBLY_FACTOR + RESPONSE_PARSE_FACTOR + RESPONSE_ASSEMBLY_FACTOR)
                 + HEADER_MAP_CHARGE;
@@ -540,7 +547,10 @@ mod tests {
                 false,
             );
             let mut control_audit = DisclosureAudit::default();
-            let control = block_on(run_auction(&req, &ctx, &plan, &mut control_audit)).unwrap();
+            let control = block_on(run_auction(&req, &ctx, &plan, &mut control_audit))
+                .unwrap()
+                .into_bid_response()
+                .unwrap();
             assert_eq!(
                 control
                     .seatbid
@@ -638,7 +648,7 @@ mod tests {
                 }
                 let identity_bytes = bidders
                     .keys()
-                    .map(|name| 2 * u64::try_from(name.len()).unwrap() + 128)
+                    .map(|name| 3 * u64::try_from(name.len()).unwrap() + 128)
                     .sum::<u64>();
                 let count = u64::try_from(bidders.len()).unwrap();
                 let nonbid_bytes = if visible {
@@ -646,9 +656,14 @@ mod tests {
                 } else {
                     0
                 };
-                let metadata_bytes =
-                    u64::try_from(req.id.len()).unwrap() + 128 + identity_bytes + nonbid_bytes;
-                let metadata_nodes = 16 + count * (16 + 8 * u64::from(visible));
+                assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
+                let metadata_bytes = u64::try_from(req.id.len()).unwrap()
+                    + 128
+                    + identity_bytes
+                    + nonbid_bytes
+                    + 64
+                    + 1024;
+                let metadata_nodes = 24 + count * (16 + 8 * u64::from(visible));
                 let bookkeeping = 4 * (metadata_bytes + metadata_nodes * NODE_RETAINED_BYTES);
                 let capacity = bookkeeping + debug_peak_bytes(100).unwrap();
                 let budget = AuctionBudget::new(capacity);
@@ -668,7 +683,10 @@ mod tests {
                 );
                 ctx.response_reservation = Some(&full_receipt);
                 let mut control_audit = DisclosureAudit::default();
-                let control = block_on(run_auction(&req, &ctx, &plan, &mut control_audit)).unwrap();
+                let control = block_on(run_auction(&req, &ctx, &plan, &mut control_audit))
+                    .unwrap()
+                    .into_bid_response()
+                    .unwrap();
                 let ext = control.ext.as_ref().unwrap();
                 assert_eq!(ext["warnings"].as_object().unwrap().len(), bidders.len());
                 if visible {
@@ -875,7 +893,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("run_auction succeeds");
+                .expect("run_auction succeeds")
+                .into_bid_response()
+                .unwrap();
             assert_eq!(resp.id, "auc-1");
             assert_eq!(resp.cur, "USD");
             let raw = serde_json::to_string(resp.ext.as_ref().unwrap()).unwrap();
@@ -940,6 +960,8 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
+                .unwrap()
+                .into_bid_response()
                 .unwrap();
             let raw = serde_json::to_string(resp.ext.as_ref().unwrap()).unwrap();
             assert!(raw.contains("\"prebid\""));
@@ -1019,7 +1041,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("run_auction succeeds");
+                .expect("run_auction succeeds")
+                .into_bid_response()
+                .unwrap();
             let responsetimemillis = resp
                 .ext
                 .as_ref()
@@ -1108,7 +1132,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("the auction answers");
+                .expect("the auction answers")
+                .into_bid_response()
+                .unwrap();
             let raw = serde_json::to_string(&resp.ext).expect("ext serializes");
             raw.contains("\"code\":12")
         })

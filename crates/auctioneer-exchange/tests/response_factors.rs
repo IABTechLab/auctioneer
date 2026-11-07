@@ -313,6 +313,7 @@ mod tests {
                 bundles: BTreeMap::from([(
                     BidderName::new("fake_bb"),
                     BidderResultBundle {
+                        implementation: None,
                         bids,
                         errors: vec![],
                         warnings: vec![],
@@ -406,6 +407,7 @@ mod tests {
             bundles.insert(
                 BidderName::new("fake_bb"),
                 BidderResultBundle {
+                    implementation: None,
                     bids,
                     errors: vec![],
                     warnings: vec![],

@@ -370,7 +370,10 @@ mod tests {
             BTreeMap::new(),
         );
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(request, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(request, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         assert_eq!(response.id, request.id);
         assert!(response.seatbid.is_empty());
         assert_eq!(

@@ -180,6 +180,8 @@ mod tests {
         run_auction(&normalized, &ctx, &plan, &mut audit)
             .await
             .unwrap()
+            .into_bid_response()
+            .unwrap()
     }
 
     #[test]

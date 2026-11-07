@@ -31,8 +31,8 @@ use auctioneer_exchange::context::RequestConstructionLimits;
 use auctioneer_exchange::debug::DebugPermission;
 use auctioneer_exchange::scrub::DisclosureAudit;
 use auctioneer_exchange::{
-    AuctionContext, AuctionError, AuctionPlan, BidderFanout, BootEnvelope, ResolvedAccount,
-    resolve_aliases, run_auction,
+    AuctionContext, AuctionError, AuctionOutcome, AuctionPlan, BidderFanout, BootEnvelope,
+    ResolvedAccount, resolve_aliases, run_auction,
 };
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_openrtb::types::bid_response::BidResponse;
@@ -577,6 +577,7 @@ async fn auction_inner(
         .transpose()?;
     let mut resp = run_auction(&normalized, &ctx_auction, &plan, audit)
         .await
+        .and_then(AuctionOutcome::into_bid_response)
         .map_err(HandlerError::from_auction_error)?;
     record_gvl_unavailable(
         &resp,

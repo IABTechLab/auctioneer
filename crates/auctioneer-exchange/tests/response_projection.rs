@@ -83,6 +83,7 @@ mod tests {
             bundles: BTreeMap::from([(
                 BidderName::new("fake_alias"),
                 BidderResultBundle {
+                    implementation: None,
                     bids: decoded.bids,
                     errors: decoded
                         .errors

@@ -179,6 +179,8 @@ mod tests {
             &plan,
             &mut DisclosureAudit::default(),
         ))
+        .unwrap()
+        .into_bid_response()
         .unwrap();
         assert!(
             shadowed.lock().unwrap().is_empty(),

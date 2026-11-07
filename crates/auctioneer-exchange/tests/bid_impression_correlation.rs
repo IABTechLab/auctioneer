@@ -223,7 +223,10 @@ mod tests {
             BTreeMap::new(),
         );
         let mut audit = DisclosureAudit::default();
-        block_on(run_auction(&normalized, &ctx, &plan, &mut audit)).unwrap()
+        block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap()
     }
 
     fn admitted_ids(response: &BidResponse, seat: &str) -> Vec<String> {

@@ -520,7 +520,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("run_auction succeeds");
+                .expect("run_auction succeeds")
+                .into_bid_response()
+                .unwrap();
             resp.ext
                 .as_ref()
                 .and_then(|ext| ext.get("responsetimemillis"))
@@ -633,7 +635,8 @@ mod tests {
         ctx.projection_reservation = Some(&receipt);
         ctx.construction_limits = construction_limits;
         let mut audit = DisclosureAudit::default();
-        let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit));
+        let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
         assert_projection_dispatch(
             &result,
             &audit,

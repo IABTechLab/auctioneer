@@ -573,7 +573,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("the auction completes");
+                .expect("the auction completes")
+                .into_bid_response()
+                .expect("the response projects");
         });
 
         let recorded = fanout

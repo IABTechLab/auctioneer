@@ -340,7 +340,8 @@ impl Harness {
             &overrides,
         );
         let mut audit = DisclosureAudit::default();
-        let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit));
+        let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
         assert_eq!(
             serde_json::to_value(&*normalized).unwrap(),
             original,

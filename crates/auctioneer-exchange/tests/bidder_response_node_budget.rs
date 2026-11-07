@@ -209,7 +209,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("run_auction succeeds");
+                .expect("run_auction succeeds")
+                .into_bid_response()
+                .unwrap();
             let ext = resp
                 .ext
                 .as_ref()

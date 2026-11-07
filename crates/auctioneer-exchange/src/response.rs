@@ -36,6 +36,9 @@ pub struct NonBidRow {
 /// lexicographic.
 #[derive(Default)]
 pub struct BidderResultBundle {
+    /// Discovered implementation binding, distinct from alias and upstream seat.
+    /// Low-level callers without bindings retain `None`, never a guessed name.
+    pub implementation: Option<&'static str>,
     pub bids: Vec<TypedBid>,
     pub errors: Vec<ErrorEntry>,
     pub warnings: Vec<ErrorEntry>,

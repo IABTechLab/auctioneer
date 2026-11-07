@@ -277,7 +277,10 @@ mod tests {
             &timeouts,
         );
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         assert_eq!(*fanout.0.lock().unwrap(), vec![(0x2000, 0x4000)]);
         let ext = response.ext.as_ref().unwrap();
         assert_eq!(ext["warnings"]["fake_bz"].as_array().unwrap().len(), 1);
@@ -428,6 +431,8 @@ mod tests {
         run_auction(&normalized, &ctx, &plan, &mut audit)
             .await
             .unwrap()
+            .into_bid_response()
+            .unwrap()
     }
 
     async fn drive(host: &HostConfig, account: &AccountConfig) -> BidResponse {
@@ -550,6 +555,8 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
+                .unwrap()
+                .into_bid_response()
                 .unwrap();
 
             // Only `fake_bb` produced a seat row.
@@ -695,6 +702,8 @@ mod tests {
                 let mut audit = DisclosureAudit::default();
                 run_auction(&normalized, &ctx, &plan, &mut audit)
                     .await
+                    .unwrap()
+                    .into_bid_response()
                     .unwrap()
             }
 

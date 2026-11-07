@@ -479,7 +479,10 @@ impl Engine {
         } else {
             Some(
                 serde_json::to_value(
-                    block_on(run_auction(&self.request, &ctx, &plan, &mut audit)).unwrap(),
+                    block_on(run_auction(&self.request, &ctx, &plan, &mut audit))
+                        .unwrap()
+                        .into_bid_response()
+                        .unwrap(),
                 )
                 .unwrap(),
             )

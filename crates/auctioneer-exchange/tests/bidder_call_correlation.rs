@@ -373,7 +373,10 @@ mod tests {
             BTreeMap::new(),
         );
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(&request, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let observed = mem::take(&mut *trace.lock().unwrap());
         (response, observed)
     }

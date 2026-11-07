@@ -50,8 +50,8 @@ use auctioneer_config_data::types::BidderInfo;
 use auctioneer_exchange::fanout::{TransportError, TransportErrorKind};
 use auctioneer_exchange::scrub::DisclosureAudit;
 use auctioneer_exchange::{
-    AccountSource, AuctionContext, AuctionDeadline, AuctionError, AuctionPlan, BidderCall,
-    BidderCallResult, BidderFanout, Compression, ExchangeFeatures, FanoutError,
+    AccountSource, AuctionContext, AuctionDeadline, AuctionError, AuctionOutcome, AuctionPlan,
+    BidderCall, BidderCallResult, BidderFanout, Compression, ExchangeFeatures, FanoutError,
     FanoutInternalError, OversizeOrigin, ResolvedAccount, ResolvedAliases, TimeoutCause,
     TmaxSource, UNRESOLVED_ACCOUNT_ID, run_auction,
 };
@@ -1137,6 +1137,7 @@ fn drive_run_auction_with(
     );
     let mut audit = DisclosureAudit::default();
     block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+        .and_then(AuctionOutcome::into_bid_response)
 }
 
 // ---------------------------------------------------------------------

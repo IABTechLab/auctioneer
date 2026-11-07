@@ -18,14 +18,16 @@ mod tests {
     use async_trait::async_trait;
     use futures::executor::block_on;
 
-    use auctioneer_bidder::{Bidder, BidderHttpResponse, BidderRegistry};
+    use auctioneer_bidder::{Bidder, BidderHttpResponse, BidderName, BidderRegistry};
     use auctioneer_config_data::types::{
-        AccountConfig, BidderInfo, Capabilities, HostConfig, MediaType, ResourceLimits,
+        AccountConfig, BidderImplementationBinding, BidderInfo, Capabilities, HostConfig,
+        MediaType, ResourceLimits,
     };
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
-        AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,
-        BidderFanout, FanoutInternalError, ResolvedAccount, ResolvedAliases, run_auction,
+        AccountSource, AuctionContext, AuctionDeadline, AuctionOutcome, AuctionPlan, BidderCall,
+        BidderCallResult, BidderFanout, FanoutInternalError, ResolvedAccount, ResolvedAliases,
+        run_auction,
     };
     use auctioneer_openrtb::ext::imp::ImpExt;
     use auctioneer_openrtb::ext::request_prebid::{ExtRequestPrebid, ExtRequestTargeting};
@@ -156,7 +158,20 @@ mod tests {
         body: Vec<u8>,
         bidders: &[&'static str],
     ) -> BidResponse {
-        drive_with_adapters(
+        drive_outcome_with_bidders(request, account, body, bidders)
+            .await
+            .into_bid_response()
+            .unwrap()
+    }
+
+    async fn drive_outcome_with_bidders(
+        request: BidRequest,
+        account: &AccountConfig,
+        body: Vec<u8>,
+        bidders: &[&'static str],
+    ) -> AuctionOutcome {
+        // Keep the fixture's nested typed/wire facades off the caller's stack.
+        Box::pin(drive_outcome_with_adapters(
             request,
             account,
             body,
@@ -167,7 +182,7 @@ mod tests {
                     (name, adapter)
                 })
                 .collect(),
-        )
+        ))
         .await
     }
 
@@ -177,6 +192,26 @@ mod tests {
         body: Vec<u8>,
         adapters: Vec<(&'static str, Box<dyn Bidder>)>,
     ) -> BidResponse {
+        drive_outcome_with_adapters(request, account, body, adapters)
+            .await
+            .into_bid_response()
+            .unwrap()
+    }
+
+    async fn drive_outcome_with_adapters(
+        request: BidRequest,
+        account: &AccountConfig,
+        body: Vec<u8>,
+        adapters: Vec<(&'static str, Box<dyn Bidder>)>,
+    ) -> AuctionOutcome {
+        let mut bindings: Vec<_> = adapters
+            .iter()
+            .map(|(name, _)| BidderImplementationBinding {
+                bidder: name,
+                implementation: "fake_bidder",
+            })
+            .collect();
+        bindings.sort_unstable_by_key(|binding| binding.bidder);
         let mut registry = BidderRegistry::new();
         for (bidder, adapter) in adapters {
             registry
@@ -194,7 +229,7 @@ mod tests {
         let normalized =
             prepare(request, &RequestHeaders::default(), &IMP_CAP_NOT_UNDER_TEST).unwrap();
         let fanout = CannedFanout { body };
-        let ctx = AuctionContext::with_request_start(
+        let mut ctx = AuctionContext::with_request_start(
             clock.now_monotonic(),
             &host,
             &resolved,
@@ -207,6 +242,7 @@ mod tests {
             clock.now(),
             false,
         );
+        ctx.bidder_bindings = &bindings;
         let plan = AuctionPlan::new(
             ResolvedAliases::empty(),
             BTreeSet::new(),
@@ -440,8 +476,15 @@ mod tests {
                     ]}]
                 }))
                 .unwrap();
-                let response =
-                    drive_with_bidders(request, &AccountConfig::default(), body, bidders).await;
+                let outcome =
+                    drive_outcome_with_bidders(request, &AccountConfig::default(), body, bidders)
+                        .await;
+                let selected = outcome.selected_bid(0).unwrap();
+                assert_eq!(selected.requested_bidder.as_str(), expected_bidder);
+                assert_eq!(selected.bid_index, 0);
+                assert_eq!(selected.bid.bid.id, "first");
+                assert_eq!(selected.implementation, Some("fake_bidder"));
+                let response = outcome.into_bid_response().unwrap();
                 assert_eq!(response.seatbid.len(), bidders.len());
                 for seat in &response.seatbid {
                     assert_eq!(
@@ -460,7 +503,9 @@ mod tests {
     #[test]
     fn request_deal_preference_changes_only_the_selected_local_bid() {
         block_on(async {
-            for (prefer_deals, expected_id) in [(false, "higher"), (true, "deal")] {
+            for (prefer_deals, expected_id, expected_index) in
+                [(false, "higher", 0), (true, "deal", 1)]
+            {
                 let mut request = base_request();
                 request.ext = Some(BidRequestExt {
                     prebid: Some(ExtRequestPrebid {
@@ -478,7 +523,17 @@ mod tests {
                         {"id": "deal", "impid": "imp-1", "price": 1.0_f64, "dealid": "fake_deal", "mtype": 1_i32}
                     ]}]
                 })).unwrap();
-                let response = drive_with_body(request, &AccountConfig::default(), body).await;
+                let outcome = drive_outcome_with_bidders(
+                    request,
+                    &AccountConfig::default(),
+                    body,
+                    &["fake_bb"],
+                )
+                .await;
+                let selected = outcome.selected_bid(0).unwrap();
+                assert_eq!(selected.bid.bid.id, expected_id);
+                assert_eq!(selected.bid_index, expected_index);
+                let response = outcome.into_bid_response().unwrap();
                 assert_eq!(
                     response.seatbid[0]
                         .bid
@@ -515,7 +570,16 @@ mod tests {
                     ]}]
                 }))
                 .unwrap();
-                let response = drive_with_body(request, &AccountConfig::default(), body).await;
+                let outcome = drive_outcome_with_bidders(
+                    request,
+                    &AccountConfig::default(),
+                    body,
+                    &["fake_bb"],
+                )
+                .await;
+                assert_eq!(outcome.selected_bid(0).unwrap().bid.bid.id, "higher");
+                assert_eq!(outcome.selected_bid(0).unwrap().bid_index, 1);
+                let response = outcome.into_bid_response().unwrap();
                 assert_eq!(response.seatbid.len(), 1);
                 let bids = &response.seatbid[0].bid;
                 assert_eq!(
@@ -543,6 +607,135 @@ mod tests {
                     Vec::new()
                 };
                 assert_eq!(wire_winners(&response), expected);
+            }
+        });
+    }
+
+    #[test]
+    fn bidder_local_errors_survive_the_unselected_typed_outcome_and_wire_projection() {
+        block_on(async {
+            let body = serde_json::to_vec(&serde_json::json!({
+                "id":"r", "cur":"USD", "seatbid":[{"bid":[
+                    {"id":"bad-one", "impid":"imp-1", "price":5_i32, "mtype":0_i32},
+                    {"id":"bad-two", "impid":"imp-1", "price":7_i32, "mtype":9_i32}
+                ]}]
+            }))
+            .unwrap();
+            let outcome = drive_outcome_with_bidders(
+                base_request(),
+                &AccountConfig::default(),
+                body,
+                &["fake_bb"],
+            )
+            .await;
+            assert_eq!(outcome.impression_ids(), ["imp-1"]);
+            assert_eq!(outcome.winners().len(), 1);
+            assert!(outcome.winners()[0].is_none());
+            assert!(outcome.selected_bid(0).is_none());
+            let bundle = &outcome.bidders()[&BidderName::new("fake_bb")];
+            assert!(bundle.bids.is_empty());
+            assert!(bundle.dispatched);
+            assert_eq!(bundle.errors.len(), 2);
+            assert!(bundle.errors.iter().all(|error| error.code == 4));
+            assert!(outcome.response_material().prebid_errors.is_empty());
+            let response = outcome.into_bid_response().unwrap();
+            assert!(response.seatbid.is_empty());
+            assert!(response.nbr.is_none());
+            let ext = response.ext.as_ref().unwrap();
+            assert_eq!(ext["errors"]["fake_bb"].as_array().unwrap().len(), 2);
+            assert!(
+                ext["errors"]["fake_bb"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|error| error["code"] == 4_u32)
+            );
+        });
+    }
+
+    #[test]
+    fn typed_selection_retains_owned_impressions_and_original_bid_indices_without_keys() {
+        block_on(async {
+            for (prefix, truncate) in [("hb", None), ("custom_prefix", Some(10))] {
+                let mut request = base_request();
+                for id in ["imp-2", "imp-3"] {
+                    let mut impression = request.imp[0].clone();
+                    impression.id = id.into();
+                    request.imp.push(impression);
+                }
+                request.ext = Some(BidRequestExt {
+                    prebid: Some(ExtRequestPrebid {
+                        targeting: Some(ExtRequestTargeting {
+                            prefix: Some(prefix.into()),
+                            includewinners: Some(false),
+                            includebidderkeys: Some(false),
+                            ..ExtRequestTargeting::default()
+                        }),
+                        ..ExtRequestPrebid::default()
+                    }),
+                    ..BidRequestExt::default()
+                });
+                let account = AccountConfig {
+                    truncate_target_attribute: truncate,
+                    ..AccountConfig::default()
+                };
+                let body = serde_json::to_vec(&serde_json::json!({
+                    "id":"r", "cur":"USD", "seatbid":[{"seat":"fake_upstream", "bid":[
+                        {"id":"second-imp", "impid":"imp-2", "price":2_i32},
+                        {"id":"lower", "impid":"imp-1", "price":1_i32},
+                        {"id":"selected", "impid":"imp-1", "price":3_i32,
+                         "adm":"creative", "nurl":"https://notify.example.test/win"}
+                    ]}]
+                }))
+                .unwrap();
+                let outcome =
+                    drive_outcome_with_bidders(request, &account, body, &["fake_bb"]).await;
+                assert_eq!(outcome.request_id(), "auc-prefix");
+                assert_eq!(
+                    outcome
+                        .impression_ids()
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<Vec<_>>(),
+                    ["imp-1", "imp-2", "imp-3"]
+                );
+                let candidates = &outcome.bidders().values().next().unwrap().bids;
+                assert_eq!(
+                    candidates
+                        .iter()
+                        .map(|bid| bid.bid.id.as_str())
+                        .collect::<Vec<_>>(),
+                    ["second-imp", "lower", "selected"]
+                );
+                for (ordinal, index, id) in [(0, 2, "selected"), (1, 0, "second-imp")] {
+                    let selected = outcome.selected_bid(ordinal).unwrap();
+                    assert_eq!(selected.bid_index, index);
+                    assert_eq!(selected.bid.bid.id, id);
+                    assert_eq!(selected.requested_bidder.as_str(), "fake_bb");
+                    assert_eq!(selected.implementation, Some("fake_bidder"));
+                    assert_eq!(selected.bid.source_seat.as_deref(), Some("fake_upstream"));
+                    assert_eq!(selected.bid.media_type, MediaType::Banner);
+                }
+                assert!(outcome.selected_bid(2).is_none());
+                assert!(outcome.winners()[2].is_none());
+                let response = outcome.into_bid_response().unwrap();
+                assert_eq!(response.id, "auc-prefix");
+                assert_eq!(response.seatbid[0].seat, "fake_bb");
+                assert_eq!(response.seatbid[0].bid.len(), 3);
+                let selected = &response.seatbid[0].bid[2];
+                assert_eq!(selected.adm.as_deref(), Some("creative"));
+                assert_eq!(selected.other["nurl"], "https://notify.example.test/win");
+                assert!(
+                    selected
+                        .ext
+                        .as_ref()
+                        .unwrap()
+                        .prebid
+                        .as_ref()
+                        .unwrap()
+                        .targeting
+                        .is_empty()
+                );
             }
         });
     }

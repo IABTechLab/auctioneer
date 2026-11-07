@@ -17,6 +17,7 @@ pub mod debug;
 pub mod error;
 pub mod fanout;
 pub mod limits;
+mod outcome;
 pub mod plan;
 mod privacy_projection;
 pub mod registry_order;
@@ -43,6 +44,7 @@ pub use fanout::{
     UndecodableEncoding,
 };
 pub use limits::{BidderCapDrop, apply_max_bidders};
+pub use outcome::{AuctionOutcome, SelectedBid};
 pub use plan::AuctionPlan;
 pub use registry_order::participating_bidders;
 pub use response::{

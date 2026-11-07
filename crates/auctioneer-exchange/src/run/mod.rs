@@ -25,12 +25,10 @@ use crate::{
         OversizeRequestStage, TransportError, TransportErrorKind,
     },
     limits::{BidderCapDrop, OutboundCapDrop, apply_max_bidder_names},
+    outcome::AuctionOutcome,
     plan::AuctionPlan,
     privacy_projection::apply_legacy_projection,
-    response::{
-        BidderResultBundle, BrowserAuctionResult, ErrorEntry, NonBidRow, ResponseInput,
-        build_response,
-    },
+    response::{BidderResultBundle, BrowserAuctionResult, ErrorEntry, NonBidRow, ResponseInput},
     responsetime::ResponseTimeStat,
     scrub::{DisclosureAudit, ScrubDecisions, apply_classified, apply_classified_with_limits},
     split::{PerBidderRequest, group_by_bidder, materialize_per_bidder},
@@ -54,7 +52,6 @@ use auctioneer_config_data::types::{
 use auctioneer_openrtb::NormalizedBidRequest;
 use auctioneer_openrtb::ext::bid::{ExtBid, ExtBidPrebid};
 use auctioneer_openrtb::types::bid_request::BidRequest;
-use auctioneer_openrtb::types::bid_response::BidResponse;
 use auctioneer_privacy::{
     AuctionPermissions, BidderDecision, PrivacyContext, ResolveOptions, ResolvedPrivacy,
     ccpa::NoSale, sources::LegacyProjection,
@@ -88,7 +85,7 @@ pub async fn run_auction(
     ctx: &AuctionContext<'_>,
     plan: &AuctionPlan,
     audit: &mut DisclosureAudit,
-) -> Result<BidResponse, AuctionError> {
+) -> Result<AuctionOutcome, AuctionError> {
     let underlying: &BidRequest = req;
     let debug_permission =
         DebugPermission::resolve(underlying, ctx.debug_requested, ctx.account.config);
@@ -133,8 +130,13 @@ pub async fn run_auction(
         ctx.host.resource_limits.max_parsed_nodes,
     );
     bookkeeping.response(&underlying.id)?;
+    underlying
+        .imp
+        .iter()
+        .try_for_each(|imp| bookkeeping.impression(&imp.id))?;
     for (bidder, indices) in grouped.bidder_imps() {
         bookkeeping.bidder(bidder.as_str())?;
+        bookkeeping.selection_names(bidder.as_str(), indices.len())?;
         if return_all_bid_status {
             for &index in indices {
                 let imp = underlying.imp.get(index).ok_or_else(|| {
@@ -304,7 +306,7 @@ pub async fn run_auction(
             deadline.deadline_at,
         )?
     {
-        return short_circuit_tmax_expired(
+        let response = short_circuit_tmax_expired(
             underlying,
             &capped,
             &disabled_bidder_warnings,
@@ -316,8 +318,8 @@ pub async fn run_auction(
             auction_timestamp_ms,
             ctx.features,
             prebid_warnings,
-        )
-        .map(|response| debug.attach(response, ctx));
+        );
+        return finish_outcome(underlying, ctx, aliases, response, None, debug);
     }
     drop(decisions);
 
@@ -374,7 +376,7 @@ pub async fn run_auction(
     );
     if ctx.clock.now_monotonic() >= deadline.deadline_at {
         drop(bidder_pairs);
-        return short_circuit_tmax_expired(
+        let response = short_circuit_tmax_expired(
             underlying,
             &capped,
             &[],
@@ -386,8 +388,8 @@ pub async fn run_auction(
             auction_timestamp_ms,
             ctx.features,
             prebid_warnings,
-        )
-        .map(|response| debug.attach(response, ctx));
+        );
+        return finish_outcome(underlying, ctx, aliases, response, None, debug);
     }
 
     let (calls, slots) = build_call_list(
@@ -404,7 +406,7 @@ pub async fn run_auction(
         // fanout receives a refreshed deadline or partially prepared batch.
         drop(calls);
         drop(slots);
-        return short_circuit_tmax_expired(
+        let response = short_circuit_tmax_expired(
             underlying,
             &capped,
             &[],
@@ -416,8 +418,8 @@ pub async fn run_auction(
             auction_timestamp_ms,
             ctx.features,
             prebid_warnings,
-        )
-        .map(|response| debug.attach(response, ctx));
+        );
+        return finish_outcome(underlying, ctx, aliases, response, None, debug);
     }
     if debug.permission == DebugPermission::Allowed {
         for slot in &slots {
@@ -512,7 +514,7 @@ pub async fn run_auction(
             )?,
         )?;
     }
-    apply_targeting(ctx, underlying, &mut bundles, &mut prebid_warnings);
+    let winners = apply_targeting(ctx, underlying, &mut bundles, &mut prebid_warnings);
 
     let response_input = ResponseInput {
         construction_diagnostics,
@@ -528,9 +530,34 @@ pub async fn run_auction(
         },
         prebid_warnings,
     };
-    let resp = build_response(response_input)
-        .map_err(|err| AuctionError::Internal(format!("build_response: {err}")))?;
-    Ok(debug.attach(with_id(resp, underlying.id.clone()), ctx))
+    finish_outcome(
+        underlying,
+        ctx,
+        aliases,
+        response_input,
+        Some(winners),
+        debug,
+    )
+}
+
+fn finish_outcome(
+    request: &BidRequest,
+    ctx: &AuctionContext<'_>,
+    aliases: &AliasMap,
+    mut response: ResponseInput,
+    winners: Option<Vec<Option<Winner>>>,
+    debug: AuctionDebug,
+) -> Result<AuctionOutcome, AuctionError> {
+    for (bidder, bundle) in &mut response.bundles {
+        let base = aliases.bases.get(bidder).unwrap_or(bidder);
+        bundle.implementation = ctx
+            .bidder_bindings
+            .binary_search_by(|binding| binding.bidder.cmp(base.as_str()))
+            .ok()
+            .and_then(|index| ctx.bidder_bindings.get(index))
+            .map(|binding| binding.implementation);
+    }
+    AuctionOutcome::new(request, response, winners, debug.finish(ctx))
 }
 
 struct AuctionDebug {
@@ -555,18 +582,9 @@ impl AuctionDebug {
         )
     }
 
-    fn attach(self, mut response: BidResponse, ctx: &AuctionContext<'_>) -> BidResponse {
-        if let Some(value) = self
-            .capture
-            .and_then(|capture| capture.finish(ctx.clock, self.deadline_at))
-            && let Some(ext) = response
-                .ext
-                .as_mut()
-                .and_then(serde_json::Value::as_object_mut)
-        {
-            ext.insert("debug".into(), value);
-        }
-        response
+    fn finish(self, ctx: &AuctionContext<'_>) -> Option<serde_json::Value> {
+        let capture = self.capture?;
+        capture.finish(ctx.clock, self.deadline_at)
     }
 }
 
@@ -891,7 +909,7 @@ fn short_circuit_tmax_expired(
     auction_timestamp_ms: u64,
     features: ExchangeFeatures,
     prebid_warnings: Vec<ErrorEntry>,
-) -> Result<BidResponse, AuctionError> {
+) -> ResponseInput {
     let return_all_bid_status = returnallbidstatus(underlying, features);
     for pbr in capped {
         let bundle = bundles.entry(pbr.bidder.clone()).or_default();
@@ -933,7 +951,7 @@ fn short_circuit_tmax_expired(
             .warnings
             .push(bidder_cap_drop_warning(drop_entry.cap));
     }
-    let input = ResponseInput {
+    ResponseInput {
         construction_diagnostics,
         bidder_visible_tmax_ms,
         auction_timestamp_ms,
@@ -942,10 +960,7 @@ fn short_circuit_tmax_expired(
         bundles,
         prebid_errors: vec![tmax_expired_error()],
         prebid_warnings,
-    };
-    let resp = build_response(input)
-        .map_err(|err| AuctionError::Internal(format!("build_response: {err}")))?;
-    Ok(with_id(resp, underlying.id.clone()))
+    }
 }
 
 /// The auction-wide `ext.errors.prebid` entry for an expired budget.
@@ -1625,7 +1640,7 @@ fn apply_targeting(
     underlying: &BidRequest,
     bundles: &mut BTreeMap<BidderName, BidderResultBundle>,
     prebid_warnings: &mut Vec<ErrorEntry>,
-) {
+) -> Vec<Option<Winner>> {
     let targeting_cfg = underlying
         .ext
         .as_ref()
@@ -1731,6 +1746,7 @@ fn apply_targeting(
             attach_targeting_for_imp(bidder_name, bundle, imp_id, winner.as_ref(), &cfg, ctx.rng);
         }
     }
+    winners
 }
 
 fn targeting_prefix<'a>(ctx: &'a AuctionContext<'_>, request: &'a BidRequest) -> &'a str {
@@ -1880,11 +1896,6 @@ fn returnallbidstatus(req: &BidRequest, features: ExchangeFeatures) -> bool {
         .and_then(|e| e.prebid.as_ref())
         .and_then(|p| p.returnallbidstatus)
         .unwrap_or(features.returnallbidstatus_default)
-}
-
-fn with_id(mut resp: BidResponse, id: String) -> BidResponse {
-    resp.id = id;
-    resp
 }
 
 fn extract_publisher_id(underlying: &BidRequest) -> Option<&str> {

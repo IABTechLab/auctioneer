@@ -471,7 +471,10 @@ mod tests {
         );
         let mut audit = DisclosureAudit::default();
         let tracking = body_allocations::Tracking::start();
-        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let buffers = body_allocations::counts();
         drop(tracking);
         Observed {
@@ -635,7 +638,10 @@ mod tests {
         ctx.features.gzip_outbound = true;
         let mut audit = DisclosureAudit::default();
         let tracking = body_allocations::Tracking::start();
-        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let buffers = body_allocations::counts();
         let encoded_buffers = body_allocations::encoded_counts();
         let finished_at = clock.now_monotonic();
