@@ -136,6 +136,22 @@ cargo test --locked -p auctioneer-exchange --test construction_deadline --test p
 cargo test --locked -p auctioneer-privacy --lib
 ```
 
+### Preparation Checkpoint
+
+The settings-first API, explicit resource/services records, request-owned projection and funded result owners are implemented locally. Raw and programmatic account discovery share the same six-path table. Host restrictions intersect the existing decision, and the absolute outer deadline does not rewrite bidder-visible tmax. Registry construction now records the selected implementation independently; preparation rejects a missing, reordered, duplicate or substituted service binding before shared input parsing or projection. The generated-registry compiler fixture retains that identity too and keeps its existing feature/factory controls.
+
+Internal specification and code-quality reviews found and corrected the binding substitution, stale compiler scaffold, and retained diagnostic-capacity cases. Main-executed negative controls failed on the intended assertions before correction. The post-correction library run recorded:
+
+```text
+test result: ok. 1206 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 1.56s
+test result: ok. 660 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+test result: ok. 291 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.87s
+```
+
+These are bidder, core and privacy library results, respectively, not a complete implementation acceptance run. The final eight core handler owners separately passed `19/3/8/5/2/6/8/4` cases, and exchange's library plus construction-deadline, disclosure-policy, privacy-composition and provenance owners passed `297/14/17/54/6`. The generated-registry compiler controls passed three cases. Core's documentation examples passed one compile case and two compile-fail cases. Strict Clippy passed for core, exchange, privacy, bidder and config with `--features auctioneer-config/build-support --lib --tests -- -D warnings`. The existing nine bidder ignores remain subject to their owning CI lanes. The admitted-handler fixture extends the existing capture owner and retains the original admission grant and paired terminal envelope; the extraction-only helper remains unadmitted.
+
+HTTP still uses its pre-cutover assembly, and the audit module has not moved. The operation/result ownership scaffolding does not close Task 6's handler equivalence, cancellation and terminal-transfer requirements. Receipt/control-block, registry-entry and funded-failure storage still need Task 7's layout/accounting audit, guest checks and concrete SDK handoff; this checkpoint does not qualify those costs or change any workload ceiling, numeric reserve or budget equation.
+
 ## Task 6: Build The Owned Operation And Cut HTTP Over
 
 **Files:** Proposed core `auction/{operation,result}.rs`; `src/handlers/auction.rs` and existing health/error/audit consumers. Extend existing lifecycle, retention, handler and response targets, not a new HTTP/App fixture program.

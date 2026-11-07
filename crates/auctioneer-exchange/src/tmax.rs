@@ -3,7 +3,8 @@
 //! The four-value taxonomy distinguishes the adapter-visible `TMax`
 //! (what the bidder sees in `BidRequest.TMax`) from the server-side
 //! execution deadline (when the exchange stops waiting for responses).
-//! Only the deadline is clamped to the host's `max_tmax_ms`; the
+//! Only the deadline is clamped to the host's `max_tmax_ms` and optional
+//! absolute outer-host deadline; the
 //! adapter-visible `TMax` passes through verbatim so the bidder can
 //! decide its own internal latency budget.
 
@@ -17,8 +18,20 @@ pub struct TmaxResolution {
     /// What the bidder will see in the outbound `BidRequest.TMax`
     /// (adapter-visible `TMax`). NOT clamped to `max_tmax_ms`.
     pub bidder_visible_tmax_ms: u32,
-    /// Whole-auction execution deadline (`request_start + effective_budget`).
+    /// Whole-auction execution deadline, including any absolute outer cap.
     pub deadline: AuctionDeadline,
+}
+
+impl TmaxResolution {
+    /// Intersect an absolute outer cap without changing bidder-visible tmax or
+    /// its source. The original request-start anchor is never refreshed.
+    #[must_use]
+    pub fn with_outer_deadline(mut self, outer_deadline: Option<MonotonicInstant>) -> Self {
+        if let Some(cap) = outer_deadline {
+            self.deadline.deadline_at = self.deadline.deadline_at.min(cap);
+        }
+        self
+    }
 }
 
 /// Resolve the four-value tmax taxonomy from the request, host caps,
@@ -76,4 +89,63 @@ pub fn resolve_tmax(
             source,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_tmax;
+    use crate::fanout::TmaxSource;
+    use auctioneer_runtime::{Clock as _, FakeClock};
+    use std::time::Duration;
+
+    #[test]
+    fn host_outer_deadline_caps_execution_without_changing_tmax_or_source() {
+        let mut host = auctioneer_config_data::host_default().clone();
+        host.resource_limits.default_tmax_ms = 80;
+        host.resource_limits.max_tmax_ms = 100;
+        let clock = FakeClock::new(time::OffsetDateTime::UNIX_EPOCH);
+        let start = clock.now_monotonic();
+        for (request, visible, source, original_ms) in [
+            (None, 80, TmaxSource::HostDefault, 80),
+            (Some(0), 80, TmaxSource::HostDefault, 80),
+            (Some(90), 90, TmaxSource::Request, 90),
+            (Some(250), 250, TmaxSource::CappedByHost, 100),
+        ] {
+            for outer_ms in [None, Some(40), Some(80), Some(100), Some(120)] {
+                let outer =
+                    outer_ms.map(|ms| start.checked_add(Duration::from_millis(ms)).unwrap());
+                let resolution = resolve_tmax(request, &host, start)
+                    .unwrap()
+                    .with_outer_deadline(outer);
+                let expected_ms = outer_ms.map_or(original_ms, |ms| ms.min(original_ms));
+                assert_eq!(
+                    resolution.deadline.deadline_at,
+                    start
+                        .checked_add(Duration::from_millis(expected_ms))
+                        .unwrap()
+                );
+                assert_eq!(resolution.bidder_visible_tmax_ms, visible);
+                assert_eq!(resolution.deadline.source, source);
+            }
+        }
+    }
+
+    #[test]
+    fn host_outer_deadline_uses_original_start_and_expires_at_the_boundary() {
+        let clock = FakeClock::new(time::OffsetDateTime::UNIX_EPOCH);
+        let start = clock.now_monotonic();
+        let mut host = auctioneer_config_data::host_default().clone();
+        host.resource_limits.max_tmax_ms = 100;
+        let cap = start.checked_add(Duration::from_millis(50)).unwrap();
+        for elapsed in [49, 50, 51] {
+            let now = start.checked_add(Duration::from_millis(elapsed)).unwrap();
+            let resolution = resolve_tmax(Some(250), &host, start)
+                .unwrap()
+                .with_outer_deadline(Some(cap));
+            assert_eq!(resolution.deadline.deadline_at, cap);
+            assert_eq!(now < resolution.deadline.deadline_at, elapsed < 50);
+            assert_eq!(resolution.bidder_visible_tmax_ms, 250);
+            assert_eq!(resolution.deadline.source, TmaxSource::CappedByHost);
+        }
+    }
 }

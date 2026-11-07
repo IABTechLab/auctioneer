@@ -18,9 +18,13 @@ mod tests {
         UNKNOWN_PATHS, absent, coarse_geo, no_raw_ips, request, second_imp, unchanged,
     };
     use auctioneer_bidder::BidderName;
-    use auctioneer_config_data::types::TriState;
+    use auctioneer_config_data::types::{BidderImplementationBinding, TriState};
     use auctioneer_exchange::AuctionError;
+    use auctioneer_privacy::{
+        HostRestrictionSource, HostRestrictions, UnrestrictedHostRestrictions,
+    };
     use serde_json::{Value, json};
+    use std::sync::Mutex;
     use std::time::Duration;
 
     fn assert_user_fpd(body: &Value, original: &Value, restricted: bool) {
@@ -30,6 +34,215 @@ mod tests {
         } else {
             unchanged(body, original, &["/user/ext/context"]);
         }
+    }
+
+    const HOST_BINDINGS: &[BidderImplementationBinding] = &[
+        BidderImplementationBinding {
+            bidder: "fake_aaa",
+            implementation: "fake_impl_a",
+        },
+        BidderImplementationBinding {
+            bidder: "fake_bb",
+            implementation: "fake_impl_b",
+        },
+        BidderImplementationBinding {
+            bidder: "fake_ccc",
+            implementation: "fake_impl_c",
+        },
+    ];
+
+    struct HostCeilings {
+        ceilings: HostRestrictions,
+        calls: Mutex<Vec<(String, String)>>,
+    }
+
+    impl HostRestrictionSource for HostCeilings {
+        fn restrictions(
+            &self,
+            requested_bidder: &str,
+            canonical_implementation: &str,
+        ) -> HostRestrictions {
+            self.calls
+                .lock()
+                .unwrap()
+                .push((requested_bidder.into(), canonical_implementation.into()));
+            if requested_bidder == "fake_restricted" {
+                self.ceilings
+            } else {
+                UnrestrictedHostRestrictions
+                    .restrictions(requested_bidder, canonical_implementation)
+            }
+        }
+    }
+
+    fn host_request() -> Value {
+        let mut req = request(&["fake_restricted", "fake_sibling"]);
+        req["ext"]["prebid"]["aliases"] = json!({
+            "fake_restricted": "fake_bb", "fake_sibling": "fake_bb"
+        });
+        req["regs"]["gdpr"] = json!(0_i32);
+        req["user"]["consent"] = json!(CONSENT.trim());
+        req
+    }
+
+    #[test]
+    fn host_ceilings_independently_filter_fetch_and_scrub_serialized_requests() {
+        for dimension in 0_u8..5 {
+            let mut ceilings =
+                UnrestrictedHostRestrictions.restrictions("fake_restricted", "fake_impl_b");
+            match dimension {
+                0 => ceilings.allow_fetch = false,
+                1 => ceilings.allow_ids = false,
+                2 => ceilings.allow_precise_geo = false,
+                3 => ceilings.allow_user_fpd = false,
+                4 => ceilings.allow_tid = false,
+                _ => panic!("unknown permission dimension"),
+            }
+            let source = HostCeilings {
+                ceilings,
+                calls: Mutex::new(Vec::new()),
+            };
+            let observed = Harness::default().run_with_host_restrictions(
+                host_request(),
+                &source,
+                HOST_BINDINGS,
+            );
+            assert_eq!(
+                *source.calls.lock().unwrap(),
+                vec![
+                    ("fake_restricted".into(), "fake_impl_b".into()),
+                    ("fake_sibling".into(), "fake_impl_b".into()),
+                ]
+            );
+            unchanged(
+                &observed.body("fake_sibling"),
+                &observed.original,
+                &["/user", "/device", "/source/tid", "/imp/0/ext/tid"],
+            );
+            if dimension == 0 {
+                observed.assert_built(&["fake_sibling"]);
+                observed.assert_blocked("fake_restricted", &["imp-1"]);
+                continue;
+            }
+            observed.assert_built(&["fake_restricted", "fake_sibling"]);
+            let body = observed.body("fake_restricted");
+            unchanged(&body, &observed.original, &["/regs/gdpr", "/user/consent"]);
+            if dimension == 1 || dimension == 3 {
+                unchanged(&observed.original, &observed.original, IDENTIFIER_PATHS);
+                absent(&body, ID_PATHS);
+            } else {
+                unchanged(&body, &observed.original, IDENTIFIER_PATHS);
+            }
+            if dimension == 2 {
+                coarse_geo(&body);
+            } else {
+                unchanged(
+                    &body,
+                    &observed.original,
+                    &[
+                        "/device/ip",
+                        "/device/ipv6",
+                        "/user/geo/lat",
+                        "/user/geo/lon",
+                        "/device/geo/lat",
+                        "/device/geo/lon",
+                    ],
+                );
+            }
+            if dimension == 3 {
+                unchanged(&observed.original, &observed.original, FPD_PATHS);
+                absent(&body, FPD_PATHS);
+            } else {
+                unchanged(&body, &observed.original, FPD_PATHS);
+            }
+            let tids = &["/source/tid", "/imp/0/ext/tid"];
+            if dimension == 4 {
+                unchanged(&observed.original, &observed.original, tids);
+                absent(&body, tids);
+            } else {
+                unchanged(&body, &observed.original, tids);
+            }
+            let construction = observed
+                .constructions
+                .iter()
+                .find(|scope| scope.bidder == "fake_restricted")
+                .unwrap();
+            assert_eq!(body["user"], construction.input["user"]);
+            assert_eq!(body["device"], construction.input["device"]);
+        }
+    }
+
+    #[test]
+    fn host_fetch_ceiling_cannot_override_engine_denial_or_materialize_denied_fpd() {
+        for engine_allows in [false, true] {
+            for host_allows in [false, true] {
+                let mut harness = Harness::default();
+                harness.activities(json!({"fetchBids": {"rules": [{
+                    "condition": {"componentName": ["fake_restricted"]}, "allow": engine_allows
+                }]}}));
+                let source = HostCeilings {
+                    ceilings: HostRestrictions {
+                        allow_fetch: host_allows,
+                        ..UnrestrictedHostRestrictions
+                            .restrictions("fake_restricted", "fake_impl_b")
+                    },
+                    calls: Mutex::new(Vec::new()),
+                };
+                let mut req = host_request();
+                if !(engine_allows && host_allows) {
+                    req["imp"][0]["ext"]["prebid"] =
+                        json!({"imp": {"fake_restricted": {"banner": null}}});
+                }
+                let observed = harness.run_with_host_restrictions(req, &source, HOST_BINDINGS);
+                if engine_allows && host_allows {
+                    observed.assert_built(&["fake_restricted", "fake_sibling"]);
+                } else {
+                    observed.assert_built(&["fake_sibling"]);
+                    observed.assert_blocked("fake_restricted", &["imp-1"]);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn host_restrictions_with_missing_canonical_binding_fail_closed_without_inference() {
+        let source = HostCeilings {
+            ceilings: UnrestrictedHostRestrictions.restrictions("fake_restricted", "fake_impl_b"),
+            calls: Mutex::new(Vec::new()),
+        };
+        let empty_implementation = [BidderImplementationBinding {
+            bidder: "fake_bb",
+            implementation: "",
+        }];
+        for bindings in [&HOST_BINDINGS[2..], &empty_implementation[..]] {
+            let observed =
+                Harness::default().run_with_host_restrictions(host_request(), &source, bindings);
+            observed.assert_built(&[]);
+            observed.assert_blocked("fake_restricted", &["imp-1"]);
+            observed.assert_blocked("fake_sibling", &["imp-1"]);
+            assert!(observed.outbound.is_empty());
+            assert!(source.calls.lock().unwrap().is_empty());
+        }
+        Harness::default()
+            .run(host_request())
+            .assert_built(&["fake_restricted", "fake_sibling"]);
+    }
+
+    #[test]
+    fn host_restriction_identity_uses_alias_base_even_when_requested_name_is_registered() {
+        let source = HostCeilings {
+            ceilings: HostRestrictions::default(),
+            calls: Mutex::new(Vec::new()),
+        };
+        let mut req = request(&["fake_ccc"]);
+        req["ext"]["prebid"]["aliases"] = json!({"fake_ccc": "fake_bb"});
+        let observed = Harness::default().run_with_host_restrictions(req, &source, HOST_BINDINGS);
+        observed.assert_built(&["fake_ccc"]);
+        assert_eq!(
+            *source.calls.lock().unwrap(),
+            vec![("fake_ccc".into(), "fake_impl_b".into())]
+        );
+        assert_eq!(observed.constructions[0].core, "fake_bb");
     }
 
     #[test]

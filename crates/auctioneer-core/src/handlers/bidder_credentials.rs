@@ -20,16 +20,25 @@ pub(crate) struct CredentialLoader {
 }
 
 impl CredentialLoader {
-    pub(crate) fn capture(ctx: &RequestContext) -> Self {
+    /// Retain the caller's bound store and clock without reading credentials.
+    /// Oversized store bindings remain unavailable, as on HTTP capture.
+    pub(crate) fn new(store: Option<BoundSecretStore>, clock: MonotonicClock) -> Self {
         Self {
-            store: ctx
-                .extensions()
+            store: store
+                .filter(|binding| binding.store_name().len() <= MAX_CREDENTIAL_STORE_NAME_BYTES),
+            clock,
+        }
+    }
+
+    pub(crate) fn capture(ctx: &RequestContext) -> Self {
+        Self::new(
+            ctx.extensions()
                 .get::<SecretRegistry>()
                 .and_then(SecretRegistry::default_ref)
                 .filter(|store| store.store_name().len() <= MAX_CREDENTIAL_STORE_NAME_BYTES)
                 .cloned(),
-            clock: ctx.monotonic_clock(),
-        }
+            ctx.monotonic_clock(),
+        )
     }
 }
 
@@ -164,13 +173,51 @@ mod tests {
     fn loader(provider: &Arc<Provider>, clock: MonotonicClock) -> CredentialLoader {
         let concrete = Arc::clone(provider);
         let shared: Arc<dyn SecretStore> = concrete;
-        CredentialLoader {
-            store: Some(BoundSecretStore::new(
+        CredentialLoader::new(
+            Some(BoundSecretStore::new(
                 SecretHandle::new(shared),
                 "default".to_owned(),
             )),
             clock,
+        )
+    }
+
+    #[test]
+    fn explicitly_bound_credential_loader_limits_binding_without_provider_reads() {
+        for (name, accepted) in [
+            ("s".repeat(127), true),
+            ("s".repeat(128), true),
+            ("s".repeat(129), false),
+        ] {
+            let provider = provider(false, false, 200);
+            let shared: Arc<dyn SecretStore> = Arc::<Provider>::clone(&provider);
+            let reader = CredentialLoader::new(
+                Some(BoundSecretStore::new(
+                    SecretHandle::new(shared),
+                    name.clone(),
+                )),
+                MonotonicClock::default(),
+            );
+            assert_eq!(reader.store.is_some(), accepted);
+            assert_eq!(provider.polls.load(Ordering::SeqCst), 0);
+            if let Some(store) = reader.store {
+                assert_eq!(store.store_name(), name);
+            }
         }
+    }
+
+    #[test]
+    fn explicitly_bound_credential_loader_uses_the_supplied_clock_before_io() {
+        let provider = provider(false, false, 200);
+        let anchor = MonotonicInstant::now();
+        let expired = anchor.checked_add(Duration::from_secs(3600)).unwrap();
+        let reader = loader(&provider, MonotonicClock::new(move || expired));
+        let deadline = anchor.checked_add(Duration::from_secs(1)).unwrap();
+        assert!(matches!(
+            block_on(reader.load("fake_credentials", deadline)),
+            Err(CredentialUnavailable)
+        ));
+        assert_eq!(provider.polls.load(Ordering::SeqCst), 0);
     }
 
     #[test]
@@ -262,10 +309,7 @@ mod tests {
     #[test]
     fn missing_credential_store_returns_only_the_fixed_error() {
         let clock = MonotonicClock::default();
-        let reader = CredentialLoader {
-            store: None,
-            clock: clock.clone(),
-        };
+        let reader = CredentialLoader::new(None, clock.clone());
         let result = block_on(reader.load(
             "FAKE_SECRET_REFERENCE_CANARY",
             clock.now().checked_add(Duration::from_secs(1)).unwrap(),

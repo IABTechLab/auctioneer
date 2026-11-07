@@ -168,9 +168,9 @@ mod tests {
             "the actual SDK allocation case must execute once: {stdout}\n{diagnostic}"
         );
         let summary = if success {
-            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out"
+            "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out"
         } else {
-            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 31 filtered out"
+            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 32 filtered out"
         };
         assert!(stdout.contains(summary), "{stdout}\n{diagnostic}");
         let measurements: Vec<_> = diagnostic
@@ -297,7 +297,7 @@ mod tests {
         fs::write(string_manifest, toml::to_string(&declaration).unwrap()).unwrap();
     }
 
-    const EXPECTED_TESTS: [&str; 31] = [
+    const EXPECTED_TESTS: [&str; 32] = [
         "compiled_sdk::sdk_and_typed_paths_dispatch_discovered_callbacks_once_with_real_compiled_aliases",
         "compiled_sdk::sdk_and_typed_paths_reject_bindings_before_any_discovered_callback",
         "compiled_sdk::sdk_and_typed_paths_check_disabled_and_shadowed_supplied_settings",
@@ -327,6 +327,7 @@ mod tests {
         "request_binding::settings_binding_enforces_limits_for_programmatic_callers_and_clears_previous_binding",
         "request_binding::settings_binding_refuses_each_wrong_or_missing_implementation_before_projection",
         "retained_owner::tests::retaining_settings_moves_the_original_buffers_and_drops_unrelated_entries",
+        "retained_owner::tests::projecting_settings_copies_only_requested_and_resolved_base_values",
         "retention::moving_protocol_settings_out_of_config_does_not_rebuild_the_map_or_clone_values",
         "runtime::malformed_generated_settings_fail_closed_without_payload_text_in_diagnostics",
     ];
@@ -345,7 +346,7 @@ mod tests {
         );
         assert!(
             stdout.contains(
-                "test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
+                "test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out"
             ),
             "{stdout}"
         );
@@ -367,7 +368,7 @@ mod tests {
                 writeln!(output, "test {name} ... ok").unwrap();
             }
             output.push_str(
-                "test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+                "test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
             );
             output
         }
@@ -381,7 +382,7 @@ mod tests {
         assert!(catch_unwind(|| reconcile_tests(&report(&renamed))).is_err());
 
         let resource_stdout = format!(
-            "test {RESOURCE_TEST} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out\n"
+            "test {RESOURCE_TEST} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out\n"
         );
         // Synthetic report-parser input, not captured SDK allocation evidence.
         // Actual allocation measurements come from run_catalog_resource_variants.
@@ -404,7 +405,7 @@ mod tests {
         }
         assert!(
             catch_unwind(|| reconcile_resource_test(
-                "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out",
+                "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out",
                 resource_diagnostic,
                 256,
                 true
@@ -412,7 +413,7 @@ mod tests {
             .is_err()
         );
         let resource_failure = format!(
-            "test {RESOURCE_TEST} ... FAILED\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 31 filtered out\n"
+            "test {RESOURCE_TEST} ... FAILED\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 32 filtered out\n"
         );
         reconcile_resource_test(&resource_failure, resource_diagnostic, 256, false);
     }

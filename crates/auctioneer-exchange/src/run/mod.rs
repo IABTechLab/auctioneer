@@ -167,7 +167,19 @@ pub async fn run_auction(
     for (bidder, indices) in grouped.bidder_imps() {
         let base = aliases.bases.get(bidder).unwrap_or(bidder);
         let decision = cached_privacy_decision(&mut decisions, bidder, || {
-            privacy.bidder_decision(base.as_str(), bidder.as_str())
+            let mut decision = privacy.bidder_decision(base.as_str(), bidder.as_str());
+            if let Some(source) = ctx.host_restrictions {
+                let ceilings = ctx
+                    .bidder_bindings
+                    .binary_search_by_key(&base.as_str(), |binding| binding.bidder)
+                    .ok()
+                    .and_then(|index| ctx.bidder_bindings.get(index))
+                    .filter(|binding| !binding.implementation.is_empty())
+                    .map(|binding| source.restrictions(bidder.as_str(), binding.implementation))
+                    .unwrap_or_default();
+                decision.restrict(ceilings);
+            }
+            decision
         });
         for &index in indices {
             let imp = underlying.imp.get(index).ok_or_else(|| {
@@ -273,7 +285,8 @@ pub async fn run_auction(
     }
 
     let req_tmax_ms = underlying.tmax.and_then(|t| u64::try_from(t).ok());
-    let resolved = resolve_tmax(req_tmax_ms, ctx.host, ctx.request_start)?;
+    let resolved = resolve_tmax(req_tmax_ms, ctx.host, ctx.request_start)?
+        .with_outer_deadline(ctx.outer_deadline);
     let bidder_visible_tmax_ms = resolved.bidder_visible_tmax_ms;
     let deadline = resolved.deadline;
     let mut debug = AuctionDebug {
@@ -722,7 +735,7 @@ fn scrub_bidder_requests(
             AuctionPermissions::DenyBidRequest => (false, false),
         };
         let disclosure = ScrubDecisions {
-            pass_id,
+            pass_id: pass_id && decision.allow_host_ids,
             pass_geo,
             transmit_ufpd: decision.transmit_ufpd,
             transmit_precise_geo: decision.transmit_precise_geo,
@@ -1984,6 +1997,7 @@ mod tests {
     use auctioneer_config_data::types::IpKeepBits;
     use auctioneer_privacy::{FetchDenial, PrivacyContext};
     use auctioneer_runtime::SeededRng;
+    use serde_json::Value;
     use std::collections::BTreeMap;
     use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
     use std::time::Duration;
@@ -2074,6 +2088,162 @@ mod tests {
             })
             .collect();
         (scopes, decisions)
+    }
+
+    #[test]
+    fn host_engine_permission_cross_product_controls_serialized_disclosure_and_fetch() {
+        use auctioneer_privacy::{
+            AuctionPermissions, HostRestrictionSource as _, UnrestrictedHostRestrictions,
+        };
+        let clock = ScopeClock {
+            start: auctioneer_runtime::MonotonicInstant::now(),
+            reads: AtomicU32::new(0),
+            live_reads: u32::MAX,
+        };
+        let original = host_disclosure_input();
+        for dimension in 0_u8..5 {
+            for engine_allows in [false, true] {
+                for host_allows in [false, true] {
+                    let bidder = BidderName::new("fake_alias");
+                    let mut decision = PrivacyContext::allow_all_no_scrub()
+                        .bidder_decision("fake_bb", bidder.as_str());
+                    match dimension {
+                        0 => {
+                            decision.fetch_denial = (!engine_allows).then_some(FetchDenial::Gdpr);
+                            decision.gdpr = AuctionPermissions::Partial {
+                                allow_bid_request: engine_allows,
+                                pass_id: true,
+                                pass_geo: true,
+                            };
+                        }
+                        1 => {
+                            decision.gdpr = AuctionPermissions::Partial {
+                                allow_bid_request: true,
+                                pass_id: engine_allows,
+                                pass_geo: true,
+                            }
+                        }
+                        2 => {
+                            decision.gdpr = AuctionPermissions::Partial {
+                                allow_bid_request: true,
+                                pass_id: true,
+                                pass_geo: engine_allows,
+                            }
+                        }
+                        3 => decision.transmit_ufpd = engine_allows,
+                        4 => decision.transmit_tid = engine_allows,
+                        _ => panic!("unknown permission dimension"),
+                    }
+                    let original_gdpr = decision.gdpr.clone();
+                    let mut ceilings =
+                        UnrestrictedHostRestrictions.restrictions(bidder.as_str(), "fake_impl");
+                    match dimension {
+                        0 => ceilings.allow_fetch = host_allows,
+                        1 => ceilings.allow_ids = host_allows,
+                        2 => ceilings.allow_precise_geo = host_allows,
+                        3 => ceilings.allow_user_fpd = host_allows,
+                        4 => ceilings.allow_tid = host_allows,
+                        _ => panic!("unknown permission dimension"),
+                    }
+                    decision.restrict(ceilings);
+                    assert_eq!(decision.gdpr, original_gdpr);
+                    let mut bundles = BTreeMap::new();
+                    let mut nonbids = BTreeMap::new();
+                    let fetch = super::privacy_allows_bidder(
+                        &decision,
+                        &bidder,
+                        "imp-1",
+                        &mut bundles,
+                        &mut nonbids,
+                        true,
+                    );
+                    let denied = !(engine_allows && host_allows);
+                    assert_eq!(fetch, dimension != 0 || !denied);
+                    if !fetch {
+                        assert_eq!(bundles[&bidder].warnings.len(), 1);
+                        assert_eq!(nonbids[&bidder].len(), 1);
+                        continue;
+                    }
+                    let mut scopes = vec![super::PerBidderRequest {
+                        bidder: bidder.clone(),
+                        base: BidderName::new("fake_bb"),
+                        request: serde_json::from_value(original.clone()).unwrap(),
+                    }];
+                    let before = serde_json::to_value(&scopes[0].request).unwrap();
+                    let mut audit = DisclosureAudit::default();
+                    assert!(
+                        super::scrub_bidder_requests(
+                            &mut scopes,
+                            &BTreeMap::from([(bidder, decision)]),
+                            IpKeepBits { v4: 24, v6: 56 },
+                            &mut audit,
+                            None,
+                            &clock,
+                            clock.start.checked_add(Duration::from_secs(1)).unwrap(),
+                        )
+                        .unwrap()
+                    );
+                    assert_eq!(audit.attempted_scopes, 1);
+                    let body = serde_json::to_value(&scopes[0].request).unwrap();
+                    assert_disclosure_dimension(&before, &body, dimension, denied);
+                }
+            }
+        }
+    }
+
+    fn host_disclosure_input() -> Value {
+        serde_json::json!({
+            "id": "request", "regs": {"gdpr": 1_i32},
+            "user": {"id": "user-id", "consent": "original-consent", "keywords": "private-keyword", "data": [{"id": "segment"}]},
+            "device": {"ifa": "device-id", "ip": "8.8.4.4", "geo": {"lat": 48.858_844_f64, "lon": -1.125_f64, "zip": "94107"}},
+            "source": {"tid": "source-tid"},
+            "imp": [{"id": "imp-1", "ext": {"tid": "imp-tid"}}]
+        })
+    }
+
+    fn assert_disclosure_dimension(before: &Value, body: &Value, dimension: u8, denied: bool) {
+        for path in [
+            "/user/id",
+            "/device/ifa",
+            "/user/keywords",
+            "/user/data",
+            "/source/tid",
+            "/imp/0/ext/tid",
+            "/regs/gdpr",
+            "/user/consent",
+        ] {
+            assert!(
+                before.pointer(path).is_some(),
+                "missing before-state {path}"
+            );
+            let removed = match path {
+                "/user/id" | "/device/ifa" => denied && matches!(dimension, 1 | 3),
+                "/user/keywords" | "/user/data" => denied && dimension == 3,
+                "/source/tid" | "/imp/0/ext/tid" => denied && dimension == 4,
+                _ => false,
+            };
+            if removed {
+                assert!(
+                    body.pointer(path).is_none(),
+                    "dimension {dimension}: {path} survived"
+                );
+            } else {
+                assert_eq!(
+                    body.pointer(path),
+                    before.pointer(path),
+                    "dimension {dimension}: {path} changed"
+                );
+            }
+        }
+        if dimension == 2 && denied {
+            assert_eq!(body["device"]["ip"], "8.8.4.0");
+            assert_eq!(body["device"]["geo"]["lat"], 48.86_f64);
+            assert_eq!(body["device"]["geo"]["lon"], -1.12_f64);
+            assert!(body["device"]["geo"].get("zip").is_none());
+        } else {
+            assert_eq!(body["device"]["ip"], before["device"]["ip"]);
+            assert_eq!(body["device"]["geo"], before["device"]["geo"]);
+        }
     }
 
     #[test]

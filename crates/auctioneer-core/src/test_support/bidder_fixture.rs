@@ -46,7 +46,11 @@ pub mod fixtures {
                     ..BidderInfo::default()
                 }));
                 registry
-                    .register(info, Box::<FakeBidder>::default())
+                    .register_with_implementation(
+                        info,
+                        "fake_protocol",
+                        Box::<FakeBidder>::default(),
+                    )
                     .expect("unique test bidder");
             }
             registry

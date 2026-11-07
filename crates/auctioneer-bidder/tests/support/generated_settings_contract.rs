@@ -459,6 +459,137 @@ mod retained_owner {
         };
         use serde_json::json;
 
+        fn projection_policy() -> AuctioneerAppConfig {
+            serde_json::from_value(json!({
+                "schema_version": 1,
+                "host": {"aliases": {"fake_alias": "fake_base"}},
+                "bidders": {
+                    "fake_alias": {
+                        "enabled": false,
+                        "timeout_ms": 20,
+                        "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0}}
+                    },
+                    "fake_base": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 42, "secondary_number": 7}}},
+                    "fake_second_alias": {"settings": {"implementation": "fake_integer_probe", "values": {"secondary_number": 9}}},
+                    "fake_unused_alias": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unused-alias"}}},
+                    "fake_unused_base": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unused-base"}}},
+                    "fake_unrelated": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unrelated"}}},
+                    "fake_no_settings": {"enabled": false}
+                },
+                "accounts": {"fake_discarded": {"targeting_prefix": "discarded"}}
+            }))
+            .expect("actual generated settings")
+        }
+
+        #[test]
+        fn projecting_settings_copies_only_requested_and_resolved_base_values() {
+            use auctioneer_bidder::{BidderName, bidder_settings::fake_integer_probe};
+            use auctioneer_exchange::alias::AliasMap;
+
+            let policy = projection_policy();
+            let mut aliases = AliasMap::default();
+            for (alias, base) in [
+                ("fake_alias", "fake_base"),
+                ("fake_second_alias", "fake_base"),
+                ("fake_missing_alias", "fake_base"),
+                ("fake_unused_alias", "fake_unused_base"),
+            ] {
+                aliases
+                    .bases
+                    .insert(BidderName::new(alias), BidderName::new(base));
+            }
+            let before_policy = serde_json::to_value(&policy).unwrap();
+            for name in ["fake_unused_alias", "fake_unused_base", "fake_unrelated"] {
+                assert!(policy.bidders[name].settings.is_some());
+            }
+            let names = [
+                "fake_alias",
+                "fake_base",
+                "fake_second_alias",
+                "fake_unused_alias",
+                "fake_unused_base",
+                "fake_unrelated",
+                "fake_no_settings",
+                "fake_missing",
+                "fake_missing_alias",
+            ];
+            let cases: &[(&[&str], &[&str])] = &[
+                (&[], &[]),
+                (&["fake_base"], &["fake_base"]),
+                (&["fake_alias"], &["fake_alias", "fake_base"]),
+                (&["fake_missing_alias"], &["fake_base"]),
+                (&["fake_no_settings", "fake_missing"], &[]),
+                (&["fake_unrelated"], &["fake_unrelated"]),
+                (
+                    &["fake_alias", "fake_second_alias", "fake_base", "fake_alias"],
+                    &["fake_alias", "fake_base", "fake_second_alias"],
+                ),
+            ];
+            let mut cases_run = 0;
+            for (requested, expected) in cases {
+                let requested: Vec<_> = requested
+                    .iter()
+                    .map(|name| BidderName::new(*name))
+                    .collect();
+                let projected = RuntimeBidderSettings::project(&policy, &requested, &aliases);
+                let retained: Vec<_> = names
+                    .into_iter()
+                    .filter(|name| projected.settings(name).is_some())
+                    .collect();
+                assert_eq!(retained, *expected);
+                for name in *expected {
+                    assert_eq!(
+                        serde_json::to_value(projected.settings(name).unwrap()).unwrap(),
+                        serde_json::to_value(policy.bidders[*name].settings.as_ref().unwrap())
+                            .unwrap()
+                    );
+                }
+                cases_run += 1;
+            }
+            assert_eq!(cases_run, 7);
+            assert_eq!(serde_json::to_value(&policy).unwrap(), before_policy);
+
+            let no_aliases = RuntimeBidderSettings::project(
+                &policy,
+                &[BidderName::new("fake_alias")],
+                &AliasMap::default(),
+            );
+            assert!(no_aliases.settings("fake_alias").is_some());
+            assert!(no_aliases.settings("fake_base").is_none());
+
+            let projected = RuntimeBidderSettings::project(
+                &policy,
+                &[
+                    BidderName::new("fake_alias"),
+                    BidderName::new("fake_second_alias"),
+                    BidderName::new("fake_unrelated"),
+                ],
+                &aliases,
+            );
+            drop(policy);
+            for (name, expected_primary, expected_secondary) in
+                [("fake_alias", 0, 7), ("fake_second_alias", 42, 9)]
+            {
+                let resolved = fake_integer_probe::resolve(
+                    projected
+                        .settings(name)
+                        .and_then(BidderSettings::as_fake_integer_probe),
+                    projected
+                        .settings("fake_base")
+                        .and_then(BidderSettings::as_fake_integer_probe),
+                );
+                assert_eq!(resolved.primary_number(), Some(expected_primary));
+                assert_eq!(resolved.secondary_number(), Some(expected_secondary));
+            }
+            assert_eq!(
+                projected
+                    .settings("fake_unrelated")
+                    .and_then(BidderSettings::as_fake_string_probe)
+                    .and_then(|settings| settings.token.as_deref()),
+                Some("unrelated")
+            );
+        }
+
         #[test]
         fn retaining_settings_moves_the_original_buffers_and_drops_unrelated_entries() {
             let config: AuctioneerAppConfig = serde_json::from_value(json!({

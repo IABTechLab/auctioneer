@@ -203,7 +203,9 @@ fn render_published_registry_builder(
             }
             let mut registry = crate::BidderRegistry::new();
             for info in infos {
-                registry.register(info, factory(info.name.as_str())?())?;
+                let binding = bindings.iter().find(|binding| binding.bidder == info.name.as_str())
+                    .ok_or(crate::RegistryBuildError::MissingBinding { bidder: info.name.as_str() })?;
+                registry.register_with_implementation(info, binding.implementation, factory(info.name.as_str())?())?;
             }
             Ok(registry)
         }
@@ -2595,7 +2597,7 @@ mod tests {
                   #[cfg(unknown_info)] Info { name: Name("fake_UnknownPublic") },
                   #[cfg(feature = "experimental")] Info { name: Name("fake_OptionalPublic") }]
             }
-            #[derive(Default)] pub struct BidderRegistry(Vec<(&'static Info, Box<dyn Bidder>)>);
+            #[derive(Default)] pub struct BidderRegistry(Vec<(&'static Info, &'static str, Box<dyn Bidder>)>);
             #[derive(Debug, PartialEq)] pub enum RegistryBuildError {
                 DuplicateBidder { bidder: &'static str },
                 UndeclaredBidder { bidder: &'static str },
@@ -2604,8 +2606,8 @@ mod tests {
             }
             impl BidderRegistry {
                 fn new() -> Self { Self::default() }
-                fn register(&mut self, info: &'static Info, bidder: Box<dyn Bidder>) -> Result<(), RegistryBuildError> {
-                    self.0.push((info, bidder));
+                fn register_with_implementation(&mut self, info: &'static Info, implementation: &'static str, bidder: Box<dyn Bidder>) -> Result<(), RegistryBuildError> {
+                    self.0.push((info, implementation, bidder));
                     Ok(())
                 }
             }
@@ -2653,8 +2655,9 @@ mod tests {
                 let shared = if cfg!(any(empty, gated_only)) { 0 } else { 2 };
                 assert_eq!([SHARED.load(Ordering::SeqCst), GATED.load(Ordering::SeqCst)], [shared, enabled]);
                 assert_eq!(registry.0.len(), shared + enabled);
-                for ((original, bidder), expected) in registry.0.iter().zip(bidders()) {
+                for ((original, implementation, bidder), expected) in registry.0.iter().zip(bidders()) {
                     assert!(std::ptr::eq(*original, expected));
+                    assert_eq!(*implementation, if expected.name.as_str() == "fake_OptionalPublic" { "fake_gated_factory" } else { "fake_shared_factory" });
                     assert_eq!(bidder.marker(), if expected.name.as_str() == "fake_OptionalPublic" { 29 } else { 17 });
                 }
                 println!("published-only");

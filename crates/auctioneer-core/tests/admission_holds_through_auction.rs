@@ -206,15 +206,19 @@ mod tests {
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
-    use auctioneer_core::handlers::auction::TestAuctionBudget;
+    use auctioneer_core::handlers::auction::{TestAuctionBudget, auction};
     use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
+    use auctioneer_core::host_primitives::ingress_lease::{
+        AuctioneerIngressLease, RouteAdmissionMarker,
+    };
     use auctioneer_core::host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, SystemClock, admission_gate, boot_gates,
-        bootstrap_adapter_with_envelope, static_egress_gate,
+        bootstrap_adapter_with_envelope, egress_gate, static_egress_gate,
     };
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -1421,6 +1425,177 @@ mod tests {
             }
         }
         panic!("the auction never reached the fanout");
+    }
+
+    #[test]
+    fn auction_capture_preserves_original_lease_clock_and_extraction_limits() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let admission = admission_gate().expect("admission installed");
+        let statics = static_egress_gate().expect("terminal gate installed");
+        let terminal_before = statics.in_use();
+        assert_eq!(admission.in_use(), 0);
+        let now = MonotonicInstant::now();
+        let request = request_builder()
+            .method(Method::POST)
+            .uri("/openrtb2/auction")
+            .body(Body::empty())
+            .expect("capture request builds");
+        let (ctx, envelope) = config_store::auction_context_for_route(
+            request,
+            "/openrtb2/{operation}",
+            MonotonicClock::new(move || now),
+        );
+
+        assert_eq!(ctx.request_start(), now);
+        assert_eq!(ctx.monotonic_clock().now(), now);
+        assert_eq!(ctx.path_params().get("operation").unwrap(), "auction");
+        assert_eq!(
+            ctx.config_extraction_limits(),
+            configured_app().config_extraction_limits()
+        );
+        assert_eq!(admission.in_use(), 1);
+        assert_eq!(statics.in_use(), terminal_before + 1);
+        let lease = ctx
+            .take_ingress_grant()
+            .expect("capture retains the original grant")
+            .downcast::<AuctioneerIngressLease>()
+            .expect("production admission supplies the auction lease");
+        assert_eq!(lease.admission, RouteAdmissionMarker::Auction);
+        assert!(lease.auction_admission.is_some());
+        assert!(ctx.take_ingress_grant().is_none());
+        drop(ctx);
+        assert_eq!(admission.in_use(), 1, "the original lease owns capacity");
+        assert!(admission.try_acquire().is_none());
+
+        drop(lease);
+        assert_eq!(admission.in_use(), 0);
+        assert_eq!(
+            statics.in_use(),
+            terminal_before + 1,
+            "releasing work does not release the paired terminal completion"
+        );
+        drop(envelope);
+        assert_eq!(statics.in_use(), terminal_before);
+    }
+
+    #[test]
+    fn auction_capture_holds_capacity_through_handler_until_explicit_envelope_release() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let admission = admission_gate().expect("admission installed");
+        let statics = static_egress_gate().expect("terminal gate installed");
+        let egress = egress_gate().expect("egress gate installed");
+        let terminal_before = statics.in_use();
+        let egress_before = egress.in_use();
+        assert_eq!(admission.in_use(), 0);
+
+        for cancel in [false, true] {
+            let entered = Arc::new(AtomicBool::new(false));
+            let released = Arc::new(AtomicBool::new(false));
+            let fanout = Arc::new(ParkedFanout {
+                released: Arc::clone(&released),
+                entered: Arc::clone(&entered),
+            });
+            let request = auction_request(VALID_REQUEST, fanout);
+            let clock = request
+                .extensions()
+                .get::<TestMonotonicClockHandle>()
+                .expect("request has its deterministic clock")
+                .0
+                .clone();
+            let (ctx, mut envelope) =
+                config_store::auction_context_for_route(request, "/openrtb2/auction", clock);
+            assert!(
+                !entered.load(Ordering::SeqCst),
+                "capture does not run fanout"
+            );
+            assert_eq!(admission.in_use(), 1);
+            assert_eq!(statics.in_use(), terminal_before + 1);
+            assert_eq!(egress.in_use(), egress_before);
+            assert!(admission.try_acquire().is_none());
+
+            let mut operation = Box::pin(auction(ctx));
+            assert_eq!(
+                admission.in_use(),
+                1,
+                "an unpolled handler retains its grant"
+            );
+            poll_until_parked(operation.as_mut(), &entered);
+            assert_eq!(
+                admission.in_use(),
+                1,
+                "the handler reuses its original admission"
+            );
+            assert!(admission.try_acquire().is_none());
+            assert_eq!(statics.in_use(), terminal_before + 1);
+            assert_eq!(egress.in_use(), egress_before);
+
+            if cancel {
+                drop(operation);
+            } else {
+                released.store(true, Ordering::SeqCst);
+                *envelope.response_mut() =
+                    block_on(operation).expect("the admitted handler answers");
+                assert_eq!(envelope.response_mut().status(), StatusCode::OK);
+            }
+            assert_eq!(admission.in_use(), 0);
+            assert_eq!(
+                statics.in_use(),
+                terminal_before + 1,
+                "handler completion or cancellation cannot close the original envelope"
+            );
+            assert_eq!(
+                egress.in_use(),
+                egress_before + u32::from(!cancel),
+                "a successful handler installs its permit into the still-open original completion"
+            );
+
+            drop(envelope);
+            assert_eq!(admission.in_use(), 0);
+            assert_eq!(statics.in_use(), terminal_before);
+            assert_eq!(egress.in_use(), egress_before);
+        }
+    }
+
+    #[test]
+    fn auction_capture_does_not_change_extraction_only_helpers() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let admission = admission_gate().expect("admission installed");
+        let statics = static_egress_gate().expect("terminal gate installed");
+        let terminal_before = statics.in_use();
+        let expected_limits = configured_app().config_extraction_limits();
+        assert_eq!(admission.in_use(), 0);
+
+        for explicit_route in [false, true] {
+            let request = request_builder()
+                .method(Method::POST)
+                .uri("/openrtb2/auction")
+                .body(Body::empty())
+                .expect("extraction-only request builds");
+            let ctx = if explicit_route {
+                config_store::context_for_route(
+                    request,
+                    "/openrtb2/{operation}",
+                    MonotonicClock::default(),
+                )
+            } else {
+                config_store::context(request)
+            };
+            assert_eq!(ctx.config_extraction_limits(), expected_limits);
+            assert!(
+                ctx.take_ingress_grant()
+                    .and_then(|grant| grant.downcast::<AuctioneerIngressLease>().ok())
+                    .is_none(),
+                "extraction-only contexts must not gain auction admission"
+            );
+            assert_eq!(admission.in_use(), 0);
+            assert_eq!(statics.in_use(), terminal_before);
+            drop(ctx);
+            assert_eq!(admission.in_use(), 0);
+            assert_eq!(statics.in_use(), terminal_before);
+        }
     }
 
     /// The concurrency slot is held for the WHOLE auction, not returned

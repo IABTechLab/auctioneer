@@ -10,7 +10,8 @@ use auctioneer_bidder::{
     BidderRequestInfo, BidderResponse, DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
 };
 use auctioneer_config_data::types::{
-    AccountConfig, BidderInfo, HostConfig, PurposeEnforcement, ResourceLimits, TriState,
+    AccountConfig, BidderImplementationBinding, BidderInfo, HostConfig, PurposeEnforcement,
+    ResourceLimits, TriState,
 };
 use auctioneer_exchange::scrub::DisclosureAudit;
 use auctioneer_exchange::{
@@ -20,6 +21,7 @@ use auctioneer_exchange::{
 };
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::BidResponse};
 use auctioneer_openrtb::{PrepareLimits, RequestHeaders, prepare};
+use auctioneer_privacy::HostRestrictionSource;
 use auctioneer_privacy::gcl::{CmpRecord, Gcl};
 use auctioneer_privacy::gvl::{Gvl, GvlStore};
 use auctioneer_privacy::tcf::parse_tcf_v2;
@@ -267,6 +269,24 @@ impl Harness {
     }
 
     pub fn run(&self, request_value: Value) -> Observed {
+        self.run_with_context(request_value, None, None)
+    }
+
+    pub fn run_with_host_restrictions(
+        &self,
+        request_value: Value,
+        source: &dyn HostRestrictionSource,
+        bindings: &[BidderImplementationBinding],
+    ) -> Observed {
+        self.run_with_context(request_value, Some(source), Some(bindings))
+    }
+
+    fn run_with_context(
+        &self,
+        request_value: Value,
+        host_restrictions: Option<&dyn HostRestrictionSource>,
+        bindings: Option<&[BidderImplementationBinding]>,
+    ) -> Observed {
         let request: BidRequest = serde_json::from_value(request_value).expect("typed fixture");
         let normalized = prepare(
             request,
@@ -321,7 +341,7 @@ impl Harness {
         let (gvl, gcl) = consent_authorities();
         let start = clock.now_monotonic();
         clock.advance(self.elapsed);
-        let ctx = AuctionContext::with_request_start_ext(
+        let mut ctx = AuctionContext::with_request_start_ext(
             start,
             &self.host,
             &account,
@@ -339,6 +359,10 @@ impl Harness {
             },
             &overrides,
         );
+        ctx.host_restrictions = host_restrictions;
+        if let Some(provided_bindings) = bindings {
+            ctx.bidder_bindings = provided_bindings;
+        }
         let mut audit = DisclosureAudit::default();
         let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
             .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
