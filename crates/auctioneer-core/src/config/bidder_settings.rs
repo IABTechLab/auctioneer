@@ -7,7 +7,7 @@ use auctioneer_exchange::alias::AliasMap;
 use std::collections::BTreeMap;
 use std::iter::once;
 
-/// Owned settings projected for a request or moved from an extracted configuration.
+/// Owned settings projected from accepted policy for a request.
 pub struct RuntimeBidderSettings(BTreeMap<String, BidderOverrides>);
 
 impl RuntimeBidderSettings {
@@ -48,16 +48,6 @@ impl RuntimeBidderSettings {
     }
 }
 
-impl From<AuctioneerAppConfig> for RuntimeBidderSettings {
-    fn from(mut config: AuctioneerAppConfig) -> Self {
-        // Move funded entries; unrelated accounts and non-settings entries die here.
-        config
-            .bidders
-            .retain(|_name, entry| entry.settings.is_some());
-        Self(config.bidders)
-    }
-}
-
 impl BidderSettingsSource for RuntimeBidderSettings {
     fn settings(&self, name: &str) -> Option<&BidderSettings> {
         self.0.get(name)?.settings.as_ref()
@@ -73,14 +63,23 @@ mod tests {
     use auctioneer_exchange::alias::AliasMap;
 
     #[test]
-    fn retaining_settings_drops_all_entries_without_settings() {
+    fn projecting_settings_omits_settings_free_rows_without_mutating_policy() {
         let config = serde_json::from_value::<AuctioneerAppConfig>(serde_json::json!({
             "schema_version": 1_u8,
             "bidders": {"fake_unrelated": {"enabled": false}},
-            "accounts": {"fake_discarded": {"targeting_prefix": "discarded"}}
+            "accounts": {"fake_discarded": {"targeting_prefix": "unused"}}
         }))
-        .unwrap();
-        assert!(RuntimeBidderSettings::from(config).0.is_empty());
+        .expect("valid settings-free policy");
+        let before = serde_json::to_value(&config).unwrap();
+        assert!(config.bidders.contains_key("fake_unrelated"));
+        assert!(config.accounts.contains_key("fake_discarded"));
+        let projected = RuntimeBidderSettings::project(
+            &config,
+            &[BidderName::new("fake_unrelated")],
+            &AliasMap::default(),
+        );
+        assert!(projected.0.is_empty());
+        assert_eq!(serde_json::to_value(&config).unwrap(), before);
     }
 
     #[test]

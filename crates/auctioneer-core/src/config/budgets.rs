@@ -179,9 +179,9 @@ mod tests {
     }
 
     use super::{AccountSource, resolve_budgets, resolve_policy_budgets};
+    use crate::auction::audit::construction_costs;
     use crate::bidder_fixture::registry;
     use crate::config::{AuctioneerAppConfig, policy::OperatorPolicy, resolve::AccountSelection};
-    use crate::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_bidder::BidderName;
     use auctioneer_config::policy::AccountPolicy;
     use auctioneer_config_data::types::HostConfig;

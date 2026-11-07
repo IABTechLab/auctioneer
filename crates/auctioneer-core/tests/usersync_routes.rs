@@ -20,11 +20,11 @@ mod tests {
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Duration;
 
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::config::runtime::CONFIG_STATUS_HEADER;
     use auctioneer_core::config::{
         AuctioneerAppConfig, MAX_ALIAS_NAME_BYTES, MAX_ALIASES, validate_effective_defaults,
     };
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, boot_gates,
         bootstrap_adapter_with_envelope, clock_handle,

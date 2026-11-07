@@ -6,11 +6,12 @@ use auctioneer_bidder::{
 use auctioneer_config_data::types::{Compression as CfgCompression, MediaType};
 use auctioneer_core::{
     App as CoreApp,
+    auction::audit::construction_costs,
     config::{
         AuctioneerAppConfig,
         validation::{PolicyValidationError, validate_effective_operator_policy},
     },
-    handlers::{TestFanoutHandle, request_disclosure_audit::construction_costs},
+    handlers::TestFanoutHandle,
     host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, SystemClock, TestClockHandle,
         TestMonotonicClockHandle, TestRngHandle, boot_gates, bootstrap_adapter_with_envelope,

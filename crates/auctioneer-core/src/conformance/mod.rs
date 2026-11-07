@@ -40,7 +40,7 @@ use crate::host_primitives::edgezero_proxy::{EdgeZeroFanout, EdgeZeroProxyAdapte
 use crate::host_primitives::fanout::DevFanout;
 use crate::host_primitives::registry::{TestClockHandle, TestRngHandle};
 use crate::host_primitives::strategy::RaceTimersStrategy;
-use crate::test_support::config_store::context as captured_context;
+use crate::test_support::config_store::auction_context_for_route;
 use async_trait::async_trait;
 use auctioneer_bidder::{
     Bidder, BidderError, BidderHttpResponse, BidderName, BidderRegistry, BidderRequestInfo,
@@ -91,6 +91,7 @@ use futures::stream::{self, FuturesUnordered, StreamExt as _};
 use http::{Method, Request, Uri};
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::{Future, pending};
+use std::mem;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -1880,10 +1881,13 @@ pub fn no_outbound_capability_maps_to_fanout_unavailable_and_500() {
             .extensions_mut()
             .insert(TestClockHandle(handler_clock));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = captured_context(request);
-        let Ok(response) = auction_handler(ctx).await else {
+        let (ctx, mut terminal) =
+            auction_context_for_route(request, "/openrtb2/auction", MonotonicClock::default());
+        let Ok(constructed_response) = auction_handler(ctx).await else {
             return (StatusCode::OK, String::new(), Vec::new());
         };
+        *terminal.response_mut() = constructed_response;
+        let response = mem::take(terminal.response_mut());
         let status = response.status();
         let content_type = response
             .headers()
@@ -1897,6 +1901,7 @@ pub fn no_outbound_capability_maps_to_fanout_unavailable_and_500() {
             .await
             .map(|buffered| buffered.to_vec())
             .unwrap_or_default();
+        drop(terminal);
         (status, content_type, bytes)
     });
     assert_eq!(

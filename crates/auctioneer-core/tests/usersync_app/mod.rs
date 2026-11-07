@@ -22,8 +22,8 @@ use std::{
 };
 
 use auctioneer_core::{
+    auction::audit::construction_costs as core_construction_costs,
     config::AuctioneerAppConfig,
-    handlers::request_disclosure_audit::construction_costs as core_construction_costs,
     host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, bootstrap_adapter_with_envelope,
     },

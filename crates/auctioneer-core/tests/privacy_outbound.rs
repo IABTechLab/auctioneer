@@ -25,6 +25,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -48,6 +49,7 @@ mod tests {
 
     const CLIENT_V4: &str = "8.8.4.123";
     const CLIENT_V6: &str = "2001:4860:4860::8844";
+    static AUCTIONS: Mutex<()> = Mutex::new(());
     const PRIVATE_ID_MARKERS: [&str; 13] = [
         "private-user-id",
         "private-buyer-id",
@@ -209,6 +211,7 @@ mod tests {
         config: &str,
         bidders: &[ServingBidder],
     ) -> Vec<BidderHttpRequest> {
+        let _serialized = AUCTIONS.lock().expect("auction fixture lock");
         config_funding::install();
         let fake = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
         let clock: Arc<dyn Clock + Send + Sync> = Arc::<FakeClock>::clone(&fake);
@@ -227,23 +230,27 @@ mod tests {
             .extensions_mut()
             .insert(TestFanoutHandle(Arc::<CaptureFanout>::clone(&fanout)));
         request.extensions_mut().insert(TestClockHandle(clock));
+        let monotonic = MonotonicClock::new(move || fake.now_monotonic());
         request
             .extensions_mut()
-            .insert(TestMonotonicClockHandle(MonotonicClock::new(move || {
-                fake.now_monotonic()
-            })));
+            .insert(TestMonotonicClockHandle(monotonic.clone()));
         request.extensions_mut().insert(TestRngHandle(rng));
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(config, request).into_request().unwrap(),
+            "/openrtb2/auction",
+            monotonic,
+        );
 
         block_on(async {
-            let response = auction(ctx_with_config(config, request))
-                .await
-                .expect("auction handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("auction handler answers");
+            let response = mem::take(envelope.response_mut());
             let status = response.status();
             let bytes = response
                 .into_body()
                 .into_bytes_bounded(1 << 20)
                 .await
                 .expect("response body reads");
+            drop(envelope);
             assert_eq!(
                 status,
                 StatusCode::OK,

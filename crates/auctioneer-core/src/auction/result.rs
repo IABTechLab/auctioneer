@@ -85,7 +85,12 @@ pub struct AuctionFailure {
 
 struct FundedFailure {
     reason: AuctionFailureReason,
+    debug_requested: bool,
     _funding: AuctionFunding,
+}
+
+pub(super) const fn failure_storage_bytes() -> usize {
+    size_of::<FundedFailure>()
 }
 
 impl AuctionFailure {
@@ -94,6 +99,7 @@ impl AuctionFailure {
         Self {
             inner: Box::new(FundedFailure {
                 reason: reason.bounded(),
+                debug_requested: false,
                 _funding: funding,
             }),
         }
@@ -102,6 +108,15 @@ impl AuctionFailure {
     #[must_use]
     pub fn reason(&self) -> &AuctionFailureReason {
         &self.inner.reason
+    }
+
+    pub(super) fn with_debug_requested(mut self, requested: bool) -> Self {
+        self.inner.debug_requested = requested;
+        self
+    }
+
+    pub(crate) fn debug_requested(&self) -> bool {
+        self.inner.debug_requested
     }
 }
 
@@ -174,6 +189,10 @@ impl CompletedResponse {
     #[must_use]
     pub fn response(&self) -> &BidResponse {
         &self.response
+    }
+
+    pub(crate) fn response_mut(&mut self) -> &mut BidResponse {
+        &mut self.response
     }
 
     pub fn finish(&mut self, status: CompletionStatus) {

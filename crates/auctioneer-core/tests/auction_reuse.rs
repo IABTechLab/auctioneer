@@ -28,6 +28,7 @@ mod tests {
     use auctioneer_core::host_primitives::registry::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,
@@ -46,6 +47,7 @@ mod tests {
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use std::collections::{BTreeMap, BTreeSet};
+    use std::mem;
     use std::ptr;
     use std::sync::Arc;
     use std::time::Duration;
@@ -239,8 +241,16 @@ mod tests {
                     monotonic_source.now_monotonic()
                 })));
             request.extensions_mut().insert(TestRngHandle(rng));
-            let ctx = ctx_with_config(&toml::to_string(&host_config()).unwrap(), request);
-            let response = auction_handler(ctx).await.expect("action returns Ok");
+            let (ctx, mut terminal) = auction_context_for_route(
+                ctx_with_config(&toml::to_string(&host_config()).unwrap(), request)
+                    .into_request()
+                    .unwrap(),
+                "/openrtb2/auction",
+                MonotonicClock::default(),
+            );
+            *terminal.response_mut() = auction_handler(ctx).await.expect("action returns Ok");
+            let response = mem::take(terminal.response_mut());
+            assert_eq!(response.status(), http::StatusCode::OK);
             let (_parts, body) = response.into_parts();
             let handler_bytes = body.into_bytes_bounded(0x0010_0000).await.unwrap();
 

@@ -34,18 +34,18 @@ mod tests {
     }
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
         BootEnvelope, RaceTimersStrategy, StderrBootLog, TestClockHandle, TestMonotonicClockHandle,
         TestRngHandle, bootstrap_adapter_with_envelope, stream_gate,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
     use auctioneer_runtime::{Clock as _, FakeClock, NoopDecodeCooperator, SeededRng, Timer as _};
     use edgezero_core::body::Body;
-    use edgezero_core::context::RequestContext;
     use edgezero_core::error::EdgeError;
     use edgezero_core::http::{HeaderMap, Method, StatusCode};
     use edgezero_core::outbound::{
@@ -160,7 +160,9 @@ mod tests {
         }
     }
 
-    fn context(client: &BatchOnly, test_fanout: bool) -> RequestContext {
+    const CONFIG: &str = "schema_version = 1\n[host.gdpr]\nenabled = false\n[host.resource_limits]\nmax_bidders_per_auction = 50\nmax_outbound_requests = 100\n";
+
+    fn request(client: &BatchOnly, test_fanout: bool) -> Request<Body> {
         let base = &passthrough_info().name;
         let body = json!({
             "id": "waves", "tmax": 1000_i64, "site": {"publisher": {"id": "test"}},
@@ -193,10 +195,7 @@ mod tests {
                 .extensions_mut()
                 .insert(TestFanoutHandle(Arc::new(EmptyFanout)));
         }
-        ctx_with_config(
-            "schema_version = 1\n[host.gdpr]\nenabled = false\n[host.resource_limits]\nmax_bidders_per_auction = 50\nmax_outbound_requests = 100\n",
-            request,
-        )
+        request
     }
 
     #[test]
@@ -207,10 +206,20 @@ mod tests {
             batches: Arc::default(),
         };
         // No primitive factory may be consulted when boot is missing.
-        let missing_boot_response = block_on(auction(context(&client, false))).unwrap();
+        let missing_boot_response =
+            block_on(auction(ctx_with_config(CONFIG, request(&client, false)))).unwrap();
         assert_eq!(
             missing_boot_response.status(),
-            StatusCode::INTERNAL_SERVER_ERROR
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(missing_boot_response.headers()["cache-control"], "no-store");
+        assert_eq!(
+            missing_boot_response
+                .into_body()
+                .into_bytes()
+                .unwrap()
+                .as_ref(),
+            b"overloaded\n"
         );
         assert!(client.batches.lock().unwrap().is_empty());
 
@@ -234,20 +243,38 @@ mod tests {
         .unwrap();
         let gate = stream_gate().unwrap();
         let before = gate.in_flight();
-        let response = block_on(auction(context(&client, false))).unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        let monotonic_source = Arc::clone(&clock);
+        let monotonic = MonotonicClock::new(move || monotonic_source.now_monotonic());
+        let (ctx, mut terminal) = auction_context_for_route(
+            ctx_with_config(CONFIG, request(&client, false))
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            monotonic.clone(),
+        );
+        *terminal.response_mut() = block_on(auction(ctx)).unwrap();
+        assert_eq!(terminal.response_mut().status(), StatusCode::OK);
         assert_eq!(
             *client.batches.lock().unwrap(),
             [2],
             "boot clamps bidder population before construction"
         );
         assert_eq!(gate.in_flight(), before, "terminal slots release permits");
+        drop(terminal);
         client.batches.lock().unwrap().clear();
-        let test_fanout_response = block_on(auction(context(&client, true))).unwrap();
-        assert_eq!(test_fanout_response.status(), StatusCode::OK);
+        let (test_context, mut test_terminal) = auction_context_for_route(
+            ctx_with_config(CONFIG, request(&client, true))
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            monotonic,
+        );
+        *test_terminal.response_mut() = block_on(auction(test_context)).unwrap();
+        assert_eq!(test_terminal.response_mut().status(), StatusCode::OK);
         assert!(
             client.batches.lock().unwrap().is_empty(),
             "test fanout still wins over HttpClient"
         );
+        drop(test_terminal);
     }
 }

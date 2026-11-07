@@ -61,9 +61,12 @@ pub fn prepare_auction<'host>(
     host: AuctionServices<'host>,
     funding: AuctionFunding,
 ) -> Result<PreparedAuction<'host>, AuctionFailure> {
-    let state = match prepare_state(settings, input, &host, &funding) {
+    let mut debug_requested = host.debug_requested;
+    let state = match prepare_state(settings, input, &host, &funding, &mut debug_requested) {
         Ok(state) => state,
-        Err(reason) => return Err(AuctionFailure::new(reason, funding)),
+        Err(reason) => {
+            return Err(AuctionFailure::new(reason, funding).with_debug_requested(debug_requested));
+        }
     };
     Ok(PreparedAuction::new(state, host, funding))
 }
@@ -73,6 +76,7 @@ fn prepare_state(
     input: AuctionInput<'_>,
     services: &AuctionServices<'_>,
     funding: &AuctionFunding,
+    debug_requested: &mut bool,
 ) -> Result<PreparedState, AuctionFailureReason> {
     funding
         .ensure(services.resources)
@@ -95,6 +99,7 @@ fn prepare_state(
     } = admit_input(settings, input, &host, services)?;
     let request = prepare(raw, &headers, &normalization_limits(limits))
         .map_err(|error| AuctionFailureReason::invalid(&error))?;
+    *debug_requested = DebugPermission::requested(&request, *debug_requested);
     auctioneer_privacy::validate_wire_signal_input(&request)
         .map_err(AuctionFailureReason::Privacy)?;
     let disabled = disabled_from_overlay(settings, services.bidders);
@@ -147,7 +152,6 @@ fn prepare_state(
     if services.deadline_spent() {
         return Err(AuctionFailureReason::Deadline);
     }
-    let debug_requested = DebugPermission::requested(&request, services.debug_requested);
     Ok(PreparedState {
         request,
         host,
@@ -164,7 +168,7 @@ fn prepare_state(
         timeouts,
         features: resolve::resolved_features(settings),
         original_ext,
-        debug_requested,
+        debug_requested: *debug_requested,
     })
 }
 
@@ -290,7 +294,7 @@ mod tests {
     use auctioneer_openrtb::{RequestHeaders, types::bid_request::BidRequest};
     use auctioneer_privacy::{UnrestrictedHostRestrictions, gcl::Gcl, gvl::GvlStore};
     use auctioneer_runtime::{AdmissionGate, AuctionBudget, Clock as _, FakeClock, SeededRng};
-    use futures::executor::block_on;
+    use futures::{executor::block_on, future::pending, task::noop_waker_ref};
     use serde_json::json;
     use std::{
         sync::{
@@ -619,6 +623,204 @@ mod tests {
         assert_eq!(fixture.fanout.calls.load(Ordering::SeqCst), 0);
         drop(failure);
         assert_eq!(fixture.budget.in_use(), 0);
+    }
+
+    #[test]
+    fn suspended_owned_execution_keeps_funding_until_the_future_is_destroyed() {
+        use std::{future::Future as _, task::Context};
+
+        struct PendingFanout(AtomicUsize);
+        #[async_trait::async_trait(?Send)]
+        impl BidderFanout for PendingFanout {
+            async fn send_all(
+                &self,
+                calls: Vec<BidderCall>,
+                _deadline: AuctionDeadline,
+            ) -> Result<Vec<BidderCallResult>, FanoutInternalError> {
+                assert_eq!(calls.len(), 1);
+                self.0.fetch_add(1, Ordering::SeqCst);
+                pending().await
+            }
+        }
+
+        let fixture = Fixture::new();
+        let pending = PendingFanout(AtomicUsize::new(0));
+        let mut services = fixture.services();
+        services.fanout = &pending;
+        let prepared = prepare_auction(
+            &AuctioneerAppConfig::default(),
+            AuctionInput::Typed {
+                request: &request(),
+                headers: RequestHeaders::default(),
+            },
+            services,
+            fixture.funding(),
+        )
+        .unwrap();
+        let mut running = Box::pin(prepared.run());
+        let mut context = Context::from_waker(noop_waker_ref());
+        assert!(running.as_mut().poll(&mut context).is_pending());
+        assert_eq!(pending.0.load(Ordering::SeqCst), 1);
+        assert!(fixture.budget.in_use() > 0);
+        assert_eq!(fixture.gate.in_use(), 1);
+        assert!(fixture.gate.try_acquire().is_none());
+        drop(running);
+        assert_eq!(fixture.budget.in_use(), 0);
+        assert_eq!(fixture.gate.in_use(), 0);
+        assert!(fixture.gate.try_acquire().is_some());
+    }
+
+    #[test]
+    fn suspended_credential_loading_keeps_funding_and_never_dispatches_after_drop() {
+        use crate::bidder_fixture::fake_bidder::FakeBidder;
+        use auctioneer_bidder::BidderRegistry;
+        use auctioneer_runtime::bidder_credentials::{
+            BidderCredentialSource, BidderCredentials, CredentialUnavailable,
+        };
+        use std::{future::Future as _, task::Context};
+
+        struct PendingCredentials(AtomicUsize);
+        #[async_trait::async_trait(?Send)]
+        impl BidderCredentialSource for PendingCredentials {
+            async fn load(
+                &self,
+                reference: &str,
+                _deadline: auctioneer_runtime::MonotonicInstant,
+            ) -> Result<BidderCredentials, CredentialUnavailable> {
+                assert_eq!(reference, "fake_credentials");
+                self.0.fetch_add(1, Ordering::SeqCst);
+                pending().await
+            }
+        }
+
+        let fixture = Fixture::new();
+        let mut registry = BidderRegistry::new();
+        registry
+            .register_with_implementation(
+                bidder_fixture::registry().get("fake_aaa").unwrap().0,
+                "fake_protocol",
+                Box::new(FakeBidder {
+                    credential_reference: Some("fake_credentials"),
+                    ..FakeBidder::default()
+                }),
+            )
+            .unwrap();
+        let credentials = PendingCredentials(AtomicUsize::new(0));
+        let mut services = fixture.services();
+        services.bidders = &registry;
+        services.credentials = Some(&credentials);
+        let prepared = prepare_auction(
+            &AuctioneerAppConfig::default(),
+            AuctionInput::Typed {
+                request: &request(),
+                headers: RequestHeaders::default(),
+            },
+            services,
+            fixture.funding(),
+        )
+        .unwrap();
+        let mut running = Box::pin(prepared.run());
+        let mut context = Context::from_waker(noop_waker_ref());
+        assert!(running.as_mut().poll(&mut context).is_pending());
+        assert_eq!(credentials.0.load(Ordering::SeqCst), 1);
+        assert_eq!(fixture.fanout.calls.load(Ordering::SeqCst), 0);
+        assert!(fixture.budget.in_use() > 0);
+        assert_eq!(fixture.gate.in_use(), 1);
+        drop(running);
+        assert_eq!(fixture.budget.in_use(), 0);
+        assert_eq!(fixture.gate.in_use(), 0);
+        assert_eq!(fixture.fanout.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn explicit_policy_and_auction_input_vary_independently_on_one_host() {
+        let fixture = Fixture::new();
+        let mut combinations = 0_usize;
+        for enabled in [false, true] {
+            let policy: AuctioneerAppConfig = serde_json::from_value(json!({
+                "schema_version": 1_u8, "bidders": {"fake_aaa": {"enabled": enabled}}
+            }))
+            .unwrap();
+            for id in ["fake_first_request", "fake_second_request"] {
+                let mut input = request();
+                input.id = id.to_owned();
+                let before = serde_json::to_value(&input).unwrap();
+                let calls_before = fixture.fanout.calls.load(Ordering::SeqCst);
+                let result = block_on(
+                    prepare_auction(
+                        &policy,
+                        AuctionInput::Typed {
+                            request: &input,
+                            headers: RequestHeaders::default(),
+                        },
+                        fixture.services(),
+                        fixture.funding(),
+                    )
+                    .unwrap()
+                    .run(),
+                );
+                if enabled {
+                    let completed = result.unwrap();
+                    assert_eq!(completed.outcome().request_id(), id);
+                    assert!(completed.outcome().selected_bid(0).is_some());
+                    drop(completed);
+                } else {
+                    let failure = result.unwrap_err();
+                    assert!(matches!(failure.reason(), AuctionFailureReason::Engine(
+                        AuctionError::BadInput(message)
+                    ) if message == "imp fake_imp has no valid bidders"));
+                    assert_eq!(fixture.gate.in_use(), 1);
+                    assert!(fixture.budget.in_use() > 0);
+                    drop(failure);
+                }
+                assert_eq!(
+                    fixture.fanout.calls.load(Ordering::SeqCst) - calls_before,
+                    usize::from(enabled)
+                );
+                assert_eq!(serde_json::to_value(&input).unwrap(), before);
+                assert_eq!(policy.bidders["fake_aaa"].enabled, Some(enabled));
+                assert_eq!(fixture.budget.in_use(), 0);
+                assert_eq!(fixture.gate.in_use(), 0);
+                combinations += 1;
+            }
+        }
+        assert_eq!(combinations, 4);
+    }
+
+    #[test]
+    fn normalized_body_debug_survives_a_later_fatal_privacy_refusal() {
+        let fixture = Fixture::new();
+        for requested in [false, true] {
+            let mut value = serde_json::to_value(request()).unwrap();
+            value["test"] = json!(u8::from(requested));
+            value["regs"] = json!({"gdpr": 2_i32});
+            let typed = serde_json::from_value(value.clone()).unwrap();
+            let raw = serde_json::to_vec(&value).unwrap();
+            for input in [
+                AuctionInput::Json {
+                    bytes: &raw,
+                    headers: RequestHeaders::default(),
+                },
+                AuctionInput::Typed {
+                    request: &typed,
+                    headers: RequestHeaders::default(),
+                },
+            ] {
+                let failure = prepare_auction(
+                    &AuctioneerAppConfig::default(),
+                    input,
+                    fixture.services(),
+                    fixture.funding(),
+                )
+                .unwrap_err();
+                assert!(matches!(failure.reason(), AuctionFailureReason::Privacy(_)));
+                assert_eq!(failure.debug_requested(), requested);
+                assert!(fixture.budget.in_use() > 0);
+                assert_eq!(fixture.gate.in_use(), 1);
+                drop(failure);
+                assert_eq!(fixture.budget.in_use(), 0);
+            }
+        }
     }
 
     #[test]

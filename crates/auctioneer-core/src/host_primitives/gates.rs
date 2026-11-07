@@ -520,9 +520,9 @@ mod tests {
         boot_gates, boot_limits, derive_aux_work_for_profile, install_boot_envelope,
         resolve_budget_inputs, serialized_json_bytes, warn_dominant_terms,
     };
+    use crate::auction::audit::construction_costs;
     use crate::configure::configure_app;
     use crate::configure::extraction_limits_for;
-    use crate::handlers::request_disclosure_audit::construction_costs;
     use crate::test_support::boot_parity_fixture::profile_for_adapter;
     use auctioneer_bidder::RegistryBuildError;
     use auctioneer_bidder::schema::{SchemaArtifactState, schema_artifact_state};

@@ -33,6 +33,7 @@ mod tests {
     use auctioneer_core::handlers::health_gvl::{counter, gcl_stale_counter};
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{TestClockHandle, TestRngHandle};
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, TimeoutCause,
@@ -42,8 +43,10 @@ mod tests {
     use auctioneer_runtime::{Clock, FakeClock, Rng, SeededRng};
     use edgezero_core::body::Body;
     use edgezero_core::http::StatusCode;
+    use edgezero_core::time::MonotonicClock;
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
+    use std::mem;
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Duration;
     use time::OffsetDateTime;
@@ -294,9 +297,14 @@ mod tests {
             .insert(TestClockHandle(handler_clock));
         request.extensions_mut().insert(TestRngHandle(rng));
 
-        let ctx = ctx_with_config(&config, request);
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(&config, request).into_request().unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
         let response: BidResponse = block_on(async {
-            let response = auction(ctx).await.expect("the handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(envelope.response_mut());
             assert_eq!(
                 response.status(),
                 StatusCode::OK,

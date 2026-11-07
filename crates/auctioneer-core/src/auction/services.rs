@@ -1,6 +1,6 @@
 //! Explicit accepted resource facts and owned prepaid auction funding.
 
-use crate::handlers::request_disclosure_audit::{AuctionDisclosureScope, CompletionStatus};
+use super::audit::{AuctionDisclosureScope, CompletionStatus};
 use auctioneer_bidder::{BidderRegistry, EntryPoint};
 use auctioneer_config_data::types::{AccountConfig, BidderImplementationBinding, HostConfig};
 use auctioneer_exchange::BidderFanout;
@@ -146,24 +146,53 @@ impl AuctionResourceProfile {
         self.schema_scratch_bytes
     }
 
+    fn ensure_owner_costs(&self) -> Result<(), ResourceError> {
+        const REQUIRED: RequestConstructionCosts = super::audit::construction_costs();
+        let supplied = self.inputs.construction_costs;
+        if supplied.fixed_per_auction_bytes < REQUIRED.fixed_per_auction_bytes {
+            return Err(ResourceError::Exhausted {
+                kind: ChargeKind::Privacy,
+            });
+        }
+        if supplied.reusable_scratch_bytes < REQUIRED.reusable_scratch_bytes
+            || supplied.retained_per_scope_bytes < REQUIRED.retained_per_scope_bytes
+        {
+            return Err(ResourceError::Exhausted {
+                kind: ChargeKind::Projection,
+            });
+        }
+        Ok(())
+    }
+
     pub(crate) fn construction_limits(&self) -> Result<RequestConstructionLimits, ResourceError> {
         let limits = &self.inputs.limits;
-        let max_nodes = u64::from(limits.max_parsed_nodes)
-            .checked_add(NORMALIZATION_IMPLICIT_NODES)
-            .ok_or(ResourceError::CapacityOverflow)?;
-        let max_serialized_bytes = normalization_wire_allowance(
+        normalized_construction_limits(
+            u64::from(limits.max_parsed_nodes),
             limits.inbound_request_bytes,
             u64::from(limits.max_copied_header_bytes),
-            u64::from(limits.max_parsed_nodes),
+            self.inputs.construction_costs,
         )
-        .map_err(|_error| ResourceError::CapacityOverflow)?;
-        Ok(RequestConstructionLimits {
-            max_nodes,
-            max_serialized_bytes,
-            reusable_scratch_bytes: self.inputs.construction_costs.reusable_scratch_bytes,
-            retained_per_scope_bytes: self.inputs.construction_costs.retained_per_scope_bytes,
-        })
     }
+}
+
+fn normalized_construction_limits(
+    input_nodes: u64,
+    inbound_bytes: u64,
+    copied_header_bytes: u64,
+    costs: RequestConstructionCosts,
+) -> Result<RequestConstructionLimits, ResourceError> {
+    let max_nodes = input_nodes
+        .checked_add(NORMALIZATION_IMPLICIT_NODES)
+        .ok_or(ResourceError::CapacityOverflow)?;
+    let max_serialized_bytes =
+        normalization_wire_allowance(inbound_bytes, copied_header_bytes, input_nodes)
+            .map_err(|_error| ResourceError::CapacityOverflow)?;
+    Ok(RequestConstructionLimits {
+        max_nodes,
+        max_serialized_bytes,
+        reusable_scratch_bytes: costs.reusable_scratch_bytes,
+        retained_per_scope_bytes: costs.retained_per_scope_bytes,
+    })
 }
 
 /// The existing acquired capacity slot and prepaid phases, never a second pool.
@@ -184,6 +213,7 @@ impl AuctionFunding {
         budget: &Arc<AuctionBudget>,
         permit: AdmissionPermit,
     ) -> Result<Self, ResourceError> {
+        profile.ensure_owner_costs()?;
         let receipts = profile.derived.auction_charges.prepay_owned(budget)?;
         Ok(Self {
             audit: AuctionDisclosureScope::new(),
@@ -193,6 +223,7 @@ impl AuctionFunding {
     }
 
     pub(crate) fn ensure(&self, profile: &AuctionResourceProfile) -> Result<(), ResourceError> {
+        profile.ensure_owner_costs()?;
         let costs = profile.derived.auction_charges;
         for (kind, bytes) in [
             (ChargeKind::RuntimeConfig, costs.config),
@@ -236,6 +267,51 @@ mod tests {
         AdmissionGate, AuctionBudget, BudgetError, ChargeKind, ResourceError,
     };
     use std::sync::Arc;
+
+    #[test]
+    fn normalized_construction_limits_include_funded_header_and_node_additions() {
+        let costs = super::super::audit::construction_costs();
+        let limits = super::normalized_construction_limits(512, 1024, 4096, costs)
+            .expect("funded additions fit");
+        assert_eq!(limits.max_nodes, 542);
+        assert_eq!(
+            limits.max_serialized_bytes,
+            1024_u64
+                .checked_mul(3)
+                .unwrap()
+                .checked_add(4096_u64.checked_mul(8).unwrap())
+                .unwrap()
+                .checked_add(189)
+                .unwrap()
+                .checked_add(512_u64.checked_mul(23).unwrap())
+                .unwrap()
+        );
+        assert_eq!(limits.reusable_scratch_bytes, costs.reusable_scratch_bytes);
+        assert_eq!(
+            limits.retained_per_scope_bytes,
+            costs.retained_per_scope_bytes
+        );
+    }
+
+    #[test]
+    fn normalized_construction_overflow_is_a_static_resource_refusal() {
+        for (nodes, inbound, headers) in [
+            (u64::MAX, 0, 0),
+            (0, u64::MAX, 0),
+            (0, 0, u64::MAX),
+            (u64::MAX.checked_div(23).unwrap() + 1, 0, 0),
+            (u64::MAX.checked_div(23).unwrap(), 0, 0),
+        ] {
+            let error = super::normalized_construction_limits(
+                nodes,
+                inbound,
+                headers,
+                super::super::audit::construction_costs(),
+            )
+            .expect_err("overflow refuses rather than widening the allowance");
+            assert!(matches!(error, ResourceError::CapacityOverflow));
+        }
+    }
 
     fn inputs() -> AuctionResourceInputs {
         let row = profile_for_adapter("unequal_explicit_caps", "axum");
@@ -298,6 +374,53 @@ mod tests {
         assert!(weak.upgrade().is_none());
         assert_eq!(gate.in_use(), 0);
         assert!(gate.try_acquire().is_some());
+    }
+
+    #[test]
+    fn prepayment_rejects_each_underdeclared_construction_owner_before_work() {
+        let required = super::super::audit::construction_costs();
+        for field in 0_u8..3 {
+            for offset in [-1_i8, 0, 1] {
+                let mut facts = inputs();
+                let declared = match field {
+                    0 => &mut facts.construction_costs.fixed_per_auction_bytes,
+                    1 => &mut facts.construction_costs.reusable_scratch_bytes,
+                    _ => &mut facts.construction_costs.retained_per_scope_bytes,
+                };
+                let minimum = match field {
+                    0 => required.fixed_per_auction_bytes,
+                    1 => required.reusable_scratch_bytes,
+                    _ => required.retained_per_scope_bytes,
+                };
+                assert!(minimum > 0);
+                *declared = minimum.checked_add_signed(i64::from(offset)).unwrap();
+                let profile =
+                    AuctionResourceProfile::new(facts, SchemaAllowance::Disabled).unwrap();
+                let budget = Arc::new(AuctionBudget::new(profile.derived().per_auction_peak));
+                let gate = AdmissionGate::new(1);
+                let result = AuctionFunding::prepay(&profile, &budget, gate.try_acquire().unwrap());
+                if offset < 0 {
+                    let kind = if field == 0 {
+                        ChargeKind::Privacy
+                    } else {
+                        ChargeKind::Projection
+                    };
+                    assert!(
+                        matches!(result, Err(ResourceError::Exhausted { kind: actual }) if actual == kind)
+                    );
+                    assert_eq!(budget.in_use(), 0);
+                    assert_eq!(gate.in_use(), 0);
+                } else {
+                    let funded = result.unwrap();
+                    funded.ensure(&profile).unwrap();
+                    assert_eq!(budget.in_use(), profile.derived().per_auction_peak);
+                    assert_eq!(gate.in_use(), 1);
+                    drop(funded);
+                    assert_eq!(budget.in_use(), 0);
+                    assert_eq!(gate.in_use(), 0);
+                }
+            }
+        }
     }
 
     #[test]

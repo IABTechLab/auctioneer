@@ -15,16 +15,18 @@ mod tests {
         BidderHttpRequest, BidderHttpResponse, BidderRegistry, BidderRequestInfo,
     };
     use auctioneer_config_data::types::{BidderInfo, Compression};
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
+    use auctioneer_core::auction::audit::construction_costs;
+    use auctioneer_core::auction::{
+        AuctionFunding, AuctionResourceInputs, AuctionResourceProfile, SchemaAllowance,
+    };
     use auctioneer_core::handlers::{TestFanoutHandle, auction::auction_for_conformance};
     use auctioneer_core::host_primitives::{RequestClock, resolve_budget_inputs};
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
     use auctioneer_openrtb::types::bid_request::BidRequest;
-    use auctioneer_runtime::budget::derive_isolate_budget_with_baked_config;
     use auctioneer_runtime::{
-        AuctionBudget, CatalogResourceCosts, FakeClock, Reservation, SeededRng,
+        AdmissionGate, AuctionBudget, CatalogResourceCosts, FakeClock, SeededRng,
         TargetPlatformConstants, bounded_json::JsonFieldShape,
     };
     use bytes::Bytes;
@@ -32,7 +34,7 @@ mod tests {
         body::Body,
         config_store::BoundedStoreRead,
         context::RequestContext,
-        http::StatusCode,
+        http::{Response, StatusCode},
         params::PathParams,
         secret_store::{SecretError, SecretHandle, SecretStore},
         store_registry::{BoundSecretStore, SecretRegistry, StoreRegistry},
@@ -93,7 +95,7 @@ mod tests {
     fn registry(bidder: FakeBidder<'static>, gzip: bool, host: &str) -> BidderRegistry {
         let mut registry = BidderRegistry::new();
         registry
-            .register(
+            .register_with_implementation(
                 Box::leak(Box::new(BidderInfo {
                     name: "fake_bidder".into(),
                     endpoint: "https://{{.Host}}/auction".into(),
@@ -102,6 +104,7 @@ mod tests {
                     host_allowlist: Some(vec![host.to_owned()]),
                     ..BidderInfo::default()
                 })),
+                "fake_implementation",
                 Box::new(bidder),
             )
             .expect("unique test bidder");
@@ -123,7 +126,7 @@ mod tests {
         registry: &BidderRegistry,
         fanout: Arc<CapturedEndpoints>,
     ) -> (StatusCode, Value) {
-        send_with_services(input, config, registry, fanout, None, None)
+        send_with_services(input, config, registry, fanout, None)
     }
 
     fn send_with_services(
@@ -132,8 +135,34 @@ mod tests {
         registry: &BidderRegistry,
         fanout: Arc<CapturedEndpoints>,
         secrets: Option<SecretRegistry>,
-        reservations: Option<&[Reservation<'_>; 6]>,
     ) -> (StatusCode, Value) {
+        let resources = resource_profile();
+        let budget = Arc::new(AuctionBudget::new(resources.derived().per_auction_peak));
+        let gate = AdmissionGate::new(resources.inputs().limits.max_concurrent_auctions);
+        let permit = gate.try_acquire().unwrap();
+        let funding = AuctionFunding::prepay(&resources, &budget, permit).unwrap();
+        assert_eq!(budget.in_use(), budget.limit());
+        assert_eq!(gate.in_use(), 1);
+        let response = send_with_funding(
+            input, config, registry, fanout, secrets, &resources, funding,
+        );
+        assert_eq!(budget.in_use(), 0);
+        assert_eq!(gate.in_use(), 0);
+        (
+            response.status(),
+            serde_json::from_slice(&response.into_body().into_bytes().unwrap()).unwrap(),
+        )
+    }
+
+    fn send_with_funding(
+        input: &Value,
+        config: &str,
+        registry: &BidderRegistry,
+        fanout: Arc<CapturedEndpoints>,
+        secrets: Option<SecretRegistry>,
+        resources: &AuctionResourceProfile,
+        funding: AuctionFunding,
+    ) -> Response {
         let mut request = http::Request::builder()
             .method("POST")
             .uri("/openrtb2/auction")
@@ -148,19 +177,16 @@ mod tests {
             context.monotonic_clock(),
             Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH)),
         ));
-        let response = block_on(auction_for_conformance(
+        block_on(auction_for_conformance(
             context,
             toml::from_str(config).unwrap(),
             clock,
             Arc::new(SeededRng::new(42)),
             registry,
-            reservations,
+            resources,
+            funding,
         ))
-        .unwrap();
-        (
-            response.status(),
-            serde_json::from_slice(&response.into_body().into_bytes().unwrap()).unwrap(),
-        )
+        .unwrap()
     }
 
     struct FakeSecretStore {
@@ -255,13 +281,14 @@ mod tests {
             ("fake_unrequested", "fake_unrequested_credentials"),
         ] {
             registry
-                .register(
+                .register_with_implementation(
                     Box::leak(Box::new(BidderInfo {
                         name: name.into(),
                         endpoint: format!("https://bidder.example/{name}"),
                         uses_https: true,
                         ..BidderInfo::default()
                     })),
+                    "fake_implementation",
                     Box::new(FakeBidder {
                         credential_reference: Some(reference),
                         credential_preflight_observer: Some(preflight),
@@ -281,14 +308,7 @@ mod tests {
         input
     }
 
-    fn send_with_credentials(
-        input: &Value,
-        config: &str,
-        registry: &BidderRegistry,
-        fanout: Arc<CapturedEndpoints>,
-        store: &Arc<FakeSecretStore>,
-        funded: bool,
-    ) -> (StatusCode, Value) {
+    fn resource_profile() -> AuctionResourceProfile {
         let inputs = resolve_budget_inputs(&envelope::limits()).unwrap();
         let target = TargetPlatformConstants {
             platform_concurrent_ceiling: 384,
@@ -303,36 +323,44 @@ mod tests {
             parser_transient_bytes: 0x4000,
             egress_handoff_factor: 2,
         };
-        let derived = derive_isolate_budget_with_baked_config(
-            &inputs.limits,
-            &target,
-            auctioneer_bidder::outbound_meta_bytes(inputs.limits.max_impressions_per_auction),
-            construction_costs(),
-            inputs.baked_config_bytes,
-            CatalogResourceCosts::UNCHANGED,
+        AuctionResourceProfile::new(
+            AuctionResourceInputs {
+                limits: inputs.limits,
+                target,
+                outbound_meta_bytes: auctioneer_bidder::outbound_meta_bytes(
+                    inputs.limits.max_impressions_per_auction,
+                ),
+                construction_costs: construction_costs(),
+                product_default_bytes: inputs.baked_config_bytes,
+                catalog_costs: CatalogResourceCosts::UNCHANGED,
+            },
+            SchemaAllowance::Disabled,
         )
-        .unwrap();
-        let budget = AuctionBudget::new(derived.per_auction_peak);
-        let held = funded.then(|| derived.auction_charges.prepay(&budget).unwrap());
-        if funded {
-            assert_eq!(budget.in_use(), budget.limit());
-        }
+        .unwrap()
+    }
+
+    fn credential_binding(store: &Arc<FakeSecretStore>) -> SecretRegistry {
         let shared: Arc<dyn SecretStore> = Arc::<FakeSecretStore>::clone(store);
-        let secrets = StoreRegistry::single_id(
+        StoreRegistry::single_id(
             "fake_logical_binding".into(),
             BoundSecretStore::new(SecretHandle::new(shared), "fake_physical_store".into()),
-        );
-        let response = send_with_services(
+        )
+    }
+
+    fn send_with_credentials(
+        input: &Value,
+        config: &str,
+        registry: &BidderRegistry,
+        fanout: Arc<CapturedEndpoints>,
+        store: &Arc<FakeSecretStore>,
+    ) -> (StatusCode, Value) {
+        send_with_services(
             input,
             config,
             registry,
             fanout,
-            Some(secrets),
-            held.as_ref(),
-        );
-        drop(held);
-        assert_eq!(budget.in_use(), 0);
-        response
+            Some(credential_binding(store)),
+        )
     }
 
     fn assert_credential_seats(wire: &Value, expected: &[&str]) {
@@ -398,7 +426,6 @@ mod tests {
                 &registry,
                 Arc::clone(&fanout),
                 &store,
-                true,
             );
             assert_eq!(status, StatusCode::OK);
             assert_eq!(
@@ -464,7 +491,6 @@ mod tests {
                 &registry,
                 Arc::clone(&fanout),
                 &store,
-                true,
             );
             assert_eq!(status, StatusCode::OK);
             assert_eq!(
@@ -522,7 +548,6 @@ mod tests {
                 &registry,
                 Arc::clone(&fanout),
                 &store,
-                true,
             );
             assert_eq!(status, StatusCode::OK);
             let expected = if allowed_sibling {
@@ -555,32 +580,53 @@ mod tests {
     }
 
     #[test]
-    fn unfunded_http_credential_dispatch_refuses_without_polling_request_secrets() {
+    fn insufficient_original_funding_refuses_before_credential_preparation() {
         let declarations = Arc::new(Mutex::new(Vec::new()));
         let constructions = Arc::new(Mutex::new(Vec::new()));
         let registry = credential_registry(&declarations, &constructions);
         let store = FakeSecretStore::new(vec![]);
         let fanout = Arc::new(CapturedEndpoints::default());
-        let (status, wire) = send_with_credentials(
+        let original = resource_profile();
+        let budget = Arc::new(AuctionBudget::new(original.derived().per_auction_peak));
+        let gate = AdmissionGate::new(original.inputs().limits.max_concurrent_auctions);
+        let permit = gate.try_acquire().unwrap();
+        let funding = AuctionFunding::prepay(&original, &budget, permit).unwrap();
+        assert_eq!(budget.in_use(), budget.limit());
+        assert_eq!(gate.in_use(), 1);
+        // Preserve every workload limit while requiring one more projection byte
+        // than the original, already-prepaid receipt can supply.
+        let mut facts = *original.inputs();
+        facts.catalog_costs.context_per_auction_bytes += 1;
+        let required = AuctionResourceProfile::new(facts, SchemaAllowance::Disabled).unwrap();
+        assert_eq!(
+            required.derived().auction_charges.projection,
+            original.derived().auction_charges.projection + 1,
+        );
+        let response = send_with_funding(
             &credential_input(json!({"fake_bidder": {}})),
             CREDENTIAL_CONFIG,
             &registry,
             Arc::clone(&fanout),
-            &store,
-            false,
+            Some(credential_binding(&store)),
+            &required,
+            funding,
         );
-        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers()["content-type"],
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_eq!(
+            response.into_body().into_bytes().unwrap().as_ref(),
+            b"overloaded\n"
+        );
         assert!(store.reads.lock().unwrap().is_empty());
-        assert_eq!(*declarations.lock().unwrap(), ["fake_bidder"]);
+        assert!(declarations.lock().unwrap().is_empty());
         assert!(constructions.lock().unwrap().is_empty());
         assert!(fanout.0.lock().unwrap().is_empty());
-        assert!(wire["seatbid"].as_array().is_none_or(Vec::is_empty));
-        assert_eq!(
-            wire["ext"]["errors"],
-            json!({"fake_bidder": [{
-                "code": 5_u32, "message": "bidder credentials unavailable"
-            }]})
-        );
+        assert_eq!(budget.in_use(), 0);
+        assert_eq!(gate.in_use(), 0);
     }
 
     fn assert_normalized_bid(wire: &Value) {

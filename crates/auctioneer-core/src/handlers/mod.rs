@@ -10,7 +10,6 @@ pub mod getuids;
 pub mod health_gvl;
 pub mod info_bidders;
 pub mod probe_config;
-pub mod request_disclosure_audit;
 pub mod setuid;
 pub mod status;
 pub mod sync_http;

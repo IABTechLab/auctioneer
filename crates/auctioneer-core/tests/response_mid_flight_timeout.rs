@@ -69,6 +69,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, TimeoutCause,
@@ -83,7 +84,7 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
     use std::mem;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use time::OffsetDateTime;
 
@@ -338,6 +339,8 @@ mod tests {
     /// budget the fanout spends is the same budget `run_auction` measures
     /// its deadline against.
     fn drive_handler(request_body: &str) -> (StatusCode, serde_json::Value) {
+        static AUCTIONS: Mutex<()> = Mutex::new(());
+        let _serial = AUCTIONS.lock().unwrap();
         config_funding::install();
         let clock = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
         let handler_clock: Arc<dyn Clock + Send + Sync> = Arc::<FakeClock>::clone(&clock);
@@ -364,9 +367,15 @@ mod tests {
         request.extensions_mut().insert(TestRngHandle(rng));
 
         block_on(async {
-            let response = auction(ctx_with_config("schema_version = 1\n", request))
-                .await
-                .expect("the handler answers");
+            let (ctx, mut terminal) = auction_context_for_route(
+                ctx_with_config("schema_version = 1\n", request)
+                    .into_request()
+                    .unwrap(),
+                "/openrtb2/auction",
+                MonotonicClock::default(),
+            );
+            *terminal.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(terminal.response_mut());
             let status = response.status();
             let (_parts, body) = response.into_parts();
             let bytes = body

@@ -28,6 +28,7 @@ mod tests {
     use auctioneer_config_data::types::MediaType;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{TestClockHandle, TestRngHandle};
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -39,6 +40,7 @@ mod tests {
     use auctioneer_runtime::{Clock, FakeClock, Rng, SeededRng};
     use edgezero_core::body::Body;
     use edgezero_core::http::StatusCode;
+    use edgezero_core::time::MonotonicClock;
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use serde_json::{Value, json};
@@ -49,6 +51,8 @@ mod tests {
     use time::OffsetDateTime;
 
     const WIDE_CAP: usize = 1 << 20;
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
 
     /// Answers every call with a well-formed empty response, so a
     /// request that gets PAST the privacy gate reaches a clean 200 and
@@ -143,6 +147,7 @@ mod tests {
         fixture: &BidRequest,
         config: &str,
     ) -> (StatusCode, String, Vec<BidderHttpRequest>) {
+        let _serialized = AUCTIONS.lock().expect("auction fixture lock");
         config_funding::install();
         let clock: Arc<dyn Clock + Send + Sync> =
             Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
@@ -162,17 +167,22 @@ mod tests {
             )))));
         request.extensions_mut().insert(TestClockHandle(clock));
         request.extensions_mut().insert(TestRngHandle(rng));
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(config, request).into_request().unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
 
         block_on(async {
-            let response = auction(ctx_with_config(config, request))
-                .await
-                .expect("the handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(envelope.response_mut());
             let status = response.status();
             let (_parts, body) = response.into_parts();
             let bytes = body
                 .into_bytes_bounded(WIDE_CAP)
                 .await
                 .expect("response body reads");
+            drop(envelope);
             (
                 status,
                 String::from_utf8(bytes.to_vec()).expect("the body is UTF-8 text"),

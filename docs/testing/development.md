@@ -27,7 +27,7 @@ their diagnostics include standard-library source excerpts. CI installs the same
 component; do not regenerate snapshots to compensate for missing Rust sources.
 
 The current EdgeZero dependency is the immutable PR #275 integration revision
-`775366fdac923135e8430b1e3dffebedc648ef7c`, not a moving branch selector.
+`598f0a2a490eb83dd31c06c024a0cefa8e049628`, not a moving branch selector.
 Acquisition requires that upstream Git object to remain available. A missing
 object is a source-availability failure, not a failed runtime test; do not
 silently select another revision. Resolve the actual fetched checkout for
@@ -35,7 +35,7 @@ SDK-dependent tests rather than guessing Cargo's cache directory:
 
 ```sh
 set -euo pipefail
-pin=775366fdac923135e8430b1e3dffebedc648ef7c
+pin=598f0a2a490eb83dd31c06c024a0cefa8e049628
 metadata=$(mktemp)
 cargo metadata --locked --offline --format-version 1 > "$metadata"
 manifest=$(jq -er --arg source "git+https://github.com/IABTechLab/edgezero.git?rev=$pin#$pin" '

@@ -19,6 +19,7 @@ mod tests {
     use auctioneer_core::{
         handlers::{TestFanoutHandle, auction},
         host_primitives::{TestClockHandle, TestMonotonicClockHandle, TestRngHandle},
+        test_support::config_store::auction_context_for_route,
     };
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
@@ -28,10 +29,12 @@ mod tests {
     use futures::executor::block_on;
     use serde_json::{Value, json};
     use std::sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     };
     use std::time::Duration;
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
 
     struct CountCalls(AtomicUsize);
 
@@ -54,6 +57,7 @@ mod tests {
     }
 
     fn send(wire: Vec<u8>) -> (StatusCode, usize) {
+        let _serialized = AUCTIONS.lock().expect("auction fixture lock");
         config_funding::install();
         let fanout = Arc::new(CountCalls(AtomicUsize::new(0)));
         let clock = Arc::new(FakeClock::new(time::OffsetDateTime::UNIX_EPOCH));
@@ -68,11 +72,10 @@ mod tests {
         request
             .extensions_mut()
             .insert(TestClockHandle(Arc::<FakeClock>::clone(&clock)));
+        let monotonic = MonotonicClock::new(move || clock.now_monotonic());
         request
             .extensions_mut()
-            .insert(TestMonotonicClockHandle(MonotonicClock::new(move || {
-                clock.now_monotonic()
-            })));
+            .insert(TestMonotonicClockHandle(monotonic.clone()));
         request
             .extensions_mut()
             .insert(TestRngHandle(Arc::new(SeededRng::new(42))));
@@ -84,8 +87,17 @@ mod tests {
             },
         }))
         .unwrap();
-        let response = block_on(auction(support::ctx_with_config(&config, request))).unwrap();
-        (response.status(), fanout.0.load(Ordering::SeqCst))
+        let (ctx, mut envelope) = auction_context_for_route(
+            support::ctx_with_config(&config, request)
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            monotonic,
+        );
+        *envelope.response_mut() = block_on(auction(ctx)).unwrap();
+        let status = envelope.response_mut().status();
+        drop(envelope);
+        (status, fanout.0.load(Ordering::SeqCst))
     }
 
     fn request() -> Value {

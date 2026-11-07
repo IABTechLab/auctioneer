@@ -37,9 +37,9 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_config_data::types::{HostConfig, ResourceLimits};
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::config::resolve::{limits_for_request, resolved_host};
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{boot_limits, install_boot_envelope};
     use auctioneer_runtime::budget::ASSEMBLY_FACTOR;
     use auctioneer_runtime::{

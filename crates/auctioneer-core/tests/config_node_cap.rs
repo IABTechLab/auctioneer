@@ -10,8 +10,8 @@ use fanout_limits as envelope;
 #[cfg(test)]
 mod tests {
     use super::{bounded_store::bounded_over_get, envelope};
+    use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::configure::configure_app;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_core::host_primitives::{boot_limits, install_boot_envelope};
     use auctioneer_core::ingress::PROBE_CLASS;
     use auctioneer_runtime::budget::derive_aux_work_for_profile;

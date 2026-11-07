@@ -5,7 +5,7 @@ use fanout_limits as envelope;
 mod tests {
     use super::envelope;
     use auctioneer_core::{
-        handlers::request_disclosure_audit::construction_costs as core_construction_costs,
+        auction::audit::construction_costs as core_construction_costs,
         host_primitives::{boot_gates, install_boot_envelope},
         usersync::{
             cookie::MAX_SET_COOKIE_FIELD_BYTES,

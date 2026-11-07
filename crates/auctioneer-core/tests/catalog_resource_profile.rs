@@ -7,7 +7,7 @@ use fanout_limits as envelope;
 #[cfg(test)]
 mod tests {
     use super::envelope;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
+    use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::host_primitives::{boot_gates, resolve_budget_inputs};
     use auctioneer_runtime::budget::derive_aux_work_for_profile;
     use auctioneer_runtime::{

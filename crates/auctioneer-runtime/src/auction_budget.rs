@@ -6,11 +6,11 @@
 //! unmeasured allocations fit, or prevent physical OOM when the configured
 //! whole-isolate total exceeds the platform ceiling.
 
-use std::alloc::Layout;
+use std::alloc::{Layout, LayoutError};
 use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 /// Stable categories for accounting diagnostics, never request-derived text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,6 +130,22 @@ pub struct AuctionBudget {
 }
 
 impl AuctionBudget {
+    /// Requested storage for one shared ledger, including its reference counts.
+    ///
+    /// Rust 1.98.1 `alloc/sync.rs` uses a C-layout strong/weak atomic header,
+    /// followed by the aligned payload. Allocation controls independently
+    /// compare this layout with the real `Arc` allocation; receipts only clone
+    /// its handle and must not multiply this storage by their count.
+    ///
+    /// # Errors
+    /// Returns a layout error if the target cannot represent the shared owner.
+    pub const fn shared_owner_layout() -> Result<Layout, LayoutError> {
+        match Layout::new::<[AtomicUsize; 2]>().extend(Layout::new::<Self>()) {
+            Ok((layout, _offset)) => Ok(layout.pad_to_align()),
+            Err(error) => Err(error),
+        }
+    }
+
     #[must_use]
     pub const fn new(limit: u64) -> Self {
         Self {
@@ -283,6 +299,43 @@ mod tests {
     use std::iter;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::sync::{Arc, Barrier};
+
+    #[test]
+    fn shared_ledger_layout_charges_one_allocation_not_each_receipt() {
+        use crate::alloc_track::measure_on_this_thread;
+        use std::hint::black_box;
+
+        for limit in [0_u64, 1, u64::MAX] {
+            let expected = if cfg!(target_pointer_width = "64") {
+                32
+            } else {
+                24
+            };
+            let (budget, measured) =
+                measure_on_this_thread(|| black_box(Arc::new(AuctionBudget::new(limit)))).unwrap();
+            assert_eq!(measured.retained_bytes, expected);
+            assert_eq!(measured.peak_bytes, expected);
+            assert_eq!(
+                u64::try_from(AuctionBudget::shared_owner_layout().unwrap().size()).unwrap(),
+                expected
+            );
+            let charges = AuctionCharges {
+                config: 0,
+                ingress: 0,
+                privacy: 0,
+                projection: 0,
+                outbound: 0,
+                response: 0,
+            };
+            let before = allocated_on_this_thread();
+            let receipts = charges.prepay_owned(&budget).unwrap();
+            assert_eq!(allocated_on_this_thread(), before);
+            assert_eq!(Arc::strong_count(&budget), 7);
+            drop(receipts);
+            assert_eq!(Arc::strong_count(&budget), 1);
+            drop(budget);
+        }
+    }
     use std::thread;
 
     #[test]

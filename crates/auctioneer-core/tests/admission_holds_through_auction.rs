@@ -59,6 +59,21 @@ mod ipv6_growth_allocations {
 
     std::thread_local! {
         static PROBE: Cell<Option<Probe>> = const { Cell::new(None) };
+        static ALLOCATED_BYTES: Cell<u64> = const { Cell::new(0) };
+    }
+
+    pub fn allocated_bytes() -> u64 {
+        ALLOCATED_BYTES.try_with(Cell::get).unwrap_or(0)
+    }
+
+    fn record_allocation(bytes: usize) {
+        let _recorded = ALLOCATED_BYTES.try_with(|total| {
+            total.set(
+                total
+                    .get()
+                    .saturating_add(u64::try_from(bytes).unwrap_or(u64::MAX)),
+            );
+        });
     }
 
     #[must_use]
@@ -158,11 +173,13 @@ mod ipv6_growth_allocations {
     // realloc leaves its original allocation intact; callbacks never allocate.
     unsafe impl GlobalAlloc for Allocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            record_allocation(layout.size());
             // SAFETY: the caller supplies a valid allocation layout.
             unsafe { System.alloc(layout) }
         }
 
         unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+            record_allocation(layout.size());
             // SAFETY: the caller supplies a valid allocation layout.
             unsafe { System.alloc_zeroed(layout) }
         }
@@ -179,6 +196,9 @@ mod ipv6_growth_allocations {
             }
             // SAFETY: pointer/layout match System; new_size is the caller's request.
             let next = unsafe { System.realloc(ptr, layout, new_size) };
+            if !next.is_null() {
+                record_allocation(new_size);
+            }
             if matches && !next.is_null() {
                 record_success();
             }
@@ -203,11 +223,11 @@ mod tests {
     use crate::serving_catalog;
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
     use auctioneer_core::handlers::auction::{TestAuctionBudget, auction};
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::ingress_lease::{
         AuctioneerIngressLease, RouteAdmissionMarker,
     };
@@ -1425,6 +1445,85 @@ mod tests {
             }
         }
         panic!("the auction never reached the fanout");
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn encoded_debug_queries_do_no_decoding_work_on_unfunded_refusals() {
+        use super::ipv6_growth_allocations::allocated_bytes;
+        use url::form_urlencoded;
+
+        boot();
+        let _serialized = gate_counters_lock();
+        // Positive control: the same decoder must make the allocation meter move.
+        let before = allocated_bytes();
+        let decoded = form_urlencoded::parse(b"%64ebug=%31").collect::<Vec<_>>();
+        assert_eq!(decoded[0].0, "debug");
+        assert!(allocated_bytes() > before);
+        drop(decoded);
+        for admitted in [false, true] {
+            let _warm_plain = unfunded_debug_allocation("debug=1", admitted);
+            let _warm_encoded = unfunded_debug_allocation("%64ebug=%31", admitted);
+            let plain = unfunded_debug_allocation("debug=1", admitted);
+            let encoded = unfunded_debug_allocation("%64ebug=%31", admitted);
+            assert_eq!(
+                encoded, plain,
+                "admitted={admitted}: rejected work must not decode query bytes"
+            );
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn unfunded_debug_allocation(query: &str, admitted: bool) -> u64 {
+        use super::ipv6_growth_allocations::allocated_bytes;
+
+        let mut request = auction_request(VALID_REQUEST, Arc::new(UnavailableFanout));
+        *request.uri_mut() = format!("/openrtb2/auction?{query}").parse().unwrap();
+        request.extensions_mut().insert(TestAuctionBudget(Arc::new(
+            auctioneer_runtime::AuctionBudget::new(0),
+        )));
+        let (ctx, terminal) = if admitted {
+            let (ctx, terminal) = config_store::auction_context_for_route(
+                request,
+                "/openrtb2/auction",
+                MonotonicClock::default(),
+            );
+            (ctx, Some(terminal))
+        } else {
+            (config_store::context(request), None)
+        };
+        let before = allocated_bytes();
+        let response = block_on(auction(ctx)).unwrap();
+        let allocated = allocated_bytes().checked_sub(before).unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_eq!(
+            response.into_body().into_bytes().unwrap().as_ref(),
+            b"overloaded\n"
+        );
+        drop(terminal);
+        allocated
+    }
+
+    #[test]
+    fn an_unadmitted_handler_call_refuses_without_replacement_capacity_or_dispatch() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let entered = Arc::new(AtomicBool::new(false));
+        let request = auction_request(
+            VALID_REQUEST,
+            Arc::new(ParkedFanout {
+                released: Arc::new(AtomicBool::new(true)),
+                entered: Arc::clone(&entered),
+            }),
+        );
+        let before = admission_gate().unwrap().in_use();
+        let ctx = config_store::context(request);
+        let response = block_on(auction(ctx)).expect("fixed refusal builds");
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers().get("cache-control").unwrap(), "no-store");
+        assert!(!entered.load(Ordering::SeqCst));
+        assert_eq!(admission_gate().unwrap().in_use(), before);
     }
 
     #[test]

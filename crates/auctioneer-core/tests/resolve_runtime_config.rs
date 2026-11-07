@@ -54,6 +54,7 @@ mod tests {
     use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
+    use std::mem;
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Duration;
     use time::OffsetDateTime;
@@ -245,12 +246,18 @@ mod tests {
         // Wire-level: the shared response mapper's fail-closed 500,
         // with no bidder called.
         let fanout = Arc::new(RecordingFanout::default());
-        let wire_ctx = context_with(
+        let unadmitted_ctx = context_with(
             Arc::new(UnknownAliasBaseStore),
             Arc::<RecordingFanout>::clone(&fanout),
         );
+        let (wire_ctx, mut terminal) = funded_config::auction_context_for_route(
+            unadmitted_ctx.into_request().unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
         block_on(async {
-            let response = auction(wire_ctx).await.expect("the handler answers");
+            *terminal.response_mut() = auction(wire_ctx).await.expect("the handler answers");
+            let response = mem::take(terminal.response_mut());
             assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
             for value in response.headers().values() {
                 let text = value.to_str().expect("fixture response header is text");

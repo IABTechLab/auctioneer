@@ -92,7 +92,7 @@ use edgezero_core::config_store::DEFAULT_CONFIG_JSON_NODES;
 /// initializer on the pinned toolchain, and the workspace denies `as`.
 /// The assertion below is what keeps the two from drifting.
 const CONFIG_JSON_NODES_U64: u64 = 8_192;
-use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
+use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
 use auctioneer_core::host_primitives::construction_diagnostic_costs;
 use auctioneer_core::host_primitives::{BootEnvelope, ResourceProfile, StderrBootLog};
 use auctioneer_runtime::budget::{

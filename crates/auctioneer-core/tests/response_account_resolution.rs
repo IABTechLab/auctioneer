@@ -38,6 +38,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -49,12 +50,15 @@ mod tests {
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use std::fs;
-    use std::sync::Arc;
+    use std::mem;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use time::OffsetDateTime;
 
     /// Response cap wide enough that nothing here trips it.
     const WIDE_CAP: usize = 1 << 20;
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
 
     /// The publisher id both fixtures name, and the `[accounts.<id>]`
     /// key both overlays declare.
@@ -104,6 +108,7 @@ mod tests {
     /// clock would let a slow runner overrun `tmax` and add an
     /// auction-wide timeout entry to the recorded answer.
     fn drive(config_toml: &str, request_body: &str) -> (StatusCode, Option<String>, Vec<u8>) {
+        let _serialized = AUCTIONS.lock().expect("auction fixture lock");
         config_funding::install();
         let mut config: toml::Value = toml::from_str(config_toml).unwrap();
         let aliases = toml::Table::from_iter([(
@@ -136,16 +141,22 @@ mod tests {
         // terms, so a recorded response containing it drifts by a millisecond
         // under load.
         let monotonic_source = Arc::<FakeClock>::clone(&fake);
+        let monotonic = MonotonicClock::new(move || monotonic_source.now_monotonic());
         request
             .extensions_mut()
-            .insert(TestMonotonicClockHandle(MonotonicClock::new(move || {
-                monotonic_source.now_monotonic()
-            })));
+            .insert(TestMonotonicClockHandle(monotonic.clone()));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = ctx_with_config(&configured, request);
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(&configured, request)
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            monotonic,
+        );
 
         block_on(async {
-            let response = auction(ctx).await.expect("the handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(envelope.response_mut());
             let status = response.status();
             let content_type = response
                 .headers()
@@ -157,6 +168,7 @@ mod tests {
                 .into_bytes_bounded(WIDE_CAP)
                 .await
                 .expect("response body reads");
+            drop(envelope);
             (status, content_type, bytes.to_vec())
         })
     }

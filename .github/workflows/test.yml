@@ -176,7 +176,7 @@ jobs:
 
       - name: Verify bounded request disclosure observation
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-core --lib handlers::request_disclosure_audit::tests
+        run: cargo test --locked -p auctioneer-core --lib auction::audit::tests
 
       # Documentation gates. Both are pure shell over the docs tree, so
       # they run before the compile: a stale batch-API reference or a

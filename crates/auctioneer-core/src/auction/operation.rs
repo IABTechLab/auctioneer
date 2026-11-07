@@ -29,7 +29,7 @@ pub(super) struct PreparedState {
 
 /// Request-owned policy projection followed by explicit borrowed host services.
 pub struct PreparedAuction<'host> {
-    state: PreparedState,
+    state: Box<PreparedState>,
     services: AuctionServices<'host>,
     funding: AuctionFunding,
 }
@@ -41,10 +41,14 @@ impl<'host> PreparedAuction<'host> {
         funding: AuctionFunding,
     ) -> Self {
         Self {
-            state,
+            state: Box::new(state),
             services,
             funding,
         }
+    }
+
+    pub(crate) fn debug_requested(&self) -> bool {
+        self.state.debug_requested
     }
     /// Run the one engine path; no request context or config owner is retained.
     ///

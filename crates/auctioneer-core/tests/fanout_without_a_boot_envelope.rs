@@ -3,6 +3,9 @@
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
+    use auctioneer_core::config::runtime::{
+        RuntimeConfigError, UnfundedExtractionReason, resolve_runtime_config,
+    };
     use auctioneer_core::handlers::auction;
     use auctioneer_core::host_primitives::{
         DelegateToDevStrategy, DevRng, SystemClock, boot_gates, bootstrap_adapter,
@@ -63,15 +66,32 @@ mod tests {
             },
         );
         request.extensions_mut().insert(registry);
-        let response =
-            block_on(auction(RequestContext::new(request, PathParams::default()))).unwrap();
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(response.headers()["cache-control"], "no-store");
-        assert!(!response.headers().contains_key("retry-after"));
+        let ctx = RequestContext::new(request, PathParams::default());
+        let error = block_on(resolve_runtime_config(&ctx)).unwrap_err();
+        assert!(matches!(
+            error,
+            RuntimeConfigError::UnfundedExtraction {
+                reason: UnfundedExtractionReason::BootMissing,
+            }
+        ));
+        let configuration_refusal = error.into_response().unwrap();
         assert_eq!(
-            response.body().as_bytes().unwrap(),
+            configuration_refusal.status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(configuration_refusal.headers()["cache-control"], "no-store");
+        assert!(!configuration_refusal.headers().contains_key("retry-after"));
+        assert_eq!(
+            configuration_refusal.body().as_bytes().unwrap(),
             b"Unfunded configuration extraction"
         );
+        // HTTP admission now precedes extraction; retain the extractor's
+        // original fail-closed contract above as an independent control.
+        let response = block_on(auction(ctx)).unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert!(!response.headers().contains_key("retry-after"));
+        assert_eq!(response.body().as_bytes().unwrap(), b"overloaded\n");
         assert!(boot_gates().is_none());
     }
 }

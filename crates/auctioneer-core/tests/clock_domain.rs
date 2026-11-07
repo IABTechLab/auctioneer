@@ -30,6 +30,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         RequestClock, TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -44,6 +45,7 @@ mod tests {
     use edgezero_core::time::{Deadline, MonotonicClock, MonotonicInstant as EdgeMonotonicInstant};
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
+    use std::mem;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use time::OffsetDateTime;
@@ -267,19 +269,24 @@ mod tests {
         request.extensions_mut().insert(TestClockHandle(wall));
         request
             .extensions_mut()
-            .insert(TestMonotonicClockHandle(monotonic));
+            .insert(TestMonotonicClockHandle(monotonic.clone()));
         request.extensions_mut().insert(TestRngHandle(rng));
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(&config, request).into_request().unwrap(),
+            "/openrtb2/auction",
+            monotonic,
+        );
 
         let (status, _response): (StatusCode, BidResponse) = block_on(async {
-            let response = auction(ctx_with_config(&config, request))
-                .await
-                .expect("the handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(envelope.response_mut());
             let status = response.status();
             let (_parts, body) = response.into_parts();
             let bytes = body
                 .into_bytes_bounded(WIDE_CAP)
                 .await
                 .expect("response body reads");
+            drop(envelope);
             (
                 status,
                 serde_json::from_slice(&bytes).expect("the response deserializes"),

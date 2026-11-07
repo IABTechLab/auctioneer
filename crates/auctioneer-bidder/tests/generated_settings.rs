@@ -326,9 +326,9 @@ mod tests {
         "request_binding::settings_binding_borrows_both_entries_and_preserves_fieldwise_zero_precedence",
         "request_binding::settings_binding_enforces_limits_for_programmatic_callers_and_clears_previous_binding",
         "request_binding::settings_binding_refuses_each_wrong_or_missing_implementation_before_projection",
-        "retained_owner::tests::retaining_settings_moves_the_original_buffers_and_drops_unrelated_entries",
+        "retained_owner::tests::projected_settings_alias_and_base_lookups_borrow_owned_strings_without_allocating",
         "retained_owner::tests::projecting_settings_copies_only_requested_and_resolved_base_values",
-        "retention::moving_protocol_settings_out_of_config_does_not_rebuild_the_map_or_clone_values",
+        "retention::projecting_settings_copies_selected_strings_once_independent_of_unrelated_populations",
         "runtime::malformed_generated_settings_fail_closed_without_payload_text_in_diagnostics",
     ];
 
