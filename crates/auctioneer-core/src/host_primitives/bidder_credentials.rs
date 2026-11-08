@@ -14,15 +14,26 @@ use edgezero_core::{
 
 const MAX_CREDENTIAL_STORE_NAME_BYTES: usize = 128;
 
-pub(crate) struct CredentialLoader {
+/// Request-bound credential source backed by a caller-selected SDK secret store.
+///
+/// Construction does not read secrets. [`BidderCredentialSource::load`] checks
+/// references and the supplied clock before one bounded provider read, passing
+/// the original absolute deadline and 4096-byte backend and value caps. Read or
+/// validation failures return only [`CredentialUnavailable`].
+pub struct CredentialLoader {
     store: Option<BoundSecretStore>,
     clock: MonotonicClock,
 }
 
 impl CredentialLoader {
     /// Retain the caller's bound store and clock without reading credentials.
-    /// Oversized store bindings remain unavailable, as on HTTP capture.
-    pub(crate) fn new(store: Option<BoundSecretStore>, clock: MonotonicClock) -> Self {
+    ///
+    /// `None` or a binding whose store name exceeds 128 bytes leaves the source
+    /// unavailable. Reads begin only when the load future is polled. Callers
+    /// must supply references from admitted settings and absolute deadlines in
+    /// this clock's monotonic domain.
+    #[must_use]
+    pub fn new(store: Option<BoundSecretStore>, clock: MonotonicClock) -> Self {
         Self {
             store: store
                 .filter(|binding| binding.store_name().len() <= MAX_CREDENTIAL_STORE_NAME_BYTES),

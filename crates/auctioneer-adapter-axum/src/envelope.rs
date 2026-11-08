@@ -734,7 +734,7 @@ mod tests {
         assert_eq!(
             derived.total_bytes,
             // Two admitted auctions each retain the measured bridge owners.
-            2_536_754_680 + 2 * 128 * 1024 + 26_214_400 + 2 * 19_144
+            2_536_754_680 + 2 * 128 * 1024 + 26_214_400 + 2 * 19_160
         );
         assert!(derived.total_bytes + (256_u64 << 20_u32) <= row.isolate_total_bytes);
         let mut underfunded = row;
@@ -811,11 +811,11 @@ mod tests {
         // One sequential credential bank per admitted auction, not per call.
         assert_eq!(
             previous.total_bytes,
-            2_355_338_744 + 2 * (1_576_960 + 128 * 1024) + 26_214_400 + 2 * 19_144
+            2_355_338_744 + 2 * (1_576_960 + 128 * 1024) + 26_214_400 + 2 * 19_160
         );
         assert_eq!(
             previous.per_auction_peak,
-            565_731_420 + 1_576_960 + 128 * 1024 + 0x0008_0000 + 19_144
+            565_731_420 + 1_576_960 + 128 * 1024 + 0x0008_0000 + 19_160
         );
         assert_eq!(previous.bookkeeping_term, 917_504);
         assert_eq!(
@@ -891,16 +891,16 @@ mod tests {
         assert_eq!(row.isolate_total_bytes, 4_u64 << 30_u32);
         assert_eq!(
             derived.total_bytes,
-            2_536_754_680 + 2 * 128 * 1024 + 26_214_400 + 2 * 19_144
+            2_536_754_680 + 2 * 128 * 1024 + 26_214_400 + 2 * 19_160
         );
         assert_eq!(
             derived.per_auction_peak,
-            654_862_428 + 1_576_960 + 128 * 1024 + 0x0008_0000 + 19_144
+            654_862_428 + 1_576_960 + 128 * 1024 + 0x0008_0000 + 19_160
         );
         assert_eq!(derived.bookkeeping_term, 3_276_800);
         assert_eq!(
             derived.margin_bytes,
-            1_761_366_536 - 2 * (1_576_960 + 128 * 1024) - 26_214_400 - 2 * 19_144
+            1_761_366_536 - 2 * (1_576_960 + 128 * 1024) - 26_214_400 - 2 * 19_160
         );
         assert_eq!(
             derived.total_bytes,
@@ -1278,7 +1278,7 @@ mod tests {
         );
         assert_eq!(
             derived.total_bytes,
-            2_536_384_248 + 2 * 128 * 1024 + 26_214_400 + 2 * 19_144
+            2_536_384_248 + 2 * 128 * 1024 + 26_214_400 + 2 * 19_160
         );
         assert_eq!(
             derived.margin_bytes,
@@ -1287,7 +1287,7 @@ mod tests {
         assert_eq!(derived.auction_charges, expected_charges(&roomy));
         assert_eq!(
             derived.auction_charges.privacy,
-            (14_u64 << 20_u32) + 800 + 32 + 19_144
+            (14_u64 << 20_u32) + 800 + 32 + 19_160
         );
         assert_eq!(derived.runtime_config_term, 30_400_512);
         assert_eq!(
@@ -1310,7 +1310,7 @@ mod tests {
         assert_eq!(derived.debug_term, 9_310_368);
         assert_eq!(
             derived.per_auction_peak,
-            654_677_212 + 1_576_960 + 128 * 1024 + 0x0008_0000 + 19_144
+            654_677_212 + 1_576_960 + 128 * 1024 + 0x0008_0000 + 19_160
         );
         assert_eq!(
             u64::from(limits().max_outbound_requests)
@@ -1321,7 +1321,7 @@ mod tests {
         );
         assert_eq!(
             u64::from(limits().max_concurrent_auctions) * derived.per_auction_peak,
-            1_309_354_424 + 2 * (1_576_960 + 128 * 1024 + 0x0008_0000 + 19_144),
+            1_309_354_424 + 2 * (1_576_960 + 128 * 1024 + 0x0008_0000 + 19_160),
         );
         // The response node charge is independent of the privacy enforcement byte charge.
         assert_eq!(

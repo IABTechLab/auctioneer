@@ -14,7 +14,6 @@ use crate::config::{AuctioneerAppConfig, resolve};
 use crate::handlers::debug_signals;
 use crate::handlers::egress_deadline::{self, EgressDeadline, EgressRefusal};
 use crate::handlers::health_gvl;
-use crate::host_primitives::EdgeZeroFanout;
 use crate::host_primitives::error_renderer::{MAX_RENDERED_BODY_BYTES, REQUEST_TIMEOUT_BODY};
 use crate::host_primitives::gates::{boot_gates, boot_limits, egress_gate, stream_gate};
 use crate::host_primitives::ingress_lease::{
@@ -26,6 +25,7 @@ use crate::host_primitives::registry::{
 };
 use crate::host_primitives::request_clock::RequestClock;
 use crate::host_primitives::strategy::FanoutStrategy;
+use crate::host_primitives::{CredentialLoader, EdgeZeroFanout};
 use crate::serialize::serialize_response_fitting_debug;
 use auctioneer_bidder::{BidderName, BidderRegistry};
 #[cfg(test)]
@@ -383,7 +383,7 @@ async fn auction_inner(
         );
     };
     drop(host);
-    let credential_loader = super::bidder_credentials::CredentialLoader::capture(&ctx);
+    let credential_loader = CredentialLoader::capture(&ctx);
     let (body_bytes, raw_headers) = match read_auction_body(ctx, resources).await {
         Ok(input) => input,
         Err(error) => return refuse_preparation(preparation, error, clock.as_ref()),

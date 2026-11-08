@@ -2,6 +2,7 @@
 //! fanout strategy. Wired into `AuctionContext` by the per-adapter
 //! `bootstrap_adapter` calls.
 
+mod bidder_credentials;
 pub mod boot_log;
 pub mod bootstrap;
 pub mod clock;
@@ -19,6 +20,7 @@ pub mod static_egress;
 pub mod strategy;
 
 pub use auctioneer_exchange::construction_diagnostics::construction_diagnostic_costs;
+pub use bidder_credentials::CredentialLoader;
 pub use boot_log::{
     StderrBootLog, install_boot_logger, install_stderr_boot_logger,
     install_stderr_boot_logger_with_level,

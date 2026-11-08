@@ -564,7 +564,7 @@ mod tests {
         );
         assert_eq!(additional, owned_layout_bytes());
         #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-        assert_eq!(additional, 19_144, "reviewed native owner layout snapshot");
+        assert_eq!(additional, 19_160, "reviewed native owner layout snapshot");
     }
 
     fn owned_layout_bytes() -> u64 {

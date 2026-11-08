@@ -507,16 +507,15 @@ mod tests {
                     (0_u32..32).map(|n| json!({"id":n.to_string(),"impid":"i","price":1_i32})).collect::<Vec<_>>()
                 }]})).unwrap()] };
             let bidder_bytes = serialized_json_bytes(&name).unwrap();
-            // Include retained impression/selection owners in the exact test
-            // receipt; prefix/FPD bytes remain outside this metadata allowance.
+            // Wire metadata keeps its four-representation bound; retained
+            // impression/selection identities have one separate owner.
             assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
             let metadata_bytes = u64::try_from(req.id.len()).unwrap()
                 + 128
-                + 3 * u64::try_from(name.len()).unwrap()
-                + 128
-                + 64
-                + 1;
-            let bookkeeping = 4 * (metadata_bytes + 40 * NODE_RETAINED_BYTES);
+                + 2 * u64::try_from(name.len()).unwrap()
+                + 128;
+            let retained_identity = 64 + 1 + u64::try_from(name.len()).unwrap();
+            let bookkeeping = 4 * (metadata_bytes + 32 * NODE_RETAINED_BYTES) + retained_identity;
             let decoded = u64::try_from(fanout.bodies[0].len()).unwrap()
                 * (1 + ASSEMBLY_FACTOR + RESPONSE_PARSE_FACTOR + RESPONSE_ASSEMBLY_FACTOR)
                 + HEADER_MAP_CHARGE;
@@ -648,7 +647,11 @@ mod tests {
                 }
                 let identity_bytes = bidders
                     .keys()
-                    .map(|name| 3 * u64::try_from(name.len()).unwrap() + 128)
+                    .map(|name| 2 * u64::try_from(name.len()).unwrap() + 128)
+                    .sum::<u64>();
+                let retained_names = bidders
+                    .keys()
+                    .map(|name| u64::try_from(name.len()).unwrap())
                     .sum::<u64>();
                 let count = u64::try_from(bidders.len()).unwrap();
                 let nonbid_bytes = if visible {
@@ -657,14 +660,12 @@ mod tests {
                     0
                 };
                 assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
-                let metadata_bytes = u64::try_from(req.id.len()).unwrap()
-                    + 128
-                    + identity_bytes
-                    + nonbid_bytes
-                    + 64
-                    + 1024;
-                let metadata_nodes = 24 + count * (16 + 8 * u64::from(visible));
-                let bookkeeping = 4 * (metadata_bytes + metadata_nodes * NODE_RETAINED_BYTES);
+                let metadata_bytes =
+                    u64::try_from(req.id.len()).unwrap() + 128 + identity_bytes + nonbid_bytes;
+                let metadata_nodes = 16 + count * (16 + 8 * u64::from(visible));
+                let retained_identity = 64 + 1024 + retained_names;
+                let bookkeeping =
+                    4 * (metadata_bytes + metadata_nodes * NODE_RETAINED_BYTES) + retained_identity;
                 let capacity = bookkeeping + debug_peak_bytes(100).unwrap();
                 let budget = AuctionBudget::new(capacity);
                 let full_receipt = budget.try_reserve(ChargeKind::Response, capacity).unwrap();

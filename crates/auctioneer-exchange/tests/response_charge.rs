@@ -233,7 +233,7 @@ mod tests {
                 let metadata_bytes = u64::try_from(req.id.len() + 128 + 2 * bidder.len() + 128).unwrap();
                 let bookkeeping = 4 * (metadata_bytes + 32 * 384);
                 assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
-                let retained_identity = 4 * (64 + 1 + u64::try_from(bidder.len()).unwrap() + 8 * 384);
+                let retained_identity = 64 + 1 + u64::try_from(bidder.len()).unwrap();
                 let targeting = u64::try_from(count).unwrap() * (serialized_json_bytes(&prefix).unwrap() + bidder_bytes + 64) * RESPONSE_ASSEMBLY_FACTOR;
                 let ordinary_funded = bookkeeping + decoded + targeting;
                 let debug = debug_peak_bytes(u32::try_from(host.resource_limits.max_outbound_requests).unwrap()).unwrap();
@@ -986,8 +986,8 @@ mod tests {
         assert!(body.len() <= 32 * 1024);
         assert!(count_json_nodes(&body, 512).unwrap() <= 512);
         assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
-        let bookkeeping =
-            4 * (1 + 128 + 3 * u64::try_from(alias.len()).unwrap() + 128 + 64 + 1 + 40 * 384);
+        let name_bytes = u64::try_from(alias.len()).unwrap();
+        let bookkeeping = 4 * (1 + 128 + 2 * name_bytes + 128 + 32 * 384) + 64 + 1 + name_bytes;
         let decoded = u64::try_from(body.len()).unwrap()
             * (1 + ASSEMBLY_FACTOR + RESPONSE_PARSE_FACTOR + RESPONSE_ASSEMBLY_FACTOR)
             + HEADER_MAP_CHARGE;
@@ -1500,10 +1500,10 @@ mod tests {
             for over in [false, true] {
                 thread::spawn(move || {
                     let imp_id = "\0\n\"\\";
-                    // The fixed 512-byte cap now also admits a 64-byte identity/
-                    // selection slot, four impression bytes and seven name bytes.
+                    // Original wire-metadata byte boundary; the one-copy typed
+                    // identity must fit the same funded retained ceiling.
                     assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
-                    let id_bytes = if visible { 131_usize } else { 167 } + usize::from(over);
+                    let id_bytes = if visible { 206_usize } else { 242 } + usize::from(over);
                     let id = "\0".repeat(id_bytes);
                     let input = json!({"id": id, "site": {"id": "s"},
                         "imp": [{"id": imp_id, "banner": {"w": 300_i32, "h": 250_i32}, "ext": {"bidder": {"fake_bb": {}}}}],
@@ -1534,10 +1534,10 @@ mod tests {
     fn zero_call_global_warning_and_response_id_share_the_metadata_cap() {
         for over in [false, true] {
             thread::spawn(move || {
-                // Response/global fields, bidder and impression/selection
-                // identities, and the warning use the same exact 512-byte cap.
+                // Original response/global/bidder/warning byte boundary; typed
+                // identities do not consume the wire-metadata byte quota.
                 assert_eq!(size_of::<String>() + size_of::<Option<Winner>>(), 64);
-                let id = "\0".repeat(112 + usize::from(over));
+                let id = "\0".repeat(184 + usize::from(over));
                 let input = json!({"id": id, "test": 1_i32, "site": {"id": "s"},
                     "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32}, "ext": {"bidder": {"fake_bb": {}}}}]});
                 let observed = runtime_receipt_case(input, 0, true, 512);

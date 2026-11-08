@@ -196,7 +196,7 @@ mod tests {
         assert_eq!(
             row["construction_costs"]["fixed_per_auction_bytes"],
             // Audit/scope, wire shape, and measured native bridge owners.
-            800_u64 + 32 + 19_144
+            800_u64 + 32 + 19_160
         );
         assert_eq!(
             row["construction_costs"]["reusable_scratch_bytes"],

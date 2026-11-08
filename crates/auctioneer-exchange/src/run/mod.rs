@@ -128,7 +128,7 @@ pub async fn run_auction(
     let mut bookkeeping = BookkeepingBudget::new(
         ctx.host.resource_limits.max_outbound_raw_bytes,
         ctx.host.resource_limits.max_parsed_nodes,
-    );
+    )?;
     bookkeeping.response(&underlying.id)?;
     underlying
         .imp

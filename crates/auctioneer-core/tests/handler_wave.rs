@@ -37,15 +37,20 @@ mod tests {
     use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
-        BootEnvelope, RaceTimersStrategy, StderrBootLog, TestClockHandle, TestMonotonicClockHandle,
-        TestRngHandle, bootstrap_adapter_with_envelope, stream_gate,
+        BootEnvelope, CredentialLoader, RaceTimersStrategy, StderrBootLog, TestClockHandle,
+        TestMonotonicClockHandle, TestRngHandle, bootstrap_adapter_with_envelope, stream_gate,
     };
     use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
-    use auctioneer_runtime::{Clock as _, FakeClock, NoopDecodeCooperator, SeededRng, Timer as _};
+    use auctioneer_runtime::bidder_credentials::{BidderCredentialSource, CredentialUnavailable};
+    use auctioneer_runtime::{
+        Clock as _, FakeClock, MonotonicInstant, NoopDecodeCooperator, SeededRng, Timer as _,
+    };
+    use bytes::Bytes;
     use edgezero_core::body::Body;
+    use edgezero_core::config_store::BoundedStoreRead;
     use edgezero_core::error::EdgeError;
     use edgezero_core::http::{HeaderMap, Method, StatusCode};
     use edgezero_core::outbound::{
@@ -54,11 +59,14 @@ mod tests {
         OutboundHttpClient, OutboundPending, OutboundPreparedBatch, OutboundProgressRuntime,
         OutboundRequest, OutboundResponse, OutboundSendMode, OutboundTime,
     };
-    use edgezero_core::time::MonotonicClock;
+    use edgezero_core::secret_store::{SecretError, SecretHandle, SecretStore};
+    use edgezero_core::store_registry::BoundSecretStore;
+    use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::{executor::block_on, stream};
     use http::Request;
     use serde_json::json;
     use std::rc::Rc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use time::OffsetDateTime;
@@ -196,6 +204,95 @@ mod tests {
                 .insert(TestFanoutHandle(Arc::new(EmptyFanout)));
         }
         request
+    }
+
+    #[test]
+    fn public_credential_loader_preserves_bound_sdk_store_clock_and_deadline() {
+        struct FakeCredentialStore {
+            clock: Arc<FakeClock>,
+            deadline: MonotonicInstant,
+            reads: AtomicUsize,
+        }
+
+        #[async_trait(?Send)]
+        impl SecretStore for FakeCredentialStore {
+            async fn get_bytes(&self, _: &str, _: &str) -> Result<Option<Bytes>, SecretError> {
+                panic!("credential reads must use the bounded SDK operation");
+            }
+
+            async fn get_bytes_bounded(
+                &self,
+                store_name: &str,
+                key: &str,
+                clock: &MonotonicClock,
+                deadline: Deadline,
+                max_backend_bytes: u64,
+                max_value_bytes: u64,
+            ) -> Result<BoundedStoreRead<Bytes>, SecretError> {
+                assert_eq!(store_name, "fake_host_secret_store");
+                assert_eq!(key, "fake_bidder_credentials");
+                assert_eq!((max_backend_bytes, max_value_bytes), (4096, 4096));
+                assert_eq!(clock.now(), self.clock.now_monotonic());
+                assert_eq!(deadline.instant(), self.deadline);
+                assert_eq!(
+                    deadline.remaining_at(clock.now()),
+                    Some(Duration::from_secs(3))
+                );
+                assert_eq!(self.reads.fetch_add(1, Ordering::SeqCst), 0);
+                let value = Bytes::from(
+                    serde_json::to_vec(&json!({
+                        "schema_version": 1_u8,
+                        "username": "fake_user",
+                        "password": "fake_password",
+                        "tracker": "fake_tracker"
+                    }))
+                    .unwrap(),
+                );
+                Ok(BoundedStoreRead {
+                    backend_bytes: u64::try_from(value.len()).unwrap(),
+                    value: Some(value),
+                })
+            }
+        }
+
+        let clock = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
+        let clock_source = Arc::clone(&clock);
+        let monotonic = MonotonicClock::new(move || clock_source.now_monotonic());
+        let deadline = monotonic
+            .now()
+            .checked_add(Duration::from_secs(10))
+            .unwrap();
+        let provider = Arc::new(FakeCredentialStore {
+            clock: Arc::clone(&clock),
+            deadline,
+            reads: AtomicUsize::new(0),
+        });
+        let shared: Arc<dyn SecretStore> = Arc::<FakeCredentialStore>::clone(&provider);
+        let loader = CredentialLoader::new(
+            Some(BoundSecretStore::new(
+                SecretHandle::new(shared),
+                "fake_host_secret_store".to_owned(),
+            )),
+            monotonic.clone(),
+        );
+        assert_eq!(provider.reads.load(Ordering::SeqCst), 0);
+        let source: &dyn BidderCredentialSource = &loader;
+        let future = source.load("fake_bidder_credentials", deadline);
+        assert_eq!(provider.reads.load(Ordering::SeqCst), 0);
+
+        clock.advance(Duration::from_secs(7));
+        let credentials = block_on(future).unwrap();
+        assert_eq!(provider.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(credentials.username(), "fake_user");
+        assert_eq!(credentials.tracker(), "fake_tracker");
+
+        clock.advance(Duration::from_secs(3));
+        assert_eq!(monotonic.now(), deadline);
+        assert!(matches!(
+            block_on(source.load("fake_bidder_credentials", deadline)),
+            Err(CredentialUnavailable)
+        ));
+        assert_eq!(provider.reads.load(Ordering::SeqCst), 1);
     }
 
     #[test]
