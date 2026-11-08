@@ -163,13 +163,7 @@ impl CompletedAuction {
     /// Retains original funding with any projection failure.
     pub fn into_wire_response(self) -> Result<CompletedResponse, AuctionFailure> {
         let Self { outcome, funding } = self;
-        match outcome.into_bid_response() {
-            Ok(response) => Ok(CompletedResponse { response, funding }),
-            Err(error) => Err(AuctionFailure::new(
-                AuctionFailureReason::Engine(error),
-                funding,
-            )),
-        }
+        CompletedResponse::from_projection(outcome.into_bid_response(), funding)
     }
 }
 
@@ -186,6 +180,19 @@ pub struct CompletedResponse {
 }
 
 impl CompletedResponse {
+    pub(super) fn from_projection(
+        projection: Result<BidResponse, AuctionError>,
+        funding: AuctionFunding,
+    ) -> Result<Self, AuctionFailure> {
+        match projection {
+            Ok(response) => Ok(Self { response, funding }),
+            Err(error) => Err(AuctionFailure::new(
+                AuctionFailureReason::Engine(error),
+                funding,
+            )),
+        }
+    }
+
     #[must_use]
     pub fn response(&self) -> &BidResponse {
         &self.response

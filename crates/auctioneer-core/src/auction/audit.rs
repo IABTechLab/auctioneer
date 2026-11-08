@@ -777,6 +777,81 @@ mod tests {
     }
 
     #[test]
+    fn projection_failure_observes_before_retained_funding_is_released() {
+        use crate::auction::result::CompletedResponse;
+        use crate::auction::{
+            AuctionFailureReason, AuctionFunding, AuctionResourceInputs, AuctionResourceProfile,
+            SchemaAllowance,
+        };
+        use crate::test_support::boot_parity_fixture::profile_for_adapter;
+        use auctioneer_exchange::AuctionError;
+
+        testing_logger::setup();
+        let row = profile_for_adapter("unequal_explicit_caps", "axum");
+        let profile = AuctionResourceProfile::new(
+            AuctionResourceInputs {
+                limits: row.limits,
+                target: row.target,
+                outbound_meta_bytes: row.outbound_meta_bytes,
+                construction_costs: row.construction_costs,
+                product_default_bytes: 271,
+                catalog_costs: row.catalog_costs,
+            },
+            SchemaAllowance::Disabled,
+        )
+        .unwrap();
+        let charged = profile.derived().auction_charges.total().unwrap();
+        assert!(charged > 0);
+        let budget = Arc::new(AuctionBudget::new(charged));
+        let weak = Arc::downgrade(&budget);
+        let gate = AdmissionGate::new(1);
+        let funding =
+            AuctionFunding::prepay(&profile, &budget, gate.try_acquire().unwrap()).unwrap();
+        assert_eq!(budget.in_use(), charged);
+        assert_eq!(gate.in_use(), 1);
+        FUNDING_OBSERVATION.with(|observation| {
+            *observation.borrow_mut() = Some(FundingObservation {
+                budget: Weak::clone(&weak),
+                gate: Arc::clone(&gate),
+                charged,
+                count: 0,
+            });
+        });
+        drop(budget);
+
+        let Err(failure) = CompletedResponse::from_projection(
+            Err(AuctionError::Internal("fake projection failure".to_owned())),
+            funding,
+        ) else {
+            panic!("the failed projection must retain its funding with the error");
+        };
+        let AuctionFailureReason::Engine(AuctionError::Internal(message)) = failure.reason() else {
+            panic!("the projection error category must survive the handoff");
+        };
+        assert_eq!(message, "fake projection failure");
+        assert_eq!(weak.upgrade().unwrap().in_use(), charged);
+        assert_eq!(gate.in_use(), 1);
+        assert!(gate.try_acquire().is_none());
+        assert_record(&zero_record("error"));
+
+        drop(failure);
+        FUNDING_OBSERVATION.with(|observation| {
+            assert_eq!(observation.borrow_mut().take().unwrap().count, 1);
+        });
+        EVENTS.with(|events| {
+            assert_eq!(*events.borrow(), ["observed"]);
+            events.borrow_mut().clear();
+        });
+        testing_logger::validate(|captured| assert!(captured.is_empty()));
+        assert!(weak.upgrade().is_none());
+        assert_eq!(gate.in_use(), 0);
+        let returned = gate.try_acquire().unwrap();
+        assert!(gate.try_acquire().is_none());
+        drop(returned);
+        assert_eq!(gate.in_use(), 0);
+    }
+
+    #[test]
     fn explicit_completion_observes_before_resources_are_released() {
         testing_logger::setup();
         let reservation = HeldResource("reservation_released");
