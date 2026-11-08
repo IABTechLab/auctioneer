@@ -336,7 +336,8 @@ Do not treat metadata relocation as completed catalog delivery or qualification.
 - Checkout-dependent primary-source controls use the `source_objects_` test-name
   prefix and `AUCTIONEER__BIDDER__SOURCE_DIR`. The shared CI invocation runs that prefix
   explicitly with `--ignored`; do not add a bidder-specific workflow command.
-  Supplemental sources need their own declared checkout and verification owner.
+  Revisions from the same source repository share that checkout; keep each
+  bidder's declared source pin and verification owner intact.
 - Vary independent permissions and limits independently. Cover mixed valid and
   invalid candidates, positive results, exact error attribution, immutability
   and boundary refusal. Assert nonzero expected fixture/test counts so a filter

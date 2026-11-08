@@ -10,7 +10,6 @@ target/
 # Nested reference checkouts used by CI, not application source inputs.
 /vendor/prebid-server/
 /vendor/bidder-reference/
-/vendor/bidder-supplemental-reference/
 
 # crashed GVL-refresh transaction dirs (own-tx-only cleanup: no run ever
 # removes another run's dir, so an orphan can linger). The archive

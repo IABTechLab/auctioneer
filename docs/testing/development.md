@@ -52,11 +52,17 @@ test "$(/usr/bin/git --no-replace-objects -C "$EDGEZERO_SDK_ROOT" rev-parse HEAD
 
 Archive tests also require the pinned yq/jq tools described in
 [provider-handler preparation](provider-handlers.md). Git provenance tests
-require `AUCTIONEER__BIDDER__SOURCE_DIR` containing commit
+require one `AUCTIONEER__BIDDER__SOURCE_DIR` checkout containing both commits
 `d7f8515b86258688304b0d9b6668c6a0e258bc9e` and
-`AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR` containing commit
-`f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a`. The tests read immutable objects,
-not the checkout's mutable working files. Missing inputs fail instead of skip.
+`f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a`. Fetch either missing commit into
+that same repository; a second working tree is unnecessary. Each bidder keeps
+its own recorded revision, trees, blobs and digests. The tests read immutable
+objects, not the checkout's mutable working files. Missing inputs fail instead
+of skip. For a shallow checkout at the catalog revision, use:
+
+```sh
+git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+```
 
 Historical evidence retains the revision and original bytes it exercised.
 Its older SDK pin is not a current-source reproduction instruction; use the

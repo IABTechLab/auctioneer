@@ -280,7 +280,8 @@ pub(crate) fn disabled_from_overlay(
 mod tests {
     use super::super::{
         AuctionFailureReason, AuctionFunding, AuctionInput, AuctionResourceInputs,
-        AuctionResourceProfile, AuctionServices, SchemaAllowance, prepare_auction,
+        AuctionResourceProfile, AuctionServices, CompletionStatus, SchemaAllowance,
+        prepare_auction,
     };
     use crate::bidder_fixture;
     use crate::config::AuctioneerAppConfig;
@@ -299,7 +300,7 @@ mod tests {
     use std::{
         sync::{
             Arc,
-            atomic::{AtomicUsize, Ordering},
+            atomic::{AtomicU64, AtomicUsize, Ordering},
         },
         time::Duration,
     };
@@ -307,6 +308,7 @@ mod tests {
     #[derive(Default)]
     struct FakeFanout {
         calls: AtomicUsize,
+        timeout_ms: AtomicU64,
     }
 
     #[async_trait::async_trait(?Send)]
@@ -317,6 +319,12 @@ mod tests {
             _deadline: AuctionDeadline,
         ) -> Result<Vec<BidderCallResult>, FanoutInternalError> {
             self.calls.fetch_add(calls.len(), Ordering::SeqCst);
+            if let Some(call) = calls.first() {
+                self.timeout_ms.store(
+                    u64::try_from(call.timeout.as_millis()).unwrap(),
+                    Ordering::SeqCst,
+                );
+            }
             Ok(calls.into_iter().map(|_call| BidderCallResult {
                 result: Ok(BidderHttpResponse::new(200, Vec::new(), serde_json::to_vec(&json!({
                     "id": "fake_response", "cur": "USD", "seatbid": [{"seat": "fake_upstream", "bid": [{
@@ -423,6 +431,80 @@ mod tests {
             "imp": [{"id": "fake_imp", "banner": {"w": 300, "h": 250},
                 "ext": {"prebid": {"bidder": {"fake_aaa": {}}}}}]}))
         .unwrap()
+    }
+
+    #[derive(Clone, Copy)]
+    enum AliasSource {
+        Direct,
+        Request,
+        Host,
+    }
+
+    fn dispatch_with_override(
+        alias_source: AliasSource,
+        overrides: &serde_json::Value,
+    ) -> (usize, u64) {
+        let fixture = Fixture::new();
+        let requested = if matches!(alias_source, AliasSource::Direct) {
+            "fake_aaa"
+        } else {
+            "fake_alias"
+        };
+        let mut policy_json = json!({"schema_version": 1_u8, "bidders": {"fake_aaa": overrides}});
+        let mut body = serde_json::to_value(request()).unwrap();
+        body["tmax"] = json!(1000_u32);
+        body["imp"][0]["ext"]["prebid"]["bidder"] = json!({(requested): {}});
+        match alias_source {
+            AliasSource::Direct => {}
+            AliasSource::Request => {
+                body["ext"] = json!({"prebid": {"aliases": {"fake_alias": "fake_aaa"}}});
+            }
+            AliasSource::Host => {
+                policy_json["host"] = json!({"aliases": {"fake_alias": "fake_aaa"}});
+            }
+        }
+        let policy: AuctioneerAppConfig = serde_json::from_value(policy_json).unwrap();
+        let input: BidRequest = serde_json::from_value(body.clone()).unwrap();
+        let prepared = prepare_auction(
+            &policy,
+            AuctionInput::Typed {
+                request: &input,
+                headers: RequestHeaders::default(),
+            },
+            fixture.services(),
+            fixture.funding(),
+        )
+        .unwrap();
+        let mut completed = block_on(prepared.run()).unwrap();
+        assert_eq!(serde_json::to_value(&input).unwrap(), body);
+        assert_eq!(fixture.gate.in_use(), 1);
+        assert!(fixture.budget.in_use() > 0);
+        completed.finish(CompletionStatus::Success);
+        drop(completed);
+        assert_eq!(fixture.gate.in_use(), 0);
+        assert_eq!(fixture.budget.in_use(), 0);
+        (
+            fixture.fanout.calls.load(Ordering::SeqCst),
+            fixture.fanout.timeout_ms.load(Ordering::SeqCst),
+        )
+    }
+
+    #[test]
+    fn preparation_preserves_base_timeout_for_request_and_host_aliases() {
+        for alias in [AliasSource::Direct, AliasSource::Request, AliasSource::Host] {
+            let observed = dispatch_with_override(alias, &json!({"timeout_ms": 321_u32}));
+            assert_eq!(observed, (1, 321));
+        }
+    }
+
+    #[test]
+    fn preparation_preserves_base_sampling_for_request_and_host_aliases() {
+        for alias in [AliasSource::Direct, AliasSource::Request, AliasSource::Host] {
+            for (rate, expected_calls) in [(0.0_f64, 0_usize), (1.0_f64, 1)] {
+                let (calls, _) = dispatch_with_override(alias, &json!({"sample_rate": rate}));
+                assert_eq!(calls, expected_calls);
+            }
+        }
     }
 
     #[test]

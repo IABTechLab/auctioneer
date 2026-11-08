@@ -1962,10 +1962,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR pointing to the immutable reference Git repository"]
+    #[ignore = "requires AUCTIONEER__BIDDER__SOURCE_DIR containing the pinned reference Git objects"]
     fn supplemental_source_matches_immutable_reference() {
-        let repository = env::var_os("AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR")
-            .expect("set AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR");
+        let repository = env::var_os("AUCTIONEER__BIDDER__SOURCE_DIR")
+            .expect("set AUCTIONEER__BIDDER__SOURCE_DIR");
         let git = |args: &[&str]| {
             let output = Command::new("git")
                 .arg("-C")

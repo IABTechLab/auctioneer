@@ -274,6 +274,50 @@ Before the handoff was added, the new unit's Cargo invocation exited 101 with `E
 
 Independent static review found no issues in the private handoff or corrected new test. Final-head matrix results belong in the implementation PR after execution; the previous head's pass does not qualify a subsequent revision. This private control does not manufacture an admitted request that reaches the defensive error, waive any existing test, close #51 or replace the real host handoff.
 
+## Source Checkout Cleanup And Review Follow-Up
+
+The maintainer requested this narrow verification-tooling cleanup in PR #159:
+use only `AUCTIONEER__BIDDER__SOURCE_DIR` for the shared upstream Git object
+store. CI still checks out the catalog revision and fetches the additional
+pinned revision into that same repository. Bidder-owned source revisions,
+trees, blobs, digests, immutable captures and the existing verification cases
+remain unchanged. This does not retire eligibility flags, implement the
+catalog qualification cutover, or introduce a runtime source/config dependency.
+
+- [x] Reproduce the existing provenance failure with both commits present and
+  the second environment variable absent: zero passed, one failed, exit 101.
+- [x] Update both active readers, all five CI setup sites and current developer
+  instructions together. Preserve recorded names in historical execution evidence.
+- [x] Verify the shallow-checkout fetch, the full provenance target and the
+  explicitly driven bidder-owned immutable-source case using only the shared path.
+  All five workflow setup sites passed the exact-fetch probe in a disposable
+  shallow repository: both revisions were present afterward and the catalog
+  checkout's HEAD was unchanged. The complete `bidders_source` target passed
+  24 cases; the explicitly driven immutable-source case passed one case.
+- [x] Correct the reviewed live SDK instruction to the manifest's current pin;
+  historical measured evidence remains unchanged.
+- [x] Add public-preparation-to-fanout controls for base timeout and sampling
+  through direct, request-alias and host-alias paths. Kill the reviewed
+  base-lookup mutation independently for both settings; do not expose private
+  prepared state or change the correct production predicate.
+  Both new cases passed before the mutation. Removing the alias-base lookup
+  made both fail, exit 101: the timeout became 1,000 instead of 321 ms, and
+  the zero-rate case dispatched one call instead of zero. The original
+  production predicate was restored; the code change is test-only.
+- The first strict lint run rejected the new helper's by-value JSON argument,
+  shadowed policy binding and qualified completion path. The helper now borrows
+  its argument, uses distinct bindings and imports the completion type. No
+  assertion was changed and no lint allowance was added.
+- [x] Run focused checks and strict lint after those repairs: 711 core,
+  HTTP/lifecycle and SDK-pin cases passed, zero failed/ignored; three
+  documentation cases passed. Workspace Clippy with `--all-targets -- -D
+  warnings`, formatting, the direct discovered-source formatting check and
+  both raw-fixture gates exited zero. Existing GVL/future-compatibility notices
+  remain visible; no new exemption was added.
+- [ ] Run the complete committed-head workspace command and the unchanged full
+  CI matrix. Publish actual result lines and reply to the review threads without
+  resolving them or merging. A preceding head's pass does not qualify this revision.
+
 ## Full Verification And Planning Handoff
 
 Prepare sources, SDK root, locked dependencies and pinned runner tools using [development/test ownership](../../testing/development.md). One heavy Cargo job at a time, existing shared outputs and `CARGO_BUILD_JOBS=2` locally; no routine target clean or disabled incremental builds. The workflows remain authoritative for full acceptance:
