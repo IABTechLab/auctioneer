@@ -38,7 +38,7 @@ changed count to named additions/removals rather than accepting a zero match.
 | Header/cookie ownership | `crates/auctioneer-core/src/handlers/sync_http.rs`, `src/usersync/cookie.rs` where its formatter/conversion needs a bounded change | Inline units; existing sync allocation/HTTP/integrity targets |
 | Completion lifetime | `crates/auctioneer-core/src/ingress.rs`, `src/host_primitives/ingress_lease.rs` only if a demonstrated gap requires a fix | `tests/egress_binding.rs`, `tests/aux_route_write_deadline.rs`, `tests/aux_routes_wrapped.rs`, `tests/probe_output_before_boot.rs` |
 | Qualified accounting correction, conditional | `crates/auctioneer-runtime/src/{aux_work,budget}.rs`, core `src/host_primitives/{gates,resource_profile}.rs` and adapter-owned envelope/profile callers only as necessary | Inline runtime/gate units and current adapter envelope tests |
-| Report/parity consumers, conditional | `crates/auctioneer-cli/src/bidders/resources/{mod,catalog_comparison,catalog_continuity,records/mod,records/capture}.rs` | Inline units; `tests/bidders_resources.rs`, `tests/resource_boot_parity/main.rs`; original pinned catalogue baselines |
+| Report/parity consumers, conditional | `crates/auctioneer-cli/src/bidders/resources/{mod,catalog_comparison,records/mod,records/capture,records/catalog_continuity}.rs` | Inline units; `tests/bidders_resources.rs`, `tests/resource_boot_parity/main.rs`; original pinned catalogue baselines |
 
 Unqualified source paths in a row remain inside its named crate. Keep pure
 unit tests inline and preserve the separate allocation/global-boot binaries.
