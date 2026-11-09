@@ -223,11 +223,17 @@ new response ceiling may narrow an existing info or health endpoint.
 ### 5.2 Body And Cookie Construction
 
 Use the existing capped-writer/size-counter ownership rather than a second
-serializer. Reserve final backing fallibly before writes and prevent growth,
-including the newline. For HTML escaping, account raw and escaped backing
-and scratch simultaneously or eliminate one only with equivalent bytes and
-an independent lifetime proof. Count/serialize disagreement and allocation
-failure are terminal errors: no retry, partial JSON or unbounded fallback.
+serializer. For a cap-bearing sync response, stop counting at the existing
+payload cap before reserving output; an uncapped size counter must not replace
+early over-cap refusal. Check raw and escaped sizes, including the final
+newline, against that cap before their respective fallible reservations.
+Prevent buffer growth while writing. For HTML escaping, account raw and
+escaped backing and scratch simultaneously or eliminate one only with
+equivalent bytes and an independent lifetime proof. Require the second pass
+to emit exactly the counted size: both growth and shrinkage are terminal
+count/serialize disagreement. Allocation failure is also terminal: no retry,
+partial JSON or unbounded fallback. This does not add a cap to info/health
+serialization, whose existing contract is counted-size reservation only.
 
 A logical cap and `try_reserve_exact` alone are not a universal physical
 allocation proof. Record actual retained capacity and the applicable
@@ -301,6 +307,14 @@ second numeric descriptor assembled from copied private layouts is allowed.
 If the complete proof is unavailable, ship the bounded ownership improvement
 with unchanged charges; #48 stays open for any unfulfilled acceptance.
 
+Keep current accounting distinct from validation of original pinned resource
+records. A cutover must preserve both catalogue baselines and their historical
+arithmetic checks without rewriting their bytes or applying new coefficients
+to old receipts. Current records must still require all current bound data.
+Retain the catalogue comparison's matched-input, growth-only contract;
+accounting savings are not catalogue growth. Reject unsupported mixed-model
+comparisons rather than relaxing that gate or recertifying old evidence.
+
 ## 7. Independent Verification
 
 The implementation plan must name existing owner targets and full commands.
@@ -313,7 +327,11 @@ Required new or extended controls:
 1. **Body backing:** empty, small, intermediate, at-limit and limit-plus-one
    inputs; independently varied input size/output cap; HTML expansion and
    newline boundaries; no growth, partial output or hidden retry. Exact wire
-   expectations must not be recomputed by the writer under test.
+   expectations must not be recomputed by the writer under test. Over-cap
+   counting must stop before output allocation and before walking the remaining
+   serializable entries; cover raw and escaped overflow separately. Exercise
+   second-pass growth and shrinkage, and execute the production handler wire
+   oracle rather than only fixture metadata checks.
 2. **Headers/cookie:** vary count, name bytes, value bytes, duplicate values,
    CORS input backing and cookie bytes independently. Cover insertion/removal,
    construction peak, final retained storage and refusal. Include positive

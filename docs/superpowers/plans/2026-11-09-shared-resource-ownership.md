@@ -25,6 +25,11 @@ executed evidence. Preserve feature selection, original captures, existing
 test assertions, ignored-test owners, process isolation and source pins.
 Run heavy Cargo commands sequentially through the cycle's ownership wrapper.
 Keep incremental outputs; do not clean shared targets to prepare a run.
+For every focused command, record its executable target and nonzero dispatch.
+The CLI's `bidders` modules belong to `--bin auctioneer-cli`, not `--lib`;
+a successful command that executes zero selected cases is not verification.
+The platform module has nine existing tests at this baseline. Reconcile any
+changed count to named additions/removals rather than accepting a zero match.
 
 | Responsibility | Files To Create Or Modify | Existing Verification Owners |
 | --- | --- | --- |
@@ -33,7 +38,7 @@ Keep incremental outputs; do not clean shared targets to prepare a run.
 | Header/cookie ownership | `crates/auctioneer-core/src/handlers/sync_http.rs`, `src/usersync/cookie.rs` where its formatter/conversion needs a bounded change | Inline units; existing sync allocation/HTTP/integrity targets |
 | Completion lifetime | `crates/auctioneer-core/src/ingress.rs`, `src/host_primitives/ingress_lease.rs` only if a demonstrated gap requires a fix | `tests/egress_binding.rs`, `tests/aux_route_write_deadline.rs`, `tests/aux_routes_wrapped.rs`, `tests/probe_output_before_boot.rs` |
 | Qualified accounting correction, conditional | `crates/auctioneer-runtime/src/{aux_work,budget}.rs`, core `src/host_primitives/{gates,resource_profile}.rs` and adapter-owned envelope/profile callers only as necessary | Inline runtime/gate units and current adapter envelope tests |
-| Report/parity consumers, conditional | `crates/auctioneer-cli/src/bidders/resources/{mod,records/mod,records/capture}.rs` | Inline units; `tests/bidders_resources.rs`, `tests/resource_boot_parity/main.rs` |
+| Report/parity consumers, conditional | `crates/auctioneer-cli/src/bidders/resources/{mod,catalog_comparison,catalog_continuity,records/mod,records/capture}.rs` | Inline units; `tests/bidders_resources.rs`, `tests/resource_boot_parity/main.rs`; original pinned catalogue baselines |
 
 Unqualified source paths in a row remain inside its named crate. Keep pure
 unit tests inline and preserve the separate allocation/global-boot binaries.
@@ -106,7 +111,7 @@ replaced or relabeled as full executable discovery.
   final handoff must not turn a missing physical correspondence into `known`.
 
 ```sh
-cargo test --locked -p auctioneer-cli --lib bidders::resources_platform::
+cargo test --locked -p auctioneer-cli --bin auctioneer-cli bidders::resources_platform::
 cargo test --locked -p auctioneer-cli --test bidders_resources
 cargo test --locked -p auctioneer-core --lib host_primitives::resource_profile::
 ```
@@ -126,22 +131,36 @@ not a reason to change adapter configuration or the evaluator.
   growable-writer control. Run the new cases before editing; record the actual
   red assertions and dispatch, not an expected missing-test failure.
 - [ ] Factor the current counted-size/capped-write implementation only as
-  needed. Count raw JSON before fallible reservation, reserve final capacity
-  including newline for the unescaped path, and write without `Vec` growth.
-  For the escaped path, checked-count the escaped output from the validated
-  raw UTF-8, reserve its full output plus newline, and write through the same
-  capped writer while funding both backing buffers simultaneously.
+  needed, keeping the existing sync output cap. Use a cap-aware, nonallocating
+  counting writer that stops serialization on the first over-cap write; do not
+  use the uncapped `serialized_json_bytes` helper alone on this path. Refuse
+  `max < 1` first, count at most `max - 1` raw JSON bytes, and check the count
+  before any output-buffer reservation. For the unescaped path reserve that
+  count plus newline and write without growth. This adds no cap to info/health.
+- [ ] For the escaped path, checked-count HTML expansion from the validated
+  raw UTF-8, stop on `max - 1` overflow before reserving the escaped buffer,
+  and reserve its full output plus newline. Fund both backing buffers
+  simultaneously and write through the same capped writer.
 - [ ] Preserve the existing error mapping. Over-cap remains `BodyLimit`,
   serializer failure remains `Serialization`, and reservation failure is a
   bounded terminal internal response, with no retry or partial body. Test a
-  deliberately inconsistent custom serializer so counted size cannot authorize
-  buffer growth. Do not equate requested reserve size with a physical proof.
+  deliberately inconsistent custom serializer in both directions: growth must
+  fail at the reservation and shrinkage must fail the final length equality
+  check. No counted-size mismatch may produce a response. Do not equate
+  requested reserve size with a physical proof.
+- [ ] Add a serializable sequence with an instrumented visited-entry counter:
+  over-cap counting must stop before the remaining entries are visited, while
+  a fitting positive control visits all entries. Observe that raw overflow
+  reserves neither output buffer and escaped overflow reserves no escaped
+  buffer. Independently vary input length, cap and escape expansion; retain
+  existing refusal boundaries and avoid an elapsed-time-only work assertion.
 - [ ] Run full module/allocation and HTTP reference controls, then commit the
   green bounded-backing change with unchanged isolate charges.
 
 ```sh
 cargo test --locked -p auctioneer-core --lib handlers::sync_http::
 cargo test --locked -p auctioneer-core --lib serialize::
+cargo test --locked -p auctioneer-core --lib handlers::tests::
 cargo test --locked -p auctioneer-core --test serialize_allocation_bound --test usersync_handler_alloc
 cargo test --locked -p auctioneer-core --test usersync_http --test usersync_wire_reference --test usersync_template --test usersync_integrity
 ```
@@ -149,6 +168,9 @@ cargo test --locked -p auctioneer-core --test usersync_http --test usersync_wire
 Expected: byte-identical successful output, unchanged refusal boundaries,
 nonzero positive controls and bounded construction/final backing. A change in
 measured allocations is reported separately from an accounted reduction.
+The inline `handlers::tests::` cases drive production responses against the
+frozen wire oracle. `usersync_wire_reference` checks fixture metadata only;
+it is retained but cannot substitute for that production oracle.
 
 ## Task 4: Establish Header And Complete-Cookie Ownership
 
@@ -185,6 +207,7 @@ measured allocations is reported separately from an accounted reduction.
 ```sh
 cargo test --locked -p auctioneer-core --lib usersync::cookie::
 cargo test --locked -p auctioneer-core --lib handlers::sync_http::
+cargo test --locked -p auctioneer-core --lib handlers::tests::
 cargo test --locked -p auctioneer-core --lib handlers::info_bidders::
 cargo test --locked -p auctioneer-core --lib handlers::health_gvl::
 cargo test --locked -p auctioneer-core --test usersync_handler_alloc --test serialize_allocation_bound
@@ -259,6 +282,25 @@ If they do not, preserve production accounting and report the blocked part of
   through the existing profile/bootstrap/CLI consumers. Update exhaustive
   destructuring, capture component receipts and actual boot/CLI projections in
   the same checkpoint; the CLI must not calculate its own substitute sum.
+- [ ] Before changing current receipt arithmetic or shape, add cutover controls
+  in the existing records owner for both `catalog-baseline.toml` and
+  `catalog-baseline-patched-lock.toml`. Their original bytes/pins, component
+  arithmetic and existing continuity checks must remain valid. Today
+  `validate_snapshot` calls `validate_components` before its `Mode` branch;
+  changing `component_values` alone would apply new arithmetic to frozen
+  records. Separate explicit supported historical validation from current
+  validation before that shared call. Do not skip arithmetic for all frozen
+  inputs or default missing current bound fields to zero. Test altered old
+  receipts and incomplete current receipts are still refused; extending DTOs
+  must not make either archived format unreadable.
+- [ ] Trace `catalog_comparison::{check_capture,compare,growth_between}` and
+  `catalog_continuity` through the same cutover. They currently rederive
+  captures and allow only matched-input, nonnegative catalogue growth. Keep
+  supported historical validation/continuity and same-model comparisons
+  working; refuse unsupported mixed-accounting-model comparisons explicitly.
+  Do not reinterpret a handoff saving as catalogue growth, broaden the growth
+  allowance, drop a capture check or rewrite a pinned baseline. New accounting
+  evidence remains a separate current capture, not a recertified old record.
 - [ ] Run the real closed-graph parity target and existing current-resource
   report/refusal controls. Refresh new evidence, never old pinned records.
   Report observed allocation differences and accounted savings separately;
@@ -267,7 +309,10 @@ If they do not, preserve production accounting and report the blocked part of
 ```sh
 cargo test --locked -p auctioneer-runtime --lib
 cargo test --locked -p auctioneer-core --lib host_primitives::gates::
-cargo test --locked -p auctioneer-cli --lib bidders::resources
+cargo test --locked -p auctioneer-cli --bin auctioneer-cli bidders::resources
+cargo test --locked -p auctioneer-cli --bin auctioneer-cli bidders::resources::records::tests::pre_catalog_snapshot_pins_source_terms_and_unqualified_targets -- --exact
+cargo test --locked -p auctioneer-cli --bin auctioneer-cli bidders::resources::records::tests::catalog_comparison_loads_only_the_frozen_reviewed_baseline_bytes -- --exact
+cargo test --locked -p auctioneer-cli --bin auctioneer-cli bidders::resources::records::tests::patched_lock_catalog_baseline_retains_origin_and_chooser_growth -- --exact
 cargo test --locked -p auctioneer-cli --test bidders_resources
 cargo test --locked -p auctioneer-cli --test resource_boot_parity
 cargo run --locked -p auctioneer-cli -- bidders resources --check --all-adapters --capture-audit > "$RUNNER_TEMP/resource-audit-after.toml"
@@ -279,6 +324,9 @@ Expected: exact production/CLI parity and truthful residual refusal. The last
 script permits the CLI's documented exit 1 only when its JSON fit verdicts
 agree; it is not a target-fit pass. Current/future new evidence binds its own
 source/SDK/artifact, not this planning baseline by substitution.
+Each exact historical regression above must execute one case, not zero. Run
+the new cutover/refusal cases too; the existing frozen-coefficient test alone
+does not cover changing auxiliary component arithmetic.
 
 ## Task 7: Complete Verification And The Review Handoff
 
