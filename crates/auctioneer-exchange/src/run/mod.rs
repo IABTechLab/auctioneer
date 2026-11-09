@@ -37,14 +37,14 @@ use crate::{
         parse_price_granularity, pick_winner, price_bucket,
     },
     tmax::{TmaxResolution, resolve_tmax},
-    validate_endpoint::ExchangeEndpointValidator,
+    validate_endpoint::BoundEndpointValidator,
 };
 use auctioneer_bidder::schema::{SchemaWorkBudget, native_schema_work_budget};
 use auctioneer_bidder::{
     Bidder, BidderHttpRequest, BidderName, BidderRequestInfo, BidderResponse, CallBudget,
-    ConfiguredEndpoint, ConstructionDiagnostics, DebugBodySchema, FinalizeError,
-    OutboundBuildError, OutboundRequestMeta, OutboundRequestSink, SinkLimits, SinkOutcome,
-    TransportFinalize, TypedBid, finalize_for_transport,
+    ConstructionDiagnostics, DebugBodySchema, FinalizeError, OutboundBuildError,
+    OutboundRequestMeta, OutboundRequestSink, SinkLimits, SinkOutcome, TransportFinalize, TypedBid,
+    finalize_for_transport,
 };
 use auctioneer_config_data::types::{
     BidderInfo, Compression as CfgCompression, IpKeepBits, MediaType,
@@ -1022,7 +1022,7 @@ fn bind_bidder_configuration<'a>(
     pbr: &PerBidderRequest,
     adapter: &'a dyn Bidder,
     info: &mut BidderRequestInfo<'a>,
-) -> Result<Option<ConfiguredEndpoint<'a>>, auctioneer_bidder::BidderError> {
+) -> Result<bool, auctioneer_bidder::BidderError> {
     let requested = ctx
         .bidder_settings
         .and_then(|source| source.settings(pbr.bidder.as_str()));
@@ -1042,7 +1042,9 @@ fn bind_bidder_configuration<'a>(
         info.endpoint_macros = &[];
         info.host_allowlist = None;
     }
-    Ok(endpoint)
+    // The selected URL already lives in `info`; carry only its policy choice
+    // across credential lookup instead of retaining a second URL borrow.
+    Ok(endpoint.is_some())
 }
 
 async fn run_make_requests(
@@ -1078,9 +1080,9 @@ async fn run_make_requests(
     );
     info_for_adapter.original_request_ext_shape = ctx.original_request_ext_shape;
     info_for_adapter.floor_currency = ctx.floor_currency;
-    let configured_endpoint =
+    let has_configured_endpoint =
         match bind_bidder_configuration(ctx, pbr, adapter, &mut info_for_adapter) {
-            Ok(endpoint) => endpoint,
+            Ok(selected) => selected,
             Err(error) => {
                 out.bidder_pre_errors
                     .entry(pbr.bidder.clone())
@@ -1121,7 +1123,7 @@ async fn run_make_requests(
     };
     info_for_adapter.credentials = credentials.as_ref();
 
-    let validator = ExchangeEndpointValidator::with_configured_endpoint(info, configured_endpoint);
+    let validator = BoundEndpointValidator::new(info, &info_for_adapter, has_configured_endpoint);
     let mut sink = OutboundRequestSink::new(
         SinkLimits::new(
             usize::try_from(ctx.host.resource_limits.max_outbound_raw_bytes).unwrap_or(usize::MAX),
