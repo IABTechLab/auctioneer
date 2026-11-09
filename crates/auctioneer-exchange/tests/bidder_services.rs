@@ -310,7 +310,10 @@ mod tests {
             scenario.pending,
         );
         let response = if let Some(completed) = result {
-            response(completed, scenario.resource_refusal)
+            response(
+                completed.and_then(auctioneer_exchange::AuctionOutcome::into_bid_response),
+                scenario.resource_refusal,
+            )
         } else {
             Value::Null
         };

@@ -1034,7 +1034,8 @@ mod tests {
             let before = alloc_track::live();
             alloc_track::reset_peak();
             let mut audit = DisclosureAudit::default();
-            let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit));
+            let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+                .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
             let peak = alloc_track::peak_since(before);
             if refused {
                 assert!(result.is_err(), "status bookkeeping must be refused before amplification");

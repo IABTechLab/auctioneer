@@ -152,7 +152,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             let resp = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("run_auction succeeds even when every bidder samples out");
+                .expect("run_auction succeeds even when every bidder samples out")
+                .into_bid_response()
+                .unwrap();
 
             assert!(
                 resp.seatbid.is_empty(),

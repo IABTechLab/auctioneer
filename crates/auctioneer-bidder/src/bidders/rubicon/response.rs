@@ -7,6 +7,7 @@ use crate::{
 use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use serde_json::{Map, Value};
+use std::sync::Arc;
 
 pub(super) fn make_bids(
     request: &BidRequest,
@@ -45,6 +46,7 @@ pub(super) fn make_bids(
             .map_err(|()| vec![invalid_dto()])?
             .parse::<i64>()
             .unwrap_or_default();
+        let source_seat = (!seat.seat.is_empty()).then(|| Arc::<str>::from(seat.seat));
         for mut bid in seat.bid {
             let override_price = request
                 .imp
@@ -67,12 +69,16 @@ pub(super) fn make_bids(
                 &mut bid,
                 BidContext {
                     buyer,
-                    seat: &seat.seat,
+                    seat: source_seat.as_deref().unwrap_or_default(),
                     root_id: &root_id,
                 },
                 &mut text_remaining,
             ) {
-                Ok(media_type) => decoded.bids.push(TypedBid { bid, media_type }),
+                Ok(media_type) => decoded.bids.push(TypedBid {
+                    bid,
+                    media_type,
+                    source_seat: source_seat.clone(),
+                }),
                 Err(error) => decoded.errors.push(error),
             }
         }
@@ -225,6 +231,73 @@ mod tests {
     use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::json;
+    use std::sync::Arc;
+
+    #[test]
+    fn source_seat_retains_protocol_provenance_and_shares_only_within_each_seat() {
+        let value = json!({"id":"r", "seatbid":[
+            {"bid":[bid(json!({"id":"missing"}))]},
+            {"seat":"", "bid":[bid(json!({"id":"empty"}))]},
+            {"seat":"upstream_a", "bid":[bid(json!({"id":"before"})),
+                bid(json!({"id":"bad", "mtype":0_i32})), bid(json!({"id":"after"}))]},
+            {"seat":"upstream_b", "bid":[bid(json!({"id":"other"}))]}
+        ]});
+        assert_ne!(value["seatbid"][2]["seat"], json!("fake_alias"));
+        let first = decode(&value, CorrelationMedia::Banner).unwrap();
+        let second = decode(&value, CorrelationMedia::Banner).unwrap();
+        assert_eq!(first.errors.len(), 1);
+        assert_eq!(first.bids.len(), 5);
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|bid| bid.bid.id.as_str())
+                .collect::<Vec<_>>(),
+            ["missing", "empty", "before", "after", "other"]
+        );
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|bid| bid.source_seat.as_deref())
+                .collect::<Vec<_>>(),
+            [
+                None,
+                None,
+                Some("upstream_a"),
+                Some("upstream_a"),
+                Some("upstream_b")
+            ]
+        );
+        let owner = first.bids[2].source_seat.as_ref().unwrap();
+        assert!(Arc::ptr_eq(
+            owner,
+            first.bids[3].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(Arc::strong_count(owner), 2);
+        assert!(!Arc::ptr_eq(
+            owner,
+            first.bids[4].source_seat.as_ref().unwrap()
+        ));
+        assert!(!Arc::ptr_eq(
+            owner,
+            second.bids[2].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(
+            first.bids[2]
+                .bid
+                .ext
+                .as_ref()
+                .unwrap()
+                .prebid
+                .as_ref()
+                .unwrap()
+                .meta
+                .as_ref()
+                .unwrap()["seat"],
+            json!("upstream_a")
+        );
+    }
 
     #[test]
     fn status_handling_distinguishes_no_content_bad_input_and_provider_failure() {

@@ -389,63 +389,180 @@ mod request_binding {
 
 mod retention {
     use super::alloc_track;
-    use auctioneer_core::config::AuctioneerAppConfig;
+    use auctioneer_bidder::{BidderName, request_info::BidderSettingsSource as _};
+    use auctioneer_core::config::{AuctioneerAppConfig, bidder_settings::RuntimeBidderSettings};
+    use auctioneer_exchange::alias::AliasMap;
     use serde_json::json;
+    use std::hint::black_box;
+
+    fn retention_policy(
+        count: usize,
+        width: usize,
+        unrelated: usize,
+        accounts: usize,
+    ) -> AuctioneerAppConfig {
+        let mut bidders: serde_json::Map<_, _> = (0..count)
+            .map(|index| {
+                (format!("fake_bidder_{index}"), json!({
+                    "settings": {"implementation": "fake_string_probe", "values": {"token": "x".repeat(width)}}
+                }))
+            })
+            .collect();
+        bidders.insert("fake_base".to_owned(), json!({
+            "settings": {"implementation": "fake_string_probe", "values": {"token": "b".repeat(width)}}
+        }));
+        for index in 0..unrelated {
+            bidders.insert(format!("fake_unrelated_{index}"), json!({
+                "settings": {"implementation": "fake_string_probe", "values": {"token": "u".repeat(4_096)}}
+            }));
+        }
+        let account_rows: serde_json::Map<_, _> = (0..accounts)
+            .map(|index| {
+                (
+                    format!("fake_account_{index}"),
+                    json!({
+                        "targeting_prefix": "unused"
+                    }),
+                )
+            })
+            .collect();
+        serde_json::from_value(json!({
+            "schema_version": 1, "bidders": bidders, "accounts": account_rows
+        }))
+        .unwrap()
+    }
+
+    fn assert_retention_populations(
+        policy: &AuctioneerAppConfig,
+        count: usize,
+        unrelated: usize,
+        accounts: usize,
+    ) {
+        assert_eq!(policy.bidders.len(), count + 1 + unrelated);
+        assert_eq!(policy.accounts.len(), accounts);
+        for index in 0..unrelated {
+            assert!(
+                policy.bidders[&format!("fake_unrelated_{index}")]
+                    .settings
+                    .is_some()
+            );
+        }
+    }
+
+    fn assert_projected_copies_and_exclusions(
+        policy: &AuctioneerAppConfig,
+        projected: &RuntimeBidderSettings,
+        requested: &[BidderName],
+        width: usize,
+        unrelated: usize,
+    ) {
+        for name in requested {
+            let original = policy.bidders[name.as_str()]
+                .settings
+                .as_ref()
+                .unwrap()
+                .as_fake_string_probe()
+                .unwrap()
+                .token
+                .as_ref()
+                .unwrap();
+            let supply = projected
+                .settings(name.as_str())
+                .unwrap()
+                .as_fake_string_probe()
+                .unwrap()
+                .token
+                .as_ref()
+                .unwrap();
+            assert_eq!(supply, original);
+            assert_eq!(supply.len(), width);
+            assert_ne!(supply.as_ptr(), original.as_ptr());
+        }
+        for index in 0..unrelated {
+            assert!(
+                projected
+                    .settings(&format!("fake_unrelated_{index}"))
+                    .is_none()
+            );
+        }
+    }
 
     #[test]
-    fn moving_protocol_settings_out_of_config_does_not_rebuild_the_map_or_clone_values() {
-        use auctioneer_bidder::request_info::BidderSettingsSource as _;
-        use auctioneer_core::config::bidder_settings::RuntimeBidderSettings;
+    fn projecting_settings_copies_selected_strings_once_independent_of_unrelated_populations() {
+        let before = alloc_track::reset_peak();
+        let allocated = alloc_track::allocated();
+        let control = black_box(Vec::<u8>::with_capacity(4_096));
+        assert_eq!(alloc_track::peak_since(before), 4_096);
+        assert_eq!(alloc_track::live() - before, 4_096);
+        assert_eq!(alloc_track::allocated() - allocated, 4_096);
+        drop(control);
+        assert_eq!(alloc_track::live(), before);
+
         let mut cases = 0;
         for count in [1_usize, 8] {
+            let mut requested: Vec<_> = (0..count)
+                .map(|index| BidderName::new(format!("fake_bidder_{index}")))
+                .collect();
+            let mut aliases = AliasMap::default();
+            for name in &requested {
+                aliases
+                    .bases
+                    .insert(name.clone(), BidderName::new("fake_base"));
+            }
+            requested.push(BidderName::new("fake_base"));
+            requested.push(BidderName::new("fake_bidder_0"));
+            let mut previous_width_cost: Option<(usize, (u64, u64, u64))> = None;
             for width in [1, 64, 4_096] {
-                let bidders: serde_json::Map<_,_> = (0..count).map(|index| (format!("fake_bidder_{index}"),json!({
-                    "settings":{"implementation":"fake_string_probe","values":{"token":"x".repeat(width)}}
-                }))).collect();
-                let config: AuctioneerAppConfig =
-                    serde_json::from_value(json!({"schema_version": 1, "bidders":bidders}))
-                        .unwrap();
-                let original = config.bidders["fake_bidder_0"]
-                    .settings
-                    .as_ref()
-                    .unwrap()
-                    .as_fake_string_probe()
-                    .unwrap()
-                    .token
-                    .as_ref()
-                    .unwrap()
-                    .as_ptr();
-                let before = alloc_track::reset_peak();
-                let retained = RuntimeBidderSettings::from(config);
-                let measured = alloc_track::peak_since(before);
-                assert_eq!(measured, 0);
-                let supply = retained
-                    .settings("fake_bidder_0")
-                    .unwrap()
-                    .as_fake_string_probe()
-                    .unwrap()
-                    .token
-                    .as_ref()
-                    .unwrap();
-                assert_eq!(supply.as_ptr(), original);
-                for index in 0..count {
-                    assert_eq!(
-                        retained
-                            .settings(&format!("fake_bidder_{index}"))
-                            .unwrap()
-                            .as_fake_string_probe()
-                            .unwrap()
-                            .token
-                            .as_ref()
-                            .unwrap()
-                            .len(),
-                        width
-                    );
+                let mut width_cost = None;
+                for unrelated in [0_usize, 8] {
+                    for accounts in [0_usize, 8] {
+                        let policy = retention_policy(count, width, unrelated, accounts);
+                        let before_policy = serde_json::to_value(&policy).unwrap();
+                        assert_retention_populations(&policy, count, unrelated, accounts);
+
+                        let before = alloc_track::reset_peak();
+                        let allocated = alloc_track::allocated();
+                        let projected =
+                            RuntimeBidderSettings::project(&policy, &requested, &aliases);
+                        let cost = (
+                            alloc_track::peak_since(before),
+                            u64::try_from(alloc_track::live() - before).unwrap(),
+                            alloc_track::allocated() - allocated,
+                        );
+                        let selected_bytes = u64::try_from((count + 1) * width).unwrap();
+                        assert!(cost.0 >= selected_bytes);
+                        assert!(cost.1 >= selected_bytes);
+                        assert!(cost.2 >= selected_bytes);
+                        if let Some(expected) = width_cost {
+                            assert_eq!(
+                                cost, expected,
+                                "unrelated bidders={unrelated}, accounts={accounts}"
+                            );
+                        } else {
+                            width_cost = Some(cost);
+                        }
+                        assert_projected_copies_and_exclusions(
+                            &policy, &projected, &requested, width, unrelated,
+                        );
+                        drop(projected);
+                        assert_eq!(alloc_track::live(), before);
+                        assert_eq!(serde_json::to_value(&policy).unwrap(), before_policy);
+                        cases += 1;
+                    }
                 }
-                cases += 1;
+                let cost = width_cost.unwrap();
+                if let Some((previous_width, previous_cost)) = previous_width_cost {
+                    // Map/key storage is unchanged; only the selected string bytes grow.
+                    let copied_bytes =
+                        u64::try_from((count + 1) * (width - previous_width)).unwrap();
+                    assert_eq!(cost.0 - previous_cost.0, copied_bytes);
+                    assert_eq!(cost.1 - previous_cost.1, copied_bytes);
+                    assert_eq!(cost.2 - previous_cost.2, copied_bytes);
+                }
+                previous_width_cost = Some((width, cost));
             }
         }
-        assert_eq!(cases, 6);
+        assert_eq!(cases, 24);
     }
 }
 
@@ -459,47 +576,276 @@ mod retained_owner {
         };
         use serde_json::json;
 
+        fn projection_policy() -> AuctioneerAppConfig {
+            serde_json::from_value(json!({
+                "schema_version": 1,
+                "host": {"aliases": {"fake_alias": "fake_base"}},
+                "bidders": {
+                    "fake_alias": {
+                        "enabled": false,
+                        "timeout_ms": 20,
+                        "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0}}
+                    },
+                    "fake_base": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 42, "secondary_number": 7}}},
+                    "fake_second_alias": {"settings": {"implementation": "fake_integer_probe", "values": {"secondary_number": 9}}},
+                    "fake_unused_alias": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unused-alias"}}},
+                    "fake_unused_base": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unused-base"}}},
+                    "fake_unrelated": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unrelated"}}},
+                    "fake_no_settings": {"enabled": false}
+                },
+                "accounts": {"fake_discarded": {"targeting_prefix": "discarded"}}
+            }))
+            .expect("actual generated settings")
+        }
+
         #[test]
-        fn retaining_settings_moves_the_original_buffers_and_drops_unrelated_entries() {
-            let config: AuctioneerAppConfig = serde_json::from_value(json!({
-            "schema_version": 1,
-            "bidders": {
-                "fake_alias": {"settings": {"implementation":"fake_string_probe", "values":{"token":"alias-host"}}},
-                "fake_base": {"settings": {"implementation":"fake_string_probe", "values":{"token":"base-host"}}},
-                "fake_unrelated": {"enabled": false}
-            },
-                "accounts": {"fake_discarded":{"targeting_prefix":"discarded"}}
-        })).unwrap();
-            let original = config.bidders["fake_alias"]
-                .settings
-                .as_ref()
-                .unwrap()
-                .as_fake_string_probe()
-                .unwrap()
-                .token
-                .as_ref()
-                .unwrap()
-                .as_ptr();
-            let retained = RuntimeBidderSettings::from(config);
-            assert_eq!(
-                ["fake_alias", "fake_base", "fake_unrelated"]
+        fn projecting_settings_copies_only_requested_and_resolved_base_values() {
+            use auctioneer_bidder::{BidderName, bidder_settings::fake_integer_probe};
+            use auctioneer_exchange::alias::AliasMap;
+
+            let policy = projection_policy();
+            let mut aliases = AliasMap::default();
+            for (alias, base) in [
+                ("fake_alias", "fake_base"),
+                ("fake_second_alias", "fake_base"),
+                ("fake_missing_alias", "fake_base"),
+                ("fake_unused_alias", "fake_unused_base"),
+            ] {
+                aliases
+                    .bases
+                    .insert(BidderName::new(alias), BidderName::new(base));
+            }
+            let before_policy = serde_json::to_value(&policy).unwrap();
+            for name in ["fake_unused_alias", "fake_unused_base", "fake_unrelated"] {
+                assert!(policy.bidders[name].settings.is_some());
+            }
+            let names = [
+                "fake_alias",
+                "fake_base",
+                "fake_second_alias",
+                "fake_unused_alias",
+                "fake_unused_base",
+                "fake_unrelated",
+                "fake_no_settings",
+                "fake_missing",
+                "fake_missing_alias",
+            ];
+            let cases: &[(&[&str], &[&str])] = &[
+                (&[], &[]),
+                (&["fake_base"], &["fake_base"]),
+                (&["fake_alias"], &["fake_alias", "fake_base"]),
+                (&["fake_missing_alias"], &["fake_base"]),
+                (&["fake_no_settings", "fake_missing"], &[]),
+                (&["fake_unrelated"], &["fake_unrelated"]),
+                (
+                    &["fake_alias", "fake_second_alias", "fake_base", "fake_alias"],
+                    &["fake_alias", "fake_base", "fake_second_alias"],
+                ),
+            ];
+            let mut cases_run = 0;
+            for (requested, expected) in cases {
+                let requested: Vec<_> = requested
+                    .iter()
+                    .map(|name| BidderName::new(*name))
+                    .collect();
+                let projected = RuntimeBidderSettings::project(&policy, &requested, &aliases);
+                let retained: Vec<_> = names
                     .into_iter()
-                    .filter(|name| retained.settings(name).is_some())
-                    .count(),
-                2
+                    .filter(|name| projected.settings(name).is_some())
+                    .collect();
+                assert_eq!(retained, *expected);
+                for name in *expected {
+                    assert_eq!(
+                        serde_json::to_value(projected.settings(name).unwrap()).unwrap(),
+                        serde_json::to_value(policy.bidders[*name].settings.as_ref().unwrap())
+                            .unwrap()
+                    );
+                }
+                cases_run += 1;
+            }
+            assert_eq!(cases_run, 7);
+            assert_eq!(serde_json::to_value(&policy).unwrap(), before_policy);
+
+            let no_aliases = RuntimeBidderSettings::project(
+                &policy,
+                &[BidderName::new("fake_alias")],
+                &AliasMap::default(),
             );
-            assert!(retained.settings("fake_unrelated").is_none());
-            assert!(retained.settings("fake_missing").is_none());
-            let view = fake_string_probe::resolve(
-                retained
-                    .settings("fake_alias")
-                    .and_then(BidderSettings::as_fake_string_probe),
-                retained
-                    .settings("fake_base")
-                    .and_then(BidderSettings::as_fake_string_probe),
+            assert!(no_aliases.settings("fake_alias").is_some());
+            assert!(no_aliases.settings("fake_base").is_none());
+
+            let projected = RuntimeBidderSettings::project(
+                &policy,
+                &[
+                    BidderName::new("fake_alias"),
+                    BidderName::new("fake_second_alias"),
+                    BidderName::new("fake_unrelated"),
+                ],
+                &aliases,
             );
-            assert_eq!(view.token(), Some("alias-host"));
-            assert_eq!(view.token().unwrap().as_ptr(), original);
+            drop(policy);
+            for (name, expected_primary, expected_secondary) in
+                [("fake_alias", 0, 7), ("fake_second_alias", 42, 9)]
+            {
+                let resolved = fake_integer_probe::resolve(
+                    projected
+                        .settings(name)
+                        .and_then(BidderSettings::as_fake_integer_probe),
+                    projected
+                        .settings("fake_base")
+                        .and_then(BidderSettings::as_fake_integer_probe),
+                );
+                assert_eq!(resolved.primary_number(), Some(expected_primary));
+                assert_eq!(resolved.secondary_number(), Some(expected_secondary));
+            }
+            assert_eq!(
+                projected
+                    .settings("fake_unrelated")
+                    .and_then(BidderSettings::as_fake_string_probe)
+                    .and_then(|settings| settings.token.as_deref()),
+                Some("unrelated")
+            );
+        }
+
+        fn string_projection_policy(width: usize) -> AuctioneerAppConfig {
+            serde_json::from_value(json!({
+                "schema_version": 1,
+                "bidders": {
+                    "fake_alias": {"settings": {"implementation": "fake_string_probe", "values": {"token": "a".repeat(width)}}},
+                    "fake_fallback": {"settings": {"implementation": "fake_string_probe", "values": {}}},
+                    "fake_base": {"settings": {"implementation": "fake_string_probe", "values": {"token": "b".repeat(width)}}},
+                    "fake_unrelated": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unrelated-host"}}},
+                    "fake_no_settings": {"enabled": false}
+                },
+                "accounts": {"fake_discarded": {"targeting_prefix": "unused"}}
+            }))
+            .unwrap()
+        }
+
+        fn assert_owned_projection_strings(
+            policy: &AuctioneerAppConfig,
+            projected: &RuntimeBidderSettings,
+        ) {
+            for name in ["fake_alias", "fake_base"] {
+                let original = policy.bidders[name]
+                    .settings
+                    .as_ref()
+                    .unwrap()
+                    .as_fake_string_probe()
+                    .unwrap()
+                    .token
+                    .as_deref()
+                    .unwrap();
+                let owned = projected
+                    .settings(name)
+                    .unwrap()
+                    .as_fake_string_probe()
+                    .unwrap()
+                    .token
+                    .as_deref()
+                    .unwrap();
+                assert_eq!(owned, original);
+                assert_ne!(owned.as_ptr(), original.as_ptr());
+            }
+            assert!(projected.settings("fake_unrelated").is_none());
+            assert!(projected.settings("fake_no_settings").is_none());
+            assert!(projected.settings("fake_missing").is_none());
+        }
+
+        #[test]
+        fn projected_settings_alias_and_base_lookups_borrow_owned_strings_without_allocating() {
+            use super::super::alloc_track;
+            use auctioneer_bidder::BidderName;
+            use auctioneer_exchange::alias::AliasMap;
+            use std::hint::black_box;
+
+            let mut cases = 0;
+            for width in [1_usize, 64, 4_096] {
+                for lookups in [1, 8] {
+                    let policy = string_projection_policy(width);
+                    let before_policy = serde_json::to_value(&policy).unwrap();
+                    assert!(policy.bidders["fake_unrelated"].settings.is_some());
+                    assert!(policy.accounts.contains_key("fake_discarded"));
+                    let mut aliases = AliasMap::default();
+                    for name in ["fake_alias", "fake_fallback"] {
+                        aliases
+                            .bases
+                            .insert(BidderName::new(name), BidderName::new("fake_base"));
+                    }
+                    let projected = RuntimeBidderSettings::project(
+                        &policy,
+                        &[
+                            BidderName::new("fake_alias"),
+                            BidderName::new("fake_fallback"),
+                            BidderName::new("fake_base"),
+                            BidderName::new("fake_alias"),
+                        ],
+                        &aliases,
+                    );
+                    assert_owned_projection_strings(&policy, &projected);
+                    assert_eq!(serde_json::to_value(&policy).unwrap(), before_policy);
+                    drop(policy);
+
+                    let alias = projected
+                        .settings("fake_alias")
+                        .unwrap()
+                        .as_fake_string_probe()
+                        .unwrap()
+                        .token
+                        .as_deref()
+                        .unwrap();
+                    let base = projected
+                        .settings("fake_base")
+                        .unwrap()
+                        .as_fake_string_probe()
+                        .unwrap()
+                        .token
+                        .as_deref()
+                        .unwrap();
+                    let before = alloc_track::reset_peak();
+                    let allocated = alloc_track::allocated();
+                    let control = black_box(alias.to_owned());
+                    assert_eq!(
+                        alloc_track::peak_since(before),
+                        u64::try_from(width).unwrap()
+                    );
+                    assert_eq!(alloc_track::live() - before, i64::try_from(width).unwrap());
+                    assert_eq!(
+                        alloc_track::allocated() - allocated,
+                        u64::try_from(width).unwrap()
+                    );
+                    drop(control);
+                    assert_eq!(alloc_track::live(), before);
+
+                    let before = alloc_track::reset_peak();
+                    let allocated = alloc_track::allocated();
+                    for _ in 0..lookups {
+                        for (name, expected) in [
+                            ("fake_alias", alias),
+                            ("fake_fallback", base),
+                            ("fake_base", base),
+                        ] {
+                            let view = fake_string_probe::resolve(
+                                projected
+                                    .settings(name)
+                                    .and_then(BidderSettings::as_fake_string_probe),
+                                projected
+                                    .settings("fake_base")
+                                    .and_then(BidderSettings::as_fake_string_probe),
+                            );
+                            let token = black_box(view.token().unwrap());
+                            assert_eq!(token, expected);
+                            assert_eq!(token.len(), width);
+                            assert_eq!(token.as_ptr(), expected.as_ptr());
+                        }
+                    }
+                    assert_eq!(alloc_track::allocated() - allocated, 0);
+                    assert_eq!(alloc_track::peak_since(before), 0);
+                    assert_eq!(alloc_track::live(), before);
+                    cases += 1;
+                }
+            }
+            assert_eq!(cases, 6);
         }
     }
 }

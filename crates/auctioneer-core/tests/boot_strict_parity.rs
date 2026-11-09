@@ -20,8 +20,8 @@ use boot_parity_retained as retained;
 mod tests {
     use super::fixture::{CASE_ENV as CHILD_CASE_ENV, CASES, CATALOG};
     use super::{fixture, retained};
+    use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::configure::configure_app;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_core::host_primitives::gates::boot_target;
     use auctioneer_core::host_primitives::{
         admission_gate, aux_gate, boot_gates, boot_limits, egress_gate, install_boot_envelope,

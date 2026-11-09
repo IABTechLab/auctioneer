@@ -19,6 +19,7 @@ pub struct BidderRegistry {
 
 struct RegistryEntry {
     info: &'static BidderInfo,
+    implementation: Option<&'static str>,
     bidder: Box<dyn Bidder>,
 }
 
@@ -39,13 +40,45 @@ impl BidderRegistry {
         info: &'static BidderInfo,
         bidder: Box<dyn Bidder>,
     ) -> Result<(), RegistryBuildError> {
+        self.insert_entry(info, None, bidder)
+    }
+
+    /// Record the implementation selected by trusted factory construction.
+    /// Shared host services must match this independent registry identity.
+    ///
+    /// # Errors
+    /// Rejects an empty implementation or duplicate public name without replacing it.
+    pub fn register_with_implementation(
+        &mut self,
+        info: &'static BidderInfo,
+        implementation: &'static str,
+        bidder: Box<dyn Bidder>,
+    ) -> Result<(), RegistryBuildError> {
+        if implementation.is_empty() {
+            return Err(RegistryBuildError::BindingMismatch {
+                bidder: info.name.as_str(),
+            });
+        }
+        self.insert_entry(info, Some(implementation), bidder)
+    }
+
+    fn insert_entry(
+        &mut self,
+        info: &'static BidderInfo,
+        implementation: Option<&'static str>,
+        bidder: Box<dyn Bidder>,
+    ) -> Result<(), RegistryBuildError> {
         let name = BidderName::new(info.name.as_str());
         match self.entries.entry(name) {
             Entry::Occupied(_) => Err(RegistryBuildError::DuplicateBidder {
                 bidder: info.name.as_str(),
             }),
             Entry::Vacant(entry) => {
-                entry.insert(RegistryEntry { info, bidder });
+                entry.insert(RegistryEntry {
+                    info,
+                    implementation,
+                    bidder,
+                });
                 Ok(())
             }
         }
@@ -56,6 +89,12 @@ impl BidderRegistry {
         self.entries
             .get(name)
             .map(|entry| (entry.info, entry.bidder.as_ref()))
+    }
+
+    /// Low-level unbound registrations deliberately provide no identity proof.
+    #[must_use]
+    pub fn implementation(&self, name: &str) -> Option<&'static str> {
+        self.entries.get(name)?.implementation
     }
 
     /// Borrow the registered metadata in public-name order without copying names.
@@ -82,7 +121,7 @@ impl Default for BidderRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::{BidderInfo, BidderRegistry};
+    use super::{BidderInfo, BidderRegistry, RegistryBuildError};
     use crate::{
         DebugBodySchema,
         bidder::{Bidder, BidderError},
@@ -93,6 +132,42 @@ mod tests {
     };
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use std::ptr;
+
+    #[test]
+    fn registration_retains_the_selected_implementation_independently_of_service_bindings() {
+        let mut registry = BidderRegistry::new();
+        registry
+            .register_with_implementation(
+                leak_info("fake_registered"),
+                "fake_actual_protocol",
+                Box::new(DummyBidder(1)),
+            )
+            .unwrap();
+        assert_eq!(
+            registry.implementation("fake_registered"),
+            Some("fake_actual_protocol")
+        );
+        assert_eq!(registry.implementation("fake_missing"), None);
+        let replacement = registry.register_with_implementation(
+            leak_info("fake_registered"),
+            "fake_forged_protocol",
+            Box::new(DummyBidder(2)),
+        );
+        assert_eq!(
+            replacement.unwrap_err(),
+            RegistryBuildError::DuplicateBidder {
+                bidder: "fake_registered"
+            }
+        );
+        assert_eq!(
+            registry.implementation("fake_registered"),
+            Some("fake_actual_protocol")
+        );
+        registry
+            .register(leak_info("fake_unbound"), Box::new(DummyBidder(3)))
+            .unwrap();
+        assert_eq!(registry.implementation("fake_unbound"), None);
+    }
 
     struct DummyBidder(u32);
     impl Bidder for DummyBidder {

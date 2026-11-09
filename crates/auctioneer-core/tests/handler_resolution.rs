@@ -27,6 +27,7 @@ mod tests {
     use auctioneer_bidder::BidderHttpResponse;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{TestClockHandle, TestRngHandle};
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, TimeoutCause,
@@ -40,15 +41,20 @@ mod tests {
     use edgezero_core::body::Body;
     use edgezero_core::context::RequestContext;
     use edgezero_core::http::StatusCode;
+    use edgezero_core::response_egress::ResponseEgressEnvelope;
+    use edgezero_core::time::MonotonicClock;
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use std::collections::BTreeMap;
+    use std::mem;
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Duration;
     use time::OffsetDateTime;
 
     /// Response cap wide enough that nothing here trips it.
     const WIDE_CAP: usize = 1 << 20;
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
 
     /// Assemble the POST every group drives, with the given fanout
     /// installed and the fixture config bound.
@@ -59,7 +65,7 @@ mod tests {
         config: &str,
         body_bytes: Vec<u8>,
         fanout: Arc<dyn BidderFanout + Send + Sync>,
-    ) -> RequestContext {
+    ) -> (RequestContext, ResponseEgressEnvelope) {
         config_funding::install();
         let mut request = Request::builder()
             .method(Method::POST)
@@ -73,7 +79,11 @@ mod tests {
         let rng: Arc<dyn Rng + Send + Sync> = Arc::new(SeededRng::new(42));
         request.extensions_mut().insert(TestClockHandle(clock));
         request.extensions_mut().insert(TestRngHandle(rng));
-        ctx_with_config(config, request)
+        auction_context_for_route(
+            ctx_with_config(config, request).into_request().unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        )
     }
 
     mod bidder_override_keys {
@@ -169,6 +179,7 @@ mod tests {
 
         #[test]
         fn oversized_disabled_bidder_key_fails_before_auction_dispatch_and_catalog_construction() {
+            let _serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
             let config = config(&format!("fake_{}", "a".repeat(60)), "enabled = false");
             let fanout = Arc::new(RecordingFanout::default());
             let handler_fanout: Arc<dyn BidderFanout + Send + Sync> =
@@ -186,8 +197,9 @@ mod tests {
                 "ext": { "prebid": { "aliases": { "fake_bidder": passthrough_info().name } } },
             }))
             .expect("auction request serializes");
-            let auction_response = block_on(auction(auction_ctx(&config, body, handler_fanout)))
-                .expect("auction handler answers");
+            let (ctx, mut envelope) = auction_ctx(&config, body, handler_fanout);
+            *envelope.response_mut() = block_on(auction(ctx)).expect("auction handler answers");
+            let auction_response = mem::take(envelope.response_mut());
             let catalog_response =
                 block_on(info_bidders(catalog_ctx(&config))).expect("catalog handler answers");
             for response in [auction_response, catalog_response] {
@@ -196,6 +208,7 @@ mod tests {
                     .expect("error response reads");
                 assert_eq!(bytes.as_ref(), b"Malformed host configuration");
             }
+            drop(envelope);
             assert_eq!(
                 *fanout.calls.lock().unwrap_or_else(PoisonError::into_inner),
                 0
@@ -248,16 +261,19 @@ mod tests {
         }
 
         fn drive(body_bytes: Vec<u8>) -> (StatusCode, String) {
-            let ctx = auction_ctx(CONFIG, body_bytes, Arc::new(UnusedFanout));
+            let _serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
+            let (ctx, mut envelope) = auction_ctx(CONFIG, body_bytes, Arc::new(UnusedFanout));
 
             block_on(async {
-                let response = auction(ctx).await.expect("the handler answers");
+                *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+                let response = mem::take(envelope.response_mut());
                 let status = response.status();
                 let (_parts, body) = response.into_parts();
                 let bytes = body
                     .into_bytes_bounded(WIDE_CAP)
                     .await
                     .expect("response body reads");
+                drop(envelope);
                 (
                     status,
                     String::from_utf8(bytes.to_vec()).expect("the error body is UTF-8"),
@@ -360,19 +376,22 @@ mod tests {
 
         /// Returns `(outbound call count, response ext)`.
         fn drive(publisher: &str) -> (usize, serde_json::Value) {
+            let _serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
             let fanout = Arc::new(CountingFanout::default());
             let handler_fanout: Arc<dyn BidderFanout + Send + Sync> =
                 Arc::<CountingFanout>::clone(&fanout);
-            let ctx = auction_ctx(CONFIG, body(publisher), handler_fanout);
+            let (ctx, mut envelope) = auction_ctx(CONFIG, body(publisher), handler_fanout);
 
             let response: BidResponse = block_on(async {
-                let response = auction(ctx).await.expect("the handler answers");
+                *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+                let response = mem::take(envelope.response_mut());
                 assert_eq!(response.status(), StatusCode::OK);
                 let (_parts, response_body) = response.into_parts();
                 let bytes = response_body
                     .into_bytes_bounded(WIDE_CAP)
                     .await
                     .expect("response body reads");
+                drop(envelope);
                 serde_json::from_slice(&bytes).expect("the response deserializes as a BidResponse")
             });
             let seen = *fanout.calls.lock().unwrap_or_else(PoisonError::into_inner);
@@ -428,6 +447,7 @@ mod tests {
     /// host aliases would silently lose the request-declared alias.
     mod alias_preserved {
         use super::*;
+        use auctioneer_core::{auction::CompletedResponse, config::AuctioneerAppConfig};
 
         /// A request alias alongside a host alias for the same published base.
         const ALIAS: &str = "fake_myalias";
@@ -498,6 +518,7 @@ mod tests {
 
         /// POST the fixture through the real auction handler.
         fn drive() -> (StatusCode, BidResponse) {
+            let _serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
             let serialized =
                 serde_json::to_vec(&fixture_request()).expect("the fixture serializes");
             let config = toml::to_string(&serde_json::json!({
@@ -507,21 +528,142 @@ mod tests {
                 },
             }))
             .expect("host alias serializes");
-            let ctx = auction_ctx(&config, serialized, Arc::new(BiddingFanout));
+            let (ctx, mut envelope) = auction_ctx(&config, serialized, Arc::new(BiddingFanout));
 
             block_on(async {
-                let response = auction(ctx).await.expect("the handler answers");
+                *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+                let response = mem::take(envelope.response_mut());
                 let status = response.status();
                 let (_parts, body) = response.into_parts();
                 let bytes = body
                     .into_bytes_bounded(WIDE_CAP)
                     .await
                     .expect("response body reads");
+                drop(envelope);
                 (
                     status,
                     serde_json::from_slice(&bytes).expect("the response deserializes"),
                 )
             })
+        }
+
+        #[test]
+        fn typed_and_http_auctions_share_policy_input_selection_and_wire_output() {
+            use auctioneer_core::host_primitives::TestMonotonicClockHandle;
+            use validator::Validate as _;
+
+            let _serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
+            config_funding::install();
+            let mut checked = 0_usize;
+            for prefix in ["fakea", "fakeb"] {
+                let config = toml::to_string(&serde_json::json!({
+                    "schema_version": 1_u8,
+                    "host": {"aliases": { BASE: passthrough_info().name }, "gdpr": {"enabled": false}},
+                    "account_defaults": {"targeting_prefix": prefix}
+                })).unwrap();
+                let policy: AuctioneerAppConfig = toml::from_str(&config).unwrap();
+                policy.validate().unwrap();
+                for id in ["fake_first_request", "fake_second_request"] {
+                    let mut input = fixture_request();
+                    input.id = id.to_owned();
+                    let before = serde_json::to_value(&input).unwrap();
+                    let typed = direct_response(&policy, &input);
+                    let raw = serde_json::to_vec(&input).unwrap();
+                    let (mut ctx, mut terminal) =
+                        auction_ctx(&config, raw, Arc::new(BiddingFanout));
+                    let clock = FakeClock::new(OffsetDateTime::UNIX_EPOCH);
+                    ctx.extensions_mut()
+                        .insert(TestMonotonicClockHandle(MonotonicClock::new(move || {
+                            clock.now_monotonic()
+                        })));
+                    *terminal.response_mut() = block_on(auction(ctx)).unwrap();
+                    assert_eq!(terminal.response_mut().status(), StatusCode::OK);
+                    let response = mem::take(terminal.response_mut());
+                    let wire: serde_json::Value =
+                        serde_json::from_slice(&response.into_body().into_bytes().unwrap())
+                            .unwrap();
+                    assert_eq!(wire, serde_json::to_value(typed.response()).unwrap());
+                    assert_eq!(wire["id"], id);
+                    assert_eq!(wire["seatbid"].as_array().unwrap().len(), 2);
+                    let targeting = wire["seatbid"][0]["bid"][0]["ext"]["prebid"]["targeting"]
+                        .as_object()
+                        .unwrap();
+                    assert!(!targeting.is_empty());
+                    assert!(targeting.keys().all(|key| key.starts_with(prefix)));
+                    assert_eq!(serde_json::to_value(&input).unwrap(), before);
+                    drop(terminal);
+                    drop(typed);
+                    checked += 1;
+                }
+            }
+            assert_eq!(checked, 4);
+        }
+
+        fn direct_response(policy: &AuctioneerAppConfig, input: &BidRequest) -> CompletedResponse {
+            use auctioneer_core::auction::{
+                AuctionFunding, AuctionInput, AuctionServices, prepare_auction,
+            };
+            use auctioneer_core::host_primitives::{admission_gate, boot_gates};
+            use auctioneer_privacy::{UnrestrictedHostRestrictions, gcl::Gcl, gvl::GvlStore};
+            use auctioneer_runtime::AuctionBudget;
+
+            let resources = boot_gates().unwrap().auction_resource_profile().unwrap();
+            let ledger = Arc::new(AuctionBudget::new(resources.derived().per_auction_peak));
+            let funding = AuctionFunding::prepay(
+                &resources,
+                &ledger,
+                admission_gate().unwrap().try_acquire().unwrap(),
+            )
+            .unwrap();
+            let clock = FakeClock::new(OffsetDateTime::UNIX_EPOCH);
+            let rng = SeededRng::new(42);
+            let registry = auctioneer_bidder::configured_registry().unwrap();
+            let services = AuctionServices {
+                resources: &resources,
+                product_host: auctioneer_config_data::product_host_default(),
+                product_account: auctioneer_config_data::product_account_default(),
+                bidders: &registry,
+                bidder_bindings: auctioneer_config_data::bidder_implementation_bindings(),
+                fanout: &BiddingFanout,
+                clock: &clock,
+                rng: &rng,
+                gvl_store: GvlStore::baked(),
+                gcl: Gcl::baked(),
+                restrictions: &UnrestrictedHostRestrictions,
+                credentials: None,
+                request_start: clock.now_monotonic(),
+                outer_deadline: None,
+                now: clock.now(),
+                debug_requested: false,
+                entry_point: auctioneer_bidder::EntryPoint::Auction,
+            };
+            let prepared = prepare_auction(
+                policy,
+                AuctionInput::Typed {
+                    request: input,
+                    headers: auctioneer_openrtb::RequestHeaders::default(),
+                },
+                services,
+                funding,
+            )
+            .unwrap();
+            let completed = block_on(prepared.run()).unwrap();
+            assert_eq!(completed.outcome().bidders().len(), 2);
+            assert!(
+                completed
+                    .outcome()
+                    .bidders()
+                    .values()
+                    .all(|bundle| bundle.bids.len() == 1)
+            );
+            let selected = completed.outcome().selected_bid(0).unwrap();
+            assert!([BASE, ALIAS].contains(&selected.requested_bidder.as_str()));
+            assert_eq!(
+                selected.implementation,
+                registry.implementation(&passthrough_info().name)
+            );
+            assert_eq!(selected.bid.source_seat.as_deref(), Some("fake_s"));
+            completed.into_wire_response().unwrap()
         }
 
         #[test]

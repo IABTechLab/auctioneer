@@ -139,8 +139,8 @@ mod tests {
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AccountSource, AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult,
-        BidderFanout, BootEnvelope, FanoutInternalError, ResolvedAccount, resolve_aliases,
-        run_auction,
+        BidderFanout, BootEnvelope, FanoutInternalError, ResolvedAccount, TmaxSource,
+        resolve_aliases, run_auction,
     };
     use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::BidResponse};
     use auctioneer_openrtb::{PrepareLimits, RequestHeaders, WarningCode, prepare};
@@ -310,6 +310,7 @@ mod tests {
         batches: usize,
         calls: usize,
         deadline: Option<MonotonicInstant>,
+        source: Option<TmaxSource>,
         gzip_calls: usize,
         raw_buffers: (usize, usize),
         encoded_buffers: (usize, usize),
@@ -329,6 +330,7 @@ mod tests {
             sent.batches = sent.batches.saturating_add(1);
             sent.calls = sent.calls.saturating_add(calls.len());
             sent.deadline = Some(deadline.deadline_at);
+            sent.source = Some(deadline.source);
             sent.gzip_calls = sent.gzip_calls.saturating_add(
                 calls
                     .iter()
@@ -369,14 +371,30 @@ mod tests {
         run_with_partials(spend, diagnostics, false)
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one ordered fixture keeps the original deadline, adapter probes and allocation lifetime together"
-    )]
     fn run_with_partials(
         spend: Duration,
         diagnostics: bool,
         partial_diagnostics: bool,
+    ) -> Observed {
+        run_with_outer_deadline(
+            spend,
+            diagnostics,
+            partial_diagnostics,
+            None,
+            Duration::from_millis(40),
+        )
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one ordered fixture keeps the original deadline, adapter probes and allocation lifetime together"
+    )]
+    fn run_with_outer_deadline(
+        spend: Duration,
+        diagnostics: bool,
+        partial_diagnostics: bool,
+        outer_after_start: Option<Duration>,
+        elapsed: Duration,
     ) -> Observed {
         let mut host = auctioneer_config_data::host_default().clone();
         host.gdpr.enabled = false;
@@ -386,8 +404,11 @@ mod tests {
         host.resource_limits.max_bidders_per_auction = if diagnostics { 3 } else { 2 };
         let clock = Arc::new(FakeClock::new(time::OffsetDateTime::UNIX_EPOCH));
         let start = clock.now_monotonic();
-        let deadline = start.checked_add(Duration::from_millis(100)).unwrap();
-        clock.advance(Duration::from_millis(40));
+        let original_deadline = start.checked_add(Duration::from_millis(100)).unwrap();
+        let outer_deadline = outer_after_start.map(|cap| start.checked_add(cap).unwrap());
+        let deadline =
+            outer_deadline.map_or(original_deadline, |outer| original_deadline.min(outer));
+        clock.advance(elapsed);
         let mut registry = BidderRegistry::new();
         let mut probes = BTreeMap::new();
         let mut bidders = serde_json::Map::new();
@@ -456,7 +477,7 @@ mod tests {
         };
         let fanout = RecordingFanout::default();
         let rng = SeededRng::new(42);
-        let ctx = AuctionContext::with_request_start(
+        let mut ctx = AuctionContext::with_request_start(
             start,
             &host,
             &resolved,
@@ -469,9 +490,13 @@ mod tests {
             clock.now(),
             false,
         );
+        ctx.outer_deadline = outer_deadline;
         let mut audit = DisclosureAudit::default();
         let tracking = body_allocations::Tracking::start();
-        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let buffers = body_allocations::counts();
         drop(tracking);
         Observed {
@@ -635,7 +660,10 @@ mod tests {
         ctx.features.gzip_outbound = true;
         let mut audit = DisclosureAudit::default();
         let tracking = body_allocations::Tracking::start();
-        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let buffers = body_allocations::counts();
         let encoded_buffers = body_allocations::encoded_counts();
         let finished_at = clock.now_monotonic();
@@ -744,6 +772,64 @@ mod tests {
         }
         assert_eq!(observed.buffers, (2, 2));
         assert!(observed.response.ext.as_ref().unwrap()["errors"].is_null());
+    }
+
+    #[test]
+    fn outer_deadline_before_at_after_boundary_preserves_visible_tmax_and_source() {
+        for spend_ms in [9, 10, 11] {
+            let observed = run_with_outer_deadline(
+                Duration::from_millis(spend_ms),
+                false,
+                false,
+                Some(Duration::from_millis(50)),
+                Duration::from_millis(40),
+            );
+            assert_eq!(observed.probes["fake_b000"].makes, 1);
+            if spend_ms < 10 {
+                assert_eq!(observed.probes["fake_c000"].makes, 1);
+                assert_eq!(observed.dispatch.calls, 2);
+                assert_eq!(observed.dispatch.deadline, Some(observed.deadline));
+                assert_eq!(observed.dispatch.source, Some(TmaxSource::CappedByHost));
+            } else {
+                assert_eq!(observed.probes["fake_c000"].makes, 0);
+                assert_expired(&observed, &["fake_b000", "fake_c000"]);
+            }
+        }
+    }
+
+    #[test]
+    fn queue_time_spends_outer_deadline_without_refreshing_request_start() {
+        for elapsed_ms in [49, 50, 51] {
+            let observed = run_with_outer_deadline(
+                Duration::ZERO,
+                false,
+                false,
+                Some(Duration::from_millis(50)),
+                Duration::from_millis(elapsed_ms),
+            );
+            if elapsed_ms < 50 {
+                assert_eq!(observed.dispatch.calls, 2);
+                assert_eq!(observed.dispatch.deadline, Some(observed.deadline));
+                assert_eq!(observed.dispatch.source, Some(TmaxSource::CappedByHost));
+            } else {
+                assert!(observed.probes.values().all(|probe| probe.makes == 0));
+                assert_expired(&observed, &["fake_b000", "fake_c000"]);
+            }
+        }
+    }
+
+    #[test]
+    fn outer_deadline_cannot_extend_original_request_host_cap() {
+        let observed = run_with_outer_deadline(
+            Duration::from_millis(60),
+            false,
+            false,
+            Some(Duration::from_millis(200)),
+            Duration::from_millis(40),
+        );
+        assert_expired(&observed, &["fake_b000", "fake_c000"]);
+        assert_eq!(observed.probes["fake_b000"].makes, 1);
+        assert_eq!(observed.probes["fake_c000"].makes, 0);
     }
 
     fn assert_queued_gzip_stops(participants: &[&str], calls_per_bidder: u8) {

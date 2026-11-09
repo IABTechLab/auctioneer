@@ -2,7 +2,6 @@
 
 pub mod auction;
 pub mod aux_egress;
-pub(crate) mod bidder_credentials;
 pub mod cookie_sync;
 pub(crate) mod debug_signals;
 pub mod egress_deadline;
@@ -10,7 +9,6 @@ pub mod getuids;
 pub mod health_gvl;
 pub mod info_bidders;
 pub mod probe_config;
-pub mod request_disclosure_audit;
 pub mod setuid;
 pub mod status;
 pub mod sync_http;

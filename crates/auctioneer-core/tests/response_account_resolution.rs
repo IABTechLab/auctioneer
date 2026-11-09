@@ -38,6 +38,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -49,12 +50,15 @@ mod tests {
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use std::fs;
-    use std::sync::Arc;
+    use std::mem;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use time::OffsetDateTime;
 
     /// Response cap wide enough that nothing here trips it.
     const WIDE_CAP: usize = 1 << 20;
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
 
     /// The publisher id both fixtures name, and the `[accounts.<id>]`
     /// key both overlays declare.
@@ -104,6 +108,7 @@ mod tests {
     /// clock would let a slow runner overrun `tmax` and add an
     /// auction-wide timeout entry to the recorded answer.
     fn drive(config_toml: &str, request_body: &str) -> (StatusCode, Option<String>, Vec<u8>) {
+        let _serialized = AUCTIONS.lock().expect("auction fixture lock");
         config_funding::install();
         let mut config: toml::Value = toml::from_str(config_toml).unwrap();
         let aliases = toml::Table::from_iter([(
@@ -136,16 +141,22 @@ mod tests {
         // terms, so a recorded response containing it drifts by a millisecond
         // under load.
         let monotonic_source = Arc::<FakeClock>::clone(&fake);
+        let monotonic = MonotonicClock::new(move || monotonic_source.now_monotonic());
         request
             .extensions_mut()
-            .insert(TestMonotonicClockHandle(MonotonicClock::new(move || {
-                monotonic_source.now_monotonic()
-            })));
+            .insert(TestMonotonicClockHandle(monotonic.clone()));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = ctx_with_config(&configured, request);
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(&configured, request)
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            monotonic,
+        );
 
         block_on(async {
-            let response = auction(ctx).await.expect("the handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(envelope.response_mut());
             let status = response.status();
             let content_type = response
                 .headers()
@@ -157,6 +168,7 @@ mod tests {
                 .into_bytes_bounded(WIDE_CAP)
                 .await
                 .expect("response body reads");
+            drop(envelope);
             (status, content_type, bytes.to_vec())
         })
     }
@@ -187,6 +199,41 @@ mod tests {
                 .contains("\"code\":12"),
             "the pinned clock must never let an auction-wide timeout reach the recorded response",
         );
+    }
+
+    #[test]
+    fn publisher_absence_does_not_select_the_explicit_unknown_account() {
+        let config = "schema_version = 1\n[host]\n[account_defaults]\ntargeting_prefix = \"default\"\n[accounts.unknown]\ntargeting_prefix = \"named\"\n";
+        for (named, expected_key, excluded_key) in [
+            (false, "default_bidder", "named_bidder"),
+            (true, "named_bidder", "default_bidder"),
+        ] {
+            let mut request: serde_json::Value =
+                serde_json::from_str(&fixture("configured_overlay_request.json")).unwrap();
+            assert_eq!(request["site"]["publisher"]["id"], ACCOUNT_ID);
+            if named {
+                request["site"]["publisher"]["id"] = serde_json::json!("unknown");
+            } else {
+                let removed = request["site"]["publisher"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("id")
+                    .expect("the before-state contains the publisher identity");
+                assert_eq!(removed, ACCOUNT_ID);
+            }
+            let (status, content_type, body) = drive(config, &request.to_string());
+            assert_eq!(status, StatusCode::OK, "named={named}");
+            assert_eq!(content_type.as_deref(), Some("application/json"));
+            let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            let seats = response["seatbid"].as_array().unwrap();
+            assert_eq!(seats.len(), 1);
+            let bids = seats[0]["bid"].as_array().unwrap();
+            assert_eq!(bids.len(), 1);
+            assert_eq!(bids[0]["id"], "bid-1");
+            let targeting = bids[0]["ext"]["prebid"]["targeting"].as_object().unwrap();
+            assert_eq!(targeting[expected_key], "fake_ac", "named={named}");
+            assert!(!targeting.contains_key(excluded_key), "named={named}");
+        }
     }
 
     #[test]

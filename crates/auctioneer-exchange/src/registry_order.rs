@@ -23,22 +23,25 @@ use std::collections::BTreeSet;
 /// - **Legacy top-level:** `imp.ext.<name>` (the read slot).
 ///
 /// A key in any of the three slots is counted when it resolves either
-/// against `registry` (a base bidder) OR against `ext.prebid.aliases`
-/// (a request-declared alias). Unregistered top-level passthrough
+/// against `registry` (a base bidder) OR against the supplied resolved
+/// `aliases` map (a request- or host-declared alias). Request alias
+/// declarations are not rebuilt here. Unregistered top-level passthrough
 /// keys (`imp.ext.tid`, `imp.ext.prebid`, arbitrary FPD-adjacent
 /// slots) are excluded.
 ///
-/// A request alias declared in `ext.prebid.aliases` but not targeted
+/// An alias present in the resolved map but not targeted
 /// by any imp does NOT appear here — fanout would ignore it, so the
 /// public participation set must agree. `split_by_bidder` only
 /// emits `PerBidderRequest` for aliases with imps; matching that
 /// invariant keeps this helper from drifting.
 #[must_use]
-pub fn participating_bidders(req: &BidRequest, registry: &BidderRegistry) -> Vec<BidderName> {
-    let aliases = request_aliases(req);
-    let is_participating_name = |key: &str| -> bool {
-        registry.get(key).is_some() || aliases.bases.contains_key(&BidderName::new(key))
-    };
+pub fn participating_bidders(
+    req: &BidRequest,
+    registry: &BidderRegistry,
+    aliases: &AliasMap,
+) -> Vec<BidderName> {
+    let is_participating_name =
+        |key: &str| -> bool { registry.get(key).is_some() || aliases.bases.contains_key(key) };
 
     let mut set: BTreeSet<BidderName> = BTreeSet::new();
 
@@ -73,25 +76,12 @@ pub fn participating_bidders(req: &BidRequest, registry: &BidderRegistry) -> Vec
     set.into_iter().collect()
 }
 
-fn request_aliases(req: &BidRequest) -> AliasMap {
-    let mut out = AliasMap::default();
-    let Some(prebid) = req.ext.as_ref().and_then(|ext| ext.prebid.as_ref()) else {
-        return out;
-    };
-    for (alias, base) in &prebid.aliases {
-        out.bases.insert(
-            BidderName::new(alias.as_str()),
-            BidderName::new(base.as_str()),
-        );
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{BidRequest, BidderRegistry, participating_bidders};
+    use super::{AliasMap, BidRequest, BidderRegistry, participating_bidders};
+    use crate::alias::resolve_aliases;
     use auctioneer_bidder::{
-        Bidder, BidderError, BidderHttpResponse, BidderRequestInfo, BidderResponse,
+        Bidder, BidderError, BidderHttpResponse, BidderName, BidderRequestInfo, BidderResponse,
         DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
     };
     use auctioneer_config_data::types::BidderInfo;
@@ -99,7 +89,7 @@ mod tests {
     use auctioneer_openrtb::ext::request_prebid::ExtRequestPrebid;
     use auctioneer_openrtb::types::bid_request::{BidRequestExt, Imp};
     use auctioneer_openrtb::types::field::JsonField;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     fn imp_with_legacy_top_level(id: &str, entries: &[(&str, serde_json::Value)]) -> Imp {
         let mut other = serde_json::Map::new();
@@ -184,11 +174,38 @@ mod tests {
             )],
             ..BidRequest::default()
         };
-        let names: Vec<String> = participating_bidders(&req, &registry)
+        let names: Vec<String> = participating_bidders(&req, &registry, &AliasMap::default())
             .into_iter()
             .map(|name| name.as_str().to_owned())
             .collect();
         assert_eq!(names, vec!["fake_aaa".to_owned(), "fake_ccc".to_owned()]);
+    }
+
+    #[test]
+    fn resolved_host_alias_is_discovered_in_each_imp_slot() {
+        let registry = registry_with(&["fake_base"]);
+        let host_aliases = BTreeMap::from([("fake_host".to_owned(), "fake_base".to_owned())]);
+        for ext in [
+            serde_json::json!({"bidder": {"fake_host": {}}}),
+            serde_json::json!({"prebid": {"bidder": {"fake_host": {}}}}),
+            serde_json::json!({"fake_host": {}}),
+        ] {
+            let req: BidRequest = serde_json::from_value(serde_json::json!({
+                "id": "fake_request",
+                "imp": [{"id": "fake_imp", "ext": ext}]
+            }))
+            .expect("valid fake request");
+            let aliases = resolve_aliases(&req, &registry, &BTreeSet::new(), &host_aliases)
+                .expect("valid host alias");
+            assert_eq!(
+                aliases.map.bases.get("fake_host"),
+                Some(&BidderName::new("fake_base"))
+            );
+            assert_eq!(
+                participating_bidders(&req, &registry, &aliases.map),
+                vec![BidderName::new("fake_host")]
+            );
+        }
     }
 
     #[test]
@@ -210,7 +227,9 @@ mod tests {
             }),
             ..BidRequest::default()
         };
-        let names: Vec<String> = participating_bidders(&req, &registry)
+        let resolved_aliases = resolve_aliases(&req, &registry, &BTreeSet::new(), &BTreeMap::new())
+            .expect("valid request alias");
+        let names: Vec<String> = participating_bidders(&req, &registry, &resolved_aliases.map)
             .into_iter()
             .map(|name| name.as_str().to_owned())
             .collect();
@@ -237,7 +256,9 @@ mod tests {
             }),
             ..BidRequest::default()
         };
-        let names: Vec<String> = participating_bidders(&req, &registry)
+        let resolved_aliases = resolve_aliases(&req, &registry, &BTreeSet::new(), &BTreeMap::new())
+            .expect("valid unused request alias");
+        let names: Vec<String> = participating_bidders(&req, &registry, &resolved_aliases.map)
             .into_iter()
             .map(|name| name.as_str().to_owned())
             .collect();
@@ -252,7 +273,7 @@ mod tests {
             imp: vec![imp_with_legacy_bidder_block("i1", &["fake_unknown_bidder"])],
             ..BidRequest::default()
         };
-        let names = participating_bidders(&req, &registry);
+        let names = participating_bidders(&req, &registry, &AliasMap::default());
         assert!(names.is_empty());
     }
 
@@ -273,7 +294,7 @@ mod tests {
             )],
             ..BidRequest::default()
         };
-        let names: Vec<String> = participating_bidders(&req, &registry)
+        let names: Vec<String> = participating_bidders(&req, &registry, &AliasMap::default())
             .into_iter()
             .map(|name| name.as_str().to_owned())
             .collect();
@@ -305,10 +326,54 @@ mod tests {
             }),
             ..BidRequest::default()
         };
-        let names: Vec<String> = participating_bidders(&req, &registry)
+        let resolved_aliases = resolve_aliases(&req, &registry, &BTreeSet::new(), &BTreeMap::new())
+            .expect("valid legacy-slot request alias");
+        let names: Vec<String> = participating_bidders(&req, &registry, &resolved_aliases.map)
             .into_iter()
             .map(|name| name.as_str().to_owned())
             .collect();
         assert_eq!(names, vec!["fake_bz".to_owned()]);
+    }
+
+    #[test]
+    fn unused_host_aliases_are_excluded_and_targeted_names_are_sorted_once() {
+        let registry = registry_with(&["fake_base"]);
+        let req: BidRequest = serde_json::from_value(serde_json::json!({
+            "id": "fake_request",
+            "imp": [
+                {"id": "fake_imp_1", "ext": {"bidder": {"fake_host": {}, "fake_base": {}}}},
+                {"id": "fake_imp_2", "ext": {"prebid": {"bidder": {"fake_host": {}}}, "fake_host": {}}}
+            ]
+        }))
+        .expect("valid fake request");
+        let host_aliases = BTreeMap::from([
+            ("fake_host".to_owned(), "fake_base".to_owned()),
+            ("fake_unused".to_owned(), "fake_base".to_owned()),
+        ]);
+        let aliases = resolve_aliases(&req, &registry, &BTreeSet::new(), &host_aliases)
+            .expect("valid host aliases");
+        assert!(aliases.map.bases.contains_key("fake_unused"));
+        assert_eq!(
+            participating_bidders(&req, &registry, &aliases.map),
+            vec![BidderName::new("fake_base"), BidderName::new("fake_host")]
+        );
+    }
+
+    #[test]
+    fn request_alias_declaration_does_not_override_supplied_resolved_map() {
+        let registry = registry_with(&["fake_base"]);
+        let req: BidRequest = serde_json::from_value(serde_json::json!({
+            "id": "fake_request",
+            "imp": [{"id": "fake_imp", "ext": {"bidder": {"fake_alias": {}}}}],
+            "ext": {"prebid": {"aliases": {"fake_alias": "fake_base"}}}
+        }))
+        .expect("valid request-declared alias");
+        assert!(participating_bidders(&req, &registry, &AliasMap::default()).is_empty());
+        let aliases = resolve_aliases(&req, &registry, &BTreeSet::new(), &BTreeMap::new())
+            .expect("valid resolved request alias");
+        assert_eq!(
+            participating_bidders(&req, &registry, &aliases.map),
+            vec![BidderName::new("fake_alias")]
+        );
     }
 }

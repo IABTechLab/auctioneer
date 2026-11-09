@@ -51,6 +51,7 @@
 //! bound, and the safe answer to "is there capacity?" before boot
 //! finishes is "no".
 
+use crate::auction::{AuctionResourceInputs, AuctionResourceProfile, SchemaAllowance};
 use crate::configure::extraction_limits_for;
 use auctioneer_bidder::schema::{SchemaArtifactState, native_schema_funded, schema_artifact_state};
 use auctioneer_runtime::aux_work::{AuxWorkBudget, AuxWorkDerived};
@@ -150,6 +151,30 @@ impl BootGates {
             self.catalog_costs,
             self.derived.total_bytes,
             self.limits.isolate_total_bytes,
+        )
+    }
+
+    /// Project the complete installed derivation tuple and schema qualification.
+    /// This neither acquires capacity nor reads ambient boot state.
+    ///
+    /// # Errors
+    /// Returns the existing budget validation error if the retained inputs or
+    /// qualified schema allowance cannot form an auction resource profile.
+    pub fn auction_resource_profile(&self) -> Result<AuctionResourceProfile, BudgetError> {
+        let schema = match self.native_schema_scratch_bytes() {
+            0 => SchemaAllowance::Disabled,
+            bytes => SchemaAllowance::Qualified(bytes),
+        };
+        AuctionResourceProfile::new(
+            AuctionResourceInputs {
+                limits: self.limits,
+                target: self.target,
+                outbound_meta_bytes: self.outbound_meta_bytes,
+                construction_costs: self.construction_costs,
+                product_default_bytes: self.baked_config_bytes,
+                catalog_costs: self.catalog_costs,
+            },
+            schema,
         )
     }
 
@@ -495,9 +520,10 @@ mod tests {
         boot_gates, boot_limits, derive_aux_work_for_profile, install_boot_envelope,
         resolve_budget_inputs, serialized_json_bytes, warn_dominant_terms,
     };
+    use crate::auction::audit::construction_costs;
     use crate::configure::configure_app;
     use crate::configure::extraction_limits_for;
-    use crate::handlers::request_disclosure_audit::construction_costs;
+    use crate::test_support::boot_parity_fixture::profile_for_adapter;
     use auctioneer_bidder::RegistryBuildError;
     use auctioneer_bidder::schema::{SchemaArtifactState, schema_artifact_state};
     use auctioneer_runtime::budget::{CONFIG_ENVELOPE_VALUE_FACTOR, CONFIG_PARSE_FACTOR};
@@ -511,6 +537,96 @@ mod tests {
     use edgezero_core::router::RouterService;
     use std::env::{VarError, current_exe, var};
     use std::process::Command;
+
+    fn projection_gates() -> super::BootGates {
+        let row = profile_for_adapter("unequal_explicit_caps", "axum");
+        let baked_config_bytes = 271;
+        let derived = derive_isolate_budget_with_baked_config(
+            &row.limits,
+            &row.target,
+            row.outbound_meta_bytes,
+            row.construction_costs,
+            baked_config_bytes,
+            row.catalog_costs,
+        )
+        .unwrap();
+        let aux_work_derived =
+            derive_aux_work_for_profile(&row.limits, &row.target, baked_config_bytes).unwrap();
+        super::BootGates {
+            admission: super::AdmissionGate::new(row.limits.max_concurrent_auctions),
+            streams: super::StreamGate::new(row.limits.max_active_body_streams),
+            egress: super::EgressGate::new(row.limits.egress_permits),
+            aux: super::AuxGate::new(row.limits.aux_route_permits),
+            aux_work_derived,
+            aux_work_budget: super::AuxWorkBudget::new(
+                aux_work_derived
+                    .concurrent_peak(row.limits.aux_route_permits)
+                    .unwrap(),
+            ),
+            static_egress: super::StaticEgressGate::new(row.limits.terminal_response_permits),
+            limits: row.limits,
+            derived,
+            construction_costs: row.construction_costs,
+            catalog_costs: row.catalog_costs,
+            outbound_meta_bytes: row.outbound_meta_bytes,
+            baked_config_bytes,
+            target: row.target,
+        }
+    }
+
+    #[test]
+    fn auction_resource_profile_preserves_the_complete_installed_tuple() {
+        let gates = projection_gates();
+        let profile = gates.auction_resource_profile().unwrap();
+        let inputs = profile.inputs();
+        assert_eq!(inputs.limits, gates.limits);
+        assert_eq!(inputs.target, gates.target);
+        assert_eq!(inputs.outbound_meta_bytes, 5_248);
+        assert_eq!(inputs.construction_costs, gates.construction_costs);
+        assert_eq!(inputs.product_default_bytes, 271);
+        assert_eq!(inputs.catalog_costs, gates.catalog_costs);
+        assert_eq!(*profile.derived(), gates.derived);
+        assert_eq!(profile.schema_scratch_bytes(), 0);
+        assert_eq!(gates.admission.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    #[test]
+    fn auction_resource_profile_uses_installed_schema_qualification() {
+        for (funded, headroom, expected) in [
+            (true, true, 0x0008_0000),
+            (false, true, 0),
+            (true, false, 0),
+        ] {
+            let mut gates = projection_gates();
+            gates.catalog_costs = auctioneer_runtime::CatalogResourceCosts {
+                resident_bytes: if funded { 0x0100_0000 } else { 0x00ff_ffff },
+                initialization_bytes: 0x0080_0000,
+                schema_validation_per_auction_bytes: 0x0008_0000,
+                context_per_auction_bytes: 17,
+            };
+            gates.derived = gates.rederive_budget().unwrap();
+            if !headroom {
+                gates.limits.isolate_total_bytes = gates.derived.total_bytes;
+                gates.derived = gates.rederive_budget().unwrap();
+            }
+            assert_eq!(gates.native_schema_scratch_bytes(), expected);
+            let profile = gates.auction_resource_profile().unwrap();
+            assert_eq!(profile.schema_scratch_bytes(), expected);
+            assert_eq!(*profile.derived(), gates.derived);
+        }
+    }
+
+    #[test]
+    fn auction_resource_profile_revalidates_instead_of_trusting_retained_derived() {
+        let mut gates = projection_gates();
+        gates.auction_resource_profile().unwrap();
+        gates.catalog_costs.resident_bytes = u64::MAX;
+        assert!(matches!(
+            gates.auction_resource_profile(),
+            Err(BudgetError::BudgetArithmeticOverflow)
+        ));
+    }
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]

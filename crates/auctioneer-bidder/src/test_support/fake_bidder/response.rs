@@ -8,6 +8,7 @@ use crate::{
 use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{bid_request::BidRequest, bid_response::Bid};
 use serde_json::Value;
+use std::sync::Arc;
 
 pub(super) fn make_bids(
     bidder: &FakeBidder<'_>,
@@ -46,9 +47,18 @@ pub(super) fn make_bids(
         }
     }
     let mut bids = Vec::new();
-    for bid in parsed.seatbid.into_iter().flat_map(|seat| seat.bid) {
+    for (bid, source_seat) in parsed.seatbid.into_iter().flat_map(|seat| {
+        let source_seat = (!seat.seat.is_empty()).then(|| Arc::<str>::from(seat.seat));
+        seat.bid
+            .into_iter()
+            .map(move |bid| (bid, source_seat.clone()))
+    }) {
         match classify(request, sent, &bid, bidder.response_coverage) {
-            Ok(media_type) => bids.push(TypedBid { bid, media_type }),
+            Ok(media_type) => bids.push(TypedBid {
+                bid,
+                media_type,
+                source_seat,
+            }),
             Err(error) => errors.push(error),
         }
     }

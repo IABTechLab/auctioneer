@@ -32,10 +32,10 @@ mod tests {
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
     use auctioneer_config_data::types::MediaType;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, SystemClock,
         bootstrap_adapter_with_envelope,
@@ -64,7 +64,7 @@ mod tests {
     use edgezero_core::store_registry::ConfigRegistry;
     use edgezero_core::time::{MonotonicClock, MonotonicInstant};
     use futures::executor::block_on;
-    use std::sync::{Arc, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
     use std::time::Duration;
     use time::OffsetDateTime;
 
@@ -372,6 +372,8 @@ mod tests {
     }
 
     fn answer(app: &App, body: &str) -> (StatusCode, String) {
+        static AUCTIONS: Mutex<()> = Mutex::new(());
+        let _serialized = AUCTIONS.lock().expect("auction fixture lock");
         let mut envelope = dispatch(app, auction_request(body));
         let status = envelope.response_mut().status();
         let bytes = envelope

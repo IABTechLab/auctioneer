@@ -12,14 +12,15 @@ use auctioneer_bidder::test_support::serving_catalog;
 #[cfg(test)]
 mod tests {
     use super::{envelope, serving_catalog, support};
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::handlers::auction::TestAuctionBudget;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
         BootEnvelope, BootGates, DelegateToDevStrategy, StderrBootLog, SystemClock,
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle, boot_gates,
         bootstrap_adapter_with_envelope, resolve_budget_inputs,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_runtime::budget::{CONFIG_PARSE_FACTOR, derive_isolate_budget};
     use auctioneer_runtime::{
         AuctionBudget, Clock, FakeClock, TargetPlatformConstants, serialized_json_bytes,
@@ -338,9 +339,18 @@ mod tests {
             request.extensions_mut().insert(TestRngHandle(Arc::new(
                 auctioneer_runtime::SeededRng::new(42),
             )));
-            let ctx = support::ctx_with_config(&config(), request);
-            let response = block_on(auction(ctx)).unwrap();
-            assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+            let (ctx, mut terminal) = auction_context_for_route(
+                support::ctx_with_config(&config(), request)
+                    .into_request()
+                    .unwrap(),
+                "/openrtb2/auction",
+                MonotonicClock::default(),
+            );
+            *terminal.response_mut() = block_on(auction(ctx)).unwrap();
+            assert_eq!(
+                terminal.response_mut().status(),
+                http::StatusCode::BAD_REQUEST
+            );
         }
     }
 
@@ -480,8 +490,15 @@ mod tests {
             request.extensions_mut().insert(TestRngHandle(Arc::new(
                 auctioneer_runtime::SeededRng::new(42),
             )));
-            let response = block_on(auction(support::ctx_with_config(&config(), request))).unwrap();
-            assert_eq!(response.status(), http::StatusCode::OK);
+            let (ctx, mut terminal) = auction_context_for_route(
+                support::ctx_with_config(&config(), request)
+                    .into_request()
+                    .unwrap(),
+                "/openrtb2/auction",
+                MonotonicClock::default(),
+            );
+            *terminal.response_mut() = block_on(auction(ctx)).unwrap();
+            assert_eq!(terminal.response_mut().status(), http::StatusCode::OK);
             assert_eq!(budget.in_use(), 0);
             let captured = fanout.0.lock().unwrap();
             assert_eq!(captured.len(), 1, "the admitted survivor is dispatched");

@@ -230,8 +230,8 @@ physical fit, serving admission or completed bidder catalog qualification.
 ### Reproduction
 
 Use Rust 1.98.1, `CARGO_INCREMENTAL=0`, and the existing
-`AUCTIONEER__BIDDER__SOURCE_DIR` / `AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR` variables
-pointing to reference checkouts containing the pinned Git objects. The full
+`AUCTIONEER__BIDDER__SOURCE_DIR` pointing to one reference checkout containing
+both pinned source revisions. The full
 source target needs localhost binding for its no-network-retrieval controls;
 a sandbox bind refusal is a failure, not permission to omit those controls.
 

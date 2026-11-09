@@ -30,13 +30,7 @@ mod tests {
         }
         // Select the checkout from an independent pin, never the witness being verified.
         (supplemental_schema(manifest)["repository"].as_str() == Some(SOURCE_REPOSITORY))
-            .then(|| {
-                var_os("AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR")
-                    .map(PathBuf::from)
-                    .expect(
-                        "set AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR to the pinned supplemental reference checkout",
-                    )
-            })
+            .then(source)
     }
 
     fn inventory(source: &Path, output: &Path) -> Output {

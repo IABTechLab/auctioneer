@@ -1,4 +1,5 @@
-//! Isolated native process: one test owns cold schema `LazyLock`s and the counting allocator.
+//! Isolated native process: one test owns the retained registry, cold schema `LazyLock`s
+//! and the counting allocator.
 //! Do not merge this into another target or prewarm validators in setup. Input construction,
 //! fixture parsing, snapshots and reporting stay outside allocation windows. These checks
 //! measure the frozen native reservations; they do not certify worst-case or guest readiness.
@@ -14,6 +15,7 @@ mod tests {
         native_schema_work_budget, validate_native_parameters,
     };
     use auctioneer_bidder::test_support::serving_catalog::{self, ServingBidder};
+    use auctioneer_bidder::{BidderRegistry, configured_registry};
     use auctioneer_runtime::{CatalogResourceCosts, test_support::alloc_track};
     use serde_json::{Map, Value, json};
     use sha2::{Digest as _, Sha256};
@@ -23,7 +25,7 @@ mod tests {
         hint::black_box,
         io::{Write as _, stderr},
         path::Path,
-        str,
+        ptr, str,
     };
 
     #[global_allocator]
@@ -395,7 +397,56 @@ mod tests {
         assert_eq!(alloc_track::live(), baseline);
     }
 
-    fn initialize_cold_schemas() {
+    fn assert_schemas_cold(name: &str) {
+        let mut budget = native_schema_work_budget(0x0008_0000);
+        let allocated = alloc_track::allocated();
+        let live = alloc_track::live();
+        assert_eq!(
+            validate_native_parameters(name, &Value::Null, &mut budget, || false),
+            Err(NativeSchemaError::Unavailable),
+            "registry construction must not initialize schemas"
+        );
+        assert_eq!(budget.remaining(), 0x0400_0000);
+        assert_eq!(alloc_track::allocated(), allocated);
+        assert_eq!(alloc_track::live(), live);
+    }
+
+    fn assert_registry_bindings(registry: &BidderRegistry) {
+        let infos = auctioneer_config_data::bidders();
+        let bindings = auctioneer_config_data::bidder_implementation_bindings();
+        assert!(!infos.is_empty());
+        assert_eq!(registry.infos().len(), infos.len());
+        assert_eq!(registry.infos().len(), bindings.len());
+        for info in registry.infos() {
+            let name = info.name.as_str();
+            let mut originals = infos
+                .iter()
+                .filter(|original| original.name.as_str() == name);
+            let original = originals
+                .next()
+                .expect("registered metadata must be published");
+            assert!(
+                originals.next().is_none(),
+                "duplicate published metadata: {name}"
+            );
+            assert!(ptr::eq(info, original), "copied metadata: {name}");
+            let mut matching = bindings.iter().filter(|binding| binding.bidder == name);
+            let binding = matching
+                .next()
+                .expect("registered metadata must have a binding");
+            assert!(
+                matching.next().is_none(),
+                "duplicate implementation binding: {name}"
+            );
+            assert_eq!(
+                registry.implementation(name),
+                Some(binding.implementation),
+                "registered implementation: {name}"
+            );
+        }
+    }
+
+    fn initialize_cold_catalog(cold_name: &str) -> BidderRegistry {
         let costs = controlled_native_costs(CatalogResourceCosts::UNCHANGED);
         assert_eq!(costs.resident_bytes, 0x0100_0000);
         assert_eq!(costs.initialization_bytes, 0x0080_0000);
@@ -418,14 +469,28 @@ mod tests {
         }
         let allocated = alloc_track::allocated();
         let baseline = alloc_track::reset_peak();
+        let registry = black_box(configured_registry()).expect("published registry must construct");
+        let registry_peak = alloc_track::peak_since(baseline);
+        let registry_resident =
+            u64::try_from(alloc_track::live().checked_sub(baseline).unwrap()).unwrap();
+        let registry_allocated = alloc_track::allocated().checked_sub(allocated).unwrap();
+        assert_schemas_cold(cold_name);
+        let schema_allocated_before = alloc_track::allocated();
         let initialized = initialize_native_schemas(costs);
         let initialization_peak = alloc_track::peak_since(baseline);
         let resident = u64::try_from(alloc_track::live().checked_sub(baseline).unwrap()).unwrap();
         let initialization_temporary = initialization_peak.checked_sub(resident).unwrap();
         let initialization_allocated = alloc_track::allocated().checked_sub(allocated).unwrap();
+        let schema_allocated = alloc_track::allocated()
+            .checked_sub(schema_allocated_before)
+            .unwrap();
         assert!(initialized, "native schema initialization refused");
         assert!(
-            initialization_allocated > 0,
+            registry_resident > 0,
+            "registry construction must retain real allocations"
+        );
+        assert!(
+            schema_allocated > 0,
             "cold initialization must exercise real LazyLocks"
         );
         assert!(
@@ -437,6 +502,11 @@ mod tests {
             initialization_temporary <= 0x0080_0000,
             "native I temporary bytes: {initialization_temporary}"
         );
+        // Cumulative requests also bound temporary storage without assuming when residency grew.
+        assert!(
+            initialization_allocated <= 0x0080_0000,
+            "native catalog cumulative initialization bytes: {initialization_allocated}"
+        );
         let cached_allocated = alloc_track::allocated();
         let live = alloc_track::live();
         assert!(initialize_native_schemas(costs));
@@ -446,17 +516,32 @@ mod tests {
             "cached initialization must not allocate"
         );
         assert_eq!(alloc_track::live(), live);
+        assert_registry_bindings(&registry);
         writeln!(
             stderr().lock(),
-            "native schemas cold: resident={resident} temporary={initialization_temporary} peak_I_plus_C={initialization_peak} allocated={initialization_allocated}"
+            "native registry cold: entries={} resident={registry_resident} peak={registry_peak} allocated={registry_allocated}",
+            registry.infos().len()
         )
         .unwrap();
+        writeln!(
+            stderr().lock(),
+            "native catalog cold: resident={resident} temporary={initialization_temporary} peak_I_plus_C={initialization_peak} allocated={initialization_allocated}"
+        )
+        .unwrap();
+        registry
     }
 
     #[test]
     fn cold_native_schema_reservations_cover_discovered_bindings_and_fresh_evaluations() {
         assert_cold_allocator_control();
-        initialize_cold_schemas();
+        let cold_name = auctioneer_config_data::bidders()
+            .iter()
+            .find(|info| native_schema_required(info.name.as_str()))
+            .expect("published cohort must exercise cold native schemas")
+            .name
+            .as_str();
+        assert_schemas_cold(cold_name);
+        let registry = initialize_cold_catalog(cold_name);
         let rows = serving_catalog::published();
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bidders");
         let mut coverage = Coverage::default();
@@ -492,6 +577,8 @@ mod tests {
         }
         assert_coverage(&coverage);
         report_coverage(&coverage);
+        assert_registry_bindings(&registry);
+        drop(black_box(registry));
     }
 
     fn exercise_legacy(

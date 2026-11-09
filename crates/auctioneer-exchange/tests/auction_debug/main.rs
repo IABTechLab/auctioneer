@@ -444,7 +444,8 @@ mod tests {
                 .map(|bytes| budget.try_reserve(ChargeKind::Response, bytes).unwrap());
             ctx.response_reservation = receipt.as_ref();
             let mut audit = DisclosureAudit::default();
-            let result = block_on(run_auction(&request, &ctx, &plan, &mut audit));
+            let result = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+                .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
             let expiry_allocation_peak = clock.expiry_allocation_peak();
             let response = result.map(|response| serde_json::to_value(response).unwrap());
             assert_eq!(serde_json::to_value(&*request).unwrap(), original);

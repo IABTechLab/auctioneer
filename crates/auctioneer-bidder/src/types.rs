@@ -625,6 +625,9 @@ impl fmt::Debug for BrowserAuctionConfig {
 pub struct TypedBid {
     pub bid: Bid,
     pub media_type: MediaType,
+    /// Upstream seat, shared across bids from one decoded seat. Missing/empty
+    /// seats remain absent; this is not the requested alias or a host provider ID.
+    pub source_seat: Option<Arc<str>>,
 }
 
 #[cfg(test)]

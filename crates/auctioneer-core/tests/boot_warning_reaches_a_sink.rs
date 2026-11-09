@@ -37,7 +37,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, FanoutStrategy, StderrBootLog, SystemClock,
         bootstrap_adapter_with_envelope, install_stderr_boot_logger,

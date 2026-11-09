@@ -61,7 +61,10 @@ fn auction_with_bidder_response(body: &[u8], bidders: &[ServingBidder]) -> BidRe
         BTreeMap::new(),
     );
     let mut audit = DisclosureAudit::default();
-    let response = block_on(run_auction(&request, &ctx, &plan, &mut audit)).unwrap();
+    let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+        .unwrap()
+        .into_bid_response()
+        .unwrap();
     let timings = response.ext.as_ref().unwrap()["responsetimemillis"]
         .as_object()
         .unwrap();

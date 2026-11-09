@@ -27,7 +27,7 @@ mod tests {
         count_json_nodes,
     };
     use serde_json::{Value, json};
-    use std::{collections::BTreeMap, thread};
+    use std::{collections::BTreeMap, sync::Arc, thread};
 
     const NODE_CAP: u32 = 1 << 16;
     const DECODED_CAP: usize = 256 * 1024;
@@ -83,6 +83,7 @@ mod tests {
             bundles: BTreeMap::from([(
                 BidderName::new("fake_alias"),
                 BidderResultBundle {
+                    implementation: None,
                     bids: decoded.bids,
                     errors: decoded
                         .errors
@@ -136,7 +137,14 @@ mod tests {
         assert_eq!(decoded.currency, "USD");
         assert_eq!(decoded.errors.len(), error_count);
         assert_eq!(decoded.bids.len(), expected.len());
+        let source_seat = decoded.bids[0].source_seat.as_ref().unwrap();
+        assert_ne!(&**source_seat, "fake_alias");
         for (typed, literal) in decoded.bids.iter().zip(expected) {
+            assert_eq!(typed.source_seat.as_deref(), Some("fake_provider"));
+            assert!(Arc::ptr_eq(
+                source_seat,
+                typed.source_seat.as_ref().unwrap()
+            ));
             assert_eq!(typed.media_type, case.media);
             assert_eq!(&serde_json::to_value(&typed.bid).unwrap(), literal);
         }
@@ -177,6 +185,72 @@ mod tests {
                 case.priority == 0
             );
         }
+    }
+
+    #[test]
+    fn source_seat_provenance_does_not_replace_the_requested_wire_alias() {
+        thread::spawn(|| {
+            let request: BidRequest = serde_json::from_value(json!({
+                "id":"r", "imp":[{"id":"i", "banner":{}}]
+            }))
+            .unwrap();
+            let row = |id: &str| json!({"id":id,"impid":"i","price":1.0_f64});
+            let source = json!({"id":"r", "seatbid":[
+                {"bid":[row("missing")]},
+                {"seat":"", "bid":[row("empty")]},
+                {"seat":"upstream_a", "bid":[row("a"), row("b")]},
+                {"seat":"upstream_b", "bid":[row("c")]}
+            ]});
+            assert_ne!(source["seatbid"][2]["seat"], json!("fake_alias"));
+            let bytes = serde_json::to_vec(&source).unwrap();
+            count_json_nodes(&bytes, NODE_CAP).unwrap();
+            let response = BidderHttpResponse::new(200, vec![], bytes).within_node_budget(NODE_CAP);
+            let mut pool = Vec::with_capacity(META_BYTES_CAPACITY);
+            let mut builder = OutboundRequestMetaBuilder::new(&mut pool, 1);
+            builder.set_method("POST").unwrap();
+            builder
+                .set_url("https://bidder.example.test/auction")
+                .unwrap();
+            builder.imp_id("i").unwrap();
+            let decoded = FakeBidder::default()
+                .make_bids(&request, &builder.finish(), &response)
+                .unwrap();
+            assert_eq!(decoded.bids.len(), 5);
+            assert_eq!(
+                decoded
+                    .bids
+                    .iter()
+                    .map(|bid| bid.source_seat.as_deref())
+                    .collect::<Vec<_>>(),
+                [
+                    None,
+                    None,
+                    Some("upstream_a"),
+                    Some("upstream_a"),
+                    Some("upstream_b")
+                ]
+            );
+            let owner = decoded.bids[2].source_seat.as_ref().unwrap();
+            assert!(Arc::ptr_eq(
+                owner,
+                decoded.bids[3].source_seat.as_ref().unwrap()
+            ));
+            let weak = Arc::downgrade(owner);
+            let built = build_response(response_input(decoded)).unwrap();
+            assert!(
+                weak.upgrade().is_none(),
+                "consuming wire projection releases source-only ownership"
+            );
+            let wire = serde_json::to_value(&built).unwrap();
+            assert_eq!(wire["seatbid"].as_array().unwrap().len(), 1);
+            assert_eq!(wire["seatbid"][0]["seat"], json!("fake_alias"));
+            assert_eq!(
+                wire["seatbid"][0]["bid"],
+                json!([row("missing"), row("empty"), row("a"), row("b"), row("c")])
+            );
+        })
+        .join()
+        .unwrap();
     }
 
     #[test]

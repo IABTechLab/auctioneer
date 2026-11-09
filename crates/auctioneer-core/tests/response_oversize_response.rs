@@ -70,6 +70,7 @@ mod tests {
     };
     use auctioneer_core::outbound::BoundedFetch;
     use auctioneer_core::outbound::wave::{WaveHost, drive_fanout};
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, OversizeOrigin, TmaxSource,
@@ -93,6 +94,7 @@ mod tests {
     use futures::executor::block_on;
     use futures::stream;
     use http::{Method, Request, Uri};
+    use std::mem;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex, OnceLock};
     use std::time::Duration;
@@ -683,10 +685,17 @@ mod tests {
         // An EMPTY deployment blob: every cap and endpoint in play here
         // is the baked one, and the row is about a response verdict
         // rather than about configuration.
-        let ctx = ctx_with_config("schema_version = 1\n", request);
+        let (ctx, mut terminal) = auction_context_for_route(
+            ctx_with_config("schema_version = 1\n", request)
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
 
         block_on(async {
-            let response = auction(ctx).await.expect("the handler answers");
+            *terminal.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(terminal.response_mut());
             let status = response.status();
             let (_parts, body) = response.into_parts();
             let bytes = body

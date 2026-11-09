@@ -27,7 +27,7 @@ their diagnostics include standard-library source excerpts. CI installs the same
 component; do not regenerate snapshots to compensate for missing Rust sources.
 
 The current EdgeZero dependency is the immutable PR #275 integration revision
-`775366fdac923135e8430b1e3dffebedc648ef7c`, not a moving branch selector.
+`598f0a2a490eb83dd31c06c024a0cefa8e049628`, not a moving branch selector.
 Acquisition requires that upstream Git object to remain available. A missing
 object is a source-availability failure, not a failed runtime test; do not
 silently select another revision. Resolve the actual fetched checkout for
@@ -35,7 +35,7 @@ SDK-dependent tests rather than guessing Cargo's cache directory:
 
 ```sh
 set -euo pipefail
-pin=775366fdac923135e8430b1e3dffebedc648ef7c
+pin=598f0a2a490eb83dd31c06c024a0cefa8e049628
 metadata=$(mktemp)
 cargo metadata --locked --offline --format-version 1 > "$metadata"
 manifest=$(jq -er --arg source "git+https://github.com/IABTechLab/edgezero.git?rev=$pin#$pin" '
@@ -52,11 +52,17 @@ test "$(/usr/bin/git --no-replace-objects -C "$EDGEZERO_SDK_ROOT" rev-parse HEAD
 
 Archive tests also require the pinned yq/jq tools described in
 [provider-handler preparation](provider-handlers.md). Git provenance tests
-require `AUCTIONEER__BIDDER__SOURCE_DIR` containing commit
+require one `AUCTIONEER__BIDDER__SOURCE_DIR` checkout containing both commits
 `d7f8515b86258688304b0d9b6668c6a0e258bc9e` and
-`AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR` containing commit
-`f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a`. The tests read immutable objects,
-not the checkout's mutable working files. Missing inputs fail instead of skip.
+`f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a`. Fetch either missing commit into
+that same repository; a second working tree is unnecessary. Each bidder keeps
+its own recorded revision, trees, blobs and digests. The tests read immutable
+objects, not the checkout's mutable working files. Missing inputs fail instead
+of skip. For a shallow checkout at the catalog revision, use:
+
+```sh
+git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+```
 
 Historical evidence retains the revision and original bytes it exercised.
 Its older SDK pin is not a current-source reproduction instruction; use the

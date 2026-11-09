@@ -33,6 +33,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutError,
         FanoutInternalError, TimeoutCause,
@@ -47,7 +48,10 @@ mod tests {
     use edgezero_core::time::MonotonicClock;
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
-    use std::sync::Arc;
+    use std::mem;
+    use std::sync::{Arc, Mutex};
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
     use std::time::Duration;
     use time::OffsetDateTime;
 
@@ -149,6 +153,7 @@ mod tests {
             "schema_version = 1\n[host.aliases]\nfake_bb={:?}\n",
             serving_catalog::passthrough_info().name,
         );
+        let _serial = AUCTIONS.lock().unwrap();
         config_funding::install();
         let handler_clock: Arc<dyn Clock + Send + Sync> = Arc::<FakeClock>::clone(clock);
         let rng: Arc<dyn Rng + Send + Sync> = Arc::new(SeededRng::new(42));
@@ -175,9 +180,13 @@ mod tests {
         request.extensions_mut().insert(TestRngHandle(rng));
 
         block_on(async {
-            let response = auction(ctx_with_config(&config, request))
-                .await
-                .expect("the handler answers");
+            let (ctx, mut terminal) = auction_context_for_route(
+                ctx_with_config(&config, request).into_request().unwrap(),
+                "/openrtb2/auction",
+                MonotonicClock::default(),
+            );
+            *terminal.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(terminal.response_mut());
             assert_eq!(
                 response.status(),
                 StatusCode::OK,

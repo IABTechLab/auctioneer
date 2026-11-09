@@ -10,8 +10,8 @@
 
 #[cfg(test)]
 mod tests {
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::configure::configure_app;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{
         AuctioneerIngressLease, BootEnvelope, DelegateToDevStrategy, DevRng, RouteAdmissionMarker,
         RouteEgressPermit, StderrBootLog, SystemClock, admit, bootstrap_adapter_with_envelope,

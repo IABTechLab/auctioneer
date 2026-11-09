@@ -36,7 +36,10 @@ pub use activity::{Activity, Component, activity_allowed};
 pub use auction_context::PrivacyContext;
 pub use auction_permissions::AuctionPermissions;
 pub use auctioneer_openrtb::NonFatalWarning; // re-exported for convenience
-pub use decision::{BidderDecision, FetchDenial};
+pub use decision::{
+    BidderDecision, FetchDenial, HostRestrictionSource, HostRestrictions,
+    UnrestrictedHostRestrictions,
+};
 pub use error::PrivacyError;
 pub use resolve::{ResolveOptions, ResolvedPrivacy};
 pub use signal::{

@@ -86,6 +86,7 @@ mod tests {
                 ..Bid::default()
             },
             media_type: MediaType::Banner,
+            source_seat: None,
         }
     }
 

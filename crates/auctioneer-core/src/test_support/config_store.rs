@@ -1,6 +1,7 @@
 //! Fixed runtime-config fixtures and SDK-captured request contexts.
 
 use crate::configure::configure_app;
+use crate::ingress::AUCTION_CLASS;
 use auctioneer_config_data::types::{CooperativeConfig, HostConfig, UserSyncConfig};
 use edgezero_core::app::App;
 use edgezero_core::blob_envelope::BlobEnvelope;
@@ -8,6 +9,7 @@ use edgezero_core::body::Body;
 use edgezero_core::config_store::{
     BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
 };
+use edgezero_core::response_egress::ResponseEgressEnvelope;
 use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
 use edgezero_core::time::{Deadline, MonotonicClock};
 use edgezero_core::{
@@ -17,7 +19,10 @@ use edgezero_core::{
     ingress::{IngressDispatchOutcome, IngressFraming, IngressHeadAccounting},
     router::RouterService,
 };
-use futures::FutureExt as _;
+use futures::{
+    FutureExt as _,
+    future::{Ready, ready},
+};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -42,10 +47,6 @@ pub fn context(request: Request) -> RequestContext {
 /// # Panics
 /// Panics if the route does not match or capture needs body/provider work.
 #[must_use]
-#[expect(
-    clippy::panic,
-    reason = "A non-admitted capture is a test-fixture setup failure, never a production serving path."
-)]
 pub fn context_for_route(request: Request, route: &str, clock: MonotonicClock) -> RequestContext {
     CAPTURED.with(|slot| assert!(slot.borrow().is_none(), "no nested context capture"));
     let mut configured = App::new(RouterService::builder().build());
@@ -53,27 +54,62 @@ pub fn context_for_route(request: Request, route: &str, clock: MonotonicClock) -
         .expect("production extraction limits must configure for capture");
     let limits = configured.config_extraction_limits();
     let router = RouterService::builder()
-        .route(
-            route,
-            request.method().clone(),
-            |ctx: RequestContext| async move {
-                CAPTURED.with(|slot| {
-                    assert!(
-                        slot.borrow_mut().replace(ctx).is_none(),
-                        "the capture route must run exactly once"
-                    );
-                });
-                Ok::<_, EdgeError>(Response::new(Body::empty()))
-            },
-        )
+        .route(route, request.method().clone(), capture_context)
         .build();
     let mut app = App::new(router);
     app.set_config_extraction_limits(limits)
         .expect("configured extraction limits must be accepted by the capture app");
     app.set_monotonic_clock(clock);
+    let (ctx, envelope) = capture_owner(&app, request);
+    drop(envelope);
+    ctx
+}
+
+/// Capture an admitted auction context with its original terminal-egress owner.
+///
+/// Consume the context through the handler, replace `*envelope.response_mut()`
+/// with its response, and retain the envelope until terminal release. Admission
+/// comes from the existing production gates, so callers must install boot first.
+///
+/// # Panics
+/// Panics if admission refuses, the route does not match, or capture needs
+/// body/provider work.
+#[must_use]
+pub fn auction_context_for_route(
+    request: Request,
+    route: &str,
+    clock: MonotonicClock,
+) -> (RequestContext, ResponseEgressEnvelope) {
+    CAPTURED.with(|slot| assert!(slot.borrow().is_none(), "no nested context capture"));
+    let router = RouterService::builder()
+        .route_with_class(
+            route,
+            request.method().clone(),
+            AUCTION_CLASS,
+            capture_context,
+        )
+        .build();
+    let mut app = App::new(router);
+    configure_app(&mut app).expect("production admission and extraction limits must configure");
+    app.set_monotonic_clock(clock);
+    capture_owner(&app, request)
+}
+
+fn capture_context(ctx: RequestContext) -> Ready<Result<Response, EdgeError>> {
+    CAPTURED.with(|slot| {
+        assert!(
+            slot.borrow_mut().replace(ctx).is_none(),
+            "the capture route must run exactly once"
+        );
+    });
+    ready(Ok(Response::new(Body::empty())))
+}
+
+fn capture_owner(app: &App, request: Request) -> (RequestContext, ResponseEgressEnvelope) {
+    let limits = app.config_extraction_limits();
     // Capture is synchronous and never polls the body, so this also works inside
     // a fixture's existing executor without entering a second executor.
-    let IngressDispatchOutcome::Response(mut response) = app
+    let outcome = app
         .dispatch_ingress(
             request,
             app.monotonic_now(),
@@ -82,12 +118,15 @@ pub fn context_for_route(request: Request, route: &str, clock: MonotonicClock) -
         )
         .now_or_never()
         .expect("fixture context capture must not wait for body or store work")
-        .expect("the capture request must dispatch successfully")
-    else {
-        panic!("fixture context capture must be admitted");
-    };
+        .expect("the capture request must dispatch successfully");
+    let mut envelope = match outcome {
+        IngressDispatchOutcome::Response(envelope) => Ok(*envelope),
+        IngressDispatchOutcome::Aborted => Err("fixture context capture was aborted"),
+        _ => Err("fixture context capture returned an unknown disposition"),
+    }
+    .expect("fixture context capture must be admitted");
     assert_eq!(
-        response.response_mut().status(),
+        envelope.response_mut().status(),
         200,
         "the capture route must complete successfully"
     );
@@ -101,7 +140,7 @@ pub fn context_for_route(request: Request, route: &str, clock: MonotonicClock) -
         limits,
         "the captured context must retain the complete configured extraction tuple"
     );
-    ctx
+    (ctx, envelope)
 }
 
 /// Explicit synthetic service for tests whose subject needs configured sync.

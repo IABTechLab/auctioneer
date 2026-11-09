@@ -195,7 +195,8 @@ mod tests {
         assert_eq!(row["effective_limits"]["max_config_json_nodes"], 8_192_u32);
         assert_eq!(
             row["construction_costs"]["fixed_per_auction_bytes"],
-            800_u64 + 32
+            // Audit/scope, wire shape, and measured native bridge owners.
+            800_u64 + 32 + 19_160
         );
         assert_eq!(
             row["construction_costs"]["reusable_scratch_bytes"],

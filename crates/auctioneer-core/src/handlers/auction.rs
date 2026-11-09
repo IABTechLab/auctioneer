@@ -1,18 +1,21 @@
 //! `POST /openrtb2/auction` handler.
 
+use crate::auction::audit::CompletionStatus;
+use crate::auction::disabled_from_overlay as shared_disabled_from_overlay;
+use crate::auction::{
+    AuctionFailure, AuctionFailureReason, AuctionFunding, AuctionInput, AuctionResourceProfile,
+    AuctionServices, MAX_AUCTION_BODY, prepare_auction,
+};
 use crate::bidder_registry::BidderInfoIndex;
 use crate::bidder_registry::registry_handle;
-use crate::config::bidder_settings::RuntimeBidderSettings;
-use crate::config::budgets::resolve_budgets;
+use crate::config::policy_host::resolve_policy_host;
 use crate::config::runtime as config_runtime;
 use crate::config::{AuctioneerAppConfig, resolve};
 use crate::handlers::debug_signals;
 use crate::handlers::egress_deadline::{self, EgressDeadline, EgressRefusal};
 use crate::handlers::health_gvl;
-use crate::handlers::request_disclosure_audit::{self, AuctionDisclosureScope, CompletionStatus};
-use crate::host_primitives::EdgeZeroFanout;
 use crate::host_primitives::error_renderer::{MAX_RENDERED_BODY_BYTES, REQUEST_TIMEOUT_BODY};
-use crate::host_primitives::gates::{BootGates, boot_gates, boot_limits, egress_gate, stream_gate};
+use crate::host_primitives::gates::{boot_gates, boot_limits, egress_gate, stream_gate};
 use crate::host_primitives::ingress_lease::{
     AuctioneerIngressLease, RouteEgressPermit, install_route_permit,
 };
@@ -22,29 +25,22 @@ use crate::host_primitives::registry::{
 };
 use crate::host_primitives::request_clock::RequestClock;
 use crate::host_primitives::strategy::FanoutStrategy;
+use crate::host_primitives::{CredentialLoader, EdgeZeroFanout};
 use crate::serialize::serialize_response_fitting_debug;
-use auctioneer_bidder::{BidderName, BidderRegistry, FloorConversion};
+use auctioneer_bidder::{BidderName, BidderRegistry};
 #[cfg(test)]
 use auctioneer_config_data::types::BidderInfo;
-use auctioneer_config_data::types::{HostConfig, MAX_BIDDER_NAME_BYTES};
-use auctioneer_exchange::context::RequestConstructionLimits;
-use auctioneer_exchange::debug::DebugPermission;
-use auctioneer_exchange::scrub::DisclosureAudit;
-use auctioneer_exchange::{
-    AuctionContext, AuctionError, AuctionPlan, BidderFanout, BootEnvelope, ResolvedAccount,
-    resolve_aliases, run_auction,
+use auctioneer_config_data::types::{
+    BidderImplementationBinding, HostConfig, MAX_BIDDER_NAME_BYTES,
 };
-use auctioneer_openrtb::types::bid_request::BidRequest;
+use auctioneer_exchange::{AuctionError, BidderFanout};
 use auctioneer_openrtb::types::bid_response::BidResponse;
-use auctioneer_openrtb::{
-    NormalizedBidRequest, PrepareLimits, RequestHeaders, WarningCode, prepare,
-};
+use auctioneer_openrtb::{RequestHeaders, WarningCode};
+use auctioneer_privacy::PrivacyError;
 use auctioneer_privacy::gcl::Gcl;
 use auctioneer_privacy::gvl::GvlStore;
-use auctioneer_runtime::budget::{NORMALIZATION_IMPLICIT_NODES, normalization_wire_allowance};
 use auctioneer_runtime::{
-    AuctionBudget, BoundedJsonError, ChargeKind, Clock, MonotonicInstant, Reservation,
-    ResolvedIsolateLimits, Rng, Timer, bounded_json,
+    AuctionBudget, Clock, MonotonicInstant, ResolvedIsolateLimits, Rng, Timer,
 };
 use edgezero_core::action;
 use edgezero_core::body::Body;
@@ -57,13 +53,12 @@ use edgezero_core::http::{
 };
 use edgezero_core::response_egress::ResponseEgressResource;
 use edgezero_core::time::MonotonicClock;
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::iter::once;
 use std::sync::{Arc, OnceLock};
 use time::OffsetDateTime;
-
-const MAX_AUCTION_BODY: usize = 0x0004_0000;
 
 /// The ceiling one terminal error body may occupy.
 ///
@@ -132,15 +127,6 @@ fn prefix_within(text: &str, limit: usize) -> &str {
         .and_then(|end| text.get(..end))
         .unwrap_or("")
 }
-/// Fallback impression cap when no boot envelope is installed.
-///
-/// Declared in the NARROWER of its two consumers' widths — the outbound
-/// meta builder's imp-id offset table is `u16` — so the only conversion
-/// needed is the lossless widening to the `u32` `PrepareLimits` takes.
-/// Declaring it `u32` instead would have forced a narrowing cast that
-/// could silently truncate.
-const MAX_AUCTION_IMPRESSIONS: u16 = 100;
-
 /// Test-side handle a test installs into the `RequestContext` to swap
 /// the fanout. The handler consults this handle before constructing the
 /// production fanout from boot-installed outbound capabilities.
@@ -192,44 +178,35 @@ async fn auction_response(
     } else {
         ctx.request_start()
     };
-    let configured = boot_gates();
-    let default_budget =
-        AuctionBudget::new(configured.map_or(0, |gates| gates.derived.per_auction_peak));
-    let injected = ctx
+    let Some(mut lease) = ctx
+        .take_ingress_grant()
+        .and_then(|grant| grant.downcast::<AuctioneerIngressLease>().ok())
+    else {
+        return unfunded_refusal(&monotonic);
+    };
+    let Some(permit) = lease.auction_admission.take() else {
+        return unfunded_refusal(&monotonic);
+    };
+    let Some(configured) = boot_gates() else {
+        return unfunded_refusal(&monotonic);
+    };
+    let Ok(resources) = configured.auction_resource_profile() else {
+        return unfunded_refusal(&monotonic);
+    };
+    let budget = ctx
         .extensions()
         .get::<TestAuctionBudget>()
-        .filter(|candidate| candidate.0.limit() <= default_budget.limit())
-        .cloned();
-    let budget = injected
-        .as_ref()
-        .map_or(&default_budget, |candidate| candidate.0.as_ref());
-    // Prepay before the config read, and retain every phase through serialized
-    // response construction. RAII covers early returns and suspended cancellation.
-    let reservations = match configured
-        .map(|gates| gates.derived.auction_charges.prepay(budget))
-        .transpose()
-    {
-        Ok(held) => held,
-        Err(_resource) => {
-            // Refuse without inspecting signals or allocating decoder scratch.
-            // Static overload answers are uncacheable even without debug.
-            return handler_error_to_response(HandlerError::Overloaded("overloaded\n")).map(
-                |response| {
-                    bound(
-                        no_store(response),
-                        EgressDeadline::for_refusal(monotonic.now()),
-                    )
-                },
-            );
-        }
+        .filter(|candidate| candidate.0.limit() <= configured.derived.per_auction_peak)
+        .map_or_else(
+            || Arc::new(AuctionBudget::new(configured.derived.per_auction_peak)),
+            |candidate| Arc::clone(&candidate.0),
+        );
+    // Prepay on the original ledger before config/body reads, moving the
+    // original acquired slot. No replacement admission is possible here.
+    let Ok(mut funding) = AuctionFunding::prepay(&resources, &budget, permit) else {
+        return unfunded_refusal(&monotonic);
     };
     *debug_requested = debug_signals::http_requested(ctx.uri().query(), ctx.headers());
-    // Retain the whole lease through observation. Reverse drop order keeps
-    // the audit funded on cancellation during either config or body reads.
-    let lease = ctx
-        .take_ingress_grant()
-        .and_then(|grant| grant.downcast::<AuctioneerIngressLease>().ok());
-    let mut disclosure = AuctionDisclosureScope::new();
     let clock: Arc<dyn Clock + Send + Sync> =
         Arc::new(RequestClock::new(monotonic, wall_clock_handle(&ctx)));
     // ONE config-resolution owner, called from the OUTER action because
@@ -245,7 +222,7 @@ async fn auction_response(
         // fresh and anchored here rather than carved out of a request
         // allowance that a slow config store has already spent.
         Err(err) => {
-            disclosure.finish(CompletionStatus::Error);
+            funding.finish(CompletionStatus::Error);
             let refusal = EgressDeadline::for_refusal(clock.now_monotonic());
             return err.into_response().map(|response| bound(response, refusal));
         }
@@ -254,7 +231,7 @@ async fn auction_response(
     let registry = match registry_handle() {
         Ok(registry) => registry,
         Err(error) => {
-            disclosure.finish(CompletionStatus::Error);
+            funding.finish(CompletionStatus::Error);
             let refusal = EgressDeadline::for_refusal(clock.now_monotonic());
             return config_runtime::RuntimeConfigError::from(error)
                 .into_response()
@@ -262,47 +239,31 @@ async fn auction_response(
         }
     };
     // Borrow only the egress resource; the lease also owns auction admission.
-    let egress_resource = lease.as_ref().map(|held| &held.route_egress_resource);
+    let egress_resource = Some(&lease.route_egress_resource);
     // `auction_inner` returns its SUCCESS response already bound: the
     // normal auction's budget is anchored at egress entry, which is an
     // instant only the egress leg knows. Everything the error arm
     // produces is a static-class answer and is bound here, with a fresh
     // budget anchored at the refusal rather than at admission.
-    let response = match auction_inner(
+    Box::pin(auction_inner(
         ctx,
         app_cfg,
         Arc::clone(&clock),
         rng,
         request_start,
         egress_resource,
-        reservations.as_ref(),
-        disclosure.audit_mut(),
+        &resources,
+        funding,
         debug_requested,
         registry,
-    )
+        auctioneer_config_data::bidder_implementation_bindings(),
+    ))
     .await
-    {
-        Ok(response) => {
-            disclosure.finish(CompletionStatus::Success);
-            response
-        }
-        Err(err) => {
-            disclosure.finish(CompletionStatus::Error);
-            bound(
-                handler_error_to_response(err)?,
-                EgressDeadline::for_refusal(clock.now_monotonic()),
-            )
-        }
-    };
-    // Destroy the finished audit owner before releasing its charged resources.
-    drop(disclosure);
-    // The auction's work is over, so the concurrency slot returns here
-    // rather than at the response's terminal egress. The egress permit
-    // the slot inside this lease holds is owned by the completion and is
-    // unaffected.
-    drop(lease);
-    drop(reservations);
-    Ok(response)
+}
+
+fn unfunded_refusal(clock: &MonotonicClock) -> Result<Response, EdgeError> {
+    handler_error_to_response(HandlerError::Overloaded("overloaded\n"))
+        .map(|response| bound(no_store(response), EgressDeadline::for_refusal(clock.now())))
 }
 
 /// Attach the write deadline the host enforces the transmission leg
@@ -322,56 +283,10 @@ fn bound(mut response: Response, deadline: EgressDeadline) -> Response {
     response
 }
 
-fn boot_prepare_limits() -> PrepareLimits {
-    PrepareLimits {
-        max_impressions: boot_limits().map_or(u32::from(MAX_AUCTION_IMPRESSIONS), |limits| {
-            u32::from(limits.max_impressions_per_auction).min(u32::from(MAX_AUCTION_IMPRESSIONS))
-        }),
-        max_copied_header_bytes: boot_limits().map_or_else(
-            || PrepareLimits::default().max_copied_header_bytes,
-            |limits| limits.max_copied_header_bytes,
-        ),
-    }
-}
-
-fn node_budget_error(failure: BoundedJsonError) -> HandlerError {
-    match failure {
-        BoundedJsonError::Syntax(err) => {
-            HandlerError::bad_request_bounded("Invalid request: ", &err)
-        }
-        BoundedJsonError::NodeBudget(_) | BoundedJsonError::RawValue(_) => {
-            HandlerError::bad_request(NODE_BUDGET_BODY)
-        }
-    }
-}
-
-fn normalized_construction_limits(
-    input_nodes: u64,
-    inbound_bytes: u64,
-    copied_header_bytes: u64,
-) -> Result<RequestConstructionLimits, HandlerError> {
-    let max_nodes = input_nodes
-        .checked_add(NORMALIZATION_IMPLICIT_NODES)
-        .ok_or(HandlerError::Overloaded("overloaded\n"))?;
-    let max_serialized_bytes =
-        normalization_wire_allowance(inbound_bytes, copied_header_bytes, input_nodes)
-            .map_err(|_overflow| HandlerError::Overloaded("overloaded\n"))?;
-    let construction_costs = boot_gates()
-        .map_or_else(request_disclosure_audit::construction_costs, |gates| {
-            gates.construction_costs
-        });
-    Ok(RequestConstructionLimits {
-        max_nodes,
-        max_serialized_bytes,
-        reusable_scratch_bytes: construction_costs.reusable_scratch_bytes,
-        retained_per_scope_bytes: construction_costs.retained_per_scope_bytes,
-    })
-}
-
 /// Exercise normal handler preparation and exchange dispatch with an explicit
 /// registry. Only conformance builds expose this seam; serving uses the shared
 /// published registry and its ingress/resource owners.
-/// Supplied phase receipts must remain prepaid through response construction.
+/// The supplied owner retains its already-acquired permit and prepaid phases.
 ///
 /// # Errors
 /// Returns the handler's normal rendering error if a refusal cannot be built.
@@ -382,255 +297,223 @@ pub async fn auction_for_conformance(
     clock: Arc<dyn Clock + Send + Sync>,
     rng: Arc<dyn Rng + Send + Sync>,
     registry: &BidderRegistry,
-    reservations: Option<&[Reservation<'_>; 6]>,
+    resources: &AuctionResourceProfile,
+    funding: AuctionFunding,
 ) -> Result<Response, EdgeError> {
     let request_start = clock.now_monotonic();
-    match auction_inner(
+    let bindings = registry
+        .infos()
+        .filter_map(|info| {
+            Some(BidderImplementationBinding {
+                bidder: info.name.as_str(),
+                implementation: registry.implementation(&info.name)?,
+            })
+        })
+        .collect::<Vec<_>>();
+    Box::pin(auction_inner(
         ctx,
         app_cfg,
         clock,
         rng,
         request_start,
         None,
-        reservations,
-        &mut DisclosureAudit::default(),
+        resources,
+        funding,
         &mut false,
         registry,
-    )
+        &bindings,
+    ))
     .await
-    {
-        Ok(response) => Ok(response),
-        Err(error) => handler_error_to_response(error),
+}
+
+/// Exact compiler layout of the boxed HTTP execution future on this target.
+/// Static borrows select a representative instantiation; lifetimes have no
+/// storage and no request or policy is constructed to obtain this layout.
+pub(crate) const fn execution_frame_bytes() -> usize {
+    type HttpExecution<F> = fn(
+        RequestContext,
+        AuctioneerAppConfig,
+        Arc<dyn Clock + Send + Sync>,
+        Arc<dyn Rng + Send + Sync>,
+        MonotonicInstant,
+        Option<&'static ResponseEgressResource<RouteEgressPermit>>,
+        &'static AuctionResourceProfile,
+        AuctionFunding,
+        &'static mut bool,
+        &'static BidderRegistry,
+        &'static [BidderImplementationBinding],
+    ) -> F;
+    const fn output_size<F>(_function: HttpExecution<F>) -> usize {
+        size_of::<F>()
     }
+    output_size(auction_inner)
 }
 
 #[expect(
     clippy::too_many_arguments,
     reason = "request-scoped resource owners and mutable disclosure audit are passed explicitly"
 )]
-#[expect(
-    clippy::too_many_lines,
-    reason = "one ordered handler keeps validation, charged request construction and audit lifetimes together"
-)]
 async fn auction_inner(
     ctx: RequestContext,
-    mut app_cfg: AuctioneerAppConfig,
+    app_cfg: AuctioneerAppConfig,
     clock: Arc<dyn Clock + Send + Sync>,
     rng: Arc<dyn Rng + Send + Sync>,
     request_start: MonotonicInstant,
     egress_resource: Option<&ResponseEgressResource<RouteEgressPermit>>,
-    reservations: Option<&[Reservation<'_>; 6]>,
-    audit: &mut DisclosureAudit,
+    resources: &AuctionResourceProfile,
+    funding: AuctionFunding,
     debug_requested: &mut bool,
     registry: &BidderRegistry,
-) -> Result<Response, HandlerError> {
+    bidder_bindings: &[BidderImplementationBinding],
+) -> Result<Response, EdgeError> {
+    // Tuple destruction keeps the policy ahead of the funding owner if body
+    // acquisition is cancelled before the prepared operation can own them.
+    let preparation = (app_cfg, funding);
     // Host request-body, population and node limits resolve before their
     // consumers. Scoped response caps resolve later, once the account and
     // aliases are known; the fanout retains the funded response ceilings.
     let baked_host = host_config_handle();
-    let mut host = resolve::resolve_host(&app_cfg, baked_host);
-    if let Some(limits) = boot_limits() {
-        resolve::clamp_host_to_boot(&mut host, limits);
-    }
-    let fanout = fanout_from_context(&ctx, Arc::clone(&clock), &host)
-        .ok_or_else(HandlerError::fanout_unavailable)?;
-    let credential_loader = super::bidder_credentials::CredentialLoader::capture(&ctx);
-    let raw_headers = ctx.headers().clone();
-    if let Some(enc) = raw_headers.get(CONTENT_ENCODING)
-        && !enc.is_empty()
-    {
-        // Bounded: the header VALUE is caller input, and the admitted
-        // header block allows far more of it than a terminal body is
-        // funded for.
-        return Err(HandlerError::bad_request_bounded(
-            "Invalid request: Content-Encoding of type ",
-            &format_args!("{} is not supported", enc.to_str().unwrap_or("<unknown>")),
-        ));
-    }
-    let body_cap = boot_limits().map_or(MAX_AUCTION_BODY, |limits| {
-        usize::try_from(limits.inbound_request_bytes)
-            .unwrap_or(usize::MAX)
-            .min(MAX_AUCTION_BODY)
-    });
-    let request = ctx
-        .into_request()
-        .map_err(|e| HandlerError::from_body_read_error(&e, body_cap))?;
-    let (_parts, body) = request.into_parts();
-    let body_bytes = body
-        .into_bytes_bounded(body_cap)
-        .await
-        .map_err(|e| HandlerError::from_body_read_error(&e, body_cap))?;
-
-    // Validate every syntactic node before account discovery or typed
-    // allocation. The prepaid ingress receipt funds the later typed parse,
-    // which preserves opaque RawValue extensions rather than rebuilding them.
-    //
-    // A byte cap does not bound what a parse RETAINS. The inbound-parse
-    // term in the memory envelope is sized as a node count times a
-    // per-node retained-byte figure, so the thing that has to be
-    // counted is nodes — and a flat array of small numbers is a few
-    // bytes per node on the wire against hundreds in the heap, which is
-    // how a body well inside the 256 KiB cap outruns the term that paid
-    // for it. Counting is syntactic, so passthrough content a typed
-    // target discards costs exactly what it cost the parser to walk.
-    //
-    // This runs BEFORE account resolution, which is what makes the node
-    // budget decide first: looking up a publisher id means walking the
-    // tree, and walking an over-budget tree to find out whose account
-    // to blame is the cost the budget exists to refuse. An over-budget
-    // body is a 400 even when it also names a disabled account.
-    //
-    // The budget comes from the RESOLVED config rather than the
-    // envelope row directly, so a deployment that lowered
-    // `max_parsed_nodes` gets the smaller number here. Resolution
-    // already clamped it to the funded figure, so this can only be at
-    // or below what the envelope charged for.
-    let (_, original_request_ext_shape) = bounded_json::count_json_nodes_with_field(
-        &body_bytes,
-        host.resource_limits.max_parsed_nodes,
-        "ext",
-    )
-    .map_err(node_budget_error)?;
-
-    let baked_account = auctioneer_config_data::product_account_default();
-    // Both parses share the installed syntactic node ceiling. Direct
-    // in-process calls without an envelope have no configured ceiling.
-    let max_nodes = host.resource_limits.max_parsed_nodes;
-    // The node budget precedes account state; otherwise a disabled
-    // account still wins over typed/structural request validation.
-    let owned_account = resolve::resolve_account(&body_bytes, &app_cfg, baked_account, max_nodes)
-        .map_err(HandlerError::from_auction_error)?;
-
-    let raw: BidRequest = serde_json::from_slice(&body_bytes)
-        .map_err(|err| HandlerError::bad_request_bounded("Invalid request: ", &err))?;
-    let http_headers = headers_from_http(&raw_headers);
-    let normalized = prepare(raw, &http_headers, &boot_prepare_limits())
-        .map_err(|e| HandlerError::bad_request_bounded("Invalid request: ", &e))?;
-    *debug_requested = DebugPermission::requested(&normalized, *debug_requested);
-
-    let features = resolve::resolved_features(&app_cfg);
-    let bidder_timeouts = resolve::resolved_bidder_timeouts(&app_cfg);
-    let resolved = ResolvedAccount {
-        id: owned_account.id.clone(),
-        source: owned_account.source,
-        config: &owned_account.config,
+    let host = resolve_policy_host(baked_host, &preparation.0, &resources.inputs().limits);
+    let Some(fanout) = fanout_from_context(&ctx, Arc::clone(&clock), &host) else {
+        drop(host);
+        return refuse_preparation(
+            preparation,
+            HandlerError::fanout_unavailable(),
+            clock.as_ref(),
+        );
     };
-
-    // The fatal-input gate runs before any alias work so an alias
-    // failure cannot preempt the 400 an invalid wire signal mandates.
-    // It is precedence-aware — a non-empty `gpp_sid` overrides an
-    // invalid `regs.gdpr` — and malformed TCF/GPP stays
-    // warn-and-continue inside the resolver.
-    auctioneer_privacy::validate_wire_signal_input(&normalized)
-        .map_err(HandlerError::from_privacy_error)?;
-
-    let plan = resolve_auction_plan(
-        &normalized,
-        &app_cfg,
-        &host,
-        baked_host,
-        &resolved,
-        registry,
-    )?;
-    // Move the parsed settings owner; unrelated accounts/overlays die before fanout.
-    let floor_currency = app_cfg.floor_currency.take();
-    let bidder_settings = RuntimeBidderSettings::from(app_cfg);
-
-    let mut ctx_auction = AuctionContext::with_request_start_ext(
-        request_start,
-        &host,
-        &resolved,
-        registry,
-        fanout.as_ref(),
-        clock.as_ref(),
-        rng.as_ref(),
-        GvlStore::baked(),
-        Gcl::baked(),
-        clock.now(),
-        *debug_requested,
-        features,
-        &bidder_timeouts,
+    drop(host);
+    let credential_loader = CredentialLoader::capture(&ctx);
+    let (body_bytes, raw_headers) = match read_auction_body(ctx, resources).await {
+        Ok(input) => input,
+        Err(error) => return refuse_preparation(preparation, error, clock.as_ref()),
+    };
+    let (policy, prepaid) = preparation;
+    let preparation_result = prepare_auction(
+        &policy,
+        AuctionInput::Json {
+            bytes: body_bytes.as_ref(),
+            headers: headers_from_http(&raw_headers),
+        },
+        AuctionServices {
+            resources,
+            product_host: baked_host,
+            product_account: auctioneer_config_data::product_account_default(),
+            bidders: registry,
+            bidder_bindings,
+            fanout: fanout.as_ref(),
+            clock: clock.as_ref(),
+            rng: rng.as_ref(),
+            gvl_store: GvlStore::baked(),
+            gcl: Gcl::baked(),
+            restrictions: &auctioneer_privacy::UnrestrictedHostRestrictions,
+            credentials: Some(&credential_loader),
+            request_start,
+            outer_deadline: None,
+            now: clock.now(),
+            debug_requested: *debug_requested,
+            entry_point: auctioneer_bidder::EntryPoint::Auction,
+        },
+        prepaid,
     );
-    ctx_auction.original_request_ext_shape = original_request_ext_shape;
-    ctx_auction.bidder_settings = Some(&bidder_settings);
-    ctx_auction.credential_source = Some(&credential_loader);
-    ctx_auction.schema_scratch_bytes =
-        boot_gates().map_or(0, BootGates::native_schema_scratch_bytes);
-    ctx_auction.floor_currency =
-        FloorConversion::new(floor_currency.as_ref(), ctx_auction.now.unix_timestamp());
-    ctx_auction.projection_reservation = reservations.and_then(|held| {
-        held.iter()
-            .find(|receipt| receipt.kind() == ChargeKind::Projection)
-    });
-    ctx_auction.response_reservation = reservations.and_then(|held| {
-        held.iter()
-            .find(|receipt| receipt.kind() == ChargeKind::Response)
-    });
-    ctx_auction.construction_limits = boot_limits()
-        .map(|limits| {
-            normalized_construction_limits(
-                u64::from(limits.max_parsed_nodes),
-                limits.inbound_request_bytes,
-                u64::from(limits.max_copied_header_bytes),
-            )
-        })
-        .transpose()?;
-    let mut resp = run_auction(&normalized, &ctx_auction, &plan, audit)
-        .await
-        .map_err(HandlerError::from_auction_error)?;
+    drop(policy);
+    drop(body_bytes);
+    drop(raw_headers);
+    let prepared = match preparation_result {
+        Ok(operation) => operation,
+        Err(failure) => return refuse_shared(failure, debug_requested, clock.as_ref()),
+    };
+    *debug_requested |= prepared.debug_requested();
+    let completed = match prepared.run().await {
+        Ok(completed) => completed,
+        Err(failure) => return refuse_shared(failure, debug_requested, clock.as_ref()),
+    };
+    let mut wire = match completed.into_wire_response() {
+        Ok(response) => response,
+        Err(failure) => return refuse_shared(failure, debug_requested, clock.as_ref()),
+    };
     record_gvl_unavailable(
-        &resp,
+        wire.response(),
         clock.now(),
         health_gvl::counter(),
         health_gvl::gcl_stale_counter(),
     );
 
-    egress_leg(&mut resp, clock.as_ref(), egress_resource)
+    let egress = egress_leg(wire.response_mut(), clock.as_ref(), egress_resource);
+    wire.finish(if egress.is_ok() {
+        CompletionStatus::Success
+    } else {
+        CompletionStatus::Error
+    });
+    match egress {
+        Ok(response) => Ok(response),
+        Err(error) => handler_error_to_response(error)
+            .map(|response| bound(response, EgressDeadline::for_refusal(clock.now_monotonic()))),
+    }
 }
 
-fn resolve_auction_plan(
-    request: &NormalizedBidRequest,
-    app_cfg: &AuctioneerAppConfig,
-    host: &HostConfig,
-    baked_host: &HostConfig,
-    account: &ResolvedAccount<'_>,
-    registry: &BidderRegistry,
-) -> Result<AuctionPlan, HandlerError> {
-    // The disabled set is resolved before alias resolution: a
-    // request-declared alias whose base (or own name) is disabled
-    // must never make it into the resolved alias map either, so
-    // `resolve_aliases` needs the set up front.
-    let disabled_bidders = disabled_from_overlay(app_cfg, registry);
-    // Keyed by the observable `[bidders.<name>]` name exactly as
-    // written — sample_rate on a request-declared alias's OWN name is a
-    // distinct override from one on its base bidder; `run_auction`'s
-    // sampler resolves observable-then-base, mirroring per-bidder
-    // timeout resolution.
-    let bidder_sample_rates: BTreeMap<BidderName, f64> = app_cfg
-        .bidders
-        .iter()
-        .filter_map(|(name, o)| o.sample_rate.map(|r| (BidderName::new(name.as_str()), r)))
-        .collect();
-    let aliases = resolve_aliases(request, registry, &disabled_bidders, &host.aliases)
-        .map_err(HandlerError::from_auction_error)?;
-    let budgets = resolve_budgets(
-        app_cfg,
-        baked_host,
-        &account.id,
-        account.source,
-        registry,
-        &aliases,
-    );
-    let mut plan = AuctionPlan::new(aliases, disabled_bidders, budgets, bidder_sample_rates);
-    if let Some(envelope) = boot_limits() {
-        plan = plan.with_boot_envelope(BootEnvelope {
-            max_transport_bytes: envelope.max_transport_bytes,
-            max_decoded_bytes: envelope.max_decoded_bytes,
-            construction_costs: request_disclosure_audit::construction_costs(),
-        });
+async fn read_auction_body(
+    ctx: RequestContext,
+    resources: &AuctionResourceProfile,
+) -> Result<(impl AsRef<[u8]>, HeaderMap), HandlerError> {
+    let headers = ctx.headers().clone();
+    if let Some(encoding) = headers
+        .get(CONTENT_ENCODING)
+        .filter(|value| !value.is_empty())
+    {
+        return Err(HandlerError::bad_request_bounded(
+            "Invalid request: Content-Encoding of type ",
+            &format_args!(
+                "{} is not supported",
+                encoding.to_str().unwrap_or("<unknown>")
+            ),
+        ));
     }
+    let cap = usize::try_from(resources.inputs().limits.inbound_request_bytes)
+        .unwrap_or(usize::MAX)
+        .min(MAX_AUCTION_BODY);
+    let request = ctx
+        .into_request()
+        .map_err(|error| HandlerError::from_body_read_error(&error, cap))?;
+    let (_parts, body) = request.into_parts();
+    let bytes = body
+        .into_bytes_bounded(cap)
+        .await
+        .map_err(|error| HandlerError::from_body_read_error(&error, cap))?;
+    Ok((bytes, headers))
+}
 
-    Ok(plan)
+fn refuse_preparation(
+    (policy, mut funding): (AuctioneerAppConfig, AuctionFunding),
+    error: HandlerError,
+    clock: &dyn Clock,
+) -> Result<Response, EdgeError> {
+    drop(policy);
+    funding.finish(CompletionStatus::Error);
+    handler_error_to_response(error)
+        .map(|response| bound(response, EgressDeadline::for_refusal(clock.now_monotonic())))
+}
+
+fn refuse_shared(
+    failure: AuctionFailure,
+    debug_requested: &mut bool,
+    clock: &dyn Clock,
+) -> Result<Response, EdgeError> {
+    *debug_requested |= failure.debug_requested();
+    let resource_refusal = matches!(failure.reason(), AuctionFailureReason::Resource(_));
+    let response =
+        handler_error_to_response(HandlerError::from_failure(failure.reason())).map(|response| {
+            bound(
+                if resource_refusal {
+                    no_store(response)
+                } else {
+                    response
+                },
+                EgressDeadline::for_refusal(clock.now_monotonic()),
+            )
+        });
+    drop(failure);
+    response
 }
 
 /// The resolved pre-encoding cap on one adapter-built outbound body, in
@@ -646,14 +529,6 @@ fn resolve_auction_plan(
 fn resolved_raw_body_cap(host: &HostConfig) -> usize {
     usize::try_from(host.resource_limits.max_outbound_raw_bytes).unwrap_or(usize::MAX)
 }
-
-/// The wire body a node-budget refusal carries.
-///
-/// A `&'static str`, so its length is a compile-time fact and cannot be
-/// a function of the input it is refusing. The caller's own wrapper
-/// supplies neither prefix nor newline for this one — both are part of
-/// the pinned contract and are spelled here.
-const NODE_BUDGET_BODY: &str = "Invalid request: too many JSON nodes";
 
 /// The egress leg: the three auctioneer-owned write-deadline checkpoints,
 /// the egress-class permit, and the response they produce.
@@ -810,9 +685,6 @@ impl HandlerError {
             Self::FanoutUnavailable | Self::Overloaded(_) | Self::RequestTimeout => None,
         }
     }
-    fn bad_request(msg: impl Into<String>) -> Self {
-        Self::BadRequest(msg.into())
-    }
     /// A 400 whose text is derived from CALLER input, bounded to the
     /// terminal-response reservation.
     ///
@@ -853,8 +725,8 @@ impl HandlerError {
     /// The match is exhaustive by value on purpose, mirroring
     /// `From<PrivacyError> for AuctionError`: a new privacy error has to
     /// state its own HTTP fate rather than inheriting the 400.
-    fn from_privacy_error(err: auctioneer_privacy::PrivacyError) -> Self {
-        match err {
+    fn from_privacy_error(err: impl Borrow<PrivacyError>) -> Self {
+        match err.borrow() {
             invalid @ (auctioneer_privacy::PrivacyError::InvalidRegsGdpr { .. }
             | auctioneer_privacy::PrivacyError::InvalidNoSale
             | auctioneer_privacy::PrivacyError::GppLimitExceeded) => {
@@ -862,8 +734,8 @@ impl HandlerError {
             }
         }
     }
-    fn from_auction_error(err: AuctionError) -> Self {
-        match err {
+    fn from_auction_error(err: impl Borrow<AuctionError>) -> Self {
+        match err.borrow() {
             // Caller-derived: an alias name or a privacy value the
             // request supplied reaches this text, so it is bounded to
             // the same reservation the parse diagnostics are.
@@ -881,6 +753,19 @@ impl HandlerError {
             }
             AuctionError::MalformedAcct(m) => Self::internal_bounded("Invalid request: ", &m),
             AuctionError::Resource(_resource) => Self::Overloaded("overloaded\n"),
+        }
+    }
+
+    fn from_failure(reason: &AuctionFailureReason) -> Self {
+        match reason {
+            AuctionFailureReason::InvalidRequest(detail) => {
+                Self::bad_request_bounded("Invalid request: ", detail)
+            }
+            AuctionFailureReason::Engine(error) => Self::from_auction_error(error),
+            AuctionFailureReason::Privacy(error) => Self::from_privacy_error(error),
+            AuctionFailureReason::Resource(_) => Self::Overloaded("overloaded\n"),
+            AuctionFailureReason::Deadline => Self::RequestTimeout,
+            AuctionFailureReason::Unavailable(_) => Self::FanoutUnavailable,
         }
     }
     /// An egress refusal is isolate-capacity overload from the client's
@@ -1106,23 +991,7 @@ pub(crate) fn disabled_from_overlay(
     app: &AuctioneerAppConfig,
     registry: &BidderRegistry,
 ) -> BTreeSet<BidderName> {
-    let mut disabled: BTreeSet<_> = app
-        .bidders
-        .keys()
-        .map(|name| BidderName::new(name.as_str()))
-        .filter(|name| !resolve::bidder_enabled(app, name))
-        .collect();
-    disabled.extend(
-        registry
-            .infos()
-            .filter(|info| {
-                !resolve::effective_bidder_enabled(app, info, |name| {
-                    registry.get(name).map(|(ancestor, _)| ancestor)
-                })
-            })
-            .map(|info| BidderName::new(info.name.as_str())),
-    );
-    disabled
+    shared_disabled_from_overlay(app, registry)
 }
 
 /// Feed the rolling privacy-deployment counters that
@@ -1215,19 +1084,29 @@ fn headers_from_http(headers: &HeaderMap) -> RequestHeaders<'_> {
 #[cfg(test)]
 mod tests {
     use super::BidderInfoIndex;
+    use auctioneer_openrtb::types::bid_request::BidRequest;
     mod original_extension {
         use super::super::{
-            BidRequest, BidderFanout, BidderInfo, BidderRegistry, Body, DisclosureAudit,
-            StatusCode, TestFanoutHandle, auction_inner,
+            BidderFanout, BidderInfo, BidderRegistry, Body, StatusCode, TestFanoutHandle,
+            auction_inner,
         };
+        use crate::auction::{
+            AuctionFunding, AuctionResourceInputs, AuctionResourceProfile, SchemaAllowance,
+        };
+        use crate::test_support::boot_parity_fixture::profile_for_adapter;
         use auctioneer_bidder::{
             Bidder, BidderError, BidderHttpResponse, BidderRequestInfo, BidderResponse,
             DebugBodySchema, OutboundRequestMeta, OutboundRequestSink,
         };
+        use auctioneer_config_data::types::BidderImplementationBinding;
         use auctioneer_exchange::{
             AuctionDeadline, BidderCall, BidderCallResult, FanoutInternalError,
         };
-        use auctioneer_runtime::{Clock as _, FakeClock, SeededRng, bounded_json::JsonFieldShape};
+        use auctioneer_openrtb::types::bid_request::BidRequest;
+        use auctioneer_runtime::{
+            AdmissionGate, AuctionBudget, Clock as _, FakeClock, SeededRng,
+            bounded_json::JsonFieldShape,
+        };
         use edgezero_core::{context::RequestContext, params::PathParams};
         use futures::executor::block_on;
         use serde_json::{Value, json};
@@ -1289,13 +1168,14 @@ mod tests {
                 let observed = Arc::new(Mutex::new(Vec::new()));
                 let mut registry = BidderRegistry::new();
                 registry
-                    .register(
+                    .register_with_implementation(
                         Box::leak(Box::new(BidderInfo {
                             name: "fake_shape_fixture".into(),
                             endpoint: "https://bidder.example/auction".into(),
                             uses_https: true,
                             ..BidderInfo::default()
                         })),
+                        "fake_shape_protocol",
                         Box::new(ShapeBidder {
                             observed: Arc::clone(&observed),
                         }),
@@ -1321,6 +1201,28 @@ mod tests {
                 let clock = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
                 let config =
                     toml::from_str("schema_version = 1\n[host.gdpr]\nenabled=false\n").unwrap();
+                let row = profile_for_adapter("unequal_explicit_caps", "axum");
+                let resources = AuctionResourceProfile::new(
+                    AuctionResourceInputs {
+                        limits: row.limits,
+                        target: row.target,
+                        outbound_meta_bytes: row.outbound_meta_bytes,
+                        construction_costs: row.construction_costs,
+                        product_default_bytes: 271,
+                        catalog_costs: row.catalog_costs,
+                    },
+                    SchemaAllowance::Disabled,
+                )
+                .unwrap();
+                let ledger = Arc::new(AuctionBudget::new(resources.derived().per_auction_peak));
+                let gate = AdmissionGate::new(1);
+                let funding =
+                    AuctionFunding::prepay(&resources, &ledger, gate.try_acquire().unwrap())
+                        .unwrap();
+                let bindings = [BidderImplementationBinding {
+                    bidder: "fake_shape_fixture",
+                    implementation: "fake_shape_protocol",
+                }];
                 let response = block_on(auction_inner(
                     context,
                     config,
@@ -1328,64 +1230,18 @@ mod tests {
                     Arc::new(SeededRng::new(42)),
                     clock.now_monotonic(),
                     None,
-                    None,
-                    &mut DisclosureAudit::default(),
+                    &resources,
+                    funding,
                     &mut false,
                     &registry,
+                    &bindings,
                 ))
                 .unwrap_or_else(|_error| panic!("valid wire request must reach the shape bidder"));
                 assert_eq!(response.status(), StatusCode::OK);
                 assert_eq!(observed.lock().unwrap().as_slice(), [expected]);
+                assert_eq!(ledger.in_use(), 0);
+                assert_eq!(gate.in_use(), 0);
             }
-        }
-    }
-
-    #[test]
-    fn normalized_construction_limits_include_funded_header_and_node_additions() {
-        let limits = super::normalized_construction_limits(512, 1024, 4096)
-            .unwrap_or_else(|_error| panic!("funded additions fit"));
-        assert_eq!(limits.max_nodes, 542);
-        assert_eq!(
-            limits.max_serialized_bytes,
-            1024_u64
-                .checked_mul(3)
-                .unwrap()
-                .checked_add(4096_u64.checked_mul(8).unwrap())
-                .unwrap()
-                .checked_add(189)
-                .unwrap()
-                .checked_add(512_u64.checked_mul(23).unwrap())
-                .unwrap()
-        );
-        let installed = super::boot_gates().map_or_else(
-            super::request_disclosure_audit::construction_costs,
-            |gates| gates.construction_costs,
-        );
-        assert_eq!(
-            limits.reusable_scratch_bytes,
-            installed.reusable_scratch_bytes
-        );
-        assert_eq!(
-            limits.retained_per_scope_bytes,
-            installed.retained_per_scope_bytes
-        );
-    }
-
-    #[test]
-    fn normalized_construction_overflow_is_a_static_resource_refusal() {
-        for (nodes, inbound, headers) in [
-            (u64::MAX, 0, 0),
-            (0, u64::MAX, 0),
-            (0, 0, u64::MAX),
-            (u64::MAX.checked_div(23).unwrap() + 1, 0, 0),
-            (u64::MAX.checked_div(23).unwrap(), 0, 0),
-        ] {
-            let error = super::normalized_construction_limits(nodes, inbound, headers)
-                .expect_err("overflow refuses rather than widening the allowance");
-            assert!(matches!(
-                error,
-                super::HandlerError::Overloaded("overloaded\n")
-            ));
         }
     }
 
@@ -1540,7 +1396,7 @@ mod tests {
     fn a_caller_sized_parse_diagnostic_renders_within_the_terminal_reservation() {
         let oversize = "A".repeat(200 * 1024);
         let tree = serde_json::json!({"id": "a", "imp": [], "device": {"dnt": oversize}});
-        let err = serde_json::from_value::<super::BidRequest>(tree)
+        let err = serde_json::from_value::<BidRequest>(tree)
             .expect_err("dnt is numeric, so the typed conversion must fail");
         let raw = err.to_string();
         assert!(

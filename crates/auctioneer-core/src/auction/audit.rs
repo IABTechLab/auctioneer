@@ -1,5 +1,7 @@
 //! Bounded, aggregate-only request disclosure observation.
 
+use crate::handlers::auction::execution_frame_bytes;
+use crate::host_primitives::error_renderer::MAX_RENDERED_BODY_BYTES;
 use auctioneer_exchange::construction_costs as exchange_construction_costs;
 use auctioneer_exchange::scrub::audit::{ChangeKind, DisclosureAudit};
 use auctioneer_runtime::RequestConstructionCosts;
@@ -61,9 +63,9 @@ impl CompletionStatus {
 
 /// One auction's plain audit owner, created only after resource prepayment.
 ///
-/// Declare after the lease and reservations so cancellation observes before
-/// their release. Ordinary returns call `finish` and drop this scope before
-/// releasing either owner.
+/// Store before the permit and receipts in `AuctionFunding` so cancellation
+/// observes before their release. Finalization observes once without releasing
+/// either owner.
 pub struct AuctionDisclosureScope {
     audit: DisclosureAudit,
     finished: bool,
@@ -114,6 +116,9 @@ impl Drop for AuctionDisclosureScope {
 ///
 /// Add core ownership/observation and fixed wire-shape storage to exchange's
 /// audit and mutation scratch once, independently of outbound call count.
+/// The prepared-state and failure boxes may coexist in the HTTP future;
+/// their payloads and that future's inline receipt handles are distinct
+/// storage. The shared ledger allocation is counted once, not per receipt.
 ///
 /// # Panics
 /// Panics if adding the actual layout sizes overflows the construction costs.
@@ -137,11 +142,30 @@ pub const fn construction_costs() -> RequestConstructionCosts {
     else {
         panic!("request disclosure ownership layout overflow");
     };
-    let Some(fixed_per_auction_bytes) =
+    let Some(mut fixed_per_auction_bytes) =
         audit_ownership_bytes.checked_add(ORIGINAL_REQUEST_EXT_SHAPE_RESERVE_BYTES)
     else {
         panic!("original request ext shape layout overflow");
     };
+    let ledger = match auctioneer_runtime::AuctionBudget::shared_owner_layout() {
+        Ok(layout) => layout.size(),
+        Err(_) => panic!("shared auction ledger layout overflow"),
+    };
+    let owners = [
+        size_of::<super::operation::PreparedState>(),
+        super::result::failure_storage_bytes(),
+        MAX_RENDERED_BODY_BYTES,
+        execution_frame_bytes(),
+        ledger,
+    ];
+    let mut remaining = owners.as_slice();
+    while let Some((owner, rest)) = remaining.split_first() {
+        let Some(complete) = fixed_per_auction_bytes.checked_add(*owner as u64) else {
+            panic!("owned auction construction layout overflow");
+        };
+        fixed_per_auction_bytes = complete;
+        remaining = rest;
+    }
     let Some(reusable_scratch_bytes) = exchange
         .reusable_scratch_bytes
         .checked_add(size_of::<ObservationBuffer>() as u64)
@@ -274,8 +298,10 @@ impl fmt::Write for SummaryText {
 mod tests {
     use super::*;
     use auctioneer_exchange::scrub::audit::ChangeKind;
+    use auctioneer_runtime::{AdmissionGate, AuctionBudget};
     use std::cell::RefCell;
     use std::future::{Future as _, pending};
+    use std::sync::{Arc, Weak};
     use std::task::{Context, Poll, Waker};
 
     fn zero_record(status: &str) -> String {
@@ -512,12 +538,47 @@ mod tests {
         let existing_fixed = exchange
             .fixed_per_auction_bytes
             .checked_add(audit_ownership)
+            .unwrap()
+            .checked_add(owned_layout_bytes())
             .unwrap();
         assert_eq!(
             costs.fixed_per_auction_bytes.checked_sub(existing_fixed),
             Some(32),
             "original root ext shape storage is funded even without outbound calls"
         );
+    }
+
+    #[test]
+    fn construction_charge_includes_owned_preparation_and_retained_funding() {
+        let costs = construction_costs();
+        let prior = exchange_construction_costs().fixed_per_auction_bytes
+            + u64::try_from(size_of::<AuctionDisclosureScope>() - size_of::<DisclosureAudit>())
+                .unwrap()
+            + 32;
+        let additional = costs.fixed_per_auction_bytes.checked_sub(prior).unwrap();
+        let prepared = size_of::<super::super::operation::PreparedState>();
+        let receipts = size_of::<[auctioneer_runtime::Reservation<'static>; 6]>();
+        assert!(
+            additional >= u64::try_from(prepared + receipts).unwrap(),
+            "owned preparation and receipt storage must be explicitly charged: added={additional} prepared={prepared} receipts={receipts}"
+        );
+        assert_eq!(additional, owned_layout_bytes());
+        #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+        assert_eq!(additional, 19_160, "reviewed native owner layout snapshot");
+    }
+
+    fn owned_layout_bytes() -> u64 {
+        [
+            size_of::<super::super::operation::PreparedState>(),
+            super::super::result::failure_storage_bytes(),
+            MAX_RENDERED_BODY_BYTES,
+            execution_frame_bytes(),
+            AuctionBudget::shared_owner_layout().unwrap().size(),
+        ]
+        .into_iter()
+        .map(|bytes| u64::try_from(bytes).unwrap())
+        .try_fold(0_u64, u64::checked_add)
+        .unwrap()
     }
 
     #[test]
@@ -530,6 +591,7 @@ mod tests {
                 + u64::try_from(size_of::<AuctionDisclosureScope>() - size_of::<DisclosureAudit>())
                     .expect("native and wasm layouts fit u64")
                 + 32
+                + owned_layout_bytes()
         );
         assert_eq!(
             costs.reusable_scratch_bytes,
@@ -551,10 +613,33 @@ mod tests {
 
     std::thread_local! {
         static EVENTS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+        static FUNDING_OBSERVATION: RefCell<Option<FundingObservation>> = const { RefCell::new(None) };
+    }
+
+    struct FundingObservation {
+        budget: Weak<AuctionBudget>,
+        gate: Arc<AdmissionGate>,
+        charged: u64,
+        count: usize,
     }
 
     pub(super) fn record_observation_event() {
         EVENTS.with(|events| events.borrow_mut().push("observed"));
+        FUNDING_OBSERVATION.with(|slot| {
+            if let Some(observation) = slot.borrow_mut().as_mut() {
+                let budget = observation
+                    .budget
+                    .upgrade()
+                    .expect("receipts still own the ledger");
+                assert_eq!(budget.in_use(), observation.charged);
+                assert_eq!(observation.gate.in_use(), 1);
+                assert!(observation.gate.try_acquire().is_none());
+                observation.count = observation
+                    .count
+                    .checked_add(1)
+                    .expect("observation count fits");
+            }
+        });
     }
 
     struct HeldResource(&'static str);
@@ -579,18 +664,191 @@ mod tests {
         });
     }
 
+    fn assert_funded_field_order() {
+        // Match real declarations, not ownership claims in comments.
+        for (source, declaration, fields) in [
+            (
+                include_str!("services.rs"),
+                "pub struct AuctionFunding {",
+                &[
+                    "audit: AuctionDisclosureScope,",
+                    "_permit: AdmissionPermit,",
+                    "receipts: [Reservation<'static>; 6],",
+                ][..],
+            ),
+            (
+                include_str!("operation.rs"),
+                "pub struct PreparedAuction<'host> {",
+                &["state: Box<PreparedState>,", "funding: AuctionFunding,"][..],
+            ),
+            (
+                include_str!("result.rs"),
+                "struct FundedFailure {",
+                &["reason: AuctionFailureReason,", "_funding: AuctionFunding,"][..],
+            ),
+            (
+                include_str!("result.rs"),
+                "pub struct CompletedAuction {",
+                &["outcome: AuctionOutcome,", "funding: AuctionFunding,"][..],
+            ),
+            (
+                include_str!("result.rs"),
+                "pub struct CompletedResponse {",
+                &["response: BidResponse,", "funding: AuctionFunding,"][..],
+            ),
+        ] {
+            let mut lines = source
+                .lines()
+                .skip_while(|line| line.trim() != declaration)
+                .skip(1)
+                .take_while(|line| line.trim() != "}");
+            for field in fields {
+                assert!(
+                    lines.any(|line| line.trim() == *field),
+                    "{declaration} must drop {field} in funded ownership order"
+                );
+            }
+        }
+    }
+
     #[test]
     fn handler_drops_disclosure_owner_before_charged_resources() {
-        let handler = include_str!("auction.rs");
-        let disclosure = handler
-            .find("    drop(disclosure);")
-            .expect("the finished audit owner must be destroyed while still funded");
-        let lease = handler.find("    drop(lease);").expect("lease release");
-        let reservations = handler
-            .find("    drop(reservations);")
-            .expect("reservation release");
-        assert!(disclosure < lease);
-        assert!(lease < reservations);
+        use crate::auction::{
+            AuctionFunding, AuctionResourceInputs, AuctionResourceProfile, SchemaAllowance,
+        };
+        use crate::test_support::boot_parity_fixture::profile_for_adapter;
+        use auctioneer_runtime::{AdmissionGate, AuctionBudget};
+        use std::sync::Arc;
+
+        let handler = include_str!("../handlers/auction.rs");
+        let prepay = handler
+            .find("AuctionFunding::prepay(")
+            .expect("owned funding");
+        let config = handler
+            .find("config_runtime::resolve_runtime_config(&ctx).await")
+            .expect("configuration extraction");
+        assert!(prepay < config, "prepay before configuration acquisition");
+        assert_funded_field_order();
+
+        testing_logger::setup();
+        let row = profile_for_adapter("unequal_explicit_caps", "axum");
+        let profile = AuctionResourceProfile::new(
+            AuctionResourceInputs {
+                limits: row.limits,
+                target: row.target,
+                outbound_meta_bytes: row.outbound_meta_bytes,
+                construction_costs: row.construction_costs,
+                product_default_bytes: 271,
+                catalog_costs: row.catalog_costs,
+            },
+            SchemaAllowance::Disabled,
+        )
+        .unwrap();
+        let charged = profile.derived().auction_charges.total().unwrap();
+        assert!(charged > 0);
+        let budget = Arc::new(AuctionBudget::new(charged));
+        let weak = Arc::downgrade(&budget);
+        let gate = AdmissionGate::new(1);
+        let funding =
+            AuctionFunding::prepay(&profile, &budget, gate.try_acquire().unwrap()).unwrap();
+        assert_eq!(budget.in_use(), charged);
+        assert_eq!(gate.in_use(), 1);
+        FUNDING_OBSERVATION.with(|observation| {
+            *observation.borrow_mut() = Some(FundingObservation {
+                budget: Weak::clone(&weak),
+                gate: Arc::clone(&gate),
+                charged,
+                count: 0,
+            });
+        });
+        drop(budget);
+        drop(funding);
+        FUNDING_OBSERVATION.with(|observation| {
+            assert_eq!(observation.borrow_mut().take().unwrap().count, 1);
+        });
+        assert!(weak.upgrade().is_none());
+        assert_eq!(gate.in_use(), 0);
+        assert!(gate.try_acquire().is_some());
+        EVENTS.with(|events| {
+            assert_eq!(*events.borrow(), ["observed"]);
+            events.borrow_mut().clear();
+        });
+        assert_record(&zero_record("cancelled"));
+    }
+
+    #[test]
+    fn projection_failure_observes_before_retained_funding_is_released() {
+        use crate::auction::result::CompletedResponse;
+        use crate::auction::{
+            AuctionFailureReason, AuctionFunding, AuctionResourceInputs, AuctionResourceProfile,
+            SchemaAllowance,
+        };
+        use crate::test_support::boot_parity_fixture::profile_for_adapter;
+        use auctioneer_exchange::AuctionError;
+
+        testing_logger::setup();
+        let row = profile_for_adapter("unequal_explicit_caps", "axum");
+        let profile = AuctionResourceProfile::new(
+            AuctionResourceInputs {
+                limits: row.limits,
+                target: row.target,
+                outbound_meta_bytes: row.outbound_meta_bytes,
+                construction_costs: row.construction_costs,
+                product_default_bytes: 271,
+                catalog_costs: row.catalog_costs,
+            },
+            SchemaAllowance::Disabled,
+        )
+        .unwrap();
+        let charged = profile.derived().auction_charges.total().unwrap();
+        assert!(charged > 0);
+        let budget = Arc::new(AuctionBudget::new(charged));
+        let weak = Arc::downgrade(&budget);
+        let gate = AdmissionGate::new(1);
+        let funding =
+            AuctionFunding::prepay(&profile, &budget, gate.try_acquire().unwrap()).unwrap();
+        assert_eq!(budget.in_use(), charged);
+        assert_eq!(gate.in_use(), 1);
+        FUNDING_OBSERVATION.with(|observation| {
+            *observation.borrow_mut() = Some(FundingObservation {
+                budget: Weak::clone(&weak),
+                gate: Arc::clone(&gate),
+                charged,
+                count: 0,
+            });
+        });
+        drop(budget);
+
+        let Err(failure) = CompletedResponse::from_projection(
+            Err(AuctionError::Internal("fake projection failure".to_owned())),
+            funding,
+        ) else {
+            panic!("the failed projection must retain its funding with the error");
+        };
+        let AuctionFailureReason::Engine(AuctionError::Internal(message)) = failure.reason() else {
+            panic!("the projection error category must survive the handoff");
+        };
+        assert_eq!(message, "fake projection failure");
+        assert_eq!(weak.upgrade().unwrap().in_use(), charged);
+        assert_eq!(gate.in_use(), 1);
+        assert!(gate.try_acquire().is_none());
+        assert_record(&zero_record("error"));
+
+        drop(failure);
+        FUNDING_OBSERVATION.with(|observation| {
+            assert_eq!(observation.borrow_mut().take().unwrap().count, 1);
+        });
+        EVENTS.with(|events| {
+            assert_eq!(*events.borrow(), ["observed"]);
+            events.borrow_mut().clear();
+        });
+        testing_logger::validate(|captured| assert!(captured.is_empty()));
+        assert!(weak.upgrade().is_none());
+        assert_eq!(gate.in_use(), 0);
+        let returned = gate.try_acquire().unwrap();
+        assert!(gate.try_acquire().is_none());
+        drop(returned);
+        assert_eq!(gate.in_use(), 0);
     }
 
     #[test]
@@ -634,7 +892,7 @@ mod tests {
         // The log facade filter is process-global; isolate it from parallel tests.
         if var_os(CHILD_ENV).is_none() {
             let child = Command::new(current_exe().expect("unit test executable"))
-                .args(["--exact", "handlers::request_disclosure_audit::tests::disabled_debug_logging_still_completes_and_releases_resources", "--nocapture"])
+                .args(["--exact", "auction::audit::tests::disabled_debug_logging_still_completes_and_releases_resources", "--nocapture"])
                 .env(CHILD_ENV, "1")
                 .output()
                 .expect("isolated logging test executes");
@@ -644,6 +902,9 @@ mod tests {
                 String::from_utf8_lossy(&child.stdout),
                 String::from_utf8_lossy(&child.stderr)
             );
+            let output = String::from_utf8_lossy(&child.stdout);
+            assert!(output.contains("running 1 test"), "{output}");
+            assert!(output.contains("1 passed; 0 failed"), "{output}");
             return;
         }
         testing_logger::setup();

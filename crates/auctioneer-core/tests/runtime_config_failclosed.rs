@@ -78,6 +78,7 @@ mod tests {
     use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
+    use std::mem;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Duration;
@@ -489,6 +490,8 @@ mod tests {
     /// `registry = None` models a deploy with no `[stores.config]` at
     /// all; `Some(..)` binds the store under test.
     fn drive(registry: Option<TrackedRegistry>) -> Driven {
+        static AUCTIONS: Mutex<()> = Mutex::new(());
+        let _serial = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
         let read_counter = registry.as_ref().map(|bound| bound.reads.clone());
         let fanout = Arc::new(RecordingFanout::default());
         let handler_fanout: Arc<dyn BidderFanout + Send + Sync> =
@@ -511,10 +514,15 @@ mod tests {
             .insert(TestFanoutHandle(handler_fanout));
         request.extensions_mut().insert(TestClockHandle(clock));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = funded_config::context(request);
+        let (ctx, mut terminal) = funded_config::auction_context_for_route(
+            funded_config::context(request).into_request().unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
 
         let driven = block_on(async {
-            let response = auction(ctx).await.expect("the handler answers");
+            *terminal.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(terminal.response_mut());
             let status = response.status();
             let retry_after = response
                 .headers()

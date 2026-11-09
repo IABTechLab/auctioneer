@@ -205,9 +205,21 @@ mod tests {
                 BTreeMap::new(),
             );
             let mut audit = DisclosureAudit::default();
-            run_auction(&normalized, &ctx, &plan, &mut audit)
+            let outcome = run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("alias auction returns diagnostics")
+                .expect("alias auction returns diagnostics");
+            assert_eq!(outcome.request_id(), normalized.id.as_str());
+            assert_eq!(outcome.impression_ids(), ["imp-1"]);
+            assert_eq!(outcome.winners().len(), 1);
+            assert!(outcome.winners()[0].is_none());
+            assert!(outcome.selected_bid(0).is_none());
+            if advance >= Duration::from_millis(500) {
+                let errors = &outcome.response_material().prebid_errors;
+                assert_eq!(errors.len(), 1);
+                assert_eq!(errors[0].code, 12);
+                assert_eq!(errors[0].message, "tmax expired");
+            }
+            outcome.into_bid_response().unwrap()
         })
     }
 

@@ -23,6 +23,8 @@ use auctioneer_config_data::types::{
     ResourceLimits, SpecialFeatureEnforcement,
 };
 use auctioneer_exchange::{AccountSource, AuctionError, ExchangeFeatures, UNRESOLVED_ACCOUNT_ID};
+use auctioneer_openrtb::types::bid_request::BidRequest;
+use auctioneer_openrtb::types::inventory::Publisher;
 use auctioneer_runtime::aux_work::MAX_CATALOG_IDENTITIES;
 use auctioneer_runtime::{BoundedJsonError, ResolvedIsolateLimits, count_json_nodes};
 use serde::{
@@ -34,14 +36,79 @@ use std::{collections::BTreeMap, fmt};
 
 /// The ordered publisher-id lookup paths, most specific first. The first
 /// non-empty string value wins.
-const ACCOUNT_ID_PATHS: [&str; 6] = [
-    "/app/publisher/ext/prebid/parentAccount",
-    "/app/publisher/id",
-    "/site/publisher/ext/prebid/parentAccount",
-    "/site/publisher/id",
-    "/dooh/publisher/ext/prebid/parentAccount",
-    "/dooh/publisher/id",
+const ACCOUNT_ID_PATHS: [AccountIdPath; 6] = [
+    AccountIdPath {
+        location: PublisherLocation::App,
+        parent: true,
+    },
+    AccountIdPath {
+        location: PublisherLocation::App,
+        parent: false,
+    },
+    AccountIdPath {
+        location: PublisherLocation::Site,
+        parent: true,
+    },
+    AccountIdPath {
+        location: PublisherLocation::Site,
+        parent: false,
+    },
+    AccountIdPath {
+        location: PublisherLocation::Dooh,
+        parent: true,
+    },
+    AccountIdPath {
+        location: PublisherLocation::Dooh,
+        parent: false,
+    },
 ];
+
+#[derive(Clone, Copy)]
+enum PublisherLocation {
+    App,
+    Site,
+    Dooh,
+}
+
+#[derive(Clone, Copy)]
+struct AccountIdPath {
+    location: PublisherLocation,
+    parent: bool,
+}
+
+impl AccountIdPath {
+    fn fields(self) -> ([&'static str; 5], usize) {
+        let root = match self.location {
+            PublisherLocation::App => "app",
+            PublisherLocation::Site => "site",
+            PublisherLocation::Dooh => "dooh",
+        };
+        if self.parent {
+            ([root, "publisher", "ext", "prebid", "parentAccount"], 5)
+        } else {
+            ([root, "publisher", "id", "", ""], 3)
+        }
+    }
+
+    fn typed_id(self, request: &BidRequest) -> Option<&str> {
+        let publisher: &Publisher = match self.location {
+            PublisherLocation::App => request.app.as_ref()?.publisher.as_ref()?,
+            PublisherLocation::Site => request.site.as_ref()?.publisher.as_ref()?,
+            PublisherLocation::Dooh => request.dooh.as_ref()?.publisher.as_ref()?,
+        };
+        if self.parent {
+            publisher
+                .ext
+                .as_ref()?
+                .prebid
+                .as_ref()?
+                .parent_account
+                .as_deref()
+        } else {
+            publisher.id.as_deref()
+        }
+    }
+}
 
 /// Owned pair the handler holds on the stack for the lifetime of the
 /// request. The exchange-facing `ResolvedAccount<'a>` (which borrows via
@@ -378,7 +445,13 @@ pub(crate) fn clamp_host_to_boot(
 fn account_id_from_value(value: &serde_json::Value) -> Option<String> {
     ACCOUNT_ID_PATHS
         .iter()
-        .filter_map(|path| value.pointer(path))
+        .filter_map(|path| {
+            let (fields, length) = path.fields();
+            fields
+                .iter()
+                .take(length)
+                .try_fold(value, |node, field| node.get(*field))
+        })
         .filter_map(serde_json::Value::as_str)
         .find(|id| !id.is_empty())
         .map(str::to_owned)
@@ -528,9 +601,12 @@ pub fn resolve_account(
         .map_err(|_error| AuctionError::BadInput("account discovery depth exceeded".to_owned()))?;
     let mut candidate = None;
     for path in ACCOUNT_ID_PATHS {
-        let fields: Vec<_> = path.split('/').skip(1).collect();
+        let (fields, length) = path.fields();
+        let selected_fields = fields
+            .get(..length)
+            .ok_or_else(|| AuctionError::Internal("invalid account discovery path".into()))?;
         let mut parser = serde_json::Deserializer::from_slice(raw_body);
-        let discovered = AccountPath(&fields)
+        let discovered = AccountPath(selected_fields)
             .deserialize(&mut parser)
             .map_err(|_error| {
                 AuctionError::BadInput("account identity discovery failed".to_owned())
@@ -545,10 +621,7 @@ pub fn resolve_account(
         app,
         default,
     );
-    if resolved.config.disabled {
-        return Err(AuctionError::AccountDisabled(resolved.id));
-    }
-    Ok(resolved)
+    enabled_account(resolved)
 }
 
 /// [`resolve_account`] over a body the caller has already parsed within
@@ -571,6 +644,31 @@ pub fn resolve_account_from_value(
         app,
         default,
     );
+    enabled_account(resolved)
+}
+
+/// Resolve a borrowed, already-admitted programmatic request using the same
+/// ordered paths as raw discovery. No serialized tree or request copy is made.
+///
+/// # Errors
+/// Returns the same disabled-account error as raw discovery.
+pub fn resolve_account_from_request(
+    request: &BidRequest,
+    app: &AuctioneerAppConfig,
+    default: &AccountConfig,
+) -> Result<ResolvedAccountOwned, AuctionError> {
+    let candidate = ACCOUNT_ID_PATHS
+        .iter()
+        .filter_map(|path| path.typed_id(request))
+        .find(|id| !id.is_empty());
+    enabled_account(resolve_selected_account(
+        AccountSelection::from_requested(candidate),
+        app,
+        default,
+    ))
+}
+
+fn enabled_account(resolved: ResolvedAccountOwned) -> Result<ResolvedAccountOwned, AuctionError> {
     if resolved.config.disabled {
         return Err(AuctionError::AccountDisabled(resolved.id));
     }
@@ -902,6 +1000,50 @@ mod tests {
     use edgezero_core::config_store::DEFAULT_CONFIG_JSON_NODES;
     use std::sync::Arc;
     use validator::Validate as _;
+
+    #[test]
+    fn borrowed_typed_and_raw_account_discovery_share_the_six_path_order() {
+        use auctioneer_openrtb::types::bid_request::BidRequest;
+        use serde_json::{Value, json};
+        let mut document = json!({
+            "id":"account-discovery", "imp":[],
+            "app":{"publisher":{"id":"app-id", "ext":{"prebid":{"parentAccount":"app-parent"}}}},
+            "site":{"publisher":{"id":"site-id", "ext":{"prebid":{"parentAccount":"site-parent"}}}},
+            "dooh":{"publisher":{"id":"dooh-id", "ext":{"prebid":{"parentAccount":"dooh-parent"}}}}
+        });
+        let policy = AuctioneerAppConfig::default();
+        let defaults = AccountConfig::default();
+        for (path, expected) in [
+            ("/app/publisher/ext/prebid/parentAccount", "app-parent"),
+            ("/app/publisher/id", "app-id"),
+            ("/site/publisher/ext/prebid/parentAccount", "site-parent"),
+            ("/site/publisher/id", "site-id"),
+            ("/dooh/publisher/ext/prebid/parentAccount", "dooh-parent"),
+            ("/dooh/publisher/id", "dooh-id"),
+        ] {
+            let request: BidRequest = serde_json::from_value(document.clone()).unwrap();
+            let typed = super::resolve_account_from_request(&request, &policy, &defaults).unwrap();
+            let raw = super::resolve_account(
+                &serde_json::to_vec(&document).unwrap(),
+                &policy,
+                &defaults,
+                256,
+            )
+            .unwrap();
+            assert_eq!(typed.id, expected);
+            assert_eq!(raw.id, expected);
+            assert_eq!(
+                typed.selection,
+                super::AccountSelection::Named(expected.into())
+            );
+            assert_eq!(typed.source, raw.source);
+            assert!(document.pointer(path).unwrap().is_string());
+            *document.pointer_mut(path).unwrap() = Value::Null;
+        }
+        let request = serde_json::from_value(document).unwrap();
+        let absent = super::resolve_account_from_request(&request, &policy, &defaults).unwrap();
+        assert_eq!(absent.selection, super::AccountSelection::Default);
+    }
 
     #[test]
     fn disabled_publisher_survives_unrelated_opaque_numeric_overflow() {

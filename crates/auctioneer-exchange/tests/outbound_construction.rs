@@ -165,7 +165,8 @@ mod tests {
         });
         ctx.projection_reservation = receipt.as_ref();
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit));
+        let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
+            .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
         (response, fanout.0.into_inner().unwrap())
     }
 

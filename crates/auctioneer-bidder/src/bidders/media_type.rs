@@ -5,8 +5,17 @@ use crate::{BidderError, OutboundRequestMeta};
 use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::{
     bid_request::BidRequest,
-    bid_response::{Bid, BidResponse},
+    bid_response::{Bid, BidResponse, SeatBid},
 };
+use std::sync::Arc;
+
+/// Capture each seat's provenance before flattening, without per-bid text copies.
+pub(super) fn source_seat_bids(seat: SeatBid) -> impl Iterator<Item = (Bid, Option<Arc<str>>)> {
+    let source_seat = (!seat.seat.is_empty()).then(|| Arc::<str>::from(seat.seat));
+    seat.bid
+        .into_iter()
+        .map(move |bid| (bid, source_seat.clone()))
+}
 
 /// Resolve only media explicitly recorded for the impression in this exact call.
 pub(super) fn sent_media_type(
@@ -50,9 +59,13 @@ where
     // arrays are still live. Their total is already bounded by the node gate.
     let bid_count = response.seatbid.iter().map(|seat| seat.bid.len()).sum();
     let mut bids = Vec::with_capacity(bid_count);
-    for bid in response.seatbid.into_iter().flat_map(|seat| seat.bid) {
+    for (bid, source_seat) in response.seatbid.into_iter().flat_map(source_seat_bids) {
         match classify(&bid) {
-            Ok(media_type) => bids.push(TypedBid { bid, media_type }),
+            Ok(media_type) => bids.push(TypedBid {
+                bid,
+                media_type,
+                source_seat,
+            }),
             Err(error) => errors.push(error),
         }
     }
@@ -191,6 +204,104 @@ mod tests {
     use crate::{META_BYTES_CAPACITY, OutboundRequestMetaBuilder};
     use auctioneer_openrtb::types::bid_response::SeatBid;
     use serde_json::json;
+    use std::sync::Arc;
+
+    fn source_seat_response(seats: &serde_json::Value) -> BidderResponse {
+        let request = request(json!([{"id":"i", "banner":{}}]));
+        let parsed = serde_json::from_value(json!({"id":"r", "seatbid":seats})).unwrap();
+        classify_response(parsed, |bid| classify_bid(&request, bid, None)).unwrap()
+    }
+
+    #[test]
+    fn source_seat_is_absent_for_missing_or_empty_seats() {
+        let decoded = source_seat_response(&json!([
+            {"bid":[{"id":"missing", "impid":"i", "price":1_i32}]},
+            {"seat":"", "bid":[{"id":"empty", "impid":"i", "price":1_i32}]}
+        ]));
+        assert_eq!(decoded.bids.len(), 2);
+        assert!(decoded.bids.iter().all(|bid| bid.source_seat.is_none()));
+    }
+
+    #[test]
+    fn source_seat_keeps_two_upstream_seats_distinct_from_requested_alias() {
+        let requested = crate::BidderName::new("fake_alias");
+        let seats = json!([
+            {"seat":"upstream_a", "bid":[{"id":"a", "impid":"i", "price":1_i32}]},
+            {"seat":"upstream_b", "bid":[{"id":"b", "impid":"i", "price":1_i32}]}
+        ]);
+        for seat in seats.as_array().unwrap() {
+            assert_ne!(seat["seat"].as_str().unwrap(), requested.as_str());
+        }
+        let decoded = source_seat_response(&seats);
+        assert_eq!(decoded.bids.len(), 2);
+        assert_eq!(decoded.bids[0].source_seat.as_deref(), Some("upstream_a"));
+        assert_eq!(decoded.bids[1].source_seat.as_deref(), Some("upstream_b"));
+        assert!(!Arc::ptr_eq(
+            decoded.bids[0].source_seat.as_ref().unwrap(),
+            decoded.bids[1].source_seat.as_ref().unwrap()
+        ));
+    }
+
+    #[test]
+    fn source_seat_shares_one_owner_per_decoded_seat_not_per_value() {
+        let decoded = source_seat_response(&json!([
+            {"seat":"upstream", "bid":[
+                {"id":"a", "impid":"i", "price":1_i32},
+                {"id":"b", "impid":"i", "price":1_i32}
+            ]},
+            {"seat":"upstream", "bid":[{"id":"c", "impid":"i", "price":1_i32}]}
+        ]));
+        assert_eq!(decoded.bids.len(), 3);
+        let owner = decoded.bids[0].source_seat.as_ref().unwrap();
+        assert_eq!(&**owner, "upstream");
+        assert!(Arc::ptr_eq(
+            owner,
+            decoded.bids[1].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(Arc::strong_count(owner), 2);
+        assert!(!Arc::ptr_eq(
+            owner,
+            decoded.bids[2].source_seat.as_ref().unwrap()
+        ));
+    }
+
+    #[test]
+    fn source_seat_preserves_valid_siblings_around_a_bad_bid() {
+        let decoded = source_seat_response(&json!([{"seat":"upstream", "bid":[
+            {"id":"before", "impid":"i", "price":1_i32},
+            {"id":"bad", "impid":"i", "price":1_i32, "mtype":0_i32},
+            {"id":"after", "impid":"i", "price":1_i32}
+        ]}]));
+        assert_eq!(decoded.errors.len(), 1);
+        assert_eq!(decoded.bids.len(), 2);
+        assert_eq!(decoded.bids[0].bid.id, "before");
+        assert_eq!(decoded.bids[1].bid.id, "after");
+        let owner = decoded.bids[0].source_seat.as_ref().unwrap();
+        assert_eq!(&**owner, "upstream");
+        assert!(Arc::ptr_eq(
+            owner,
+            decoded.bids[1].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(Arc::strong_count(owner), 2);
+    }
+
+    #[test]
+    fn source_seat_repeated_response_calls_do_not_share_owners() {
+        let seats = json!([{"seat":"upstream", "bid":[
+            {"id":"a", "impid":"i", "price":1_i32}
+        ]}]);
+        let first = source_seat_response(&seats);
+        let second = source_seat_response(&seats);
+        let owner = first.bids[0].source_seat.as_ref().unwrap();
+        let other = second.bids[0].source_seat.as_ref().unwrap();
+        assert_eq!(owner, other);
+        assert!(!Arc::ptr_eq(owner, other));
+        let retained = Arc::clone(owner);
+        drop(first);
+        drop(second);
+        assert_eq!(&*retained, "upstream");
+        assert_eq!(Arc::strong_count(&retained), 1);
+    }
 
     fn sent(media: CorrelationMedia) -> OutboundRequestMeta {
         let mut bytes = Vec::with_capacity(META_BYTES_CAPACITY);

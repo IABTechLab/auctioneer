@@ -16,11 +16,11 @@ mod tests {
     use crate::support::ctx_with_config;
     use async_trait::async_trait;
     use auctioneer_config_data::limits::MAX_STATUS_BANNER_BYTES;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::config::runtime::CONFIG_STATUS_HEADER;
     use auctioneer_core::handlers::probe_config::{
         __probe_isolation_for_tests, config_work_capacity, config_work_in_flight,
     };
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::handlers::status::status;
     use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
     use auctioneer_core::test_support::config_store as funded_config;

@@ -1147,7 +1147,7 @@ mod tests {
                 b"// fixture scrub input\n".to_vec(),
             ),
             (
-                "crates/auctioneer-core/src/handlers/request_disclosure_audit.rs",
+                "crates/auctioneer-core/src/auction/audit.rs",
                 b"// fixture audit input\n".to_vec(),
             ),
         ] {
@@ -1224,7 +1224,7 @@ mod tests {
             "crates/auctioneer-config-data/build.rs",
             "crates/auctioneer-config-data/data/gvl_archive/gcl.json",
             "crates/auctioneer-exchange/src/scrub/value.rs",
-            "crates/auctioneer-core/src/handlers/request_disclosure_audit.rs",
+            "crates/auctioneer-core/src/auction/audit.rs",
         ] {
             let path = root.path().join(relative);
             let original = fs::read(&path).unwrap();

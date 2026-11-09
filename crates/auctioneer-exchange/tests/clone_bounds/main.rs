@@ -172,7 +172,10 @@ mod tests {
             );
             let baseline = alloc_track::reset_peak();
             let mut audit = DisclosureAudit::default();
-            let response = block_on(run_auction(&req, &ctx, &plan, &mut audit)).unwrap();
+            let response = block_on(run_auction(&req, &ctx, &plan, &mut audit))
+                .unwrap()
+                .into_bid_response()
+                .unwrap();
             let peak = alloc_track::peak_since(baseline);
             assert_eq!(calls.load(Ordering::SeqCst), cap);
             drop(response);

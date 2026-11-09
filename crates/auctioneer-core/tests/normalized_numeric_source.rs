@@ -20,11 +20,12 @@ mod tests {
     use crate::serving_catalog;
     use auctioneer_bidder::BidderHttpResponse;
     use auctioneer_core::App as AuctioneerApp;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
+    use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::handlers::{TestFanoutHandle, auction};
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle, boot_gates, install_boot_envelope,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::{
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
@@ -150,8 +151,16 @@ mod tests {
             },
         }))
         .unwrap();
-        let response = block_on(auction(support::ctx_with_config(&config, request))).unwrap();
-        assert_eq!(response.status(), http::StatusCode::OK);
+        let (ctx, mut terminal) = auction_context_for_route(
+            support::ctx_with_config(&config, request)
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
+        assert_eq!(gates.admission.in_use(), 1, "original admission is held");
+        *terminal.response_mut() = block_on(auction(ctx)).unwrap();
+        assert_eq!(terminal.response_mut().status(), http::StatusCode::OK);
         assert_eq!(fanout.0.load(Ordering::Relaxed), 1);
         assert_eq!(gates.admission.in_use(), 0, "auction admission is released");
     }

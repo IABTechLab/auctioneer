@@ -39,11 +39,11 @@ mod tests {
     use async_trait::async_trait;
     use auctioneer_bidder::BidderHttpResponse;
     use auctioneer_config::policy::HostPolicy;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::config::AuctioneerAppConfig;
     use auctioneer_core::configure::configure_app;
     use auctioneer_core::handlers::TestFanoutHandle;
     use auctioneer_core::handlers::egress_deadline::{EgressDeadline, REFUSAL_WRITE_BUDGET};
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{
         BootEnvelope, DelegateToDevStrategy, DevRng, StderrBootLog, SystemClock, admission_gate,
         bootstrap_adapter_with_envelope,

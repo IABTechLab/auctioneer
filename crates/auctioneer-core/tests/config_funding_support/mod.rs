@@ -3,9 +3,9 @@
 /// Unmodified seed row, also reused by fixtures with custom boot assertions.
 pub(crate) use crate::fanout_limits as envelope;
 
+use auctioneer_core::auction::audit::construction_costs;
 use auctioneer_core::config::runtime::CONFIG_FETCH_TIMEOUT;
 use auctioneer_core::configure::configure_app;
-use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
 use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
 use auctioneer_runtime::budget::{ASSEMBLY_FACTOR, derive_aux_work_for_profile};
 use auctioneer_runtime::{ResolvedIsolateLimits, TargetPlatformConstants, serialized_json_bytes};

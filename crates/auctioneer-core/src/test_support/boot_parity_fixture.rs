@@ -1,6 +1,6 @@
 //! Shared raw rows for the existing boot probe and the isolated CLI adapter.
 
-use crate::handlers::request_disclosure_audit::construction_costs;
+use crate::auction::audit::construction_costs;
 use crate::host_primitives::{ResourceProfile, StderrBootLog};
 use auctioneer_runtime::{
     CatalogResourceCosts, HeadroomClass, ResolvedIsolateLimits, TargetPlatformConstants,

@@ -296,7 +296,10 @@ mod tests {
             BTreeMap::new(),
         );
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(&normalized, &context, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&normalized, &context, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         (
             serde_json::to_value(response).unwrap(),
             parsed.load(Ordering::Relaxed),

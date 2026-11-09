@@ -310,7 +310,9 @@ mod tests {
         );
         let mut audit = DisclosureAudit::default();
         let response = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
-            .expect("run_auction answers");
+            .expect("run_auction answers")
+            .into_bid_response()
+            .unwrap();
         let ext = response.ext.clone().unwrap_or(serde_json::Value::Null);
         Driven { response, ext }
     }

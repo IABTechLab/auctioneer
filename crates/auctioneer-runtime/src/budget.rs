@@ -905,7 +905,8 @@ pub struct TargetPlatformConstants {
 /// All costs are prepaid for each admitted auction before their storage exists.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RequestConstructionCosts {
-    /// Audit/observation state retained for the entire auction; charged to privacy.
+    /// Fixed construction owners, including audit and prepaid ownership state;
+    /// charged to privacy independently of surviving bidder/call populations.
     pub fixed_per_auction_bytes: u64,
     /// Bounded scratch reused between survivor constructions; charged to projection.
     pub reusable_scratch_bytes: u64,

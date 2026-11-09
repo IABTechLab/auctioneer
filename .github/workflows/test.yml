@@ -37,7 +37,6 @@ jobs:
       # just the vendored subset.
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
-      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
     steps:
       - uses: actions/checkout@v7
 
@@ -71,12 +70,8 @@ jobs:
           ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
           path: vendor/bidder-reference
 
-      - name: Check out pinned supplemental bidder reference
-        uses: actions/checkout@v7
-        with:
-          repository: prebid/prebid-server
-          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
-          path: vendor/bidder-supplemental-reference
+      - name: Fetch additional pinned bidder reference objects
+        run: git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
 
       - name: Cache Cargo downloads
         id: download-cache
@@ -176,7 +171,7 @@ jobs:
 
       - name: Verify bounded request disclosure observation
         if: matrix.lane == 'secure'
-        run: cargo test --locked -p auctioneer-core --lib handlers::request_disclosure_audit::tests
+        run: cargo test --locked -p auctioneer-core --lib auction::audit::tests
 
       # Documentation gates. Both are pure shell over the docs tree, so
       # they run before the compile: a stale batch-API reference or a
@@ -392,7 +387,6 @@ jobs:
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
-      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
     steps:
       - uses: actions/checkout@v7
 
@@ -410,12 +404,8 @@ jobs:
           ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
           path: vendor/bidder-reference
 
-      - name: Check out pinned supplemental bidder reference
-        uses: actions/checkout@v7
-        with:
-          repository: prebid/prebid-server
-          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
-          path: vendor/bidder-supplemental-reference
+      - name: Fetch additional pinned bidder reference objects
+        run: git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
       - name: Cache Cargo downloads
         id: download-cache
         uses: actions/cache/restore@v6
@@ -504,7 +494,6 @@ jobs:
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
-      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
     steps:
       - uses: actions/checkout@v7
 
@@ -522,12 +511,8 @@ jobs:
           ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
           path: vendor/bidder-reference
 
-      - name: Check out pinned supplemental bidder reference
-        uses: actions/checkout@v7
-        with:
-          repository: prebid/prebid-server
-          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
-          path: vendor/bidder-supplemental-reference
+      - name: Fetch additional pinned bidder reference objects
+        run: git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
       - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
@@ -578,7 +563,6 @@ jobs:
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
-      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
     steps:
       - uses: actions/checkout@v7
 
@@ -596,12 +580,8 @@ jobs:
           ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
           path: vendor/bidder-reference
 
-      - name: Check out pinned supplemental bidder reference
-        uses: actions/checkout@v7
-        with:
-          repository: prebid/prebid-server
-          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
-          path: vendor/bidder-supplemental-reference
+      - name: Fetch additional pinned bidder reference objects
+        run: git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
       - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:
@@ -660,7 +640,6 @@ jobs:
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
-      AUCTIONEER__BIDDER__SUPPLEMENTAL_SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-supplemental-reference
     steps:
       - uses: actions/checkout@v7
 
@@ -678,12 +657,8 @@ jobs:
           ref: d7f8515b86258688304b0d9b6668c6a0e258bc9e
           path: vendor/bidder-reference
 
-      - name: Check out pinned supplemental bidder reference
-        uses: actions/checkout@v7
-        with:
-          repository: prebid/prebid-server
-          ref: f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
-          path: vendor/bidder-supplemental-reference
+      - name: Fetch additional pinned bidder reference objects
+        run: git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
       - name: Cache Cargo downloads
         uses: actions/cache@v6
         with:

@@ -6,6 +6,7 @@ use auctioneer_bidder::{
 };
 use auctioneer_config_data::types::{BidderImplementationBinding, HostConfig};
 use auctioneer_openrtb::types::bid_request::BidRequest;
+use auctioneer_privacy::HostRestrictionSource;
 use auctioneer_privacy::gcl::Gcl;
 use auctioneer_privacy::gvl::GvlStore;
 use auctioneer_runtime::bidder_credentials::BidderCredentialSource;
@@ -55,6 +56,9 @@ impl Default for ExchangeFeatures {
 #[non_exhaustive]
 pub struct AuctionContext<'a> {
     pub request_start: MonotonicInstant,
+    /// Absolute execution cap in the original request's monotonic clock domain.
+    /// Does not change bidder-visible tmax or grant a fresh execution allowance.
+    pub outer_deadline: Option<MonotonicInstant>,
     /// Trusted caller entrypoint; never inferred from payload fields or media.
     /// Current HTTP auction handling retains the constructor's `Auction` default.
     pub entry_point: EntryPoint,
@@ -112,6 +116,9 @@ pub struct AuctionContext<'a> {
     /// Independent compiled public-name bindings; sorted by public bidder name.
     /// Embedders supplying their own registry must supply its matching bindings.
     pub bidder_bindings: &'a [BidderImplementationBinding],
+    /// Additional request-bound ceilings. Legacy low-level callers may omit
+    /// them; an explicit source with no matching implementation fails closed.
+    pub host_restrictions: Option<&'a dyn HostRestrictionSource>,
 }
 
 /// Boot-funded source, retained growth and scratch checked before projection.
@@ -190,6 +197,7 @@ impl<'a> AuctionContext<'a> {
         static EMPTY_OVERRIDES: OnceLock<BTreeMap<BidderName, u32>> = OnceLock::new();
         Self {
             request_start,
+            outer_deadline: None,
             entry_point: EntryPoint::Auction,
             host,
             account,
@@ -212,6 +220,7 @@ impl<'a> AuctionContext<'a> {
             floor_currency: FloorConversion::default(),
             credential_source: None,
             bidder_bindings: auctioneer_config_data::bidder_implementation_bindings(),
+            host_restrictions: None,
         }
     }
 
@@ -241,6 +250,7 @@ impl<'a> AuctionContext<'a> {
     ) -> Self {
         Self {
             request_start,
+            outer_deadline: None,
             entry_point: EntryPoint::Auction,
             host,
             account,
@@ -263,6 +273,7 @@ impl<'a> AuctionContext<'a> {
             floor_currency: FloorConversion::default(),
             credential_source: None,
             bidder_bindings: auctioneer_config_data::bidder_implementation_bindings(),
+            host_restrictions: None,
         }
     }
 }

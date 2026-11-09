@@ -101,6 +101,7 @@ mod tests {
     use auctioneer_core::host_primitives::{
         TestClockHandle, TestMonotonicClockHandle, TestRngHandle,
     };
+    use auctioneer_core::test_support::config_store::auction_context_for_route;
     use auctioneer_exchange::scrub::DisclosureAudit;
     use auctioneer_exchange::{
         AuctionContext, AuctionDeadline, AuctionPlan, BidderCall, BidderCallResult, BidderFanout,
@@ -115,19 +116,23 @@ mod tests {
     use auctioneer_runtime::{Clock, FakeClock, Rng, SeededRng};
     use edgezero_core::body::Body;
     use edgezero_core::http::StatusCode;
+    use edgezero_core::response_egress::ResponseEgressEnvelope;
     use edgezero_core::time::MonotonicClock;
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use serde_json::{Value, json};
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
-    use std::sync::{Arc, Mutex};
+    use std::mem;
+    use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
     use std::time::Duration;
     use time::OffsetDateTime;
 
     /// Response cap wide enough that nothing here trips it.
     const WIDE_CAP: usize = 1 << 20;
     const OUTBOUND_BIDDER: &str = "fake_bidder";
+
+    static AUCTIONS: Mutex<()> = Mutex::new(());
 
     /// Impression cap wide enough that the fixtures below never reach
     /// it; the cap itself is exercised by the max-impressions tests in
@@ -262,7 +267,17 @@ mod tests {
 
     /// POST a fixture body through the real auction handler with the
     /// given deployment blob installed.
-    fn drive_handler(config_toml: &str, request_body: &str) -> (StatusCode, serde_json::Value) {
+    /// The returned guard must outlive the paired terminal envelope.
+    fn drive_handler(
+        config_toml: &str,
+        request_body: &str,
+    ) -> (
+        MutexGuard<'static, ()>,
+        StatusCode,
+        serde_json::Value,
+        ResponseEgressEnvelope,
+    ) {
+        let serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
         config_funding::install();
         let fake = Arc::new(FakeClock::new(OffsetDateTime::UNIX_EPOCH));
         let clock: Arc<dyn Clock + Send + Sync> = Arc::<FakeClock>::clone(&fake);
@@ -291,10 +306,17 @@ mod tests {
                 monotonic_source.now_monotonic()
             })));
         request.extensions_mut().insert(TestRngHandle(rng));
-        let ctx = ctx_with_config(config_toml, request);
+        let (ctx, mut envelope) = auction_context_for_route(
+            ctx_with_config(config_toml, request)
+                .into_request()
+                .unwrap(),
+            "/openrtb2/auction",
+            MonotonicClock::default(),
+        );
 
         block_on(async {
-            let response = auction(ctx).await.expect("the handler answers");
+            *envelope.response_mut() = auction(ctx).await.expect("the handler answers");
+            let response = mem::take(envelope.response_mut());
             let status = response.status();
             let (_parts, body) = response.into_parts();
             let bytes = body
@@ -302,6 +324,7 @@ mod tests {
                 .await
                 .expect("response body reads");
             (
+                serialized,
                 status,
                 serde_json::from_slice(&bytes).unwrap_or_else(|err| {
                     panic!(
@@ -309,6 +332,7 @@ mod tests {
                         String::from_utf8_lossy(&bytes),
                     )
                 }),
+                envelope,
             )
         })
     }
@@ -372,7 +396,7 @@ mod tests {
              segment of `user.consent` in gdpr_applies_request.json against a bundled \
              revision; the response diff below is a symptom, not the cause.",
         );
-        let (status, actual) = drive_handler(
+        let (_serialized, status, actual, _envelope) = drive_handler(
             &handler_fixture("gdpr_applies.toml"),
             &handler_fixture("gdpr_applies_request.json"),
         );
@@ -382,7 +406,7 @@ mod tests {
 
     #[test]
     fn gpp_sid_section_two_without_an_envelope_uses_legacy_consent() {
-        let (status, actual) = drive_handler(
+        let (_serialized, status, actual, _envelope) = drive_handler(
             &handler_fixture("gdpr_applies.toml"),
             &handler_fixture("gdpr_applies_section2_request.json"),
         );
@@ -402,7 +426,7 @@ mod tests {
             serde_json::from_str(&handler_fixture("gdpr_applies_section2_request.json"))
                 .expect("request fixture is JSON");
         request["regs"]["gpp"] = json!("DBABM~");
-        let (status, actual) = drive_handler(
+        let (_serialized, status, actual, _envelope) = drive_handler(
             &handler_fixture("gdpr_applies.toml"),
             &serde_json::to_string(&request).expect("request serializes"),
         );
@@ -416,7 +440,7 @@ mod tests {
             serde_json::from_str(&handler_fixture("gdpr_applies_section2_request.json"))
                 .expect("request fixture is JSON");
         request["regs"]["gpp"] = json!("DBABM~invalid");
-        let (status, actual) = drive_handler(
+        let (_serialized, status, actual, _envelope) = drive_handler(
             &handler_fixture("gdpr_applies.toml"),
             &serde_json::to_string(&request).expect("request serializes"),
         );
@@ -509,6 +533,7 @@ mod tests {
 
     /// Capture actual serialized transport bytes after core config resolution.
     fn outbound_body(app: &AuctioneerAppConfig, request_body: &str) -> (Value, AuctionPermissions) {
+        let _serialized = AUCTIONS.lock().unwrap_or_else(PoisonError::into_inner);
         let host = resolve_host(app, auctioneer_config_data::host_default());
         let owned = resolve_account(
             request_body.as_bytes(),
@@ -573,7 +598,9 @@ mod tests {
             let mut audit = DisclosureAudit::default();
             run_auction(&normalized, &ctx, &plan, &mut audit)
                 .await
-                .expect("the auction completes");
+                .expect("the auction completes")
+                .into_bid_response()
+                .expect("the response projects");
         });
 
         let recorded = fanout

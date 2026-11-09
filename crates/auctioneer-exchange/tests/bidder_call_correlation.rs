@@ -200,16 +200,19 @@ mod tests {
             let bids = parsed
                 .seatbid
                 .into_iter()
-                .flat_map(|seat| seat.bid)
-                .map(|bid| {
-                    assert_eq!(bid.id, expected.bid_id, "fanout results remain positional");
-                    assert_eq!(bid.impid, IMP_ID);
-                    assert!(!bid.other.contains_key("mtype"));
-                    assert!(bid.ext.is_none(), "no response-provided media hint");
-                    TypedBid {
-                        bid,
-                        media_type: correlation.media().into(),
-                    }
+                .flat_map(|seat| {
+                    let source_seat = (!seat.seat.is_empty()).then(|| Arc::<str>::from(seat.seat));
+                    seat.bid.into_iter().map(move |bid| {
+                        assert_eq!(bid.id, expected.bid_id, "fanout results remain positional");
+                        assert_eq!(bid.impid, IMP_ID);
+                        assert!(!bid.other.contains_key("mtype"));
+                        assert!(bid.ext.is_none(), "no response-provided media hint");
+                        TypedBid {
+                            bid,
+                            media_type: correlation.media().into(),
+                            source_seat: source_seat.clone(),
+                        }
+                    })
                 })
                 .collect();
             Ok(BidderResponse {
@@ -370,7 +373,10 @@ mod tests {
             BTreeMap::new(),
         );
         let mut audit = DisclosureAudit::default();
-        let response = block_on(run_auction(&request, &ctx, &plan, &mut audit)).unwrap();
+        let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+            .unwrap()
+            .into_bid_response()
+            .unwrap();
         let observed = mem::take(&mut *trace.lock().unwrap());
         (response, observed)
     }

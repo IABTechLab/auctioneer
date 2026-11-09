@@ -20,7 +20,7 @@
 
 #[cfg(test)]
 mod tests {
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs as core_construction_costs;
+    use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::host_primitives::{boot_gates, boot_limits, install_boot_envelope};
     use auctioneer_runtime::budget::ASSEMBLY_FACTOR;
     use auctioneer_runtime::{

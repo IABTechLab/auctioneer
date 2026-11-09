@@ -6,9 +6,9 @@ use fanout_limits as envelope;
 #[cfg(test)]
 mod tests {
     use super::envelope;
+    use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::config::runtime::CONFIG_STATUS_HEADER;
     use auctioneer_core::handlers::probe_config::config_work_in_flight;
-    use auctioneer_core::handlers::request_disclosure_audit::construction_costs;
     use auctioneer_core::host_primitives::{
         DelegateToDevStrategy, boot_gates, bootstrap_adapter, install_boot_envelope,
         probe_egress_gate,

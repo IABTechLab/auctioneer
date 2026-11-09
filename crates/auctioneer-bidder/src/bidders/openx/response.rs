@@ -1,6 +1,6 @@
 use super::request::known;
 use crate::bidders::{
-    media_type::{classify_bid, sent_media_type},
+    media_type::{classify_bid, sent_media_type, source_seat_bids},
     status::{bad_input_or_server, standard_status},
     wire_fields::{canonical_integer, signed_integer},
 };
@@ -41,14 +41,18 @@ pub(super) fn make_bids(
         errors: parse_errors,
         auction_configs,
     };
-    for mut bid in parsed.seatbid.into_iter().flat_map(|seat| seat.bid) {
+    for (mut bid, source_seat) in parsed.seatbid.into_iter().flat_map(source_seat_bids) {
         let duration =
             canonical_integer(&mut bid.other, "dur").map_err(|_error| vec![invalid_dto()])?;
         canonical_categories(&mut bid.other).map_err(|()| vec![invalid_dto()])?;
         match classify_openx_bid(request, sent, &mut bid) {
             Ok(media_type) => {
                 enrich_bid(&mut bid, duration);
-                decoded.bids.push(TypedBid { bid, media_type });
+                decoded.bids.push(TypedBid {
+                    bid,
+                    media_type,
+                    source_seat,
+                });
             }
             Err(error) => decoded.errors.push(error),
         }
@@ -247,6 +251,7 @@ mod tests {
     use auctioneer_config_data::types::MediaType;
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::{Value, json};
+    use std::sync::Arc;
 
     fn sent(rows: &[(&str, CorrelationMedia)]) -> OutboundRequestMeta {
         let mut bytes = Vec::with_capacity(META_BYTES_CAPACITY);
@@ -277,6 +282,66 @@ mod tests {
         let mut document = json!({"id":"fake_response", "seatbid":[{"bid":[]}]});
         document["seatbid"][0]["bid"] = bids;
         OpenxBidder.make_bids(request, sent, &response(&document))
+    }
+
+    #[test]
+    fn source_seat_retains_protocol_provenance_and_shares_only_within_each_seat() {
+        let request = request(json!([imp("fake_imp", "banner")]));
+        let sent = sent(&[("fake_imp", CorrelationMedia::Banner)]);
+        let mut bad = bid("bad", "fake_imp");
+        bad["mtype"] = json!(0_i32);
+        let value = json!({"id":"r", "seatbid":[
+            {"bid":[bid("missing", "fake_imp")]},
+            {"seat":"", "bid":[bid("empty", "fake_imp")]},
+            {"seat":"upstream_a", "bid":[bid("before", "fake_imp"), bad,
+                bid("after", "fake_imp")]},
+            {"seat":"upstream_b", "bid":[bid("other", "fake_imp")]}
+        ]});
+        assert_ne!(value["seatbid"][2]["seat"], json!("fake_alias"));
+        let first = OpenxBidder
+            .make_bids(&request, &sent, &response(&value))
+            .unwrap();
+        let second = OpenxBidder
+            .make_bids(&request, &sent, &response(&value))
+            .unwrap();
+        assert_eq!(first.errors.len(), 1);
+        assert_eq!(first.bids.len(), 5);
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|bid| bid.bid.id.as_str())
+                .collect::<Vec<_>>(),
+            ["missing", "empty", "before", "after", "other"]
+        );
+        assert_eq!(
+            first
+                .bids
+                .iter()
+                .map(|bid| bid.source_seat.as_deref())
+                .collect::<Vec<_>>(),
+            [
+                None,
+                None,
+                Some("upstream_a"),
+                Some("upstream_a"),
+                Some("upstream_b")
+            ]
+        );
+        let owner = first.bids[2].source_seat.as_ref().unwrap();
+        assert!(Arc::ptr_eq(
+            owner,
+            first.bids[3].source_seat.as_ref().unwrap()
+        ));
+        assert_eq!(Arc::strong_count(owner), 2);
+        assert!(!Arc::ptr_eq(
+            owner,
+            first.bids[4].source_seat.as_ref().unwrap()
+        ));
+        assert!(!Arc::ptr_eq(
+            owner,
+            second.bids[2].source_seat.as_ref().unwrap()
+        ));
     }
 
     #[test]

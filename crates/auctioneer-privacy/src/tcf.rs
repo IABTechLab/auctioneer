@@ -1415,6 +1415,7 @@ mod tests {
         let fields = |BidderDecision {
                           fetch_denial,
                           gdpr,
+                          allow_host_ids,
                           transmit_ufpd,
                           transmit_precise_geo,
                           transmit_tid,
@@ -1425,6 +1426,7 @@ mod tests {
             (
                 fetch_denial,
                 gdpr,
+                allow_host_ids,
                 transmit_ufpd,
                 transmit_precise_geo,
                 transmit_tid,

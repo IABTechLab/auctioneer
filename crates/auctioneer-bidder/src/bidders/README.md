@@ -310,6 +310,7 @@ Do not treat metadata relocation as completed catalog delivery or qualification.
   siblings when a failure is candidate-local; keep whole-response failures
   distinct. Status, currency and media rules must follow the reviewed bidder
   contract; intentional source differences must be explicit.
+- Preserve `SeatBid.seat` in `TypedBid.source_seat` before flattening parsed seats. Share one immutable owner across the bids from each nonempty seat; missing or empty seats stay absent. Shared response classification does this automatically. Custom decoders must preserve the same rule, never substituting a requested alias, implementation, marketplace label or host provider ID. Exchange-owned wire attribution remains separate.
 - Move optional browser-auction configurations from the sealed parsed extension
   into `BidderResponse.auction_configs`. Do not copy their JSON, parse the body
   again, or supply authoritative bidder/adapter labels. The exchange checks
@@ -335,7 +336,8 @@ Do not treat metadata relocation as completed catalog delivery or qualification.
 - Checkout-dependent primary-source controls use the `source_objects_` test-name
   prefix and `AUCTIONEER__BIDDER__SOURCE_DIR`. The shared CI invocation runs that prefix
   explicitly with `--ignored`; do not add a bidder-specific workflow command.
-  Supplemental sources need their own declared checkout and verification owner.
+  Revisions from the same source repository share that checkout; keep each
+  bidder's declared source pin and verification owner intact.
 - Vary independent permissions and limits independently. Cover mixed valid and
   invalid candidates, positive results, exact error attribution, immutability
   and boundary refusal. Assert nonzero expected fixture/test counts so a filter
