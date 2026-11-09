@@ -178,6 +178,73 @@ pub fn validate_url_spelling(raw: &str, parsed: &url::Url) -> Result<(), String>
     Ok(())
 }
 
+/// Validate a literal operator-configured bidder endpoint of at most 2048 UTF-8 bytes.
+///
+/// Public HTTPS destinations are accepted. With `allow_insecure`, HTTP and HTTPS
+/// also accept exactly `127.0.0.1`, `[::1]`, or case-insensitive `localhost`.
+///
+/// # Errors
+/// Returns only static reason categories for malformed, templated, credentialed,
+/// fragmented, or unsafe destinations; rejected input is never included.
+pub fn validate_configured_bidder_endpoint(
+    raw: &str,
+    allow_insecure: bool,
+) -> Result<(), &'static str> {
+    if raw.is_empty() || raw.len() > 2048 {
+        return Err("endpoint length is invalid");
+    }
+    if raw.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err("endpoint contains control characters");
+    }
+    if raw.contains("{{") || raw.contains("}}") {
+        return Err("endpoint templates are forbidden");
+    }
+    let parsed = url::Url::parse(raw).map_err(|_error| "endpoint URL is malformed")?;
+    validate_url_spelling(raw, &parsed).map_err(|_error| "endpoint URL spelling is invalid")?;
+    if parsed.host_str().is_none() {
+        return Err("endpoint authority is missing");
+    }
+    let authority = raw
+        .split_once("://")
+        .map_or("", |(_, rest)| rest)
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default();
+    if authority.contains('@') || !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("endpoint userinfo is forbidden");
+    }
+    if parsed.fragment().is_some() {
+        return Err("endpoint fragments are forbidden");
+    }
+    if is_localhost_alias_host(raw) {
+        return Err("endpoint localhost aliases are forbidden");
+    }
+    let is_loopback = is_loopback_range(raw);
+    if is_loopback {
+        // URL parsing canonicalizes alternative IP spellings and percent-encoded
+        // DNS labels. The local exception also requires the literal raw host.
+        let raw_host = if authority.starts_with('[') {
+            authority.split_inclusive(']').next()
+        } else {
+            authority.split(':').next()
+        }
+        .unwrap_or_default();
+        let exact_loopback = raw_host == "127.0.0.1"
+            || raw_host == "[::1]"
+            || raw_host.eq_ignore_ascii_case("localhost");
+        if !allow_insecure || !exact_loopback {
+            return Err("endpoint loopback authority is forbidden");
+        }
+    }
+    if !is_loopback && parsed.scheme() == "http" {
+        return Err("endpoint requires HTTPS");
+    }
+    if endpoint_has_private_ip_authority(raw) {
+        return Err("endpoint private IP authority is forbidden");
+    }
+    Ok(())
+}
+
 /// Validate path/query placeholders against their owning implementation.
 /// `Host` remains an authority token, not a declared value binding.
 ///
@@ -657,6 +724,286 @@ pub fn endpoint_host(endpoint: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{is_exact_loopback_literal, is_localhost_alias_host, is_loopback_range};
+
+    #[test]
+    fn configured_endpoint_accepts_public_https_variations() {
+        for endpoint in [
+            "https://bidder.example",
+            "https://bidder.example/openrtb2/auction",
+            "https://bidder.example?site=one&format=json",
+            "https://bidder.example:8443",
+            "https://bidder.example:443",
+            "https://bidder.example/a%20b?redirect=a%2Fb",
+            "https://bidder.example/user@site?contact=a@b",
+            "HTTPS://BIDDER.EXAMPLE/openrtb2/auction?site=one",
+            "https://8.8.8.8/openrtb2/auction",
+            "https://[2606:4700:4700::1111]:8443/openrtb2/auction",
+        ] {
+            for allow_insecure in [false, true] {
+                assert_eq!(
+                    crate::validate_configured_bidder_endpoint(endpoint, allow_insecure),
+                    Ok(()),
+                    "{endpoint}, allow_insecure={allow_insecure}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_accepts_only_enabled_exact_loopbacks() {
+        for scheme in ["http", "https"] {
+            for host in ["127.0.0.1", "[::1]", "localhost", "LOCALHOST"] {
+                for port in ["", ":8787", ":443"] {
+                    let endpoint = format!("{scheme}://{host}{port}/auction?site=one");
+                    assert_eq!(
+                        crate::validate_configured_bidder_endpoint(&endpoint, true),
+                        Ok(()),
+                        "{endpoint}"
+                    );
+                    assert!(
+                        crate::validate_configured_bidder_endpoint(&endpoint, false).is_err(),
+                        "{endpoint}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_public_http_in_both_modes() {
+        for allow_insecure in [false, true] {
+            assert!(
+                crate::validate_configured_bidder_endpoint(
+                    "http://bidder.example/auction",
+                    allow_insecure
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_normalized_and_alternate_loopbacks() {
+        for host in [
+            "127.0.0.2",
+            "127.1",
+            "2130706433",
+            "0x7f000001",
+            "0177.0.0.1",
+            "127.0.0.1.",
+            "[0:0:0:0:0:0:0:1]",
+            "[0::1]",
+            "localhost.",
+            "LOCALHOST..",
+            "%6cocalhost",
+            "%31%32%37.0.0.1",
+        ] {
+            for scheme in ["http", "https"] {
+                for allow_insecure in [false, true] {
+                    let endpoint = format!("{scheme}://{host}:8787/auction");
+                    assert!(
+                        crate::validate_configured_bidder_endpoint(&endpoint, allow_insecure)
+                            .is_err(),
+                        "{endpoint}, allow_insecure={allow_insecure}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_private_reserved_and_mapped_ips() {
+        for host in [
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.0.1",
+            "100.64.0.1",
+            "169.254.0.1",
+            "0.0.0.0",
+            "192.0.2.1",
+            "198.18.0.1",
+            "224.0.0.1",
+            "255.255.255.255",
+            "[::]",
+            "[fc00::1]",
+            "[fe80::1]",
+            "[fec0::1]",
+            "[2001:db8::1]",
+            "[ff02::1]",
+            "[::ffff:127.0.0.1]",
+            "[::ffff:8.8.8.8]",
+            "[64:ff9b::808:808]",
+        ] {
+            for allow_insecure in [false, true] {
+                let endpoint = format!("https://{host}/auction");
+                assert!(
+                    crate::validate_configured_bidder_endpoint(&endpoint, allow_insecure).is_err(),
+                    "{endpoint}, allow_insecure={allow_insecure}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_localhost_alias_services() {
+        for host in [
+            "sub.localhost",
+            "nip.io",
+            "127.0.0.1.nip.io",
+            "app.xip.io",
+            "app.lvh.me",
+            "app.localtest.me",
+            "app.vcap.me",
+            "APP.LVH.ME.",
+        ] {
+            for allow_insecure in [false, true] {
+                let endpoint = format!("https://{host}/auction");
+                assert!(
+                    crate::validate_configured_bidder_endpoint(&endpoint, allow_insecure).is_err(),
+                    "{endpoint}, allow_insecure={allow_insecure}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_missing_or_repaired_authority() {
+        for endpoint in [
+            "",
+            "bidder.example/auction",
+            "//bidder.example/auction",
+            "https:bidder.example/auction",
+            "https:/bidder.example/auction",
+            "https:///bidder.example/auction",
+            "https:////bidder.example/auction",
+            "https://",
+            "https://?bidder.example",
+            "https://#bidder.example",
+            "https://[broken/auction",
+            "https://%zz/auction",
+            "ftp://bidder.example/auction",
+            r"https://bidder.example\auction",
+            r"https:\\bidder.example\auction",
+        ] {
+            for allow_insecure in [false, true] {
+                assert!(
+                    crate::validate_configured_bidder_endpoint(endpoint, allow_insecure).is_err(),
+                    "{endpoint:?}, allow_insecure={allow_insecure}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_any_authority_userinfo_marker() {
+        for endpoint in [
+            "https://@bidder.example/auction",
+            "https://:@bidder.example/auction",
+            "https://operator@bidder.example/auction",
+            "https://operator:secret@bidder.example/auction",
+            "https://operator%40name@bidder.example/auction",
+            "https://@@bidder.example/auction",
+            "http://@localhost:8787/auction",
+        ] {
+            for allow_insecure in [false, true] {
+                assert!(
+                    crate::validate_configured_bidder_endpoint(endpoint, allow_insecure).is_err(),
+                    "{endpoint}, allow_insecure={allow_insecure}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_fragments_including_empty() {
+        for endpoint in [
+            "https://bidder.example/auction#",
+            "https://bidder.example/auction#fragment",
+            "https://bidder.example?site=one#fragment",
+        ] {
+            assert!(crate::validate_configured_bidder_endpoint(endpoint, true).is_err());
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_template_delimiters_anywhere() {
+        for endpoint in [
+            "https://{{.Host}}/auction",
+            "https://bidder.example/{{.Path}}",
+            "https://bidder.example/auction?site={{.Site}}",
+            "https://bidder.example/auction?site={{",
+            "https://bidder.example/auction?site=}}",
+        ] {
+            assert!(crate::validate_configured_bidder_endpoint(endpoint, true).is_err());
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_whitespace_and_ascii_controls() {
+        for whitespace in [' ', '\t', '\n', '\r', '\u{a0}', '\u{2003}'] {
+            for endpoint in [
+                format!("{whitespace}https://bidder.example/auction"),
+                format!("https://bidder.example/auction{whitespace}"),
+                format!("https://bidder.example/auc{whitespace}tion"),
+            ] {
+                assert!(
+                    crate::validate_configured_bidder_endpoint(&endpoint, true).is_err(),
+                    "{endpoint:?}"
+                );
+            }
+        }
+        for control in (0_u8..=31).chain([127]) {
+            let endpoint = format!("https://bidder.example/auc{}tion", char::from(control));
+            assert!(
+                crate::validate_configured_bidder_endpoint(&endpoint, true).is_err(),
+                "{endpoint:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_enforces_independent_2048_and_2049_byte_boundaries() {
+        let at_limit = format!("https://bidder.example/{}", "a".repeat(2025));
+        let over_limit = format!("https://bidder.example/{}", "a".repeat(2026));
+        assert_eq!(at_limit.len(), 2048);
+        assert_eq!(over_limit.len(), 2049);
+        assert_eq!(
+            crate::validate_configured_bidder_endpoint(&at_limit, false),
+            Ok(())
+        );
+        assert!(crate::validate_configured_bidder_endpoint(&over_limit, false).is_err());
+    }
+
+    #[test]
+    fn configured_endpoint_length_limit_counts_utf8_bytes() {
+        let at_limit = format!("https://bidder.example/{}a", "\u{e9}".repeat(1012));
+        let over_limit = format!("https://bidder.example/{}aa", "\u{e9}".repeat(1012));
+        assert_eq!(at_limit.len(), 2048);
+        assert_eq!(over_limit.len(), 2049);
+        assert_eq!(
+            crate::validate_configured_bidder_endpoint(&at_limit, false),
+            Ok(())
+        );
+        assert!(crate::validate_configured_bidder_endpoint(&over_limit, false).is_err());
+    }
+
+    #[test]
+    fn configured_endpoint_errors_are_static_and_sanitized() {
+        for endpoint in [
+            "https://secret-marker@bidder.example/auction",
+            "https://bidder.example/secret-marker#fragment",
+            "https://bidder.example/secret-marker/{{.Path}}",
+            "https://10.0.0.1/secret-marker",
+            "https:///bidder.example/secret-marker",
+            "http://bidder.example/secret-marker",
+        ] {
+            let error: &'static str = crate::validate_configured_bidder_endpoint(endpoint, true)
+                .expect_err("invalid endpoint must be rejected");
+            assert!(!error.contains("secret-marker"));
+            assert!(!error.contains("bidder.example"));
+            assert!(!error.contains("10.0.0.1"));
+        }
+    }
 
     #[test]
     fn loopback_dns_classification_ignores_root_dots() {

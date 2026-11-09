@@ -1,7 +1,7 @@
 //! Exchange-owned outbound URL policy, shared by the sink and convenience API.
 
 use auctioneer_bidder::{
-    BidderError, BidderRequestInfo, EndpointRejectReason, EndpointValidator,
+    BidderError, BidderRequestInfo, ConfiguredEndpoint, EndpointRejectReason, EndpointValidator,
     MAX_RETAINED_SINK_ERRORS,
 };
 use auctioneer_config_data::types::BidderInfo;
@@ -13,16 +13,22 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 /// # Errors
 /// Returns code 5 with fixed category text, never raw URL or parser details.
 pub fn validate_endpoint(url: &str, info: &BidderInfo) -> Result<(), BidderError> {
+    validate_endpoint_policy(url, &info.endpoint, info.host_allowlist.as_deref())
+}
+
+fn validate_endpoint_policy(
+    url: &str,
+    template: &str,
+    hosts: Option<&[String]>,
+) -> Result<(), BidderError> {
     if url.contains("{{.") {
         return Err(public_error(EndpointRejectReason::TemplateUnresolved));
     }
     let parsed = url::Url::parse(url)
         .map_err(|_parse_error| public_error(EndpointRejectReason::MalformedUrl))?;
-    let allow = info
-        .host_allowlist
-        .as_ref()
-        .map(|hosts| hosts.iter().map(String::as_str).collect::<Vec<_>>());
-    validate_parsed(&parsed, &info.endpoint, allow.as_deref()).map_err(public_error)
+    let allow =
+        hosts.map(|allowed_hosts| allowed_hosts.iter().map(String::as_str).collect::<Vec<_>>());
+    validate_parsed(&parsed, template, allow.as_deref()).map_err(public_error)
 }
 
 fn public_error(reason: EndpointRejectReason) -> BidderError {
@@ -199,6 +205,7 @@ fn is_reserved_ipv6(v6: Ipv6Addr) -> bool {
 /// bounded category diagnostics remain available to direct callers.
 pub struct ExchangeEndpointValidator<'info> {
     info: &'info BidderInfo,
+    configured_endpoint: Option<ConfiguredEndpoint<'info>>,
     /// The message from each rejection, in rejection order, BOUNDED at
     /// [`MAX_RETAINED_SINK_ERRORS`].
     ///
@@ -211,8 +218,16 @@ impl<'info> ExchangeEndpointValidator<'info> {
     /// Open a validator over one bidder's configured surface.
     #[must_use]
     pub const fn new(info: &'info BidderInfo) -> Self {
+        Self::with_configured_endpoint(info, None)
+    }
+
+    pub(crate) const fn with_configured_endpoint(
+        info: &'info BidderInfo,
+        configured_endpoint: Option<ConfiguredEndpoint<'info>>,
+    ) -> Self {
         Self {
             info,
+            configured_endpoint,
             rejections: RefCell::new(Vec::new()),
         }
     }
@@ -235,7 +250,11 @@ impl EndpointValidator for ExchangeEndpointValidator<'_> {
         url: &url::Url,
         _request_info: &BidderRequestInfo<'_>,
     ) -> Result<(), EndpointRejectReason> {
-        match validate_endpoint(url.as_str(), self.info) {
+        let result = match self.configured_endpoint {
+            Some(endpoint) => validate_endpoint_policy(url.as_str(), endpoint.as_str(), None),
+            None => validate_endpoint(url.as_str(), self.info),
+        };
+        match result {
             Ok(()) => Ok(()),
             Err(err) => {
                 // BOUNDED, like the sink's own error list and for the
@@ -280,6 +299,66 @@ mod tests {
     use super::{ExchangeEndpointValidator, MAX_RETAINED_SINK_ERRORS};
     use auctioneer_bidder::{BidderName, BidderRequestInfo, EndpointValidator as _, EntryPoint};
     use auctioneer_config_data::types::BidderInfo;
+
+    #[test]
+    fn configured_endpoint_captures_authority_independently_of_request_info() {
+        use auctioneer_bidder::ConfiguredEndpoint;
+
+        let info = refusing_info();
+        let selected =
+            ConfiguredEndpoint::new("https://configured.example.test:8443/auction?q=1").unwrap();
+        let validator = ExchangeEndpointValidator::with_configured_endpoint(&info, Some(selected));
+        let currency = Vec::new();
+        let mut supplied = request_info(&currency);
+        supplied.endpoint_template = "https://forged.example.test/auction";
+        supplied.host_allowlist = Some(&["forged.example.test"]);
+
+        let accepted = url::Url::parse("https://configured.example.test:8443/auction?q=1").unwrap();
+        validator.validate(&accepted, &supplied).unwrap();
+        for raw in [
+            "https://forged.example.test:8443/auction",
+            "https://configured.example.test/auction",
+            "https://configured.example.test:8444/auction",
+            "http://configured.example.test:8443/auction",
+            "https://user@configured.example.test:8443/auction",
+            "https://127.0.0.2:8443/auction",
+        ] {
+            let rejected = url::Url::parse(raw).unwrap();
+            assert!(validator.validate(&rejected, &supplied).is_err(), "{raw}");
+        }
+        assert_eq!(validator.take_rejections().len(), 6);
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_before_body_construction_and_refunds_the_call() {
+        use auctioneer_bidder::{CallBudget, ConfiguredEndpoint, OutboundRequestSink, SinkLimits};
+        use std::cell::Cell;
+
+        let info = refusing_info();
+        let selected = ConfiguredEndpoint::new("https://configured.example.test/auction").unwrap();
+        let validator = ExchangeEndpointValidator::with_configured_endpoint(&info, Some(selected));
+        let currency = Vec::new();
+        let supplied = request_info(&currency);
+        let budget = CallBudget::new(1);
+        let body_writes = Cell::new(0_usize);
+        let mut sink = OutboundRequestSink::new(SinkLimits::new(1024, 1), &budget, &validator);
+        let result = sink.push_request(
+            &supplied,
+            |meta| {
+                meta.set_method("POST")?;
+                meta.set_url("https://forged.example.test/auction")?;
+                meta.imp_id("i")
+            },
+            |writer| {
+                body_writes.set(body_writes.get() + 1_usize);
+                writer.write_all(b"{}")
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(body_writes.get(), 0_usize);
+        assert_eq!(budget.remaining(), 1);
+        assert!(sink.into_outcome().accepted.is_empty());
+    }
 
     /// A bidder whose configured surface rejects everything this test
     /// offers, so every `validate` call is a rejection.

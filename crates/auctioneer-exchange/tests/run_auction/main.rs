@@ -43,7 +43,7 @@ mod tests {
     use serde_json::{Value, json};
     use std::collections::{BTreeMap, BTreeSet};
     use std::sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     };
     use std::time::Duration;
@@ -122,6 +122,112 @@ mod tests {
                 max_parsed_nodes: 0x0001_0000,
             },
             ..HostConfig::default()
+        }
+    }
+
+    #[derive(Default)]
+    struct EndpointFanout(Mutex<Vec<String>>);
+
+    #[async_trait(?Send)]
+    impl BidderFanout for EndpointFanout {
+        async fn send_all(
+            &self,
+            calls: Vec<BidderCall>,
+            _deadline: AuctionDeadline,
+        ) -> Result<Vec<BidderCallResult>, FanoutInternalError> {
+            self.0
+                .lock()
+                .unwrap()
+                .extend(calls.iter().map(|call| call.request.url().to_owned()));
+            Ok(calls
+                .into_iter()
+                .map(|_| BidderCallResult {
+                    result: Ok(BidderHttpResponse::new(204, vec![], vec![])),
+                    elapsed: Duration::from_millis(1),
+                })
+                .collect())
+        }
+    }
+
+    #[test]
+    fn configured_endpoint_reaches_the_real_auction_sink_without_request_overrides() {
+        const COMPILED: &str = "https://compiled.example.test/original";
+        const CONFIGURED: &str = "https://configured.example.test:8443/auction?route=one";
+        for selected in [
+            None,
+            Some(CONFIGURED),
+            Some("http://unsafe.example.test/bid"),
+        ] {
+            let mut registry = BidderRegistry::new();
+            registry
+                .register(
+                    leak_info("fake_bb", COMPILED),
+                    Box::new(FakeBidder {
+                        configured_endpoint: selected,
+                        ..FakeBidder::default()
+                    }),
+                )
+                .unwrap();
+            let request = prepare(
+                serde_json::from_value(json!({
+                    "id": "endpoint-test", "site": {"page": "https://publisher.example"},
+                    "regs": {"gdpr": 0_u8},
+                    "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32},
+                        "ext": {"bidder": {"fake_bb": {
+                            "endpoint": "https://forged.example.test/bid"
+                        }}}}]
+                }))
+                .unwrap(),
+                &RequestHeaders::default(),
+                &IMP_CAP_NOT_UNDER_TEST,
+            )
+            .unwrap();
+            let before = serde_json::to_value(&*request).unwrap();
+            let host = host_with_caps(1000, 2000);
+            let config = AccountConfig::default();
+            let account = ResolvedAccount {
+                id: "publisher".into(),
+                source: AccountSource::DefaultFallback,
+                config: &config,
+            };
+            let fanout = EndpointFanout::default();
+            let clock = FakeClock::new(time::OffsetDateTime::UNIX_EPOCH);
+            let rng = SeededRng::new(42);
+            let ctx = AuctionContext::with_request_start(
+                clock.now_monotonic(),
+                &host,
+                &account,
+                &registry,
+                &fanout,
+                &clock,
+                &rng,
+                GvlStore::baked(),
+                Gcl::baked(),
+                clock.now(),
+                false,
+            );
+            let plan = AuctionPlan::new(
+                ResolvedAliases::empty(),
+                BTreeSet::new(),
+                response_budgets(ctx.bidders, ctx.host),
+                BTreeMap::new(),
+            );
+            let mut audit = DisclosureAudit::default();
+            let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+                .unwrap()
+                .into_bid_response()
+                .unwrap();
+            let seen = fanout.0.lock().unwrap();
+            if selected == Some("http://unsafe.example.test/bid") {
+                assert!(seen.is_empty());
+                assert_eq!(
+                    response.ext.as_ref().unwrap()["errors"]["fake_bb"][0]["code"],
+                    5_u32
+                );
+            } else {
+                assert_eq!(seen.as_slice(), &[selected.unwrap_or(COMPILED)]);
+            }
+            assert_eq!(serde_json::to_value(&*request).unwrap(), before);
         }
     }
 

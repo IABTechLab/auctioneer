@@ -17,6 +17,8 @@ use auctioneer_openrtb::types::bid_request::BidRequest;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct FakeBidder<'a> {
+    /// Optional operator destination used by shared endpoint-policy controls.
+    pub configured_endpoint: Option<&'a str>,
     pub credential_reference: Option<&'a str>,
     pub construction_observer: Option<&'a (dyn Fn(&BidderRequestInfo<'_>) + Send + Sync)>,
     pub request_observer: Option<&'a RequestObserver>,
@@ -44,6 +46,7 @@ pub struct FakeBidder<'a> {
 impl Default for FakeBidder<'_> {
     fn default() -> Self {
         Self {
+            configured_endpoint: None,
             credential_reference: None,
             construction_observer: None,
             request_observer: None,
@@ -83,6 +86,16 @@ impl FakeBidder<'_> {
 }
 
 impl Bidder for FakeBidder<'_> {
+    fn configured_endpoint<'a>(
+        &'a self,
+        _requested: Option<&'a crate::BidderSettings>,
+        _base: Option<&'a crate::BidderSettings>,
+    ) -> Result<Option<crate::ConfiguredEndpoint<'a>>, BidderError> {
+        self.configured_endpoint
+            .map(crate::ConfiguredEndpoint::new)
+            .transpose()
+    }
+
     fn credential_key<'a>(
         &'a self,
         request: &BidRequest,

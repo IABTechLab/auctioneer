@@ -8,6 +8,36 @@
 
 use crate::request_info::BidderRequestInfo;
 
+/// A literal operator endpoint admitted before request construction.
+///
+/// Borrows the bounded configuration owner. The private field prevents a bidder
+/// from widening the exchange's captured destination with an unchecked string.
+#[derive(Clone, Copy)]
+pub struct ConfiguredEndpoint<'a>(&'a str);
+
+impl<'a> ConfiguredEndpoint<'a> {
+    /// Admit one configured destination using this build's URL policy.
+    ///
+    /// # Errors
+    /// Returns a fixed code-5 error for malformed, oversized or unsafe URLs.
+    pub fn new(value: &'a str) -> Result<Self, crate::BidderError> {
+        auctioneer_config::validate_configured_bidder_endpoint(
+            value,
+            cfg!(feature = "insecure-bidders"),
+        )
+        .map_err(|_reason| {
+            crate::BidderError::failed_to_request_bids("invalid configured bidder endpoint")
+        })?;
+        Ok(Self(value))
+    }
+
+    /// Borrow the admitted literal without normalization or another allocation.
+    #[must_use]
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
+}
+
 /// Why an expanded outbound URL was refused.
 ///
 /// `#[non_exhaustive]` so a new deployment policy can add a reason
@@ -50,6 +80,26 @@ pub trait EndpointValidator {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn configured_endpoint_borrows_the_literal_and_sanitizes_rejections() {
+        use std::ptr;
+
+        let literal = String::from("https://configured.example.test:8443/bid?route=one");
+        let endpoint = super::ConfiguredEndpoint::new(&literal).unwrap();
+        assert!(ptr::eq(endpoint.as_str().as_ptr(), literal.as_ptr()));
+        assert_eq!(endpoint.as_str(), literal);
+        for invalid in [
+            "https://private-canary@configured.example.test/bid",
+            "https://127.0.0.2/private-canary",
+            "http://configured.example.test/private-canary",
+        ] {
+            let error = super::ConfiguredEndpoint::new(invalid).err().unwrap();
+            assert_eq!(error.code, 5);
+            assert_eq!(error.message, "invalid configured bidder endpoint");
+            assert!(!error.message.contains("private-canary"));
+        }
+    }
+
     use super::{EndpointRejectReason, EndpointValidator};
     use crate::bidder::EntryPoint;
     use crate::request_info::BidderRequestInfo;

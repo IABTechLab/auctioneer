@@ -230,6 +230,43 @@ Run them from the workspace root.
 | Fastly Compute@Edge | `fastly compute serve`                                    |
 | Spin                | `spin up --from crates/auctioneer-adapter-spin`           |
 
+### Configure a Mocktioneer destination
+
+Mocktioneer is available only in builds with `insecure-bidders`. Its default
+destination is `http://127.0.0.1:8787/openrtb2/auction`. To use another mock
+deployment, add its endpoint to your runtime policy:
+
+```toml
+[bidders.mocktioneer]
+enabled = true
+
+[bidders.mocktioneer.settings]
+implementation = "mocktioneer"
+
+[bidders.mocktioneer.settings.values]
+endpoint = "https://mock-bidder.example.test/openrtb2/auction"
+```
+
+Use a literal absolute URL of at most 2048 UTF-8 bytes. Public destinations
+require HTTPS; the development feature also allows HTTP to exact loopback
+literals. Private/reserved addresses, localhost-alias services, credentials,
+fragments and templates are rejected. Omitted/null settings inherit the base
+bidder setting, then the compiled default; an empty endpoint is invalid.
+Impression parameters cannot override the selected destination.
+
+Validate and push the complete policy to local Fastly/Viceroy from the workspace
+root, then restart Viceroy to read the updated local config store:
+
+```sh
+auctioneer-cli config validate --app-config auctioneer.fastly-local.toml --no-env
+auctioneer-cli config push --adapter fastly --local --app-config auctioneer.fastly-local.toml --no-env
+```
+
+Use the same Mocktioneer-enabled feature set for the CLI and the serving guest.
+Endpoint changes take effect through the existing config publication lifecycle;
+they require no endpoint-specific rebuild. The other bidders' compiled endpoint
+and host-allowlist rules remain unchanged.
+
 ## Operational endpoints (`/_auctioneer/*`)
 
 `GET /_auctioneer/health/gvl` reports GVL archive health (archive age,

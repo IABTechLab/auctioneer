@@ -2,6 +2,9 @@ key = "mocktioneer"
 factory = true
 required_feature = "insecure-bidders"
 
+[settings.fields]
+endpoint = "optional_string"
+
 [endpoint.fields]
 account_id = "AccountID"
 publisher_id = "PublisherID"

@@ -68,4 +68,6 @@ pub mod url_safety;
 #[cfg(all(feature = "config-model", not(feature = "build-support")))]
 mod url_safety;
 #[cfg(feature = "config-model")]
+pub use url_safety::validate_configured_bidder_endpoint;
+#[cfg(feature = "config-model")]
 pub mod usersync;

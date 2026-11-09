@@ -42,9 +42,9 @@ use crate::{
 use auctioneer_bidder::schema::{SchemaWorkBudget, native_schema_work_budget};
 use auctioneer_bidder::{
     Bidder, BidderHttpRequest, BidderName, BidderRequestInfo, BidderResponse, CallBudget,
-    ConstructionDiagnostics, DebugBodySchema, FinalizeError, OutboundBuildError,
-    OutboundRequestMeta, OutboundRequestSink, SinkLimits, SinkOutcome, TransportFinalize, TypedBid,
-    finalize_for_transport,
+    ConfiguredEndpoint, ConstructionDiagnostics, DebugBodySchema, FinalizeError,
+    OutboundBuildError, OutboundRequestMeta, OutboundRequestSink, SinkLimits, SinkOutcome,
+    TransportFinalize, TypedBid, finalize_for_transport,
 };
 use auctioneer_config_data::types::{
     BidderInfo, Compression as CfgCompression, IpKeepBits, MediaType,
@@ -1017,11 +1017,12 @@ struct MakeRequestsOutput {
     schema_work: SchemaWorkBudget,
 }
 
-fn bind_bidder_settings<'a>(
+fn bind_bidder_configuration<'a>(
     ctx: &'a AuctionContext<'_>,
     pbr: &PerBidderRequest,
+    adapter: &'a dyn Bidder,
     info: &mut BidderRequestInfo<'a>,
-) -> Result<(), auctioneer_bidder::BidderError> {
+) -> Result<Option<ConfiguredEndpoint<'a>>, auctioneer_bidder::BidderError> {
     let requested = ctx
         .bidder_settings
         .and_then(|source| source.settings(pbr.bidder.as_str()));
@@ -1034,7 +1035,14 @@ fn bind_bidder_settings<'a>(
         .ok()
         .and_then(|index| ctx.bidder_bindings.get(index))
         .map(|binding| binding.implementation);
-    info.set_settings(implementation, requested, base)
+    info.set_settings(implementation, requested, base)?;
+    let endpoint = adapter.configured_endpoint(info.settings(), info.base_settings())?;
+    if let Some(selected) = endpoint {
+        info.endpoint_template = selected.as_str();
+        info.endpoint_macros = &[];
+        info.host_allowlist = None;
+    }
+    Ok(endpoint)
 }
 
 async fn run_make_requests(
@@ -1070,16 +1078,20 @@ async fn run_make_requests(
     );
     info_for_adapter.original_request_ext_shape = ctx.original_request_ext_shape;
     info_for_adapter.floor_currency = ctx.floor_currency;
-    if let Err(error) = bind_bidder_settings(ctx, pbr, &mut info_for_adapter) {
-        out.bidder_pre_errors
-            .entry(pbr.bidder.clone())
-            .or_default()
-            .push(ErrorEntry {
-                code: error.code,
-                message: error.message,
-            });
-        return;
-    }
+    let configured_endpoint =
+        match bind_bidder_configuration(ctx, pbr, adapter, &mut info_for_adapter) {
+            Ok(endpoint) => endpoint,
+            Err(error) => {
+                out.bidder_pre_errors
+                    .entry(pbr.bidder.clone())
+                    .or_default()
+                    .push(ErrorEntry {
+                        code: error.code,
+                        message: error.message,
+                    });
+                return;
+            }
+        };
     pbr.request.tmax = Some(i64::from(tmax.bidder_visible_tmax_ms));
     apply_legacy_projection(&mut pbr.request, projection, info.openrtb.gpp_supported);
     if !schema::admit(ctx, pbr, tmax, out) {
@@ -1109,7 +1121,7 @@ async fn run_make_requests(
     };
     info_for_adapter.credentials = credentials.as_ref();
 
-    let validator = ExchangeEndpointValidator::new(info);
+    let validator = ExchangeEndpointValidator::with_configured_endpoint(info, configured_endpoint);
     let mut sink = OutboundRequestSink::new(
         SinkLimits::new(
             usize::try_from(ctx.host.resource_limits.max_outbound_raw_bytes).unwrap_or(usize::MAX),

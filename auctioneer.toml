@@ -290,6 +290,7 @@ returnallbidstatus_default = false
 # credentials_secret: a secret-store key, never the credential bundle itself.
 # external_url: publisher-facing URL used by the owning protocol.
 # region: "us-east", "us-west", "eu" or "apac" for the regional implementation.
+# endpoint: literal operator destination for development-only Mocktioneer.
 # BEGIN BIDDER EXAMPLE
 # [bidders.fake_bidder]
 # enabled = true
@@ -309,6 +310,7 @@ returnallbidstatus_default = false
 # credentials_secret = "fake_credential_bundle"
 # external_url = "https://publisher.example"
 # region = "us-east"
+# endpoint = "https://mock-bidder.example.test/openrtb2/auction"
 # END BIDDER EXAMPLE
 
 # Optional floor-only currency conversion. Append this block to opt in; response
