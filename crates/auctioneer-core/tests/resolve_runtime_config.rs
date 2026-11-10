@@ -55,6 +55,7 @@ mod tests {
     use futures::executor::block_on;
     use http::{Method, Request, Uri};
     use std::mem;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Duration;
     use time::OffsetDateTime;
@@ -195,6 +196,13 @@ mod tests {
     }
 
     fn context_with(store: Arc<dyn ConfigStore>, fanout: Arc<RecordingFanout>) -> RequestContext {
+        context_with_registry(registry_of(store), fanout)
+    }
+
+    fn context_with_registry(
+        registry: ConfigRegistry,
+        fanout: Arc<RecordingFanout>,
+    ) -> RequestContext {
         config_funding::install();
         let handler_fanout: Arc<dyn BidderFanout + Send + Sync> = fanout;
         let clock: Arc<dyn Clock + Send + Sync> =
@@ -206,7 +214,7 @@ mod tests {
             .header("content-type", "application/json")
             .body(Body::from_bytes(fixture_body()))
             .expect("request builds");
-        request.extensions_mut().insert(registry_of(store));
+        request.extensions_mut().insert(registry);
         request
             .extensions_mut()
             .insert(TestFanoutHandle(handler_fanout));
@@ -301,6 +309,136 @@ mod tests {
                 .map(String::as_str),
             Some(passthrough_info().name.as_str()),
         );
+    }
+
+    struct CheckedStore {
+        inner: Arc<dyn ConfigStore>,
+        expected_key: &'static str,
+        bounded_reads: AtomicUsize,
+    }
+
+    impl CheckedStore {
+        fn new(inner: Arc<dyn ConfigStore>, expected_key: &'static str) -> Arc<Self> {
+            Arc::new(Self {
+                inner,
+                expected_key,
+                bounded_reads: AtomicUsize::new(0),
+            })
+        }
+
+        fn binding(self: &Arc<Self>, key: &str) -> ConfigStoreBinding {
+            ConfigStoreBinding {
+                handle: ConfigStoreHandle::new(Arc::<Self>::clone(self)),
+                default_key: key.to_owned(),
+            }
+        }
+    }
+
+    #[async_trait(?Send)]
+    impl ConfigStore for CheckedStore {
+        async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
+            panic!("runtime configuration must use bounded extraction")
+        }
+
+        async fn get_bounded(
+            &self,
+            key: &str,
+            clock: &MonotonicClock,
+            deadline: Deadline,
+            max_backend_bytes: u64,
+            max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<ConfigValue>, ConfigStoreError> {
+            assert_eq!(key, self.expected_key);
+            self.bounded_reads.fetch_add(1, Ordering::SeqCst);
+            self.inner
+                .get_bounded(key, clock, deadline, max_backend_bytes, max_value_bytes)
+                .await
+        }
+    }
+
+    #[test]
+    fn default_store_can_have_a_different_id_and_entry_key() {
+        let store = CheckedStore::new(Arc::new(KnownAliasBaseStore), "published_policy");
+        let registry = StoreRegistry::single_id(
+            "publisher_runtime".to_owned(),
+            store.binding("published_policy"),
+        );
+        let ctx = context_with_registry(registry, Arc::new(RecordingFanout::default()));
+        assert!(ctx.config_store_binding("auctioneer_runtime").is_none());
+        assert_eq!(store.bounded_reads.load(Ordering::SeqCst), 0);
+
+        let config = block_on(resolve_runtime_config(&ctx))
+            .expect("the declared default must load without the historical store id");
+
+        assert_eq!(
+            config.host.aliases.as_ref().unwrap()["fake_generic_alias"],
+            passthrough_info().name,
+        );
+        assert_eq!(store.bounded_reads.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn default_store_is_selected_when_the_historical_binding_is_also_present() {
+        let selected = CheckedStore::new(Arc::new(KnownAliasBaseStore), "selected_policy");
+        let historical = CheckedStore::new(Arc::new(UnknownAliasBaseStore), "other_policy");
+        let registry = StoreRegistry::from_parts(
+            [
+                (
+                    "auctioneer_runtime".to_owned(),
+                    historical.binding("other_policy"),
+                ),
+                (
+                    "zz_publisher_runtime".to_owned(),
+                    selected.binding("selected_policy"),
+                ),
+            ]
+            .into(),
+            "zz_publisher_runtime".to_owned(),
+        )
+        .expect("the selected default is declared");
+        let ctx = context_with_registry(registry, Arc::new(RecordingFanout::default()));
+        assert!(ctx.config_store_binding("auctioneer_runtime").is_some());
+        assert_eq!(selected.bounded_reads.load(Ordering::SeqCst), 0);
+        assert_eq!(historical.bounded_reads.load(Ordering::SeqCst), 0);
+
+        block_on(resolve_runtime_config(&ctx)).expect("only the declared default is selected");
+
+        assert_eq!(selected.bounded_reads.load(Ordering::SeqCst), 1);
+        assert_eq!(historical.bounded_reads.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn default_store_validation_failure_never_falls_back_to_the_historical_binding() {
+        let selected = CheckedStore::new(Arc::new(UnknownAliasBaseStore), "selected_policy");
+        let historical = CheckedStore::new(Arc::new(KnownAliasBaseStore), "other_policy");
+        let registry = StoreRegistry::from_parts(
+            [
+                (
+                    "auctioneer_runtime".to_owned(),
+                    historical.binding("other_policy"),
+                ),
+                (
+                    "zz_publisher_runtime".to_owned(),
+                    selected.binding("selected_policy"),
+                ),
+            ]
+            .into(),
+            "zz_publisher_runtime".to_owned(),
+        )
+        .expect("the selected default is declared");
+        let ctx = context_with_registry(registry, Arc::new(RecordingFanout::default()));
+        assert!(ctx.config_store_binding("auctioneer_runtime").is_some());
+
+        let error = block_on(resolve_runtime_config(&ctx))
+            .expect_err("a malformed default must not use another valid publication");
+
+        assert!(matches!(error, RuntimeConfigError::MalformedHost { .. }));
+        assert_eq!(
+            error.into_response().unwrap().status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(selected.bounded_reads.load(Ordering::SeqCst), 1);
+        assert_eq!(historical.bounded_reads.load(Ordering::SeqCst), 0);
     }
 
     mod policy_envelope {

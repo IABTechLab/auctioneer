@@ -28,12 +28,9 @@ use edgezero_core::body::Body;
 use edgezero_core::config_store::ConfigExtractionLimits;
 use edgezero_core::context::RequestContext;
 use edgezero_core::error::{EdgeError, StoreExtractionReason};
-use edgezero_core::extractor::AppConfig;
+use edgezero_core::extractor::{AppConfig, FromRequest as _};
 use edgezero_core::http::{Response, StatusCode, response_builder};
 use std::time::Duration;
-
-/// The logical config-store id the deploy binds `auctioneer.toml` to.
-const CONFIG_STORE_ID: &str = "auctioneer_runtime";
 
 /// Fixed bound for the SDK's root-config and secret extraction, independent of operator policy.
 pub const CONFIG_FETCH_TIMEOUT: Duration = Duration::from_secs(2);
@@ -319,8 +316,8 @@ impl RuntimeConfigError {
 /// store reads require the context's complete captured extraction tuple to fit
 /// the funded host declaration. Backend/secret outages and deadline expiry stay
 /// transient (503 with `Retry-After`); invalid keys retain their distinct refusal
-/// code and permanent 500 disposition. The bound key comes from the selected
-/// store binding, not [`CONFIG_STORE_ID`], which only selects the binding.
+/// code and permanent 500 disposition. The request context's declared default
+/// config-store binding selects both the store and its entry key.
 ///
 /// `/status` alone may explicitly take [`RuntimeConfigError::degrade_to_default`]
 /// after recording the closed fault code, because it makes no privacy decision.
@@ -366,14 +363,14 @@ async fn resolve_with_registry(
     if let Some(error) = cached_registry_error() {
         return Err(error.into());
     }
-    if ctx.config_store_binding(CONFIG_STORE_ID).is_none() {
+    if ctx.config_store_default_binding().is_none() {
         return Err(missing_config("no config store binding", None));
     }
     check_funding()?;
     initialize_registry()?;
-    AppConfig::<SdkAuctioneerAppConfig>::from_store(ctx, CONFIG_STORE_ID, None)
+    AppConfig::<SdkAuctioneerAppConfig>::from_request(ctx)
         .await
-        .map(|config| config.0)
+        .map(|AppConfig(config)| config.0)
         .map_err(classify_load_error)
 }
 
@@ -738,9 +735,9 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         let stores: ConfigRegistry = StoreRegistry::single_id(
-            super::CONFIG_STORE_ID.to_owned(),
+            "fake_default_config".to_owned(),
             ConfigStoreBinding {
-                default_key: super::CONFIG_STORE_ID.to_owned(),
+                default_key: "fake_default_entry".to_owned(),
                 handle: ConfigStoreHandle::new(Arc::new(NoReads)),
             },
         );
