@@ -205,16 +205,16 @@ fn main() {
         !declarations.is_empty(),
         "public declarations must not be empty"
     );
-    let mut gated = 0_usize;
+    let mut settings_owners = 0_usize;
     for declaration in declarations {
         let enabled = match declaration.required_feature {
             None => true,
             Some("insecure-bidders") => {
-                gated += 1;
                 insecure
             }
             Some(_) => panic!("unexpected factory feature"),
         };
+        settings_owners += usize::from(enabled && declaration.has_settings);
         let matching: Vec<_> = factories
             .iter()
             .filter(|row| row.key == declaration.key)
@@ -229,7 +229,7 @@ fn main() {
             let _: Box<dyn auctioneer_bidder::Bidder> = (registration.factory)();
         }
     }
-    assert!(gated > 0, "feature-gated declarations must not be empty");
+    assert!(settings_owners > 0, "typed settings owners must be available in both feature lanes");
     for registration in factories {
         assert!(
             declarations.iter().any(|row| row.key == registration.key),

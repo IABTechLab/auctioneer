@@ -37,6 +37,7 @@ mod tests {
     use tokio::time::{sleep, timeout};
 
     const WAIT: Duration = Duration::from_secs(10);
+    const LOCAL_ENDPOINT: &str = "http://127.0.0.1:8787/openrtb2/auction";
     const BIDDER_ALIAS: &str = "fake_privacy_wire";
     const ID_PATHS: &[&str] = &[
         "/user/id",
@@ -177,16 +178,18 @@ mod tests {
         fixture: &Value,
         policy: WirePolicy,
         client: &HttpClient,
-        bidder: &str,
+        bidder: &serving_catalog::ServingBidder,
     ) -> Request<Body> {
         let config_json = json!({
             "schema_version": 1_u8,
             "host": {
-                "aliases": {(BIDDER_ALIAS): bidder},
+                "aliases": {(BIDDER_ALIAS): bidder.name()},
                 "gdpr": {"enabled": false}, "ccpa": {"enforce": policy.enforce_ccpa},
                 "lmt": {"enforce": false},
             },
             "features": {"gzip_outbound": false},
+            "bidders": {(bidder.name()): {"enabled": true, "implementation": bidder.implementation,
+                "settings": {"endpoint": LOCAL_ENDPOINT}}},
             "accounts": {"wire-account": {"privacy": {
                 "ipv4": {"anon_keep_bits": 24_i32},
                 "ipv6": {"anon_keep_bits": 64_i32},
@@ -398,30 +401,26 @@ mod tests {
     }
 
     async fn privacy_wire_scenario() {
-        let local_bidders: Vec<_> = serving_catalog::default_active_publications()
+        let local_bidders: Vec<_> = serving_catalog::published()
             .into_iter()
             .filter(|row| {
                 let info = row.info;
                 !info.disabled
-                    && !info.uses_https
+                    && info.default_enabled == Some(false)
+                    && info.endpoint.is_none()
                     && info.endpoint_macros.is_empty()
                     && info.endpoint_compression.is_none()
                     && info.capabilities.site.contains(&MediaType::Banner)
                     && row.owner_expected_request_body.as_ref() == Some(&row.owner_request)
-                    && url::Url::parse(&info.endpoint).is_ok_and(|endpoint| {
-                        endpoint.scheme() == "http"
-                            && endpoint.host_str() == Some("127.0.0.1")
-                            && endpoint.port().is_some()
-                    })
             })
             .collect();
         assert_eq!(
             local_bidders.len(),
             1,
-            "one default-active loopback passthrough is required"
+            "one explicitly configurable passthrough is required"
         );
         let bidder = &local_bidders[0];
-        let endpoint = url::Url::parse(&bidder.info.endpoint).unwrap();
+        let endpoint = url::Url::parse(LOCAL_ENDPOINT).unwrap();
         assert_eq!(endpoint.scheme(), "http");
         assert_eq!(endpoint.host_str(), Some("127.0.0.1"));
         let listener = TcpListener::bind((
@@ -456,8 +455,7 @@ mod tests {
                 transmit_precise_geo: mask & 4 == 0,
                 transmit_tid: mask & 8 == 0,
             };
-            let response_bytes =
-                dispatch(&app, request(&original, policy, &client, bidder.name())).await;
+            let response_bytes = dispatch(&app, request(&original, policy, &client, bidder)).await;
             let response_json: Value =
                 serde_json::from_slice(&response_bytes).expect("auction JSON");
             assert!(

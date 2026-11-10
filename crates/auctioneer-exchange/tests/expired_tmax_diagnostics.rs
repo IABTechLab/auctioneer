@@ -35,7 +35,7 @@ mod tests {
 
     static GENERIC: LazyLock<BidderInfo> = LazyLock::new(|| BidderInfo {
         name: "fake_bb".into(),
-        endpoint: "https://demo.example.test/fake_bb".into(),
+        endpoint: Some("https://demo.example.test/fake_bb".into()),
         uses_https: true,
         ..BidderInfo::default()
     });

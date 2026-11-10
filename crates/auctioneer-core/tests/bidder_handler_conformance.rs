@@ -98,7 +98,7 @@ mod tests {
             .register_with_implementation(
                 Box::leak(Box::new(BidderInfo {
                     name: "fake_bidder".into(),
-                    endpoint: "https://{{.Host}}/auction".into(),
+                    endpoint: Some("https://{{.Host}}/auction".into()),
                     uses_https: true,
                     endpoint_compression: gzip.then_some(Compression::Gzip),
                     host_allowlist: Some(vec![host.to_owned()]),
@@ -284,7 +284,7 @@ mod tests {
                 .register_with_implementation(
                     Box::leak(Box::new(BidderInfo {
                         name: name.into(),
-                        endpoint: format!("https://bidder.example/{name}"),
+                        endpoint: Some(format!("https://bidder.example/{name}")),
                         uses_https: true,
                         ..BidderInfo::default()
                     })),

@@ -1,5 +1,7 @@
 # Configure Mocktioneer endpoints through runtime policy
 
+November 10 publication update: the approved [secure defaults design](../specs/2026-11-10-mocktioneer-secure-default-design.md) supersedes the feature gate and compiled-loopback fallback below.
+
 November 9 format update: the maintainer subsequently selected fields directly
 under `.settings` for every bidder. The [flat settings design](2026-11-09-flat-bidder-settings-design.md)
 supersedes the wrapper syntax recorded below; endpoint validation and authority

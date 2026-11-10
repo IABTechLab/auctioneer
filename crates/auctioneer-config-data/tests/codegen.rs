@@ -487,7 +487,7 @@ mod tests {
             native_only: false,
             alias_of: None,
             default_enabled: None,
-            endpoint: endpoint.to_owned(),
+            endpoint: Some(endpoint.to_owned()),
             maintainer: None,
             disabled: None,
             endpoint_compression: None,

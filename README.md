@@ -105,16 +105,16 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The `insecure-bidders` cargo feature on `auctioneer-config-data` enables
-deterministic loopback test bidders:
+The `insecure-bidders` Cargo feature permits development HTTP/loopback
+transport. Mocktioneer itself is available in normal builds:
 
 ```
-cargo test --workspace --features auctioneer-config-data/insecure-bidders
+cargo test --workspace --features insecure-bidders
 ```
 
 Axum's default `cargo test -p auctioneer-adapter-axum --all-targets` also runs the
-handler-to-socket privacy test. Its test-only dependency enables the loopback
-bidder; normal production builds retain the secure defaults. The test sweeps
+handler-to-socket privacy test. Its test-only dependency permits loopback
+transport; the fixture explicitly enables and configures its bidder. The test sweeps
 CCPA and all three disclosure activities independently.
 
 ## Auction privacy configuration
@@ -232,9 +232,8 @@ Run them from the workspace root.
 
 ### Configure a Mocktioneer destination
 
-Mocktioneer is available only in builds with `insecure-bidders`. Its default
-destination is `http://127.0.0.1:8787/openrtb2/auction`. To use another mock
-deployment, add its endpoint to your runtime policy:
+Mocktioneer is available in normal builds and is disabled by default. Enable
+it and configure its HTTPS destination in your runtime policy:
 
 ```toml
 [bidders.mocktioneer]
@@ -256,8 +255,9 @@ require HTTPS; the development feature also allows HTTP to exact loopback
 literals. Private/reserved addresses, localhost-alias services, credentials,
 fragments and templates are rejected. Use ASCII host names (punycode for
 internationalized names) and percent-encode characters the HTTP transport
-cannot represent. Omitted/null endpoint values inherit the base bidder setting,
-then the compiled default; an empty endpoint is invalid.
+cannot represent. Omitted/null endpoint values inherit the base bidder setting.
+An enabled Mocktioneer requires a resolved endpoint; it has no compiled default.
+An empty endpoint is invalid.
 Impression parameters cannot override the selected destination.
 
 Validate and push the complete policy to local Fastly/Viceroy from the workspace
@@ -268,8 +268,12 @@ auctioneer-cli config validate --app-config auctioneer.fastly-local.toml --no-en
 auctioneer-cli config push --adapter fastly --local --app-config auctioneer.fastly-local.toml --no-env
 ```
 
-Use the same Mocktioneer-enabled feature set for the CLI and the serving guest.
-If a configured implementation is missing from the build, CLI errors and runtime
+HTTPS needs no extra Cargo features in either the CLI or the serving guest.
+For an explicitly configured local endpoint such as
+`http://127.0.0.1:8787/openrtb2/auction`, build the CLI with
+`--features auctioneer-core/insecure-bidders` and the serving adapter with
+`--features insecure-bidders`. The feature never supplies a destination.
+If another configured implementation is missing from the build, CLI errors and runtime
 operator logs identify its compiled name and required Cargo feature. These
 diagnostics omit configured alias names, endpoint values and credentials.
 Endpoint changes take effect through the existing config publication lifecycle;

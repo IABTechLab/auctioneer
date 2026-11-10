@@ -451,18 +451,21 @@ mod tests {
     }
 
     #[test]
-    fn feature_predicate_controls_all_declared_factories_and_metadata() {
-        let declarations: Vec<_> = auctioneer_bidder::bidder_declarations()
-            .iter()
-            .filter(|row| row.required_feature == Some("insecure-bidders"))
-            .collect();
+    fn publication_predicate_controls_all_declared_factories_and_metadata() {
+        let declarations: Vec<_> = auctioneer_bidder::bidder_declarations().iter().collect();
         assert!(!declarations.is_empty());
+        let mut metadata_count = 0_usize;
         for declaration in declarations {
+            let selected = match declaration.required_feature {
+                None => true,
+                Some("insecure-bidders") => cfg!(feature = "insecure-bidders"),
+                Some(_) => panic!("unreviewed factory feature"),
+            };
             assert_eq!(
                 auctioneer_bidder::compiled_bidders()
                     .iter()
                     .any(|row| row.key == declaration.key),
-                cfg!(feature = "insecure-bidders"),
+                selected,
                 "{}",
                 declaration.key,
             );
@@ -470,18 +473,19 @@ mod tests {
                 .iter()
                 .filter(|row| row.implementation == declaration.key)
                 .collect();
-            assert!(
-                !metadata.is_empty(),
-                "feature-gated metadata control must not be empty"
-            );
+            metadata_count += metadata.len();
             for row in metadata {
                 assert_eq!(row.required_feature, declaration.required_feature);
                 assert_eq!(
                     auctioneer_config_data::bidder(row.bidder).is_some(),
-                    cfg!(feature = "insecure-bidders")
+                    selected
                 );
             }
         }
+        assert!(
+            metadata_count > 0,
+            "metadata publication controls must execute"
+        );
     }
 
     #[test]

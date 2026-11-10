@@ -374,7 +374,7 @@ mod tests {
                     scope.base.clone(),
                     "acct",
                     None,
-                    &bidder_info.endpoint,
+                    bidder_info.endpoint.as_deref().unwrap(),
                     &[],
                     None,
                     None,

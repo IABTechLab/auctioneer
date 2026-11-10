@@ -1,9 +1,8 @@
 //! Mocktioneer bidder — snapshot E2E backend.
 //!
-//! **Feature-gated.** Mocktioneer points at `http://127.0.0.1` which fails
-//! `validate_endpoint`'s `https://`-only + localhost-reject rule in default
-//! builds. The relaxation lives behind `#[cfg(feature =
-//! "insecure-bidders")]`; in default builds this module does not exist.
+//! Available in normal builds, disabled by default, with an explicit operator
+//! endpoint required. The `insecure-bidders` feature permits local development
+//! transport without changing publication or inventing a default destination.
 
 mod config;
 mod request;
@@ -30,7 +29,7 @@ pub(super) fn validate_config(
     use validator::Validate as _;
     config::Config::from(input)
         .validate()
-        .map_err(config::error)
+        .map_err(|errors| config::error(&errors))
 }
 
 impl Bidder for MocktioneerBidder {
@@ -44,8 +43,9 @@ impl Bidder for MocktioneerBidder {
             base.and_then(BidderSettings::as_mocktioneer),
         )
         .map_err(|()| BidderError::failed_to_request_bids("invalid configured bidder endpoint"))?
-        .map(ConfiguredEndpoint::new)
-        .transpose()
+        .ok_or_else(|| BidderError::failed_to_request_bids("configured bidder endpoint required"))
+        .and_then(ConfiguredEndpoint::new)
+        .map(Some)
     }
 
     fn debug_body_schema(&self) -> DebugBodySchema {
@@ -87,19 +87,21 @@ mod tests {
     }
 
     #[test]
-    fn endpoint_declaration_preserves_development_gate_and_compiled_loopback() {
+    fn endpoint_declaration_requires_explicit_activation_and_destination() {
         let manifest: toml::Value = toml::from_str(include_str!("bidder.toml")).unwrap();
         assert_eq!(
             manifest["settings"]["fields"]["endpoint"].as_str(),
             Some("optional_string")
         );
-        assert_eq!(
-            manifest["required_feature"].as_str(),
-            Some("insecure-bidders")
+        assert!(manifest.get("required_feature").is_none());
+        assert!(
+            manifest["definitions"]["mocktioneer"]
+                .get("endpoint")
+                .is_none()
         );
         assert_eq!(
-            manifest["definitions"]["mocktioneer"]["endpoint"].as_str(),
-            Some("http://127.0.0.1:8787/openrtb2/auction")
+            manifest["definitions"]["mocktioneer"]["defaultEnabled"].as_bool(),
+            Some(false)
         );
         for values in [
             serde_json::json!({"unknown_endpoint":"https://example.test"}),

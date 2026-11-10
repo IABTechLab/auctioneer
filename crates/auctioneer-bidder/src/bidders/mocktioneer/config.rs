@@ -7,6 +7,7 @@ use validator::{Validate, ValidationError, ValidationErrors};
 pub(super) struct Config<'a> {
     requested: Option<&'a Settings>,
     base: Option<&'a Settings>,
+    enabled: bool,
 }
 
 impl<'a> From<BidderConfigInput<'a>> for Config<'a> {
@@ -14,19 +15,24 @@ impl<'a> From<BidderConfigInput<'a>> for Config<'a> {
         Self {
             requested: input.requested.and_then(BidderSettings::as_mocktioneer),
             base: input.base.and_then(BidderSettings::as_mocktioneer),
+            enabled: input.enabled,
         }
     }
 }
 
 impl Validate for Config<'_> {
     fn validate(&self) -> Result<(), ValidationErrors> {
-        endpoint(self.requested, self.base)
-            .map(|_endpoint| ())
-            .map_err(|()| {
-                let mut errors = ValidationErrors::new();
-                errors.add("endpoint", ValidationError::new("invalid"));
-                errors
-            })
+        let selected = endpoint(self.requested, self.base).map_err(|()| {
+            let mut errors = ValidationErrors::new();
+            errors.add("endpoint", ValidationError::new("invalid"));
+            errors
+        })?;
+        if self.enabled && selected.is_none() {
+            let mut errors = ValidationErrors::new();
+            errors.add("endpoint", ValidationError::new("required_when_enabled"));
+            return Err(errors);
+        }
+        Ok(())
     }
 }
 
@@ -47,10 +53,21 @@ pub(super) fn endpoint<'a>(
     Ok(resolve(requested, base).endpoint())
 }
 
-pub(super) fn error(_: ValidationErrors) -> BidderConfigError {
+pub(super) fn error(errors: &ValidationErrors) -> BidderConfigError {
     BidderConfigError {
         field: "endpoint",
-        reason: "invalid",
+        reason: if errors
+            .field_errors()
+            .get("endpoint")
+            .is_some_and(|entries| {
+                entries
+                    .iter()
+                    .any(|entry| entry.code == "required_when_enabled")
+            }) {
+            "required when enabled"
+        } else {
+            "invalid"
+        },
     }
 }
 
@@ -70,7 +87,40 @@ mod tests {
     }
 
     #[test]
-    fn omitted_and_null_endpoint_inherit_base_then_the_compiled_default() {
+    fn an_enabled_identity_requires_an_explicit_resolved_endpoint() {
+        let empty = settings(json!({}));
+        let null = settings(json!({"endpoint":null}));
+        for requested in [None, Some(&empty), Some(&null)] {
+            for base in [None, Some(&empty), Some(&null)] {
+                for enabled in [false, true] {
+                    assert_eq!(
+                        validate_config(BidderConfigInput {
+                            requested,
+                            base,
+                            definition: None,
+                            enabled,
+                        }),
+                        if enabled {
+                            Err(BidderConfigError {
+                                field: "endpoint",
+                                reason: "required when enabled",
+                            })
+                        } else {
+                            Ok(())
+                        }
+                    );
+                }
+                assert!(
+                    MocktioneerBidder
+                        .configured_endpoint(requested, base)
+                        .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn omitted_and_null_endpoint_inherit_base_without_an_implicit_destination() {
         let base = settings(json!({"endpoint":"https://base.example.test:8443/base?route=one"}));
         let explicit =
             settings(json!({"endpoint":"https://requested.example.test:9443/requested?route=two"}));
@@ -122,13 +172,15 @@ mod tests {
                     .endpoint(),
                     expected
                 );
-                assert_eq!(
-                    MocktioneerBidder
-                        .configured_endpoint(requested, parent)
-                        .unwrap()
-                        .map(crate::ConfiguredEndpoint::as_str),
-                    expected
-                );
+                let selected = MocktioneerBidder.configured_endpoint(requested, parent);
+                if expected.is_some() {
+                    assert_eq!(
+                        selected.unwrap().map(crate::ConfiguredEndpoint::as_str),
+                        expected
+                    );
+                } else {
+                    assert!(selected.is_err());
+                }
                 for enabled in [false, true] {
                     for candidate_definition in [None, Some(&definition)] {
                         assert_eq!(
@@ -138,7 +190,14 @@ mod tests {
                                 definition: candidate_definition,
                                 enabled
                             }),
-                            Ok(())
+                            if enabled && expected.is_none() {
+                                Err(BidderConfigError {
+                                    field: "endpoint",
+                                    reason: "required when enabled",
+                                })
+                            } else {
+                                Ok(())
+                            }
                         );
                     }
                 }
@@ -185,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_development_loopbacks_remain_admitted() {
+    fn exact_loopbacks_require_explicit_development_transport() {
         for literal in [
             "http://127.0.0.1:8787/openrtb2/auction",
             "http://[::1]:8787/openrtb2/auction?route=one",
@@ -201,16 +260,21 @@ mod tests {
                         definition: None,
                         enabled: false
                     }),
-                    Ok(())
+                    if cfg!(feature = "insecure-bidders") {
+                        Ok(())
+                    } else {
+                        Err(BidderConfigError {
+                            field: "endpoint",
+                            reason: "invalid",
+                        })
+                    }
                 );
-                assert_eq!(
-                    MocktioneerBidder
-                        .configured_endpoint(requested, base)
-                        .unwrap()
-                        .unwrap()
-                        .as_str(),
-                    literal
-                );
+                let selected = MocktioneerBidder.configured_endpoint(requested, base);
+                if cfg!(feature = "insecure-bidders") {
+                    assert_eq!(selected.unwrap().unwrap().as_str(), literal);
+                } else {
+                    assert!(selected.is_err());
+                }
             }
         }
     }
@@ -316,7 +380,13 @@ mod tests {
             endpoint: Some(at_limit),
         };
         for (requested, base) in [(Some(&good), None), (None, Some(&good))] {
-            super::Config { requested, base }.validate().unwrap();
+            super::Config {
+                requested,
+                base,
+                enabled: true,
+            }
+            .validate()
+            .unwrap();
         }
         for literal in [
             String::new(),
@@ -327,14 +397,20 @@ mod tests {
                 endpoint: Some(literal.clone()),
             };
             for (requested, base) in [(Some(&bad), Some(&good)), (Some(&good), Some(&bad))] {
-                let errors = super::Config { requested, base }.validate().unwrap_err();
+                let errors = super::Config {
+                    requested,
+                    base,
+                    enabled: true,
+                }
+                .validate()
+                .unwrap_err();
                 assert!(!format!("{errors:?}").contains("private-canary"));
                 let fields = errors.field_errors();
                 assert_eq!(fields.len(), 1);
                 assert_eq!(fields["endpoint"][0].code, "invalid");
                 assert!(fields["endpoint"][0].params.is_empty());
                 assert_eq!(
-                    super::error(errors),
+                    super::error(&errors),
                     BidderConfigError {
                         field: "endpoint",
                         reason: "invalid"

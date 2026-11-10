@@ -342,7 +342,9 @@ pub struct BidderInfo {
     /// `None` preserves legacy activation; explicit runtime enablement overrides this default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_enabled: Option<bool>,
-    pub endpoint: String,
+    /// Compiled destination template, absent when explicit operator settings are required.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
     pub uses_https: bool,
     pub disabled: bool,
     pub debug_allow: bool,

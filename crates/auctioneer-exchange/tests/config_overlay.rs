@@ -315,7 +315,7 @@ mod tests {
     fn leak(name: &'static str, endpoint: &'static str) -> &'static BidderInfo {
         Box::leak(Box::new(BidderInfo {
             name: name.into(),
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             uses_https: true,
             capabilities: Capabilities {
                 site: vec![MediaType::Banner],
@@ -1205,7 +1205,7 @@ mod tests {
         for &(name, disabled) in bidders {
             let info: &'static BidderInfo = Box::leak(Box::new(BidderInfo {
                 name: name.into(),
-                endpoint: "https://demo.example.test/openrtb".into(),
+                endpoint: Some("https://demo.example.test/openrtb".into()),
                 uses_https: true,
                 disabled,
                 capabilities: Capabilities {

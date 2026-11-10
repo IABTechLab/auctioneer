@@ -1037,10 +1037,18 @@ fn bind_bidder_configuration<'a>(
         .map(|binding| binding.implementation);
     info.set_settings(implementation, requested, base)?;
     let endpoint = adapter.configured_endpoint(info.settings(), info.base_settings())?;
-    if let Some(selected) = endpoint {
-        info.endpoint_template = selected.as_str();
-        info.endpoint_macros = &[];
-        info.host_allowlist = None;
+    match endpoint {
+        Some(selected) => {
+            info.endpoint_template = selected.as_str();
+            info.endpoint_macros = &[];
+            info.host_allowlist = None;
+        }
+        None if info.endpoint_template.is_empty() => {
+            return Err(auctioneer_bidder::BidderError::failed_to_request_bids(
+                "configured bidder endpoint required",
+            ));
+        }
+        None => {}
     }
     // The selected URL already lives in `info`; carry only its policy choice
     // across credential lookup instead of retaining a second URL borrow.
@@ -1071,7 +1079,7 @@ async fn run_make_requests(
         pbr.base.clone(),
         &ctx.account.id,
         publisher_id,
-        &info.endpoint,
+        info.endpoint.as_deref().unwrap_or_default(),
         &macros,
         allow.as_deref(),
         gpc,

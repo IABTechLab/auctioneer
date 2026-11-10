@@ -115,7 +115,7 @@ mod tests {
             .register(
                 Box::leak(Box::new(BidderInfo {
                     name: "fake_bb".into(),
-                    endpoint: "https://bidder.example.test/".into(),
+                    endpoint: Some("https://bidder.example.test/".into()),
                     ..BidderInfo::default()
                 })),
                 Box::new(NoRequests(Arc::clone(calls))),

@@ -238,36 +238,24 @@ mod tests {
         assert!(!format!("{errors:?}").contains("fake_private_url_canary"));
     }
 
-    #[cfg(not(feature = "insecure-bidders"))]
     #[test]
-    fn sdk_validation_explains_missing_owner_features_without_configured_names() {
+    fn compiled_settings_owners_are_available_without_development_transport() {
         let mut checked = 0_usize;
         for declaration in auctioneer_bidder::bidder_declarations() {
-            let Some(feature) = declaration.required_feature else {
-                continue;
-            };
-            if declaration.has_settings {
+            if !declaration.has_settings {
                 continue;
             }
-            let Ok(config) = serde_json::from_value::<SdkAuctioneerAppConfig>(json!({
+            let config = serde_json::from_value::<SdkAuctioneerAppConfig>(json!({
                 "schema_version": 1_u8,
-                "bidders": {"fake_private_alias_canary": {
-                    "enabled": false,
-                    "implementation": declaration.key,
-                    "settings": {},
+                "bidders": {(declaration.key): {
+                    "enabled": false, "implementation": declaration.key, "settings": {},
                 }},
-            })) else {
-                continue;
-            };
-            let errors = config.validate().unwrap_err();
-            let message = errors.to_string();
-            assert!(message.contains(declaration.key));
-            assert!(message.contains(feature));
-            assert!(message.contains("CLI and serving guest"));
-            assert!(!format!("{errors:?}").contains("fake_private_alias_canary"));
+            }))
+            .unwrap();
+            config.validate().unwrap();
             checked += 1;
         }
-        assert!(checked > 0, "exercise disabled typed settings owners");
+        assert!(checked > 0, "exercise compiled typed settings owners");
     }
 
     #[test]

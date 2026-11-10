@@ -153,81 +153,99 @@ mod tests {
     fn configured_endpoint_reaches_the_real_auction_sink_without_request_overrides() {
         const COMPILED: &str = "https://compiled.example.test/original";
         const CONFIGURED: &str = "https://configured.example.test:8443/auction?route=one";
-        for selected in [
-            None,
-            Some(CONFIGURED),
-            Some("http://unsafe.example.test/bid"),
-        ] {
-            let mut registry = BidderRegistry::new();
-            registry
-                .register(
-                    leak_info("fake_bb", COMPILED),
-                    Box::new(FakeBidder {
-                        configured_endpoint: selected,
-                        ..FakeBidder::default()
-                    }),
+        static PREFLIGHT: AtomicUsize = AtomicUsize::new(0);
+        static CONSTRUCTIONS: AtomicUsize = AtomicUsize::new(0);
+        for compiled in [Some(COMPILED), None] {
+            for selected in [
+                None,
+                Some(CONFIGURED),
+                Some("http://unsafe.example.test/bid"),
+            ] {
+                PREFLIGHT.store(0, Ordering::SeqCst);
+                CONSTRUCTIONS.store(0, Ordering::SeqCst);
+                let mut metadata = leak_info("fake_bb", COMPILED).clone();
+                metadata.endpoint = compiled.map(str::to_owned);
+                let mut registry = BidderRegistry::new();
+                registry
+                    .register(
+                        Box::leak(Box::new(metadata)),
+                        Box::new(FakeBidder {
+                            configured_endpoint: selected,
+                            credential_preflight_observer: Some(&|_, _| {
+                                PREFLIGHT.fetch_add(1, Ordering::SeqCst);
+                            }),
+                            construction_observer: Some(&|_| {
+                                CONSTRUCTIONS.fetch_add(1, Ordering::SeqCst);
+                            }),
+                            ..FakeBidder::default()
+                        }),
+                    )
+                    .unwrap();
+                let request = prepare(
+                    serde_json::from_value(json!({
+                        "id": "endpoint-test", "site": {"page": "https://publisher.example"},
+                        "regs": {"gdpr": 0_u8},
+                        "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32},
+                            "ext": {"bidder": {"fake_bb": {
+                                "endpoint": "https://forged.example.test/bid"
+                            }}}}]
+                    }))
+                    .unwrap(),
+                    &RequestHeaders::default(),
+                    &IMP_CAP_NOT_UNDER_TEST,
                 )
                 .unwrap();
-            let request = prepare(
-                serde_json::from_value(json!({
-                    "id": "endpoint-test", "site": {"page": "https://publisher.example"},
-                    "regs": {"gdpr": 0_u8},
-                    "imp": [{"id": "i", "banner": {"w": 300_i32, "h": 250_i32},
-                        "ext": {"bidder": {"fake_bb": {
-                            "endpoint": "https://forged.example.test/bid"
-                        }}}}]
-                }))
-                .unwrap(),
-                &RequestHeaders::default(),
-                &IMP_CAP_NOT_UNDER_TEST,
-            )
-            .unwrap();
-            let before = serde_json::to_value(&*request).unwrap();
-            let host = host_with_caps(1000, 2000);
-            let config = AccountConfig::default();
-            let account = ResolvedAccount {
-                id: "publisher".into(),
-                source: AccountSource::DefaultFallback,
-                config: &config,
-            };
-            let fanout = EndpointFanout::default();
-            let clock = FakeClock::new(time::OffsetDateTime::UNIX_EPOCH);
-            let rng = SeededRng::new(42);
-            let ctx = AuctionContext::with_request_start(
-                clock.now_monotonic(),
-                &host,
-                &account,
-                &registry,
-                &fanout,
-                &clock,
-                &rng,
-                GvlStore::baked(),
-                Gcl::baked(),
-                clock.now(),
-                false,
-            );
-            let plan = AuctionPlan::new(
-                ResolvedAliases::empty(),
-                BTreeSet::new(),
-                response_budgets(ctx.bidders, ctx.host),
-                BTreeMap::new(),
-            );
-            let mut audit = DisclosureAudit::default();
-            let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
-                .unwrap()
-                .into_bid_response()
-                .unwrap();
-            let seen = fanout.0.lock().unwrap();
-            if selected == Some("http://unsafe.example.test/bid") {
-                assert!(seen.is_empty());
-                assert_eq!(
-                    response.ext.as_ref().unwrap()["errors"]["fake_bb"][0]["code"],
-                    5_u32
+                let before = serde_json::to_value(&*request).unwrap();
+                let host = host_with_caps(1000, 2000);
+                let config = AccountConfig::default();
+                let account = ResolvedAccount {
+                    id: "publisher".into(),
+                    source: AccountSource::DefaultFallback,
+                    config: &config,
+                };
+                let fanout = EndpointFanout::default();
+                let clock = FakeClock::new(time::OffsetDateTime::UNIX_EPOCH);
+                let rng = SeededRng::new(42);
+                let ctx = AuctionContext::with_request_start(
+                    clock.now_monotonic(),
+                    &host,
+                    &account,
+                    &registry,
+                    &fanout,
+                    &clock,
+                    &rng,
+                    GvlStore::baked(),
+                    Gcl::baked(),
+                    clock.now(),
+                    false,
                 );
-            } else {
-                assert_eq!(seen.as_slice(), &[selected.unwrap_or(COMPILED)]);
+                let plan = AuctionPlan::new(
+                    ResolvedAliases::empty(),
+                    BTreeSet::new(),
+                    response_budgets(ctx.bidders, ctx.host),
+                    BTreeMap::new(),
+                );
+                let mut audit = DisclosureAudit::default();
+                let response = block_on(run_auction(&request, &ctx, &plan, &mut audit))
+                    .unwrap()
+                    .into_bid_response()
+                    .unwrap();
+                let seen = fanout.0.lock().unwrap();
+                let refused = selected == Some("http://unsafe.example.test/bid")
+                    || (selected.is_none() && compiled.is_none());
+                assert_eq!(PREFLIGHT.load(Ordering::SeqCst), usize::from(!refused));
+                assert_eq!(CONSTRUCTIONS.load(Ordering::SeqCst), usize::from(!refused));
+                if refused {
+                    assert!(seen.is_empty());
+                    assert_eq!(
+                        response.ext.as_ref().unwrap()["errors"]["fake_bb"][0]["code"],
+                        5_u32
+                    );
+                } else {
+                    assert_eq!(seen.as_slice(), &[selected.or(compiled).unwrap()]);
+                }
+                assert_eq!(serde_json::to_value(&*request).unwrap(), before);
             }
-            assert_eq!(serde_json::to_value(&*request).unwrap(), before);
         }
     }
 
@@ -850,7 +868,7 @@ mod tests {
     fn leak_info(name: &'static str, endpoint: &'static str) -> &'static BidderInfo {
         Box::leak(Box::new(BidderInfo {
             name: name.into(),
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             uses_https: true,
             ..BidderInfo::default()
         }))

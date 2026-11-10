@@ -13,7 +13,11 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 /// # Errors
 /// Returns code 5 with fixed category text, never raw URL or parser details.
 pub fn validate_endpoint(url: &str, info: &BidderInfo) -> Result<(), BidderError> {
-    validate_endpoint_policy(url, &info.endpoint, info.host_allowlist.as_deref())
+    let template = info
+        .endpoint
+        .as_deref()
+        .ok_or_else(|| public_error(EndpointRejectReason::MalformedUrl))?;
+    validate_endpoint_policy(url, template, info.host_allowlist.as_deref())
 }
 
 fn validate_endpoint_policy(
@@ -391,7 +395,7 @@ mod tests {
     fn bound_metadata_keeps_the_declared_host_allowlist() {
         let currency = Vec::new();
         let info = BidderInfo {
-            endpoint: "https://{{.Host}}/auction".into(),
+            endpoint: Some("https://{{.Host}}/auction".into()),
             host_allowlist: Some(vec!["east.example.test".into(), "west.example.test".into()]),
             ..refusing_info()
         };
@@ -427,7 +431,7 @@ mod tests {
     fn refusing_info() -> BidderInfo {
         BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://hb.example.test/openrtb".into(),
+            endpoint: Some("https://hb.example.test/openrtb".into()),
             uses_https: true,
             host_allowlist: None,
             ..BidderInfo::default()

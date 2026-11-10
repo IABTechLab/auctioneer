@@ -27,7 +27,7 @@ pub(super) fn record_factory_call() {
 pub fn info() -> &'static BidderInfo {
     static INFO: LazyLock<BidderInfo> = LazyLock::new(|| BidderInfo {
         name: "fake_bb".into(),
-        endpoint: "https://bidder.example.test/openrtb".into(),
+        endpoint: Some("https://bidder.example.test/openrtb".into()),
         uses_https: true,
         ..BidderInfo::default()
     });
@@ -87,7 +87,10 @@ mod tests {
         let metadata = info();
         assert!(ptr::eq(metadata, info()));
         assert_eq!(metadata.name, "fake_bb");
-        assert_eq!(metadata.endpoint, "https://bidder.example.test/openrtb");
+        assert_eq!(
+            metadata.endpoint.as_deref(),
+            Some("https://bidder.example.test/openrtb")
+        );
         assert!(metadata.uses_https);
     }
 }

@@ -110,7 +110,14 @@ mod tests {
         ROLES.get_or_init(|| {
             let mut candidates = serving_catalog::default_active_site_media(&[MediaType::Banner])
                 .into_iter()
-                .filter(|row| !row.info.disabled && !row.info.endpoint.contains("{{"));
+                .filter(|row| {
+                    !row.info.disabled
+                        && row
+                            .info
+                            .endpoint
+                            .as_deref()
+                            .is_some_and(|endpoint| !endpoint.contains("{{"))
+                });
             let first = candidates.next().unwrap();
             let second = candidates
                 .find(|row| row.info.endpoint != first.info.endpoint)
@@ -598,36 +605,37 @@ mod tests {
             Ok(calls
                 .iter()
                 .map(|call| {
-                    let result = if call.request.url() == roles()[0].info.endpoint {
-                        // The origin is arbitrary here on purpose: the
-                        // wire layer must render code 4 / statuscode 100
-                        // for EVERY origin, so the row picks one and the
-                        // origin-blindness assertion below covers the
-                        // rest.
-                        Err(FanoutError::OversizeResponse(OversizeOrigin::HeaderCount))
-                    } else {
-                        let bids: Vec<String> = call
-                            .request
-                            .covered_imp_ids()
-                            .map(|imp_id| {
-                                format!(
-                                    "{{\"id\":\"bid-{imp_id}\",\"impid\":\"{imp_id}\",\
+                    let result =
+                        if call.request.url() == roles()[0].info.endpoint.as_deref().unwrap() {
+                            // The origin is arbitrary here on purpose: the
+                            // wire layer must render code 4 / statuscode 100
+                            // for EVERY origin, so the row picks one and the
+                            // origin-blindness assertion below covers the
+                            // rest.
+                            Err(FanoutError::OversizeResponse(OversizeOrigin::HeaderCount))
+                        } else {
+                            let bids: Vec<String> = call
+                                .request
+                                .covered_imp_ids()
+                                .map(|imp_id| {
+                                    format!(
+                                        "{{\"id\":\"bid-{imp_id}\",\"impid\":\"{imp_id}\",\
                                      \"price\":1.5,\"w\":300,\"h\":250,\
                                      \"crid\":\"creative-{imp_id}\"}}"
-                                )
-                            })
-                            .collect();
-                        Ok(BidderHttpResponse::new(
-                            200,
-                            vec![],
-                            format!(
-                                "{{\"id\":\"r\",\"seatbid\":[{{\"seat\":\"s\",\"bid\":[{}]}}],\
+                                    )
+                                })
+                                .collect();
+                            Ok(BidderHttpResponse::new(
+                                200,
+                                vec![],
+                                format!(
+                                    "{{\"id\":\"r\",\"seatbid\":[{{\"seat\":\"s\",\"bid\":[{}]}}],\
                                  \"cur\":\"USD\"}}",
-                                bids.join(","),
-                            )
-                            .into_bytes(),
-                        ))
-                    };
+                                    bids.join(","),
+                                )
+                                .into_bytes(),
+                            ))
+                        };
                     BidderCallResult {
                         result,
                         elapsed: Duration::from_millis(10),

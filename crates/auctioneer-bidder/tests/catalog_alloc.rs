@@ -65,7 +65,7 @@ mod tests {
                 for name in [base, child] {
                     infos.push(BidderInfo {
                         name: name.into(),
-                        endpoint: "https://fake-layout.example.test/bid".into(),
+                        endpoint: Some("https://fake-layout.example.test/bid".into()),
                         ..BidderInfo::default()
                     });
                     bindings.push(BidderImplementationBinding {

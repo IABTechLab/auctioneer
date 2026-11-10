@@ -294,7 +294,7 @@ returnallbidstatus_default = false
 # credentials_secret: a secret-store key, never the credential bundle itself.
 # external_url: publisher-facing URL used by the owning protocol.
 # region: "us-east", "us-west", "eu" or "apac" for the regional implementation.
-# endpoint: literal operator destination for development-only Mocktioneer.
+# endpoint: required operator destination for enabled Mocktioneer; HTTPS works in normal builds.
 # BEGIN BIDDER EXAMPLE
 # [bidders.fake_bidder]
 # enabled = true

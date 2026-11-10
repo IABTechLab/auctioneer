@@ -16,8 +16,8 @@ name = "build_failure_harness"
 test = false
 
 [features]
-# The insecure-bidders feature gates the local loopback fixture endpoint
-# through build.rs syncer-URL template validation. Forwarded from
+# The insecure-bidders feature permits development transport during configured
+# endpoint and build-time URL validation. It does not enable Mocktioneer. Forwarded from
 # auctioneer-bidder/auctioneer-exchange/auctioneer-core/adapter crates.
 insecure-bidders = [
     "auctioneer-config/insecure-bidders",

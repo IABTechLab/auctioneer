@@ -131,7 +131,7 @@ mod tests {
     const NODE_CAP: u32 = 0x0001_0000;
     static SYNTHETIC_BIDDER: LazyLock<BidderInfo> = LazyLock::new(|| BidderInfo {
         name: "fake_aaa".into(),
-        endpoint: "https://bidder.example.test/openrtb".into(),
+        endpoint: Some("https://bidder.example.test/openrtb".into()),
         uses_https: true,
         ..BidderInfo::default()
     });
@@ -804,7 +804,7 @@ mod tests {
                     BidderName::new("fake_aaa"),
                     "acct",
                     None,
-                    &SYNTHETIC_BIDDER.endpoint,
+                    SYNTHETIC_BIDDER.endpoint.as_deref().unwrap(),
                     &[],
                     None,
                     None,
@@ -899,7 +899,7 @@ mod tests {
             let scoped = scoped_fake_aaa(&grouped, &registry, NODE_CAP, usize::try_from(BODY_CAP).unwrap()).unwrap();
             let info = BidderRequestInfo::new(
                 BidderName::new("fake_aaa"), BidderName::new("fake_aaa"), "acct", None,
-                &SYNTHETIC_BIDDER.endpoint, &[], None, None, EntryPoint::Auction, &[],
+                SYNTHETIC_BIDDER.endpoint.as_deref().unwrap(), &[], None, None, EntryPoint::Auction, &[],
             );
             let budget = CallBudget::new(1);
             let validator = ExchangeEndpointValidator::new(&SYNTHETIC_BIDDER);

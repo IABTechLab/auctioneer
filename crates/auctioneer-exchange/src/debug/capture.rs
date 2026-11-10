@@ -497,7 +497,7 @@ mod tests {
     fn outbound_request() -> BidderHttpRequest {
         let endpoint = "https://bidder.example/private?uid=SECRET_URL";
         let bidder = BidderInfo {
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             ..BidderInfo::default()
         };
         let info = BidderRequestInfo::new(

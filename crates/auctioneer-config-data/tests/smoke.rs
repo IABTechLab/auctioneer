@@ -1,7 +1,7 @@
 //! Smoke tests for `auctioneer-config-data` codegen output.
 //!
 //! Actual baked properties are selected from independently read source definitions.
-//! Feature-OFF asserts HTTPS-only metadata; feature-ON retains loopback HTTP evidence.
+//! Both feature lanes retain secure compiled defaults; development URLs are explicit settings.
 
 #[cfg(test)]
 mod tests {
@@ -91,7 +91,7 @@ mod tests {
         .unwrap();
         for (bid, source) in selected {
             assert!(bid.uses_https);
-            assert_eq!(Some(bid.endpoint.as_str()), source["endpoint"].as_str());
+            assert_eq!(bid.endpoint.as_deref(), source["endpoint"].as_str());
         }
     }
 
@@ -217,12 +217,41 @@ mod tests {
     }
 
     #[test]
+    fn configurable_publication_requires_explicit_activation_and_destination() {
+        let selected = source_bidders_with(|row| row.get("endpoint").is_none()).unwrap();
+        assert_eq!(
+            selected.len(),
+            1,
+            "the configured-destination publication is available in both feature lanes"
+        );
+        for (info, source) in selected {
+            assert_eq!(info.default_enabled, Some(false));
+            assert_eq!(source["defaultEnabled"].as_bool(), Some(false));
+            assert!(info.endpoint.is_none());
+            let encoded = serde_json::to_value(info).unwrap();
+            assert!(
+                encoded
+                    .get("endpoint")
+                    .is_none_or(serde_json::Value::is_null)
+            );
+            assert!(
+                !info.disabled,
+                "operator configuration must be able to enable it"
+            );
+        }
+    }
+
+    #[test]
     #[cfg(not(feature = "insecure-bidders"))]
     fn feature_off_baked_endpoints_and_syncers_are_https_only() {
         assert!(!bidders().is_empty());
         for bid in bidders() {
-            assert!(bid.uses_https, "{}", bid.name);
-            assert!(bid.endpoint.starts_with("https://"), "{}", bid.name);
+            if let Some(endpoint) = bid.endpoint.as_deref() {
+                assert!(bid.uses_https, "{}", bid.name);
+                assert!(endpoint.starts_with("https://"), "{}", bid.name);
+            } else {
+                assert_eq!(bid.default_enabled, Some(false));
+            }
             for endpoint in [&bid.user_sync.iframe, &bid.user_sync.redirect]
                 .into_iter()
                 .flatten()
@@ -233,18 +262,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "insecure-bidders")]
-    fn baked_loopback_http_is_present_under_feature() {
-        let selected = source_bidders_with(|row| {
-            row.get("endpoint")
-                .and_then(toml::Value::as_str)
-                .is_some_and(|endpoint| endpoint.starts_with("http://127.0.0.1:"))
-        })
-        .unwrap();
-        for (bid, source) in selected {
-            assert!(!bid.uses_https);
-            assert!(bid.endpoint.contains("127.0.0.1"));
-            assert_eq!(Some(bid.endpoint.as_str()), source["endpoint"].as_str());
+    fn development_transport_does_not_supply_an_implicit_loopback_destination() {
+        assert!(!bidders().is_empty());
+        for bid in bidders() {
+            assert!(
+                bid.endpoint
+                    .as_deref()
+                    .is_none_or(|endpoint| endpoint.starts_with("https://"))
+            );
         }
     }
 

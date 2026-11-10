@@ -549,7 +549,7 @@ mod tests {
         }
         let endpoint = "http://127.0.0.1:8999";
         let info = BidderInfo {
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             ..Default::default()
         };
         let mut features: Vec<_> =

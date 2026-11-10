@@ -147,8 +147,8 @@ processes. No raw environment is hashed. OS/meter versions identify the kernel
 interface; native runtime version identifies the Axum package. New identities
 also bind the Rust harness source inventory, executable and fixture protocol 1.
 
-The bidder is a separate `auctioneer-cli qualify fixture` Rust process on the compiled
-Mocktioneer endpoint `http://127.0.0.1:8787/openrtb2/auction`. Auctioneer uses a different port.
+The bidder is a separate `auctioneer-cli qualify fixture` Rust process on the explicitly
+configured Mocktioneer endpoint `http://127.0.0.1:8787/openrtb2/auction`. Auctioneer uses a different port.
 The private child reads bounded newline-delimited JSON on stdin, starting with
 closed `Options` tagged `kind: "native"`, with `port`, `body_cap`, `max_requests`
 and `max_sockets`, and announces

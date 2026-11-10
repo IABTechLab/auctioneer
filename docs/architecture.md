@@ -326,9 +326,10 @@ before handing calls to the fanout implementation.
 from `make_bids`; the network operation lives between them. The current
 registry includes AppNexus, PubMatic, and a generic OpenRTB bidder
 implementation, alongside controlled-native priority implementations.
-Mocktioneer is enabled by the explicit `insecure-bidders` feature or by Axum's
-test-only dependency when running its default socket tests. Normal production
-builds do not enable it.
+Mocktioneer is available in normal builds and disabled by default. Enabling it
+requires an explicit operator-configured endpoint. Public HTTPS needs no feature
+flag; `insecure-bidders` permits the existing HTTP/exact-loopback development
+transport, including Axum's test-only socket fixtures.
 This is not a claim of compatibility with the entire upstream bidder catalog.
 
 [Automatic bidder registration](superpowers/specs/2026-09-27-bidder-registry-design.md)

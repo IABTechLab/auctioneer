@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "implementation": "mocktioneer",
-  "manifest_sha256": "309822d54f89a89272c1c56b45c7d6df6a0026aa3569dfb9060ab21e6fd97b74",
+  "manifest_sha256": "03a6a92f76bacd5cce2ebd91e5221412127e2f1f1c038ee38bec53139ac2e0a1",
   "cases": [
     {
       "name": "banner-and-unsent-sibling",

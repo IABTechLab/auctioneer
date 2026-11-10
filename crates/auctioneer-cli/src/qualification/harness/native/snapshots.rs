@@ -207,10 +207,13 @@ pub fn assert_artifact(path: &Path, digest: &Digest) -> Result<()> {
 
 fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
     let nodes = variant_nodes(candidate, id)?;
-    let bidder = fixture_bidder(
-        auctioneer_config_data::bidder_metadata_declarations(),
-        auctioneer_config_data::bidders(),
-    )?;
+    let declarations = auctioneer_config_data::bidder_metadata_declarations();
+    let bidder = fixture_bidder(declarations, auctioneer_config_data::bidders())?;
+    let implementation = declarations
+        .iter()
+        .find(|row| row.bidder == bidder)
+        .ok_or(HarnessError::new("fixture_unavailable"))?
+        .implementation;
     let aliases = geometry::aliases(candidate.maximum_load.calls)?
         .into_iter()
         .map(|name| (name, bidder))
@@ -234,13 +237,29 @@ fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
             },
         },
         "accounts": {"q2_allowed": {"debug_allow": true}, "q2_refused": {"debug_allow": false}},
-        "bidders": {(bidder): {"timeout_ms": 500_u16, "sample_rate": 1.0_f64}},
+        "bidders": {(bidder): {
+            "enabled": true, "implementation": implementation,
+            "settings": {"endpoint": FIXTURE_ENDPOINT},
+            "timeout_ms": 500_u16, "sample_rate": 1.0_f64,
+        }},
     });
     toml::Value::try_from(document).map_err(|_error| HarnessError::new("invalid_input"))
 }
 
 fn historical_config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
-    let current = config_document(candidate, id)?;
+    let mut current = config_document(candidate, id)?;
+    let entries = current
+        .get_mut("bidders")
+        .and_then(toml::Value::as_table_mut)
+        .ok_or(HarnessError::new("invalid_input"))?;
+    for (_, entry) in entries.iter_mut() {
+        let fields = entry
+            .as_table_mut()
+            .ok_or(HarnessError::new("invalid_input"))?;
+        fields.remove("enabled");
+        fields.remove("implementation");
+        fields.remove("settings");
+    }
     let invalid = HarnessError::new("invalid_input");
     let host = current.get("host").ok_or(invalid)?;
     let document = json!({
@@ -261,20 +280,19 @@ fn fixture_bidder(
     declarations: &[BidderMetadataDeclaration],
     infos: &[BidderInfo],
 ) -> Result<&'static str> {
-    // A secure-default harness builds an insecure-enabled child CLI/server. Its
-    // generated declarations retain that child's feature-gated public binding;
-    // config push and the positive socket/debug probes still verify real serving.
+    // The native child opts into local transport. Discover its configurable,
+    // default-disabled publication from generated bindings and metadata.
     let mut candidates = declarations.iter().filter(|declaration| {
-        declaration.required_feature == Some("insecure-bidders")
+        declaration.required_feature.is_none()
             && infos
                 .iter()
                 .find(|info| info.name == declaration.bidder)
-                .is_none_or(|info| {
+                .is_some_and(|info| {
                     !info.disabled
-                        && !info.uses_https
+                        && info.default_enabled == Some(false)
                         && info.debug_allow
                         && info.gvl_vendor_id.is_none()
-                        && info.endpoint == FIXTURE_ENDPOINT
+                        && info.endpoint.is_none()
                         && info.endpoint_macros.is_empty()
                         && info.endpoint_compression.is_none()
                         && info.capabilities.site.contains(&MediaType::Banner)
@@ -545,25 +563,40 @@ mod tests {
         json!({"auctioneer_runtime": serde_json::to_string(&envelope).unwrap(), "other_store": "PRESERVE_OTHER_STORE"})
     }
 
+    fn configurable_info(name: &str) -> BidderInfo {
+        BidderInfo {
+            name: name.to_owned(),
+            default_enabled: Some(false),
+            debug_allow: true,
+            capabilities: Capabilities {
+                site: vec![MediaType::Banner],
+                ..Capabilities::default()
+            },
+            ..BidderInfo::default()
+        }
+    }
+
     #[test]
-    fn fixture_selection_uses_generated_feature_bindings_without_a_bidder_identity() {
+    fn fixture_selection_requires_unique_configurable_metadata_without_a_bidder_identity() {
         let local = BidderMetadataDeclaration {
             bidder: "fake_local",
             implementation: "fake_transport",
-            required_feature: Some("insecure-bidders"),
+            required_feature: None,
         };
         let ordinary = BidderMetadataDeclaration {
             bidder: "fake_secure",
-            required_feature: None,
             ..local
         };
-        // The parent harness need not carry its insecure-enabled child's metadata.
         assert_eq!(
-            fixture_bidder(&[ordinary, local], &[]).unwrap(),
+            fixture_bidder(&[ordinary, local], &[configurable_info("fake_local")]).unwrap(),
             "fake_local"
         );
         assert_eq!(
-            fixture_bidder(&[ordinary], &[]).unwrap_err(),
+            fixture_bidder(&[local], &[]).unwrap_err(),
+            HarnessError::new("fixture_unavailable")
+        );
+        assert_eq!(
+            fixture_bidder(&[ordinary], &[configurable_info("fake_local")]).unwrap_err(),
             HarnessError::new("fixture_unavailable")
         );
         let sibling = BidderMetadataDeclaration {
@@ -571,7 +604,14 @@ mod tests {
             ..local
         };
         assert_eq!(
-            fixture_bidder(&[local, sibling], &[]).unwrap_err(),
+            fixture_bidder(
+                &[local, sibling],
+                &[
+                    configurable_info("fake_local"),
+                    configurable_info("fake_sibling")
+                ]
+            )
+            .unwrap_err(),
             HarnessError::new("fixture_unavailable")
         );
     }
@@ -581,28 +621,19 @@ mod tests {
         let local = BidderMetadataDeclaration {
             bidder: "fake_local",
             implementation: "fake_transport",
-            required_feature: Some("insecure-bidders"),
+            required_feature: None,
         };
-        let info = BidderInfo {
-            name: local.bidder.to_owned(),
-            endpoint: FIXTURE_ENDPOINT.to_owned(),
-            debug_allow: true,
-            capabilities: Capabilities {
-                site: vec![MediaType::Banner],
-                ..Capabilities::default()
-            },
-            ..BidderInfo::default()
-        };
+        let info = configurable_info(local.bidder);
         assert_eq!(
             fixture_bidder(&[local], from_ref(&info)).unwrap(),
             "fake_local"
         );
         let disqualify: [fn(&mut BidderInfo); 8] = [
             |row| row.disabled = true,
-            |row| row.uses_https = true,
+            |row| row.default_enabled = None,
             |row| row.debug_allow = false,
             |row| row.gvl_vendor_id = Some(1),
-            |row| row.endpoint = "http://127.0.0.1:8788/openrtb2/auction".to_owned(),
+            |row| row.endpoint = Some("http://127.0.0.1:8788/openrtb2/auction".to_owned()),
             |row| row.endpoint_macros.push("AccountID".to_owned()),
             |row| row.endpoint_compression = Some(Compression::Gzip),
             |row| row.capabilities.site.clear(),
@@ -698,7 +729,15 @@ mod tests {
         assert_eq!(historical["runtime"]["aliases"], current["host"]["aliases"]);
         assert_eq!(historical["runtime"]["gdpr"], current["host"]["gdpr"]);
         assert_eq!(historical["runtime"]["accounts"], current["accounts"]);
-        assert_eq!(historical["runtime"]["bidders"], current["bidders"]);
+        let historical_bidders = historical["runtime"]["bidders"].as_table().unwrap();
+        assert_eq!(historical_bidders.len(), 1);
+        for entry in historical_bidders.values() {
+            assert_eq!(
+                *entry,
+                toml::Value::try_from(json!({"timeout_ms": 500_u16, "sample_rate": 1.0_f64}))
+                    .unwrap()
+            );
+        }
     }
 
     #[test]

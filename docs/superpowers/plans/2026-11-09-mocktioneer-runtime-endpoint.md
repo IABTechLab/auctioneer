@@ -1,5 +1,7 @@
 # Mocktioneer runtime endpoint implementation plan
 
+November 10 publication update: the approved [secure defaults design](../specs/2026-11-10-mocktioneer-secure-default-design.md) supersedes the feature gate and compiled-loopback fallback below.
+
 November 9 format update: the [flat settings plan](2026-11-09-flat-bidder-settings.md)
 replaces the earlier operator wrapper syntax consistently for every bidder.
 This plan retains the original endpoint behavior and verification record.

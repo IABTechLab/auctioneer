@@ -1171,7 +1171,7 @@ mod tests {
                     .register_with_implementation(
                         Box::leak(Box::new(BidderInfo {
                             name: "fake_shape_fixture".into(),
-                            endpoint: "https://bidder.example/auction".into(),
+                            endpoint: Some("https://bidder.example/auction".into()),
                             uses_https: true,
                             ..BidderInfo::default()
                         })),

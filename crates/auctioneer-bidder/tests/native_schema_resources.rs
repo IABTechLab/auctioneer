@@ -806,14 +806,8 @@ mod tests {
         assert_eq!(coverage.census.authored_cases, 120);
         assert_eq!(coverage.census.stress_cases, 564);
         assert_eq!(coverage.census.evaluations, 2_526);
-        // The development feature adds one legacy schema, eight authored
-        // cases and 35 shape cases, each evaluated three times.
-        let (legacy_bindings, authored, stress, evaluations) = if cfg!(feature = "insecure-bidders")
-        {
-            (3, 33, 105, 489)
-        } else {
-            (2, 25, 70, 360)
-        };
+        // The configurable legacy schema is now compiled in both feature lanes.
+        let (legacy_bindings, authored, stress, evaluations) = (3, 33, 105, 489);
         assert_eq!(
             coverage.legacy_bindings.len(),
             legacy_bindings,

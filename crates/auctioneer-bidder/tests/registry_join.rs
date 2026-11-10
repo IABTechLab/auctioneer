@@ -576,7 +576,7 @@ mod tests {
                 BidderName::new(definition.canonical_base()),
                 "registry-account",
                 None,
-                &info.endpoint,
+                info.endpoint.as_deref().unwrap(),
                 &[],
                 None,
                 None,
@@ -596,7 +596,7 @@ mod tests {
             assert_eq!(outcome.accepted.len(), 1, "factory {}", info.name);
             let outbound = &outcome.accepted[0];
             assert_eq!(outbound.method(), "POST");
-            assert_eq!(outbound.url(), info.endpoint);
+            assert_eq!(outbound.url(), info.endpoint.as_deref().unwrap());
             assert_eq!(outbound.covered_imp_ids().collect::<Vec<_>>(), ["i"]);
             for expected in [
                 ("Content-Type", "application/json"),
@@ -737,7 +737,7 @@ mod tests {
                 BidderName::new(definition.canonical_base()),
                 "registry-account",
                 None,
-                &info.endpoint,
+                info.endpoint.as_deref().unwrap(),
                 &[],
                 None,
                 None,
@@ -756,7 +756,7 @@ mod tests {
             assert_eq!(outcome.suppressed_error_count, 0);
             assert_eq!(outcome.accepted.len(), 1);
             let outbound = &outcome.accepted[0];
-            assert_eq!(outbound.url(), info.endpoint);
+            assert_eq!(outbound.url(), info.endpoint.as_deref().unwrap());
             assert_eq!(outbound.method(), "PATCH");
             assert!(
                 outbound

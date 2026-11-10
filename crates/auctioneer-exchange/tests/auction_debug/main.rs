@@ -390,7 +390,9 @@ mod tests {
                     .register(
                         Box::leak(Box::new(BidderInfo {
                             name: name.into(),
-                            endpoint: "https://bidder.example.test/private?token=SECRET".into(),
+                            endpoint: Some(
+                                "https://bidder.example.test/private?token=SECRET".into(),
+                            ),
                             uses_https: true,
                             debug_allow,
                             bidder_timeout_ms: Some(10),

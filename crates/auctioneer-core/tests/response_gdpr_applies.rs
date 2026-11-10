@@ -504,7 +504,7 @@ mod tests {
         let mut registry = BidderRegistry::new();
         let info = Box::leak(Box::new(BidderInfo {
             name: OUTBOUND_BIDDER.into(),
-            endpoint: "https://bidder.example/auction".into(),
+            endpoint: Some("https://bidder.example/auction".into()),
             uses_https: true,
             capabilities: Capabilities {
                 site: vec![MediaType::Banner],
