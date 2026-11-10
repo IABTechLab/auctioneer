@@ -1,5 +1,7 @@
 # Schema Compiler Qualification
 
+For the current source-bound closure, implemented components and remaining proof owners, see [resource proof ownership](../testing/resource-proof-ownership.md). Historical checkpoint prose below retains its original scope; it is not current target certification.
+
 **2026-10-30 delivery amendment:** AG approved
 [controlled-native acceptance](../superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md)
 using tested reservations, enforced limits and real handler/allocation/stress

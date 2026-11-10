@@ -142,7 +142,7 @@ static COUNTING_ALLOC: alloc_track::CountingAllocator = alloc_track::CountingAll
 
 #[cfg(test)]
 mod tests {
-    use std::{hint::black_box, thread};
+    use std::{hint::black_box, str, thread};
 
     use super::alloc_track::{
         peak_on_this_thread, reallocations_on_this_thread, reset_on_this_thread,
@@ -373,6 +373,107 @@ mod tests {
                 output_reallocations, 0,
                 "the final JSON buffer must not grow"
             );
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn sync_json_outputs_do_not_reallocate_at_two_independent_sizes() {
+        use auctioneer_core::handlers::sync_http::{
+            SyncDebugStatus, cookie_sync_success, getuids_success,
+        };
+        use auctioneer_core::usersync::{cookie::UidCookie, limits::CookieLimits};
+
+        thread::spawn(|| {
+            for input_bytes in [2049, 8193] {
+                let input = "<".repeat(input_bytes);
+                let debug = [SyncDebugStatus {
+                    bidder: "fake_bidder",
+                    error: &input,
+                }];
+                let mut cookie = UidCookie::default();
+                cookie
+                    .set_uid(
+                        "fake_bidder",
+                        &input,
+                        OffsetDateTime::UNIX_EPOCH,
+                        &CookieLimits::default(),
+                    )
+                    .unwrap();
+                for escape_html in [false, true] {
+                    let build = |cap| {
+                        if escape_html {
+                            getuids_success(&cookie, cap)
+                        } else {
+                            cookie_sync_success(
+                                &UidCookie::default(),
+                                OffsetDateTime::UNIX_EPOCH,
+                                &[],
+                                Some(&debug),
+                                cap,
+                            )
+                        }
+                    };
+                    let expected = build(128 * 1024).unwrap().into_body().into_bytes().unwrap();
+                    track_reallocations_at_least_on_this_thread(expected.len().div_euclid(2));
+                    let mut growable = Vec::new();
+                    for chunk in expected.chunks(17) {
+                        growable.extend_from_slice(chunk);
+                    }
+                    let control = reallocations_on_this_thread();
+                    assert_eq!(growable, expected);
+                    assert!(
+                        control > 0,
+                        "the growable control must register body-sized reallocations"
+                    );
+
+                    track_reallocations_at_least_on_this_thread(expected.len().div_euclid(2));
+                    let actual = build(expected.len()).unwrap();
+                    let reallocations = reallocations_on_this_thread();
+                    assert_eq!(actual.into_body().into_bytes().unwrap(), expected);
+                    assert_eq!(
+                        reallocations, 0,
+                        "{input_bytes} input bytes, escaped={escape_html}"
+                    );
+                }
+            }
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn complete_cookie_formatting_never_grows_its_reserved_field() {
+        use auctioneer_core::usersync::cookie::{CookieWriteOptions, prepare_set_cookie_value};
+
+        thread::spawn(|| {
+            for value_bytes in [2049, 3553] {
+                let value = "a".repeat(value_bytes);
+                let options = CookieWriteOptions {
+                    domain: "sync.example.test",
+                    user_agent: Some("Chrome/130.0"),
+                    ..CookieWriteOptions::default()
+                };
+                let expected =
+                    prepare_set_cookie_value(&value, &options, OffsetDateTime::UNIX_EPOCH).unwrap();
+                let field = expected.field_value();
+                assert!(field.as_bytes().len() > value_bytes);
+                track_reallocations_at_least_on_this_thread(value_bytes.div_euclid(2));
+                let mut control = String::new();
+                for chunk in field.to_str().unwrap().as_bytes().chunks(17) {
+                    control.push_str(str::from_utf8(chunk).unwrap());
+                }
+                assert!(reallocations_on_this_thread() > 0);
+                assert_eq!(control.as_bytes(), field.as_bytes());
+
+                track_reallocations_at_least_on_this_thread(value_bytes.div_euclid(2));
+                let prepared =
+                    prepare_set_cookie_value(&value, &options, OffsetDateTime::UNIX_EPOCH).unwrap();
+                let growth = reallocations_on_this_thread();
+                assert_eq!(prepared.field_value(), field);
+                assert_eq!(growth, 0, "complete {value_bytes}-byte cookie value");
+            }
         })
         .join()
         .unwrap();

@@ -7,7 +7,7 @@ use std::{
     str,
 };
 
-use auctioneer_bidder::accepts_sync_uid;
+use auctioneer_bidder::{CappedWriter, accepts_sync_uid};
 use base64::{
     Engine as _, alphabet,
     engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig, URL_SAFE},
@@ -521,12 +521,23 @@ pub fn prepare_set_cookie_value(
     if chrome_same_site_none(options.user_agent) {
         builder = builder.secure(true).same_site(SameSite::None);
     }
-    let field = builder.build().to_string();
-    if field.len() > hard_cap {
-        return Err(CookieWriteError::HardLimit);
-    }
+    let cookie = builder.build();
+    let mut field = Vec::new();
+    field
+        .try_reserve_exact(hard_cap)
+        .map_err(|_allocation| CookieWriteError::CodecLimit)?;
+    let mut writer = CappedWriter::new(&mut field, hard_cap)
+        .map_err(|_capacity| CookieWriteError::CodecLimit)?;
+    // Keep the library's complete cookie grammar, but never grow its field buffer.
+    write!(&mut writer, "{cookie}").map_err(|error| {
+        if error.kind() == io::ErrorKind::WriteZero {
+            CookieWriteError::HardLimit
+        } else {
+            CookieWriteError::InvalidAttributes
+        }
+    })?;
     let field_value =
-        HeaderValue::from_str(&field).map_err(|_error| CookieWriteError::InvalidAttributes)?;
+        HeaderValue::from_bytes(&field).map_err(|_error| CookieWriteError::InvalidAttributes)?;
     Ok(PreparedCookie { field_value })
 }
 

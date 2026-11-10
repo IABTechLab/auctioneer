@@ -603,6 +603,60 @@ mod tests {
     }
 
     #[test]
+    fn aux_output_and_work_stay_funded_until_each_real_sdk_terminal_outcome() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        assert!(peak > 0);
+        // A registered handler and the router fallback share the same completion owner.
+        for path in ["/info/bidders", "/no/such/route"] {
+            for outcome in [
+                ResponseEgressOutcome::Completed,
+                ResponseEgressOutcome::ClientDisconnected,
+                ResponseEgressOutcome::DeadlineExceeded,
+                ResponseEgressOutcome::RequestCancelled,
+                ResponseEgressOutcome::TransportError,
+            ] {
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                let envelope = dispatch(&app, Method::GET, path, Body::empty()).unwrap();
+                assert_eq!(gates.aux.in_use(), 1);
+                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                let (prepared, _policy, mut attempt, clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("aux response egress begins"));
+                assert!(attempt.begin_writing());
+                drop(prepared);
+                assert_eq!(gates.aux.in_use(), 1);
+                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                assert!(gates.aux.try_acquire().is_none());
+                assert!(attempt.terminate(outcome, clock.now()));
+                assert_eq!(gates.aux.in_use(), 0, "{path}, {outcome:?}");
+                assert_eq!(gates.aux_work_budget.in_use(), 0, "{path}, {outcome:?}");
+                assert!(!attempt.terminate(outcome, clock.now()));
+                drop(attempt);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+            }
+            let envelope = dispatch(&app, Method::GET, path, Body::empty()).unwrap();
+            let (prepared, _policy, attempt, _clock) = envelope
+                .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                .unwrap_or_else(|_| panic!("aux response egress begins"));
+            drop(prepared);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(attempt);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            drop(dispatch(&app, Method::GET, path, Body::empty()).unwrap());
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+        }
+    }
+
+    #[test]
     fn aux_gate_full_returns_503_through_static_class() {
         boot();
         let _serialized = gate_counters_lock();
