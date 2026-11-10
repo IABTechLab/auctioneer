@@ -40,7 +40,7 @@ fn context(bidder: &dyn Bidder) -> (BidRequest, BidderHttpRequest) {
         "ext":{"bidder":{"accountId":1001_i64,"siteId":113_932_i64,"zoneId":535_510_i64}}
     }]})).unwrap();
     let settings: BidderSettings =
-        serde_json::from_value(json!({"implementation":"rubicon","values":{
+        serde_json::from_value(json!({"implementation":"rubicon","settings":{
             "credentials_secret":"fake_credential_bundle","external_url":"http://hosturl.com",
             "region":"us-east"
         }}))

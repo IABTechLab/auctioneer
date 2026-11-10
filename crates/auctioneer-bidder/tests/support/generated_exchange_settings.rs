@@ -200,7 +200,7 @@ mod tests {
             };
             entries.insert(
                 "fake_fx".into(),
-                serde_json::from_value(json!({"implementation":implementation,"values":values}))
+                serde_json::from_value(json!({"implementation":implementation,"settings":values}))
                     .unwrap(),
             );
         }
@@ -212,7 +212,7 @@ mod tests {
             };
             entries.insert(
                 "fake_first".into(),
-                serde_json::from_value(json!({"implementation":implementation,"values":values}))
+                serde_json::from_value(json!({"implementation":implementation,"settings":values}))
                     .unwrap(),
             );
         }

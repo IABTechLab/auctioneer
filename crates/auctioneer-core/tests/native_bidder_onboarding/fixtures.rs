@@ -291,6 +291,25 @@ fn flow_from_member(
         .into_iter()
         .next()
         .expect("owner first factory case");
+    if let Some(recorded) = case
+        .context
+        .get("settings")
+        .filter(|value| !value.is_null())
+    {
+        // Preserve the historical capture; its owner and fields move to the
+        // bidder row and settings subconfig only when creating runtime input.
+        let recorded = recorded.as_object().expect("recorded settings object");
+        assert_eq!(
+            recorded.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+            BTreeSet::from(["implementation", "values"]),
+        );
+        assert_eq!(
+            recorded["implementation"].as_str(),
+            Some(member.implementation.as_str()),
+            "recorded settings belong to their fixture owner",
+        );
+        assert!(recorded["values"].is_object());
+    }
     assert!(!case.outbound.is_empty());
     let ids: BTreeMap<_, _> = case.request["imp"]
         .as_array()
@@ -709,8 +728,10 @@ pub(super) fn config(flows: &[&Flow]) -> Value {
                 .entry(ancestor.name.clone())
                 .or_insert_with(|| json!({"enabled":true}));
         }
-        if let Some(settings) = flow.settings() {
-            bidders.get_mut(flow.name()).unwrap()["settings"] = settings.clone();
+        if let Some(recorded) = flow.settings() {
+            let row = bidders.get_mut(flow.name()).unwrap();
+            row["implementation"] = recorded["implementation"].clone();
+            row["settings"] = recorded["values"].clone();
         }
     }
     json!({

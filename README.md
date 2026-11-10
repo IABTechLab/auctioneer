@@ -239,13 +239,17 @@ deployment, add its endpoint to your runtime policy:
 ```toml
 [bidders.mocktioneer]
 enabled = true
-
-[bidders.mocktioneer.settings]
 implementation = "mocktioneer"
 
-[bidders.mocktioneer.settings.values]
+[bidders.mocktioneer.settings]
 endpoint = "https://mock-bidder.example.test/openrtb2/auction"
 ```
+
+When settings are supplied, the bidder row requires `implementation`; the
+separate `.settings` subconfig contains only that owner's fields. The key must
+match the resolved bidder owner. Omit both fields to use inherited or compiled
+defaults. Republish older wrapped configuration in this form after updating
+the binary.
 
 Use a literal absolute URL of at most 2048 UTF-8 bytes. Public destinations
 require HTTPS; the development feature also allows HTTP to exact loopback

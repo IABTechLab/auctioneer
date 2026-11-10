@@ -46,7 +46,7 @@ mod tests {
             "https://request-param.example.test:9443/untrusted?route=other"
         );
         let settings: BidderSettings = serde_json::from_value(json!({
-            "implementation":"mocktioneer", "values":{"endpoint":"https://operator.example.test:8443/openrtb2/auction?route=one"}
+            "implementation":"mocktioneer", "settings":{"endpoint":"https://operator.example.test:8443/openrtb2/auction?route=one"}
         })).unwrap();
         for (requested, base) in [(Some(&settings), None), (None, Some(&settings))] {
             let endpoint = MocktioneerBidder

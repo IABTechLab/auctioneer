@@ -1,152 +1,103 @@
-# Flat bidder settings design
+# Bidder implementation and separate settings subconfig
 
 ## Requested contract
 
-The maintainer requested the following operator format for every bidder:
+The maintainer selected this exact structure for every bidder:
 
 ```toml
 [bidders.mocktioneer]
 enabled = true
+implementation = "mocktioneer"
 
 [bidders.mocktioneer.settings]
 endpoint = "https://mock-bidder.example.test/openrtb2/auction"
 ```
 
-Remove the operator-facing `implementation` discriminator and `values` wrapper
-consistently from TOML, JSON, typed CLI push/load, SDK extraction, documentation
-and current test inputs. Common bidder controls remain beside `settings`.
-Fields, types and semantic validators remain bidder-owned. The same generated
-path supports Microsoft, The Trade Desk, Rubicon, Mocktioneer and newly discovered
-settings declarations without a handwritten implementation list.
+`implementation` sits on the bidder entry beside common controls. The separate
+`.settings` subconfig contains only bidder-owned fields. Microsoft, The Trade
+Desk, Rubicon, Mocktioneer and future discovered owners use this same structure.
+Each owner retains its concrete settings type, allowed fields and validator.
+
+The selector keeps its original schema-selection and binding role. It neither
+registers nor activates an implementation. Omit both selector and settings for
+an entry containing only common overrides. If either is present, require both;
+`settings = {}` is valid only for an owner whose optional fields permit it.
+Unknown selectors, conflicting operator identities, unknown fields and malformed
+present settings must fail closed rather than silently becoming absent settings.
 
 This extends #124 and the Mocktioneer runtime configuration work in PR #160.
-Historical evidence and source captures retain their original bytes. This is a
-pre-release authoring-format change within the current application schema;
-existing tagged documents must be republished in the new form. Do not silently
-maintain two accepted operator formats.
+It is a pre-release authoring-format change in the current application schema.
+Operators must republish old wrapped documents after upgrading. Historical
+evidence and source captures retain their original bytes.
 
-## Constraints established by the current implementation
+## Implementation
 
-`BidderOverrides<Settings>` already provides the `.settings` boundary. The
-wrapper is imposed by `bidder_settings_codegen`, not by the provider adapters.
-The current internal tag also pins settings to an implementation. Removing it
-must preserve that protection: request aliases can override host mappings and
-even shadow a compiled public name. The endpoint/credentials selected for one
-implementation must never be reinterpreted as another implementation's settings.
+Keep the original generated `BidderSettings(ImplementationSettings)` enum,
+owner `Settings` structs, borrowed accessors, fieldwise fallback and semantic
+validators. Its adjacent Serde tag becomes `implementation` with content named
+`settings`, replacing `values`.
 
-Operator settings may name a future request-only alias. Its binding is unknown
-at publication, so simply looking up the outer table name during deserialization
-is insufficient. Empty settings, omission/null optional fields, independent
-requested/base fallback and disabled/shadowed value validation must remain safe.
+The shared generic `BidderOverrides<Settings>` serializes that typed envelope
+as sibling fields at the bidder entry through `flatten`. Its Rust settings
+field, ownership and validation APIs do not change. Deserialization uses a
+private strict adapter instead of flattened Option decoding, which can suppress
+errors. The adapter calls `deserialize_struct` with exactly `implementation`
+and `settings`, peeks/replays one closed static key, and delegates the claimed
+map to the existing typed enum. It returns None only when neither key exists;
+all present-object errors propagate. The outer strict model rejects unclaimed
+row fields. No JSON value tree, settings clone, inferred owner, new public API
+or dependency is introduced.
 
-## Alternatives
+The outer generated object guard and owner-local `deny_unknown_fields` remain.
+Shared code enforces common bounds and implementation binding. Bidder owners
+retain scalar types, credential-reference rules, requiredness and endpoint
+policies. Existing admission validates both requested and fallback settings
+before semantic callbacks; request aliases cannot reinterpret another owner's
+typed settings. An owner field named `implementation` is in a different nested
+namespace and does not require a new declaration restriction.
 
-1. **Flat generated scalar storage with borrowed typed views (recommended).**
-   Decode a bounded, redacted object, expose owner-specific borrowed fields,
-   resolve the implementation from the registry/host alias during admission,
-   and pin the same operator binding in the request-owned projection. This
-   supports shared field names across known implementations without guessing.
-2. **Normalize flat input into the existing tagged enum.** This preserves owner
-   APIs but needs contextual staging at every parser boundary and a deferred
-   representation for request-only aliases. Avoid a second full config tree or
-   an allocation of cloned strings merely to recover the removed wire tag.
-3. **Infer an enum variant from fields alone.** Simple for today's disjoint field
-   names, but ambiguous schemas and empty objects make this unsuitable as the
-   general bidder configuration contract.
+Update active readers, writers, tests and examples together. Reject the old
+`.settings.implementation` / `.settings.values` operator shape. Historical
+capture readers strictly check their recorded envelope/owner and convert only
+at the fixture boundary; production does not accept a legacy format.
 
-## Proposed data flow
+## Alternatives considered
 
-Generate an opaque flat `BidderSettings` object from discovered declarations.
-Its one owned representation is a private `Vec<FieldValue>` with a generated
-closed key enum, string/i64/null scalar variants and an optional internal
-`&'static str` implementation pin. Sort by generated key for stable output.
-Serialization writes the fields directly as a map and omits the internal pin.
-Only the existing closed scalar kinds are admitted: optional strings, signed
-integers and secret references. Reject unknown keys, duplicate keys, arrays,
-objects, booleans, floats, coercions and overflow, using fixed diagnostics.
-Omitted and null optional values retain fieldwise absence; present empty strings
-retain the owner's existing semantics. Keep the key of an explicit null during
-schema checks and serialization: a null field must not become an absent field
-and change which schemas match after a round trip. Empty means zero keys.
-Redact all values in Debug/errors.
+- Required selector at the bidder entry with separate typed settings is the
+  selected layout. It matches the maintainer's final example and preserves
+  independent owner schemas and validation.
+- Putting the selector inside `.settings` does not match that example.
+- Optional field-based inference changes the discriminator's behavior and
+  introduces ambiguity. A flattened Option without the strict adapter can
+  swallow malformed supplied settings and is unsuitable.
 
-Generate owner-specific `Settings<'a>` as thin `Copy` wrappers borrowing the
-opaque object, with typed getter methods (`endpoint()`, `hb_source()`, etc.).
-`as_owner()` returns `Option<Settings<'_>>`; `resolve` consumes two optional
-Copy views and returns the existing fieldwise fallback view. No temporary typed
-reference, `PhantomData`, per-owner string copy or dependency is needed.
-Shared admission and request `set_settings` must first perform fallible checks
-of both supplied entries' pins, allowed fields, scalar types, secret references
-and limits. An accessor mismatch must never be treated as absent settings.
+## Verification and resource acceptance
 
-For a compiled bidder or effective configured alias, admission resolves the
-implementation through the existing independently compiled bindings. Validate
-both supplied entries against that owner before invoking its semantic callback.
-Independently resolve the operator owner of each supplied row, including a
-fallback row. Host aliases do not chain: with `x -> alpha` and `alpha -> beta`,
-the `alpha.settings` row is beta-owned and cannot supply alpha's settings to x,
-even if both schemas declare the same fields. Finish the binding/schema pass
-over the entire identity union before invoking any owner callback.
-This permits two implementations to declare the same field name and still
-select their own schema and rules.
+Serde flattening buffers envelope fields before owner decoding. An unchanged
+Rust layout does not establish equivalent decoding peaks. Run existing config
+peak/lifecycle, SDK catalog growth, CLI resource, native construction and guest
+controls without changing limits, workload sizes or immutable evidence.
+Serialize heavy Cargo jobs and freeze source edits during identity checks.
 
-For a future request-only identity, nonempty settings must identify exactly one
-compatible linked settings-owning implementation. Reject no-match and ambiguous
-cases before activation; declaring the alias in operator configuration supplies
-the missing identity in an ambiguous case. Empty settings carry no values and
-may remain unbound until the requested identity is resolved. A known owner with
-no settings declaration rejects supplied settings, including `{}`. Never select
-the first of several matching schemas or take an implementation from request data.
+Acceptance requires:
 
-At request projection, independently recover the operator binding using the
-effective host aliases and the host-supplied compiled bindings. Extend
-`RuntimeBidderSettings::project` with those two trusted inputs; derive each row's
-owner without consulting the request alias map (that map only selects which
-rows to retain). Preserve an existing pin and refuse conflicting rebinding.
-Store that
-binding only in the existing request-owned settings object; omit it from wire
-serialization. A request alias selecting a different implementation must fail
-at settings binding before credentials, endpoint selection or body construction,
-even when the two implementations share field names. Programmatic callers bind
-an unbound object through their existing explicit trusted implementation input.
+- Exact requested TOML and equivalent JSON round trips for all four owners,
+  actual typed CLI validation/push dry-run and local Fastly/Viceroy execution.
+- Omitted pair versus partial pair, null/wrong-type/unknown selector, malformed
+  settings, duplicate selector/settings/common fields and unknown row fields.
+- Selector/settings in either order, with common controls between them.
+- Missing/unknown owner fields, scalar coercion, nonobject input, old wrapped
+  format rejection, independent semantic validators and redacted diagnostics.
+- Existing disabled/shadowed, alias, per-field fallback, request retargeting,
+  credential and side-effect ordering contracts.
+- Original resource ceilings and workloads, independent implementation review,
+  format/import/raw-fixture gates and inspection of the new CI run separately.
 
-## Resource and compatibility effects
+## Review and authorization
 
-One bounded settings object owns scalar values; views borrow those values.
-Projection makes only the copies already required by its existing lifetime
-contract and does not copy unrelated settings or the whole policy. Charge and
-measure any changed object/map layouts through their existing owners. Keep all
-caps, ceilings, workloads and immutable evidence intact. The known construction
-layout regression in PR #160 must not recur.
-
-Settings-free bidders, provider storage/envelopes, bidder parameters carried by
-auction requests, privacy, alias precedence and credential ownership retain
-their existing contracts. Configuration examples store literal URLs, not
-Markdown link syntax.
-
-## Acceptance
-
-- The maintainer's exact table layout parses, serializes without the removed
-  wrappers, passes typed CLI validation/push dry-run and reaches serving code.
-- Exercise all four existing owners with independent expected values; adding a
-  synthetic owner requires only its manifest and ordinary owner-local code.
-- Keep typed rejection, absence/null/zero/empty semantics, per-field alias/base
-  fallback, credential redaction and validation of disabled/shadowed settings.
-- Exercise compiled aliases, configured aliases, request-only aliases, empty
-  objects and ambiguous/shared field declarations with capable synthetic owners.
-- Exercise cross-shadowed alias fallback, mixed null/shared-field round trips,
-  shared names with different scalar kinds and settings-free `{}` rejection.
-- A request that retargets an operator-configured name cannot change its pinned
-  implementation, including shared field names; refusal precedes credentials
-  and body construction without mutating input or affecting valid siblings.
-- Existing allocation/funding, exact native construction, CLI resource and guest
-  checks pass without changed limits or rewritten frozen evidence.
-- Update active readers, writers and examples together; preserve historical
-  captures. Verify actual dispatched test counts and inspect CI independently.
-
-## Review
-
-An independent specification review identified the per-row fallback binding,
-explicit-null identity, projection inputs and view-gating requirements above.
-They are incorporated before implementation; no callback may observe an
-unchecked row and no request alias may choose an operator settings pin.
+The maintainer's final exact table places `implementation` beside `enabled`,
+with bidder-owned fields under the separate `.settings` table. This supersedes
+earlier selector-placement proposals. Independent review checked local Serde
+behavior: `deserialize_with` bypasses Option error suppression,
+`deserialize_struct` consumes only the two envelope keys, and the outer strict
+model rejects leftovers. Verify these properties with executable boundary tests.

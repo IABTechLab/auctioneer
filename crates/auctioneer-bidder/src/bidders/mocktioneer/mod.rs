@@ -78,7 +78,7 @@ mod tests {
     fn generated_endpoint_settings_accept_an_optional_string() {
         let settings = serde_json::from_value::<crate::BidderSettings>(serde_json::json!({
             "implementation": "mocktioneer",
-            "values": {"endpoint": "https://mock-bidder.example.test:8443/auction?route=one"}
+            "settings": {"endpoint": "https://mock-bidder.example.test:8443/auction?route=one"}
         }));
         assert!(
             settings.is_ok(),
@@ -109,7 +109,7 @@ mod tests {
             serde_json::json!({"endpoint":{}}),
         ] {
             let error = serde_json::from_value::<crate::BidderSettings>(
-                serde_json::json!({"implementation":"mocktioneer", "values":values}),
+                serde_json::json!({"implementation":"mocktioneer", "settings":values}),
             )
             .unwrap_err();
             assert!(error.is_data());

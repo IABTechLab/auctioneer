@@ -427,15 +427,11 @@ mod config_contract {
                 "sample_rate",
                 "max_transport_bytes",
                 "max_decoded_bytes",
+                "implementation",
                 "settings",
             ],
         );
-        assert_reference_fields(
-            &example,
-            "bidders.fake_bidder.settings",
-            &["implementation", "values"],
-        );
-        let values = example["bidders"]["fake_bidder"]["settings"]["values"]
+        let values = example["bidders"]["fake_bidder"]["settings"]
             .as_table()
             .unwrap();
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -465,29 +461,41 @@ mod config_contract {
             values.keys().map(String::as_str).collect::<BTreeSet<_>>(),
             declared
         );
+        let expected_roundtrips = owners.len();
+        let mut roundtrips = 0_usize;
         let mut checked = 0_usize;
         for (owner, settings) in owners {
-            let Some(name) = owner
+            let compiled_name = owner
                 .definitions
                 .keys()
-                .find(|name| auctioneer_config_data::bidder(name).is_some())
-            else {
-                continue;
-            };
+                .find(|name| auctioneer_config_data::bidder(name).is_some());
+            let name = compiled_name.unwrap_or(&owner.key);
             let selected: toml::Table = settings
                 .fields
                 .keys()
                 .map(|field| (field.clone(), values[field].clone()))
                 .collect();
             let mut overrides = serde_json::to_value(&example["bidders"]["fake_bidder"]).unwrap();
-            overrides["settings"] = json!({"implementation": owner.key, "values": selected});
-            let policy: SdkAuctioneerAppConfig = serde_json::from_value(
-                json!({"schema_version": 1_u8, "bidders": {(name): overrides}}),
-            )
-            .unwrap();
-            policy.validate().unwrap();
-            checked = checked.checked_add(1).unwrap();
+            overrides["implementation"] = json!(owner.key);
+            overrides["settings"] = json!(selected);
+            let wire = json!({"schema_version": 1_u8, "bidders": {(name): overrides}});
+            let policy: SdkAuctioneerAppConfig = serde_json::from_value(wire.clone()).unwrap();
+            let toml_policy: SdkAuctioneerAppConfig =
+                toml::from_str(&toml::to_string(&wire).unwrap()).unwrap();
+            // Reference schemas cover every discovered owner. Admission
+            // additionally requires the owner in this feature lane's build.
+            if compiled_name.is_some() {
+                policy.validate().unwrap();
+                toml_policy.validate().unwrap();
+                checked = checked.checked_add(1).unwrap();
+            }
+            let serialized = serde_json::to_value(&policy).unwrap();
+            assert_eq!(serialized, serde_json::to_value(toml_policy).unwrap());
+            assert_eq!(serialized["bidders"][name]["implementation"], owner.key);
+            assert_eq!(serialized["bidders"][name]["settings"], json!(selected));
+            roundtrips = roundtrips.checked_add(1).unwrap();
         }
+        assert_eq!(roundtrips, expected_roundtrips);
         assert!(checked > 0, "compiled settings examples must execute");
     }
 

@@ -1,5 +1,9 @@
 # Mocktioneer runtime endpoint implementation plan
 
+November 9 format update: the [flat settings plan](2026-11-09-flat-bidder-settings.md)
+replaces the earlier operator wrapper syntax consistently for every bidder.
+This plan retains the original endpoint behavior and verification record.
+
 > Follow test-driven development and the repository's verification ownership.
 > The user approved the runtime endpoint contract in the November 9 conversation.
 

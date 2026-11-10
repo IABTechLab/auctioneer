@@ -19,6 +19,8 @@ mod object;
 #[cfg(feature = "config-model")]
 pub use currency::{FloorCurrencyConfig, MAX_FLOOR_CURRENCY_RATES};
 #[cfg(feature = "config-model")]
+mod bidder_settings_wire;
+#[cfg(feature = "config-model")]
 mod model_validation;
 #[cfg(feature = "config-model")]
 pub mod override_value;

@@ -1,5 +1,10 @@
 # Configure Mocktioneer endpoints through runtime policy
 
+November 9 format update: the maintainer subsequently selected fields directly
+under `.settings` for every bidder. The [flat settings design](2026-11-09-flat-bidder-settings-design.md)
+supersedes the wrapper syntax recorded below; endpoint validation and authority
+requirements continue to apply.
+
 Status: operator contract approved in the November 9 conversation; implementation
 and target verification belong to the accompanying PR. Related to #124.
 

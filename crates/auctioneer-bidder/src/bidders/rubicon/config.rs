@@ -90,7 +90,7 @@ mod tests {
 
     fn settings(values: Value) -> BidderSettings {
         let mut document = json!({"implementation":"rubicon"});
-        document["values"] = values;
+        document["settings"] = values;
         serde_json::from_value(document).unwrap()
     }
 

@@ -52,7 +52,7 @@ pub fn render(manifests: &BTreeMap<String, Manifest>) -> Result<String, syn::Err
         pub struct BidderSettings(ImplementationSettings);
 
         #[derive(Clone, ::serde::Deserialize, ::serde::Serialize)]
-        #[serde(tag = "implementation", content = "values", deny_unknown_fields)]
+        #[serde(tag = "implementation", content = "settings", deny_unknown_fields)]
         enum ImplementationSettings {
             #(#[serde(rename = #keys)] #variants(#names::Settings),)*
         }
@@ -75,7 +75,7 @@ pub fn render(manifests: &BTreeMap<String, Manifest>) -> Result<String, syn::Err
                 use crate::bidder_settings::ensure_limits;
                 ensure_limits(self).map_err(|reason| {
                     let mut errors = ::validator::ValidationErrors::new();
-                    errors.add("values", ::validator::ValidationError::new(reason));
+                    errors.add("settings", ::validator::ValidationError::new(reason));
                     errors
                 })
             }
@@ -85,7 +85,7 @@ pub fn render(manifests: &BTreeMap<String, Manifest>) -> Result<String, syn::Err
             fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
                 f.debug_struct("BidderSettings")
                     .field("implementation", &self.implementation_key())
-                    .field("values", &"<redacted>").finish()
+                    .field("settings", &"<redacted>").finish()
             }
         }
     }.to_string())

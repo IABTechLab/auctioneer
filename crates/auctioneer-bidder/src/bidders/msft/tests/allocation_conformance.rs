@@ -406,15 +406,15 @@ fn msft_chunk_construction_is_funded_across_payload_slots_caps_and_settings() {
             .unwrap()
             .factory)();
         let base: BidderSettings = serde_json::from_value(json!({
-            "implementation":"msft","values":{"hb_source":50_i64,"hb_source_video":60_i64},
+            "implementation":"msft","settings":{"hb_source":50_i64,"hb_source_video":60_i64},
         }))
         .unwrap();
         let auction_zero: BidderSettings = serde_json::from_value(json!({
-            "implementation":"msft","values":{"hb_source":0_i64},
+            "implementation":"msft","settings":{"hb_source":0_i64},
         }))
         .unwrap();
         let video_zero: BidderSettings = serde_json::from_value(json!({
-            "implementation":"msft","values":{"hb_source_video":0_i64},
+            "implementation":"msft","settings":{"hb_source_video":0_i64},
         }))
         .unwrap();
         // Literal fieldwise/default oracles: an explicit zero blocks base

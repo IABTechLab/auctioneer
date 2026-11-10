@@ -297,10 +297,10 @@ mod request_binding {
     fn settings_binding_refuses_each_wrong_or_missing_implementation_before_projection() {
         let mut cases = 0;
         let integer: BidderSettings =
-            serde_json::from_value(json!({"implementation":"fake_integer_probe","values":{}}))
+            serde_json::from_value(json!({"implementation":"fake_integer_probe","settings":{}}))
                 .unwrap();
         let string: BidderSettings =
-            serde_json::from_value(json!({"implementation":"fake_string_probe","values":{}}))
+            serde_json::from_value(json!({"implementation":"fake_string_probe","settings":{}}))
                 .unwrap();
         for (expected, requested, base) in [
             (Some("fake_integer_probe"), Some(&string), None),
@@ -329,11 +329,11 @@ mod request_binding {
     #[test]
     fn settings_binding_borrows_both_entries_and_preserves_fieldwise_zero_precedence() {
         let base: BidderSettings = serde_json::from_value(
-            json!({"implementation":"fake_integer_probe","values":{"primary_number":41_i64,"secondary_number":42_i64}}),
+            json!({"implementation":"fake_integer_probe","settings":{"primary_number":41_i64,"secondary_number":42_i64}}),
         )
         .unwrap();
         let alias: BidderSettings = serde_json::from_value(
-            json!({"implementation":"fake_integer_probe","values":{"primary_number":0_i64}}),
+            json!({"implementation":"fake_integer_probe","settings":{"primary_number":0_i64}}),
         )
         .unwrap();
         let mut info = settings_info();
@@ -358,10 +358,10 @@ mod request_binding {
     fn settings_binding_enforces_limits_for_programmatic_callers_and_clears_previous_binding() {
         let mut cases = 0;
         let small: BidderSettings = serde_json::from_value(
-            json!({"implementation":"fake_string_probe","values":{"token":"host"}}),
+            json!({"implementation":"fake_string_probe","settings":{"token":"host"}}),
         )
         .unwrap();
-        let large: BidderSettings = serde_json::from_value(json!({"implementation":"fake_string_probe","values":{"token":"private-marker".repeat(2048)}})).unwrap();
+        let large: BidderSettings = serde_json::from_value(json!({"implementation":"fake_string_probe","settings":{"token":"private-marker".repeat(2048)}})).unwrap();
         for (requested, base) in [
             (Some(&large), None),
             (None, Some(&large)),
@@ -404,17 +404,23 @@ mod retention {
         let mut bidders: serde_json::Map<_, _> = (0..count)
             .map(|index| {
                 (format!("fake_bidder_{index}"), json!({
-                    "settings": {"implementation": "fake_string_probe", "values": {"token": "x".repeat(width)}}
+                    "implementation": "fake_string_probe", "settings": {"token": "x".repeat(width)}
                 }))
             })
             .collect();
-        bidders.insert("fake_base".to_owned(), json!({
-            "settings": {"implementation": "fake_string_probe", "values": {"token": "b".repeat(width)}}
-        }));
+        bidders.insert(
+            "fake_base".to_owned(),
+            json!({
+                "implementation": "fake_string_probe", "settings": {"token": "b".repeat(width)}
+            }),
+        );
         for index in 0..unrelated {
-            bidders.insert(format!("fake_unrelated_{index}"), json!({
-                "settings": {"implementation": "fake_string_probe", "values": {"token": "u".repeat(4_096)}}
-            }));
+            bidders.insert(
+                format!("fake_unrelated_{index}"),
+                json!({
+                    "implementation": "fake_string_probe", "settings": {"token": "u".repeat(4_096)}
+                }),
+            );
         }
         let account_rows: serde_json::Map<_, _> = (0..accounts)
             .map(|index| {
@@ -584,13 +590,13 @@ mod retained_owner {
                     "fake_alias": {
                         "enabled": false,
                         "timeout_ms": 20,
-                        "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0}}
+                        "implementation": "fake_integer_probe", "settings": {"primary_number": 0}
                     },
-                    "fake_base": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 42, "secondary_number": 7}}},
-                    "fake_second_alias": {"settings": {"implementation": "fake_integer_probe", "values": {"secondary_number": 9}}},
-                    "fake_unused_alias": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unused-alias"}}},
-                    "fake_unused_base": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unused-base"}}},
-                    "fake_unrelated": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unrelated"}}},
+                    "fake_base": {"implementation": "fake_integer_probe", "settings": {"primary_number": 42, "secondary_number": 7}},
+                    "fake_second_alias": {"implementation": "fake_integer_probe", "settings": {"secondary_number": 9}},
+                    "fake_unused_alias": {"implementation": "fake_string_probe", "settings": {"token": "unused-alias"}},
+                    "fake_unused_base": {"implementation": "fake_string_probe", "settings": {"token": "unused-base"}},
+                    "fake_unrelated": {"implementation": "fake_string_probe", "settings": {"token": "unrelated"}},
                     "fake_no_settings": {"enabled": false}
                 },
                 "accounts": {"fake_discarded": {"targeting_prefix": "discarded"}}
@@ -711,10 +717,10 @@ mod retained_owner {
             serde_json::from_value(json!({
                 "schema_version": 1,
                 "bidders": {
-                    "fake_alias": {"settings": {"implementation": "fake_string_probe", "values": {"token": "a".repeat(width)}}},
-                    "fake_fallback": {"settings": {"implementation": "fake_string_probe", "values": {}}},
-                    "fake_base": {"settings": {"implementation": "fake_string_probe", "values": {"token": "b".repeat(width)}}},
-                    "fake_unrelated": {"settings": {"implementation": "fake_string_probe", "values": {"token": "unrelated-host"}}},
+                    "fake_alias": {"implementation": "fake_string_probe", "settings": {"token": "a".repeat(width)}},
+                    "fake_fallback": {"implementation": "fake_string_probe", "settings": {}},
+                    "fake_base": {"implementation": "fake_string_probe", "settings": {"token": "b".repeat(width)}},
+                    "fake_unrelated": {"implementation": "fake_string_probe", "settings": {"token": "unrelated-host"}},
                     "fake_no_settings": {"enabled": false}
                 },
                 "accounts": {"fake_discarded": {"targeting_prefix": "unused"}}
@@ -864,15 +870,15 @@ mod config_limits {
         let policy = auctioneer_config::policy::OperatorPolicy::<BidderSettings>::default();
         policy.validate().unwrap();
         let valid = decode(
-            json!({"implementation":"fake_string_probe","values":{"token":"private-marker"}}),
+            json!({"implementation":"fake_string_probe","settings":{"token":"private-marker"}}),
         )
         .unwrap();
         valid.validate().unwrap();
-        let invalid = decode(json!({"implementation":"fake_string_probe","values":{"token":"private-marker".repeat(2048)}})).unwrap();
+        let invalid = decode(json!({"implementation":"fake_string_probe","settings":{"token":"private-marker".repeat(2048)}})).unwrap();
         let errors = invalid.validate().unwrap_err();
         let fields = errors.field_errors();
         assert_eq!(fields.len(), 1);
-        let errors = fields["values"];
+        let errors = fields["settings"];
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].code, "bidder settings exceed byte limit");
         assert!(errors[0].params.is_empty());
@@ -883,18 +889,18 @@ mod config_limits {
     fn typed_settings_byte_ceiling_includes_the_envelope_and_json_escaping() {
         use auctioneer_bidder::bidder_settings::ensure_limits;
         let empty =
-            decode(json!({"implementation":"fake_string_probe","values":{"token":""}})).unwrap();
+            decode(json!({"implementation":"fake_string_probe","settings":{"token":""}})).unwrap();
         let overhead = auctioneer_runtime::serialized_json_bytes(&empty).unwrap();
         let width = usize::try_from(0x4000_u64 - overhead).unwrap();
         let mut cases = 0;
         for (extra, expected) in [(0, Ok(())), (1, Err("bidder settings exceed byte limit"))] {
-            let settings = decode(json!({"implementation":"fake_string_probe","values":{"token":"x".repeat(width + extra)}})).unwrap();
+            let settings = decode(json!({"implementation":"fake_string_probe","settings":{"token":"x".repeat(width + extra)}})).unwrap();
             assert_eq!(ensure_limits(&settings), expected);
             cases += 1;
         }
         assert_eq!(cases, 2);
         let escaped = decode(
-            json!({"implementation":"fake_string_probe","values":{"token":"\n".repeat(width)}}),
+            json!({"implementation":"fake_string_probe","settings":{"token":"\n".repeat(width)}}),
         )
         .unwrap();
         assert_eq!(
@@ -979,15 +985,15 @@ mod runtime {
         const CANARY: &str = "private-settings-canary";
         let mut cases = 0;
         for settings in [
-            json!({"implementation":CANARY,"values":{}}),
-            json!({"implementation":"fake_integer_probe","values":{"primary_number":CANARY}}),
-            json!({"implementation":"fake_integer_probe","values":{(CANARY):true}}),
-            json!({"implementation":"fake_string_probe","values":{"token":CANARY.repeat(2048)}}),
+            json!({"implementation":CANARY,"settings":{}}),
+            json!({"implementation":"fake_integer_probe","settings":{"primary_number":CANARY}}),
+            json!({"implementation":"fake_integer_probe","settings":{(CANARY):true}}),
+            json!({"implementation":"fake_string_probe","settings":{"token":CANARY.repeat(2048)}}),
         ] {
             let fanout = Arc::new(RecordingFanout::default());
             let ctx = context_with(
                 Arc::new(SettingsStore(
-                    json!({"schema_version": 1, "bidders":{"fake_bidder":{"settings":settings}}}),
+                    json!({"schema_version": 1, "bidders":{"fake_bidder":settings}}),
                 )),
                 Arc::clone(&fanout),
             );
@@ -1207,12 +1213,12 @@ mod compiled_sdk {
         json!({"schema_version": 1,
             "host": {"aliases": {"fake_host_alias": "fake_wire_leaf"}},
             "bidders": {
-                "fake_wire_base": {"enabled": true, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 7, "secondary_number": 11}}},
-                "fake_wire_parent": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 3, "secondary_number": 5}}},
-                "fake_wire_leaf": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0, "secondary_number": 23}}},
-                "fake_host_alias": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0}}},
-                "fake_wire_text": {"settings": {"implementation": "fake_string_probe", "values": {"token": "fake_safe"}}},
-                "fake_future": {"enabled": true, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 17, "secondary_number": 19}}}
+                "fake_wire_base": {"enabled": true, "implementation": "fake_integer_probe", "settings": {"primary_number": 7, "secondary_number": 11}},
+                "fake_wire_parent": {"implementation": "fake_integer_probe", "settings": {"primary_number": 3, "secondary_number": 5}},
+                "fake_wire_leaf": {"implementation": "fake_integer_probe", "settings": {"primary_number": 0, "secondary_number": 23}},
+                "fake_host_alias": {"implementation": "fake_integer_probe", "settings": {"primary_number": 0}},
+                "fake_wire_text": {"implementation": "fake_string_probe", "settings": {"token": "fake_safe"}},
+                "fake_future": {"enabled": true, "implementation": "fake_integer_probe", "settings": {"primary_number": 17, "secondary_number": 19}}
             }
         })
     }
@@ -1338,8 +1344,10 @@ mod compiled_sdk {
             "fake_host_alias",
         ] {
             let mut input = document();
-            input["bidders"]["fake_early"] = json!({"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": -1}}});
-            input["bidders"][name]["settings"] = json!({"implementation": "fake_string_probe", "values": {"token": "fake_private_credential_canary"}});
+            input["bidders"]["fake_early"] =
+                json!({"implementation": "fake_integer_probe", "settings": {"primary_number": -1}});
+            input["bidders"][name]["implementation"] = json!("fake_string_probe");
+            input["bidders"][name]["settings"] = json!({"token": "fake_private_credential_canary"});
             assert_parity(
                 &input,
                 Err(PolicyValidationError::Bidder(
@@ -1359,14 +1367,13 @@ mod compiled_sdk {
             for bad_base in [false, true] {
                 let mut input = document();
                 input["bidders"]["fake_wire_base"]["enabled"] = json!(false);
-                input["bidders"]["fake_host_alias"]["settings"]["values"]["secondary_number"] =
-                    json!(29);
+                input["bidders"]["fake_host_alias"]["settings"]["secondary_number"] = json!(29);
                 let name = if bad_base {
                     "fake_wire_leaf"
                 } else {
                     "fake_host_alias"
                 };
-                input["bidders"][name]["settings"]["values"][field] = json!(-1);
+                input["bidders"][name]["settings"][field] = json!(-1);
                 let primary = if !bad_base && field == "primary_number" {
                     -1
                 } else {
@@ -1400,8 +1407,8 @@ mod compiled_sdk {
     fn sdk_and_typed_paths_preserve_compiled_ancestry_and_per_identity_requiredness() {
         assert_parity(&json!({"schema_version": 1}), Ok(()), &[]);
         let input = json!({"schema_version": 1, "bidders": {
-            "fake_wire_base": {"enabled": true, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 7, "secondary_number": 11}}},
-            "fake_wire_leaf": {"settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0}}}
+            "fake_wire_base": {"enabled": true, "implementation": "fake_integer_probe", "settings": {"primary_number": 7, "secondary_number": 11}},
+            "fake_wire_leaf": {"implementation": "fake_integer_probe", "settings": {"primary_number": 0}}
         }});
         assert_parity(
             &input,
@@ -1414,7 +1421,7 @@ mod compiled_sdk {
         let disabled_parent = json!({"schema_version": 1,
         "host": {"aliases": {"fake_host_alias": "fake_wire_leaf"}},
         "bidders": {
-            "fake_wire_base": {"enabled": true, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 7, "secondary_number": 11}}},
+            "fake_wire_base": {"enabled": true, "implementation": "fake_integer_probe", "settings": {"primary_number": 7, "secondary_number": 11}},
             "fake_wire_parent": {"enabled": false}, "fake_wire_leaf": {"enabled": true}
         }});
         assert_parity(
@@ -1601,15 +1608,15 @@ mod config_callbacks {
                 "schema_version": 1_u64,
                 "host": {"aliases": {"fake_alias": "fake_base"}},
                 "bidders": {
-                    "fake_base": {"settings": {"implementation": "fake_integer_probe", "values": {
+                    "fake_base": {"implementation": "fake_integer_probe", "settings": {
                         "primary_number": 7_i64, "secondary_number": 11_i64
-                    }}},
-                    "fake_alias": {"settings": {"implementation": "fake_integer_probe", "values": {
+                    }},
+                    "fake_alias": {"implementation": "fake_integer_probe", "settings": {
                         "primary_number": 0_i64
-                    }}},
-                    "fake_future": {"settings": {"implementation": "fake_integer_probe", "values": {
+                    }},
+                    "fake_future": {"implementation": "fake_integer_probe", "settings": {
                         "primary_number": 17_i64, "secondary_number": 19_i64
-                    }}}
+                    }}
                 }
             }))
             .unwrap();
@@ -1646,8 +1653,8 @@ mod config_callbacks {
             "schema_version": 1_u64,
             "host": {"aliases": {"fake_alias": "fake_base"}},
             "bidders": {
-                "fake_base": {"enabled": false, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": -1_i64}}},
-                "fake_alias": {"enabled": false, "settings": {"implementation": "fake_integer_probe", "values": {"primary_number": 0_i64}}}
+                "fake_base": {"enabled": false, "implementation": "fake_integer_probe", "settings": {"primary_number": -1_i64}},
+                "fake_alias": {"enabled": false, "implementation": "fake_integer_probe", "settings": {"primary_number": 0_i64}}
             }
         })).unwrap();
         assert_eq!(
@@ -1669,16 +1676,16 @@ mod config_callbacks {
         let before = auctioneer_bidder::fake_synthetic::factory_calls();
         let catalog = public_plan(true, false);
         let bidders = overrides(json!({
-            "fake_base": {"settings": {"implementation":"fake_integer_probe", "values":{
+            "fake_base": {"implementation":"fake_integer_probe", "settings":{
                 "primary_number":7_i64, "secondary_number":11_i64
-            }}},
-            "fake_alias": {"settings": {"implementation":"fake_integer_probe", "values":{
+            }},
+            "fake_alias": {"implementation":"fake_integer_probe", "settings":{
                 "primary_number":0_i64
-            }}},
-            "fake_future": {"enabled":true, "settings": {"implementation":"fake_integer_probe", "values":{
+            }},
+            "fake_future": {"enabled":true, "implementation":"fake_integer_probe", "settings":{
                 "primary_number":17_i64, "secondary_number":19_i64
-            }}},
-            "fake_text": {"settings": {"implementation":"fake_string_probe", "values":{"token":"safe"}}}
+            }},
+            "fake_text": {"implementation":"fake_string_probe", "settings":{"token":"safe"}}
         }));
         let aliases = BTreeMap::from([("fake_alias".into(), "fake_base".into())]);
         validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap();
@@ -1732,8 +1739,8 @@ mod config_callbacks {
                 let bad = json!({(field):-1_i64});
                 let (base, alias) = if bad_base { (bad, good) } else { (good, bad) };
                 let bidders = overrides(json!({
-                    "fake_base": {"enabled":false, "settings":{"implementation":"fake_integer_probe", "values":base}},
-                    "fake_alias": {"enabled":false, "settings":{"implementation":"fake_integer_probe", "values":alias}}
+                    "fake_base": {"enabled":false, "implementation":"fake_integer_probe", "settings":base},
+                    "fake_alias": {"enabled":false, "implementation":"fake_integer_probe", "settings":alias}
                 }));
                 assert!(observations().is_empty());
                 assert_eq!(
@@ -1778,7 +1785,7 @@ mod config_callbacks {
         }
         let catalog = public_plan(true, false);
         let bidders = overrides(
-            json!({"fake_base":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":0_i64}}}}),
+            json!({"fake_base":{"implementation":"fake_integer_probe", "settings":{"primary_number":0_i64}}}),
         );
         assert_eq!(
             validate_bidder_configuration(&bidders, &aliases, &catalog),
@@ -1800,7 +1807,7 @@ mod config_callbacks {
         }
         let catalog = public_plan(false, false);
         let bidders = overrides(
-            json!({"fake_future":{"enabled":true, "settings":{"implementation":"fake_integer_probe", "values":{}}}}),
+            json!({"fake_future":{"enabled":true, "implementation":"fake_integer_probe", "settings":{}}}),
         );
         validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap();
         assert_eq!(
@@ -1823,8 +1830,8 @@ mod config_callbacks {
         let aliases = BTreeMap::from([("fake_alias".into(), "fake_base".into())]);
         for name in ["fake_alias", "fake_base", "fake_plain"] {
             let mut bidders = overrides(json!({
-                "fake_base":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":3_i64,"secondary_number":5_i64}}},
-                "fake_early":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":7_i64,"secondary_number":11_i64}}}
+                "fake_base":{"implementation":"fake_integer_probe", "settings":{"primary_number":3_i64,"secondary_number":5_i64}},
+                "fake_early":{"implementation":"fake_integer_probe", "settings":{"primary_number":7_i64,"secondary_number":11_i64}}
             }));
             bidders.insert(
                 name.into(),
@@ -1903,9 +1910,8 @@ mod config_callbacks {
         );
         for enabled in [false, true] {
             let bidders = overrides(json!({
-                "fake_future":{"enabled":enabled, "settings":{
-                    "implementation":"fake_integer_probe", "values":{"primary_number":0_i64}
-                }}
+                "fake_future":{"enabled":enabled, "implementation":"fake_integer_probe", "settings":{"primary_number":0_i64}
+                }
             }));
             assert_eq!(
                 validate_bidder_configuration(&bidders, &BTreeMap::new(), &catalog),
@@ -1921,8 +1927,8 @@ mod config_callbacks {
         let before = auctioneer_bidder::fake_synthetic::factory_calls();
         let catalog = public_plan(true, false);
         let bidders = overrides(json!({
-            "fake_base":{"settings":{"implementation":"fake_integer_probe", "values":{"primary_number":3_i64,"secondary_number":5_i64}}},
-            "fake_text":{"enabled":false, "settings":{"implementation":"fake_string_probe", "values":{"token":"private_canary".repeat(2048)}}}
+            "fake_base":{"implementation":"fake_integer_probe", "settings":{"primary_number":3_i64,"secondary_number":5_i64}},
+            "fake_text":{"enabled":false, "implementation":"fake_string_probe", "settings":{"token":"private_canary".repeat(2048)}}
         }));
         let error =
             validate_bidder_configuration(&bidders, &BTreeMap::new(), &catalog).unwrap_err();
@@ -1938,8 +1944,8 @@ mod config_callbacks {
         let canary = "fake_private_credential_location";
         let aliases = BTreeMap::from([("fake_alias".into(), "fake_text".into())]);
         let bidders = overrides(json!({
-            "fake_text":{"settings":{"implementation":"fake_string_probe", "values":{"token":canary}}},
-            "fake_alias":{"settings":{"implementation":"fake_string_probe", "values":{"token":""}}}
+            "fake_text":{"implementation":"fake_string_probe", "settings":{"token":canary}},
+            "fake_alias":{"implementation":"fake_string_probe", "settings":{"token":""}}
         }));
         let error = validate_bidder_configuration(&bidders, &aliases, &catalog).unwrap_err();
         assert_eq!(
@@ -1973,7 +1979,7 @@ mod config_callbacks {
     }
 
     fn settings(implementation: &str, values: Value) -> BidderSettings {
-        serde_json::from_value(json!({"implementation":implementation, "values":values})).unwrap()
+        serde_json::from_value(json!({"implementation":implementation, "settings":values})).unwrap()
     }
 
     fn integer(values: Value) -> BidderSettings {

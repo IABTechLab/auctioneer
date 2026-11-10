@@ -86,7 +86,7 @@ pub(super) fn context() -> BidderRequestInfo<'static> {
 }
 
 pub(super) fn settings(values: &Value) -> BidderSettings {
-    serde_json::from_value(json!({"implementation":"rubicon","values":values})).unwrap()
+    serde_json::from_value(json!({"implementation":"rubicon","settings":values})).unwrap()
 }
 
 pub(super) fn outbound(request: &BidRequest) -> Vec<BidderHttpRequest> {

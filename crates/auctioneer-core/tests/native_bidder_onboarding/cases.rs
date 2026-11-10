@@ -239,11 +239,22 @@ fn settings_refuse_policy_and_secret_failures_preserve_siblings(app: &App, cohor
         );
 
         let mut missing_settings = runtime.clone();
+        assert!(
+            missing_settings["bidders"][target.name()]
+                .get("settings")
+                .is_some()
+        );
+        assert!(
+            missing_settings["bidders"][target.name()]
+                .get("implementation")
+                .is_some()
+        );
         for ancestor in &target.ancestry {
-            missing_settings["bidders"][&ancestor.name]
+            let row = missing_settings["bidders"][&ancestor.name]
                 .as_object_mut()
-                .unwrap()
-                .remove("settings");
+                .unwrap();
+            row.remove("implementation");
+            row.remove("settings");
         }
         let settings_secrets = Secrets::new(&requested, false);
         let settings_answer = send_rejected_policy(

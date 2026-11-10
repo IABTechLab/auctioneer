@@ -39,7 +39,7 @@ mod tests {
     fn typed_supply_preserves_absence_empty_and_host_fallback() {
         let definition = BidderInfo::default();
         let parent: BidderSettings = serde_json::from_value(json!({
-            "implementation":"thetradedesk", "values":{"supply_id":"fake_parent"}
+            "implementation":"thetradedesk", "settings":{"supply_id":"fake_parent"}
         }))
         .unwrap();
         for (values, expected) in [
@@ -49,7 +49,7 @@ mod tests {
             (json!({"supply_id":"fake_supply"}), "fake_supply"),
         ] {
             let supplied: BidderSettings =
-                serde_json::from_value(json!({"implementation":"thetradedesk", "values":values}))
+                serde_json::from_value(json!({"implementation":"thetradedesk", "settings":values}))
                     .unwrap();
             assert_eq!(
                 thetradedesk::resolve(supplied.as_thetradedesk(), parent.as_thetradedesk())
