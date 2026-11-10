@@ -29,7 +29,8 @@ mod tests {
             "accounts": {"fake_publisher": {"debug_allow": true}},
             "bidders": {"fake_bidder": {"implementation": "fake", "settings": {}, "enabled": false}},
             "features": {"gzip_outbound": false},
-            "floor_currency": {"expires_at": 2000_i64, "usd_per_unit": {"EUR": 1.25_f64}}
+            "floor_currency": {"expires_at": 2000_i64, "usd_per_unit": {"EUR": 1.25_f64}},
+            "gvl": {"authenticated_health": {"enabled": true, "token_secret": "health_gvl_token"}}
         })
     }
 
@@ -59,6 +60,7 @@ mod tests {
             input["bidders"]["fake_bidder"]["settings"]
         );
         assert_eq!(canonical["floor_currency"], input["floor_currency"]);
+        assert_eq!(canonical["gvl"], input["gvl"]);
         let restored: Document = toml::from_str(&toml::to_string(&toml_policy).unwrap()).unwrap();
         assert_eq!(serde_json::to_value(restored).unwrap(), canonical);
     }
@@ -147,7 +149,13 @@ mod tests {
         let root_error =
             serde_json::from_value::<Document>(json!([1_u64, {}, {}, {}, {}, {}])).unwrap_err();
         assert_eq!(root_error.classify(), Category::Data);
-        for path in ["/host", "/account_defaults", "/accounts/fake_publisher"] {
+        for path in [
+            "/host",
+            "/account_defaults",
+            "/accounts/fake_publisher",
+            "/gvl",
+            "/gvl/authenticated_health",
+        ] {
             for value in [
                 json!([]),
                 json!(null),
@@ -179,6 +187,8 @@ mod tests {
             "/bidders/fake_bidder/settings",
             "/features",
             "/floor_currency",
+            "/gvl",
+            "/gvl/authenticated_health",
         ] {
             let mut document = fixture();
             document

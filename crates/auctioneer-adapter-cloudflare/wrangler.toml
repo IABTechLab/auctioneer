@@ -7,7 +7,6 @@ compatibility_flags = ["enable_weak_ref"]
 # non-secret key queried by auctioneer and the pinned EdgeZero reader explicit.
 [vars]
 EDGEZERO__LOGGING__LEVEL = "INFO"
-AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH = "false"
 EDGEZERO__STORES__CONFIG__AUCTIONEER_CONFIG__NAME = "auctioneer_config"
 EDGEZERO__STORES__CONFIG__AUCTIONEER_CONFIG__KEY = "auctioneer_config"
 EDGEZERO__STORES__SECRETS__AUCTIONEER_SECRETS__NAME = "auctioneer_secrets"
@@ -17,9 +16,9 @@ EDGEZERO__ADAPTER__HOST = ""
 EDGEZERO__ADAPTER__PORT = ""
 
 # Optional credential, never a plaintext [vars] default:
-# wrangler secret put AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN
-# Set a token OR opt into unauthenticated health, not both. With neither
-# configured (or invalid health configuration), only health stays closed.
+# wrangler secret put health_gvl_token
+# Select this literal entry with gvl.authenticated_health.token_secret in
+# auctioneer.toml. Health stays closed when the section is omitted.
 
 # Cookie signing uses the existing default logical secret-store binding.
 # CloudflareSecretStore calls Env::secret(key) literally, without case conversion:

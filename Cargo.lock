@@ -240,6 +240,7 @@ dependencies = [
  "futures",
  "log",
  "once_cell",
+ "serde_json",
  "time",
  "toml 0.8.23",
 ]

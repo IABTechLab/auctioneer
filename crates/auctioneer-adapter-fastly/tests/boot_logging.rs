@@ -135,7 +135,7 @@ exit 71
                 logs.contains("boot envelope over ceiling: requires"),
                 "{logs}"
             );
-            assert!(logs.contains("health policy unresolved"), "{logs}");
+            assert!(!logs.contains("health policy unresolved"), "{logs}");
         }
     }
 
@@ -182,13 +182,8 @@ exit 71
                         "{logs}"
                     );
                 } else {
-                    // The health stores are absent. OFF must suppress their ERROR
-                    // before the SDK receives the request lifecycle.
-                    assert_eq!(
-                        logs.contains("health policy unresolved"),
-                        configured >= LevelFilter::Error,
-                        "health setup respects {configured}: {logs}"
-                    );
+                    // Missing stores cannot trigger a policy read during boot.
+                    assert!(!logs.contains("health policy unresolved"), "{logs}");
                     assert_eq!(
                         sink_logs
                             .matches("boot envelope over ceiling: requires")

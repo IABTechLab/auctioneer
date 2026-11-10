@@ -284,11 +284,34 @@ and host-allowlist rules remain unchanged.
 
 `GET /_auctioneer/health/gvl` reports GVL archive health (archive age,
 bundled vendor-list versions, and the rolling unavailable-lookup
-counter). The handler is fail-closed: it answers 401 unless the adapter
-boot installed an explicit access policy — either a bearer token
-(`AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` on Axum / Cloudflare; the platform
-secret store on Fastly / Spin) or the machine-checkable
-`allow_unauthenticated_health = true` opt-in.
+counter). Configure access in the pushed operator policy:
+
+```toml
+[gvl.authenticated_health]
+enabled = true
+token_secret = "health_gvl_token"
+```
+
+The handler is fail-closed. `token_secret` names an entry in the declared
+default Secret Store. Omit the section to keep health closed. To permit anonymous access, set `enabled = false`
+and omit `token_secret`. The shared handler resolves config and the selected
+secret on each health request; updates take effect with the provider's existing
+config/secret visibility lifecycle. Axum's file-backed config keeps its startup
+snapshot until restart. Missing or invalid policy, unavailable/empty secrets,
+and secrets larger than 4096 bytes return 401 with a Bearer challenge. `/status`
+remains independent. Ordinary routes do not fetch health credentials.
+
+Provision `health_gvl_token` through the existing SDK secret binding:
+
+- Axum: `EDGEZERO__SECRETS__HEALTH_GVL_TOKEN`; entry names accept ASCII letters,
+  digits and underscores and are uppercased for this environment lookup.
+- Cloudflare: `wrangler secret put health_gvl_token` uses the entry name literally.
+- Fastly: the `health_gvl_token` item in the linked default secret-store alias.
+  The local manifest's `AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` is only a Viceroy
+  provisioning source; the runtime does not read that environment variable.
+- Spin: a secret application variable declared and mapped into the component.
+  The SDK lowercases entry names; a different `token_secret` needs its own
+  matching declaration and component mapping.
 
 Deployments that opt in to serving `/_auctioneer/*` without a token MUST
 restrict the `/_auctioneer/*` path prefix at the ingress layer. That

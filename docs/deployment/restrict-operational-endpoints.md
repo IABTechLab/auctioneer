@@ -1,12 +1,28 @@
 # Restricting the `/_auctioneer/*` prefix at the ingress
 
 auctioneer serves operational endpoints under the `/_auctioneer/*` prefix
-(`/_auctioneer/health/gvl` today). The handler itself is fail-closed — it
-answers 401 unless the adapter boot installed an explicit
-`HealthAccessPolicy` — so ingress restriction is the SECOND layer.
-It is required for any deployment that installs the
-`UnauthenticatedAcknowledged` policy (`allow_unauthenticated_health =
-true`), and recommended defence-in-depth everywhere else.
+(`/_auctioneer/health/gvl` today). The shared handler resolves
+`gvl.authenticated_health` from the pushed operator policy on every health
+request. An omitted section keeps health closed. `enabled = true` requires a
+`token_secret` entry name in the default Secret Store. Missing/malformed config,
+secret faults, empty secrets, secrets over 4096 bytes and failed authorization
+return 401 with a Bearer challenge. Reads use the existing config-fetch deadline;
+provider APIs may materialize a complete secret before the accepted-size check,
+and synchronous provider calls cannot be preempted by a cooperative deadline.
+`/status` remains independent.
+
+To allow anonymous access, explicitly configure:
+
+```toml
+[gvl.authenticated_health]
+enabled = false
+```
+
+This mode must omit `token_secret` and requires an ingress restriction for the
+prefix. Ingress restriction is recommended defence in depth for authenticated
+health as well. Adapters install counter scope only; provider flags and boot
+credentials do not determine access. See the
+[secret provisioning mappings](../../README.md#operational-endpoints-_auctioneer).
 
 Path restriction is an **L7 concern**: the rule must match the HTTP
 path. An L3/L4 mechanism (IP + port), such as a Kubernetes
@@ -41,8 +57,8 @@ Attach VCL (or the equivalent Compute request guard) that rejects
 unauthorised requests to the prefix before they reach the service:
 
 A presence check is **not** authentication: `Authorization: junk`
-satisfies `if (!req.http.Authorization)` and nothing downstream
-re-checks it when `allow_unauthenticated_health = true`. The value has
+satisfies `if (!req.http.Authorization)` and the shared handler permits
+anonymous access when `gvl.authenticated_health.enabled = false`. The value has
 to be VALIDATED, and the comparison has to be constant-time so the
 token cannot be recovered byte by byte from response timing.
 
@@ -75,10 +91,10 @@ if (req.url.path ~ "^/_auctioneer/") {
 }
 ```
 
-The token this validates is the SAME credential the handler's
-`HealthAccessPolicy` checks — `health_gvl_token` in the Fastly secret
-store. Keeping the two in step means a rotation that misses one layer
-fails closed rather than open.
+For authenticated health, use the same credential selected by
+`gvl.authenticated_health.token_secret` in the linked default Fastly secret
+store (for example `health_gvl_token`). Keeping the two in step means a
+rotation that misses one layer fails closed rather than open.
 
 Alternatively, and preferably where it is available, scope the service
 behind a signed-request policy or Fastly's own edge authentication for

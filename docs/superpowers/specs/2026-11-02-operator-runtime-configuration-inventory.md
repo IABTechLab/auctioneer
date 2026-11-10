@@ -198,8 +198,8 @@ Sources: [limit and target types](../../../crates/auctioneer-runtime/src/budget.
 | Cloudflare Worker vars/secrets and KV binding names | `S` provider translation and `V` secrets; use declared binding names, not a fictional process environment or enumerable binding map. |
 | Fastly linked config/secret stores and logging hook | `S` provider resource links/logical aliases and `V` secrets. Key/location restrictions must match the serving SDK path; a generic selector that only works on Axum is not sufficient. |
 | Hosted Spin variables/KV labels and logging level | `S` hosted-provider translation and `V` secrets; distinguish hosted deployment facts from generic Spin local execution. |
-| `AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH` / provider mapping | `S` health-only authorization intent, distinct from fatal domain settings. Malformed input never opens health or logs its raw value. Preserve Axum-fatal versus edge-Closed resolution; installation conflicts remain fatal. |
-| `AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` / provider secret mapping | `V`; current platform reads directly materialize values outside the runtime extractor. #128/#130 and provider ports must establish accepted-size, materialization and applicable time bounds. Core does not read provider environment values. Current health policy is frozen, not freely rotating per request. |
+| `gvl.authenticated_health.{enabled,token_secret}` | `P` health-only authorization. Omitted section stays closed; enabled requires a valid default-store secret entry reference; disabled explicitly permits anonymous access and must omit the reference. Resolve through existing funded runtime config on each health request. No adapter policy flag remains. |
+| Configured GVL health secret entry | `V` via the request's existing default Secret Store binding, maximum accepted payload 4096 bytes and existing config-fetch deadline. Fresh lookup per health request; empty/missing/faulted/excessive secrets deny access. Providers may materialize the complete value before the size check; synchronous provider calls have cooperative deadline checks. Axum uses SDK `EDGEZERO__SECRETS__<UPPERCASE_ENTRY>` with ASCII alphanumeric/underscore entry names; Cloudflare uses the literal entry name; Fastly uses the captured linked default alias; Spin lowercases the entry and needs declaration plus component mapping. The local Fastly `AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` is provisioning only. Config visibility follows each provider's lifecycle, including Axum's startup file snapshot; secrets rotate through existing provider visibility. |
 | `usersync_cookie_keyring` | `V`, one existing bounded secret read at the route's UID stage; preserve active/previous key rotation and deadline/cancellation behavior. |
 | Bidder credential references and coherent bundles | Permitted typed references through `P` within host-approved bindings; secret values `V` through the existing post-privacy/schema bounded reader. No raw secrets in output policy. |
 | SDK logging settings and host service implementations | `S`; establish the logging sink before diagnostics and keep startup materialization/residency accounted. |
@@ -216,7 +216,7 @@ isolation just because the policy overlay was disabled.
 Sources: [CLI application](../../../crates/auctioneer-cli/src/application.rs),
 [zero-layout SDK trait boundary](../../../crates/auctioneer-core/src/config/sdk.rs),
 [bounded cookie-key reader](../../../crates/auctioneer-core/src/handlers/usersync_keys.rs),
-[health policy](../../../crates/auctioneer-core/src/host_primitives/registry.rs),
+[health policy](../../../crates/auctioneer-core/src/handlers/health_gvl.rs),
 [logical declarations](../../../edgezero.toml), four adapter entrypoints and
 their provider manifests.
 

@@ -1,24 +1,20 @@
 //! The single runtime-config resolution owner.
 //!
 //! Every config-consuming route (`/openrtb2/auction`, `/status`,
-//! `/info/bidders`, `/info/bidders/<name>`) goes through
+//! `/info/bidders`, `/info/bidders/<name>`, `/_auctioneer/health/gvl`) goes through
 //! [`resolve_runtime_config`] rather than calling the `EdgeZero`
-//! `AppConfig` extractor itself, so the load policy — and the wire shape
-//! of a load failure — is defined in exactly one place.
+//! `AppConfig` extractor itself, so loading and fault classification have
+//! one owner.
 //!
-//! That policy is fail-closed: a missing, corrupt or untrusted blob is a 500,
-//! so is a missing binding or a store key the backend refuses, and a store outage is a 503,
-//! because serving any of them from the baked default would silently
-//! turn GDPR enforcement off. See [`resolve_runtime_config`] for the
-//! per-class reasoning.
+//! Auction and catalog routes render permanent config faults as 500 and
+//! transient store outages as 503 through [`RuntimeConfigError::into_response`].
+//! Serving auctions from baked defaults after either fault could silently
+//! turn GDPR enforcement off. GVL health instead maps every config fault to
+//! its authorization protocol's 401 response; it never falls back to open access.
 //!
-//! Fail-closed is the default, not a universal rule. It buys exactly one
-//! thing — no privacy decision made from config nobody can vouch for — so
-//! a route that makes NO privacy decision pays its availability cost for
-//! nothing. Such a route calls [`RuntimeConfigError::degrade_to_default`]
-//! instead of [`RuntimeConfigError::into_response`]. Both dispositions
-//! live here so a reader sees which routes take which, and why, in one
-//! place rather than reconstructing it from four handlers.
+//! `/status` is the independent liveness exception. It records the config fault
+//! and calls [`RuntimeConfigError::degrade_to_default`] because reporting that
+//! fault reaches neither a privacy nor an authorization decision.
 
 use crate::bidder_registry::{cached_registry_error, registry_handle};
 use crate::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
@@ -315,8 +311,10 @@ impl RuntimeConfigError {
 /// Cached registry failures take precedence, and cold registry construction and
 /// store reads require the context's complete captured extraction tuple to fit
 /// the funded host declaration. Backend/secret outages and deadline expiry stay
-/// transient (503 with `Retry-After`); invalid keys retain their distinct refusal
-/// code and permanent 500 disposition. The request context's declared default
+/// transient (503 with `Retry-After` when rendered by `into_response`); invalid keys
+/// retain their distinct refusal code and permanent 500 disposition. GVL health
+/// maps all such errors to its fail-closed 401 authorization response instead.
+/// The request context's declared default
 /// config-store binding selects both the store and its entry key.
 ///
 /// `/status` alone may explicitly take [`RuntimeConfigError::degrade_to_default`]

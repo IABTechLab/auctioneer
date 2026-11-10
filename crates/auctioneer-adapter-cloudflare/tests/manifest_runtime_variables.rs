@@ -6,8 +6,7 @@ mod tests {
     use edgezero_core::app::Hooks;
     use toml::{Table, Value, from_str};
 
-    const ALLOW_UNAUTH: &str = "AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH";
-    const TOKEN_SECRET: &str = "AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN";
+    const TOKEN_SECRET: &str = "health_gvl_token";
 
     fn variables() -> Table {
         let manifest: Value = from_str(include_str!("../wrangler.toml"))
@@ -26,7 +25,6 @@ mod tests {
             "EDGEZERO__ADAPTER__HOST",
             "EDGEZERO__ADAPTER__PORT",
             "EDGEZERO__LOGGING__LEVEL",
-            ALLOW_UNAUTH,
         ] {
             assert!(
                 variables.get(name).and_then(Value::as_str).is_some(),
@@ -65,15 +63,30 @@ mod tests {
     fn logging_and_health_have_safe_defaults_and_the_token_is_a_secret() {
         let variables = variables();
         assert_eq!(variables["EDGEZERO__LOGGING__LEVEL"].as_str(), Some("INFO"));
-        assert_eq!(variables[ALLOW_UNAUTH].as_str(), Some("false"));
+        assert!(!variables.contains_key("AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH"));
         assert!(
             !variables.contains_key(TOKEN_SECRET),
             "a credential must never be shipped as a plaintext [vars] default"
         );
         assert!(
-            include_str!("../wrangler.toml")
-                .contains("wrangler secret put AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN"),
+            include_str!("../wrangler.toml").contains("wrangler secret put health_gvl_token"),
             "the secret binding must be documented without embedding a token"
         );
+    }
+    #[test]
+    fn worker_boot_does_not_resolve_health_policy_or_credentials() {
+        let source = include_str!("../src/lib.rs");
+        assert!(source.contains("install_health()?"));
+        for removed in [
+            "env.secret(",
+            "health::FLAG_VARIABLE",
+            "raw_token",
+            "raw_flag",
+        ] {
+            assert!(
+                !source.contains(removed),
+                "provider boot must not resolve {removed}"
+            );
+        }
     }
 }

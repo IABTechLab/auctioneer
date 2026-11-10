@@ -450,13 +450,19 @@ operator runtime config
 
 The authoring file [`auctioneer.toml`](../auctioneer.toml) is the direct payload:
 required root `schema_version = 1`, `host`, `account_defaults`, `accounts`,
-`bidders`, `features` and `floor_currency`. There are no baked/startup/runtime
+`bidders`, `features`, `gvl` and `floor_currency`. There are no baked/startup/runtime
 root wrappers, source modes or backward wire aliases. Builds never read operator
 policy. The SDK trait wrapper preserves model and wire layout. Accounts are carried in that runtime
 blob, not fetched from separate account records. Runtime-field environment
 overrides are applied at push time to keys already present in the source;
-they are not a live, per-instance policy override channel. Boot health
-credentials are a separate provider-specific input.
+they are not a live, per-instance policy override channel. GVL health access is
+part of that runtime policy: `gvl.authenticated_health` stays closed when omitted,
+requires a default Secret Store entry reference when enabled, or permits anonymous
+access when explicitly disabled with no reference. The shared handler resolves
+policy and the selected secret on every health request; adapters install only the
+immutable counter scope. Config and secret visibility follow the existing SDK
+provider lifecycle, including Axum's startup file snapshot. Health credentials use
+the same request-bound default secret provider as other credentials.
 
 Host/adapter facts, store/trust bindings and installed limits retain their
 existing owners; they are not another Auctioneer startup config. Runtime policy
@@ -687,7 +693,8 @@ This describes technical enforcement, not legal certification.
 
 `/status` is not proof of bidder reachability, usable consent data, or
 production certification. The internal health route is fail-closed without
-an installed access policy. Tokenless opt-in requires an ingress path
+valid `gvl.authenticated_health` runtime policy and, when authentication is enabled,
+a valid credential. Explicit anonymous access requires an ingress path
 restriction; see [internal-route deployment guidance](deployment/restrict-operational-endpoints.md).
 
 The sync routes use the auxiliary admission class and a validated runtime

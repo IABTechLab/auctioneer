@@ -14,7 +14,8 @@ mod tests {
             "## Operational endpoints (`/_auctioneer/*`)",
             "`GET /_auctioneer/health/gvl`",
             "fail-closed",
-            "allow_unauthenticated_health",
+            "[gvl.authenticated_health]",
+            "token_secret",
             "restrict the `/_auctioneer/*` path prefix at the ingress layer",
             "docs/deployment/restrict-operational-endpoints.md",
         ] {

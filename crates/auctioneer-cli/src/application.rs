@@ -344,6 +344,8 @@ mod config_contract {
             ],
         ),
         ("features", &["gzip_outbound", "returnallbidstatus_default"]),
+        ("gvl", &["authenticated_health"]),
+        ("gvl.authenticated_health", &["enabled", "token_secret"]),
     ];
 
     #[test]
