@@ -16,8 +16,10 @@
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::configure::configure_app;
+    use auctioneer_core::host_primitives::gates::BootGates;
     use auctioneer_core::host_primitives::{
         AuctioneerIngressLease, BootEnvelope, DelegateToDevStrategy, DevRng, RouteAdmissionMarker,
         StderrBootLog, SystemClock, admission_gate, aux_gate, boot_gates,
@@ -33,8 +35,12 @@ mod tests {
     };
     use edgezero_core::app::App;
     use edgezero_core::body::Body;
-    use edgezero_core::config_store::DEFAULT_CONFIG_JSON_NODES;
-    use edgezero_core::http::{Method, StatusCode, request_builder};
+    use edgezero_core::config_store::{
+        BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
+        DEFAULT_CONFIG_JSON_NODES,
+    };
+    use edgezero_core::error::EdgeError;
+    use edgezero_core::http::{Method, Request, StatusCode, request_builder};
     use edgezero_core::ingress::{
         AdmissionDecision, IngressDispatchOutcome, IngressFraming, IngressHead,
         IngressHeadAccounting,
@@ -42,10 +48,17 @@ mod tests {
     use edgezero_core::response_egress::{ResponseEgressEnvelope, ResponseEgressOutcome};
     use edgezero_core::response_egress_framing::ResponseEgressFramingMode;
     use edgezero_core::router::RouteResolution;
-    use edgezero_core::time::MonotonicInstant;
-    use futures::executor::block_on;
+    use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
+    use edgezero_core::time::{Deadline, MonotonicClock, MonotonicInstant};
+    use futures::{
+        channel::oneshot, executor::block_on, future::pending, stream, task::noop_waker_ref,
+    };
+    use std::collections::HashSet;
+    use std::future::Future as _;
     use std::iter::repeat_with;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+    use std::task::{Context, Poll};
 
     const CAP_256_KIB: u64 = 1 << 18;
     const BYTES_1_MIB: u64 = 1 << 20;
@@ -65,6 +78,18 @@ mod tests {
     const AUX_PERMITS: u32 = 1;
     const CONCURRENT_AUCTIONS: u32 = 1;
     const TERMINAL_PERMITS: u32 = 8;
+    // Every terminal value in the pinned SDK, supplied from the writing state.
+    const TERMINAL_OUTCOMES: [ResponseEgressOutcome; 9] = [
+        ResponseEgressOutcome::Completed,
+        ResponseEgressOutcome::ClientDisconnected,
+        ResponseEgressOutcome::ConversionError,
+        ResponseEgressOutcome::DeadlineExceeded,
+        ResponseEgressOutcome::HostHandoff,
+        ResponseEgressOutcome::RequestCancelled,
+        ResponseEgressOutcome::SourceError,
+        ResponseEgressOutcome::TransportError,
+        ResponseEgressOutcome::Unspecified,
+    ];
 
     /// Serializes every test that reads a gate's in-use counter.
     ///
@@ -80,24 +105,26 @@ mod tests {
 
     fn boot() {
         static BOOTED: OnceLock<()> = OnceLock::new();
-        BOOTED.get_or_init(|| {
-            bootstrap_adapter_with_envelope(
-                BootEnvelope {
-                    limits: &limits(),
-                    target: &target(),
-                    outbound_meta_bytes: OUTBOUND_META_BYTES,
-                    construction_costs: core_construction_costs(),
-                    log_sink: &StderrBootLog,
-                    catalog_costs: auctioneer_runtime::CatalogResourceCosts::UNCHANGED,
-                },
-                || Arc::new(SystemClock),
-                || Arc::new(DevRng::new()),
-                || Arc::new(ImmediateResolveTimer),
-                || Arc::new(NoopDecodeCooperator),
-                || Arc::new(DelegateToDevStrategy),
-            )
-            .expect("the fixture envelope validates");
-        });
+        BOOTED.get_or_init(|| install_envelope(&limits()));
+    }
+
+    fn install_envelope(limits: &ResolvedIsolateLimits) {
+        bootstrap_adapter_with_envelope(
+            BootEnvelope {
+                limits,
+                target: &target(),
+                outbound_meta_bytes: OUTBOUND_META_BYTES,
+                construction_costs: core_construction_costs(),
+                log_sink: &StderrBootLog,
+                catalog_costs: auctioneer_runtime::CatalogResourceCosts::UNCHANGED,
+            },
+            || Arc::new(SystemClock),
+            || Arc::new(DevRng::new()),
+            || Arc::new(ImmediateResolveTimer),
+            || Arc::new(NoopDecodeCooperator),
+            || Arc::new(DelegateToDevStrategy),
+        )
+        .expect("the fixture envelope validates");
     }
 
     fn limits() -> ResolvedIsolateLimits {
@@ -192,13 +219,72 @@ mod tests {
             builder = builder.header("origin", origin_value);
         }
         let request = builder.body(body).expect("the fixture request builds");
-        let outcome = block_on(app.dispatch_ingress(
-            request,
-            MonotonicInstant::now(),
-            IngressHeadAccounting::HostManaged,
-            IngressFraming::HostManaged,
-        ))
-        .expect("admission begins");
+        block_on(dispatch_request(app, request))
+    }
+
+    fn assert_auxiliary_receipt_held(gates: &BootGates, peak: u64) {
+        assert_eq!(gates.aux.in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), peak);
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn ran_isolated_child(control: &str, test: &str) -> bool {
+        use std::env::{current_exe, var_os};
+        use std::process::Command;
+        if var_os(control).is_some() {
+            return false;
+        }
+        let child = Command::new(current_exe().expect("ingress test executable"))
+            .args(["--exact", test, "--nocapture"])
+            .env(control, "1")
+            .output()
+            .expect("isolated ingress test executes");
+        let output = format!(
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert!(child.status.success(), "{output}");
+        assert!(
+            output.contains("1 passed"),
+            "the child must execute: {output}"
+        );
+        true
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn immediate_probe(app: &App) -> ResponseEgressEnvelope {
+        use futures::FutureExt as _;
+        let request = request_builder()
+            .uri("/status")
+            .body(Body::empty())
+            .unwrap();
+        let outcome = app
+            .dispatch_ingress(
+                request,
+                MonotonicInstant::now(),
+                IngressHeadAccounting::HostManaged,
+                IngressFraming::HostManaged,
+            )
+            .now_or_never()
+            .expect("liveness must not wait for disabled aux capacity")
+            .unwrap();
+        let IngressDispatchOutcome::Response(response) = outcome else {
+            panic!("the independent probe must be admitted");
+        };
+        *response
+    }
+
+    async fn dispatch_request(app: &App, request: Request) -> Option<ResponseEgressEnvelope> {
+        let outcome = app
+            .dispatch_ingress(
+                request,
+                MonotonicInstant::now(),
+                IngressHeadAccounting::HostManaged,
+                IngressFraming::HostManaged,
+            )
+            .await
+            .expect("admission begins");
         match outcome {
             IngressDispatchOutcome::Response(envelope) => Some(*envelope),
             IngressDispatchOutcome::Aborted => None,
@@ -208,6 +294,76 @@ mod tests {
             // passing the abort assertions.
             _ => panic!("unrecognized ingress dispatch outcome"),
         }
+    }
+
+    enum StoreBehavior {
+        Pending,
+        Unavailable,
+    }
+
+    struct AdmissionStore {
+        behavior: StoreBehavior,
+        reads: AtomicUsize,
+        active: AtomicUsize,
+    }
+
+    struct StoreRead<'a>(&'a AtomicUsize);
+
+    impl Drop for StoreRead<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    #[async_trait(?Send)]
+    impl ConfigStore for AdmissionStore {
+        async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
+            panic!("admitted configuration must use bounded reads");
+        }
+
+        async fn get_bounded(
+            &self,
+            _key: &str,
+            _clock: &MonotonicClock,
+            _deadline: Deadline,
+            _max_backend_bytes: u64,
+            _max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<ConfigValue>, ConfigStoreError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.active.fetch_add(1, Ordering::SeqCst);
+            let _read = StoreRead(&self.active);
+            match self.behavior {
+                StoreBehavior::Pending => pending().await,
+                StoreBehavior::Unavailable => Err(ConfigStoreError::Unavailable {
+                    message: "fixed test outage".to_owned(),
+                }),
+            }
+        }
+    }
+
+    fn admission_store(behavior: StoreBehavior) -> Arc<AdmissionStore> {
+        Arc::new(AdmissionStore {
+            behavior,
+            reads: AtomicUsize::new(0),
+            active: AtomicUsize::new(0),
+        })
+    }
+
+    fn store_request(method: Method, path: &str, store: Arc<AdmissionStore>) -> Request {
+        let mut request = request_builder()
+            .method(method)
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        let registry: ConfigRegistry = StoreRegistry::single_id(
+            "auctioneer_runtime".to_owned(),
+            ConfigStoreBinding {
+                default_key: "auctioneer_runtime".to_owned(),
+                handle: ConfigStoreHandle::new(store),
+            },
+        );
+        request.extensions_mut().insert(registry);
+        request
     }
 
     /// Builds the admission view the policy sees, without a router: the
@@ -237,33 +393,15 @@ mod tests {
     fn an_auction_without_boot_gates_aborts_before_body_reads() {
         use auctioneer_core::host_primitives::{boot_gates, bootstrap_adapter};
         use futures::stream::poll_fn;
-        use std::env::{current_exe, var_os};
-        use std::process::Command;
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::task::Poll;
 
         const CHILD_ENV: &str = "AUCTIONEER__TEST__INGRESS_WITHOUT_BOOT_GATES_CHILD";
         // OnceLock gates cannot be cleared; a fresh process excludes sibling boots.
-        if var_os(CHILD_ENV).is_none() {
-            let child = Command::new(current_exe().expect("ingress test executable"))
-                .args([
-                    "--exact",
-                    "tests::an_auction_without_boot_gates_aborts_before_body_reads",
-                    "--nocapture",
-                ])
-                .env(CHILD_ENV, "1")
-                .output()
-                .expect("isolated missing-boot test executes");
-            let output = format!(
-                "{}{}",
-                String::from_utf8_lossy(&child.stdout),
-                String::from_utf8_lossy(&child.stderr),
-            );
-            assert!(child.status.success(), "{output}");
-            assert!(
-                output.contains("1 passed"),
-                "the child must execute: {output}"
-            );
+        if ran_isolated_child(
+            CHILD_ENV,
+            "tests::an_auction_without_boot_gates_aborts_before_body_reads",
+        ) {
             return;
         }
 
@@ -540,6 +678,58 @@ mod tests {
         drop(held);
     }
 
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn zero_auxiliary_capacity_preserves_independent_probe_and_static_owners() {
+        use auctioneer_core::handlers::probe_config::{
+            config_work_capacity, config_work_in_flight,
+        };
+        use auctioneer_runtime::PROBE_CONFIG_MIN_PERMITS;
+
+        const CHILD_ENV: &str = "AUCTIONEER__TEST__ZERO_AUX_TERMINAL_CHILD";
+        if ran_isolated_child(
+            CHILD_ENV,
+            "tests::zero_auxiliary_capacity_preserves_independent_probe_and_static_owners",
+        ) {
+            return;
+        }
+        let mut zero_aux = limits();
+        zero_aux.aux_route_permits = 0;
+        install_envelope(&zero_aux);
+        let gates = boot_gates().unwrap();
+        assert_eq!(gates.aux.capacity(), 0);
+        assert_eq!(gates.aux_work_budget.limit(), 0);
+        assert!(gates.derived.aux_term > 0, "probe config remains funded");
+        let app = configured_app();
+        let mut probe = immediate_probe(&app);
+        assert_eq!(probe.response_mut().status(), StatusCode::OK);
+        assert_eq!(config_work_capacity(), Some(PROBE_CONFIG_MIN_PERMITS));
+        assert_eq!(config_work_in_flight(), 0);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        assert_eq!(gates.admission.in_use(), 0);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        let mut refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+        assert_eq!(
+            refusal.response_mut().status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(gates.static_egress.in_use(), 1);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        drop(refusal);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        drop(probe);
+        assert_eq!(probe_egress_gate().in_use(), 0);
+        drop(immediate_probe(&app));
+        assert_eq!(probe_egress_gate().in_use(), 0);
+        assert_eq!(config_work_in_flight(), 0);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
     #[test]
     fn retained_probe_outputs_saturate_and_recover_independently() {
         boot();
@@ -575,31 +765,35 @@ mod tests {
         let _serialized = gate_counters_lock();
         let app = configured_app();
         let gate = probe_egress_gate();
-        for outcome in [
-            ResponseEgressOutcome::Completed,
-            ResponseEgressOutcome::ClientDisconnected,
-            ResponseEgressOutcome::DeadlineExceeded,
-            ResponseEgressOutcome::RequestCancelled,
-            ResponseEgressOutcome::TransportError,
-        ] {
+        let routes = registered_terminal_requests(&app, PROBE_CLASS);
+        let expected_routes = routes.len();
+        let mut checked = 0_usize;
+        for (method, path) in routes {
+            for outcome in TERMINAL_OUTCOMES {
+                assert_eq!(gate.in_use(), 0);
+                let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                assert_eq!(
+                    gate.in_use(),
+                    1,
+                    "handler return must retain probe capacity"
+                );
+                let (prepared, _policy, mut attempt, clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("probe response egress begins"));
+                assert!(attempt.begin_writing());
+                drop(prepared);
+                assert!(attempt.terminate(outcome, clock.now()));
+                assert_eq!(gate.in_use(), 0, "terminal outcome {outcome:?}");
+                assert!(!attempt.terminate(outcome, clock.now()));
+                drop(attempt);
+                assert_eq!(gate.in_use(), 0, "terminal/drop must not release twice");
+            }
+            drop(dispatch(&app, method, &path, Body::empty()).unwrap());
             assert_eq!(gate.in_use(), 0);
-            let envelope = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
-            assert_eq!(
-                gate.in_use(),
-                1,
-                "handler return must retain probe capacity"
-            );
-            let (prepared, _policy, mut attempt, clock) = envelope
-                .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
-                .unwrap_or_else(|_| panic!("probe response egress begins"));
-            assert!(attempt.begin_writing());
-            drop(prepared);
-            assert!(attempt.terminate(outcome, clock.now()));
-            assert_eq!(gate.in_use(), 0, "terminal outcome {outcome:?}");
-            assert!(!attempt.terminate(outcome, clock.now()));
-            drop(attempt);
-            assert_eq!(gate.in_use(), 0, "terminal/drop must not release twice");
+            checked = checked.checked_add(1).unwrap();
         }
+        assert_eq!(checked, expected_routes);
+        assert!(checked > 0);
     }
 
     #[test]
@@ -610,27 +804,21 @@ mod tests {
         let gates = boot_gates().unwrap();
         let peak = gates.aux_work_derived.peak_bytes();
         assert!(peak > 0);
-        // A registered handler and the router fallback share the same completion owner.
-        for path in ["/info/bidders", "/no/such/route"] {
-            for outcome in [
-                ResponseEgressOutcome::Completed,
-                ResponseEgressOutcome::ClientDisconnected,
-                ResponseEgressOutcome::DeadlineExceeded,
-                ResponseEgressOutcome::RequestCancelled,
-                ResponseEgressOutcome::TransportError,
-            ] {
+        let cases = auxiliary_terminal_requests(&app);
+        let expected_cases = cases.len();
+        let mut checked = 0_usize;
+        for (method, path) in cases {
+            for outcome in TERMINAL_OUTCOMES {
                 assert_eq!(gates.aux.in_use(), 0);
                 assert_eq!(gates.aux_work_budget.in_use(), 0);
-                let envelope = dispatch(&app, Method::GET, path, Body::empty()).unwrap();
-                assert_eq!(gates.aux.in_use(), 1);
-                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                assert_auxiliary_receipt_held(gates, peak);
                 let (prepared, _policy, mut attempt, clock) = envelope
                     .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
                     .unwrap_or_else(|_| panic!("aux response egress begins"));
                 assert!(attempt.begin_writing());
                 drop(prepared);
-                assert_eq!(gates.aux.in_use(), 1);
-                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                assert_auxiliary_receipt_held(gates, peak);
                 assert!(gates.aux.try_acquire().is_none());
                 assert!(attempt.terminate(outcome, clock.now()));
                 assert_eq!(gates.aux.in_use(), 0, "{path}, {outcome:?}");
@@ -640,7 +828,7 @@ mod tests {
                 assert_eq!(gates.aux.in_use(), 0);
                 assert_eq!(gates.aux_work_budget.in_use(), 0);
             }
-            let envelope = dispatch(&app, Method::GET, path, Body::empty()).unwrap();
+            let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
             let (prepared, _policy, attempt, _clock) = envelope
                 .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
                 .unwrap_or_else(|_| panic!("aux response egress begins"));
@@ -650,10 +838,295 @@ mod tests {
             drop(attempt);
             assert_eq!(gates.aux.in_use(), 0);
             assert_eq!(gates.aux_work_budget.in_use(), 0);
-            drop(dispatch(&app, Method::GET, path, Body::empty()).unwrap());
+            drop(dispatch(&app, method, &path, Body::empty()).unwrap());
             assert_eq!(gates.aux.in_use(), 0);
             assert_eq!(gates.aux_work_budget.in_use(), 0);
+            checked = checked.checked_add(1).unwrap();
         }
+        assert_eq!(checked, expected_cases);
+        assert!(checked > 0);
+    }
+
+    fn registered_terminal_requests(app: &App, class: &str) -> Vec<(Method, String)> {
+        app.router()
+            .routes()
+            .into_iter()
+            .filter(|route| route.class() == Some(class))
+            .map(|route| {
+                (
+                    route.method().clone(),
+                    route.pattern().replace("{name}", "fake_fixture_bidder"),
+                )
+            })
+            .collect()
+    }
+
+    fn auxiliary_terminal_requests(app: &App) -> Vec<(Method, String)> {
+        registered_terminal_requests(app, AUX_CLASS)
+            .into_iter()
+            .chain([
+                (Method::GET, "/no/such/route".to_owned()),
+                (Method::POST, "/status".to_owned()),
+            ])
+            .collect()
+    }
+
+    #[test]
+    fn terminal_cases_join_every_registered_auxiliary_and_both_router_fallbacks() {
+        let app = configured_app();
+        let expected: HashSet<_> = app
+            .router()
+            .routes()
+            .into_iter()
+            .filter(|route| route.class() == Some(AUX_CLASS))
+            .map(|route| route.id().clone())
+            .collect();
+        assert!(!expected.is_empty());
+        let mut matched = HashSet::new();
+        let mut not_found = 0_usize;
+        let mut wrong_method = 0_usize;
+        for (method, path) in auxiliary_terminal_requests(&app) {
+            assert!(
+                !path.contains(['{', '}']),
+                "unexpanded route fixture: {path}"
+            );
+            match app.router().resolve(&method, &path).resolution() {
+                RouteResolution::Matched(route) => {
+                    assert_eq!(route.class(), Some(AUX_CLASS));
+                    assert!(
+                        matched.insert(route.id().clone()),
+                        "duplicate route: {method} {path}"
+                    );
+                }
+                RouteResolution::NotFound => not_found = not_found.checked_add(1).unwrap(),
+                RouteResolution::MethodNotAllowed { .. } => {
+                    wrong_method = wrong_method.checked_add(1).unwrap();
+                }
+                _ => panic!("unrecognized router disposition"),
+            }
+        }
+        assert_eq!(matched, expected);
+        assert_eq!(not_found, 1);
+        assert_eq!(wrong_method, 1);
+
+        let expected_probes: HashSet<_> = app
+            .router()
+            .routes()
+            .into_iter()
+            .filter(|route| route.class() == Some(PROBE_CLASS))
+            .map(|route| route.id().clone())
+            .collect();
+        assert!(!expected_probes.is_empty());
+        let mut matched_probes = HashSet::new();
+        for (method, path) in registered_terminal_requests(&app, PROBE_CLASS) {
+            assert!(
+                !path.contains(['{', '}']),
+                "unexpanded probe fixture: {path}"
+            );
+            let resolved = app.router().resolve(&method, &path);
+            let RouteResolution::Matched(route) = resolved.resolution() else {
+                panic!("probe fixture must reach its registered handler");
+            };
+            assert_eq!(route.class(), Some(PROBE_CLASS));
+            assert!(matched_probes.insert(route.id().clone()));
+        }
+        assert_eq!(matched_probes, expected_probes);
+    }
+
+    #[test]
+    fn pending_configuration_cancellation_releases_each_admitted_owner() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let mut checked = 0_usize;
+        for (method, path) in registered_terminal_requests(&app, AUX_CLASS) {
+            let store = admission_store(StoreBehavior::Pending);
+            let request = store_request(method.clone(), &path, Arc::clone(&store));
+            let mut construction = Box::pin(dispatch_request(&app, request));
+            let first = construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()));
+            assert_auxiliary_receipt_held(gates, peak);
+            if path == "/_auctioneer/health/gvl" {
+                // This archive-only handler authorizes without runtime configuration.
+                let Poll::Ready(Some(mut response)) = first else {
+                    panic!("closed health authorization must not read configuration");
+                };
+                assert_eq!(response.response_mut().status(), StatusCode::UNAUTHORIZED);
+                assert_eq!(store.reads.load(Ordering::SeqCst), 0);
+                drop(response);
+            } else {
+                assert!(
+                    first.is_pending(),
+                    "{method} {path} must suspend at its bounded config read"
+                );
+                assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+                assert_eq!(store.active.load(Ordering::SeqCst), 1);
+                let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+                assert_eq!(gates.static_egress.in_use(), 1);
+                assert_eq!(gates.aux.in_use(), 1);
+                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                drop(refusal);
+                assert_eq!(gates.static_egress.in_use(), 0);
+                let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+                assert_eq!(probe_egress_gate().in_use(), 1);
+                assert_eq!(gates.aux.in_use(), 1);
+                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                drop(probe);
+                assert_eq!(probe_egress_gate().in_use(), 0);
+                assert_eq!(store.active.load(Ordering::SeqCst), 1);
+            }
+            drop(construction);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            drop(dispatch(&app, method, &path, Body::empty()).unwrap());
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(
+            checked,
+            app.router()
+                .routes()
+                .iter()
+                .filter(|route| route.class() == Some(AUX_CLASS))
+                .count()
+        );
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn failed_configuration_keeps_original_work_receipt_through_error_handoff() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let mut checked = 0_usize;
+        for (method, path) in registered_terminal_requests(&app, AUX_CLASS) {
+            let store = admission_store(StoreBehavior::Unavailable);
+            let request = store_request(method, &path, Arc::clone(&store));
+            let mut response = block_on(dispatch_request(&app, request)).unwrap();
+            let archive_only = path == "/_auctioneer/health/gvl";
+            assert_eq!(
+                response.response_mut().status(),
+                if archive_only {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
+            );
+            assert_eq!(
+                store.reads.load(Ordering::SeqCst),
+                usize::from(!archive_only)
+            );
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(response);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(
+            checked,
+            app.router()
+                .routes()
+                .iter()
+                .filter(|route| route.class() == Some(AUX_CLASS))
+                .count()
+        );
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn body_read_timeout_and_cancellation_preserve_the_original_auxiliary_receipt() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        // Exercise the matched non-body collector and both SDK fallback drains.
+        // Sync handlers resolve configuration before their own body reads;
+        // their fault/byte controls remain in the usersync route owner.
+        let cases = auxiliary_terminal_requests(&app)
+            .into_iter()
+            .filter(|(method, path)| {
+                path == "/info/bidders"
+                    || !matches!(
+                        app.router().resolve(method, path).resolution(),
+                        RouteResolution::Matched(_)
+                    )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(cases.len(), 3);
+        let expected_cases = cases.len().checked_mul(2).unwrap();
+        let mut checked = 0_usize;
+        for (method, path) in cases {
+            for cancel in [false, true] {
+                let store = admission_store(StoreBehavior::Pending);
+                let mut request = store_request(method.clone(), &path, Arc::clone(&store));
+                let (wake, timeout) = oneshot::channel::<()>();
+                *request.body_mut() = Body::from_stream(stream::once(async move {
+                    timeout
+                        .await
+                        .expect("the fixture delivers the adapter timeout");
+                    Err::<bytes::Bytes, _>(EdgeError::request_timeout("fixed adapter timeout"))
+                }));
+                let mut construction = Box::pin(dispatch_request(&app, request));
+                assert!(
+                    construction
+                        .as_mut()
+                        .poll(&mut Context::from_waker(noop_waker_ref()))
+                        .is_pending()
+                );
+                assert!(!wake.is_canceled(), "the admitted body must still be held");
+                assert_eq!(store.reads.load(Ordering::SeqCst), 0);
+                assert_eq!(gates.aux.in_use(), 1);
+                assert_eq!(gates.aux_work_budget.in_use(), peak);
+                assert_eq!(gates.admission.in_use(), 0);
+                assert_eq!(gates.static_egress.in_use(), 0);
+                if cancel {
+                    drop(construction);
+                    assert!(
+                        wake.is_canceled(),
+                        "cancellation must drop the stalled body"
+                    );
+                } else {
+                    wake.send(()).unwrap();
+                    let Poll::Ready(Some(mut response)) = construction
+                        .as_mut()
+                        .poll(&mut Context::from_waker(noop_waker_ref()))
+                    else {
+                        panic!("{method} {path}: the adapter timeout must finish dispatch");
+                    };
+                    assert_eq!(
+                        response.response_mut().status(),
+                        StatusCode::REQUEST_TIMEOUT
+                    );
+                    assert_eq!(
+                        response.response_mut().body().as_bytes(),
+                        Some(b"request timeout\n".as_slice())
+                    );
+                    assert_eq!(gates.aux.in_use(), 1);
+                    assert_eq!(gates.aux_work_budget.in_use(), peak);
+                    drop(response);
+                    drop(construction);
+                }
+                assert_eq!(store.reads.load(Ordering::SeqCst), 0);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                drop(dispatch(&app, method.clone(), &path, Body::empty()).unwrap());
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                checked = checked.checked_add(1).unwrap();
+            }
+        }
+        assert_eq!(checked, expected_cases);
+        assert!(checked > 0);
     }
 
     #[test]

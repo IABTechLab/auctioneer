@@ -13,8 +13,9 @@
 //! the call, and the allocator is the only place it is observable. A
 //! counting global allocator can only exist in a test binary, which is
 //! why this measurement lives here rather than beside the function.
-//! Caller-owned response fixtures are built before measurement; no fixture
-//! subtraction or host-exact allocation baseline contributes to the bound.
+//! Serialization fixtures are built before measurement. Header-history controls
+//! build and drop input owners inside their window before sampling retention.
+//! Neither uses fixture subtraction or claims physical allocator/guest bounds.
 
 /// Test-scoped counting allocator (per-thread, peak bytes) backing the
 /// serialization allocation bound. Delegates every operation to
@@ -53,6 +54,10 @@ mod alloc_track {
     /// has to survive.
     pub fn peak_on_this_thread() -> usize {
         PEAK.try_with(Cell::get).unwrap_or(0)
+    }
+
+    pub fn live_on_this_thread() -> usize {
+        LIVE.try_with(Cell::get).unwrap_or(0)
     }
 
     pub fn track_reallocations_at_least_on_this_thread(size: usize) {
@@ -145,21 +150,24 @@ mod tests {
     use std::{hint::black_box, str, thread};
 
     use super::alloc_track::{
-        peak_on_this_thread, reallocations_on_this_thread, reset_on_this_thread,
-        track_reallocations_at_least_on_this_thread,
+        live_on_this_thread, peak_on_this_thread, reallocations_on_this_thread,
+        reset_on_this_thread, track_reallocations_at_least_on_this_thread,
     };
+    use auctioneer_config_data::usersync::UserSyncConfig;
     use auctioneer_core::handlers::health_gvl::health_gvl;
+    use auctioneer_core::handlers::sync_http::{SyncBrowserPolicy, response_header_cap};
     use auctioneer_core::host_primitives::{
         HealthAccessPolicy, TestClockHandle, install_health_primitives,
     };
     use auctioneer_core::serialize::{SerializeError, serialize_response_within};
     use auctioneer_openrtb::types::bid_response::BidResponse;
     use auctioneer_runtime::FakeClock;
+    use bytes::Bytes;
     use edgezero_core::body::Body;
     use edgezero_core::context::RequestContext;
     use edgezero_core::params::PathParams;
     use futures::executor::block_on;
-    use http::{Request, StatusCode};
+    use http::{HeaderMap, HeaderName, HeaderValue, Request, Response, StatusCode};
     use std::sync::Arc;
     use time::OffsetDateTime;
 
@@ -477,5 +485,273 @@ mod tests {
         })
         .join()
         .unwrap();
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct HeaderShape {
+        unique_fields: usize,
+        duplicate_values: usize,
+        name_bytes: usize,
+        value_bytes: usize,
+    }
+
+    const SMALL_HEADER_BACKING_BYTES: usize = 16 * 1024;
+    const LARGE_HEADER_BACKING_BYTES: usize = 1024 * 1024;
+
+    fn header_history_response(
+        shape: HeaderShape,
+        backing_bytes: usize,
+        removed_fields: usize,
+    ) -> (Response<Body>, Bytes) {
+        let origin = b"https://buyer.example";
+        let origin_end = 32_usize.checked_add(origin.len()).unwrap();
+        let values = shape
+            .unique_fields
+            .checked_add(shape.duplicate_values)
+            .unwrap();
+        let mut storage = vec![b'x'; backing_bytes];
+        storage[32..origin_end].copy_from_slice(origin);
+        for index in 0..values {
+            let start = origin_end
+                .checked_add(index.checked_mul(shape.value_bytes).unwrap())
+                .unwrap();
+            let end = start.checked_add(shape.value_bytes).unwrap();
+            let marker = b'a'.checked_add(u8::try_from(index).unwrap()).unwrap();
+            storage[start..end].fill(marker);
+        }
+        let backing = Bytes::from(storage);
+        let mut headers = HeaderMap::new();
+        for index in 0..removed_fields {
+            let name = HeaderName::from_bytes(format!("x-removed-{index}").as_bytes()).unwrap();
+            headers.append(name.clone(), HeaderValue::from_static("removed-first"));
+            headers.append(name, HeaderValue::from_static("removed-second"));
+        }
+        assert_eq!(headers.len(), removed_fields.checked_mul(2).unwrap());
+        let capacity = headers.capacity();
+        assert!(capacity >= removed_fields);
+        for index in 0..removed_fields {
+            let name = format!("x-removed-{index}");
+            assert_eq!(headers.get_all(&name).iter().count(), 2);
+            assert_eq!(headers.remove(&name).unwrap(), "removed-first");
+            assert!(!headers.contains_key(&name));
+        }
+        assert!(headers.is_empty());
+        assert_eq!(headers.capacity(), capacity);
+        for index in 0..values {
+            let field = if index < shape.unique_fields {
+                index
+            } else {
+                0
+            };
+            let mut name = "x".repeat(shape.name_bytes.checked_sub(1).unwrap());
+            name.push(char::from(
+                b'a'.checked_add(u8::try_from(field).unwrap()).unwrap(),
+            ));
+            let start = origin_end
+                .checked_add(index.checked_mul(shape.value_bytes).unwrap())
+                .unwrap();
+            let end = start.checked_add(shape.value_bytes).unwrap();
+            let mut value = HeaderValue::from_maybe_shared(backing.slice(start..end)).unwrap();
+            assert_eq!(
+                value.as_bytes().as_ptr().addr(),
+                backing.as_ptr().addr().checked_add(start).unwrap(),
+            );
+            assert_eq!(value.as_bytes().len(), shape.value_bytes);
+            value.set_sensitive(index.is_multiple_of(2));
+            headers.append(HeaderName::from_bytes(name.as_bytes()).unwrap(), value);
+        }
+        headers.append("vary", HeaderValue::from_static("Accept-Encoding"));
+        headers.append("vary", HeaderValue::from_static("Origin"));
+        headers.insert("cache-control", HeaderValue::from_static("no-store"));
+        headers.insert(
+            "access-control-allow-origin",
+            HeaderValue::from_maybe_shared(backing.slice(32..origin_end)).unwrap(),
+        );
+        headers.insert(
+            "access-control-allow-credentials",
+            HeaderValue::from_static("true"),
+        );
+        let mut response = Response::new(Body::from_bytes(b"unchanged".to_vec()));
+        *response.status_mut() = StatusCode::ACCEPTED;
+        *response.headers_mut() = headers;
+        (response, backing)
+    }
+
+    fn assert_header_history_output(response: &Response<Body>, before: &[(String, Vec<u8>, bool)]) {
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+        assert_eq!(response.body().as_bytes().unwrap(), b"unchanged");
+        assert_eq!(response.headers().len(), before.len());
+        for ((name, value), (old_name, old_value, sensitive)) in
+            response.headers().iter().zip(before)
+        {
+            assert_eq!(name.as_str(), old_name);
+            assert_eq!(value.as_bytes(), old_value);
+            assert_eq!(value.is_sensitive(), *sensitive);
+        }
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_eq!(
+            response.headers()["access-control-allow-origin"],
+            "https://buyer.example",
+        );
+        assert_eq!(
+            response.headers()["access-control-allow-credentials"],
+            "true"
+        );
+        assert!(
+            response
+                .headers()
+                .get_all("vary")
+                .iter()
+                .map(HeaderValue::as_bytes)
+                .eq([b"Accept-Encoding".as_slice(), b"Origin".as_slice()]),
+        );
+    }
+
+    // Requested native heap only: all fixture owners die before the live sample.
+    fn measured_header_history(
+        shape: HeaderShape,
+        backing_bytes: usize,
+        removed_fields: usize,
+        decorate: bool,
+    ) -> (usize, usize) {
+        thread::spawn(move || {
+            reset_on_this_thread();
+            let response = {
+                let (source_response, backing) =
+                    header_history_response(shape, backing_bytes, removed_fields);
+                let source_capacity = source_response.headers().capacity();
+                let before: Vec<_> = source_response
+                    .headers()
+                    .iter()
+                    .map(|(name, value)| {
+                        (
+                            name.as_str().to_owned(),
+                            value.as_bytes().to_vec(),
+                            value.is_sensitive(),
+                        )
+                    })
+                    .collect();
+                let config = UserSyncConfig {
+                    allowed_origins: vec!["https://buyer.example".to_owned()],
+                    ..UserSyncConfig::default()
+                };
+                let mut request = HeaderMap::new();
+                request.insert(
+                    "origin",
+                    source_response.headers()["access-control-allow-origin"].clone(),
+                );
+                assert_eq!(
+                    request["origin"].as_bytes().as_ptr().addr(),
+                    backing.as_ptr().addr().checked_add(32).unwrap(),
+                );
+                let response = if decorate {
+                    SyncBrowserPolicy::new(&config)
+                        .decorate(source_response, &request, response_header_cap())
+                        .expect("the complete fixture fits the existing header contract")
+                } else {
+                    source_response
+                };
+                assert_header_history_output(&response, &before);
+                let start = backing.as_ptr().addr();
+                let addresses = start..start.checked_add(backing.len()).unwrap();
+                let shared = response
+                    .headers()
+                    .values()
+                    .filter(|value| addresses.contains(&value.as_bytes().as_ptr().addr()))
+                    .count();
+                if decorate {
+                    assert_eq!(shared, 0);
+                    if removed_fields > 0 {
+                        assert!(response.headers().capacity() < source_capacity);
+                    }
+                } else {
+                    let expected_shared = shape
+                        .unique_fields
+                        .checked_add(shape.duplicate_values)
+                        .unwrap()
+                        .checked_add(1)
+                        .unwrap();
+                    assert_eq!(shared, expected_shared);
+                    assert_eq!(response.headers().capacity(), source_capacity);
+                }
+                response
+            };
+            let retained = live_on_this_thread();
+            let peak = peak_on_this_thread();
+            assert!(retained > 0 && retained <= peak);
+            assert!(
+                peak >= backing_bytes,
+                "the window must include the source backing",
+            );
+            drop(response);
+            assert_eq!(
+                live_on_this_thread(),
+                0,
+                "the response was the last measured owner",
+            );
+            (retained, peak)
+        })
+        .join()
+        .expect("header-history measurement thread completed")
+    }
+
+    #[test]
+    fn sync_header_retention_is_independent_of_source_backing_and_map_history() {
+        for unique_fields in [1_usize, 5] {
+            for duplicate_values in [0_usize, 3] {
+                for name_bytes in [17_usize, 129] {
+                    for value_bytes in [19_usize, 271] {
+                        let shape = HeaderShape {
+                            unique_fields,
+                            duplicate_values,
+                            name_bytes,
+                            value_bytes,
+                        };
+                        let (reference, _) =
+                            measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, true);
+                        for backing_bytes in
+                            [SMALL_HEADER_BACKING_BYTES, LARGE_HEADER_BACKING_BYTES]
+                        {
+                            for removed_fields in [0_usize, 256] {
+                                let (retained, _) = measured_header_history(
+                                    shape,
+                                    backing_bytes,
+                                    removed_fields,
+                                    true,
+                                );
+                                assert_eq!(
+                                    retained, reference,
+                                    "{shape:?}, backing={backing_bytes}, removed={removed_fields}",
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn header_history_control_detects_retained_shared_backing_and_map_storage() {
+        let shape = HeaderShape {
+            unique_fields: 2,
+            duplicate_values: 3,
+            name_bytes: 17,
+            value_bytes: 19,
+        };
+        let (small, _) = measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, false);
+        let (large, _) = measured_header_history(shape, LARGE_HEADER_BACKING_BYTES, 0, false);
+        assert_eq!(
+            large.checked_sub(small).unwrap(),
+            LARGE_HEADER_BACKING_BYTES
+                .checked_sub(SMALL_HEADER_BACKING_BYTES)
+                .unwrap(),
+        );
+        let (with_history, _) =
+            measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 256, false);
+        assert!(
+            with_history > small,
+            "removed fields must leave detectable map storage",
+        );
     }
 }
