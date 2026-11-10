@@ -1,7 +1,7 @@
 //! URL safety primitives shared by codegen, runtime user-sync validation,
 //! and `tests/url_safety.rs`.
 //!
-//! Kept dependency-light: only `ipnetwork` + `url` + `std`. Both
+//! Kept dependency-light: only `http` + `ipnetwork` + `url` + `std`. Both
 //! build-dependencies and dev-dependencies pin the same versions.
 
 use ipnetwork::IpNetwork;
@@ -185,7 +185,8 @@ pub fn validate_url_spelling(raw: &str, parsed: &url::Url) -> Result<(), String>
 ///
 /// # Errors
 /// Returns only static reason categories for malformed, templated, credentialed,
-/// fragmented, or unsafe destinations; rejected input is never included.
+/// fragmented, transport-incompatible, or unsafe destinations; rejected input
+/// is never included.
 pub fn validate_configured_bidder_endpoint(
     raw: &str,
     allow_insecure: bool,
@@ -201,6 +202,10 @@ pub fn validate_configured_bidder_endpoint(
     }
     let parsed = url::Url::parse(raw).map_err(|_error| "endpoint URL is malformed")?;
     validate_url_spelling(raw, &parsed).map_err(|_error| "endpoint URL spelling is invalid")?;
+    // The borrowed literal reaches the transport before its URL normalization.
+    // Require that exact spelling to fit the same HTTP URI type used there.
+    raw.parse::<http::Uri>()
+        .map_err(|_error| "endpoint URL cannot be represented by the transport")?;
     if parsed.host_str().is_none() {
         return Err("endpoint authority is missing");
     }
@@ -726,6 +731,23 @@ mod tests {
     use super::{is_exact_loopback_literal, is_localhost_alias_host, is_loopback_range};
 
     #[test]
+    fn configured_endpoint_rejects_spellings_the_transport_cannot_represent() {
+        for endpoint in [
+            "https://%62idder.example/auction",
+            "https://b\u{fc}cher.example/auction",
+            "https://bidder.example/a<b",
+            "https://bidder.example/a`b",
+        ] {
+            for allow_insecure in [false, true] {
+                assert!(
+                    crate::validate_configured_bidder_endpoint(endpoint, allow_insecure).is_err(),
+                    "{endpoint}, allow_insecure={allow_insecure}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn configured_endpoint_accepts_public_https_variations() {
         for endpoint in [
             "https://bidder.example",
@@ -734,6 +756,10 @@ mod tests {
             "https://bidder.example:8443",
             "https://bidder.example:443",
             "https://bidder.example/a%20b?redirect=a%2Fb",
+            "https://xn--bcher-kva.example/auction",
+            "https://bidder.example/a%3Cb",
+            "https://bidder.example/a%60b",
+            "https://bidder.example/caf\u{e9}",
             "https://bidder.example/user@site?contact=a@b",
             "HTTPS://BIDDER.EXAMPLE/openrtb2/auction?site=one",
             "https://8.8.8.8/openrtb2/auction",

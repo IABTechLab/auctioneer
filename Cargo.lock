@@ -368,6 +368,7 @@ dependencies = [
  "auctioneer-openrtb-catalogue",
  "auctioneer-runtime",
  "hex",
+ "http",
  "ipnetwork",
  "percent-encoding",
  "proc-macro2",

@@ -298,17 +298,20 @@ fn flow_from_member(
     {
         // Preserve the historical capture; its owner and fields move to the
         // bidder row and settings subconfig only when creating runtime input.
-        let recorded = recorded.as_object().expect("recorded settings object");
+        let recorded_fields = recorded.as_object().expect("recorded settings object");
         assert_eq!(
-            recorded.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+            recorded_fields
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
             BTreeSet::from(["implementation", "values"]),
         );
         assert_eq!(
-            recorded["implementation"].as_str(),
+            recorded_fields["implementation"].as_str(),
             Some(member.implementation.as_str()),
             "recorded settings belong to their fixture owner",
         );
-        assert!(recorded["values"].is_object());
+        assert!(recorded_fields["values"].is_object());
     }
     assert!(!case.outbound.is_empty());
     let ids: BTreeMap<_, _> = case.request["imp"]

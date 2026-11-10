@@ -20,6 +20,7 @@ required-features = ["config-model"]
 [features]
 # Shared effective configuration and validation, without parsers or code generators.
 config-model = [
+    "dep:http",
     "dep:ipnetwork",
     "dep:auctioneer-runtime",
     "dep:percent-encoding",
@@ -46,6 +47,7 @@ insecure-bidders = []
 
 [dependencies]
 serde = { workspace = true }
+http = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 ipnetwork = { workspace = true, optional = true }
 auctioneer-runtime = { workspace = true, optional = true }

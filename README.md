@@ -254,8 +254,10 @@ the binary.
 Use a literal absolute URL of at most 2048 UTF-8 bytes. Public destinations
 require HTTPS; the development feature also allows HTTP to exact loopback
 literals. Private/reserved addresses, localhost-alias services, credentials,
-fragments and templates are rejected. Omitted/null settings inherit the base
-bidder setting, then the compiled default; an empty endpoint is invalid.
+fragments and templates are rejected. Use ASCII host names (punycode for
+internationalized names) and percent-encode characters the HTTP transport
+cannot represent. Omitted/null endpoint values inherit the base bidder setting,
+then the compiled default; an empty endpoint is invalid.
 Impression parameters cannot override the selected destination.
 
 Validate and push the complete policy to local Fastly/Viceroy from the workspace

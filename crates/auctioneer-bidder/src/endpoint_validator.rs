@@ -92,6 +92,10 @@ mod tests {
             "https://private-canary@configured.example.test/bid",
             "https://127.0.0.2/private-canary",
             "http://configured.example.test/private-canary",
+            "https://%62idder.example/private-canary",
+            "https://b\u{fc}cher.example/private-canary",
+            "https://configured.example.test/private-canary<a",
+            "https://configured.example.test/private-canary`a",
         ] {
             let error = super::ConfiguredEndpoint::new(invalid).err().unwrap();
             assert_eq!(error.code, 5);

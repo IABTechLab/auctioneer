@@ -11,7 +11,13 @@ mod tests {
     #[serde(deny_unknown_fields)]
     struct Settings {
         implementation: String,
+        #[validate(nested)]
+        settings: Fields,
     }
+
+    #[derive(Debug, Deserialize, Serialize, Validate)]
+    #[serde(deny_unknown_fields)]
+    struct Fields {}
 
     type Document = OperatorPolicy<Settings>;
 
@@ -21,7 +27,7 @@ mod tests {
             "host": {"status_response": "", "resource_limits": {"default_tmax_ms": 500_u64}},
             "account_defaults": {"disabled": false, "targeting_prefix": "hb"},
             "accounts": {"fake_publisher": {"debug_allow": true}},
-            "bidders": {"fake_bidder": {"settings": {"implementation": "fake"}, "enabled": false}},
+            "bidders": {"fake_bidder": {"implementation": "fake", "settings": {}, "enabled": false}},
             "features": {"gzip_outbound": false},
             "floor_currency": {"expires_at": 2000_i64, "usd_per_unit": {"EUR": 1.25_f64}}
         })
@@ -43,6 +49,10 @@ mod tests {
         assert_eq!(
             canonical["accounts"]["fake_publisher"]["debug_allow"],
             json!(true)
+        );
+        assert_eq!(
+            canonical["bidders"]["fake_bidder"]["implementation"],
+            json!("fake")
         );
         assert_eq!(
             canonical["bidders"]["fake_bidder"]["settings"],

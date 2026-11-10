@@ -58,6 +58,12 @@ backslashes, credentials/userinfo (including an empty userinfo marker),
 fragments, and any template placeholder. Preserve a supplied path, query and
 explicit port; they are operator configuration, not request substitutions.
 
+The exact borrowed spelling must also parse as the workspace's `http::Uri`,
+which both outbound paths require before SDK normalization. Reject incompatible
+spellings during configuration admission: use punycode for internationalized
+host names and percent-encode path characters the HTTP parser cannot represent.
+Literal Unicode paths that the HTTP parser accepts remain valid.
+
 Reuse the shared URL-safety implementation. HTTPS public destinations are
 accepted. HTTP is allowed only for the existing exact local literals
 `127.0.0.1`, `[::1]` and `localhost` under `insecure-bidders`. Private, reserved
@@ -107,8 +113,11 @@ trusted selection to construction and sink enforcement. Adapters do not parse
 or reinterpret this policy.
 
 Borrow endpoint strings from the already bounded coherent operator snapshot.
-Do not clone bidder metadata, allocate a second config tree, retain a new URL
-cache, or add dependencies. URL parsing remains bounded by the endpoint limit.
+Do not clone bidder metadata, allocate a second config tree, or retain a new URL
+cache. The self-review correction reuses the existing workspace `http`
+dependency behind `config-model` to align admission with transport; it adds no
+new dependency version or native tooling. URL parsing remains bounded by the
+endpoint limit, and the URI compatibility probe is dropped before continuing.
 Existing config byte/node/depth, metadata, call, body and deadline limits remain
 unchanged. Adding a generated settings variant changes type/layout artifacts;
 run the existing relevant layout/allocation owners and report any real change

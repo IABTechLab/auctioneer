@@ -9,7 +9,8 @@ separate, strictly typed `.settings` subconfig for every owner.
 its content key to `settings`. Flatten that envelope at the shared bidder-entry
 boundary with a strict private deserialization adapter that propagates errors.
 
-**Tech stack:** Existing Rust, Serde, quote/syn and test owners; no new dependencies.
+**Tech stack:** Existing Rust, Serde, quote/syn and test owners. The endpoint
+self-review correction reuses the workspace HTTP URI parser in `config-model`.
 
 **Design:** `docs/superpowers/specs/2026-11-09-flat-bidder-settings-design.md`.
 
