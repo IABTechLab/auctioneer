@@ -1,8 +1,12 @@
 //! Local SDK traits for the shared model without repeating its fields.
 
-use super::{AuctioneerAppConfig, EffectiveConfigError, validate_effective_defaults};
+use super::AuctioneerAppConfig;
+use super::validation::{
+    BidderConfigurationError, CompiledPolicyError, PolicyValidationError, validate_compiled_policy,
+};
 use edgezero_core::app_config::{AppConfigMeta, AppConfigRoot, SecretField};
 use serde::{Deserialize, Deserializer, Serialize};
+use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use validator::{Validate, ValidateArgs, ValidationError, ValidationErrors};
 
@@ -41,18 +45,68 @@ impl DerefMut for SdkAuctioneerAppConfig {
 
 impl Validate for SdkAuctioneerAppConfig {
     fn validate(&self) -> Result<(), ValidationErrors> {
-        validate_effective_defaults(&self.0).map_err(|error| validation_error(&error))
+        validate_compiled_policy(
+            &self.0,
+            auctioneer_config_data::host_default(),
+            auctioneer_config_data::account_default(),
+        )
+        .map_err(|error| {
+            let errors = validation_error(&error, &self.0);
+            // The SDK extractor retains only the field path. Report the safe
+            // application-owned reason here, before that redaction, for operators.
+            log::error!("operator configuration validation failed: {errors}");
+            errors
+        })
     }
 }
 
-fn validation_error(error: &EffectiveConfigError) -> ValidationErrors {
-    let code = match error {
-        EffectiveConfigError::Registry(_) => "registry_build_failed",
-        EffectiveConfigError::Malformed(_) => "invalid_effective_config",
+fn validation_error(error: &CompiledPolicyError, config: &AuctioneerAppConfig) -> ValidationErrors {
+    let (code, message) = match error {
+        CompiledPolicyError::Registry(_) => (
+            "registry_build_failed",
+            Cow::Borrowed("compiled bidder registry is invalid; rebuild the CLI and serving guest"),
+        ),
+        CompiledPolicyError::Policy(reason) => (
+            "invalid_effective_config",
+            policy_diagnostic(*reason, config),
+        ),
     };
     let mut errors = ValidationErrors::new();
-    errors.add("runtime", ValidationError::new(code));
+    errors.add("runtime", ValidationError::new(code).with_message(message));
     errors
+}
+
+fn policy_diagnostic(
+    reason: PolicyValidationError,
+    config: &AuctioneerAppConfig,
+) -> Cow<'static, str> {
+    if matches!(
+        reason,
+        PolicyValidationError::Bidder(BidderConfigurationError::SettingsBinding)
+    ) {
+        for settings in config
+            .bidders
+            .values()
+            .filter_map(|entry| entry.settings.as_ref())
+        {
+            let declaration = auctioneer_bidder::bidder_declarations()
+                .iter()
+                .find(|row| row.key == settings.implementation_key());
+            if let Some(missing) = declaration.filter(|row| !row.has_settings)
+                && let Some(feature) = missing.required_feature
+            {
+                // Both identifiers come from compiled declarations, never the
+                // configured alias name, endpoint, credential or rejected value.
+                return Cow::Owned(format!(
+                    "bidder implementation '{}' is unavailable in this build; rebuild both the CLI and serving guest with Cargo feature '{feature}'",
+                    missing.key,
+                ));
+            }
+        }
+    }
+    // PolicyValidationError contains only fixed categories and reviewed static
+    // bidder field/reason identifiers. Never format a raw validator error here.
+    Cow::Owned(reason.to_string())
 }
 
 impl ValidateArgs<'_> for SdkAuctioneerAppConfig {
@@ -105,14 +159,19 @@ mod tests {
 
     #[test]
     fn sdk_validation_keeps_registry_and_operator_refusals_distinct_without_input_values() {
-        let registry = super::validation_error(&super::EffectiveConfigError::Registry(
-            auctioneer_bidder::RegistryBuildError::MissingBinding {
-                bidder: "fake_secret_canary",
-            },
-        ));
-        let malformed = super::validation_error(&super::EffectiveConfigError::Malformed(
-            "fake_secret_canary".to_owned(),
-        ));
+        let config = AuctioneerAppConfig::default();
+        let registry = super::validation_error(
+            &super::CompiledPolicyError::Registry(
+                auctioneer_bidder::RegistryBuildError::MissingBinding {
+                    bidder: "fake_secret_canary",
+                },
+            ),
+            &config,
+        );
+        let malformed = super::validation_error(
+            &super::CompiledPolicyError::Policy(super::PolicyValidationError::UserSync),
+            &config,
+        );
         assert_eq!(
             registry.field_errors()["runtime"][0].code,
             "registry_build_failed"
@@ -154,13 +213,61 @@ mod tests {
             let error = SdkAuctioneerAppConfig(model).validate().unwrap_err();
             assert_eq!(
                 serde_json::to_value(&error).unwrap(),
-                json!({"runtime": [{"code": "invalid_effective_config", "message": null, "params": {}}]}),
+                json!({"runtime": [{"code": "invalid_effective_config", "message": "operator policy user sync invalid", "params": {}}]}),
                 "the real SDK boundary must reject {field}",
             );
             for diagnostic in [error.to_string(), format!("{error:?}")] {
                 assert!(!diagnostic.contains("fake_private_"));
             }
         }
+    }
+
+    #[test]
+    fn sdk_validation_explains_the_safe_policy_refusal() {
+        let config: SdkAuctioneerAppConfig = serde_json::from_value(json!({
+            "schema_version": 1_u8,
+            "host": {"user_sync": {"external_url": "fake_private_url_canary"}},
+        }))
+        .unwrap();
+        let errors = config.validate().unwrap_err();
+        assert!(
+            errors
+                .to_string()
+                .contains("operator policy user sync invalid")
+        );
+        assert!(!format!("{errors:?}").contains("fake_private_url_canary"));
+    }
+
+    #[cfg(not(feature = "insecure-bidders"))]
+    #[test]
+    fn sdk_validation_explains_missing_owner_features_without_configured_names() {
+        let mut checked = 0_usize;
+        for declaration in auctioneer_bidder::bidder_declarations() {
+            let Some(feature) = declaration.required_feature else {
+                continue;
+            };
+            if declaration.has_settings {
+                continue;
+            }
+            let Ok(config) = serde_json::from_value::<SdkAuctioneerAppConfig>(json!({
+                "schema_version": 1_u8,
+                "bidders": {"fake_private_alias_canary": {
+                    "enabled": false,
+                    "implementation": declaration.key,
+                    "settings": {},
+                }},
+            })) else {
+                continue;
+            };
+            let errors = config.validate().unwrap_err();
+            let message = errors.to_string();
+            assert!(message.contains(declaration.key));
+            assert!(message.contains(feature));
+            assert!(message.contains("CLI and serving guest"));
+            assert!(!format!("{errors:?}").contains("fake_private_alias_canary"));
+            checked += 1;
+        }
+        assert!(checked > 0, "exercise disabled typed settings owners");
     }
 
     #[test]

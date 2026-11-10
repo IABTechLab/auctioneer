@@ -739,7 +739,7 @@ mod tests {
         assert_eq!(
             error,
             json!({"runtime": [{
-                "code": "invalid_effective_config", "message": null, "params": {}
+                "code": "invalid_effective_config", "message": "operator policy structure invalid", "params": {}
             }]})
         );
     }

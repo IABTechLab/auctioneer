@@ -77,6 +77,11 @@ localhost spellings do not become approved literals through URL normalization.
 
 All configuration and request-time refusal messages use fixed field/reason
 categories. Never include a rejected URL, credentials, host or parser message.
+Missing-feature diagnostics may name the implementation and feature from
+compiled declarations. Auctioneer retains typed policy categories at its SDK
+boundary and logs their safe explanations before SDK extraction redacts them.
+Public HTTP config errors keep their existing coarse classification. Upstream
+diagnostic propagation is tracked separately in IABTechLab/edgezero#457.
 
 ## Request construction and enforcing sink
 

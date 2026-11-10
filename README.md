@@ -269,6 +269,9 @@ auctioneer-cli config push --adapter fastly --local --app-config auctioneer.fast
 ```
 
 Use the same Mocktioneer-enabled feature set for the CLI and the serving guest.
+If a configured implementation is missing from the build, CLI errors and runtime
+operator logs identify its compiled name and required Cargo feature. These
+diagnostics omit configured alias names, endpoint values and credentials.
 Endpoint changes take effect through the existing config publication lifecycle;
 they require no endpoint-specific rebuild. The other bidders' compiled endpoint
 and host-allowlist rules remain unchanged.
