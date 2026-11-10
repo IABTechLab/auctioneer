@@ -254,7 +254,7 @@ mod sdk_validation_allocation {
             } else {
                 assert_eq!(
                     serde_json::to_value(result.unwrap_err()).unwrap(),
-                    json!({"runtime": [{"code": "invalid_effective_config", "message": null, "params": {}}]})
+                    json!({"runtime": [{"code": "invalid_effective_config", "message": "operator policy structure invalid", "params": {}}]})
                 );
             }
             assert_eq!(factory_calls(), factories_before);
@@ -1266,6 +1266,7 @@ mod compiled_sdk {
         document: &Value,
         expected: Result<(), PolicyValidationError>,
         observed: &[Observation],
+        diagnostic: Option<&str>,
     ) {
         let before = auctioneer_bidder::fake_synthetic::factory_calls();
         let _ = take();
@@ -1294,10 +1295,10 @@ mod compiled_sdk {
             toml::from_str::<SdkAuctioneerAppConfig>(&toml::to_string(document).unwrap()).unwrap(),
         ] {
             match (expected, sdk.validate()) {
-                (Ok(()), Ok(())) => {}
+                (Ok(()), Ok(())) => assert!(diagnostic.is_none()),
                 (Err(_), Err(errors)) => assert_eq!(
                     serde_json::to_value(errors).unwrap(),
-                    json!({"runtime": [{"code": "invalid_effective_config", "message": null, "params": {}}]})
+                    json!({"runtime": [{"code": "invalid_effective_config", "message": diagnostic.expect("refusal has an independent expected diagnostic"), "params": {}}]})
                 ),
                 (expected, actual) => {
                     panic!("SDK/typed parity: expected {expected:?}, got {actual:?}")
@@ -1329,9 +1330,9 @@ mod compiled_sdk {
         }
         assert_eq!(auctioneer_bidder::fake_synthetic::factory_calls(), before);
         let mut input = document();
-        assert_parity(&input, Ok(()), &successful_dispatch());
+        assert_parity(&input, Ok(()), &successful_dispatch(), None);
         input["floor_currency"] = json!({"expires_at": 1, "usd_per_unit": {"QAA": 1.25}});
-        assert_parity(&input, Ok(()), &successful_dispatch());
+        assert_parity(&input, Ok(()), &successful_dispatch(), None);
     }
 
     #[test]
@@ -1354,6 +1355,7 @@ mod compiled_sdk {
                     BidderConfigurationError::SettingsBinding,
                 )),
                 &[],
+                Some("bidder configuration settings binding invalid"),
             );
             cases += 1;
         }
@@ -1396,6 +1398,7 @@ mod compiled_sdk {
                             Some(secondary),
                         ),
                     ],
+                    Some(&format!("bidder configuration invalid: {field} (invalid)")),
                 );
                 cases += 1;
             }
@@ -1405,7 +1408,7 @@ mod compiled_sdk {
 
     #[test]
     fn sdk_and_typed_paths_preserve_compiled_ancestry_and_per_identity_requiredness() {
-        assert_parity(&json!({"schema_version": 1}), Ok(()), &[]);
+        assert_parity(&json!({"schema_version": 1}), Ok(()), &[], None);
         let input = json!({"schema_version": 1, "bidders": {
             "fake_wire_base": {"enabled": true, "implementation": "fake_integer_probe", "settings": {"primary_number": 7, "secondary_number": 11}},
             "fake_wire_leaf": {"implementation": "fake_integer_probe", "settings": {"primary_number": 0}}
@@ -1417,6 +1420,7 @@ mod compiled_sdk {
                 integer(Some("fake_wire_base"), true, Some(7), Some(11)),
                 integer(Some("fake_wire_leaf"), true, Some(0), None),
             ],
+            Some("bidder configuration invalid: secondary_number (required)"),
         );
         let disabled_parent = json!({"schema_version": 1,
         "host": {"aliases": {"fake_host_alias": "fake_wire_leaf"}},
@@ -1431,6 +1435,7 @@ mod compiled_sdk {
                 integer(Some("fake_wire_leaf"), false, None, None),
                 integer(Some("fake_wire_base"), true, Some(7), Some(11)),
             ],
+            None,
         );
     }
 }
