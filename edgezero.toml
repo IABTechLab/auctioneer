@@ -139,12 +139,12 @@ description = "Read current UID cookie families"
 # aliases. Other adapters resolve their bindings through their host setup.
 
 [stores.config]
-ids = ["auctioneer_runtime"]
-default = "auctioneer_runtime"
+ids = ["auctioneer_config"]
+default = "auctioneer_config"
 
 [stores.secrets]
-ids = ["default"]
-default = "default"
+ids = ["auctioneer_secrets"]
+default = "auctioneer_secrets"
 
 # -- Adapters and their build/deploy/serve commands ------------------------
 #

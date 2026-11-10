@@ -206,10 +206,8 @@ fn resolve_health_policy() -> Result<HealthAccessPolicy, Error> {
     // The store NAMES come from the manifest's `[stores.*]`
     // declarations, which `app!` bakes into `Hooks::stores()` — not from
     // a literal here. A literal is how boot and provisioning came to
-    // disagree: `edgezero.toml` declares config store `auctioneer_runtime`
-    // and secret store `default`, so a hardcoded "auctioneer" opened stores
-    // nothing creates, and health installation failed before routing
-    // could answer even `/status`.
+    // disagree: opening an unrelated hardcoded alias failed health installation
+    // before routing could answer even `/status`.
     //
     // Fail closed when a declaration is absent rather than falling back
     // to a guess: a missing `[stores.*]` entry means the deployment was

@@ -9,24 +9,23 @@ service_id = ""
 
 [local_server.config_stores]
 
-[local_server.config_stores.auctioneer_runtime]
+[local_server.config_stores.auctioneer_config]
 format = "inline-toml"
 
-[local_server.config_stores.auctioneer_runtime.contents]
-auctioneer_runtime = '{"data":{"account_defaults":{},"accounts":{},"bidders":{},"features":{},"host":{"resource_limits":{}},"schema_version":1},"generated_at":"2026-10-07T04:35:15Z","sha256":"6aa4c01132d4dd3425c13e28cab5c2fb1fec177d6303f1b3e3a863b08adc7778","version":1}'
+[local_server.config_stores.auctioneer_config.contents]
+# Populate locally with: auctioneer-cli config push --adapter fastly --local.
+auctioneer_config = ''
 
 # Health remains closed unless a local development token is supplied.
 allow_unauthenticated_health = "false"
 
-[local_server.secret_stores]
-
-[[local_server.secret_stores.default]]
+[[local_server.secret_stores.auctioneer_secrets]]
 key = "health_gvl_token"
 # Viceroy uses an empty value when this host environment variable is unset.
 # Supply a development-only token when running `fastly compute serve`.
 env = "AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN"
 
-[[local_server.secret_stores.default]]
+[[local_server.secret_stores.auctioneer_secrets]]
 key = "usersync_cookie_keyring"
 # Local Viceroy provisioning only: this example host env name is not a
 # runtime config knob or a production secret lookup name. Unset means empty.

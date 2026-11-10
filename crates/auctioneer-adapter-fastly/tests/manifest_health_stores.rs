@@ -191,9 +191,10 @@ exit 71
             .and_then(Value::as_str);
         assert_eq!(flag, Some("false"));
         assert!(!read_bool_flag("allow_unauthenticated_health", flag).unwrap());
-        assert!(
-            contents.get(config_id).and_then(Value::as_str).is_some(),
-            "health provisioning must preserve the existing runtime config envelope"
+        assert_eq!(
+            contents.get(config_id).and_then(Value::as_str),
+            Some(""),
+            "local runtime policy must be supplied by config push rather than the shipped manifest"
         );
         assert!(
             !contents.contains_key("health_gvl_token"),
