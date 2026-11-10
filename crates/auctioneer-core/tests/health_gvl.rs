@@ -56,7 +56,7 @@ mod tests {
         request.extensions_mut().insert(TestClockHandle(clock));
         request.extensions_mut().insert(runtime_registry(
             &serde_json::json!({"schema_version": 1_u8,
-            "gvl": {"authenticated_health": {"enabled": false}}}),
+            "host": {"gvl": {"authenticate_health": false}}}),
         ));
         let ctx = context(request);
         let response = health_gvl(ctx).await.expect("handler returns Ok");

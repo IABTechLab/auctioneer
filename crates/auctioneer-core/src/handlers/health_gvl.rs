@@ -259,7 +259,7 @@ async fn authorize(ctx: &RequestContext, presented: Option<&str>) -> bool {
                 return false;
             }
         };
-        policy.gvl.and_then(|gvl| gvl.authenticated_health)
+        policy.host.gvl
     };
     let Some(health) = configured_health else {
         return false;
@@ -267,10 +267,13 @@ async fn authorize(ctx: &RequestContext, presented: Option<&str>) -> bool {
     if deadline.is_expired_at(clock.now()) {
         return false;
     }
-    if !health.enabled {
-        return true;
+    match health.authenticate_health {
+        Some(false) => return true,
+        None => return false,
+        Some(true) => {}
     }
-    let (Some(reference), Some(bearer)) = (health.token_secret, presented) else {
+    let (Some(reference), Some(bearer)) = (health.authenticate_health_token_secret, presented)
+    else {
         return false;
     };
     let Some(auth) = read_token(ctx.secret_store_default(), &reference, &clock, deadline).await

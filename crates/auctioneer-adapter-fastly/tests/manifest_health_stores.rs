@@ -113,23 +113,23 @@ exit 71
         let config_id = stores.config.unwrap().default;
         let secrets_id = stores.secrets.unwrap().default;
         let mut fixture = manifest();
-        let mut data = json!({"schema_version": 1_u8});
+        let mut data = json!({"schema_version": 1_u8, "host": {}});
         if case != "omitted" {
-            data["gvl"] = json!({"authenticated_health": {
-                "enabled": case != "anonymous",
-                "token_secret": if case == "renamed-entry" { "renamed_health_token" } else { "health_gvl_token" },
-            }});
+            data["host"]["gvl"] = json!({
+                "authenticate_health": case != "anonymous",
+                "authenticate_health_token_secret": if case == "renamed-entry" { "renamed_health_token" } else { "health_gvl_token" },
+            });
             if case == "anonymous" {
                 assert!(
-                    data["gvl"]["authenticated_health"]
+                    data["host"]["gvl"]
                         .as_object_mut()
                         .unwrap()
-                        .remove("token_secret")
+                        .remove("authenticate_health_token_secret")
                         .is_some()
                 );
             }
             if case == "malformed" {
-                data["gvl"]["authenticated_health"]["enabled"] = json!("true");
+                data["host"]["gvl"]["authenticate_health"] = json!("true");
             }
         }
         let blob = BlobEnvelope::new(data, "1970-01-01T00:00:00Z".to_owned());

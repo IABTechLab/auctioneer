@@ -20,7 +20,7 @@ entry = "crates/auctioneer-core"
 # Privacy reference-data health:
 #   /_auctioneer/health/gvl (GET)  operator-only; fail-closed 401 unless
 #                               operator policy grants access through
-#                               gvl.authenticated_health; restrict /_auctioneer/* at the
+#                               host.gvl; restrict /_auctioneer/* at the
 #                               ingress (docs/deployment/restrict-operational-endpoints.md)
 #
 # User-sync routes:

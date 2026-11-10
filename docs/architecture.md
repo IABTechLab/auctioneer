@@ -450,16 +450,21 @@ operator runtime config
 
 The authoring file [`auctioneer.toml`](../auctioneer.toml) is the direct payload:
 required root `schema_version = 1`, `host`, `account_defaults`, `accounts`,
-`bidders`, `features`, `gvl` and `floor_currency`. There are no baked/startup/runtime
+`bidders`, `features` and `floor_currency`. There are no baked/startup/runtime
 root wrappers, source modes or backward wire aliases. Builds never read operator
 policy. The SDK trait wrapper preserves model and wire layout. Accounts are carried in that runtime
 blob, not fetched from separate account records. Runtime-field environment
 overrides are applied at push time to keys already present in the source;
 they are not a live, per-instance policy override channel. GVL health access is
-part of that runtime policy: `gvl.authenticated_health` stays closed when omitted,
-requires a default Secret Store entry reference when enabled, or permits anonymous
-access when explicitly disabled with no reference. The shared handler resolves
-policy and the selected secret on every health request; adapters install only the
+part of that runtime policy under `host.gvl`: an omitted section or
+`authenticate_health` mode stays closed. `authenticate_health = true` requires a
+nonempty default Secret Store entry reference in
+`authenticate_health_token_secret`; an empty reference is invalid.
+`authenticate_health = false` explicitly permits anonymous access with an absent,
+empty or valid named reference and never reads the secret. All nonempty references
+are validated, including in anonymous mode; a reference without a mode is invalid.
+The shared handler resolves policy and, for authenticated health, the selected
+secret on every health request; adapters install only the
 immutable counter scope. Config and secret visibility follow the existing SDK
 provider lifecycle, including Axum's startup file snapshot. Health credentials use
 the same request-bound default secret provider as other credentials.
@@ -693,7 +698,7 @@ This describes technical enforcement, not legal certification.
 
 `/status` is not proof of bidder reachability, usable consent data, or
 production certification. The internal health route is fail-closed without
-valid `gvl.authenticated_health` runtime policy and, when authentication is enabled,
+valid `host.gvl` runtime policy and, when authentication is enabled,
 a valid credential. Explicit anonymous access requires an ingress path
 restriction; see [internal-route deployment guidance](deployment/restrict-operational-endpoints.md).
 

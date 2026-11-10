@@ -2,10 +2,12 @@
 
 auctioneer serves operational endpoints under the `/_auctioneer/*` prefix
 (`/_auctioneer/health/gvl` today). The shared handler resolves
-`gvl.authenticated_health` from the pushed operator policy on every health
-request. An omitted section keeps health closed. `enabled = true` requires a
-`token_secret` entry name in the default Secret Store. Missing/malformed config,
-secret faults, empty secrets, secrets over 4096 bytes and failed authorization
+`host.gvl` from the pushed operator policy on every health request. An omitted
+section or `authenticate_health` mode keeps health closed.
+`authenticate_health = true` requires a nonempty
+`authenticate_health_token_secret` entry name in the default Secret Store; an
+empty reference is invalid. Missing/malformed config always denies access.
+In authenticated mode, secret faults, empty secrets, secrets over 4096 bytes and failed authorization
 return 401 with a Bearer challenge. Reads use the existing config-fetch deadline;
 provider APIs may materialize a complete secret before the accepted-size check,
 and synchronous provider calls cannot be preempted by a cooperative deadline.
@@ -14,12 +16,17 @@ and synchronous provider calls cannot be preempted by a cooperative deadline.
 To allow anonymous access, explicitly configure:
 
 ```toml
-[gvl.authenticated_health]
-enabled = false
+[host.gvl]
+authenticate_health = false
+authenticate_health_token_secret = ""
 ```
 
-This mode must omit `token_secret` and requires an ingress restriction for the
-prefix. Ingress restriction is recommended defence in depth for authenticated
+This mode permits an absent, empty or valid named secret reference and never
+reads the secret. Every nonempty reference must be at most 128 UTF-8 bytes,
+without ASCII controls or surrounding whitespace, even in anonymous mode. A
+reference without a mode, unknown fields and explicit nulls are rejected.
+Anonymous access requires an ingress restriction for the prefix. Ingress
+restriction is recommended defence in depth for authenticated
 health as well. Adapters install counter scope only; provider flags and boot
 credentials do not determine access. See the
 [secret provisioning mappings](../../README.md#operational-endpoints-_auctioneer).
@@ -58,7 +65,7 @@ unauthorised requests to the prefix before they reach the service:
 
 A presence check is **not** authentication: `Authorization: junk`
 satisfies `if (!req.http.Authorization)` and the shared handler permits
-anonymous access when `gvl.authenticated_health.enabled = false`. The value has
+anonymous access when `host.gvl.authenticate_health = false`. The value has
 to be VALIDATED, and the comparison has to be constant-time so the
 token cannot be recovered byte by byte from response timing.
 
@@ -92,7 +99,7 @@ if (req.url.path ~ "^/_auctioneer/") {
 ```
 
 For authenticated health, use the same credential selected by
-`gvl.authenticated_health.token_secret` in the linked default Fastly secret
+`host.gvl.authenticate_health_token_secret` in the linked default Fastly secret
 store (for example `health_gvl_token`). Keeping the two in step means a
 rotation that misses one layer fails closed rather than open.
 

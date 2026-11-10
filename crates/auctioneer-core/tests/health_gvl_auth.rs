@@ -66,8 +66,8 @@ mod tests {
 
     async fn status_for(bearer: Option<HeaderValue>) -> StatusCode {
         status_with(
-            json!({"schema_version": 1_u8, "gvl": {"authenticated_health": {
-            "enabled": true, "token_secret": "custom_gvl_token"}}}),
+            json!({"schema_version": 1_u8, "host": {"gvl": {
+            "authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}}),
             Some(store(Some(b"t"), 1)),
             bearer,
         )
@@ -198,8 +198,8 @@ mod tests {
     #[test]
     fn health_policy_and_secret_rotation_apply_per_request() {
         block_on(async {
-            let policy = json!({"schema_version": 1_u8, "gvl": {"authenticated_health": {
-                "enabled": true, "token_secret": "custom_gvl_token"}}});
+            let policy = json!({"schema_version": 1_u8, "host": {"gvl": {
+                "authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}});
             for (token, bearer, expected) in [
                 (b"first".as_slice(), "Bearer first", StatusCode::OK),
                 (
@@ -219,10 +219,23 @@ mod tests {
                     expected
                 );
             }
-            let unused = store(Some(b"t"), 1);
-            assert_eq!(status_with(json!({"schema_version": 1_u8, "gvl": {"authenticated_health": {"enabled": false}}}),
-                Some(Arc::clone(&unused)), None).await, StatusCode::OK);
-            assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
+            for anonymous_policy in [
+                json!({"authenticate_health": false}),
+                json!({"authenticate_health": false, "authenticate_health_token_secret": ""}),
+                json!({"authenticate_health": false, "authenticate_health_token_secret": "custom_gvl_token"}),
+            ] {
+                let unused = store(Some(b"t"), 1);
+                assert_eq!(
+                    status_with(
+                        json!({"schema_version": 1_u8, "host": {"gvl": anonymous_policy}}),
+                        Some(Arc::clone(&unused)),
+                        None,
+                    )
+                    .await,
+                    StatusCode::OK
+                );
+                assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
+            }
             assert_eq!(
                 status_with(policy, None, Some(HeaderValue::from_static("Bearer t"))).await,
                 StatusCode::UNAUTHORIZED
@@ -235,9 +248,15 @@ mod tests {
         block_on(async {
             for policy in [
                 json!({"schema_version": 1_u8}),
-                json!({"schema_version": 1_u8, "gvl": {}}),
-                json!({"schema_version": 1_u8, "gvl": {"authenticated_health": {"enabled": true}}}),
-                json!({"schema_version": 1_u8, "gvl": {"authenticated_health": {"enabled": false, "token_secret": "custom_gvl_token"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": ""}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health_token_secret": "custom_gvl_token"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": " invalid "}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": "false"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": null}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "unknown": true}}}),
+                json!({"schema_version": 1_u8, "gvl": {"authenticate_health": false}}),
             ] {
                 let unused = store(Some(b"t"), 1);
                 assert_eq!(
@@ -251,7 +270,7 @@ mod tests {
                 );
                 assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
             }
-            let policy = json!({"schema_version": 1_u8, "gvl": {"authenticated_health": {"enabled": true, "token_secret": "custom_gvl_token"}}});
+            let policy = json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}});
             for fault in [
                 store(None, 0),
                 store(Some(b""), 0),

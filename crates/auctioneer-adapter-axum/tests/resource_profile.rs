@@ -948,22 +948,26 @@ mod tests {
         const HEALTH: &str = "/_auctioneer/health/gvl";
         for (policy, sdk_token, expected) in [
             (None, Some(TOKEN), 401_u16),
-            (Some(json!({"enabled": false})), None, 200_u16),
+            (Some(json!({"authenticate_health": false})), None, 200_u16),
             (
-                Some(json!({"enabled": true, "token_secret": "health_gvl_token"})),
+                Some(
+                    json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
+                ),
                 Some(TOKEN),
                 200_u16,
             ),
             (
-                Some(json!({"enabled": true, "token_secret": "health_gvl_token"})),
+                Some(
+                    json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
+                ),
                 None,
                 401_u16,
             ),
         ] {
             let fixture = Fixture::new();
-            let mut data = json!({"schema_version": 1_u8});
+            let mut data = json!({"schema_version": 1_u8, "host": {}});
             if let Some(configured_policy) = policy {
-                data["gvl"] = json!({"authenticated_health": configured_policy});
+                data["host"]["gvl"] = configured_policy;
             }
             let envelope = BlobEnvelope::new(data, "1970-01-01T00:00:00Z".to_owned());
             let config_id = AuctioneerApp::stores().config.unwrap().default;

@@ -48,9 +48,7 @@ impl<'de> Deserialize<'de> for ApplicationSchemaVersion {
     }
 }
 
-pub use object_models::{
-    AccountPolicy, AuthenticatedHealthPolicy, GvlPolicy, HostPolicy, OperatorPolicy,
-};
+pub use object_models::{AccountPolicy, GvlPolicy, HostPolicy, OperatorPolicy};
 
 #[expect(
     clippy::same_name_method,
@@ -99,17 +97,10 @@ mod object_models {
             skip_serializing_if = "Option::is_none"
         )]
         pub floor_currency: Option<FloorCurrencyConfig>,
-        /// GVL diagnostics access policy; secret values remain in the default Secret Store.
-        #[serde(
-            default,
-            deserialize_with = "deserialize_optional_value",
-            skip_serializing_if = "Option::is_none"
-        )]
-        pub gvl: Option<GvlPolicy>,
     }
 
     /// GVL-specific runtime policy. Omitted health settings keep the endpoint closed.
-    #[derive(Debug, Default, Deserialize, Serialize, Validate)]
+    #[derive(Debug, Default, Deserialize, Serialize)]
     #[serde(remote = "Self", deny_unknown_fields)]
     pub struct GvlPolicy {
         #[serde(
@@ -117,23 +108,14 @@ mod object_models {
             deserialize_with = "deserialize_optional_value",
             skip_serializing_if = "Option::is_none"
         )]
-        #[validate(nested)]
-        pub authenticated_health: Option<AuthenticatedHealthPolicy>,
-    }
-
-    /// Explicit GVL health access mode and optional secret entry reference.
-    #[derive(Debug, Deserialize, Serialize)]
-    #[serde(remote = "Self", deny_unknown_fields)]
-    pub struct AuthenticatedHealthPolicy {
-        /// True requires a token; false deliberately permits anonymous health requests.
-        pub enabled: bool,
+        pub authenticate_health: Option<bool>,
         /// Entry in the declared default Secret Store. Required only when enabled.
         #[serde(
             default,
             deserialize_with = "deserialize_optional_value",
             skip_serializing_if = "Option::is_none"
         )]
-        pub token_secret: Option<String>,
+        pub authenticate_health_token_secret: Option<String>,
     }
 
     /// Optional host policy requests over product defaults.
@@ -184,6 +166,14 @@ mod object_models {
             skip_serializing_if = "Option::is_none"
         )]
         pub aliases: Option<BTreeMap<String, String>>,
+        /// Service-wide GVL diagnostics access; secrets remain in the default Secret Store.
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(nested)]
+        pub gvl: Option<GvlPolicy>,
     }
 
     /// The same strict overlay type is used for account defaults and named accounts.
@@ -272,7 +262,6 @@ impl<Settings: Validate> Default for OperatorPolicy<Settings> {
             bidders: BTreeMap::new(),
             features: FeatureFlags::default(),
             floor_currency: None,
-            gvl: None,
         }
     }
 }
@@ -314,9 +303,6 @@ impl<Settings: Validate> Validate for OperatorPolicy<Settings> {
     fn validate(&self) -> Result<(), ValidationErrors> {
         let mut errors = ValidationErrors::new();
         errors.merge_self("host", validate_host_policy(&self.host));
-        if let Some(gvl) = &self.gvl {
-            errors.merge_self("gvl", gvl.validate());
-        }
         errors.merge_self(
             "account_defaults",
             validate_account_policy(&self.account_defaults),
@@ -364,40 +350,23 @@ impl Serialize for GvlPolicy {
     }
 }
 
-impl<'de> ObjectFields<'de> for AuthenticatedHealthPolicy {
-    fn deserialize_fields<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Self::deserialize(deserializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for AuthenticatedHealthPolicy {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserialize_fields(deserializer)
-    }
-}
-
-impl Serialize for AuthenticatedHealthPolicy {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Self::serialize(self, serializer)
-    }
-}
-
-impl Validate for AuthenticatedHealthPolicy {
+impl Validate for GvlPolicy {
     fn validate(&self) -> Result<(), ValidationErrors> {
         let mut errors = ValidationErrors::new();
-        let valid = match (self.enabled, self.token_secret.as_deref()) {
-            (true, Some(reference)) => {
-                !reference.is_empty()
-                    && reference.len() <= 128
-                    && reference.trim() == reference
-                    && !reference.bytes().any(|byte| byte.is_ascii_control())
-            }
-            (false, None) => true,
-            (true, None) | (false, Some(_)) => false,
+        let reference = self.authenticate_health_token_secret.as_deref();
+        let valid_reference = reference.is_none_or(|value| {
+            value.len() <= 128
+                && value.trim() == value
+                && !value.bytes().any(|byte| byte.is_ascii_control())
+        });
+        let valid_mode = match (self.authenticate_health, reference) {
+            (Some(true), Some(value)) => !value.is_empty(),
+            (Some(false), _) | (None, None) => true,
+            (Some(true), None) | (None, Some(_)) => false,
         };
-        if !valid {
+        if !valid_reference || !valid_mode {
             errors.add(
-                "token_secret",
+                "authenticate_health_token_secret",
                 ValidationError::new("invalid_health_token_reference"),
             );
         }
@@ -654,27 +623,32 @@ mod tests {
     use validator::Validate as _;
 
     #[test]
-    fn gvl_authenticated_health_round_trips_both_explicit_modes() {
+    fn gvl_authenticate_health_round_trips_explicit_modes_and_empty_disabled_secret() {
         for health in [
-            json!({"enabled": true, "token_secret": "health_gvl_token"}),
-            json!({"enabled": false}),
+            json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
+            json!({"authenticate_health": false}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": ""}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": "health_gvl_token"}),
+            json!({}),
         ] {
-            let input = json!({"schema_version": 1_u8, "gvl": {"authenticated_health": health}});
+            let input = json!({"schema_version": 1_u8, "host": {"gvl": health}});
             let policy: OperatorPolicy = serde_json::from_value(input.clone()).unwrap();
             policy.validate().unwrap();
             let output = serde_json::to_value(&policy).unwrap();
-            assert_eq!(output["gvl"], input["gvl"]);
+            assert_eq!(output["host"]["gvl"], input["host"]["gvl"]);
             let restored: OperatorPolicy =
                 toml::from_str(&toml::to_string(&policy).unwrap()).unwrap();
             assert_eq!(serde_json::to_value(restored).unwrap(), output);
         }
         let policy: OperatorPolicy =
             serde_json::from_value(json!({"schema_version": 1_u8})).unwrap();
-        assert!(serde_json::to_value(policy).unwrap().get("gvl").is_none());
+        let output = serde_json::to_value(policy).unwrap();
+        assert!(output["host"].get("gvl").is_none());
+        assert!(output.get("gvl").is_none());
     }
 
     #[test]
-    fn gvl_authenticated_health_rejects_incomplete_conflicting_and_invalid_shapes() {
+    fn gvl_authenticate_health_rejects_incomplete_and_invalid_shapes() {
         for gvl in [
             json!(null),
             json!([]),
@@ -682,33 +656,45 @@ mod tests {
             json!({"authenticated_health": null}),
             json!({"authenticated_health": []}),
             json!({"authenticated_health": {}}),
-            json!({"authenticated_health": {"enabled": "true", "token_secret": "token"}}),
-            json!({"authenticated_health": {"enabled": null}}),
-            json!({"authenticated_health": {"enabled": false, "unknown": true}}),
-            json!({"authenticated_health": {"enabled": false, "token_secret": null}}),
+            json!({"token_secret": "token"}),
+            json!({"authenticate_health": "true"}),
+            json!({"authenticate_health": null}),
+            json!({"authenticate_health": {}}),
+            json!({"authenticate_health": false, "unknown": true}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": null}),
         ] {
-            serde_json::from_value::<OperatorPolicy>(json!({"schema_version": 1_u8, "gvl": gvl}))
-                .expect_err("GVL health policy requires strict objects and field types");
+            serde_json::from_value::<OperatorPolicy>(
+                json!({"schema_version": 1_u8, "host": {"gvl": gvl}}),
+            )
+            .expect_err("GVL health policy requires strict objects and field types");
         }
         for health in [
-            json!({"enabled": true}),
-            json!({"enabled": false, "token_secret": "token"}),
+            json!({"authenticate_health": true}),
+            json!({"authenticate_health": true, "authenticate_health_token_secret": ""}),
+            json!({"authenticate_health_token_secret": "token"}),
         ] {
-            let policy: OperatorPolicy = serde_json::from_value(
-                json!({"schema_version": 1_u8, "gvl": {"authenticated_health": health}}),
-            )
-            .unwrap();
+            let policy: OperatorPolicy =
+                serde_json::from_value(json!({"schema_version": 1_u8, "host": {"gvl": health}}))
+                    .unwrap();
             policy
                 .validate()
                 .expect_err("health mode and token reference must agree");
         }
+        for document in [
+            json!({"schema_version": 1_u8, "gvl": {"authenticate_health": false}}),
+            json!({"schema_version": 1_u8, "account_defaults": {"gvl": {"authenticate_health": false}}}),
+            json!({"schema_version": 1_u8, "accounts": {"fake_account": {"gvl": {"authenticate_health": false}}}}),
+        ] {
+            serde_json::from_value::<OperatorPolicy>(document)
+                .expect_err("GVL health policy belongs only under host");
+        }
     }
 
     #[test]
-    fn gvl_authenticated_health_validates_reference_bytes_without_logging_values() {
+    fn gvl_authenticate_health_validates_reference_bytes_without_logging_values() {
         for reference in ["x".to_owned(), "x".repeat(128), "\u{00e9}".repeat(64)] {
             let policy: OperatorPolicy = serde_json::from_value(json!({"schema_version": 1_u8,
-                "gvl": {"authenticated_health": {"enabled": true, "token_secret": reference}}}))
+                "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": reference}}}))
             .unwrap();
             policy.validate().unwrap();
         }
@@ -723,7 +709,7 @@ mod tests {
             "reference\0canary".to_owned(),
         ] {
             let policy: OperatorPolicy = serde_json::from_value(json!({"schema_version": 1_u8,
-                "gvl": {"authenticated_health": {"enabled": true, "token_secret": reference}}}))
+                "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": reference}}}))
             .unwrap();
             let error = policy.validate().unwrap_err();
             assert!(!format!("{error:?}").contains("reference_canary"));

@@ -287,18 +287,25 @@ bundled vendor-list versions, and the rolling unavailable-lookup
 counter). Configure access in the pushed operator policy:
 
 ```toml
-[gvl.authenticated_health]
-enabled = true
-token_secret = "health_gvl_token"
+[host.gvl]
+authenticate_health = true
+authenticate_health_token_secret = "health_gvl_token"
 ```
 
-The handler is fail-closed. `token_secret` names an entry in the declared
-default Secret Store. Omit the section to keep health closed. To permit anonymous access, set `enabled = false`
-and omit `token_secret`. The shared handler resolves config and the selected
-secret on each health request; updates take effect with the provider's existing
+The handler is fail-closed. `authenticate_health_token_secret` names an entry in
+the declared default Secret Store. Omit the section or `authenticate_health` to
+keep health closed. `authenticate_health = true` requires a nonempty reference;
+an empty reference is invalid. To permit anonymous access, set
+`authenticate_health = false`; the reference may be absent, empty or a valid entry
+name, and the handler never reads it. All nonempty references must be at most 128
+UTF-8 bytes, without ASCII controls or surrounding whitespace. A reference without
+a mode, unknown fields and explicit nulls are rejected. The shared handler resolves
+config and, for authenticated health, the selected secret on each health request;
+updates take effect with the provider's existing
 config/secret visibility lifecycle. Axum's file-backed config keeps its startup
-snapshot until restart. Missing or invalid policy, unavailable/empty secrets,
-and secrets larger than 4096 bytes return 401 with a Bearer challenge. `/status`
+snapshot until restart. Missing or invalid policy returns 401 with a Bearer
+challenge. In authenticated mode, unavailable/empty secrets and secrets larger
+than 4096 bytes also return 401. `/status`
 remains independent. Ordinary routes do not fetch health credentials.
 
 Provision `health_gvl_token` through the existing SDK secret binding:
@@ -310,8 +317,8 @@ Provision `health_gvl_token` through the existing SDK secret binding:
   The local manifest's `AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` is only a Viceroy
   provisioning source; the runtime does not read that environment variable.
 - Spin: a secret application variable declared and mapped into the component.
-  The SDK lowercases entry names; a different `token_secret` needs its own
-  matching declaration and component mapping.
+  The SDK lowercases entry names; a different `authenticate_health_token_secret`
+  needs its own matching declaration and component mapping.
 
 Deployments that opt in to serving `/_auctioneer/*` without a token MUST
 restrict the `/_auctioneer/*` path prefix at the ingress layer. That

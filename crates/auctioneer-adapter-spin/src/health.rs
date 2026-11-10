@@ -49,16 +49,16 @@ mod tests {
     const TOKEN: &str = "health-token-must-not-appear-in-logs";
 
     fn config_envelope(case: &str) -> String {
-        let mut data = json!({"schema_version": 1_u8});
+        let mut data = json!({"schema_version": 1_u8, "host": {}});
         match case {
-            "anonymous" => data["gvl"] = json!({"authenticated_health": {"enabled": false}}),
+            "anonymous" => data["host"]["gvl"] = json!({"authenticate_health": false}),
             "missing-secret" => {
-                data["gvl"] = json!({"authenticated_health": {
-                    "enabled": true, "token_secret": "health_gvl_token"
-                }});
+                data["host"]["gvl"] = json!({
+                    "authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"
+                });
             }
             "malformed-config" => {
-                data["gvl"] = json!({"authenticated_health": {"enabled": "true"}});
+                data["host"]["gvl"] = json!({"authenticate_health": "true"});
             }
             _ => {}
         }

@@ -17,7 +17,7 @@ EDGEZERO__ADAPTER__PORT = ""
 
 # Optional credential, never a plaintext [vars] default:
 # wrangler secret put health_gvl_token
-# Select this literal entry with gvl.authenticated_health.token_secret in
+# Select this literal entry with host.gvl.authenticate_health_token_secret in
 # auctioneer.toml. Health stays closed when the section is omitted.
 
 # Cookie signing uses the existing default logical secret-store binding.

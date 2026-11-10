@@ -24,13 +24,19 @@ mod tests {
     fn fixture() -> Value {
         json!({
             "schema_version": 1_u64,
-            "host": {"status_response": "", "resource_limits": {"default_tmax_ms": 500_u64}},
+            "host": {
+                "status_response": "",
+                "resource_limits": {"default_tmax_ms": 500_u64},
+                "gvl": {
+                    "authenticate_health": true,
+                    "authenticate_health_token_secret": "health_gvl_token"
+                }
+            },
             "account_defaults": {"disabled": false, "targeting_prefix": "hb"},
             "accounts": {"fake_publisher": {"debug_allow": true}},
             "bidders": {"fake_bidder": {"implementation": "fake", "settings": {}, "enabled": false}},
             "features": {"gzip_outbound": false},
-            "floor_currency": {"expires_at": 2000_i64, "usd_per_unit": {"EUR": 1.25_f64}},
-            "gvl": {"authenticated_health": {"enabled": true, "token_secret": "health_gvl_token"}}
+            "floor_currency": {"expires_at": 2000_i64, "usd_per_unit": {"EUR": 1.25_f64}}
         })
     }
 
@@ -60,14 +66,20 @@ mod tests {
             input["bidders"]["fake_bidder"]["settings"]
         );
         assert_eq!(canonical["floor_currency"], input["floor_currency"]);
-        assert_eq!(canonical["gvl"], input["gvl"]);
+        assert_eq!(canonical["host"]["gvl"], input["host"]["gvl"]);
+        assert_eq!(canonical["host"]["gvl"]["authenticate_health"], json!(true));
+        assert_eq!(
+            canonical["host"]["gvl"]["authenticate_health_token_secret"],
+            json!("health_gvl_token")
+        );
+        assert!(canonical.get("gvl").is_none());
         let restored: Document = toml::from_str(&toml::to_string(&toml_policy).unwrap()).unwrap();
         assert_eq!(serde_json::to_value(restored).unwrap(), canonical);
     }
 
     #[test]
     fn retired_wrappers_and_unknown_namespaces_are_not_wire_aliases() {
-        for name in ["startup", "baked", "runtime", "runtim"] {
+        for name in ["startup", "baked", "runtime", "runtim", "gvl"] {
             let mut document = fixture();
             document
                 .as_object_mut()
@@ -153,8 +165,7 @@ mod tests {
             "/host",
             "/account_defaults",
             "/accounts/fake_publisher",
-            "/gvl",
-            "/gvl/authenticated_health",
+            "/host/gvl",
         ] {
             for value in [
                 json!([]),
@@ -187,8 +198,7 @@ mod tests {
             "/bidders/fake_bidder/settings",
             "/features",
             "/floor_currency",
-            "/gvl",
-            "/gvl/authenticated_health",
+            "/host/gvl",
         ] {
             let mut document = fixture();
             document

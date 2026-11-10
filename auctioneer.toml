@@ -28,18 +28,20 @@
 
 schema_version = 1
 
-# Omit this section to keep GVL health closed. The value is a secret entry name
-# in the declared default Secret Store, never token bytes. Names are 1..128 UTF-8
-# bytes, without ASCII controls or surrounding whitespace. enabled is required.
-# Anonymous access requires enabled = false and omission of token_secret; restrict
-# /_auctioneer/* at ingress when choosing that mode.
-[gvl.authenticated_health]
-enabled = true
-token_secret = "health_gvl_token"
-
 [host]
 # Plain-text response used by the status handler.
 status_response = "auctioneer local"
+
+# Omit this section or authenticate_health to keep GVL health closed. The secret
+# reference names an entry in the declared default Secret Store, never token bytes.
+# Nonempty names are 1..128 UTF-8 bytes, without ASCII controls or surrounding
+# whitespace. authenticate_health = true requires a nonempty reference.
+# authenticate_health = false permits an absent, empty or valid named reference
+# and never reads the secret; restrict /_auctioneer/* at ingress in that mode.
+# A reference without authenticate_health, unknown fields and explicit nulls fail.
+[host.gvl]
+authenticate_health = true
+authenticate_health_token_secret = "health_gvl_token"
 
 # Requested limits can lower, but never expand, independently installed capacity.
 # Durations are milliseconds, sizes are bytes, and counts are integers.

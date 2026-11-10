@@ -5,10 +5,10 @@ name = "auctioneer-adapter-spin"
 version = "0.1.0"
 
 # SDK secret reads need both the application declaration and component mapping.
-# Select health_gvl_token via gvl.authenticated_health.token_secret in the pushed
-# operator policy. Different entry names need their own secret declaration and
-# component mapping; the SDK lowercases names before variables::get.
-# Empty secret defaults are unusable and keep health closed. Provision real
+# Select health_gvl_token via host.gvl.authenticate_health_token_secret in the
+# pushed operator policy. Different entry names need their own secret declaration
+# and component mapping; the SDK lowercases names before variables::get.
+# Empty secret defaults cannot authenticate health. Provision real
 # credentials through a variable provider.
 [variables]
 health_gvl_token = { required = false, default = "", secret = true }

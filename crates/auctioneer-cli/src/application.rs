@@ -184,6 +184,7 @@ mod config_contract {
                 "host_cookie",
                 "user_sync",
                 "aliases",
+                "gvl",
             ],
         ),
         (
@@ -344,8 +345,10 @@ mod config_contract {
             ],
         ),
         ("features", &["gzip_outbound", "returnallbidstatus_default"]),
-        ("gvl", &["authenticated_health"]),
-        ("gvl.authenticated_health", &["enabled", "token_secret"]),
+        (
+            "host.gvl",
+            &["authenticate_health", "authenticate_health_token_secret"],
+        ),
     ];
 
     #[test]
