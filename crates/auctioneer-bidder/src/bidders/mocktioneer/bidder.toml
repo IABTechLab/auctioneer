@@ -56,7 +56,8 @@ source_blob = "693721b93363c430d97fa8d4bf7649dfdd56ddaa"
 source_bytes = 497
 source_sha256 = "86aef303c594f1a249f44cb0681a9cceec9c7887ef29ce4a228616f699e398c8"
 transformation = """\
-    Effective capabilities retained with an operator-required destination; no verbatim metadata capture is claimed."""
+    Effective capabilities retained with an operator-required destination; \
+    no verbatim metadata capture is claimed."""
 port_differences = [
     """\
     The operator-required endpoint and Auctioneer maintainer address differ \
