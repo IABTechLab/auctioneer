@@ -460,9 +460,10 @@ part of that runtime policy under `host.gvl`: an omitted section or
 `authenticate_health` mode stays closed. `authenticate_health = true` requires a
 nonempty default Secret Store entry reference in
 `authenticate_health_token_secret`; an empty reference is invalid.
-`authenticate_health = false` explicitly permits anonymous access with an absent,
-empty or valid named reference and never reads the secret. All nonempty references
-are validated, including in anonymous mode; a reference without a mode is invalid.
+`authenticate_health = false` explicitly permits anonymous access and requires
+the secret reference to be omitted; even an empty reference is invalid in this
+mode. Anonymous health never reads a secret. Authenticated references are
+validated; a reference without a mode is invalid.
 The shared handler resolves policy and, for authenticated health, the selected
 secret on every health request; adapters install only the
 immutable counter scope. Config and secret visibility follow the existing SDK

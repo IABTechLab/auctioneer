@@ -296,8 +296,9 @@ The handler is fail-closed. `authenticate_health_token_secret` names an entry in
 the declared default Secret Store. Omit the section or `authenticate_health` to
 keep health closed. `authenticate_health = true` requires a nonempty reference;
 an empty reference is invalid. To permit anonymous access, set
-`authenticate_health = false`; the reference may be absent, empty or a valid entry
-name, and the handler never reads it. All nonempty references must be at most 128
+`authenticate_health = false` and omit `authenticate_health_token_secret`;
+an empty or named reference alongside false is invalid. The handler never reads
+a secret in anonymous mode. Authenticated references must be at most 128
 UTF-8 bytes, without ASCII controls or surrounding whitespace. A reference without
 a mode, unknown fields and explicit nulls are rejected. The shared handler resolves
 config and, for authenticated health, the selected secret on each health request;

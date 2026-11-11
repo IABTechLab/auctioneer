@@ -1,5 +1,11 @@
 # GVL health policy in operator configuration
 
+The maintainer approved this scope for PR #160 on November 10, 2026: move health
+authentication into `auctioneer.toml`, retain the existing host wrapper, and
+"put gvl under host" with the two fields below. [Issue #164](https://github.com/IABTechLab/auctioneer/issues/164),
+under epic #124, records the scope and acceptance criteria. This is the
+maintainer's design decision, not independent review or merge approval.
+
 The operator owns GVL health authentication in `auctioneer.toml`:
 
 ```toml
@@ -16,10 +22,14 @@ reference without a mode is invalid.
 
 `authenticate_health = true` requires a nonempty secret entry name in
 `authenticate_health_token_secret`; an absent or empty reference is invalid.
-`authenticate_health = false` explicitly permits anonymous access with an absent,
-empty or valid named reference, and never reads the secret. Every supplied
-nonempty reference must be at most 128 UTF-8 bytes, without ASCII controls or
-leading/trailing whitespace, including in anonymous mode. It is a reference in
+`authenticate_health = false` explicitly permits anonymous access and requires
+the secret reference to be omitted. An empty or named reference alongside false
+is invalid. In the review follow-up, the maintainer explicitly chose "Reject any
+secret reference when false": conflicting authentication intent must fail
+validation instead of silently opening health. This supersedes the permissive
+false/reference combinations introduced in `7142df7`. Anonymous mode never reads
+the secret. A reference in authenticated mode must be at most 128 UTF-8 bytes,
+without ASCII controls or leading/trailing whitespace. It is a reference in
 the declared default Secret Store, never token bytes. Unknown fields, explicit
 nulls and wrong types are rejected. No adapter-specific flag or environment
 alias remains authoritative.
@@ -53,7 +63,8 @@ requires a declared, mapped component variable. Fastly uses the entry name
 in the captured default Secret Store. Provider naming restrictions still apply.
 
 Validation covers strict TOML/JSON round trips, missing modes and invalid references,
-anonymous absent/empty/named references with no secret reads,
+anonymous access without a reference or secret read, refusal of empty/named
+references alongside false,
 all authorization-header controls, runtime config updates and secret rotation,
 renamed default bindings, missing/malformed config and secret faults, bounded
 and cancelled reads, and independent status/auction availability. Adapter

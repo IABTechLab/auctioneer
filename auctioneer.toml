@@ -36,8 +36,9 @@ status_response = "auctioneer local"
 # reference names an entry in the declared default Secret Store, never token bytes.
 # Nonempty names are 1..128 UTF-8 bytes, without ASCII controls or surrounding
 # whitespace. authenticate_health = true requires a nonempty reference.
-# authenticate_health = false permits an absent, empty or valid named reference
-# and never reads the secret; restrict /_auctioneer/* at ingress in that mode.
+# To permit anonymous health, set authenticate_health to false and omit the
+# secret reference; even an empty reference alongside false is invalid.
+# Anonymous health never reads a secret; restrict /_auctioneer/* at ingress.
 # A reference without authenticate_health, unknown fields and explicit nulls fail.
 [host.gvl]
 authenticate_health = true

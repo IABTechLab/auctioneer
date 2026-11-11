@@ -4,7 +4,9 @@
 
 **Goal:** Configure GVL health authentication and its secret reference through the shared runtime policy on every adapter.
 
-**Architecture:** Preserve the existing `[host]` and account scopes. Add strict optional `host.gvl` configuration with flat `authenticate_health` and `authenticate_health_token_secret` leaves; accept no root GVL or nested authenticated-health alias. An omitted section or mode stays closed. True requires a nonempty valid reference; false permits an absent, empty or valid named reference and never reads it. Validate every nonempty reference, including with false; a supplied reference without a mode is invalid. Resolve and authorize only in the shared health handler through bounded SDK stores; adapters install counter scope only.
+**Architecture:** Preserve the existing `[host]` and account scopes. Add strict optional `host.gvl` configuration with flat `authenticate_health` and `authenticate_health_token_secret` leaves; accept no root GVL or nested authenticated-health alias. An omitted section or mode stays closed. True requires a nonempty valid reference; false requires the reference to be omitted and never reads a secret. An empty or named reference with false, or any reference without a mode, is invalid. Resolve and authorize only in the shared health handler through bounded SDK stores; adapters install counter scope only.
+
+**Maintainer decision:** The November 10 scope and host placement were explicitly requested in the maintainer session. During PR #160 review follow-up the maintainer chose "Reject any secret reference when false". [Issue #164](https://github.com/IABTechLab/auctioneer/issues/164) records this scope under epic #124; the linked specification records the rationale. These decisions do not substitute for independent review or merge approval.
 
 **Tech stack:** Rust, Serde, validator, EdgeZero typed extraction and bounded stores; existing native and guest test owners.
 
@@ -24,7 +26,16 @@
 
 ## 3. Operator documentation and verification
 
-- [x] Document `[host.gvl]` and its exact flat fields in `auctioneer.toml`, `README.md`, deployment guidance, architecture, active config inventory and docs tests. State false with absent/empty/valid named references never reads a secret, true with an empty reference is invalid, and omitted mode stays closed. Leave historical records intact.
+- [x] Document `[host.gvl]` and its exact flat fields in `auctioneer.toml`, `README.md`, deployment guidance, architecture, active config inventory and docs tests. State false requires an omitted reference and never reads a secret, true with an empty reference is invalid, and omitted mode stays closed. Leave historical records intact.
 - [x] Run config/core health suites, runtime-config failure/funding contracts, CLI config contracts, adapters, formatting and diff checks. Execute real Fastly/Viceroy health requests with synthetic typed config and a custom secret name; record unavailable checks honestly.
 - [x] Review final spec compliance and implementation correctness independently, fix findings, and repeat only impacted checks.
 - [x] Present the corrected wire shape and serialized verification evidence for review. Obtain any required authorization before remote writes, deployment or merge.
+
+## 4. Review corrections
+
+- [ ] In `policy.rs` and `health_gvl_auth.rs`, reproduce contradictory false/reference acceptance, then reject both empty and named references through the shared validator. Keep anonymous access without a reference and assert no secret reads.
+- [ ] Update `usersync_transport.rs` to derive the file and entry name from the generated App's config-store default. Update the qualification snapshot file/key, and add a real CLI parser/push/readback control in `snapshots.rs`.
+- [ ] Apply the existing independent 96-byte layout delta to `bidders_resources.rs`; retain all ceilings and workload. Expect one bounded policy read for admitted health in `aux_request_body_bounds.rs`; preserve oversized-body refusal before config work.
+- [ ] Import Fastly's health-scope installer in its WASI branch, repair the reference-file prose without weakening extraction, and update the shared loader harness documentation.
+- [ ] Run the affected config, CLI, native transport, health and reference-example targets; run the exact Fastly target lint and the full prescribed feature/target suite from the workflows. Record commands, exit codes and actual output; pending or blocked checks remain explicit.
+- [ ] Push verified corrections, reply in each original review thread with evidence, verify the current non-draft head, and hand back to REVIEWER. CREATOR leaves thread resolution and independent acceptance to REVIEWER.

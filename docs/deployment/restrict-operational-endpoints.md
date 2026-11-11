@@ -18,12 +18,11 @@ To allow anonymous access, explicitly configure:
 ```toml
 [host.gvl]
 authenticate_health = false
-authenticate_health_token_secret = ""
 ```
 
-This mode permits an absent, empty or valid named secret reference and never
-reads the secret. Every nonempty reference must be at most 128 UTF-8 bytes,
-without ASCII controls or surrounding whitespace, even in anonymous mode. A
+This mode requires the secret reference to be omitted and never reads a secret.
+An empty or named reference alongside false is invalid. Authenticated references
+must be at most 128 UTF-8 bytes, without ASCII controls or surrounding whitespace. A
 reference without a mode, unknown fields and explicit nulls are rejected.
 Anonymous access requires an ingress restriction for the prefix. Ingress
 restriction is recommended defence in depth for authenticated

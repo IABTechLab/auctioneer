@@ -3,10 +3,14 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_core::App;
-    use edgezero_core::{app::Hooks, blob_envelope::BlobEnvelope};
+    use edgezero_core::app::Hooks;
+    #[cfg(not(target_arch = "wasm32"))]
+    use edgezero_core::blob_envelope::BlobEnvelope;
+    #[cfg(not(target_arch = "wasm32"))]
     use serde_json::json;
     use toml::{Value, from_str};
 
+    #[cfg(not(target_arch = "wasm32"))]
     const TOKEN: &str = "auctioneer-development-only-health-test-token";
 
     #[cfg(all(unix, not(target_arch = "wasm32")))]

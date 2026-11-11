@@ -3,7 +3,9 @@
 #[cfg(test)]
 mod tests {
     use auctioneer_bidder::test_support::serving_catalog;
+    use auctioneer_core::App as AuctioneerApp;
     use auctioneer_core::test_support::live_catalog;
+    use edgezero_core::app::Hooks as _;
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::{Value, json};
     use std::env::{temp_dir, var_os};
@@ -77,12 +79,16 @@ mod tests {
                     .create(&dir)
                     .expect("private child directory");
                 if let Some(blob) = config_blob {
+                    let config_id = AuctioneerApp::stores()
+                        .config
+                        .expect("the production app declares a config store")
+                        .default;
                     DirBuilder::new()
                         .create(dir.join(".edgezero"))
                         .expect("private config directory");
                     fs::write(
-                        dir.join(".edgezero/local-config-auctioneer_runtime.json"),
-                        serde_json::to_vec(&json!({"auctioneer_runtime": blob}))
+                        dir.join(format!(".edgezero/local-config-{config_id}.json")),
+                        serde_json::to_vec(&json!({(config_id): blob}))
                             .expect("serialize config-store fixture"),
                     )
                     .expect("private config blob");

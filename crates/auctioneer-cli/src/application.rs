@@ -543,8 +543,20 @@ mod config_contract {
                 2_i32,
             ),
             ("[runtime]\n", 2_i32),
+            (
+                "schema_version = 1\n[host.gvl]\nauthenticate_health = false\n",
+                0_i32,
+            ),
+            (
+                "schema_version = 1\n[host.gvl]\nauthenticate_health = false\nauthenticate_health_token_secret = ''\n",
+                2_i32,
+            ),
+            (
+                "schema_version = 1\n[host.gvl]\nauthenticate_health = false\nauthenticate_health_token_secret = 'health_gvl_token'\n",
+                2_i32,
+            ),
         ];
-        assert_eq!(cases.len(), 4);
+        assert_eq!(cases.len(), 7);
         for (body, expected) in cases {
             let (directory, config) = fixture_file(body);
             let mut manifest: toml::Value =

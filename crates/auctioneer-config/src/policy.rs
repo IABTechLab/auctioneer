@@ -109,7 +109,7 @@ mod object_models {
             skip_serializing_if = "Option::is_none"
         )]
         pub authenticate_health: Option<bool>,
-        /// Entry in the declared default Secret Store. Required only when enabled.
+        /// Default Secret Store entry. Required when authenticated; omit when anonymous.
         #[serde(
             default,
             deserialize_with = "deserialize_optional_value",
@@ -361,8 +361,8 @@ impl Validate for GvlPolicy {
         });
         let valid_mode = match (self.authenticate_health, reference) {
             (Some(true), Some(value)) => !value.is_empty(),
-            (Some(false), _) | (None, None) => true,
-            (Some(true), None) | (None, Some(_)) => false,
+            (Some(false) | None, None) => true,
+            (Some(true), None) | (Some(false) | None, Some(_)) => false,
         };
         if !valid_reference || !valid_mode {
             errors.add(
@@ -623,12 +623,10 @@ mod tests {
     use validator::Validate as _;
 
     #[test]
-    fn gvl_authenticate_health_round_trips_explicit_modes_and_empty_disabled_secret() {
+    fn gvl_authenticate_health_round_trips_consistent_explicit_modes() {
         for health in [
             json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
             json!({"authenticate_health": false}),
-            json!({"authenticate_health": false, "authenticate_health_token_secret": ""}),
-            json!({"authenticate_health": false, "authenticate_health_token_secret": "health_gvl_token"}),
             json!({}),
         ] {
             let input = json!({"schema_version": 1_u8, "host": {"gvl": health}});
@@ -671,6 +669,8 @@ mod tests {
         for health in [
             json!({"authenticate_health": true}),
             json!({"authenticate_health": true, "authenticate_health_token_secret": ""}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": ""}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": "health_gvl_token"}),
             json!({"authenticate_health_token_secret": "token"}),
         ] {
             let policy: OperatorPolicy =
@@ -679,6 +679,11 @@ mod tests {
             policy
                 .validate()
                 .expect_err("health mode and token reference must agree");
+            let restored: OperatorPolicy =
+                toml::from_str(&toml::to_string(&policy).unwrap()).unwrap();
+            restored
+                .validate()
+                .expect_err("TOML authoring must reject the same conflicting modes");
         }
         for document in [
             json!({"schema_version": 1_u8, "gvl": {"authenticate_health": false}}),

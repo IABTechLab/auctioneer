@@ -219,23 +219,18 @@ mod tests {
                     expected
                 );
             }
-            for anonymous_policy in [
-                json!({"authenticate_health": false}),
-                json!({"authenticate_health": false, "authenticate_health_token_secret": ""}),
-                json!({"authenticate_health": false, "authenticate_health_token_secret": "custom_gvl_token"}),
-            ] {
-                let unused = store(Some(b"t"), 1);
-                assert_eq!(
-                    status_with(
-                        json!({"schema_version": 1_u8, "host": {"gvl": anonymous_policy}}),
-                        Some(Arc::clone(&unused)),
-                        None,
-                    )
-                    .await,
-                    StatusCode::OK
-                );
-                assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
-            }
+            let anonymous_store = store(Some(b"t"), 1);
+            assert_eq!(
+                status_with(
+                    json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false}}}),
+                    Some(Arc::clone(&anonymous_store)),
+                    None,
+                )
+                .await,
+                StatusCode::OK
+            );
+            assert_eq!(anonymous_store.calls.load(Ordering::SeqCst), 0);
+            drop(anonymous_store);
             assert_eq!(
                 status_with(policy, None, Some(HeaderValue::from_static("Bearer t"))).await,
                 StatusCode::UNAUTHORIZED
@@ -252,23 +247,22 @@ mod tests {
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true}}}),
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": ""}}}),
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health_token_secret": "custom_gvl_token"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": ""}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": "custom_gvl_token"}}}),
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": " invalid "}}}),
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": "false"}}}),
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": null}}}),
                 json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "unknown": true}}}),
                 json!({"schema_version": 1_u8, "gvl": {"authenticate_health": false}}),
             ] {
-                let unused = store(Some(b"t"), 1);
-                assert_eq!(
-                    status_with(
-                        policy,
-                        Some(Arc::clone(&unused)),
-                        Some(HeaderValue::from_static("Bearer t"))
-                    )
-                    .await,
-                    StatusCode::UNAUTHORIZED
-                );
-                assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
+                for bearer in [None, Some(HeaderValue::from_static("Bearer t"))] {
+                    let unused = store(Some(b"t"), 1);
+                    assert_eq!(
+                        status_with(policy.clone(), Some(Arc::clone(&unused)), bearer).await,
+                        StatusCode::UNAUTHORIZED
+                    );
+                    assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
+                }
             }
             let policy = json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}});
             for fault in [

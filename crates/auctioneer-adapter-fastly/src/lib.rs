@@ -35,7 +35,7 @@ use auctioneer_core::App as AuctioneerApp;
 #[cfg(target_arch = "wasm32")]
 use auctioneer_core::host_primitives::{
     DelegateToDevStrategy, DevRng, SystemClock, bootstrap_adapter_with_envelope,
-    install_stderr_boot_logger_with_level,
+    install_health_counter_scope, install_stderr_boot_logger_with_level,
 };
 #[cfg(target_arch = "wasm32")]
 use edgezero_adapter_fastly::{FastlyLogging, init_logger, run_app};
@@ -156,7 +156,7 @@ fn install_boot_log<A: Hooks>() {
 /// Install the request's immutable health observation scope.
 #[cfg(target_arch = "wasm32")]
 fn install_health() -> Result<(), Error> {
-    auctioneer_core::host_primitives::install_health_counter_scope("request")
+    install_health_counter_scope("request")
         .map_err(|err| Error::msg(format!("health counter scope install conflicted: {err}")))
 }
 

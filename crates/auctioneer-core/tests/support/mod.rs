@@ -3,12 +3,11 @@
 //!
 //! Handler-path tests that need non-default runtime config (GDPR
 //! enabled, an `[accounts.<id>]` entry, a host alias) would otherwise see
-//! only baked defaults, because `resolve_runtime_config` silently
-//! degrades to `AuctioneerAppConfig::default()` when no config store is
-//! bound. This helper drives the REAL loader — it registers an in-memory
-//! `ConfigStore` under the `"auctioneer_runtime"` id that the handler's
-//! `from_store(ctx, "auctioneer_runtime", None)` call then reads — rather
-//! than introducing a second config path.
+//! a missing-config error without a bound store. This helper registers an
+//! in-memory `ConfigStore` and declares its default entry in the request
+//! registry. The handler's `AppConfig::from_request` follows that binding
+//! through the existing funded loader. Fixture ids are independent of the
+//! production manifest's default store; this introduces no second config path.
 //!
 //! The body sits inside a `#[cfg(test)]` module because clippy's
 //! `allow-*-in-tests` exemptions key off a `cfg(test)` ancestor, and an
