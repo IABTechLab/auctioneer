@@ -60,12 +60,12 @@ jsonschema-macros-core = "=0.58.6"
 testing_logger = "0.1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
+edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6", default-features = false }
+edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6", default-features = false }
+edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6", default-features = false }
+edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6", default-features = false }
+edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6", default-features = false }
+edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6", default-features = false }
 fastly = "=0.13.1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
