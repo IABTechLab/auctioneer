@@ -20,6 +20,17 @@ state after the planning PR merges; do not chase another SDK revision as an
 implicit part of this work. Read `AGENTS.md`, `crates/AGENTS.md` and
 [development/test ownership](../../testing/development.md).
 
+Concurrent [PR #160](https://github.com/IABTechLab/auctioneer/pull/160) changes
+GVL health configuration/admission, response headers and auxiliary body-read
+expectations from the same baseline. It is not included in this plan's source
+observations. If it lands before implementation, re-derive the authorized and
+unauthorized health header/storage shapes, configuration work/lifetimes and
+auxiliary/probe rows from that merged base before freezing bounds. If it lands
+during implementation, rebase and repeat that reconciliation before the
+storage/accounting cutover. Neither merge order may silently carry forward
+the old health-work assumptions or substitute #160's new unit tests for the
+existing integration owners below.
+
 All commands below are planned commands; their expected outcomes are not
 executed evidence. Preserve feature selection, original captures, existing
 test assertions, ignored-test owners, process isolation and source pins.
@@ -56,14 +67,20 @@ Do not split unrelated large modules or add a test target for this package.
   from source rather than adding another name list.
 - [ ] Create the proof index with separate C, I, V, config, sealed DTO, ordinary
   decoder-audit, auxiliary, SDK-bookkeeping, ingress, codec and host-artifact
-  sections. For each row name status, source, units, acquire/release,
-  simultaneous owners, evidence limits, issue, responsible role and next action.
+  sections. For each row name source-bound proof state, source, units,
+  acquire/release, simultaneous storage owners, evidence limits and the owning
+  GitHub issue. Do not add assignee, responsible-role, next-action or live
+  task-status columns to this source/evidence index.
 - [ ] Credit existing component models, native schema reservations, owned
   receipts and #159's settings-first API. Assign unfinished discovery-derived
   schema selection and C/I/V certification to #46/#47, extraction proof to
   #147, DTO qualification to #150, audit to #148 and actual host handoff to
   Trusted Server #1510/#76. Do not reopen implemented APIs or add unshipped
   backends to the closure.
+- [ ] Reconcile each remaining gap's existing GitHub issue body and native
+  dependency links. Record its responsible role and concrete next action on
+  that issue, preserving project fields and avoiding duplicate tickets. This
+  satisfies #33's ownership/action requirement without a second local backlog.
 - [ ] Reconcile every index row to an actual report/source or explicit missing
   evidence. Keep historical checkpoint prose and artifacts unchanged except
   for a clearly separated current-index pointer. Commit the self-contained
@@ -106,9 +123,12 @@ replaced or relabeled as full executable discovery.
   the existing platform evaluator. Run its existing controls; if a concrete
   missing case is found, add an inline failing case first and correct only the
   demonstrated mismatch. Do not add code solely to restate a passing table.
-- [ ] Record the exact ownership/action ledger and its remaining unknowns.
-  Mark #50's coordination outcome separately from provider fulfillment; the
-  final handoff must not turn a missing physical correspondence into `known`.
+- [ ] Record the exact source/API ownership and funding correspondence, its
+  remaining unknowns and their issue links in the index. Keep responsible
+  roles, verification actions and native dependency links on those GitHub
+  issues alone. Mark #50's coordination outcome separately from provider
+  fulfillment; the final handoff must not turn a missing physical
+  correspondence into `known`.
 
 ```sh
 cargo test --locked -p auctioneer-cli --bin auctioneer-cli bidders::resources_platform::
@@ -179,6 +199,12 @@ it is retained but cannot substitute for that production oracle.
   allocations, name/value backing and cookie/CORS formatting transitions for
   the locked `http`, `bytes`, cookie and SDK versions. Do not derive retained
   bytes merely from `headers.len()` or serialized field size.
+- [ ] Use the six existing health integration owners below for authorized,
+  unauthorized, fail-closed, observer, stale-observer and documented-contract
+  coverage. Record nonzero dispatch per target. At this baseline
+  `--lib handlers::health_gvl::` selects zero tests and is not a verification
+  command; any later unit cases supplement, not replace, these owners.
+  Reconcile #160's merge-order effects as specified under Baseline And Ownership.
 - [ ] Add owner-local inline cases and allocation cases varying unique fields,
   duplicate values, name/value length, CORS backing size and cookie length
   independently. Include an oversized backing with a small surviving slice,
@@ -209,7 +235,8 @@ cargo test --locked -p auctioneer-core --lib usersync::cookie::
 cargo test --locked -p auctioneer-core --lib handlers::sync_http::
 cargo test --locked -p auctioneer-core --lib handlers::tests::
 cargo test --locked -p auctioneer-core --lib handlers::info_bidders::
-cargo test --locked -p auctioneer-core --lib handlers::health_gvl::
+cargo test --locked -p auctioneer-core --test health_gvl --test health_gvl_auth --test health_gvl_failclosed
+cargo test --locked -p auctioneer-core --test health_gvl_observer --test health_gvl_stale_observer --test health_gvl_docs
 cargo test --locked -p auctioneer-core --test usersync_handler_alloc --test serialize_allocation_bound
 cargo test --locked -p auctioneer-core --test usersync_http --test usersync_routes --test usersync_integrity
 ```

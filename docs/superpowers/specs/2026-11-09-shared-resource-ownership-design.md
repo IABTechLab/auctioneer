@@ -27,7 +27,8 @@ The package has three ordered stages with separate acceptance:
 
 1. **#33:** reconcile the actual shipped closure and existing components.
 2. **#50:** identify the exact adapter, external owner and next action for
-   each remaining SDK or provider fact.
+   each remaining SDK or provider fact, recording ownership and actions on
+   the existing GitHub issues rather than in a local status ledger.
 3. **#48:** implement and verify auxiliary output storage and lifetime
    bounds; change accounting only where the complete required proof exists.
 
@@ -115,13 +116,19 @@ Each applicable row records:
 
 - Scope: application/feature lane, adapter and ABI, source and dependency
   identities, and the owning executable schema/helper/format/alias closure.
-- Status: implemented component, demonstrated property, remaining proof,
+- Proof state: implemented component, demonstrated property, remaining proof,
   external fact or not applicable with a concrete reason. An observation is
   explicitly an observation, never an implicit bound.
 - Resource: units, allocation owner, construction/admission point, lifetime
   end, simultaneous population and overlap with adjacent owners.
 - Evidence: exact source/API references, existing test or artifact producer,
-  missing experiment/proof, responsible role, GitHub issue and next action.
+  missing experiment/proof and the existing GitHub issue that owns the gap.
+
+Allocation owners above are code/storage owners, not assignees. Responsible
+roles, concrete next actions, task status, priorities and blockers belong
+only on the linked GitHub issues, with native dependency links. Reconcile
+those issue records when producing the index; do not copy their mutable
+tracking fields into index rows or create another local action ledger.
 
 Separate retained schema program/storage **C**, initialization peak/work **I**
 and per-validation cache/scratch/work/stack **V**. Also name configuration,
@@ -367,14 +374,17 @@ Fixtures use capable `fake_` bidders outside real bidder-owned protocols.
 
 **#33 complete:** a current source-bound index accounts for the actual shipped
 closure and completed components, separating every remaining proof/fact and
-assigning its issue, responsible role and concrete next action. No duplicate
-resource framework or reopened delivered capability.
+citing its owning issue. Each linked GitHub issue records the responsible
+role and concrete next action, with native dependency links for its blockers.
+No duplicate resource framework, local task ledger or reopened delivered
+capability.
 
 **#50 complete:** the four adapter fact correspondences are reconciled against
 the pinned SDK and current dispatch; unknowns, local demand failures, separate
 stack and provider-added output domains remain distinct. Every missing fact
-has its external/internal owner and verification action. Completion records
-coordination, not fulfillment or qualification.
+has its external/internal owner and verification action recorded on its
+linked GitHub issue, not duplicated in the source-bound index. Completion
+records coordination, not fulfillment or qualification.
 
 **#48 complete:** all applicable application-owned auxiliary output backing,
 headers, cookie construction and terminal overlap have justified bounds and
