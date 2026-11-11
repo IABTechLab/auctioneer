@@ -514,7 +514,7 @@ mod tests {
         assert!(definitions["rubicon"].get("aliasOf").is_none());
         for invalid in [json!(1_i32), json!(false), json!([]), json!({})] {
             let error = serde_json::from_value::<BidderSettings>(json!({
-                "implementation":"rubicon","values":{"region":invalid}
+                "implementation":"rubicon","settings":{"region":invalid}
             }))
             .unwrap_err();
             assert!(error.is_data());
@@ -563,7 +563,7 @@ mod tests {
             ("fake\u{85}reference".to_owned(), true),
         ] {
             let decoded = serde_json::from_value::<BidderSettings>(json!({
-                "implementation":"rubicon", "values":{"credentials_secret":key,"region":"us-east"}
+                "implementation":"rubicon", "settings":{"credentials_secret":key,"region":"us-east"}
             }));
             if !valid {
                 let error = decoded.unwrap_err();
@@ -618,7 +618,7 @@ mod tests {
     #[test]
     fn empty_requested_reference_is_rejected_before_base_fallback_or_settings_construction() {
         let decoded = serde_json::from_value::<BidderSettings>(json!({
-            "implementation":"rubicon","values":{"credentials_secret":""}
+            "implementation":"rubicon","settings":{"credentials_secret":""}
         }));
         let error = decoded.unwrap_err();
         assert!(error.is_data());

@@ -30,7 +30,7 @@ pub mod fixtures {
                 };
                 let info = Box::leak(Box::new(BidderInfo {
                     name: name.into(),
-                    endpoint: "https://bidder.example/auction".into(),
+                    endpoint: Some("https://bidder.example/auction".into()),
                     uses_https: true,
                     gvl_vendor_id: Some(vendor),
                     capabilities: Capabilities {

@@ -31,7 +31,6 @@
 //! It also removes the reading's dependence on page-cache state, which
 //! is what makes repeated runs comparable rather than a lottery.
 
-use std::env;
 use std::hint::black_box;
 use std::io::{self, Write as _};
 use std::sync::Arc;
@@ -40,14 +39,11 @@ use std::time::Duration;
 
 use auctioneer_adapter_axum::{envelope, timer::TokioTimer};
 use auctioneer_core::host_primitives::{
-    BearerToken, DevRng, SystemClock, axum_production_strategy, bootstrap_adapter_with_envelope,
-    decide_health_policy, install_health_primitives, read_bool_flag,
+    DevRng, SystemClock, axum_production_strategy, bootstrap_adapter_with_envelope,
+    install_health_counter_scope,
 };
 use auctioneer_runtime::NoopDecodeCooperator;
 use edgezero_core::env_config::EnvConfig;
-
-const HEALTH_TOKEN_VAR: &str = "AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN";
-const ALLOW_UNAUTH_VAR: &str = "AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH";
 
 /// This host's page size. The touch stride only has to be no larger
 /// than the real page size to reach every page; 4 KiB is the
@@ -133,10 +129,7 @@ fn main() -> anyhow::Result<()> {
     )
     .map_err(|error| anyhow::anyhow!("boot envelope rejected: {error}"))?;
 
-    let raw_flag = env::var(ALLOW_UNAUTH_VAR).ok();
-    let allow_unauth = read_bool_flag(ALLOW_UNAUTH_VAR, raw_flag.as_deref())?;
-    let token = env::var(HEALTH_TOKEN_VAR).ok().and_then(BearerToken::new);
-    install_health_primitives(decide_health_policy(token, allow_unauth)?, "process")?;
+    install_health_counter_scope("process")?;
 
     let walked = touch_embedded_archive();
 

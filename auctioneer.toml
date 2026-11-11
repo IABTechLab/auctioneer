@@ -32,6 +32,18 @@ schema_version = 1
 # Plain-text response used by the status handler.
 status_response = "auctioneer local"
 
+# Omit this section or authenticate_health to keep GVL health closed. The secret
+# reference names an entry in the declared default Secret Store, never token bytes.
+# Nonempty names are 1..128 UTF-8 bytes, without ASCII controls or surrounding
+# whitespace. authenticate_health = true requires a nonempty reference.
+# To permit anonymous health, set authenticate_health to false and omit the
+# secret reference; even an empty reference alongside false is invalid.
+# Anonymous health never reads a secret; restrict /_auctioneer/* at ingress.
+# A reference without authenticate_health, unknown fields and explicit nulls fail.
+[host.gvl]
+authenticate_health = true
+authenticate_health_token_secret = "health_gvl_token"
+
 # Requested limits can lower, but never expand, independently installed capacity.
 # Durations are milliseconds, sizes are bytes, and counts are integers.
 [host.resource_limits]
@@ -278,21 +290,27 @@ returnallbidstatus_default = false
 # per field through the observable name, base, selected account and host, and
 # remains bounded by installed capacity. timeout_ms is 1..30000; sample_rate is
 # finite 0.0..1.0. enabled=false disables with a warning; sample_rate=0 silently
-# excludes traffic. Settings do not register a new implementation or endpoint.
+# excludes traffic. Settings do not register or activate a new implementation.
 #
 # This block is a FIELD REFERENCE, not a deployable combined settings object.
-# Replace fake_bidder with a compiled public name, implementation with its owner,
-# and keep ONLY values declared by that owner's bidder.toml [settings.fields].
-# The values table lists every currently supported bidder-owned field across all
-# implementations. Do not paste that union into a single bidder's settings.
+# Replace fake_bidder with a compiled public name, set implementation to its
+# owner, and keep ONLY fields declared by that owner's bidder.toml
+# [settings.fields]. The settings table lists every currently supported
+# bidder-owned field across all implementations. Do not paste that union into a
+# single bidder's settings.
+# implementation: required owner key on the bidder row whenever settings are
+# supplied. It must match the resolved bidder owner. The settings subconfig holds
+# only that owner's fields. Omit both implementation and settings to use defaults.
 # hb_source/hb_source_video: integer protocol source values.
 # supply_id: nonempty routing identifier when required by the implementation.
 # credentials_secret: a secret-store key, never the credential bundle itself.
 # external_url: publisher-facing URL used by the owning protocol.
 # region: "us-east", "us-west", "eu" or "apac" for the regional implementation.
+# endpoint: required operator destination for enabled Mocktioneer; HTTPS works in normal builds.
 # BEGIN BIDDER EXAMPLE
 # [bidders.fake_bidder]
 # enabled = true
+# implementation = "fake_implementation"
 # usersync_enabled = false
 # timeout_ms = 300
 # sample_rate = 1.0
@@ -300,15 +318,13 @@ returnallbidstatus_default = false
 # max_decoded_bytes = 262144
 #
 # [bidders.fake_bidder.settings]
-# implementation = "fake_implementation"
-#
-# [bidders.fake_bidder.settings.values]
 # hb_source = 5
 # hb_source_video = 6
 # supply_id = "fake_supply"
 # credentials_secret = "fake_credential_bundle"
 # external_url = "https://publisher.example"
 # region = "us-east"
+# endpoint = "https://mock-bidder.example.test/openrtb2/auction"
 # END BIDDER EXAMPLE
 
 # Optional floor-only currency conversion. Append this block to opt in; response

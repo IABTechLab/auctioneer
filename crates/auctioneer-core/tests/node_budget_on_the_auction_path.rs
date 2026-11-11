@@ -232,7 +232,10 @@ mod tests {
                     let info = row.info;
                     !info.disabled
                         && info.uses_https
-                        && !info.endpoint.contains("{{")
+                        && info
+                            .endpoint
+                            .as_deref()
+                            .is_some_and(|endpoint| !endpoint.contains("{{"))
                         && info.capabilities.site.contains(&MediaType::Banner)
                 })
                 .min_by_key(ServingBidder::name)

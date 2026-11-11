@@ -60,6 +60,11 @@ mod alloc_track {
         LIVE.try_with(Cell::get).unwrap_or(0)
     }
 
+    pub fn reset_peak_on_this_thread() {
+        let live = live_on_this_thread();
+        let _peak = PEAK.try_with(|cell| cell.set(live));
+    }
+
     pub fn track_reallocations_at_least_on_this_thread(size: usize) {
         let _minimum = REALLOC_MIN_SIZE.try_with(|cell| cell.set(size));
         let _count = REALLOCATIONS.try_with(|cell| cell.set(0));
@@ -146,26 +151,31 @@ mod alloc_track {
 static COUNTING_ALLOC: alloc_track::CountingAllocator = alloc_track::CountingAllocator;
 
 #[cfg(test)]
+mod config_funding_support;
+#[cfg(test)]
+mod fanout_limits;
+
+#[cfg(test)]
 mod tests {
+    use crate::config_funding_support as config_funding;
     use std::{hint::black_box, str, thread};
 
     use super::alloc_track::{
         live_on_this_thread, peak_on_this_thread, reallocations_on_this_thread,
-        reset_on_this_thread, track_reallocations_at_least_on_this_thread,
+        reset_on_this_thread, reset_peak_on_this_thread,
+        track_reallocations_at_least_on_this_thread,
     };
     use auctioneer_config_data::usersync::UserSyncConfig;
     use auctioneer_core::handlers::health_gvl::health_gvl;
     use auctioneer_core::handlers::sync_http::{SyncBrowserPolicy, response_header_cap};
-    use auctioneer_core::host_primitives::{
-        HealthAccessPolicy, TestClockHandle, install_health_primitives,
-    };
+    use auctioneer_core::host_primitives::{TestClockHandle, install_health_counter_scope};
     use auctioneer_core::serialize::{SerializeError, serialize_response_within};
+    use auctioneer_core::test_support::config_store::{context, runtime_registry};
     use auctioneer_openrtb::types::bid_response::BidResponse;
     use auctioneer_runtime::FakeClock;
     use bytes::Bytes;
     use edgezero_core::body::Body;
     use edgezero_core::context::RequestContext;
-    use edgezero_core::params::PathParams;
     use futures::executor::block_on;
     use http::{HeaderMap, HeaderName, HeaderValue, Request, Response, StatusCode};
     use std::sync::Arc;
@@ -344,7 +354,11 @@ mod tests {
             .insert(TestClockHandle(Arc::new(FakeClock::new(
                 OffsetDateTime::UNIX_EPOCH,
             ))));
-        RequestContext::new(request, PathParams::default())
+        request.extensions_mut().insert(runtime_registry(
+            &serde_json::json!({"schema_version": 1_u8,
+            "host": {"gvl": {"authenticate_health": false}}}),
+        ));
+        context(request)
     }
 
     #[test]
@@ -352,8 +366,8 @@ mod tests {
         thread::spawn(|| {
             let scope: &'static str =
                 Box::leak("isolate\0\n\"\\\u{00e9}".repeat(4097).into_boxed_str());
-            install_health_primitives(HealthAccessPolicy::UnauthenticatedAcknowledged, scope)
-                .unwrap();
+            config_funding::install();
+            install_health_counter_scope(scope).unwrap();
             let warmup = block_on(health_gvl(health_context())).unwrap();
             assert_eq!(warmup.status(), StatusCode::OK);
             assert_eq!(warmup.headers()["content-type"], "application/json");
@@ -607,15 +621,80 @@ mod tests {
         );
     }
 
-    // Requested native heap only: all fixture owners die before the live sample.
+    // An independent compact reference, not the production decorator. Collection
+    // reserves for the full value count and preserves duplicate values.
+    fn compact_header_heap(shape: HeaderShape) -> usize {
+        thread::spawn(move || {
+            let (source, backing) = header_history_response(shape, SMALL_HEADER_BACKING_BYTES, 0);
+            let before: Vec<_> = source
+                .headers()
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.as_str().to_owned(),
+                        value.as_bytes().to_vec(),
+                        value.is_sensitive(),
+                    )
+                })
+                .collect();
+            drop(source);
+            drop(backing);
+            // Borrow the reference inputs without counting their storage.
+            // This thread measures only the independent compact map.
+            reset_on_this_thread();
+            let headers: HeaderMap = before
+                .iter()
+                .map(|(name, bytes, sensitive)| {
+                    let mut value = HeaderValue::from_bytes(bytes).unwrap();
+                    value.set_sensitive(*sensitive);
+                    (HeaderName::from_bytes(name.as_bytes()).unwrap(), value)
+                })
+                .collect();
+            assert_eq!(headers.len(), before.len());
+            let retained = live_on_this_thread();
+            drop(headers);
+            assert_eq!(live_on_this_thread(), 0);
+            retained
+        })
+        .join()
+        .expect("compact-header reference thread completed")
+    }
+
+    struct HeaderAllocation {
+        retained: usize,
+        input_live: usize,
+        construction_peak: usize,
+        construction_allowance: usize,
+    }
+
+    impl HeaderAllocation {
+        fn construction_within_bound(&self) -> bool {
+            self.construction_peak
+                <= self
+                    .input_live
+                    .checked_add(self.construction_allowance)
+                    .unwrap()
+        }
+    }
+
+    // Requested native heap only: retain the input in the construction window;
+    // all fixture owners die before the final live sample. This is a regression
+    // control, not an allocator/guest certificate or a new production reserve.
     fn measured_header_history(
         shape: HeaderShape,
         backing_bytes: usize,
         removed_fields: usize,
         decorate: bool,
-    ) -> (usize, usize) {
+        transient_control: bool,
+    ) -> HeaderAllocation {
+        // Complete the reference before starting the measured thread. Spawning
+        // a nested thread inside it would mix cross-thread ownership into TLS
+        // allocation counters, even after that nested thread has been joined.
+        let construction_allowance = compact_header_heap(shape).checked_mul(2).unwrap();
         thread::spawn(move || {
             reset_on_this_thread();
+            let input_live;
+            let construction_peak;
             let response = {
                 let (source_response, backing) =
                     header_history_response(shape, backing_bytes, removed_fields);
@@ -644,6 +723,17 @@ mod tests {
                     request["origin"].as_bytes().as_ptr().addr(),
                     backing.as_ptr().addr().checked_add(32).unwrap(),
                 );
+                // One compact final set plus at most one complete set of CORS
+                // replacement scratch. The reference uses the locked HTTP
+                // allocator behavior, without guessing its private layouts.
+                input_live = live_on_this_thread();
+                assert!(input_live >= backing_bytes);
+                reset_peak_on_this_thread();
+                if transient_control {
+                    let scratch = vec![0_u8; construction_allowance.checked_add(1).unwrap()];
+                    black_box(&scratch);
+                    drop(scratch);
+                }
                 let response = if decorate {
                     SyncBrowserPolicy::new(&config)
                         .decorate(source_response, &request, response_header_cap())
@@ -651,6 +741,7 @@ mod tests {
                 } else {
                     source_response
                 };
+                construction_peak = peak_on_this_thread();
                 assert_header_history_output(&response, &before);
                 let start = backing.as_ptr().addr();
                 let addresses = start..start.checked_add(backing.len()).unwrap();
@@ -677,19 +768,19 @@ mod tests {
                 response
             };
             let retained = live_on_this_thread();
-            let peak = peak_on_this_thread();
-            assert!(retained > 0 && retained <= peak);
-            assert!(
-                peak >= backing_bytes,
-                "the window must include the source backing",
-            );
+            assert!(retained > 0 && retained <= construction_peak);
             drop(response);
             assert_eq!(
                 live_on_this_thread(),
                 0,
                 "the response was the last measured owner",
             );
-            (retained, peak)
+            HeaderAllocation {
+                retained,
+                input_live,
+                construction_peak,
+                construction_allowance,
+            }
         })
         .join()
         .expect("header-history measurement thread completed")
@@ -707,20 +798,34 @@ mod tests {
                             name_bytes,
                             value_bytes,
                         };
-                        let (reference, _) =
-                            measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, true);
+                        let reference = measured_header_history(
+                            shape,
+                            SMALL_HEADER_BACKING_BYTES,
+                            0,
+                            true,
+                            false,
+                        );
+                        assert!(reference.construction_within_bound());
                         for backing_bytes in
                             [SMALL_HEADER_BACKING_BYTES, LARGE_HEADER_BACKING_BYTES]
                         {
                             for removed_fields in [0_usize, 256] {
-                                let (retained, _) = measured_header_history(
+                                let measured = measured_header_history(
                                     shape,
                                     backing_bytes,
                                     removed_fields,
                                     true,
+                                    false,
+                                );
+                                assert!(
+                                    measured.construction_within_bound(),
+                                    "construction peak {}, input {}, allowance {}: {shape:?}, backing={backing_bytes}, removed={removed_fields}",
+                                    measured.construction_peak,
+                                    measured.input_live,
+                                    measured.construction_allowance
                                 );
                                 assert_eq!(
-                                    retained, reference,
+                                    measured.retained, reference.retained,
                                     "{shape:?}, backing={backing_bytes}, removed={removed_fields}",
                                 );
                             }
@@ -739,19 +844,38 @@ mod tests {
             name_bytes: 17,
             value_bytes: 19,
         };
-        let (small, _) = measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, false);
-        let (large, _) = measured_header_history(shape, LARGE_HEADER_BACKING_BYTES, 0, false);
+        let small = measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, false, false);
+        let large = measured_header_history(shape, LARGE_HEADER_BACKING_BYTES, 0, false, false);
         assert_eq!(
-            large.checked_sub(small).unwrap(),
+            large.retained.checked_sub(small.retained).unwrap(),
             LARGE_HEADER_BACKING_BYTES
                 .checked_sub(SMALL_HEADER_BACKING_BYTES)
                 .unwrap(),
         );
-        let (with_history, _) =
-            measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 256, false);
+        let with_history =
+            measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 256, false, false);
         assert!(
-            with_history > small,
+            with_history.retained > small.retained,
             "removed fields must leave detectable map storage",
         );
+    }
+
+    #[test]
+    fn header_construction_control_detects_temporary_storage_that_is_not_retained() {
+        let shape = HeaderShape {
+            unique_fields: 2,
+            duplicate_values: 3,
+            name_bytes: 17,
+            value_bytes: 19,
+        };
+        let reference = measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, true, false);
+        assert!(reference.construction_within_bound());
+        for backing in [SMALL_HEADER_BACKING_BYTES, LARGE_HEADER_BACKING_BYTES] {
+            for removed in [0, 256] {
+                let transient = measured_header_history(shape, backing, removed, true, true);
+                assert_eq!(transient.retained, reference.retained);
+                assert!(!transient.construction_within_bound());
+            }
+        }
     }
 }

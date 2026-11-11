@@ -1418,6 +1418,98 @@ mod tests {
     }
 
     #[test]
+    fn missing_compiled_endpoint_requires_explicit_configuration_contract() {
+        for (label, default_enabled, setting, endpoint, hosts, accepted) in [
+            (
+                "configured_destination",
+                Some(false),
+                Some("optional_string"),
+                None,
+                false,
+                true,
+            ),
+            (
+                "missing_activation_default",
+                None,
+                Some("optional_string"),
+                None,
+                false,
+                false,
+            ),
+            (
+                "active_without_destination",
+                Some(true),
+                Some("optional_string"),
+                None,
+                false,
+                false,
+            ),
+            (
+                "missing_settings_contract",
+                Some(false),
+                None,
+                None,
+                false,
+                false,
+            ),
+            (
+                "wrong_settings_kind",
+                Some(false),
+                Some("optional_i64"),
+                None,
+                false,
+                false,
+            ),
+            (
+                "allowlist_without_destination",
+                Some(false),
+                Some("optional_string"),
+                None,
+                true,
+                false,
+            ),
+            (
+                "empty_destination",
+                Some(false),
+                Some("optional_string"),
+                Some(""),
+                false,
+                false,
+            ),
+        ] {
+            let harness = build_bidder_tempdir(label, "fake_subject.toml", BASELINE_FIXTURE);
+            let path = harness.fixture("fake_fixture_adapter").join("bidder.toml");
+            let mut manifest: toml::Value =
+                toml::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            if let Some(kind) = setting {
+                manifest.as_table_mut().unwrap().insert(
+                    "settings".into(),
+                    toml::Value::try_from(serde_json::json!({"fields":{"endpoint":kind}})).unwrap(),
+                );
+            }
+            let subject = manifest["definitions"]["fake_subject"]
+                .as_table_mut()
+                .unwrap();
+            assert!(subject.remove("endpoint").is_some());
+            if let Some(enabled) = default_enabled {
+                subject.insert("defaultEnabled".into(), enabled.into());
+            }
+            if let Some(value) = endpoint {
+                subject.insert("endpoint".into(), value.into());
+            }
+            if hosts {
+                subject.insert("hostAllowlist".into(), vec!["approved.example.test"].into());
+            }
+            fs::write(&path, toml::to_string(&manifest).unwrap()).unwrap();
+            let (status, stderr) = cargo_build_with_bidder_dir(&harness);
+            assert_eq!(status.success(), accepted, "{label}: {stderr}");
+            if !accepted {
+                assert!(stderr.contains("endpoint"), "{label}: {stderr}");
+            }
+        }
+    }
+
+    #[test]
     fn child_build_fails_with_http_endpoint_in_secure_dir() {
         let bidder_dir = build_bidder_tempdir(
             "http_endpoint",

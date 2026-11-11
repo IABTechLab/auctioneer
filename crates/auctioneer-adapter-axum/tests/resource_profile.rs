@@ -4,6 +4,7 @@
 mod tests {
     use auctioneer_adapter_axum::envelope::resource_profile;
     use auctioneer_config_data::types::{BidderInfo, MediaType};
+    use auctioneer_core::App as AuctioneerApp;
     use auctioneer_core::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
     use auctioneer_core::host_primitives::{boot_gates, install_boot_envelope};
     use auctioneer_privacy::gvl::GVL_PARSE_CACHE_MAX_ENTRIES;
@@ -15,6 +16,7 @@ mod tests {
         config_store_limits::ConfigStoreLimits, ingress_config::AxumIngressConfig,
     };
     use edgezero_cli::args::ConfigPushArgs;
+    use edgezero_core::app::Hooks as _;
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::value::RawValue;
     use serde_json::{Value, json};
@@ -82,8 +84,7 @@ mod tests {
             let mut command = self.command();
             command
                 .arg("--resource-profile")
-                .env("AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN", CANARY)
-                .env("AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH", CANARY)
+                .env("EDGEZERO__SECRETS__HEALTH_GVL_TOKEN", CANARY)
                 .env("EDGEZERO__SECRETS__USERSYNC_COOKIE_KEYRING", CANARY)
                 .env("EDGEZERO__LOGGING__LEVEL", "trace")
                 .env("EDGEZERO__ADAPTER__HOST", CANARY)
@@ -549,7 +550,7 @@ mod tests {
         }
         let endpoint = "http://127.0.0.1:8999";
         let info = BidderInfo {
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             ..Default::default()
         };
         let mut features: Vec<_> =
@@ -699,6 +700,10 @@ mod tests {
 
     impl Server {
         fn start(fixture: &Fixture) -> Self {
+            Self::start_with_settings(fixture, &[])
+        }
+
+        fn start_with_settings(fixture: &Fixture, settings: &[(&str, &str)]) -> Self {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             let addr = listener.local_addr().unwrap();
             drop(listener);
@@ -708,6 +713,7 @@ mod tests {
                 .env("EDGEZERO__ADAPTER__HOST", "127.0.0.1")
                 .env("EDGEZERO__ADAPTER__PORT", addr.port().to_string())
                 .env("EDGEZERO__LOGGING__LEVEL", "off")
+                .envs(settings.iter().copied())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
             let mut server = Self {
@@ -733,6 +739,15 @@ mod tests {
         }
 
         fn request(&self, path: &str, body: &[u8]) -> (u16, String) {
+            self.request_with_bearer(path, body, None)
+        }
+
+        fn request_with_bearer(
+            &self,
+            path: &str,
+            body: &[u8],
+            bearer: Option<&str>,
+        ) -> (u16, String) {
             let mut stream =
                 TcpStream::connect_timeout(&self.addr, Duration::from_secs(2)).unwrap();
             stream
@@ -742,7 +757,11 @@ mod tests {
                 .set_write_timeout(Some(Duration::from_secs(2)))
                 .unwrap();
             let method = if body.is_empty() { "GET" } else { "POST" };
-            write!(stream, "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", body.len()).unwrap();
+            write!(stream, "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n", body.len()).unwrap();
+            if let Some(presented) = bearer {
+                write!(stream, "Authorization: Bearer {presented}\r\n").unwrap();
+            }
+            write!(stream, "\r\n").unwrap();
             stream.write_all(body).unwrap();
             let mut bytes = Vec::new();
             stream.take(0x8001).read_to_end(&mut bytes).unwrap();
@@ -750,6 +769,12 @@ mod tests {
             let response = String::from_utf8(bytes).unwrap();
             let (head, response_body) = response.split_once("\r\n\r\n").unwrap();
             let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+            if path == "/_auctioneer/health/gvl" && status == 401 {
+                assert!(
+                    head.to_ascii_lowercase()
+                        .contains("www-authenticate: bearer")
+                );
+            }
             if path == "/status" {
                 assert!(
                     head.to_ascii_lowercase()
@@ -811,15 +836,15 @@ mod tests {
             String::from_utf8_lossy(&stderr)
         );
         assert!(String::from_utf8_lossy(&stdout).contains("running 1 test"));
+        let config_id = AuctioneerApp::stores().config.unwrap().default;
         let store_bytes = fs::read(
             fixture
                 .0
-                .join(".edgezero/local-config-auctioneer_runtime.json"),
+                .join(format!(".edgezero/local-config-{config_id}.json")),
         )
         .unwrap();
         let store: Value = serde_json::from_slice(&store_bytes).unwrap();
-        let blob: BlobEnvelope =
-            serde_json::from_str(store["auctioneer_runtime"].as_str().unwrap()).unwrap();
+        let blob: BlobEnvelope = serde_json::from_str(store[config_id].as_str().unwrap()).unwrap();
         blob.verify().unwrap();
         assert_eq!(blob.data["schema_version"], 1_u8);
         assert_eq!(blob.data["host"]["status_response"], banner);
@@ -918,6 +943,84 @@ mod tests {
     }
 
     #[test]
+    fn health_uses_runtime_policy_and_the_standard_sdk_secret_environment() {
+        const TOKEN: &str = "fictional-sdk-health-token";
+        const HEALTH: &str = "/_auctioneer/health/gvl";
+        for (policy, sdk_token, expected) in [
+            (None, Some(TOKEN), 401_u16),
+            (Some(json!({"authenticate_health": false})), None, 200_u16),
+            (
+                Some(
+                    json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
+                ),
+                Some(TOKEN),
+                200_u16,
+            ),
+            (
+                Some(
+                    json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
+                ),
+                None,
+                401_u16,
+            ),
+        ] {
+            let fixture = Fixture::new();
+            let mut data = json!({"schema_version": 1_u8, "host": {}});
+            if let Some(configured_policy) = policy {
+                data["host"]["gvl"] = configured_policy;
+            }
+            let envelope = BlobEnvelope::new(data, "1970-01-01T00:00:00Z".to_owned());
+            let config_id = AuctioneerApp::stores().config.unwrap().default;
+            DirBuilder::new()
+                .create(fixture.0.join(".edgezero"))
+                .unwrap();
+            fs::write(
+                fixture
+                    .0
+                    .join(format!(".edgezero/local-config-{config_id}.json")),
+                serde_json::to_vec(
+                    &json!({(config_id): serde_json::to_string(&envelope).unwrap()}),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let settings: Vec<_> = sdk_token
+                .into_iter()
+                .map(|token| ("EDGEZERO__SECRETS__HEALTH_GVL_TOKEN", token))
+                .collect();
+            let server = Server::start_with_settings(&fixture, &settings);
+            let authenticated = server.request_with_bearer(HEALTH, b"", Some(TOKEN));
+            if expected == 200 {
+                assert!(matches!(authenticated.0, 200 | 503));
+                let payload: Value = serde_json::from_str(&authenticated.1).unwrap();
+                assert_eq!(payload["counter_scope"], "process");
+                assert!(matches!(payload["status"].as_str(), Some("ok" | "stale")));
+            } else {
+                assert_eq!(authenticated.0, 401);
+            }
+            assert_eq!(
+                server
+                    .request_with_bearer(HEALTH, b"", Some("wrong-token"))
+                    .0,
+                if expected == 200 && sdk_token.is_none() {
+                    authenticated.0
+                } else {
+                    401
+                }
+            );
+            assert_eq!(
+                server.request(HEALTH, b"").0,
+                if expected == 200 && sdk_token.is_none() {
+                    authenticated.0
+                } else {
+                    401
+                }
+            );
+            assert_eq!(server.request("/status", b"").0, 204);
+        }
+    }
+
+    #[test]
     fn unknown_arguments_fail_with_a_fixed_diagnostic() {
         let fixture = Fixture::new();
         for args in [
@@ -925,10 +1028,7 @@ mod tests {
             vec!["--resource-profile", CANARY],
             vec!["--resource-profile", "--resource-profile"],
         ] {
-            let (status, stdout, stderr) = fixture.run(fixture.command().args(args).env(
-                "AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH",
-                "invalid",
-            ));
+            let (status, stdout, stderr) = fixture.run(fixture.command().args(args));
             assert!(!status.success());
             assert!(stdout.is_empty());
             assert_eq!(

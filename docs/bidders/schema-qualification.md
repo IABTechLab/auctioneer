@@ -2,6 +2,13 @@
 
 For the current source-bound closure, implemented components and remaining proof owners, see [resource proof ownership](../testing/resource-proof-ownership.md). Historical checkpoint prose below retains its original scope; it is not current target certification.
 
+**2026-11-10 publication amendment:** Mocktioneer is now compiled in both
+feature lanes, disabled by default, with an explicit endpoint required to enable
+it. Current shipped source checks require 18 native bindings (four guest
+bindings), 18 selected roots/members and 16 effective schemas in each lane.
+Earlier 15/16-cohort measurements below retain their original historical scope;
+the new publication does not requalify those linked artifacts.
+
 **2026-10-30 delivery amendment:** AG approved
 [controlled-native acceptance](../superpowers/specs/2026-10-30-controlled-native-bidders-completion-design.md)
 using tested reservations, enforced limits and real handler/allocation/stress

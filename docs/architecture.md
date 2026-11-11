@@ -326,9 +326,10 @@ before handing calls to the fanout implementation.
 from `make_bids`; the network operation lives between them. The current
 registry includes AppNexus, PubMatic, and a generic OpenRTB bidder
 implementation, alongside controlled-native priority implementations.
-Mocktioneer is enabled by the explicit `insecure-bidders` feature or by Axum's
-test-only dependency when running its default socket tests. Normal production
-builds do not enable it.
+Mocktioneer is available in normal builds and disabled by default. Enabling it
+requires an explicit operator-configured endpoint. Public HTTPS needs no feature
+flag; `insecure-bidders` permits the existing HTTP/exact-loopback development
+transport, including Axum's test-only socket fixtures.
 This is not a claim of compatibility with the entire upstream bidder catalog.
 
 [Automatic bidder registration](superpowers/specs/2026-09-27-bidder-registry-design.md)
@@ -454,8 +455,20 @@ root wrappers, source modes or backward wire aliases. Builds never read operator
 policy. The SDK trait wrapper preserves model and wire layout. Accounts are carried in that runtime
 blob, not fetched from separate account records. Runtime-field environment
 overrides are applied at push time to keys already present in the source;
-they are not a live, per-instance policy override channel. Boot health
-credentials are a separate provider-specific input.
+they are not a live, per-instance policy override channel. GVL health access is
+part of that runtime policy under `host.gvl`: an omitted section or
+`authenticate_health` mode stays closed. `authenticate_health = true` requires a
+nonempty default Secret Store entry reference in
+`authenticate_health_token_secret`; an empty reference is invalid.
+`authenticate_health = false` explicitly permits anonymous access and requires
+the secret reference to be omitted; even an empty reference is invalid in this
+mode. Anonymous health never reads a secret. Authenticated references are
+validated; a reference without a mode is invalid.
+The shared handler resolves policy and, for authenticated health, the selected
+secret on every health request; adapters install only the
+immutable counter scope. Config and secret visibility follow the existing SDK
+provider lifecycle, including Axum's startup file snapshot. Health credentials use
+the same request-bound default secret provider as other credentials.
 
 Host/adapter facts, store/trust bindings and installed limits retain their
 existing owners; they are not another Auctioneer startup config. Runtime policy
@@ -686,7 +699,8 @@ This describes technical enforcement, not legal certification.
 
 `/status` is not proof of bidder reachability, usable consent data, or
 production certification. The internal health route is fail-closed without
-an installed access policy. Tokenless opt-in requires an ingress path
+valid `host.gvl` runtime policy and, when authentication is enabled,
+a valid credential. Explicit anonymous access requires an ingress path
 restriction; see [internal-route deployment guidance](deployment/restrict-operational-endpoints.md).
 
 The sync routes use the auxiliary admission class and a validated runtime

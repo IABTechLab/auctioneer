@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 
 const ARTIFACT_CAP: usize = 512 << 20_u32;
 const SNAPSHOT_CAP: usize = 1 << 20_u32;
-const SNAPSHOT_FILE: &str = ".edgezero/local-config-auctioneer_runtime.json";
+const SNAPSHOT_FILE: &str = ".edgezero/local-config-auctioneer_config.json";
 // The native fixture listener is shared with the runner and frozen-binary probes.
 const FIXTURE_ENDPOINT: &str = "http://127.0.0.1:8787/openrtb2/auction";
 
@@ -41,7 +41,7 @@ const PURPOSE_TWO: PurposeTwo = PurposeTwo {
 
 #[derive(Deserialize, Serialize)]
 struct LocalStore {
-    auctioneer_runtime: String,
+    auctioneer_config: String,
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
 }
@@ -152,7 +152,7 @@ pub fn read_snapshot(dir: &Path) -> Result<Snapshot> {
     let outer: LocalStore = inputs::parse_json(&bytes, SNAPSHOT_CAP)
         .map_err(|_error| HarnessError::new("snapshot_invalid"))?;
     let envelope: EnvelopeDigest =
-        inputs::parse_json(outer.auctioneer_runtime.as_bytes(), SNAPSHOT_CAP)
+        inputs::parse_json(outer.auctioneer_config.as_bytes(), SNAPSHOT_CAP)
             .map_err(|_error| HarnessError::new("snapshot_invalid"))?;
     Ok(Snapshot {
         config_sha256: envelope.sha256,
@@ -165,7 +165,7 @@ pub fn corrupt_snapshot(dir: &Path) -> Result<()> {
     let bytes = strict_bytes(&path, SNAPSHOT_CAP)?;
     let mut outer: LocalStore = inputs::parse_json(&bytes, SNAPSHOT_CAP)
         .map_err(|_error| HarnessError::new("snapshot_invalid"))?;
-    "{".clone_into(&mut outer.auctioneer_runtime);
+    "{".clone_into(&mut outer.auctioneer_config);
     let encoded = io::json_bytes(&outer, SNAPSHOT_CAP)?;
     if file_digest(&path, SNAPSHOT_CAP)? != Digest::of(&bytes) {
         return Err(HarnessError::new("input_changed"));
@@ -207,10 +207,13 @@ pub fn assert_artifact(path: &Path, digest: &Digest) -> Result<()> {
 
 fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
     let nodes = variant_nodes(candidate, id)?;
-    let bidder = fixture_bidder(
-        auctioneer_config_data::bidder_metadata_declarations(),
-        auctioneer_config_data::bidders(),
-    )?;
+    let declarations = auctioneer_config_data::bidder_metadata_declarations();
+    let bidder = fixture_bidder(declarations, auctioneer_config_data::bidders())?;
+    let implementation = declarations
+        .iter()
+        .find(|row| row.bidder == bidder)
+        .ok_or(HarnessError::new("fixture_unavailable"))?
+        .implementation;
     let aliases = geometry::aliases(candidate.maximum_load.calls)?
         .into_iter()
         .map(|name| (name, bidder))
@@ -234,13 +237,29 @@ fn config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
             },
         },
         "accounts": {"q2_allowed": {"debug_allow": true}, "q2_refused": {"debug_allow": false}},
-        "bidders": {(bidder): {"timeout_ms": 500_u16, "sample_rate": 1.0_f64}},
+        "bidders": {(bidder): {
+            "enabled": true, "implementation": implementation,
+            "settings": {"endpoint": FIXTURE_ENDPOINT},
+            "timeout_ms": 500_u16, "sample_rate": 1.0_f64,
+        }},
     });
     toml::Value::try_from(document).map_err(|_error| HarnessError::new("invalid_input"))
 }
 
 fn historical_config_document(candidate: &Candidate, id: u16) -> Result<toml::Value> {
-    let current = config_document(candidate, id)?;
+    let mut current = config_document(candidate, id)?;
+    let entries = current
+        .get_mut("bidders")
+        .and_then(toml::Value::as_table_mut)
+        .ok_or(HarnessError::new("invalid_input"))?;
+    for (_, entry) in entries.iter_mut() {
+        let fields = entry
+            .as_table_mut()
+            .ok_or(HarnessError::new("invalid_input"))?;
+        fields.remove("enabled");
+        fields.remove("implementation");
+        fields.remove("settings");
+    }
     let invalid = HarnessError::new("invalid_input");
     let host = current.get("host").ok_or(invalid)?;
     let document = json!({
@@ -261,20 +280,19 @@ fn fixture_bidder(
     declarations: &[BidderMetadataDeclaration],
     infos: &[BidderInfo],
 ) -> Result<&'static str> {
-    // A secure-default harness builds an insecure-enabled child CLI/server. Its
-    // generated declarations retain that child's feature-gated public binding;
-    // config push and the positive socket/debug probes still verify real serving.
+    // The native child opts into local transport. Discover its configurable,
+    // default-disabled publication from generated bindings and metadata.
     let mut candidates = declarations.iter().filter(|declaration| {
-        declaration.required_feature == Some("insecure-bidders")
+        declaration.required_feature.is_none()
             && infos
                 .iter()
                 .find(|info| info.name == declaration.bidder)
-                .is_none_or(|info| {
+                .is_some_and(|info| {
                     !info.disabled
-                        && !info.uses_https
+                        && info.default_enabled == Some(false)
                         && info.debug_allow
                         && info.gvl_vendor_id.is_none()
-                        && info.endpoint == FIXTURE_ENDPOINT
+                        && info.endpoint.is_none()
                         && info.endpoint_macros.is_empty()
                         && info.endpoint_compression.is_none()
                         && info.capabilities.site.contains(&MediaType::Banner)
@@ -513,12 +531,15 @@ fn freeze_permissions(file: &File) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Args, Command, application};
     use auctioneer_config_data::types::{Capabilities, Compression};
     use auctioneer_core::config::SdkAuctioneerAppConfig;
+    use clap::Parser as _;
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::{Value, json};
     use std::ffi::OsString;
     use std::fs;
+    use std::iter::once;
     use std::slice::from_ref;
     use validator::Validate as _;
 
@@ -542,28 +563,43 @@ mod tests {
             json!({"schema_version": 1_u32, "host": {"status_response": "q2_a"}}),
             "2026-10-15T00:00:00Z".to_owned(),
         );
-        json!({"auctioneer_runtime": serde_json::to_string(&envelope).unwrap(), "other_store": "PRESERVE_OTHER_STORE"})
+        json!({"auctioneer_config": serde_json::to_string(&envelope).unwrap(), "other_store": "PRESERVE_OTHER_STORE"})
+    }
+
+    fn configurable_info(name: &str) -> BidderInfo {
+        BidderInfo {
+            name: name.to_owned(),
+            default_enabled: Some(false),
+            debug_allow: true,
+            capabilities: Capabilities {
+                site: vec![MediaType::Banner],
+                ..Capabilities::default()
+            },
+            ..BidderInfo::default()
+        }
     }
 
     #[test]
-    fn fixture_selection_uses_generated_feature_bindings_without_a_bidder_identity() {
+    fn fixture_selection_requires_unique_configurable_metadata_without_a_bidder_identity() {
         let local = BidderMetadataDeclaration {
             bidder: "fake_local",
             implementation: "fake_transport",
-            required_feature: Some("insecure-bidders"),
+            required_feature: None,
         };
         let ordinary = BidderMetadataDeclaration {
             bidder: "fake_secure",
-            required_feature: None,
             ..local
         };
-        // The parent harness need not carry its insecure-enabled child's metadata.
         assert_eq!(
-            fixture_bidder(&[ordinary, local], &[]).unwrap(),
+            fixture_bidder(&[ordinary, local], &[configurable_info("fake_local")]).unwrap(),
             "fake_local"
         );
         assert_eq!(
-            fixture_bidder(&[ordinary], &[]).unwrap_err(),
+            fixture_bidder(&[local], &[]).unwrap_err(),
+            HarnessError::new("fixture_unavailable")
+        );
+        assert_eq!(
+            fixture_bidder(&[ordinary], &[configurable_info("fake_local")]).unwrap_err(),
             HarnessError::new("fixture_unavailable")
         );
         let sibling = BidderMetadataDeclaration {
@@ -571,7 +607,14 @@ mod tests {
             ..local
         };
         assert_eq!(
-            fixture_bidder(&[local, sibling], &[]).unwrap_err(),
+            fixture_bidder(
+                &[local, sibling],
+                &[
+                    configurable_info("fake_local"),
+                    configurable_info("fake_sibling")
+                ]
+            )
+            .unwrap_err(),
             HarnessError::new("fixture_unavailable")
         );
     }
@@ -581,28 +624,19 @@ mod tests {
         let local = BidderMetadataDeclaration {
             bidder: "fake_local",
             implementation: "fake_transport",
-            required_feature: Some("insecure-bidders"),
+            required_feature: None,
         };
-        let info = BidderInfo {
-            name: local.bidder.to_owned(),
-            endpoint: FIXTURE_ENDPOINT.to_owned(),
-            debug_allow: true,
-            capabilities: Capabilities {
-                site: vec![MediaType::Banner],
-                ..Capabilities::default()
-            },
-            ..BidderInfo::default()
-        };
+        let info = configurable_info(local.bidder);
         assert_eq!(
             fixture_bidder(&[local], from_ref(&info)).unwrap(),
             "fake_local"
         );
         let disqualify: [fn(&mut BidderInfo); 8] = [
             |row| row.disabled = true,
-            |row| row.uses_https = true,
+            |row| row.default_enabled = None,
             |row| row.debug_allow = false,
             |row| row.gvl_vendor_id = Some(1),
-            |row| row.endpoint = "http://127.0.0.1:8788/openrtb2/auction".to_owned(),
+            |row| row.endpoint = Some("http://127.0.0.1:8788/openrtb2/auction".to_owned()),
             |row| row.endpoint_macros.push("AccountID".to_owned()),
             |row| row.endpoint_compression = Some(Compression::Gzip),
             |row| row.capabilities.site.clear(),
@@ -698,7 +732,15 @@ mod tests {
         assert_eq!(historical["runtime"]["aliases"], current["host"]["aliases"]);
         assert_eq!(historical["runtime"]["gdpr"], current["host"]["gdpr"]);
         assert_eq!(historical["runtime"]["accounts"], current["accounts"]);
-        assert_eq!(historical["runtime"]["bidders"], current["bidders"]);
+        let historical_bidders = historical["runtime"]["bidders"].as_table().unwrap();
+        assert_eq!(historical_bidders.len(), 1);
+        for entry in historical_bidders.values() {
+            assert_eq!(
+                *entry,
+                toml::Value::try_from(json!({"timeout_ms": 500_u16, "sample_rate": 1.0_f64}))
+                    .unwrap()
+            );
+        }
     }
 
     #[test]
@@ -739,7 +781,7 @@ mod tests {
         assert_eq!(
             error,
             json!({"runtime": [{
-                "code": "invalid_effective_config", "message": null, "params": {}
+                "code": "invalid_effective_config", "message": "operator policy structure invalid", "params": {}
             }]})
         );
     }
@@ -814,6 +856,55 @@ mod tests {
         assert_eq!(spec.timeout_ms, 10_000);
     }
 
+    #[test]
+    fn actual_config_push_produces_a_readable_qualification_snapshot() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("crates/auctioneer-adapter-axum")).unwrap();
+        fs::write(
+            root.path().join("edgezero.toml"),
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../edgezero.toml")),
+        )
+        .unwrap();
+        fs::write(
+            root.path().join("crates/auctioneer-adapter-axum/axum.toml"),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../auctioneer-adapter-axum/axum.toml"
+            )),
+        )
+        .unwrap();
+        fs::write(root.path().join("auctioneer.toml"), "schema_version = 1\n").unwrap();
+        assert!(!root.path().join(".edgezero").exists());
+        let spec = config_push_spec(Path::new("auctioneer-cli"), root.path());
+        let args =
+            Args::try_parse_from(once(OsString::from("auctioneer-cli")).chain(spec.args)).unwrap();
+        let Command::Application(command) = args.command else {
+            panic!("the qualification push must use the application CLI");
+        };
+        assert_eq!(application::run(command), 0_i32);
+        // Read the actual SDK writer's file independently of SNAPSHOT_FILE.
+        let bytes = fs::read(
+            root.path()
+                .join(".edgezero/local-config-auctioneer_config.json"),
+        )
+        .unwrap();
+        let outer: Value = serde_json::from_slice(&bytes).unwrap();
+        let envelope: BlobEnvelope =
+            serde_json::from_str(outer["auctioneer_config"].as_str().unwrap()).unwrap();
+        envelope.verify().unwrap();
+        let snapshot = read_snapshot(root.path()).expect("a real push must feed qualification");
+        assert_eq!(
+            snapshot.config_sha256,
+            Digest::try_from(envelope.sha256).unwrap()
+        );
+        assert_eq!(snapshot.store_sha256, Digest::of(&bytes));
+        corrupt_snapshot(root.path()).unwrap();
+        assert_eq!(
+            read_snapshot(root.path()).unwrap_err(),
+            HarnessError::new("snapshot_invalid")
+        );
+    }
+
     #[tokio::test]
     async fn install_rejects_invalid_variants_before_files_or_child_processes() {
         let root = tempfile::tempdir().unwrap();
@@ -843,7 +934,7 @@ mod tests {
         let outer = valid_store();
         let file = snapshot_file(root.path(), &outer);
         let inner: BlobEnvelope =
-            serde_json::from_str(outer["auctioneer_runtime"].as_str().unwrap()).unwrap();
+            serde_json::from_str(outer["auctioneer_config"].as_str().unwrap()).unwrap();
         let before = read_snapshot(root.path()).unwrap();
         assert_eq!(
             before.config_sha256,
@@ -867,8 +958,8 @@ mod tests {
         );
         for outer in [
             json!({}),
-            json!({"auctioneer_runtime": {"sha256": "a".repeat(64)}}),
-            json!({"auctioneer_runtime": "{"}),
+            json!({"auctioneer_config": {"sha256": "a".repeat(64)}}),
+            json!({"auctioneer_config": "{"}),
         ] {
             snapshot_file(root.path(), &outer);
             assert_eq!(
@@ -885,7 +976,7 @@ mod tests {
         ] {
             snapshot_file(
                 root.path(),
-                &json!({"auctioneer_runtime": serde_json::to_string(&inner).unwrap()}),
+                &json!({"auctioneer_config": serde_json::to_string(&inner).unwrap()}),
             );
             let error = read_snapshot(root.path()).unwrap_err();
             assert_eq!(error, HarnessError::new("snapshot_invalid"));
@@ -896,7 +987,7 @@ mod tests {
             "a".repeat(64),
             "b".repeat(64)
         );
-        snapshot_file(root.path(), &json!({"auctioneer_runtime": duplicate}));
+        snapshot_file(root.path(), &json!({"auctioneer_config": duplicate}));
         assert_eq!(
             read_snapshot(root.path()).unwrap_err(),
             HarnessError::new("snapshot_invalid")
@@ -905,8 +996,8 @@ mod tests {
         fs::write(
             root.path().join(SNAPSHOT_FILE),
             outer.replacen(
-                "\"auctioneer_runtime\":",
-                "\"auctioneer_runtime\":\"{}\",\"auctioneer_runtime\":",
+                "\"auctioneer_config\":",
+                "\"auctioneer_config\":\"{}\",\"auctioneer_config\":",
                 1,
             ),
         )
@@ -937,7 +1028,7 @@ mod tests {
             "[".repeat(129),
             "]".repeat(129)
         );
-        snapshot_file(root.path(), &json!({"auctioneer_runtime": deep}));
+        snapshot_file(root.path(), &json!({"auctioneer_config": deep}));
         assert_eq!(
             read_snapshot(root.path()).unwrap_err(),
             HarnessError::new("snapshot_invalid")
@@ -945,7 +1036,7 @@ mod tests {
         let excessive = json!({"sha256": "a".repeat(64), "discarded": vec![0_u8; 1 << 16_u32]});
         snapshot_file(
             root.path(),
-            &json!({"auctioneer_runtime": serde_json::to_string(&excessive).unwrap()}),
+            &json!({"auctioneer_config": serde_json::to_string(&excessive).unwrap()}),
         );
         assert_eq!(
             read_snapshot(root.path()).unwrap_err(),
@@ -960,7 +1051,7 @@ mod tests {
         read_snapshot(root.path()).unwrap();
         corrupt_snapshot(root.path()).unwrap();
         let outer: Value = serde_json::from_slice(&fs::read(file).unwrap()).unwrap();
-        assert_eq!(outer["auctioneer_runtime"], "{");
+        assert_eq!(outer["auctioneer_config"], "{");
         assert_eq!(outer["other_store"], "PRESERVE_OTHER_STORE");
         assert_eq!(outer.as_object().unwrap().len(), 2);
         assert_eq!(
@@ -972,7 +1063,7 @@ mod tests {
     #[test]
     fn corruption_refuses_invalid_outer_json_without_rewriting_it() {
         let root = tempfile::tempdir().unwrap();
-        let file = snapshot_file(root.path(), &json!({"auctioneer_runtime": 1_u8}));
+        let file = snapshot_file(root.path(), &json!({"auctioneer_config": 1_u8}));
         let original = fs::read(&file).unwrap();
         assert_eq!(
             corrupt_snapshot(root.path()).unwrap_err(),

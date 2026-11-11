@@ -121,7 +121,7 @@ mod tests {
     fn info(name: &'static str) -> &'static BidderInfo {
         Box::leak(Box::new(BidderInfo {
             name: name.into(),
-            endpoint: "https://bids.example.test/auction".into(),
+            endpoint: Some("https://bids.example.test/auction".into()),
             uses_https: true,
             ..BidderInfo::default()
         }))

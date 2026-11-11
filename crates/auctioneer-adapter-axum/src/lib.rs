@@ -10,7 +10,7 @@ use auctioneer_config_data::types::BidderInfo;
 pub fn build_features() -> Vec<&'static str> {
     let endpoint = "http://127.0.0.1:8999";
     let info = BidderInfo {
-        endpoint: endpoint.to_owned(),
+        endpoint: Some(endpoint.to_owned()),
         ..BidderInfo::default()
     };
     let mut features = if auctioneer_exchange::validate_endpoint(endpoint, &info).is_ok() {

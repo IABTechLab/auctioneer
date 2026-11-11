@@ -470,7 +470,7 @@ mod tests {
 
     fn settings(supply: Option<&str>) -> BidderSettings {
         serde_json::from_value(json!({
-            "implementation":"thetradedesk", "values":{"supply_id":supply},
+            "implementation":"thetradedesk", "settings":{"supply_id":supply},
         }))
         .unwrap()
     }

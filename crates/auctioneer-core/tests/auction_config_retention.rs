@@ -106,7 +106,10 @@ rules = [{allow = false, condition = {componentName = ["fake_retention_alias"]}}
             _deadline: AuctionDeadline,
         ) -> Result<Vec<BidderCallResult>, FanoutInternalError> {
             assert_eq!(calls.len(), 1);
-            assert_eq!(calls[0].request.url(), passthrough_info().endpoint);
+            assert_eq!(
+                calls[0].request.url(),
+                passthrough_info().endpoint.as_deref().unwrap()
+            );
             assert_eq!(calls[0].max_transport_bytes, 2048);
             assert_eq!(calls[0].max_decoded_bytes, 3072);
             assert!(calls[0].request.covered_imp_ids().eq(["i"]));

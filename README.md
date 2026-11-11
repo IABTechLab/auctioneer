@@ -105,16 +105,16 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The `insecure-bidders` cargo feature on `auctioneer-config-data` enables
-deterministic loopback test bidders:
+The `insecure-bidders` Cargo feature permits development HTTP/loopback
+transport. Mocktioneer itself is available in normal builds:
 
 ```
-cargo test --workspace --features auctioneer-config-data/insecure-bidders
+cargo test --workspace --features insecure-bidders
 ```
 
 Axum's default `cargo test -p auctioneer-adapter-axum --all-targets` also runs the
-handler-to-socket privacy test. Its test-only dependency enables the loopback
-bidder; normal production builds retain the secure defaults. The test sweeps
+handler-to-socket privacy test. Its test-only dependency permits loopback
+transport; the fixture explicitly enables and configures its bidder. The test sweeps
 CCPA and all three disclosure activities independently.
 
 ## Auction privacy configuration
@@ -230,15 +230,96 @@ Run them from the workspace root.
 | Fastly Compute@Edge | `fastly compute serve`                                    |
 | Spin                | `spin up --from crates/auctioneer-adapter-spin`           |
 
+### Configure a Mocktioneer destination
+
+Mocktioneer is available in normal builds and is disabled by default. Enable
+it and configure its HTTPS destination in your runtime policy:
+
+```toml
+[bidders.mocktioneer]
+enabled = true
+implementation = "mocktioneer"
+
+[bidders.mocktioneer.settings]
+endpoint = "https://mock-bidder.example.test/openrtb2/auction"
+```
+
+When settings are supplied, the bidder row requires `implementation`; the
+separate `.settings` subconfig contains only that owner's fields. The key must
+match the resolved bidder owner. Omit both fields to use inherited or compiled
+defaults. Republish older wrapped configuration in this form after updating
+the binary.
+
+Use a literal absolute URL of at most 2048 UTF-8 bytes. Public destinations
+require HTTPS; the development feature also allows HTTP to exact loopback
+literals. Private/reserved addresses, localhost-alias services, credentials,
+fragments and templates are rejected. Use ASCII host names (punycode for
+internationalized names) and percent-encode characters the HTTP transport
+cannot represent. Omitted/null endpoint values inherit the base bidder setting.
+An enabled Mocktioneer requires a resolved endpoint; it has no compiled default.
+An empty endpoint is invalid.
+Impression parameters cannot override the selected destination.
+
+Validate and push the complete policy to local Fastly/Viceroy from the workspace
+root, then restart Viceroy to read the updated local config store:
+
+```sh
+auctioneer-cli config validate --app-config auctioneer.fastly-local.toml --no-env
+auctioneer-cli config push --adapter fastly --local --app-config auctioneer.fastly-local.toml --no-env
+```
+
+HTTPS needs no extra Cargo features in either the CLI or the serving guest.
+For an explicitly configured local endpoint such as
+`http://127.0.0.1:8787/openrtb2/auction`, build the CLI with
+`--features auctioneer-core/insecure-bidders` and the serving adapter with
+`--features insecure-bidders`. The feature never supplies a destination.
+If another configured implementation is missing from the build, CLI errors and runtime
+operator logs identify its compiled name and required Cargo feature. These
+diagnostics omit configured alias names, endpoint values and credentials.
+Endpoint changes take effect through the existing config publication lifecycle;
+they require no endpoint-specific rebuild. The other bidders' compiled endpoint
+and host-allowlist rules remain unchanged.
+
 ## Operational endpoints (`/_auctioneer/*`)
 
 `GET /_auctioneer/health/gvl` reports GVL archive health (archive age,
 bundled vendor-list versions, and the rolling unavailable-lookup
-counter). The handler is fail-closed: it answers 401 unless the adapter
-boot installed an explicit access policy — either a bearer token
-(`AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` on Axum / Cloudflare; the platform
-secret store on Fastly / Spin) or the machine-checkable
-`allow_unauthenticated_health = true` opt-in.
+counter). Configure access in the pushed operator policy:
+
+```toml
+[host.gvl]
+authenticate_health = true
+authenticate_health_token_secret = "health_gvl_token"
+```
+
+The handler is fail-closed. `authenticate_health_token_secret` names an entry in
+the declared default Secret Store. Omit the section or `authenticate_health` to
+keep health closed. `authenticate_health = true` requires a nonempty reference;
+an empty reference is invalid. To permit anonymous access, set
+`authenticate_health = false` and omit `authenticate_health_token_secret`;
+an empty or named reference alongside false is invalid. The handler never reads
+a secret in anonymous mode. Authenticated references must be at most 128
+UTF-8 bytes, without ASCII controls or surrounding whitespace. A reference without
+a mode, unknown fields and explicit nulls are rejected. The shared handler resolves
+config and, for authenticated health, the selected secret on each health request;
+updates take effect with the provider's existing
+config/secret visibility lifecycle. Axum's file-backed config keeps its startup
+snapshot until restart. Missing or invalid policy returns 401 with a Bearer
+challenge. In authenticated mode, unavailable/empty secrets and secrets larger
+than 4096 bytes also return 401. `/status`
+remains independent. Ordinary routes do not fetch health credentials.
+
+Provision `health_gvl_token` through the existing SDK secret binding:
+
+- Axum: `EDGEZERO__SECRETS__HEALTH_GVL_TOKEN`; entry names accept ASCII letters,
+  digits and underscores and are uppercased for this environment lookup.
+- Cloudflare: `wrangler secret put health_gvl_token` uses the entry name literally.
+- Fastly: the `health_gvl_token` item in the linked default secret-store alias.
+  The local manifest's `AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN` is only a Viceroy
+  provisioning source; the runtime does not read that environment variable.
+- Spin: a secret application variable declared and mapped into the component.
+  The SDK lowercases entry names; a different `authenticate_health_token_secret`
+  needs its own matching declaration and component mapping.
 
 Deployments that opt in to serving `/_auctioneer/*` without a token MUST
 restrict the `/_auctioneer/*` path prefix at the ingress layer. That

@@ -37,7 +37,7 @@ use crate::{
         parse_price_granularity, pick_winner, price_bucket,
     },
     tmax::{TmaxResolution, resolve_tmax},
-    validate_endpoint::ExchangeEndpointValidator,
+    validate_endpoint::BoundEndpointValidator,
 };
 use auctioneer_bidder::schema::{SchemaWorkBudget, native_schema_work_budget};
 use auctioneer_bidder::{
@@ -1017,11 +1017,12 @@ struct MakeRequestsOutput {
     schema_work: SchemaWorkBudget,
 }
 
-fn bind_bidder_settings<'a>(
+fn bind_bidder_configuration<'a>(
     ctx: &'a AuctionContext<'_>,
     pbr: &PerBidderRequest,
+    adapter: &'a dyn Bidder,
     info: &mut BidderRequestInfo<'a>,
-) -> Result<(), auctioneer_bidder::BidderError> {
+) -> Result<bool, auctioneer_bidder::BidderError> {
     let requested = ctx
         .bidder_settings
         .and_then(|source| source.settings(pbr.bidder.as_str()));
@@ -1034,7 +1035,24 @@ fn bind_bidder_settings<'a>(
         .ok()
         .and_then(|index| ctx.bidder_bindings.get(index))
         .map(|binding| binding.implementation);
-    info.set_settings(implementation, requested, base)
+    info.set_settings(implementation, requested, base)?;
+    let endpoint = adapter.configured_endpoint(info.settings(), info.base_settings())?;
+    match endpoint {
+        Some(selected) => {
+            info.endpoint_template = selected.as_str();
+            info.endpoint_macros = &[];
+            info.host_allowlist = None;
+        }
+        None if info.endpoint_template.is_empty() => {
+            return Err(auctioneer_bidder::BidderError::failed_to_request_bids(
+                "configured bidder endpoint required",
+            ));
+        }
+        None => {}
+    }
+    // The selected URL already lives in `info`; carry only its policy choice
+    // across credential lookup instead of retaining a second URL borrow.
+    Ok(endpoint.is_some())
 }
 
 async fn run_make_requests(
@@ -1061,7 +1079,7 @@ async fn run_make_requests(
         pbr.base.clone(),
         &ctx.account.id,
         publisher_id,
-        &info.endpoint,
+        info.endpoint.as_deref().unwrap_or_default(),
         &macros,
         allow.as_deref(),
         gpc,
@@ -1070,16 +1088,20 @@ async fn run_make_requests(
     );
     info_for_adapter.original_request_ext_shape = ctx.original_request_ext_shape;
     info_for_adapter.floor_currency = ctx.floor_currency;
-    if let Err(error) = bind_bidder_settings(ctx, pbr, &mut info_for_adapter) {
-        out.bidder_pre_errors
-            .entry(pbr.bidder.clone())
-            .or_default()
-            .push(ErrorEntry {
-                code: error.code,
-                message: error.message,
-            });
-        return;
-    }
+    let has_configured_endpoint =
+        match bind_bidder_configuration(ctx, pbr, adapter, &mut info_for_adapter) {
+            Ok(selected) => selected,
+            Err(error) => {
+                out.bidder_pre_errors
+                    .entry(pbr.bidder.clone())
+                    .or_default()
+                    .push(ErrorEntry {
+                        code: error.code,
+                        message: error.message,
+                    });
+                return;
+            }
+        };
     pbr.request.tmax = Some(i64::from(tmax.bidder_visible_tmax_ms));
     apply_legacy_projection(&mut pbr.request, projection, info.openrtb.gpp_supported);
     if !schema::admit(ctx, pbr, tmax, out) {
@@ -1109,7 +1131,7 @@ async fn run_make_requests(
     };
     info_for_adapter.credentials = credentials.as_ref();
 
-    let validator = ExchangeEndpointValidator::new(info);
+    let validator = BoundEndpointValidator::new(info, &info_for_adapter, has_configured_endpoint);
     let mut sink = OutboundRequestSink::new(
         SinkLimits::new(
             usize::try_from(ctx.host.resource_limits.max_outbound_raw_bytes).unwrap_or(usize::MAX),

@@ -85,7 +85,7 @@ mod tests {
                 .register(
                     Box::leak(Box::new(BidderInfo {
                         name: "fake_aaa".into(),
-                        endpoint: "https://demo.example.test/openrtb".into(),
+                        endpoint: Some("https://demo.example.test/openrtb".into()),
                         uses_https: true,
                         ..BidderInfo::default()
                     })),

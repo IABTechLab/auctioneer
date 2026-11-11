@@ -1,9 +1,9 @@
 //! `GET /_auctioneer/health/gvl` handler + the rolling GVL
 //! unavailable-lookup counter.
 //!
-//! The handler is fail-closed: it answers 401 unless the adapter boot
-//! installed an explicit `HealthAccessPolicy` (see
-//! `host_primitives::registry`). The counters are the process-local
+//! The handler is fail-closed: the typed runtime GVL policy selects either
+//! explicit anonymous access or authentication through the default Secret Store.
+//! Missing policy or an unavailable credential answers 401. The counters are process-local
 //! primitives the auction handler records into when the privacy
 //! resolver emits `GvlVersionUnavailable` or `GclStale` warnings; this
 //! module ships the primitives and the read side.
@@ -14,8 +14,10 @@
 //! months, the GCL's RFC 9111 lifetime is days — and either one alone
 //! makes every enforced auction fail closed.
 
+use crate::config::runtime::{CONFIG_FETCH_TIMEOUT, resolve_runtime_config};
 use crate::handlers::aux_egress::with_aux_egress;
 use crate::host_primitives::registry::{self as host_registry, TestClockHandle};
+use crate::host_primitives::{BearerToken, HealthAuth as _};
 use crate::serialize::serialize_json_exact;
 use auctioneer_runtime::Clock;
 use edgezero_core::action;
@@ -23,6 +25,8 @@ use edgezero_core::body::Body;
 use edgezero_core::context::RequestContext;
 use edgezero_core::error::EdgeError;
 use edgezero_core::http::{Response, StatusCode, response_builder};
+use edgezero_core::store_registry::BoundSecretStore;
+use edgezero_core::time::{Deadline, MonotonicClock};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -122,10 +126,6 @@ pub async fn health_gvl(ctx: RequestContext) -> Result<Response, EdgeError> {
 }
 
 async fn health_gvl_body(ctx: RequestContext) -> Result<Response, EdgeError> {
-    // Authorize through `health_authorize`, which FAIL-CLOSES when no
-    // policy was installed. The token comes from the ADAPTER-installed
-    // policy, never `std::env` (empty on Workers).
-    //
     // The `Bearer` scheme name is CASE-INSENSITIVE (RFC 9110 §11.1)
     // and may be followed by more than one SPACE, so the scheme token
     // matches case-insensitively and leading SPACES are trimmed off
@@ -148,17 +148,13 @@ async fn health_gvl_body(ctx: RequestContext) -> Result<Response, EdgeError> {
                 .eq_ignore_ascii_case("bearer")
                 .then(|| rest.trim_start_matches(' '))
         });
-    if matches!(
-        host_registry::health_authorize(presented),
-        host_registry::HealthAuthz::Deny
-    ) {
-        // Covers all three deny paths: no policy installed (the
-        // fail-closed default), Token policy with a missing or wrong
-        // bearer. A 401 MUST carry a `WWW-Authenticate` challenge
-        // (RFC 9110 §11.6.1).
+    if !authorize(&ctx, presented).await {
+        // Every denial carries a Bearer challenge, including unavailable policy
+        // and secret reads. Neither the reason nor credential reaches the wire.
         return response_builder()
             .status(StatusCode::UNAUTHORIZED)
             .header("WWW-Authenticate", "Bearer")
+            .header("cache-control", "no-store")
             .body(Body::from_bytes(b"unauthorized".to_vec()))
             .map_err(EdgeError::internal);
     }
@@ -239,8 +235,82 @@ async fn health_gvl_body(ctx: RequestContext) -> Result<Response, EdgeError> {
     response_builder()
         .status(status_code)
         .header("content-type", "application/json")
+        .header("cache-control", "no-store")
         .body(Body::from_bytes(body_bytes))
         .map_err(EdgeError::internal)
+}
+
+// The aux admission receipt funds config extraction and signing work through
+// terminal egress. This payload fits within its existing 4096-byte keyring term.
+// Provider APIs can materialize more before refusing: this is an accepted-size
+// bound, with cooperative deadline checks on synchronous provider operations.
+const MAX_HEALTH_TOKEN_BYTES: u64 = 4096;
+
+async fn authorize(ctx: &RequestContext, presented: Option<&str>) -> bool {
+    let clock = ctx.monotonic_clock();
+    let deadline = clock.deadline_after(CONFIG_FETCH_TIMEOUT);
+    // Move out only this small policy; the rest of the config is dropped before
+    // secret materialization, and no credential is retained in config snapshots.
+    let configured_health = {
+        let policy = match resolve_runtime_config(ctx).await {
+            Ok(policy) => policy,
+            Err(error) => {
+                log::error!(target: "auctioneer::health", "GVL health policy unavailable: {}", error.status_code().as_str());
+                return false;
+            }
+        };
+        policy.host.gvl
+    };
+    let Some(health) = configured_health else {
+        return false;
+    };
+    if deadline.is_expired_at(clock.now()) {
+        return false;
+    }
+    match health.authenticate_health {
+        Some(false) => return true,
+        None => return false,
+        Some(true) => {}
+    }
+    let (Some(reference), Some(bearer)) = (health.authenticate_health_token_secret, presented)
+    else {
+        return false;
+    };
+    let Some(auth) = read_token(ctx.secret_store_default(), &reference, &clock, deadline).await
+    else {
+        log::error!(target: "auctioneer::health", "GVL health token unavailable in default Secret Store");
+        return false;
+    };
+    auth.verify(bearer)
+}
+
+async fn read_token(
+    binding: Option<BoundSecretStore>,
+    reference: &str,
+    clock: &MonotonicClock,
+    deadline: Deadline,
+) -> Option<BearerToken> {
+    if deadline.is_expired_at(clock.now()) {
+        return None;
+    }
+    let result = binding?
+        .get_bytes_bounded(
+            reference,
+            clock,
+            deadline,
+            MAX_HEALTH_TOKEN_BYTES,
+            MAX_HEALTH_TOKEN_BYTES,
+        )
+        .await
+        .ok()?;
+    if deadline.is_expired_at(clock.now()) || result.backend_bytes > MAX_HEALTH_TOKEN_BYTES {
+        return None;
+    }
+    let bytes = result.value?;
+    if u64::try_from(bytes.len()).ok()? > MAX_HEALTH_TOKEN_BYTES {
+        return None;
+    }
+    BearerToken::new(bytes)
 }
 
 fn clock_handle(ctx: &RequestContext) -> Arc<dyn Clock + Send + Sync> {
@@ -248,4 +318,204 @@ fn clock_handle(ctx: &RequestContext) -> Arc<dyn Clock + Send + Sync> {
         return Arc::clone(&handle.0);
     }
     host_registry::clock_handle()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_token;
+    use crate::host_primitives::HealthAuth as _;
+    use bytes::Bytes;
+    use edgezero_core::{
+        config_store::BoundedStoreRead,
+        secret_store::{SecretError, SecretHandle, SecretStore},
+        store_registry::BoundSecretStore,
+        time::{Deadline, MonotonicClock, MonotonicInstant},
+    };
+    use futures::{executor::block_on, task::noop_waker};
+    use std::{
+        future::{Future as _, pending},
+        pin::pin,
+        str::from_utf8,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+        },
+        task::{Context, Poll},
+        time::Duration,
+    };
+
+    struct Provider {
+        calls: AtomicUsize,
+        finished: AtomicBool,
+        dropped: Arc<AtomicBool>,
+        pending: bool,
+        error: bool,
+        backend_bytes: u64,
+        value: Option<Bytes>,
+    }
+
+    struct DropGuard(Arc<AtomicBool>);
+    #[expect(
+        clippy::missing_trait_methods,
+        reason = "Drop::pin_drop is unstable and mutually exclusive with Drop::drop"
+    )]
+    impl Drop for DropGuard {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[async_trait::async_trait(?Send)]
+    impl SecretStore for Provider {
+        async fn get_bytes(&self, _: &str, _: &str) -> Result<Option<Bytes>, SecretError> {
+            panic!("unbounded health secret reads are forbidden");
+        }
+        async fn get_bytes_bounded(
+            &self,
+            store_name: &str,
+            key: &str,
+            _: &MonotonicClock,
+            _: Deadline,
+            max_backend_bytes: u64,
+            max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<Bytes>, SecretError> {
+            assert_eq!((store_name, key), ("selected_store", "selected_token"));
+            assert_eq!((max_backend_bytes, max_value_bytes), (4096, 4096));
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let _guard = DropGuard(Arc::clone(&self.dropped));
+            if self.pending {
+                pending::<()>().await;
+            }
+            self.finished.store(true, Ordering::SeqCst);
+            if self.error {
+                return Err(SecretError::DeadlineExceeded);
+            }
+            Ok(BoundedStoreRead {
+                backend_bytes: self.backend_bytes,
+                value: self.value.clone(),
+            })
+        }
+    }
+
+    fn provider(value: Option<Bytes>, backend_bytes: u64) -> Provider {
+        Provider {
+            calls: AtomicUsize::new(0),
+            finished: AtomicBool::new(false),
+            dropped: Arc::new(AtomicBool::new(false)),
+            pending: false,
+            error: false,
+            backend_bytes,
+            value,
+        }
+    }
+
+    fn binding(provider: &Arc<Provider>) -> BoundSecretStore {
+        let concrete = Arc::clone(provider);
+        let shared: Arc<dyn SecretStore> = concrete;
+        BoundSecretStore::new(SecretHandle::new(shared), "selected_store".to_owned())
+    }
+
+    #[test]
+    fn token_read_rejects_expiry_missing_empty_backend_and_value_limits_independently() {
+        for (value, backend_bytes, expired, error, allowed) in [
+            (Some(Bytes::from_static(b"t")), 1, false, false, true),
+            (
+                Some(Bytes::from(vec![b't'; 4096])),
+                4096,
+                false,
+                false,
+                true,
+            ),
+            (Some(Bytes::from_static(b"t")), 1, true, false, false),
+            (Some(Bytes::from_static(b"t")), 1, false, true, false),
+            (Some(Bytes::from_static(b"t")), 4097, false, false, false),
+            (Some(Bytes::from(vec![b't'; 4097])), 1, false, false, false),
+            (Some(Bytes::new()), 0, false, false, false),
+            (None, 0, false, false, false),
+        ] {
+            let mut concrete = provider(value, backend_bytes);
+            concrete.error = error;
+            let provider = Arc::new(concrete);
+            let clock = MonotonicClock::default();
+            let deadline = clock.deadline_after(if expired {
+                Duration::ZERO
+            } else {
+                Duration::from_secs(1)
+            });
+            let result = block_on(read_token(
+                Some(binding(&provider)),
+                "selected_token",
+                &clock,
+                deadline,
+            ));
+            assert_eq!(result.is_some(), allowed);
+            assert_eq!(provider.calls.load(Ordering::SeqCst), usize::from(!expired));
+            if let Some(auth) = result {
+                let bytes = provider.value.as_ref().unwrap();
+                assert!(auth.verify(from_utf8(bytes).unwrap()));
+            }
+        }
+        let clock = MonotonicClock::default();
+        assert!(
+            block_on(read_token(
+                None,
+                "selected_token",
+                &clock,
+                clock.deadline_after(Duration::from_secs(1))
+            ))
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn token_read_rechecks_deadline_after_provider_work() {
+        let provider = Arc::new(provider(Some(Bytes::from_static(b"t")), 1));
+        let anchor = MonotonicInstant::now();
+        let observed = Arc::clone(&provider);
+        let clock = MonotonicClock::new(move || {
+            if observed.finished.load(Ordering::SeqCst) {
+                anchor.checked_add(Duration::from_secs(2)).unwrap()
+            } else {
+                anchor
+            }
+        });
+        let deadline = clock.deadline_after(Duration::from_secs(1));
+        assert!(
+            block_on(read_token(
+                Some(binding(&provider)),
+                "selected_token",
+                &clock,
+                deadline
+            ))
+            .is_none()
+        );
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn token_read_is_lazy_and_cancellation_drops_provider_future() {
+        let mut concrete = provider(Some(Bytes::from_static(b"t")), 1);
+        concrete.pending = true;
+        let provider = Arc::new(concrete);
+        let clock = MonotonicClock::default();
+        {
+            let future = read_token(
+                Some(binding(&provider)),
+                "selected_token",
+                &clock,
+                clock.deadline_after(Duration::from_secs(1)),
+            );
+            assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
+            let mut pinned = pin!(future);
+            assert!(matches!(
+                pinned
+                    .as_mut()
+                    .poll(&mut Context::from_waker(&noop_waker())),
+                Poll::Pending
+            ));
+            assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+            assert!(!provider.dropped.load(Ordering::SeqCst));
+        };
+        assert!(provider.dropped.load(Ordering::SeqCst));
+    }
 }

@@ -526,7 +526,9 @@ mod tests {
 
     #[test]
     fn selected_semantics_both_lanes_have_exact_selected_owners_and_fixed_import_count() {
-        for (lane, count) in [(Lane::Secure, 15), (Lane::Development, 16)] {
+        // Mocktioneer's eight authored cases now belong to both build lanes.
+        for lane in [Lane::Secure, Lane::Development] {
+            let count = 16;
             let cohort = selected_cohort(lane).unwrap();
             let batch = selected(lane).unwrap();
             let wanted: BTreeSet<_> = cohort
@@ -540,19 +542,11 @@ mod tests {
             assert_eq!(batch.schema_sha256.len(), count);
             assert_eq!(batch.data_sha256.len(), count);
             assert_eq!(batch.imported_sha256.len(), 1);
-            let golden = match lane {
-                Lane::Secure => Counts {
-                    authored: 139,
-                    imported: 14,
-                    accepts: 57,
-                    rejects: 96,
-                },
-                Lane::Development => Counts {
-                    authored: 147,
-                    imported: 14,
-                    accepts: 61,
-                    rejects: 100,
-                },
+            let golden = Counts {
+                authored: 147,
+                imported: 14,
+                accepts: 61,
+                rejects: 100,
             };
             assert_eq!(batch.counts, golden);
             assert_eq!(

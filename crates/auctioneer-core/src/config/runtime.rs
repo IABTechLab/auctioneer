@@ -1,24 +1,20 @@
 //! The single runtime-config resolution owner.
 //!
 //! Every config-consuming route (`/openrtb2/auction`, `/status`,
-//! `/info/bidders`, `/info/bidders/<name>`) goes through
+//! `/info/bidders`, `/info/bidders/<name>`, `/_auctioneer/health/gvl`) goes through
 //! [`resolve_runtime_config`] rather than calling the `EdgeZero`
-//! `AppConfig` extractor itself, so the load policy — and the wire shape
-//! of a load failure — is defined in exactly one place.
+//! `AppConfig` extractor itself, so loading and fault classification have
+//! one owner.
 //!
-//! That policy is fail-closed: a missing, corrupt or untrusted blob is a 500,
-//! so is a missing binding or a store key the backend refuses, and a store outage is a 503,
-//! because serving any of them from the baked default would silently
-//! turn GDPR enforcement off. See [`resolve_runtime_config`] for the
-//! per-class reasoning.
+//! Auction and catalog routes render permanent config faults as 500 and
+//! transient store outages as 503 through [`RuntimeConfigError::into_response`].
+//! Serving auctions from baked defaults after either fault could silently
+//! turn GDPR enforcement off. GVL health instead maps every config fault to
+//! its authorization protocol's 401 response; it never falls back to open access.
 //!
-//! Fail-closed is the default, not a universal rule. It buys exactly one
-//! thing — no privacy decision made from config nobody can vouch for — so
-//! a route that makes NO privacy decision pays its availability cost for
-//! nothing. Such a route calls [`RuntimeConfigError::degrade_to_default`]
-//! instead of [`RuntimeConfigError::into_response`]. Both dispositions
-//! live here so a reader sees which routes take which, and why, in one
-//! place rather than reconstructing it from four handlers.
+//! `/status` is the independent liveness exception. It records the config fault
+//! and calls [`RuntimeConfigError::degrade_to_default`] because reporting that
+//! fault reaches neither a privacy nor an authorization decision.
 
 use crate::bidder_registry::{cached_registry_error, registry_handle};
 use crate::config::{AuctioneerAppConfig, SdkAuctioneerAppConfig};
@@ -28,12 +24,9 @@ use edgezero_core::body::Body;
 use edgezero_core::config_store::ConfigExtractionLimits;
 use edgezero_core::context::RequestContext;
 use edgezero_core::error::{EdgeError, StoreExtractionReason};
-use edgezero_core::extractor::AppConfig;
+use edgezero_core::extractor::{AppConfig, FromRequest as _};
 use edgezero_core::http::{Response, StatusCode, response_builder};
 use std::time::Duration;
-
-/// The logical config-store id the deploy binds `auctioneer.toml` to.
-const CONFIG_STORE_ID: &str = "auctioneer_runtime";
 
 /// Fixed bound for the SDK's root-config and secret extraction, independent of operator policy.
 pub const CONFIG_FETCH_TIMEOUT: Duration = Duration::from_secs(2);
@@ -318,9 +311,11 @@ impl RuntimeConfigError {
 /// Cached registry failures take precedence, and cold registry construction and
 /// store reads require the context's complete captured extraction tuple to fit
 /// the funded host declaration. Backend/secret outages and deadline expiry stay
-/// transient (503 with `Retry-After`); invalid keys retain their distinct refusal
-/// code and permanent 500 disposition. The bound key comes from the selected
-/// store binding, not [`CONFIG_STORE_ID`], which only selects the binding.
+/// transient (503 with `Retry-After` when rendered by `into_response`); invalid keys
+/// retain their distinct refusal code and permanent 500 disposition. GVL health
+/// maps all such errors to its fail-closed 401 authorization response instead.
+/// The request context's declared default
+/// config-store binding selects both the store and its entry key.
 ///
 /// `/status` alone may explicitly take [`RuntimeConfigError::degrade_to_default`]
 /// after recording the closed fault code, because it makes no privacy decision.
@@ -366,14 +361,14 @@ async fn resolve_with_registry(
     if let Some(error) = cached_registry_error() {
         return Err(error.into());
     }
-    if ctx.config_store_binding(CONFIG_STORE_ID).is_none() {
+    if ctx.config_store_default_binding().is_none() {
         return Err(missing_config("no config store binding", None));
     }
     check_funding()?;
     initialize_registry()?;
-    AppConfig::<SdkAuctioneerAppConfig>::from_store(ctx, CONFIG_STORE_ID, None)
+    AppConfig::<SdkAuctioneerAppConfig>::from_request(ctx)
         .await
-        .map(|config| config.0)
+        .map(|AppConfig(config)| config.0)
         .map_err(classify_load_error)
 }
 
@@ -738,9 +733,9 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         let stores: ConfigRegistry = StoreRegistry::single_id(
-            super::CONFIG_STORE_ID.to_owned(),
+            "fake_default_config".to_owned(),
             ConfigStoreBinding {
-                default_key: super::CONFIG_STORE_ID.to_owned(),
+                default_key: "fake_default_entry".to_owned(),
                 handle: ConfigStoreHandle::new(Arc::new(NoReads)),
             },
         );

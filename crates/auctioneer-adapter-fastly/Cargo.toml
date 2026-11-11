@@ -59,6 +59,7 @@ auctioneer-config-data = { workspace = true }
 auctioneer-exchange = { workspace = true }
 time = { workspace = true }
 toml = { workspace = true }
+serde_json = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 edgezero-adapter-fastly = { workspace = true, features = ["fastly"] }

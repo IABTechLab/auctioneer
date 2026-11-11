@@ -1,11 +1,5 @@
-//! Fail-closed regression: with NO health policy installed the
-//! endpoint answers 401.
-//!
-//! This lives in its OWN test binary precisely because it must observe
-//! a FRESH, never-written policy `OnceLock` — calling
-//! `install_health_primitives` anywhere in this binary (even for a
-//! counter scope) would write the process-global cell and destroy the
-//! state under test.
+//! Missing runtime policy fails closed even without installed host primitives.
+//! Keep this binary isolated from funded/booted handler tests.
 
 #[cfg(test)]
 mod tests {
@@ -18,7 +12,7 @@ mod tests {
     use time::OffsetDateTime;
 
     #[test]
-    fn health_gvl_returns_401_when_no_policy_installed() {
+    fn health_gvl_returns_401_when_no_runtime_policy_bound() {
         block_on(async {
             for bearer in [None, Some("Bearer sometoken")] {
                 let mut builder = Request::builder()

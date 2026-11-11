@@ -41,7 +41,7 @@ pub use diagnostics::{
     ConstructionDiagnostic, ConstructionDiagnostics, MAX_CONSTRUCTION_DIAGNOSTICS,
 };
 pub use endpoint_builder::{EndpointBuilder, EndpointBuilderError};
-pub use endpoint_validator::{EndpointRejectReason, EndpointValidator};
+pub use endpoint_validator::{ConfiguredEndpoint, EndpointRejectReason, EndpointValidator};
 pub use finalize::{Compression, FinalizeError, TransportFinalize, finalize_for_transport};
 pub use meta::{
     MAX_BIDDER_HEADERS, META_BIDDER_REGION_BYTES, META_BYTES_CAPACITY, META_FINALIZE_RESERVE_BYTES,

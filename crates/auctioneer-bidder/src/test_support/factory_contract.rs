@@ -9,8 +9,8 @@ use crate::{
 use auctioneer_config_data::types::MediaType;
 use auctioneer_openrtb::types::bid_request::BidRequest;
 use auctioneer_runtime::bidder_credentials::BidderCredentials;
-use serde::Deserialize;
-use serde_json::Value;
+use serde::{Deserialize, Deserializer};
+use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
 
@@ -40,10 +40,42 @@ struct Context {
     endpoint_template: String,
     endpoint_macros: Vec<String>,
     host_allowlist: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_recorded_settings")]
     settings: Option<BidderSettings>,
     #[serde(default)]
     credentials: Option<Value>,
+}
+
+/// Normalize the historical `values` envelope without changing capture bytes.
+fn deserialize_recorded_settings<'de, D>(
+    deserializer: D,
+) -> Result<Option<BidderSettings>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error as _;
+
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RecordedSettings {
+        implementation: String,
+        values: Map<String, Value>,
+    }
+
+    let Some(RecordedSettings {
+        implementation,
+        values,
+    }) = Option::<RecordedSettings>::deserialize(deserializer)?
+    else {
+        return Ok(None);
+    };
+    let document = Map::from_iter([
+        ("implementation".to_owned(), Value::String(implementation)),
+        ("settings".to_owned(), Value::Object(values)),
+    ]);
+    serde_json::from_value(Value::Object(document))
+        .map(Some)
+        .map_err(|_error| D::Error::custom("invalid recorded settings"))
 }
 
 #[derive(Deserialize)]
@@ -123,6 +155,9 @@ pub(crate) fn assert_factory_contract(key: &str, source: &str) {
             !case.name.is_empty() && names.insert(&case.name),
             "factory case names must be nonempty and unique"
         );
+        if let Some(settings) = &case.context.settings {
+            assert_eq!(settings.implementation_key(), key, "factory settings owner");
+        }
         let bidder = (registration.factory)();
         let before = serde_json::to_value(&case.request).unwrap();
         let macros: Vec<_> = case

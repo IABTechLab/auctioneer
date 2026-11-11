@@ -272,7 +272,7 @@ mod tests {
         let metadata = row.info;
         let requests: Vec<_> = outbound
             .iter()
-            .filter(|request| request.url() == metadata.endpoint)
+            .filter(|request| request.url() == metadata.endpoint.as_deref().unwrap())
             .collect();
         assert_eq!(requests.len(), 1, "exactly one send for {bidder}");
         assert_eq!(requests[0].method(), "POST");
@@ -649,7 +649,7 @@ mod tests {
                             }
                             assert_eq!(body["device"]["ip"], "8.8.4.0");
                             assert_eq!(body["device"]["ipv6"], "2001:4860:4860::");
-                            let endpoint = &row.info.endpoint;
+                            let endpoint = row.info.endpoint.as_deref().unwrap();
                             let request = outbound
                                 .iter()
                                 .find(|request| request.url() == endpoint)

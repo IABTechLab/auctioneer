@@ -81,25 +81,13 @@ async fn handle(req: Request) -> anyhow::Result<SpinResponse> {
         || Arc::new(DelegateToDevStrategy),
     )
     .map_err(|e| anyhow::anyhow!("auctioneer boot envelope rejected: {e}"))?;
-    install_health().await?;
+    install_health()?;
     run_app_with_platform::<AuctioneerApp>(req, profile.dispatch_platform).await
 }
 
-/// Resolve the health-endpoint access policy from Spin variables and
-/// install it. Runs from the request entrypoint (Spin instantiates per
-/// request), so the install is idempotent: the first call in this
-/// instance freezes the policy `OnceLock` — including the fail-closed
-/// `Closed` policy when neither input resolves — and identical
-/// reinstalls succeed while conflicting ones fail the request.
-/// Resolution errors degrade only health to `Closed`, matching Fastly;
-/// `/status` and auctions still dispatch unless installation conflicts.
+/// Install the instance's immutable health observation scope.
 #[cfg(target_arch = "wasm32")]
-async fn install_health() -> anyhow::Result<()> {
-    // `variables::get` is async and errors on an undeclared/unset
-    // variable; either way the input is absent and the decision table
-    // fail-closes.
-    let raw_flag = variables::get(health::FLAG_VARIABLE).await.ok();
-    let raw_token = variables::get("health_gvl_token").await.ok();
-    health::install(raw_flag.as_deref(), raw_token)
-        .map_err(|err| anyhow::anyhow!("health policy install conflicted: {err}"))
+fn install_health() -> anyhow::Result<()> {
+    health::install()
+        .map_err(|err| anyhow::anyhow!("health counter scope install conflicted: {err}"))
 }

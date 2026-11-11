@@ -1,16 +1,18 @@
 //! Reads bidder-owned manifests and `data/*`, then emits `OUT_DIR/generated.rs`.
 //!
-//! Loopback endpoint URLs (for example a local `http://127.0.0.1:8787/` fixture)
-//! are only allowed when the `insecure-bidders` feature is enabled.
-//! Gating is via `CARGO_FEATURE_INSECURE_BIDDERS` -- Cargo sets this for
-//! crates declaring the feature when it's active.
+//! Compiled development URL defaults require the owning manifest's
+//! `insecure-bidders` gate; publication follows the active Cargo features.
+//! A default-disabled factory with typed endpoint settings may instead omit
+//! its compiled destination and require explicit operator configuration.
 //!
 //! Pure rendering logic (TOML types + `render_*` helpers) lives in
 //! `auctioneer-config`'s `build-support` library modules. This file keeps
 //! the coordinators that read TOML off disk, validate URLs / hostAllowlist entries, and
 //! stitch imports + module boilerplate around the rendered struct
 //! literals.
-use auctioneer_config::{build_catalog, build_disclosure as disclosure, codegen};
+use auctioneer_config::{
+    bidder_manifest::SettingKind, build_catalog, build_disclosure as disclosure, codegen,
+};
 
 use auctioneer_gvl_schema::{Manifest, ManifestEntry, validate_gvl_json, validate_manifest};
 use codegen::build_support::{
@@ -234,13 +236,30 @@ fn load_bidders_from(
                 .clone_from(&supported_endpoint_macros);
             parsed.native_only = manifest.native_only;
 
-            validate_endpoint_authority(&name, &parsed.endpoint, allow_insecure)?;
-            validate_host_allowlist(
-                &name,
-                &parsed.endpoint,
-                parsed.host_allowlist.as_deref(),
-                allow_insecure,
-            )?;
+            match parsed.endpoint.as_deref() {
+                Some(endpoint) => {
+                    validate_endpoint_authority(&name, endpoint, allow_insecure)?;
+                    validate_host_allowlist(
+                        &name,
+                        endpoint,
+                        parsed.host_allowlist.as_deref(),
+                        allow_insecure,
+                    )?;
+                }
+                None if !manifest.factory
+                    || parsed.default_enabled != Some(false)
+                    || !manifest.settings.as_ref().is_some_and(|settings| {
+                        matches!(
+                            settings.fields.get("endpoint"),
+                            Some(SettingKind::OptionalString)
+                        )
+                    })
+                    || parsed.host_allowlist.is_some() =>
+                {
+                    return Err(format!("bidder {name:?}: missing endpoint requires a default-disabled factory with typed endpoint settings and no hostAllowlist").into());
+                }
+                None => {}
+            }
             validate_bidder_enums(&name, &parsed)?;
             codegen::usersync::validate_skip_when(&parsed.user_sync.skip_when)?;
             codegen::usersync::validate_syncer_key(parsed.user_sync.key.as_deref())?;

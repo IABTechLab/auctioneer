@@ -138,7 +138,7 @@ mod tests {
         );
         let bidder = BidderInfo {
             name: "fake_fixture".into(),
-            endpoint: url.clone(),
+            endpoint: Some(url.clone()),
             uses_https: true,
             ..BidderInfo::default()
         };

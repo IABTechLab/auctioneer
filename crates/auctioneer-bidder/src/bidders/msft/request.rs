@@ -792,10 +792,10 @@ mod tests {
     #[test]
     fn settings_precedence_is_resolved_before_zero_defaults_and_entrypoint_selection() {
         let requested: BidderSettings = serde_json::from_value(json!({"implementation":"msft",
-            "values":{"hb_source":0_i32,"hb_source_video":null}}))
+            "settings":{"hb_source":0_i32,"hb_source_video":null}}))
         .unwrap();
         let base: BidderSettings = serde_json::from_value(json!({"implementation":"msft",
-            "values":{"hb_source":50_i32,"hb_source_video":60_i32}}))
+            "settings":{"hb_source":50_i32,"hb_source_video":60_i32}}))
         .unwrap();
         let request = request(json!([banner("i", json!({"placement_id":1_i32}))]));
         // Exercise the generated borrowed view, not a bidder-local settings DTO.
@@ -841,7 +841,7 @@ mod tests {
             for value in [i64::MIN, -1, 0, i64::MAX] {
                 let settings: BidderSettings =
                     serde_json::from_value(json!({"implementation":"msft",
-                    "values":{(field):value}}))
+                    "settings":{(field):value}}))
                     .unwrap();
                 let mut info = info(entry);
                 info.set_settings(Some("msft"), Some(&settings), None)

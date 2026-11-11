@@ -177,7 +177,8 @@ pub struct BidderInfoRaw {
     pub alias_of: Option<String>,
     #[serde(default, rename = "defaultEnabled")]
     pub default_enabled: Option<bool>,
-    pub endpoint: String,
+    #[serde(default)]
+    pub endpoint: Option<String>,
     #[serde(default)]
     pub maintainer: Option<MaintainerRaw>,
     #[serde(default)]
@@ -623,7 +624,10 @@ pub fn render_bidder_info(name: &str, info: &BidderInfoRaw) -> BuildResult<Strin
     } else {
         quote!(None)
     };
-    let uses_https = info.endpoint.starts_with("https://");
+    let uses_https = info
+        .endpoint
+        .as_deref()
+        .is_some_and(|url| url.starts_with("https://"));
     let disabled = info.disabled.unwrap_or(false);
     let alias_of = render_option_string(info.alias_of.as_ref());
     let default_enabled = render_option_bool(info.default_enabled);
@@ -657,16 +661,19 @@ pub fn render_bidder_info(name: &str, info: &BidderInfoRaw) -> BuildResult<Strin
         info.bidder_timeout_ms
             .map(|ms| typed_integer(&ms.to_string(), "u32")),
     );
-    let endpoint = &info.endpoint;
+    let endpoint = render_option_string(info.endpoint.as_ref());
 
     let host_allowlist = host_allowlist_tokens(info.host_allowlist.as_deref());
-    let endpoint_macros =
-        endpoint_macros_tokens(name, &info.endpoint, &info.supported_endpoint_macros)?;
+    let endpoint_macros = endpoint_macros_tokens(
+        name,
+        info.endpoint.as_deref().unwrap_or_default(),
+        &info.supported_endpoint_macros,
+    )?;
     let capabilities = capabilities_tokens(&info.capabilities);
     let user_sync = user_sync_tokens(&info.user_sync);
     let openrtb = openrtb_tokens(&info.openrtb);
     Ok(quote!(BidderInfo {
-        name: #name.to_owned(), endpoint: #endpoint.to_owned(), uses_https: #uses_https,
+        name: #name.to_owned(), endpoint: #endpoint, uses_https: #uses_https,
         alias_of: #alias_of, default_enabled: #default_enabled,
         disabled: #disabled, debug_allow: #debug_allow, endpoint_compression: #compression,
         gvl_vendor_id: #gvl, host_allowlist: #host_allowlist, bidder_timeout_ms: #bidder_timeout_ms,

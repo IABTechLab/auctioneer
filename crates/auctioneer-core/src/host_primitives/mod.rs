@@ -41,11 +41,10 @@ pub use ingress_lease::{
 };
 pub use race::BiasedRace3;
 pub use registry::{
-    BearerToken, HealthAccessPolicy, HealthAuth, HealthAuthz, HealthBootError, TestClockHandle,
-    TestMonotonicClockHandle, TestRngHandle, TestStrategyHandle, TestTimerHandle, clock_handle,
-    counter_scope_handle, decide_health_policy, decode_cooperator_handle, health_authorize,
-    health_policy_handle, install_health_primitives, install_health_primitives_without_policy,
-    read_bool_flag, rng_handle, strategy_handle, timer_handle,
+    BearerToken, HealthAuth, HealthBootError, TestClockHandle, TestMonotonicClockHandle,
+    TestRngHandle, TestStrategyHandle, TestTimerHandle, clock_handle, counter_scope_handle,
+    decode_cooperator_handle, install_health_counter_scope, rng_handle, strategy_handle,
+    timer_handle,
 };
 pub use request_clock::RequestClock;
 pub use resource_profile::ResourceProfile;

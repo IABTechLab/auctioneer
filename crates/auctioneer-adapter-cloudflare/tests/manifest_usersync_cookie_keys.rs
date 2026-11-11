@@ -13,12 +13,12 @@ mod tests {
         let stores = <App as Hooks>::stores()
             .secrets
             .expect("the default secret store exists");
-        assert_eq!(stores.default, "default");
-        assert_eq!(stores.ids, &["default"]);
+        assert_eq!(stores.default, "auctioneer_secrets");
+        assert_eq!(stores.ids, &["auctioneer_secrets"]);
         let variables = manifest["vars"].as_table().expect("Worker variables");
         assert_eq!(
-            variables["EDGEZERO__STORES__SECRETS__DEFAULT__NAME"].as_str(),
-            Some("default")
+            variables["EDGEZERO__STORES__SECRETS__AUCTIONEER_SECRETS__NAME"].as_str(),
+            Some("auctioneer_secrets")
         );
         for name in [
             "usersync_cookie_keyring",

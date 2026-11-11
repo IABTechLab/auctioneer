@@ -91,6 +91,7 @@ pub(crate) fn run(command: Command) -> i32 {
 mod config_contract {
     use super::ConfigValidateArgs;
     use auctioneer_config::build_catalog;
+    use auctioneer_core::App;
     use auctioneer_core::config::resolve::{
         AccountSelection, resolve_host, resolve_selected_account, resolved_account,
     };
@@ -99,6 +100,7 @@ mod config_contract {
         validate_effective_defaults,
     };
     use clap::Parser as _;
+    use edgezero_core::app::Hooks;
     use edgezero_core::app_config::{
         AppConfigLoadOptions, AppConfigMeta as _, load_app_config_with_options,
     };
@@ -182,6 +184,7 @@ mod config_contract {
                 "host_cookie",
                 "user_sync",
                 "aliases",
+                "gvl",
             ],
         ),
         (
@@ -342,6 +345,10 @@ mod config_contract {
             ],
         ),
         ("features", &["gzip_outbound", "returnallbidstatus_default"]),
+        (
+            "host.gvl",
+            &["authenticate_health", "authenticate_health_token_secret"],
+        ),
     ];
 
     #[test]
@@ -427,15 +434,11 @@ mod config_contract {
                 "sample_rate",
                 "max_transport_bytes",
                 "max_decoded_bytes",
+                "implementation",
                 "settings",
             ],
         );
-        assert_reference_fields(
-            &example,
-            "bidders.fake_bidder.settings",
-            &["implementation", "values"],
-        );
-        let values = example["bidders"]["fake_bidder"]["settings"]["values"]
+        let values = example["bidders"]["fake_bidder"]["settings"]
             .as_table()
             .unwrap();
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -465,29 +468,41 @@ mod config_contract {
             values.keys().map(String::as_str).collect::<BTreeSet<_>>(),
             declared
         );
+        let expected_roundtrips = owners.len();
+        let mut roundtrips = 0_usize;
         let mut checked = 0_usize;
         for (owner, settings) in owners {
-            let Some(name) = owner
+            let compiled_name = owner
                 .definitions
                 .keys()
-                .find(|name| auctioneer_config_data::bidder(name).is_some())
-            else {
-                continue;
-            };
+                .find(|name| auctioneer_config_data::bidder(name).is_some());
+            let name = compiled_name.unwrap_or(&owner.key);
             let selected: toml::Table = settings
                 .fields
                 .keys()
                 .map(|field| (field.clone(), values[field].clone()))
                 .collect();
             let mut overrides = serde_json::to_value(&example["bidders"]["fake_bidder"]).unwrap();
-            overrides["settings"] = json!({"implementation": owner.key, "values": selected});
-            let policy: SdkAuctioneerAppConfig = serde_json::from_value(
-                json!({"schema_version": 1_u8, "bidders": {(name): overrides}}),
-            )
-            .unwrap();
-            policy.validate().unwrap();
-            checked = checked.checked_add(1).unwrap();
+            overrides["implementation"] = json!(owner.key);
+            overrides["settings"] = json!(selected);
+            let wire = json!({"schema_version": 1_u8, "bidders": {(name): overrides}});
+            let policy: SdkAuctioneerAppConfig = serde_json::from_value(wire.clone()).unwrap();
+            let toml_policy: SdkAuctioneerAppConfig =
+                toml::from_str(&toml::to_string(&wire).unwrap()).unwrap();
+            // Reference schemas cover every discovered owner. Admission
+            // additionally requires the owner in this feature lane's build.
+            if compiled_name.is_some() {
+                policy.validate().unwrap();
+                toml_policy.validate().unwrap();
+                checked = checked.checked_add(1).unwrap();
+            }
+            let serialized = serde_json::to_value(&policy).unwrap();
+            assert_eq!(serialized, serde_json::to_value(toml_policy).unwrap());
+            assert_eq!(serialized["bidders"][name]["implementation"], owner.key);
+            assert_eq!(serialized["bidders"][name]["settings"], json!(selected));
+            roundtrips = roundtrips.checked_add(1).unwrap();
         }
+        assert_eq!(roundtrips, expected_roundtrips);
         assert!(checked > 0, "compiled settings examples must execute");
     }
 
@@ -528,8 +543,20 @@ mod config_contract {
                 2_i32,
             ),
             ("[runtime]\n", 2_i32),
+            (
+                "schema_version = 1\n[host.gvl]\nauthenticate_health = false\n",
+                0_i32,
+            ),
+            (
+                "schema_version = 1\n[host.gvl]\nauthenticate_health = false\nauthenticate_health_token_secret = ''\n",
+                2_i32,
+            ),
+            (
+                "schema_version = 1\n[host.gvl]\nauthenticate_health = false\nauthenticate_health_token_secret = 'health_gvl_token'\n",
+                2_i32,
+            ),
         ];
-        assert_eq!(cases.len(), 4);
+        assert_eq!(cases.len(), 7);
         for (body, expected) in cases {
             let (directory, config) = fixture_file(body);
             let mut manifest: toml::Value =
@@ -729,11 +756,32 @@ mod config_contract {
     }
 
     #[test]
-    fn fastly_local_envelope_uses_the_same_runtime_schema_and_actual_integrity_helper() {
+    fn fastly_local_config_starts_empty_until_push() {
         let manifest: toml::Value = toml::from_str(include_str!("../../../fastly.toml")).unwrap();
-        let wire = manifest["local_server"]["config_stores"]["auctioneer_runtime"]["contents"]
-            ["auctioneer_runtime"].as_str().unwrap();
-        let envelope: BlobEnvelope = serde_json::from_str(wire).unwrap();
+        let config_id = <App as Hooks>::stores()
+            .config
+            .expect("the app declares a config store")
+            .default;
+        let wire = manifest["local_server"]["config_stores"][config_id]["contents"][config_id]
+            .as_str()
+            .unwrap();
+        assert_eq!(wire, "");
+    }
+
+    #[test]
+    fn runtime_envelope_fixture_uses_the_same_schema_and_actual_integrity_helper() {
+        // Retain the independently hashed neutral fixture without shipping a
+        // policy in the local manifest. The recorded digest is not recomputed.
+        let mut envelope: BlobEnvelope = serde_json::from_value(json!({
+            "data": {
+                "account_defaults": {}, "accounts": {}, "bidders": {},
+                "features": {}, "host": {"resource_limits": {}}, "schema_version": 1_u64,
+            },
+            "generated_at": "2026-10-07T04:35:15Z",
+            "sha256": "6aa4c01132d4dd3425c13e28cab5c2fb1fec177d6303f1b3e3a863b08adc7778",
+            "version": 1_u32,
+        }))
+        .unwrap();
         envelope.verify().unwrap();
         assert_eq!(envelope.data["schema_version"], 1_u32);
         assert!(envelope.data.get("runtime").is_none());
@@ -741,6 +789,12 @@ mod config_contract {
         let source: SdkAuctioneerAppConfig = serde_json::from_value(envelope.data.clone()).unwrap();
         source.validate().unwrap();
         assert_eq!(serde_json::to_value(source).unwrap(), envelope.data);
+        assert!(envelope.data["host"].get("status_response").is_none());
+        envelope.data["host"]["status_response"] = json!("fake_changed_banner");
+        assert!(
+            envelope.verify().is_err(),
+            "a changed payload must fail integrity"
+        );
     }
 
     // The SDK reads the process environment; children preserve libtest isolation

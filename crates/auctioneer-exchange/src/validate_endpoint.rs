@@ -13,16 +13,26 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 /// # Errors
 /// Returns code 5 with fixed category text, never raw URL or parser details.
 pub fn validate_endpoint(url: &str, info: &BidderInfo) -> Result<(), BidderError> {
+    let template = info
+        .endpoint
+        .as_deref()
+        .ok_or_else(|| public_error(EndpointRejectReason::MalformedUrl))?;
+    validate_endpoint_policy(url, template, info.host_allowlist.as_deref())
+}
+
+fn validate_endpoint_policy(
+    url: &str,
+    template: &str,
+    hosts: Option<&[String]>,
+) -> Result<(), BidderError> {
     if url.contains("{{.") {
         return Err(public_error(EndpointRejectReason::TemplateUnresolved));
     }
     let parsed = url::Url::parse(url)
         .map_err(|_parse_error| public_error(EndpointRejectReason::MalformedUrl))?;
-    let allow = info
-        .host_allowlist
-        .as_ref()
-        .map(|hosts| hosts.iter().map(String::as_str).collect::<Vec<_>>());
-    validate_parsed(&parsed, &info.endpoint, allow.as_deref()).map_err(public_error)
+    let allow =
+        hosts.map(|allowed_hosts| allowed_hosts.iter().map(String::as_str).collect::<Vec<_>>());
+    validate_parsed(&parsed, template, allow.as_deref()).map_err(public_error)
 }
 
 fn public_error(reason: EndpointRejectReason) -> BidderError {
@@ -235,58 +245,193 @@ impl EndpointValidator for ExchangeEndpointValidator<'_> {
         url: &url::Url,
         _request_info: &BidderRequestInfo<'_>,
     ) -> Result<(), EndpointRejectReason> {
-        match validate_endpoint(url.as_str(), self.info) {
-            Ok(()) => Ok(()),
-            Err(err) => {
-                // BOUNDED, like the sink's own error list and for the
-                // same reason. The sink keeps at most
-                // `MAX_RETAINED_SINK_ERRORS` typed errors and counts the
-                // rest; this kept every message a validator ever
-                // produced. A multi-attempt adapter that pushed a
-                // thousand rejected calls retained a thousand messages
-                // against the sink's sixteen, and the extra 984 were
-                // allocated, held for the whole construction, and then
-                // dropped unread — `run_make_requests` only ever draws
-                // one message per RETAINED sink error.
-                //
-                // Latent rather than live: every stock adapter pushes
-                // once per bidder. It is a construction-time bound all
-                // the same, and the one input that decides how many
-                // times `push_request` is called is adapter code.
-                //
-                // Keep-first, not keep-last, so position N on this side
-                // still describes position N on the sink's. Dropping the
-                // oldest would silently re-pair every message with a
-                // different rejection.
-                let mut rejections = self.rejections.borrow_mut();
-                if rejections.len() < MAX_RETAINED_SINK_ERRORS {
-                    rejections.push(err.message);
-                }
-                drop(rejections);
-                // The deployment policy this validator enforces is
-                // "the bidder's configured surface", and every check
-                // inside `validate_endpoint` is a facet of that one
-                // decision rather than of a distinguishable class the
-                // sink would act on differently. The concrete cause
-                // travels in the captured message.
-                Err(EndpointRejectReason::AuthorityMismatch)
+        record_validation_result(validate_endpoint(url.as_str(), self.info), &self.rejections)
+    }
+}
+
+/// Borrow the exchange's immutable view after checked settings binding.
+/// The bidder-supplied view passed to `validate` cannot widen this policy.
+pub(crate) struct BoundEndpointValidator<'info> {
+    policy: BoundEndpointPolicy<'info>,
+    rejections: RefCell<Vec<String>>,
+}
+
+enum BoundEndpointPolicy<'info> {
+    Metadata(&'info BidderInfo),
+    Configured(&'info BidderRequestInfo<'info>),
+}
+
+impl<'info> BoundEndpointValidator<'info> {
+    pub(crate) const fn new(
+        info: &'info BidderInfo,
+        bound: &'info BidderRequestInfo<'info>,
+        has_configured_endpoint: bool,
+    ) -> Self {
+        Self {
+            policy: if has_configured_endpoint {
+                BoundEndpointPolicy::Configured(bound)
+            } else {
+                BoundEndpointPolicy::Metadata(info)
+            },
+            rejections: RefCell::new(Vec::new()),
+        }
+    }
+
+    #[cfg(test)]
+    fn take_rejections(&self) -> Vec<String> {
+        self.rejections.take()
+    }
+}
+
+impl EndpointValidator for BoundEndpointValidator<'_> {
+    fn validate(
+        &self,
+        url: &url::Url,
+        _request_info: &BidderRequestInfo<'_>,
+    ) -> Result<(), EndpointRejectReason> {
+        let result = match self.policy {
+            BoundEndpointPolicy::Metadata(info) => validate_endpoint(url.as_str(), info),
+            BoundEndpointPolicy::Configured(info) => {
+                validate_parsed(url, info.endpoint_template, None).map_err(public_error)
             }
+        };
+        record_validation_result(result, &self.rejections)
+    }
+}
+
+fn record_validation_result(
+    result: Result<(), BidderError>,
+    rejections: &RefCell<Vec<String>>,
+) -> Result<(), EndpointRejectReason> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            // Match the sink's bounded, keep-first window so repeated attempts
+            // cannot retain unbounded diagnostics or change rejection order.
+            let mut retained = rejections.borrow_mut();
+            if retained.len() < MAX_RETAINED_SINK_ERRORS {
+                retained.push(err.message);
+            }
+            drop(retained);
+            // The sink acts on one deployment-policy rejection category;
+            // direct callers can inspect the fixed messages retained above.
+            Err(EndpointRejectReason::AuthorityMismatch)
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ExchangeEndpointValidator, MAX_RETAINED_SINK_ERRORS};
+    use super::{BoundEndpointValidator, ExchangeEndpointValidator, MAX_RETAINED_SINK_ERRORS};
     use auctioneer_bidder::{BidderName, BidderRequestInfo, EndpointValidator as _, EntryPoint};
     use auctioneer_config_data::types::BidderInfo;
+
+    #[test]
+    fn configured_endpoint_captures_authority_independently_of_request_info() {
+        use auctioneer_bidder::ConfiguredEndpoint;
+
+        let selected =
+            ConfiguredEndpoint::new("https://configured.example.test:8443/auction?q=1").unwrap();
+        let currency = Vec::new();
+        let mut bound = request_info(&currency);
+        bound.endpoint_template = selected.as_str();
+        bound.host_allowlist = Some(&["configured.example.test", "forged.example.test"]);
+        let info = refusing_info();
+        let validator = BoundEndpointValidator::new(&info, &bound, true);
+        let mut supplied = request_info(&currency);
+        supplied.endpoint_template = "https://forged.example.test/auction";
+        supplied.host_allowlist = Some(&["forged.example.test"]);
+
+        let accepted = url::Url::parse("https://configured.example.test:8443/auction?q=1").unwrap();
+        validator.validate(&accepted, &supplied).unwrap();
+        for raw in [
+            "https://forged.example.test:8443/auction",
+            "https://configured.example.test/auction",
+            "https://configured.example.test:8444/auction",
+            "http://configured.example.test:8443/auction",
+            "https://user@configured.example.test:8443/auction",
+            "https://127.0.0.2:8443/auction",
+        ] {
+            let rejected = url::Url::parse(raw).unwrap();
+            assert!(validator.validate(&rejected, &supplied).is_err(), "{raw}");
+        }
+        assert_eq!(validator.take_rejections().len(), 6);
+    }
+
+    #[test]
+    fn configured_endpoint_rejects_before_body_construction_and_refunds_the_call() {
+        use auctioneer_bidder::{CallBudget, ConfiguredEndpoint, OutboundRequestSink, SinkLimits};
+        use std::cell::Cell;
+
+        let selected = ConfiguredEndpoint::new("https://configured.example.test/auction").unwrap();
+        let currency = Vec::new();
+        let mut bound = request_info(&currency);
+        bound.endpoint_template = selected.as_str();
+        let info = refusing_info();
+        let validator = BoundEndpointValidator::new(&info, &bound, true);
+        let supplied = request_info(&currency);
+        let budget = CallBudget::new(1);
+        let body_writes = Cell::new(0_usize);
+        let mut sink = OutboundRequestSink::new(SinkLimits::new(1024, 1), &budget, &validator);
+        let result = sink.push_request(
+            &supplied,
+            |meta| {
+                meta.set_method("POST")?;
+                meta.set_url("https://forged.example.test/auction")?;
+                meta.imp_id("i")
+            },
+            |writer| {
+                body_writes.set(body_writes.get() + 1_usize);
+                writer.write_all(b"{}")
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(body_writes.get(), 0_usize);
+        assert_eq!(budget.remaining(), 1);
+        assert!(sink.into_outcome().accepted.is_empty());
+    }
+
+    #[test]
+    fn bound_metadata_keeps_the_declared_host_allowlist() {
+        let currency = Vec::new();
+        let info = BidderInfo {
+            endpoint: Some("https://{{.Host}}/auction".into()),
+            host_allowlist: Some(vec!["east.example.test".into(), "west.example.test".into()]),
+            ..refusing_info()
+        };
+        let bound = request_info(&currency);
+        let validator = BoundEndpointValidator::new(&info, &bound, false);
+        let mut supplied = request_info(&currency);
+        supplied.endpoint_template = "https://forged.example.test/auction";
+        supplied.host_allowlist = Some(&["forged.example.test"]);
+
+        for raw in [
+            "https://east.example.test/auction",
+            "https://west.example.test/auction",
+        ] {
+            validator
+                .validate(&url::Url::parse(raw).unwrap(), &supplied)
+                .unwrap();
+        }
+        for raw in [
+            "https://forged.example.test/auction",
+            "http://east.example.test/auction",
+        ] {
+            assert!(
+                validator
+                    .validate(&url::Url::parse(raw).unwrap(), &supplied)
+                    .is_err()
+            );
+        }
+        assert_eq!(validator.take_rejections().len(), 2);
+    }
 
     /// A bidder whose configured surface rejects everything this test
     /// offers, so every `validate` call is a rejection.
     fn refusing_info() -> BidderInfo {
         BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://hb.example.test/openrtb".into(),
+            endpoint: Some("https://hb.example.test/openrtb".into()),
             uses_https: true,
             host_allowlist: None,
             ..BidderInfo::default()

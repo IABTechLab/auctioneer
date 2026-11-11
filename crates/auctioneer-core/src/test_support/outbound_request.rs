@@ -39,7 +39,7 @@ pub fn request(
         alias_of: None,
         default_enabled: None,
         name: "fake_fixture".into(),
-        endpoint: url.clone(),
+        endpoint: Some(url.clone()),
         uses_https: true,
         disabled: false,
         debug_allow: false,

@@ -10,8 +10,7 @@
 //! [`timer`], [`cooperator`], [`delay`] and [`limits`] compile on every
 //! target: the profile is plain data and the two primitives are logic
 //! over a [`delay::DelaySource`], so `tests/fanout.rs` exercises all of
-//! it on the host. The `fastly` SDK calls — the store reads in
-//! `install_health` and the dispatch handoff are wasm-gated. The process
+//! it on the host. The Fastly SDK dispatch handoff is wasm-gated. Process
 //! tests in `tests/boot_logging.rs` exercise the real guest in Viceroy.
 
 pub mod cooperator;
@@ -35,8 +34,8 @@ mod config_validation_tests {
 use auctioneer_core::App as AuctioneerApp;
 #[cfg(target_arch = "wasm32")]
 use auctioneer_core::host_primitives::{
-    DelegateToDevStrategy, DevRng, HealthAccessPolicy, SystemClock,
-    bootstrap_adapter_with_envelope, install_stderr_boot_logger_with_level,
+    DelegateToDevStrategy, DevRng, SystemClock, bootstrap_adapter_with_envelope,
+    install_health_counter_scope, install_stderr_boot_logger_with_level,
 };
 #[cfg(target_arch = "wasm32")]
 use edgezero_adapter_fastly::{FastlyLogging, init_logger, run_app};
@@ -54,14 +53,14 @@ use std::sync::Arc;
 /// App assembly uses the generated `app!` hooks and Fastly platform metadata.
 /// `EdgeZero`'s manifest-aware dispatch helper owns request conversion,
 /// registries, routing and response transmission. Logging is baked into
-/// the generated hooks; health and dispatch open the same logical store
-/// aliases, bound to physical resources at deployment.
+/// the generated hooks; SDK registries bind logical store aliases to
+/// physical resources at deployment.
 ///
 /// # Errors
-/// Propagates invalid boot limits, conflicting health-policy installation,
+/// Propagates invalid boot limits, conflicting health counter-scope installation,
 /// or request/response dispatch errors. The SDK delivers application assembly
 /// failures as typed HTTP error responses through its owned egress path.
-/// Missing health stores install a closed policy rather than stopping routing.
+/// Health policy and secret faults affect the shared health handler only.
 #[cfg(target_arch = "wasm32")]
 pub fn run() -> Result<(), Error> {
     run_with_hooks::<AuctioneerApp>()
@@ -154,227 +153,112 @@ fn install_boot_log<A: Hooks>() {
     }
 }
 
-/// Install the health-endpoint access policy, falling back to
-/// [`HealthAccessPolicy::Closed`] when the stores cannot be read.
-///
-/// A store fault must NOT stop routing. `/status` exists to report
-/// that this deployment is unhealthy, and propagating the fault out of
-/// boot took the router down with it — so the one endpoint that could
-/// have named the problem never answered, and an operator saw a dead
-/// service rather than a degraded one.
-///
-/// Health authorization stays CLOSED in that case rather than opening:
-/// an unreadable store is not permission to serve the GVL endpoint
-/// unauthenticated. `Closed` answers 401, which is attributable.
-///
-/// The fault is logged at ERROR so Compute stderr or the Fastly log
-/// endpoint carries it, and `/status` reports the config verdict
-/// through its own resolution path.
+/// Install the request's immutable health observation scope.
 #[cfg(target_arch = "wasm32")]
 fn install_health() -> Result<(), Error> {
-    use auctioneer_core::host_primitives::install_health_primitives;
-
-    match resolve_health_policy() {
-        Ok(policy) => install_health_primitives(policy, "request")
-            .map_err(|err| Error::msg(format!("health policy install conflicted: {err}"))),
-        Err(err) => {
-            log::error!(
-                target: "auctioneer::health",
-                "health policy unresolved ({err}); serving with health CLOSED so \
-                 /status can report the fault"
-            );
-            install_health_primitives(HealthAccessPolicy::Closed, "request").map_err(|install| {
-                Error::msg(format!("health policy install conflicted: {install}"))
-            })
-        }
-    }
-}
-
-/// Read the policy out of the Fastly stores.
-///
-/// The bearer token is a credential → `SecretStore` (encrypted at
-/// rest); the non-secret `allow_unauthenticated_health` flag stays in
-/// the `ConfigStore`. EVERY Fastly call is the fallible variant —
-/// the infallible store-open and plaintext APIs panic on failure —
-/// so a missing or broken store returns an error here instead of
-/// panicking, and the caller decides what to serve.
-#[cfg(target_arch = "wasm32")]
-fn resolve_health_policy() -> Result<HealthAccessPolicy, Error> {
-    use auctioneer_core::host_primitives::{BearerToken, decide_health_policy, read_bool_flag};
-    use fastly::config_store::ConfigStore;
-    use fastly::secret_store::SecretStore;
-    // The store NAMES come from the manifest's `[stores.*]`
-    // declarations, which `app!` bakes into `Hooks::stores()` — not from
-    // a literal here. A literal is how boot and provisioning came to
-    // disagree: `edgezero.toml` declares config store `auctioneer_runtime`
-    // and secret store `default`, so a hardcoded "auctioneer" opened stores
-    // nothing creates, and health installation failed before routing
-    // could answer even `/status`.
-    //
-    // Fail closed when a declaration is absent rather than falling back
-    // to a guess: a missing `[stores.*]` entry means the deployment was
-    // never told to provision one, and inventing a name would put the
-    // same disagreement back with a different literal.
-    let stores = <AuctioneerApp as Hooks>::stores();
-    let config_id = stores
-        .config
-        .ok_or_else(|| Error::msg("edgezero.toml declares no [stores.config]"))?
-        .default;
-    let secrets_id = stores
-        .secrets
-        .ok_or_else(|| Error::msg("edgezero.toml declares no [stores.secrets]"))?
-        .default;
-    // Fastly resource links bind physical stores under these logical
-    // aliases at deployment. The SDK registries open the same aliases;
-    // runtime environment remapping would make health read a different store.
-    let raw_flag = ConfigStore::try_open(config_id)?.try_get("allow_unauthenticated_health")?;
-    let allow_unauth = read_bool_flag("allow_unauthenticated_health", raw_flag.as_deref())?;
-    let secret = SecretStore::open(secrets_id)?.try_get("health_gvl_token")?;
-    let token_bytes = match secret {
-        Some(s) => Some(s.try_plaintext()?),
-        None => None,
-    };
-    // An empty secret reads as "no token configured".
-    let token = token_bytes.and_then(BearerToken::new);
-    let policy = decide_health_policy(token, allow_unauth)
-        .map_err(|err| Error::msg(format!("health policy rejected: {err}")))?;
-    Ok(policy)
+    install_health_counter_scope("request")
+        .map_err(|err| Error::msg(format!("health counter scope install conflicted: {err}")))
 }
 
 #[cfg(test)]
 #[cfg(target_arch = "wasm32")]
 mod health_setup_tests {
-    //! Real SDK reads against the shipped local manifest, in fresh Viceroy guests.
+    //! Real shared health routes through SDK registry assembly and terminal egress.
 
-    use super::{AuctioneerApp, HealthAccessPolicy, Hooks, resolve_health_policy};
-    use auctioneer_core::host_primitives::{
-        HealthAuthz, HealthBootError, counter_scope_handle, health_authorize, health_policy_handle,
+    use super::{
+        AuctioneerApp, cooperator::FastlyDecodeCooperator, delay::ImmediateDelaySource,
+        timer::FastlyTimer,
     };
+    use auctioneer_core::host_primitives::{
+        DelegateToDevStrategy, DevRng, SystemClock, TestClockHandle,
+        bootstrap_adapter_with_envelope, counter_scope_handle,
+    };
+    use auctioneer_runtime::FakeClock;
+    use edgezero_core::http::StatusCode;
+    use std::sync::Arc;
+    use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
-    const FLAG_KEY: &str = "allow_unauthenticated_health";
     const TOKEN: &str = "auctioneer-development-only-health-test-token";
-    const FLAG_TOKEN: &str = "flagHeadF8v3.flagBodyJ7m2.flagSigQ5n9";
 
-    #[test]
-    #[ignore = "requires the local manifest and unset token env supplied by tests/manifest_health_stores.rs"]
-    fn unset_local_token_resolves_closed() {
-        let policy =
-            resolve_health_policy().expect("the declared local aliases open without a token");
-        assert!(matches!(policy, HealthAccessPolicy::Closed));
-    }
-
-    #[test]
-    #[ignore = "requires the local manifest and development token env supplied by tests/manifest_health_stores.rs"]
-    fn local_development_token_resolves_authenticated() {
-        let policy = resolve_health_policy().expect("the local health token resolves");
-        let HealthAccessPolicy::Token(auth) = policy else {
-            panic!("the local development token must select bearer authentication");
-        };
-        assert!(auth.verify("auctioneer-development-only-health-test-token"));
-        assert!(!auth.verify("wrong-development-token"));
-    }
-
-    #[test]
-    #[ignore = "requires malformed flag fixtures supplied by tests/manifest_health_stores.rs"]
-    fn misplaced_health_flag_is_diagnosed_and_installs_closed() {
+    fn verify_health(expected: StatusCode, bearer: Option<&str>) {
         super::install_boot_log::<AuctioneerApp>();
-        assert!(health_policy_handle().is_none());
-        let Err(error) = resolve_health_policy() else {
-            panic!("a credential in the health flag must be rejected");
-        };
-        assert!(matches!(
-            error.downcast_ref::<HealthBootError>(),
-            Some(HealthBootError::NonBooleanFlag { key }) if *key == FLAG_KEY
-        ));
-        for rendered in [error.to_string(), format!("{error:?}")] {
-            assert!(rendered.contains(FLAG_KEY));
-            assert!(rendered.contains("not a strict boolean"));
-            for sensitive in [
-                TOKEN,
-                "auctioneer-development",
-                "health-test-token",
-                FLAG_TOKEN,
-                "flagHeadF8v3",
-                "flagBodyJ7m2",
-                "flagSigQ5n9",
-                "F8v3",
-                "J7m2",
-                "Q5n9",
-            ] {
-                assert!(
-                    !rendered.contains(sensitive),
-                    "neither Display nor Debug may expose credentials or their segments"
-                );
-            }
-        }
-
-        super::install_health().expect("a malformed flag only closes health");
+        let profile = super::envelope::resource_profile();
+        bootstrap_adapter_with_envelope(
+            profile.boot_envelope(),
+            || Arc::new(SystemClock::new()),
+            || Arc::new(DevRng::new()),
+            || Arc::new(FastlyTimer::new(ImmediateDelaySource)),
+            || Arc::new(FastlyDecodeCooperator),
+            || Arc::new(DelegateToDevStrategy),
+        )
+        .expect("production envelope boots");
+        super::install_health().expect("scope needs no provider policy read");
         assert_eq!(counter_scope_handle(), "request");
-        assert!(matches!(
-            health_policy_handle(),
-            Some(HealthAccessPolicy::Closed)
-        ));
-        for bearer in [None, Some(TOKEN), Some(FLAG_TOKEN)] {
-            assert_eq!(health_authorize(bearer), HealthAuthz::Deny);
-        }
+        let generated =
+            OffsetDateTime::parse(auctioneer_config_data::gvl_archive_generated_at(), &Rfc3339)
+                .unwrap();
+        let expires =
+            OffsetDateTime::from_unix_timestamp(auctioneer_config_data::gcl_expires_at_unix_secs())
+                .unwrap();
+        let now = generated
+            .saturating_add(Duration::days(1))
+            .min(expires.saturating_sub(Duration::hours(1)));
+        let result = edgezero_adapter_fastly::run_app_with_hooks::<AuctioneerApp, _, _, _>(
+            |request, extensions| {
+                request.set_url("https://auctioneer.example.test/_auctioneer/health/gvl");
+                request.set_method("GET");
+                if let Some(presented) = bearer {
+                    request.set_header("authorization", format!("Bearer {presented}"));
+                }
+                extensions.insert(TestClockHandle(Arc::new(FakeClock::new(now))));
+            },
+            |response| {
+                assert_eq!(response.status(), expected);
+                if expected == StatusCode::UNAUTHORIZED {
+                    assert_eq!(response.headers()["www-authenticate"], "Bearer");
+                } else {
+                    let payload: serde_json::Value = serde_json::from_slice(
+                        response.body().as_bytes().expect("buffered health payload"),
+                    )
+                    .unwrap();
+                    assert_eq!(payload["counter_scope"], "request");
+                    assert_eq!(payload["status"], "ok");
+                }
+                true
+            },
+        )
+        .expect("SDK health dispatch and terminal delivery complete");
+        assert_eq!(result, Some(true), "the SDK finalize hook must execute");
     }
 
     #[test]
-    #[ignore = "requires conflicting legacy store selectors supplied by tests/manifest_health_stores.rs"]
-    fn health_and_sdk_reads_use_logical_aliases_despite_legacy_selectors() {
-        use edgezero_adapter_fastly::config_store::FastlyConfigStore;
-        use edgezero_adapter_fastly::secret_store::FastlySecretStore;
-        use edgezero_core::config_store::ConfigStore as _;
-        use edgezero_core::secret_store::SecretStore as _;
-        use futures::executor::block_on;
-
-        let stores = <AuctioneerApp as Hooks>::stores();
-        let config_id = stores.config.expect("config alias").default;
-        let secrets_id = stores.secrets.expect("secret alias").default;
-        let sdk_config = FastlyConfigStore::try_open(config_id).expect("SDK opens config alias");
-        assert_eq!(
-            block_on(sdk_config.get(FLAG_KEY))
-                .expect("SDK reads config alias")
-                .as_deref(),
-            Some("false")
-        );
-        let sdk_token = block_on(FastlySecretStore.get_bytes(secrets_id, "health_gvl_token"))
-            .expect("SDK reads secret alias")
-            .expect("logical alias token");
-        assert!(
-            sdk_token.as_ref() == TOKEN.as_bytes(),
-            "SDK must read the logical token"
-        );
-        let HealthAccessPolicy::Token(auth) =
-            resolve_health_policy().expect("health opens aliases")
-        else {
-            panic!(
-                "logical stores select bearer authentication, not the physical store's open policy"
-            );
-        };
-        assert!(auth.verify(TOKEN));
-        assert!(!auth.verify("wrong-physical-store-token"));
-        super::run().expect("legacy selectors cannot break SDK response dispatch");
-        assert_eq!(health_authorize(Some(TOKEN)), HealthAuthz::Allow);
-        assert_eq!(health_authorize(None), HealthAuthz::Deny);
+    #[ignore = "requires token policy and SDK-backed stores supplied by manifest_health_stores"]
+    fn runtime_token_policy_uses_sdk_bindings() {
+        verify_health(StatusCode::OK, Some(TOKEN));
     }
 
     #[test]
-    #[ignore = "requires missing store fixtures supplied by tests/manifest_health_stores.rs"]
-    fn a_missing_health_store_stays_closed_through_sdk_dispatch() {
-        assert!(
-            resolve_health_policy().is_err(),
-            "the fixture must actually fail store resolution"
-        );
-        super::run().expect("a store fault must not stop the SDK lifecycle");
-        assert_eq!(counter_scope_handle(), "request");
-        assert!(matches!(
-            health_policy_handle(),
-            Some(HealthAccessPolicy::Closed)
-        ));
-        for bearer in [None, Some(TOKEN)] {
-            assert_eq!(health_authorize(bearer), HealthAuthz::Deny);
-        }
+    #[ignore = "requires explicit anonymous policy supplied by manifest_health_stores"]
+    fn runtime_anonymous_policy_is_explicit() {
+        verify_health(StatusCode::OK, None);
+    }
+
+    #[test]
+    #[ignore = "requires token policy supplied by manifest_health_stores"]
+    fn runtime_token_policy_denies_wrong_bearer() {
+        verify_health(StatusCode::UNAUTHORIZED, Some("wrong-development-token"));
+    }
+
+    #[test]
+    #[ignore = "requires token policy supplied by manifest_health_stores"]
+    fn runtime_token_policy_denies_absent_bearer() {
+        verify_health(StatusCode::UNAUTHORIZED, None);
+    }
+
+    #[test]
+    #[ignore = "requires absent/invalid config or secret fixtures supplied by manifest_health_stores"]
+    fn runtime_faults_close_only_health() {
+        verify_health(StatusCode::UNAUTHORIZED, Some(TOKEN));
     }
 }
 

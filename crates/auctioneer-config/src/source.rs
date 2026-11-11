@@ -1026,11 +1026,12 @@ pub struct FeatureFlags {
 #[derive(Debug, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields, bound(deserialize = "Settings: Deserialize<'de>"))]
 pub struct BidderOverrides<Settings: Validate> {
-    /// Implementation-tagged, bidder-owned host protocol settings. This does
-    /// not activate an implementation or authorize an endpoint.
+    /// Bidder-owned settings, serialized as sibling `implementation` and
+    /// `settings` fields. Selection does not activate an implementation or
+    /// authorize an endpoint.
     #[serde(
-        default,
-        deserialize_with = "deserialize_optional_value",
+        flatten,
+        deserialize_with = "crate::bidder_settings_wire::deserialize_optional",
         skip_serializing_if = "Option::is_none"
     )]
     #[validate(nested)]
@@ -1839,8 +1840,15 @@ pub(crate) mod test_support {
 
     // Deliberately not Default: optional settings never synthesize a value.
     #[derive(Debug, Deserialize, Serialize)]
+    #[serde(tag = "implementation", content = "settings", deny_unknown_fields)]
+    pub(crate) enum TestSettings {
+        #[serde(rename = "fake_private_bidder")]
+        Private(PrivateSettings),
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
-    pub(crate) struct TestSettings {
+    pub(crate) struct PrivateSettings {
         private_value: String,
     }
 
@@ -1857,6 +1865,80 @@ pub(crate) mod test_support {
                 ValidationError::new("synthetic_settings_rejected"),
             );
             Err(errors)
+        }
+    }
+
+    #[test]
+    fn bidder_entry_selects_separate_settings_with_strict_pairing() {
+        let wire = json!({
+            "enabled": false,
+            "implementation": "fake_private_bidder",
+            "settings": {"private_value": "private-settings-canary"},
+        });
+        let entry: BidderOverrides<TestSettings> = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(entry.enabled, Some(false));
+        assert!(entry.settings.is_some());
+        assert_eq!(serde_json::to_value(&entry).unwrap(), wire);
+        let from_toml: BidderOverrides<TestSettings> =
+            toml::from_str(&toml::to_string(&wire).unwrap()).unwrap();
+        assert_eq!(serde_json::to_value(from_toml).unwrap(), wire);
+    }
+
+    #[test]
+    fn bidder_entry_never_discards_invalid_present_settings() {
+        for wire in [
+            json!({"settings": {"private_value": "private-canary"}}),
+            json!({"implementation": "fake_private_bidder"}),
+            json!({"implementation": "private-canary", "settings": {"private_value": "private-canary"}}),
+            json!({"implementation": null, "settings": {"private_value": "private-canary"}}),
+            json!({"implementation": 7_i64, "settings": {"private_value": "private-canary"}}),
+            json!({"implementation": "fake_private_bidder", "settings": null}),
+            json!({"implementation": "fake_private_bidder", "settings": []}),
+            json!({"implementation": "fake_private_bidder", "settings": {"private_value": 7_i64}}),
+            json!({"implementation": "fake_private_bidder", "settings": {"private_value": "private-canary", "unknown": true}}),
+            json!({"implementation": "fake_private_bidder", "settings": {"private_value": "private-canary"}, "unknown": true}),
+            json!({"settings": {"implementation": "fake_private_bidder", "values": {"private_value": "private-canary"}}}),
+            json!({"enabled": null}),
+            json!({"unknown": true}),
+            json!([]),
+        ] {
+            serde_json::from_value::<BidderOverrides<TestSettings>>(wire)
+                .expect_err("invalid present settings must not become absence");
+        }
+    }
+
+    #[test]
+    fn bidder_entry_preserves_key_order_independence_and_duplicate_refusal() {
+        use serde::Deserialize as _;
+        use serde::de::value::MapDeserializer;
+        for settings_first in [false, true] {
+            let mut fields = vec![
+                ("implementation", json!("fake_private_bidder")),
+                ("settings", json!({"private_value": "private-canary"})),
+            ];
+            if settings_first {
+                fields.reverse();
+            }
+            fields.insert(1, ("enabled", json!(false)));
+            let entry =
+                BidderOverrides::<TestSettings>::deserialize(
+                    MapDeserializer::<_, serde_json::Error>::new(fields.clone().into_iter()),
+                )
+                .unwrap();
+            assert!(entry.settings.is_some());
+            assert_eq!(entry.enabled, Some(false));
+            for duplicate in [
+                ("implementation", json!("fake_private_bidder")),
+                ("settings", json!({"private_value": "private-canary"})),
+                ("enabled", json!(false)),
+            ] {
+                let mut repeated = fields.clone();
+                repeated.push(duplicate);
+                BidderOverrides::<TestSettings>::deserialize(
+                    MapDeserializer::<_, serde_json::Error>::new(repeated.into_iter()),
+                )
+                .expect_err("duplicate bidder controls and envelope keys must refuse");
+            }
         }
     }
 
@@ -1905,6 +1987,7 @@ pub(crate) mod test_support {
     fn supplied_entry_settings_are_visited_once_with_fixed_nested_errors() {
         VISITS.set(0);
         let entry: BidderOverrides<TestSettings> = serde_json::from_value(json!({
+            "implementation": "fake_private_bidder",
             "settings": {"private_value": "private-settings-canary"}
         }))
         .unwrap();
@@ -1928,7 +2011,7 @@ pub(crate) mod test_support {
     fn supplied_source_settings_are_visited_once_without_input_in_errors() {
         VISITS.set(0);
         let source: OperatorPolicy<TestSettings> = toml::from_str(
-            "schema_version = 1\n[bidders.fake_private_bidder_canary.settings]\nprivate_value = \"private-settings-canary\"\n",
+            "schema_version = 1\n[bidders.fake_private_bidder_canary]\nimplementation = 'fake_private_bidder'\n[bidders.fake_private_bidder_canary.settings]\nprivate_value = \"private-settings-canary\"\n",
         )
         .unwrap();
         let errors = source
@@ -1949,6 +2032,7 @@ pub(crate) mod test_support {
         let policy: OperatorPolicy<TestSettings> = serde_json::from_value(json!({
             "schema_version": 1_u32,
             "bidders": {"fake_private_bidder_canary": {
+                "implementation": "fake_private_bidder",
                 "settings": {"private_value": "private-settings-canary"}
             }}
         }))

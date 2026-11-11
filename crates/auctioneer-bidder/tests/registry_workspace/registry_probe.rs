@@ -5,7 +5,9 @@ use auctioneer_bidder::{
     OutboundRequestSink, RegistryInputs, SinkLimits, ValidatedRegistryPlan, bidder_declarations,
     compiled_bidders,
 };
-use auctioneer_config_data::{bidder_implementation_bindings, bidder_metadata_declarations, bidders};
+use auctioneer_config_data::{
+    bidder_implementation_bindings, bidder_metadata_declarations, bidders,
+};
 use auctioneer_openrtb::types::bid_request::{BidRequest, Imp};
 use serde_json::{Value, json};
 
@@ -51,7 +53,7 @@ fn execute(plan: &ValidatedRegistryPlan, name: &str) -> Value {
         BidderName::new(definition.canonical_base()),
         "discovery-account",
         None,
-        &info.endpoint,
+        info.endpoint.as_deref().unwrap(),
         &macros,
         None,
         None,

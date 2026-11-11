@@ -17,11 +17,11 @@ fn typed_settings_binding_and_field_resolution_allocate_nothing() {
     for width in [1, 64, 4_096] {
         thread::spawn(move || {
             let base: BidderSettings = serde_json::from_value(json!({
-                "implementation":"thetradedesk", "values":{"supply_id":"x".repeat(width)}
+                "implementation":"thetradedesk", "settings":{"supply_id":"x".repeat(width)}
             }))
             .unwrap();
             let alias: BidderSettings = serde_json::from_value(json!({
-                "implementation":"thetradedesk", "values":{}
+                "implementation":"thetradedesk", "settings":{}
             }))
             .unwrap();
             let original = base
@@ -255,7 +255,7 @@ fn thetradedesk_construction_is_bounded_across_independent_payload_axes() {
         for supply_from_settings in [false, true] {
             let settings: BidderSettings = serde_json::from_value(json!({
                 "implementation":"thetradedesk",
-                "values":{"supply_id":if supply_from_settings { "s" } else { "ignored" }},
+                "settings":{"supply_id":if supply_from_settings { "s" } else { "ignored" }},
             }))
             .unwrap();
             let mut context = BidderRequestInfo::new(

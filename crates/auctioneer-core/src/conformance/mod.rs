@@ -959,7 +959,7 @@ fn conformance_bidder_info() -> &'static BidderInfo {
     static INFO: OnceLock<BidderInfo> = OnceLock::new();
     INFO.get_or_init(|| BidderInfo {
         name: "fake_pp".to_owned(),
-        endpoint: BIDDER_A.to_owned(),
+        endpoint: Some(BIDDER_A.to_owned()),
         uses_https: true,
         ..BidderInfo::default()
     })

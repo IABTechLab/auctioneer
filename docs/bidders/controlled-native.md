@@ -22,14 +22,17 @@ schema_version = 1
 
 [bidders.msft]
 enabled = true
+implementation = "msft"
+
+[bidders.msft.settings]
+hb_source = 5
+hb_source_video = 6
 
 [bidders.thetradedesk]
 enabled = true
-
-[bidders.thetradedesk.settings]
 implementation = "thetradedesk"
 
-[bidders.thetradedesk.settings.values]
+[bidders.thetradedesk.settings]
 supply_id = "operator-issued-supply-id"
 
 [bidders.ttd]
@@ -37,20 +40,21 @@ enabled = true
 
 [bidders.rubicon]
 enabled = true
-
-[bidders.rubicon.settings]
 implementation = "rubicon"
 
-[bidders.rubicon.settings.values]
+[bidders.rubicon.settings]
 region = "us-east"
 credentials_secret = "operator-managed-credential-bundle"
 ```
 
 `ttd` retains compiled ancestry to `thetradedesk`; both must be enabled.
-Disabling the canonical base also disables its compiled aliases. Settings use
-the implementation key, not a request-supplied implementation. Rubicon requires
-one of `us-east`, `us-west`, `eu`, or `apac` and an atomic secret-store credential
-bundle; missing settings or credentials refuse that bidder, not valid siblings.
+Disabling the canonical base also disables its compiled aliases. When settings
+are supplied, the bidder row requires `implementation`; the separate `.settings`
+subconfig contains only that owner's fields. The key must match the resolved
+bidder owner. Omit both fields to use inherited or compiled defaults. Rubicon
+requires one of `us-east`, `us-west`, `eu`, or `apac` and an atomic secret-store
+credential bundle; missing settings or credentials refuse that bidder, not valid
+siblings.
 Never place credential values in runtime configuration. See the existing
 [publisher pilot handoff](../deployment/publisher-pilot.md) and
 [cookie-key provisioning](../deployment/usersync-cookie-keys.md).

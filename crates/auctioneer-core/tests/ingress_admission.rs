@@ -45,7 +45,10 @@ mod tests {
         AdmissionDecision, IngressDispatchOutcome, IngressFraming, IngressHead,
         IngressHeadAccounting,
     };
-    use edgezero_core::response_egress::{ResponseEgressEnvelope, ResponseEgressOutcome};
+    use edgezero_core::response_egress::{
+        ResponseEgressBodyKind, ResponseEgressEnvelope, ResponseEgressFallbackDisposition,
+        ResponseEgressObserver, ResponseEgressOutcome, ResponseEgressReport,
+    };
     use edgezero_core::response_egress_framing::ResponseEgressFramingMode;
     use edgezero_core::router::RouteResolution;
     use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
@@ -56,6 +59,7 @@ mod tests {
     use std::collections::HashSet;
     use std::future::Future as _;
     use std::iter::repeat_with;
+    use std::mem::take;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
     use std::task::{Context, Poll};
@@ -871,6 +875,156 @@ mod tests {
             .collect()
     }
 
+    #[derive(Clone, Default)]
+    struct EgressReports(Arc<Mutex<Vec<ResponseEgressReport>>>);
+
+    impl ResponseEgressObserver for EgressReports {
+        fn complete(&self, report: &ResponseEgressReport) {
+            self.0.lock().unwrap().push(report.clone());
+        }
+    }
+
+    #[test]
+    fn aux_work_is_released_once_when_application_egress_is_abandoned_before_or_during_writing() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let reports = EgressReports::default();
+        let mut app = configured_app();
+        app.set_response_egress_observer(reports.clone());
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let cases = auxiliary_terminal_requests(&app);
+        assert!(!cases.is_empty());
+        for (method, path) in cases {
+            for writing in [false, true] {
+                let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                let (prepared, _policy, mut attempt, _clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("aux response egress begins"));
+                if writing {
+                    assert!(attempt.begin_writing());
+                }
+                drop(prepared);
+                assert_auxiliary_receipt_held(gates, peak);
+                assert!(reports.0.lock().unwrap().is_empty());
+                assert!(gates.aux.try_acquire().is_none());
+                drop(attempt);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                let completed = take(&mut *reports.0.lock().unwrap());
+                assert_eq!(completed.len(), 1, "{path}, writing={writing}");
+                assert_eq!(completed[0].body_kind, ResponseEgressBodyKind::Application);
+                assert_eq!(completed[0].fallback_disposition, None);
+                assert_eq!(
+                    completed[0].outcome,
+                    if writing {
+                        ResponseEgressOutcome::TransportError
+                    } else {
+                        ResponseEgressOutcome::ConversionError
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn aux_work_survives_real_sdk_fallback_preparation_until_completion_or_abandonment() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let reports = EgressReports::default();
+        let mut app = configured_app();
+        app.set_response_egress_observer(reports.clone());
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let cases = auxiliary_terminal_requests(&app);
+        assert!(!cases.is_empty());
+        let endings = [
+            (Some(ResponseEgressFallbackDisposition::Completed), true),
+            (Some(ResponseEgressFallbackDisposition::Aborted), false),
+            (Some(ResponseEgressFallbackDisposition::Aborted), true),
+            (None, false),
+            (None, true),
+        ];
+        for (method, path) in cases {
+            for cause in [
+                ResponseEgressOutcome::ConversionError,
+                ResponseEgressOutcome::DeadlineExceeded,
+            ] {
+                for (disposition, writing) in endings {
+                    let mut envelope =
+                        dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                    assert_auxiliary_receipt_held(gates, peak);
+                    let (mut attempt, clock) = if cause == ResponseEgressOutcome::ConversionError {
+                        // The real normalizer returns the original live attempt,
+                        // rather than a fabricated completion or a second grant.
+                        envelope
+                            .response_mut()
+                            .headers_mut()
+                            .insert("content-length", "invalid".parse().unwrap());
+                        let Err(failure) =
+                            envelope.begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                        else {
+                            panic!("invalid framing must return the live attempt");
+                        };
+                        let (attempt, clock, actual) = failure.into_parts();
+                        assert_eq!(actual, cause);
+                        (attempt, clock)
+                    } else {
+                        let (prepared, _policy, attempt, clock) = envelope
+                            .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                            .unwrap_or_else(|_| panic!("aux response egress begins"));
+                        drop(prepared);
+                        (attempt, clock)
+                    };
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(attempt.begin_fallback(cause));
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(!attempt.begin_fallback(cause));
+                    let fallback = http::Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::from_bytes(b"internal error\n".to_vec()))
+                        .unwrap();
+                    let prepared = attempt
+                        .prepare_response(
+                            ResponseEgressFramingMode::ExplicitBufferedLength,
+                            &method,
+                            fallback,
+                        )
+                        .unwrap();
+                    assert_auxiliary_receipt_held(gates, peak);
+                    if writing {
+                        assert!(attempt.begin_writing());
+                    }
+                    drop(prepared);
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(reports.0.lock().unwrap().is_empty());
+                    assert!(gates.aux.try_acquire().is_none());
+                    if let Some(ending) = disposition {
+                        assert!(attempt.finish_fallback(ending, clock.now()));
+                        assert_eq!(gates.aux.in_use(), 0);
+                        assert_eq!(gates.aux_work_budget.in_use(), 0);
+                        assert!(!attempt.finish_fallback(ending, clock.now()));
+                    }
+                    drop(attempt);
+                    assert_eq!(gates.aux.in_use(), 0);
+                    assert_eq!(gates.aux_work_budget.in_use(), 0);
+                    let completed = take(&mut *reports.0.lock().unwrap());
+                    assert_eq!(
+                        completed.len(),
+                        1,
+                        "{path}, {cause:?}, {disposition:?}, writing={writing}"
+                    );
+                    assert_eq!(completed[0].body_kind, ResponseEgressBodyKind::Fallback);
+                    assert_eq!(completed[0].outcome, cause);
+                    assert_eq!(
+                        completed[0].fallback_disposition,
+                        Some(disposition.unwrap_or(ResponseEgressFallbackDisposition::Aborted))
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn terminal_cases_join_every_registered_auxiliary_and_both_router_fallbacks() {
         let app = configured_app();
@@ -949,35 +1103,25 @@ mod tests {
                 .as_mut()
                 .poll(&mut Context::from_waker(noop_waker_ref()));
             assert_auxiliary_receipt_held(gates, peak);
-            if path == "/_auctioneer/health/gvl" {
-                // This archive-only handler authorizes without runtime configuration.
-                let Poll::Ready(Some(mut response)) = first else {
-                    panic!("closed health authorization must not read configuration");
-                };
-                assert_eq!(response.response_mut().status(), StatusCode::UNAUTHORIZED);
-                assert_eq!(store.reads.load(Ordering::SeqCst), 0);
-                drop(response);
-            } else {
-                assert!(
-                    first.is_pending(),
-                    "{method} {path} must suspend at its bounded config read"
-                );
-                assert_eq!(store.reads.load(Ordering::SeqCst), 1);
-                assert_eq!(store.active.load(Ordering::SeqCst), 1);
-                let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
-                assert_eq!(gates.static_egress.in_use(), 1);
-                assert_eq!(gates.aux.in_use(), 1);
-                assert_eq!(gates.aux_work_budget.in_use(), peak);
-                drop(refusal);
-                assert_eq!(gates.static_egress.in_use(), 0);
-                let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
-                assert_eq!(probe_egress_gate().in_use(), 1);
-                assert_eq!(gates.aux.in_use(), 1);
-                assert_eq!(gates.aux_work_budget.in_use(), peak);
-                drop(probe);
-                assert_eq!(probe_egress_gate().in_use(), 0);
-                assert_eq!(store.active.load(Ordering::SeqCst), 1);
-            }
+            assert!(
+                first.is_pending(),
+                "{method} {path} must suspend at its bounded config read"
+            );
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 1);
+            let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+            assert_eq!(gates.static_egress.in_use(), 1);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(refusal);
+            assert_eq!(gates.static_egress.in_use(), 0);
+            let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+            assert_eq!(probe_egress_gate().in_use(), 1);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(probe);
+            assert_eq!(probe_egress_gate().in_use(), 0);
+            assert_eq!(store.active.load(Ordering::SeqCst), 1);
             drop(construction);
             assert_eq!(store.active.load(Ordering::SeqCst), 0);
             assert_eq!(gates.aux.in_use(), 0);
@@ -1010,19 +1154,15 @@ mod tests {
             let store = admission_store(StoreBehavior::Unavailable);
             let request = store_request(method, &path, Arc::clone(&store));
             let mut response = block_on(dispatch_request(&app, request)).unwrap();
-            let archive_only = path == "/_auctioneer/health/gvl";
             assert_eq!(
                 response.response_mut().status(),
-                if archive_only {
+                if path == "/_auctioneer/health/gvl" {
                     StatusCode::UNAUTHORIZED
                 } else {
                     StatusCode::SERVICE_UNAVAILABLE
                 }
             );
-            assert_eq!(
-                store.reads.load(Ordering::SeqCst),
-                usize::from(!archive_only)
-            );
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
             assert_eq!(store.active.load(Ordering::SeqCst), 0);
             assert_eq!(gates.aux.in_use(), 1);
             assert_eq!(gates.aux_work_budget.in_use(), peak);

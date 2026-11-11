@@ -24,7 +24,7 @@ pub fn infos() -> &'static [BidderInfo] {
             .iter()
             .map(|(name, definition)| BidderInfo {
                 name: name.clone(),
-                endpoint: definition["endpoint"].as_str().unwrap().into(),
+                endpoint: Some(definition["endpoint"].as_str().unwrap().into()),
                 uses_https: true,
                 ..BidderInfo::default()
             })

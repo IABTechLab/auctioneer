@@ -44,9 +44,9 @@ pub struct BidderRequestInfo<'req> {
     /// `FailedToRequestBids`. Publisher id and account id are
     /// intentionally distinct — do NOT fall back to `account_id`.
     pub publisher_id: Option<&'req str>,
-    /// `BidderInfo.endpoint` as a TEMPLATE. The bidder constructs the
-    /// final URL via `EndpointBuilder`; this is NOT the final outbound
-    /// URL.
+    /// The selected operator URL or a compiled `BidderInfo.endpoint` template.
+    /// The bidder constructs the final URL via `EndpointBuilder`; configured
+    /// literals have no endpoint macros.
     pub endpoint_template: &'req str,
     /// Macro names permitted by this bidder's endpoint template.
     /// E.g. `&["AccountID", "PublisherID"]`.

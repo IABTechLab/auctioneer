@@ -564,7 +564,14 @@ mod tests {
         );
         assert_eq!(additional, owned_layout_bytes());
         #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-        assert_eq!(additional, 19_160, "reviewed native owner layout snapshot");
+        assert_eq!(
+            additional,
+            // Preserve the prior owner-layout baseline. The optional GVL policy
+            // adds 96 measured bytes to the native execution frame; no other
+            // prepared/failure/ledger owner changes in this migration.
+            19_160 + 96,
+            "reviewed native owner layout plus GVL policy frame growth"
+        );
     }
 
     fn owned_layout_bytes() -> u64 {

@@ -50,6 +50,13 @@ pub enum PolicyValidationError {
     Bidder(#[from] BidderConfigurationError),
 }
 
+/// Preserve reviewed policy categories until the SDK builds safe diagnostics.
+#[derive(Debug)]
+pub(super) enum CompiledPolicyError {
+    Registry(auctioneer_bidder::RegistryBuildError),
+    Policy(PolicyValidationError),
+}
+
 /// Validate a complete policy without installing it or reading ambient state.
 /// Callers must first bound and fund the source, merged views, namespace and
 /// validation temporaries. Success is not snapshot or startup admission.
@@ -80,9 +87,24 @@ pub fn validate_compiled_operator_policy(
     product_host: &HostConfig,
     product_account: &AccountConfig,
 ) -> Result<(), super::EffectiveConfigError> {
-    let catalog = ValidatedRegistryPlan::compiled()?;
+    validate_compiled_policy(policy, product_host, product_account).map_err(|error| match error {
+        CompiledPolicyError::Registry(registry_error) => {
+            super::EffectiveConfigError::Registry(registry_error)
+        }
+        CompiledPolicyError::Policy(policy_error) => {
+            super::EffectiveConfigError::Malformed(policy_error.to_string())
+        }
+    })
+}
+
+pub(super) fn validate_compiled_policy(
+    policy: &super::policy::OperatorPolicy,
+    product_host: &HostConfig,
+    product_account: &AccountConfig,
+) -> Result<(), CompiledPolicyError> {
+    let catalog = ValidatedRegistryPlan::compiled().map_err(CompiledPolicyError::Registry)?;
     validate_effective_operator_policy(policy, product_host, product_account, &catalog)
-        .map_err(|error| super::EffectiveConfigError::Malformed(error.to_string()))
+        .map_err(CompiledPolicyError::Policy)
 }
 
 /// Validate structure, merged semantics, settings bindings and bidder callbacks.

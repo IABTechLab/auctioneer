@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for ApplicationSchemaVersion {
     }
 }
 
-pub use object_models::{AccountPolicy, HostPolicy, OperatorPolicy};
+pub use object_models::{AccountPolicy, GvlPolicy, HostPolicy, OperatorPolicy};
 
 #[expect(
     clippy::same_name_method,
@@ -99,6 +99,25 @@ mod object_models {
         pub floor_currency: Option<FloorCurrencyConfig>,
     }
 
+    /// GVL-specific runtime policy. Omitted health settings keep the endpoint closed.
+    #[derive(Debug, Default, Deserialize, Serialize)]
+    #[serde(remote = "Self", deny_unknown_fields)]
+    pub struct GvlPolicy {
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub authenticate_health: Option<bool>,
+        /// Default Secret Store entry. Required when authenticated; omit when anonymous.
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        pub authenticate_health_token_secret: Option<String>,
+    }
+
     /// Optional host policy requests over product defaults.
     #[derive(Debug, Default, Deserialize, Serialize, Validate)]
     #[serde(remote = "Self", deny_unknown_fields)]
@@ -147,6 +166,14 @@ mod object_models {
             skip_serializing_if = "Option::is_none"
         )]
         pub aliases: Option<BTreeMap<String, String>>,
+        /// Service-wide GVL diagnostics access; secrets remain in the default Secret Store.
+        #[serde(
+            default,
+            deserialize_with = "deserialize_optional_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[validate(nested)]
+        pub gvl: Option<GvlPolicy>,
     }
 
     /// The same strict overlay type is used for account defaults and named accounts.
@@ -302,6 +329,48 @@ impl<Settings: Validate> Validate for OperatorPolicy<Settings> {
 impl<Settings: Validate> fmt::Debug for OperatorPolicy<Settings> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("OperatorPolicy(<redacted>)")
+    }
+}
+
+impl<'de> ObjectFields<'de> for GvlPolicy {
+    fn deserialize_fields<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::deserialize(deserializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for GvlPolicy {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserialize_fields(deserializer)
+    }
+}
+
+impl Serialize for GvlPolicy {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Self::serialize(self, serializer)
+    }
+}
+
+impl Validate for GvlPolicy {
+    fn validate(&self) -> Result<(), ValidationErrors> {
+        let mut errors = ValidationErrors::new();
+        let reference = self.authenticate_health_token_secret.as_deref();
+        let valid_reference = reference.is_none_or(|value| {
+            value.len() <= 128
+                && value.trim() == value
+                && !value.bytes().any(|byte| byte.is_ascii_control())
+        });
+        let valid_mode = match (self.authenticate_health, reference) {
+            (Some(true), Some(value)) => !value.is_empty(),
+            (Some(false) | None, None) => true,
+            (Some(true), None) | (Some(false) | None, Some(_)) => false,
+        };
+        if !valid_reference || !valid_mode {
+            errors.add(
+                "authenticate_health_token_secret",
+                ValidationError::new("invalid_health_token_reference"),
+            );
+        }
+        structural_validation_result(errors)
     }
 }
 
@@ -552,6 +621,105 @@ mod tests {
     use crate::override_value::FieldOverride;
     use serde_json::{Value, json};
     use validator::Validate as _;
+
+    #[test]
+    fn gvl_authenticate_health_round_trips_consistent_explicit_modes() {
+        for health in [
+            json!({"authenticate_health": true, "authenticate_health_token_secret": "health_gvl_token"}),
+            json!({"authenticate_health": false}),
+            json!({}),
+        ] {
+            let input = json!({"schema_version": 1_u8, "host": {"gvl": health}});
+            let policy: OperatorPolicy = serde_json::from_value(input.clone()).unwrap();
+            policy.validate().unwrap();
+            let output = serde_json::to_value(&policy).unwrap();
+            assert_eq!(output["host"]["gvl"], input["host"]["gvl"]);
+            let restored: OperatorPolicy =
+                toml::from_str(&toml::to_string(&policy).unwrap()).unwrap();
+            assert_eq!(serde_json::to_value(restored).unwrap(), output);
+        }
+        let policy: OperatorPolicy =
+            serde_json::from_value(json!({"schema_version": 1_u8})).unwrap();
+        let output = serde_json::to_value(policy).unwrap();
+        assert!(output["host"].get("gvl").is_none());
+        assert!(output.get("gvl").is_none());
+    }
+
+    #[test]
+    fn gvl_authenticate_health_rejects_incomplete_and_invalid_shapes() {
+        for gvl in [
+            json!(null),
+            json!([]),
+            json!({"unknown": true}),
+            json!({"authenticated_health": null}),
+            json!({"authenticated_health": []}),
+            json!({"authenticated_health": {}}),
+            json!({"token_secret": "token"}),
+            json!({"authenticate_health": "true"}),
+            json!({"authenticate_health": null}),
+            json!({"authenticate_health": {}}),
+            json!({"authenticate_health": false, "unknown": true}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": null}),
+        ] {
+            serde_json::from_value::<OperatorPolicy>(
+                json!({"schema_version": 1_u8, "host": {"gvl": gvl}}),
+            )
+            .expect_err("GVL health policy requires strict objects and field types");
+        }
+        for health in [
+            json!({"authenticate_health": true}),
+            json!({"authenticate_health": true, "authenticate_health_token_secret": ""}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": ""}),
+            json!({"authenticate_health": false, "authenticate_health_token_secret": "health_gvl_token"}),
+            json!({"authenticate_health_token_secret": "token"}),
+        ] {
+            let policy: OperatorPolicy =
+                serde_json::from_value(json!({"schema_version": 1_u8, "host": {"gvl": health}}))
+                    .unwrap();
+            policy
+                .validate()
+                .expect_err("health mode and token reference must agree");
+            let restored: OperatorPolicy =
+                toml::from_str(&toml::to_string(&policy).unwrap()).unwrap();
+            restored
+                .validate()
+                .expect_err("TOML authoring must reject the same conflicting modes");
+        }
+        for document in [
+            json!({"schema_version": 1_u8, "gvl": {"authenticate_health": false}}),
+            json!({"schema_version": 1_u8, "account_defaults": {"gvl": {"authenticate_health": false}}}),
+            json!({"schema_version": 1_u8, "accounts": {"fake_account": {"gvl": {"authenticate_health": false}}}}),
+        ] {
+            serde_json::from_value::<OperatorPolicy>(document)
+                .expect_err("GVL health policy belongs only under host");
+        }
+    }
+
+    #[test]
+    fn gvl_authenticate_health_validates_reference_bytes_without_logging_values() {
+        for reference in ["x".to_owned(), "x".repeat(128), "\u{00e9}".repeat(64)] {
+            let policy: OperatorPolicy = serde_json::from_value(json!({"schema_version": 1_u8,
+                "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": reference}}}))
+            .unwrap();
+            policy.validate().unwrap();
+        }
+        for reference in [
+            String::new(),
+            "x".repeat(129),
+            "\u{00e9}".repeat(65),
+            " reference_canary".to_owned(),
+            "reference_canary ".to_owned(),
+            "reference_canary\n".to_owned(),
+            "reference\tcanary".to_owned(),
+            "reference\0canary".to_owned(),
+        ] {
+            let policy: OperatorPolicy = serde_json::from_value(json!({"schema_version": 1_u8,
+                "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": reference}}}))
+            .unwrap();
+            let error = policy.validate().unwrap_err();
+            assert!(!format!("{error:?}").contains("reference_canary"));
+        }
+    }
 
     fn assert_no_null(value: &Value) {
         match value {

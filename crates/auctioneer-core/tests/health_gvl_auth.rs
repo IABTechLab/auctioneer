@@ -1,56 +1,85 @@
-//! Token-policy binary for `/_auctioneer/health/gvl`.
-//!
-//! `HEALTH_POLICY` is a process-global `OnceLock`, so this binary owns
-//! the Token state; ALL auth request shapes share ONE `#[test]` that
-//! installs once and exercises the table — three `#[test]`s racing to
-//! install would interleave with the conflicting-install case. The
-//! token is adapter-resolved and installed as a typed policy; core
-//! never reads `std::env`, so the test installs a mock authenticator
-//! wrapped in the Token policy.
+//! Runtime policy and secret-store authorization for the GVL health route.
+
+#[cfg(test)]
+mod config_funding_support;
+#[cfg(test)]
+mod fanout_limits;
 
 #[cfg(test)]
 mod tests {
+    use crate::config_funding_support as config_funding;
     use auctioneer_core::handlers::health_gvl::health_gvl;
-    use auctioneer_core::host_primitives::{
-        BearerToken, HealthAccessPolicy, HealthAuth, HealthBootError, TestClockHandle,
-        install_health_primitives,
-    };
+    use auctioneer_core::host_primitives::{BearerToken, TestClockHandle};
+    use auctioneer_core::test_support::config_store::{context, runtime_registry};
     use auctioneer_runtime::{Clock, FakeClock};
+    use bytes::Bytes;
     use edgezero_core::body::Body;
-    use edgezero_core::context::RequestContext;
-    use edgezero_core::params::PathParams;
+    use edgezero_core::config_store::BoundedStoreRead;
+    use edgezero_core::secret_store::{SecretError, SecretHandle, SecretStore};
+    use edgezero_core::store_registry::{BoundSecretStore, SecretRegistry, StoreRegistry};
+    use edgezero_core::time::{Deadline, MonotonicClock};
     use futures::executor::block_on;
     use http::{HeaderValue, Method, Request, StatusCode, Uri};
-    use std::sync::Arc;
+    use serde_json::{Value, json};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     use time::format_description::well_known::Rfc3339;
     use time::{Duration, OffsetDateTime};
 
-    struct FixedToken(&'static str);
-
-    impl HealthAuth for FixedToken {
-        fn verify(&self, presented: &str) -> bool {
-            // Test double; production impls compare in constant time.
-            presented == self.0
+    struct TokenStore {
+        token: Option<Bytes>,
+        calls: AtomicUsize,
+        backend_bytes: u64,
+    }
+    #[async_trait::async_trait(?Send)]
+    impl SecretStore for TokenStore {
+        async fn get_bytes(&self, _: &str, _: &str) -> Result<Option<Bytes>, SecretError> {
+            panic!("health must use bounded reads");
         }
-
-        fn identity(&self) -> [u8; 32] {
-            let mut id = [0_u8; 32];
-            let bytes = self.0.as_bytes();
-            let n = bytes.len().min(32);
-            id[..n].copy_from_slice(&bytes[..n]);
-            id
+        async fn get_bytes_bounded(
+            &self,
+            store_name: &str,
+            key: &str,
+            _: &MonotonicClock,
+            _: Deadline,
+            max_backend_bytes: u64,
+            max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<Bytes>, SecretError> {
+            assert_eq!((store_name, key), ("custom_secrets", "custom_gvl_token"));
+            assert_eq!((max_backend_bytes, max_value_bytes), (4096, 4096));
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(BoundedStoreRead {
+                backend_bytes: self.backend_bytes,
+                value: self.token.clone(),
+            })
         }
     }
-
-    fn install_token() {
-        install_health_primitives(
-            HealthAccessPolicy::Token(Arc::new(FixedToken("t"))),
-            "process",
-        )
-        .expect("identical reinstalls of the token policy are idempotent");
+    fn store(token: Option<&[u8]>, backend_bytes: u64) -> Arc<TokenStore> {
+        Arc::new(TokenStore {
+            token: token.map(Bytes::copy_from_slice),
+            calls: AtomicUsize::new(0),
+            backend_bytes,
+        })
     }
 
     async fn status_for(bearer: Option<HeaderValue>) -> StatusCode {
+        status_with(
+            json!({"schema_version": 1_u8, "host": {"gvl": {
+            "authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}}),
+            Some(store(Some(b"t"), 1)),
+            bearer,
+        )
+        .await
+    }
+
+    async fn status_with(
+        policy: Value,
+        store: Option<Arc<TokenStore>>,
+        bearer: Option<HeaderValue>,
+    ) -> StatusCode {
+        config_funding::install();
         let generated =
             OffsetDateTime::parse(auctioneer_config_data::gvl_archive_generated_at(), &Rfc3339)
                 .expect("baked generated_at parses as RFC 3339");
@@ -64,9 +93,26 @@ mod tests {
         }
         let mut request = builder.body(Body::from_bytes(Vec::new())).unwrap();
         request.extensions_mut().insert(TestClockHandle(clock));
-        let ctx = RequestContext::new(request, PathParams::default());
+        request.extensions_mut().insert(runtime_registry(&policy));
+        if let Some(selected_store) = store {
+            let shared: Arc<dyn SecretStore> = selected_store;
+            let registry: SecretRegistry = StoreRegistry::single_id(
+                "selected".to_owned(),
+                BoundSecretStore::new(SecretHandle::new(shared), "custom_secrets".to_owned()),
+            );
+            request.extensions_mut().insert(registry);
+        }
+        let ctx = context(request);
         let response = health_gvl(ctx).await.expect("handler returns Ok");
         let (parts, _body) = response.into_parts();
+        assert_eq!(
+            parts
+                .headers
+                .get("cache-control")
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store"),
+            "health responses must not outlive the selected runtime access policy"
+        );
         if parts.status == StatusCode::UNAUTHORIZED {
             assert_eq!(
                 parts
@@ -82,7 +128,6 @@ mod tests {
 
     #[test]
     fn health_gvl_returns_401_when_token_set_and_missing() {
-        install_token();
         // The NBSP case is constructed from raw UTF-8 bytes: a
         // string-based builder rejects non-visible-ASCII BEFORE the
         // handler runs, which would test the builder, not the parser.
@@ -151,24 +196,92 @@ mod tests {
     }
 
     #[test]
-    fn conflicting_health_policy_fails_boot() {
-        install_token();
-        let conflicting = install_health_primitives(
-            HealthAccessPolicy::Token(Arc::new(FixedToken("other"))),
-            "process",
-        );
-        assert!(
-            matches!(conflicting, Err(HealthBootError::ConflictingPolicy)),
-            "a second install with a DIFFERENT token must fail boot"
-        );
-        let idempotent = install_health_primitives(
-            HealthAccessPolicy::Token(Arc::new(FixedToken("t"))),
-            "process",
-        );
-        assert!(
-            idempotent.is_ok(),
-            "a second install with the SAME secret is idempotent (identity-compared)"
-        );
+    fn health_policy_and_secret_rotation_apply_per_request() {
+        block_on(async {
+            let policy = json!({"schema_version": 1_u8, "host": {"gvl": {
+                "authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}});
+            for (token, bearer, expected) in [
+                (b"first".as_slice(), "Bearer first", StatusCode::OK),
+                (
+                    b"second".as_slice(),
+                    "Bearer first",
+                    StatusCode::UNAUTHORIZED,
+                ),
+                (b"second".as_slice(), "Bearer second", StatusCode::OK),
+            ] {
+                assert_eq!(
+                    status_with(
+                        policy.clone(),
+                        Some(store(Some(token), u64::try_from(token.len()).unwrap())),
+                        Some(HeaderValue::from_static(bearer))
+                    )
+                    .await,
+                    expected
+                );
+            }
+            let anonymous_store = store(Some(b"t"), 1);
+            assert_eq!(
+                status_with(
+                    json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false}}}),
+                    Some(Arc::clone(&anonymous_store)),
+                    None,
+                )
+                .await,
+                StatusCode::OK
+            );
+            assert_eq!(anonymous_store.calls.load(Ordering::SeqCst), 0);
+            drop(anonymous_store);
+            assert_eq!(
+                status_with(policy, None, Some(HeaderValue::from_static("Bearer t"))).await,
+                StatusCode::UNAUTHORIZED
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_policy_and_secret_faults_never_open_health() {
+        block_on(async {
+            for policy in [
+                json!({"schema_version": 1_u8}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": ""}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health_token_secret": "custom_gvl_token"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": ""}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": "custom_gvl_token"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "authenticate_health_token_secret": " invalid "}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": "false"}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": null}}}),
+                json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": false, "unknown": true}}}),
+                json!({"schema_version": 1_u8, "gvl": {"authenticate_health": false}}),
+            ] {
+                for bearer in [None, Some(HeaderValue::from_static("Bearer t"))] {
+                    let unused = store(Some(b"t"), 1);
+                    assert_eq!(
+                        status_with(policy.clone(), Some(Arc::clone(&unused)), bearer).await,
+                        StatusCode::UNAUTHORIZED
+                    );
+                    assert_eq!(unused.calls.load(Ordering::SeqCst), 0);
+                }
+            }
+            let policy = json!({"schema_version": 1_u8, "host": {"gvl": {"authenticate_health": true, "authenticate_health_token_secret": "custom_gvl_token"}}});
+            for fault in [
+                store(None, 0),
+                store(Some(b""), 0),
+                store(Some(b"t"), 4097),
+                store(Some(&vec![b't'; 4097]), 1),
+            ] {
+                assert_eq!(
+                    status_with(
+                        policy.clone(),
+                        Some(fault),
+                        Some(HeaderValue::from_static("Bearer t"))
+                    )
+                    .await,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+        });
     }
 
     #[test]

@@ -118,6 +118,22 @@ impl BidderError {
 /// Pure, synchronous bidder contract. No async, no I/O, no `EdgeZero` types.
 /// The exchange owns the network call between `make_requests` and `make_bids`.
 pub trait Bidder: Send + Sync {
+    /// Select an operator-configured endpoint from implementation-bound settings.
+    ///
+    /// The exchange captures the checked destination before construction. This
+    /// hook receives no request or header input; `None` retains the compiled
+    /// endpoint, macros and host allowlist. The result borrows its settings owner.
+    ///
+    /// # Errors
+    /// Returns a fixed bidder-local error when supplied settings are invalid.
+    fn configured_endpoint<'a>(
+        &'a self,
+        _requested: Option<&'a crate::BidderSettings>,
+        _base: Option<&'a crate::BidderSettings>,
+    ) -> Result<Option<crate::ConfiguredEndpoint<'a>>, BidderError> {
+        Ok(None)
+    }
+
     /// Select a configured credential reference after pure parameter preflight.
     /// The exchange, not the bidder, loads its bounded atomic bundle.
     ///
@@ -211,6 +227,16 @@ mod tests {
     };
 
     struct PanickyBidder;
+
+    #[test]
+    fn configured_endpoint_defaults_to_the_compiled_metadata_policy() {
+        assert!(
+            PanickyBidder
+                .configured_endpoint(None, None)
+                .unwrap()
+                .is_none()
+        );
+    }
     #[expect(
         clippy::missing_trait_methods,
         reason = "this fixture must omit debug_body_schema to exercise its fail-closed default"

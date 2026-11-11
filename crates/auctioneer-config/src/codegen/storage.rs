@@ -366,7 +366,7 @@ mod tests {
     #[test]
     fn actual_constructor_census_counts_unequal_nested_owned_populations() {
         let source = r#"BidderInfo {
-            name: "\u{e9}".to_owned(), endpoint: "https://example.test".to_owned(),
+            name: "\u{e9}".to_owned(), endpoint: Some("https://example.test".to_owned()),
             host_allowlist: Some(vec!["a".to_owned(), "bbb".to_owned()]),
             endpoint_macros: vec!["AccountID".to_owned()],
             capabilities: Capabilities {

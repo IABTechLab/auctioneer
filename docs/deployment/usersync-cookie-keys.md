@@ -1,7 +1,8 @@
 # User-Sync Cookie Keys
 
 Provision the secret named `usersync_cookie_keyring` through the existing
-default logical EdgeZero secret-store binding (`default`). Do not add a store
+default logical EdgeZero secret-store binding (`auctioneer_secrets` in the shipped
+manifest). Do not add a store
 ID, put keys in runtime/account config, or bake them into manifests or builds.
 The secret is one complete JSON value; do not publish `active` and individual
 keys as separate secrets.
@@ -45,7 +46,7 @@ provider-specific provisioning surfaces:
 | Axum `EnvSecretStore` | Process variable `EDGEZERO__SECRETS__USERSYNC_COOKIE_KEYRING`                            |
 | Cloudflare            | Worker secret binding `usersync_cookie_keyring`                                          |
 | Spin                  | Application variable `usersync_cookie_keyring`, mapped into the component                |
-| Fastly production     | Secret Store item `usersync_cookie_keyring`, resource-link alias `default`               |
+| Fastly production     | Secret Store item `usersync_cookie_keyring`, resource-link alias `auctioneer_secrets`    |
 | Fastly local Viceroy  | Same store/item; the manifest's example env source is `AUCTIONEER__USERSYNC__COOKIE_KEYRING` |
 
 ### Axum
@@ -110,8 +111,9 @@ validates manifest loading, not guest execution or secret-provider delivery.
 
 ### Fastly
 
-In production, link the existing Secret Store under resource-link alias
-`default`. Add or replace the item `usersync_cookie_keyring` with the entire
+In production, link the existing Secret Store under the alias selected by
+`[stores.secrets].default` (`auctioneer_secrets` in the shipped manifest).
+Add or replace the item `usersync_cookie_keyring` with the entire
 JSON value using secure upload. Keep `health_gvl_token` intact in that store.
 The pinned
 [FastlySecretStore](https://github.com/IABTechLab/edgezero/blob/f6c708ccb5be19ba9fa92575db3c08c0f17e0d72/crates/edgezero-adapter-fastly/src/secret_store.rs)
