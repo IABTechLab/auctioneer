@@ -754,12 +754,15 @@ mod tests {
         const LABEL: &str = "fake_bb-capped-serialization";
         let config = fake_bidder::info();
         assert_eq!(config.name, "fake_bb", "synthetic fixture identity");
+        let Some(endpoint) = config.endpoint.as_deref() else {
+            panic!("synthetic fixture requires a compiled endpoint");
+        };
         let info = BidderRequestInfo::new(
             BidderName::new("fake_bb"),
             BidderName::new("fake_bb"),
             "synthetic-account",
             None,
-            &config.endpoint,
+            endpoint,
             &[],
             None,
             None,

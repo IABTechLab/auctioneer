@@ -39,7 +39,7 @@ mod tests {
         };
         let mut native_publications = false;
         let mut portable_publications = false;
-        let mut feature_publications = false;
+        let mut configurable_publications = false;
         for entry in fs::read_dir(root).unwrap() {
             let path = entry.unwrap().path().join("bidder.toml");
             if !path.is_file() {
@@ -75,7 +75,13 @@ mod tests {
                 );
                 native_publications |= native;
                 portable_publications |= !native;
-                feature_publications |= feature.is_some();
+                configurable_publications |= definitions
+                    .and_then(|rows| rows.get(name))
+                    .is_some_and(|row| {
+                        row.get("endpoint").is_none()
+                            && row.get("defaultEnabled").and_then(toml::Value::as_bool)
+                                == Some(false)
+                    });
                 let target_permits = !matches!((native, ARCH), (true, "wasm32"));
                 if enabled && target_permits {
                     assert!(
@@ -95,7 +101,10 @@ mod tests {
             portable_publications,
             "portable positive controls must exist"
         );
-        assert!(feature_publications, "feature selection must be exercised");
+        assert!(
+            configurable_publications,
+            "operator-configured publication must be exercised in both feature lanes"
+        );
         assert!(
             !catalog.selected.is_empty(),
             "publication cannot pass vacuously"

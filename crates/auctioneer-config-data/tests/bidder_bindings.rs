@@ -44,7 +44,7 @@ mod tests {
     }
 
     #[test]
-    fn generated_all_declarations_preserve_secure_and_feature_gated_rows() {
+    fn generated_all_declarations_preserve_unconditional_and_target_gated_rows() {
         // Read source declarations independently of the catalog/compiler under test.
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .with_file_name("auctioneer-bidder")
@@ -84,11 +84,17 @@ mod tests {
             }
         }
         assert!(!expected.is_empty());
-        assert!(expected.values().any(|(_, feature, _)| feature.is_none()));
+        // Product publications cover both target gates. Optional Cargo feature
+        // gates have independent synthetic discovery/compiler controls.
         assert!(
             expected
                 .values()
-                .any(|(_, feature, _)| feature.as_deref() == Some("insecure-bidders"))
+                .any(|(_, feature, native_only)| feature.is_none() && *native_only)
+        );
+        assert!(
+            expected
+                .values()
+                .any(|(_, feature, native_only)| feature.is_none() && !*native_only)
         );
         let declarations = bidder_metadata_declarations();
         let actual: Vec<_> = declarations

@@ -53,7 +53,8 @@ Axum's socket-test dev-dependency enables `insecure-bidders`, including in
 an `--all-targets` test invocation. That test binary is not a secure-default
 production build. Run `./scripts/check-secure-usersync.sh` to build the
 production dependency graph separately and verify real socket rejection of
-loopback callback configuration and absence of the test bidder. CI runs this
+loopback callback configuration and default-disabled availability of the
+configurable bidder. CI runs this
 check explicitly; it retains the production binary before compiling tests.
 
 The check verifies browser-generated JSON preflight, credentialed CORS, the

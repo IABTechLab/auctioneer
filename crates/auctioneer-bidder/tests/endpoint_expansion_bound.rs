@@ -161,7 +161,7 @@ mod tests {
     fn info_with_account_macro() -> BidderInfo {
         BidderInfo {
             name: "fake_synthetic".into(),
-            endpoint: "https://hb.example.test/openrtb?acct={{.AccountID}}".into(),
+            endpoint: Some("https://hb.example.test/openrtb?acct={{.AccountID}}".into()),
             uses_https: true,
             host_allowlist: None,
             endpoint_macros: vec!["AccountID".into()],
@@ -255,7 +255,7 @@ mod tests {
         let per_value = META_BIDDER_REGION_BYTES.saturating_div(2);
         let info = BidderInfo {
             name: "fake_synthetic".into(),
-            endpoint: "https://hb.example.test/o?a={{.AccountID}}&p={{.PublisherID}}".into(),
+            endpoint: Some("https://hb.example.test/o?a={{.AccountID}}&p={{.PublisherID}}".into()),
             uses_https: true,
             host_allowlist: None,
             endpoint_macros: vec!["AccountID".into(), "PublisherID".into()],
@@ -291,7 +291,9 @@ mod tests {
         let peak = peak_bytes_of(move || {
             let measured_info = BidderInfo {
                 name: "fake_synthetic".into(),
-                endpoint: "https://hb.example.test/o?a={{.AccountID}}&p={{.PublisherID}}".into(),
+                endpoint: Some(
+                    "https://hb.example.test/o?a={{.AccountID}}&p={{.PublisherID}}".into(),
+                ),
                 uses_https: true,
                 host_allowlist: None,
                 endpoint_macros: vec!["AccountID".into(), "PublisherID".into()],
@@ -417,7 +419,7 @@ mod tests {
         // copy proportional to these escaping-heavy inputs before refusing.
         let oversized = " &+=%/?#".repeat(OVERSIZE_VALUE_BYTES.saturating_div(8));
         let info = BidderInfo {
-            endpoint: "https://hb.example.test/o?existing=1".into(),
+            endpoint: Some("https://hb.example.test/o?existing=1".into()),
             ..BidderInfo::default()
         };
         for (label, name, value) in [
@@ -465,10 +467,10 @@ mod tests {
     #[test]
     fn appended_query_encoding_is_exact_at_the_metadata_boundary() {
         let info = BidderInfo {
-            endpoint: "https://hb.example.test/o?existing=1".into(),
+            endpoint: Some("https://hb.example.test/o?existing=1".into()),
             ..BidderInfo::default()
         };
-        let encoded_prefix = format!("{}&n+%2B%26=", info.endpoint);
+        let encoded_prefix = format!("{}&n+%2B%26=", info.endpoint.as_deref().unwrap());
         for (target, admitted) in [
             (META_BIDDER_REGION_BYTES.saturating_sub(1), true),
             (META_BIDDER_REGION_BYTES, true),
@@ -533,7 +535,7 @@ mod tests {
     #[test]
     fn query_replacement_uses_only_the_existing_pool_at_the_encoded_boundary() {
         let info = BidderInfo {
-            endpoint: "https://hb.example.test/o?token%5Fid=1&keep=a%2Bb&token_id=2".into(),
+            endpoint: Some("https://hb.example.test/o?token%5Fid=1&keep=a%2Bb&token_id=2".into()),
             ..BidderInfo::default()
         };
         let prefix = "https://hb.example.test/o?keep=a%2Bb&token_id=";
@@ -608,7 +610,7 @@ mod tests {
             ),
         ] {
             let info = BidderInfo {
-                endpoint: endpoint.into(),
+                endpoint: Some(endpoint.into()),
                 ..BidderInfo::default()
             };
             let builder = EndpointBuilder::new(&info).unwrap();
@@ -639,7 +641,7 @@ mod tests {
         let fitting = META_BIDDER_REGION_BYTES - 4 - prefix.len();
         for width in [fitting - 1, fitting, fitting + 1] {
             let info = BidderInfo {
-                endpoint: format!("{prefix}{}", "x".repeat(width)),
+                endpoint: Some(format!("{prefix}{}", "x".repeat(width))),
                 ..BidderInfo::default()
             };
             let builder = EndpointBuilder::new(&info).unwrap();
@@ -838,7 +840,7 @@ mod tests {
         let fitting = META_BIDDER_REGION_BYTES.saturating_sub(prefix.len());
         let info = BidderInfo {
             name: "fake_synthetic".into(),
-            endpoint: template,
+            endpoint: Some(template),
             uses_https: true,
             host_allowlist: None,
             endpoint_macros: vec!["AccountID".into()],

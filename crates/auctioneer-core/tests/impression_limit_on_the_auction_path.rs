@@ -157,7 +157,10 @@ mod tests {
                 let info = row.info;
                 !info.disabled
                     && info.uses_https
-                    && !info.endpoint.contains("{{")
+                    && info
+                        .endpoint
+                        .as_deref()
+                        .is_some_and(|endpoint| !endpoint.contains("{{"))
                     && info.endpoint_compression.is_none()
                     && info.capabilities.site.contains(&MediaType::Banner)
                     && row.owner_request["imp"].as_array().is_some_and(|imps| {

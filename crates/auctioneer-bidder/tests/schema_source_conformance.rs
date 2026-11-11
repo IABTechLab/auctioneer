@@ -2527,15 +2527,7 @@ mod tests {
             .iter()
             .map(|row| (row.bidder, row.implementation))
             .collect();
-        let active_count = match (
-            cfg!(target_arch = "wasm32"),
-            cfg!(feature = "insecure-bidders"),
-        ) {
-            (false, false) => 17,
-            (false, true) => 18,
-            (true, false) => 3,
-            (true, true) => 4,
-        };
+        let active_count = if cfg!(target_arch = "wasm32") { 4 } else { 18 };
         if manifest["planned_roots"]
             .as_array()
             .ok_or("planned roots")?
@@ -2558,7 +2550,7 @@ mod tests {
             return Err("root/publication membership");
         }
         for (lane_name, count, roots, members) in
-            [("secure", 15_usize, 17, 17), ("development", 16, 18, 18)]
+            [("secure", 16_usize, 18, 18), ("development", 16, 18, 18)]
         {
             let lane = &manifest["lanes"][lane_name];
             // Inspection S remains published declarations plus planned roots,

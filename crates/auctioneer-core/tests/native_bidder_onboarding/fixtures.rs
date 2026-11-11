@@ -231,6 +231,15 @@ pub(super) fn flows() -> Vec<Flow> {
         .collect()
 }
 
+pub(super) fn configured_endpoint_flows() -> Vec<Flow> {
+    let bidder_root = owner_root();
+    serving_catalog::configured_endpoint_publications()
+        .iter()
+        .enumerate()
+        .map(|(ordinal, row)| flow_from_publication(&bidder_root, row, ordinal))
+        .collect()
+}
+
 fn flow_from_member(
     bidder_root: &Path,
     published: &[ServingBidder],
@@ -242,6 +251,22 @@ fn flow_from_member(
         .find(|row| row.name() == member.name)
         .expect("every priority flow is published");
     assert_eq!(row.implementation, member.implementation);
+    let flow = flow_from_publication(bidder_root, row, ordinal);
+    let base = flow
+        .ancestry
+        .last()
+        .expect("flow has implementation ancestry");
+    assert!(
+        native_schema_available(&base.name),
+        "every selected schema owner is available on the funded native path"
+    );
+    if let Some(expected_base) = member.base {
+        assert_eq!(base.name, expected_base);
+    }
+    flow
+}
+
+fn flow_from_publication(bidder_root: &Path, row: &ServingBidder, ordinal: usize) -> Flow {
     let mut ancestry = Vec::new();
     let mut info = row.info;
     loop {
@@ -259,10 +284,6 @@ fn flow_from_member(
         }
     }
     let native_admission = native_schema_required(&info.name);
-    assert!(
-        native_schema_available(&info.name),
-        "every selected schema owner is available on the funded native path"
-    );
     if native_admission {
         assert!(
             ancestry
@@ -270,9 +291,6 @@ fn flow_from_member(
                 .any(|ancestor| ancestor.default_enabled == Some(false)),
             "new controlled-native flows are inactive without runtime opt-in"
         );
-    }
-    if let Some(base) = member.base {
-        assert_eq!(info.name, base);
     }
     let source_root = bidder_root.join("src/bidders").canonicalize().unwrap();
     let owner = source_root.join(row.implementation).canonicalize().unwrap();
@@ -285,12 +303,34 @@ fn flow_from_member(
             .expect("valid owner privacy facts")
     });
     assert_eq!(fixture.schema_version, 1);
-    assert_eq!(fixture.implementation, member.implementation);
+    assert_eq!(fixture.implementation, row.implementation);
     let case = fixture
         .cases
         .into_iter()
         .next()
         .expect("owner first factory case");
+    if let Some(recorded) = case
+        .context
+        .get("settings")
+        .filter(|value| !value.is_null())
+    {
+        // Preserve the historical capture; its owner and fields move to the
+        // bidder row and settings subconfig only when creating runtime input.
+        let recorded_fields = recorded.as_object().expect("recorded settings object");
+        assert_eq!(
+            recorded_fields
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["implementation", "values"]),
+        );
+        assert_eq!(
+            recorded_fields["implementation"].as_str(),
+            Some(row.implementation),
+            "recorded settings belong to their fixture owner",
+        );
+        assert!(recorded_fields["values"].is_object());
+    }
     assert!(!case.outbound.is_empty());
     let ids: BTreeMap<_, _> = case.request["imp"]
         .as_array()
@@ -521,9 +561,13 @@ pub(super) fn expected_body(flow: &Flow, ordinal: usize, input: &Value) -> Value
 }
 
 /// The fixture supplies protocol suffixes and macro values; published metadata
-/// supplies the real HTTPS destination. Synthetic factory endpoint queries are
-/// not production protocol additions.
+/// supplies the real HTTPS destination. Endpoint-free publications instead use
+/// the independent literal expected for the configured-endpoint acceptance row.
+/// Synthetic factory endpoint queries are not production protocol additions.
 pub(super) fn expected_url(flow: &Flow, ordinal: usize) -> String {
+    let Some(mut endpoint) = flow.info.endpoint.clone() else {
+        return "https://configured-bidder.example.test:8443/openrtb?route=onboarding".into();
+    };
     let outbound = &flow.case.outbound[ordinal];
     let mut template = flow.case.context["endpoint_template"].as_str().unwrap();
     let mut remainder = outbound.url.as_str();
@@ -551,7 +595,6 @@ pub(super) fn expected_url(flow: &Flow, ordinal: usize) -> String {
     let suffix = remainder
         .strip_prefix(template)
         .expect("fixture endpoint suffix");
-    let mut endpoint = flow.info.endpoint.clone();
     if endpoint.contains("{{.Host}}") && !bindings.contains_key("Host") {
         let region = flow
             .settings()
@@ -709,8 +752,20 @@ pub(super) fn config(flows: &[&Flow]) -> Value {
                 .entry(ancestor.name.clone())
                 .or_insert_with(|| json!({"enabled":true}));
         }
-        if let Some(settings) = flow.settings() {
-            bidders.get_mut(flow.name()).unwrap()["settings"] = settings.clone();
+        if let Some(recorded) = flow.settings() {
+            let row = bidders.get_mut(flow.name()).unwrap();
+            row["implementation"] = recorded["implementation"].clone();
+            row["settings"] = recorded["values"].clone();
+        }
+        if flow.info.endpoint.is_none() {
+            let row = bidders.get_mut(flow.name()).unwrap();
+            let binding = auctioneer_config_data::bidder_implementation_bindings()
+                .iter()
+                .find(|binding| binding.bidder == flow.name())
+                .expect("published endpoint-free implementation binding");
+            row["implementation"] = json!(binding.implementation);
+            row["settings"]["endpoint"] =
+                json!("https://configured-bidder.example.test:8443/openrtb?route=onboarding");
         }
     }
     json!({

@@ -18,6 +18,12 @@ production dependencies or a separate workspace package.
   auction through the handler, config loader, local bidder adapter and outbound
   client. Deny and allow controls check body disclosure, preserved context and
   signals, header isolation and stream-permit release.
+- `resource_profile.rs` also starts the server executable with a synthetic
+  config-store envelope. Its health contract checks runtime policy, the standard
+  `EDGEZERO__SECRETS__HEALTH_GVL_TOKEN` SDK mapping, anonymous access, denied
+  requests with a Bearer challenge, and independent `/status` availability.
+  Authorized health may return 200 or 503 according to reference-data freshness;
+  the test checks its health payload in either case.
 
 Transport-only fixtures bind ephemeral loopback ports, with bounded waits. The
 privacy fixture requires `insecure-bidders` and binds the shipped local bidder's

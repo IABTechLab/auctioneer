@@ -17,15 +17,15 @@ fn decode(value: Value) -> Result<BidderSettings, serde_json::Error> {
     serde_json::from_value(value)
 }
 
-fn explicit_implementation_and_values_accept_empty_optional_fields() {
-    let settings = decode(json!({"implementation": "fake_integer_probe", "values": {}})).unwrap();
+fn explicit_implementation_and_settings_accept_empty_optional_fields() {
+    let settings = decode(json!({"implementation": "fake_integer_probe", "settings": {}})).unwrap();
     assert_eq!(settings.implementation_key(), "fake_integer_probe");
     let typed = settings.as_fake_integer_probe().unwrap();
     assert_eq!(typed.primary_number, None);
     assert_eq!(typed.secondary_number, None);
     assert!(settings.as_fake_string_probe().is_none());
     let string_settings =
-        decode(json!({"implementation": "fake_string_probe", "values": {}})).unwrap();
+        decode(json!({"implementation": "fake_string_probe", "settings": {}})).unwrap();
     assert_eq!(string_settings.implementation_key(), "fake_string_probe");
     assert_eq!(string_settings.as_fake_string_probe().unwrap().token, None);
     assert!(string_settings.as_fake_integer_probe().is_none());
@@ -34,22 +34,24 @@ fn explicit_implementation_and_values_accept_empty_optional_fields() {
 fn refuses_ambiguous_missing_or_public_alias_discriminators_and_extra_fields() {
     for value in [
         json!({}),
-        json!({"values": {}}),
+        json!({"settings": {}}),
+        json!({"implementation": "fake_integer_probe", "values": {}}),
+        json!({"implementation": "fake_integer_probe", "values": {"primary_number": 5_i64}}),
         json!({"primary_number": 5_i64}),
         json!({"implementation": "fake_integer_probe"}),
-        json!({"implementation": "fake_unknown", "values": {}}),
-        json!({"implementation": "V0", "values": {}}),
-        json!({"implementation": "fake_fixture_alias", "values": {}}),
-        json!({"implementation": "fake_integer_probe", "values": {}, "typo": true}),
-        json!({"implementation": "fake_integer_probe", "values": {"primry_number": 5_i64}}),
-        json!({"implementation": "fake_integer_probe", "values": {"token": "x"}}),
-        json!({"implementation": "fake_string_probe", "values": {"primary_number": 5_i64}}),
-        json!({"implementation": "fake_string_probe", "values": {"token_typo": "x"}}),
-        json!({"implementation": "fake_integer_probe", "values": null}),
-        json!({"implementation": "fake_integer_probe", "values": []}),
-        json!({"implementation": 1_i64, "values": {}}),
+        json!({"implementation": "fake_unknown", "settings": {}}),
+        json!({"implementation": "V0", "settings": {}}),
+        json!({"implementation": "fake_fixture_alias", "settings": {}}),
+        json!({"implementation": "fake_integer_probe", "settings": {}, "typo": true}),
+        json!({"implementation": "fake_integer_probe", "settings": {"primry_number": 5_i64}}),
+        json!({"implementation": "fake_integer_probe", "settings": {"token": "x"}}),
+        json!({"implementation": "fake_string_probe", "settings": {"primary_number": 5_i64}}),
+        json!({"implementation": "fake_string_probe", "settings": {"token_typo": "x"}}),
+        json!({"implementation": "fake_integer_probe", "settings": null}),
+        json!({"implementation": "fake_integer_probe", "settings": []}),
+        json!({"implementation": 1_i64, "settings": {}}),
         json!(["fake_integer_probe", {}]),
-        json!({"implementation": "fake_integer_probe", "values": [5_i64, 6_i64]}),
+        json!({"implementation": "fake_integer_probe", "settings": [5_i64, 6_i64]}),
     ] {
         assert!(decode(value).unwrap_err().is_data());
     }
@@ -59,7 +61,7 @@ fn optional_string_has_no_coercion_or_invented_source_regex() {
     for value in [json!(0_i64), json!(true), json!([]), json!({})] {
         assert!(
             decode(json!({
-                "implementation": "fake_string_probe", "values": {"token": value}
+                "implementation": "fake_string_probe", "settings": {"token": value}
             }))
             .unwrap_err()
             .is_data()
@@ -67,7 +69,7 @@ fn optional_string_has_no_coercion_or_invented_source_regex() {
     }
     for value in ["", "host-default", "UPPER_09", "not/path-validation"] {
         let settings = decode(json!({
-            "implementation": "fake_string_probe", "values": {"token": value}
+            "implementation": "fake_string_probe", "settings": {"token": value}
         }))
         .unwrap();
         assert_eq!(
@@ -76,7 +78,7 @@ fn optional_string_has_no_coercion_or_invented_source_regex() {
         );
     }
     let settings = decode(json!({
-        "implementation": "fake_string_probe", "values": {"token": null}
+        "implementation": "fake_string_probe", "settings": {"token": null}
     }))
     .unwrap();
     assert_eq!(settings.as_fake_string_probe().unwrap().token, None);
@@ -86,7 +88,7 @@ fn optional_signed_i64_has_full_domain_and_strict_types() {
     for field in ["primary_number", "secondary_number"] {
         for value in [i64::MIN, -1, 0, 5, 6, i64::MAX] {
             let settings = decode(json!({
-                "implementation": "fake_integer_probe", "values": { (field): value }
+                "implementation": "fake_integer_probe", "settings": { (field): value }
             }))
             .unwrap();
             let typed = settings.as_fake_integer_probe().unwrap();
@@ -111,7 +113,7 @@ fn optional_signed_i64_has_full_domain_and_strict_types() {
         ] {
             assert!(
                 decode(json!({
-                    "implementation": "fake_integer_probe", "values": { (field): value }
+                    "implementation": "fake_integer_probe", "settings": { (field): value }
                 }))
                 .unwrap_err()
                 .is_data()
@@ -159,7 +161,7 @@ fn string_views_preserve_empty_override_and_borrow_inherited_storage() {
 
 fn debug_redacts_payloads_and_borrowed_views() {
     let settings = decode(json!({
-        "implementation": "fake_string_probe", "values": {"token": "private-marker"}
+        "implementation": "fake_string_probe", "settings": {"token": "private-marker"}
     }))
     .unwrap();
     let typed = settings.as_fake_string_probe().unwrap();
@@ -189,8 +191,8 @@ fn debug_redacts_payloads_and_borrowed_views() {
     }
 }
 
-fn serialization_retains_explicit_discriminator_and_values() {
-    let original = json!({"implementation": "fake_string_probe", "values": {"token": "host"}});
+fn serialization_retains_explicit_discriminator_and_settings() {
+    let original = json!({"implementation": "fake_string_probe", "settings": {"token": "host"}});
     let settings = decode(original.clone()).unwrap();
     assert_eq!(serde_json::to_value(&settings).unwrap(), original);
 }
@@ -207,7 +209,7 @@ fn standalone_payloads_also_require_objects_and_optional_null_stays_absent() {
             .is_data()
     );
     let settings = decode(json!({
-        "implementation": "fake_integer_probe", "values": {"primary_number": null, "secondary_number": null}
+        "implementation": "fake_integer_probe", "settings": {"primary_number": null, "secondary_number": null}
     }))
     .unwrap();
     let typed = settings.as_fake_integer_probe().unwrap();
@@ -217,14 +219,14 @@ fn standalone_payloads_also_require_objects_and_optional_null_stays_absent() {
 
 fn main() {
     generated_endpoint_bindings_preserve_literals_and_borrow_storage();
-    explicit_implementation_and_values_accept_empty_optional_fields();
+    explicit_implementation_and_settings_accept_empty_optional_fields();
     refuses_ambiguous_missing_or_public_alias_discriminators_and_extra_fields();
     optional_string_has_no_coercion_or_invented_source_regex();
     optional_signed_i64_has_full_domain_and_strict_types();
     borrowed_refs_resolve_each_requested_field_before_base_without_normalization();
     string_views_preserve_empty_override_and_borrow_inherited_storage();
     debug_redacts_payloads_and_borrowed_views();
-    serialization_retains_explicit_discriminator_and_values();
+    serialization_retains_explicit_discriminator_and_settings();
     standalone_payloads_also_require_objects_and_optional_null_stays_absent();
     println!("settings consumer passed");
 }

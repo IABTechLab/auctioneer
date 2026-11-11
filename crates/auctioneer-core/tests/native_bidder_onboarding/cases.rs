@@ -1,4 +1,4 @@
-use super::fixtures::{Flow, config, flows, input};
+use super::fixtures::{Flow, config, configured_endpoint_flows, flows, input};
 use super::harness::{
     Answer, Secrets, assert_disabled, assert_success, boot, send, send_rejected_policy,
 };
@@ -239,11 +239,22 @@ fn settings_refuse_policy_and_secret_failures_preserve_siblings(app: &App, cohor
         );
 
         let mut missing_settings = runtime.clone();
+        assert!(
+            missing_settings["bidders"][target.name()]
+                .get("settings")
+                .is_some()
+        );
+        assert!(
+            missing_settings["bidders"][target.name()]
+                .get("implementation")
+                .is_some()
+        );
         for ancestor in &target.ancestry {
-            missing_settings["bidders"][&ancestor.name]
+            let row = missing_settings["bidders"][&ancestor.name]
                 .as_object_mut()
-                .unwrap()
-                .remove("settings");
+                .unwrap();
+            row.remove("implementation");
+            row.remove("settings");
         }
         let settings_secrets = Secrets::new(&requested, false);
         let settings_answer = send_rejected_policy(
@@ -307,6 +318,95 @@ fn all_priority_privacy_denials_precede_schema_and_host_services(app: &App, coho
     );
 }
 
+fn explicit_endpoint_publications_require_activation_and_destination(app: &App) {
+    let cohort = configured_endpoint_flows();
+    assert_eq!(
+        cohort.len(),
+        1,
+        "all endpoint-free publications have acceptance"
+    );
+    let mut dispatched = BTreeSet::new();
+    for flow in &cohort {
+        assert!(!flow.default_active());
+        assert!(!flow.native_admission);
+        let requested = [flow];
+        let enabled = config(&requested);
+
+        let mut no_settings = enabled.clone();
+        for ancestor in &flow.ancestry {
+            assert!(
+                no_settings["bidders"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(&ancestor.name)
+                    .is_some()
+            );
+        }
+        let mut default_off = enabled.clone();
+        for overrides in default_off["bidders"].as_object_mut().unwrap().values_mut() {
+            assert!(
+                overrides
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("enabled")
+                    .is_some()
+            );
+        }
+        let mut explicitly_disabled = enabled.clone();
+        explicitly_disabled["bidders"][flow.name()]["enabled"] = json!(false);
+        for runtime in [&no_settings, &default_off, &explicitly_disabled] {
+            let (answer, secrets) = dispatch(app, &requested, runtime);
+            assert_disabled(&answer, flow);
+            assert!(secrets.reads.lock().unwrap().is_empty());
+        }
+
+        let mut missing_endpoint = enabled.clone();
+        for ancestor in &flow.ancestry {
+            let row = missing_endpoint["bidders"][&ancestor.name]
+                .as_object_mut()
+                .unwrap();
+            if ancestor.name == flow.name() {
+                assert!(
+                    row.get("settings")
+                        .and_then(|settings| settings.get("endpoint"))
+                        .is_some(),
+                    "the enabled control supplies an explicit endpoint"
+                );
+            }
+            row.remove("implementation");
+            row.remove("settings");
+        }
+        let rejected_secrets = Secrets::new(&requested, false);
+        let rejected = send_rejected_policy(
+            app,
+            &requested,
+            &input(&requested),
+            &missing_endpoint,
+            &rejected_secrets,
+            PolicyValidationError::Bidder(BidderConfigurationError::Bidder(BidderConfigError {
+                field: "endpoint",
+                reason: "required when enabled",
+            })),
+        );
+        assert_eq!(rejected.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(rejected.wire, json!("Malformed host configuration"));
+        assert!(rejected.calls.is_empty());
+        assert_eq!(rejected.received, 0);
+        assert!(rejected_secrets.reads.lock().unwrap().is_empty());
+
+        let (answer, secrets) = dispatch(app, &requested, &enabled);
+        assert_success(&answer, &requested);
+        assert_no_errors(&answer);
+        assert!(secrets.reads.lock().unwrap().is_empty());
+        dispatched.extend(answer.calls.iter().map(|call| call.owner.clone()));
+    }
+    assert_eq!(
+        dispatched,
+        cohort.iter().map(|flow| flow.name().to_owned()).collect()
+    );
+    assert_eq!(dispatched.len(), 1);
+}
+
 #[test]
 fn all_frozen_native_flows_use_generated_app_dispatch_and_fresh_activation_snapshots() {
     let app = boot();
@@ -328,4 +428,5 @@ fn all_frozen_native_flows_use_generated_app_dispatch_and_fresh_activation_snaps
     all_priority_privacy_denials_precede_schema_and_host_services(&app, &cohort);
     super::privacy::all_priority_outbound_privacy(&app, &cohort);
     super::sync::applicable_templates_use_signed_generated_app_callbacks(&app, &cohort);
+    explicit_endpoint_publications_require_activation_and_destination(&app);
 }

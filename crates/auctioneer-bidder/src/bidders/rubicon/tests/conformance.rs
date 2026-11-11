@@ -20,7 +20,7 @@ pub(super) fn with_source_context<T>(run: impl FnOnce(&BidderRequestInfo<'_>) ->
     // All credential values and the external URL are TestJsonSamples literals,
     // not operator credentials or invented defaults. The reference is test-only.
     let settings: BidderSettings = serde_json::from_value(json!({
-        "implementation":"rubicon", "values":{
+        "implementation":"rubicon", "settings":{
             "credentials_secret":"fake_credential_bundle", "external_url":"http://hosturl.com",
             "region":"us-east"
         }

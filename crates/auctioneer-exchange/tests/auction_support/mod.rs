@@ -304,7 +304,7 @@ impl Harness {
         for (name, gpp_supported) in [("fake_bb", false), ("fake_ccc", true), ("fake_aaa", false)] {
             let mut info = BidderInfo {
                 name: name.into(),
-                endpoint: "https://bidder.example.test/openrtb".into(),
+                endpoint: Some("https://bidder.example.test/openrtb".into()),
                 uses_https: true,
                 disabled: self.baked_disabled.contains(name),
                 ..BidderInfo::default()

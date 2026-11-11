@@ -116,7 +116,7 @@ mod tests {
     fn leak_info() -> &'static BidderInfo {
         Box::leak(Box::new(BidderInfo {
             name: "fake_bb".into(),
-            endpoint: "https://demo.example.test/openrtb".into(),
+            endpoint: Some("https://demo.example.test/openrtb".into()),
             uses_https: true,
             ..BidderInfo::default()
         }))

@@ -1,24 +1,19 @@
-//! `/_auctioneer/health/gvl` payload + counter tests under the
-//! `UnauthenticatedAcknowledged` policy.
-//!
-//! `HEALTH_POLICY` is a process-global `OnceLock`, so ONE policy state
-//! exists per test binary: this file owns the acknowledged state,
-//! `health_gvl_failclosed.rs` owns never-installed, and
-//! `health_gvl_auth.rs` owns Token. Every test here (re)installs the
-//! same policy — identical concurrent installs are race-idempotent by
-//! design, so parallel tests need no coordination.
+//! GVL health payload and process-local counter tests with explicit runtime opt-in.
+
+#[cfg(test)]
+mod config_funding_support;
+#[cfg(test)]
+mod fanout_limits;
 
 #[cfg(test)]
 mod tests {
+    use crate::config_funding_support as config_funding;
     use auctioneer_core::handlers::health_gvl::{counter, gcl_stale_counter, health_gvl};
-    use auctioneer_core::host_primitives::{
-        HealthAccessPolicy, TestClockHandle, install_health_primitives,
-    };
+    use auctioneer_core::host_primitives::{TestClockHandle, install_health_counter_scope};
+    use auctioneer_core::test_support::config_store::{context, runtime_registry};
     use auctioneer_runtime::body_caps::{HEALTH_GVL_CAP_BYTES, RouteMatch, match_route, table};
     use auctioneer_runtime::{Clock, FakeClock};
     use edgezero_core::body::Body;
-    use edgezero_core::context::RequestContext;
-    use edgezero_core::params::PathParams;
     use futures::executor::block_on;
     use http::{Method, Request, StatusCode, Uri};
     use std::sync::Arc;
@@ -26,8 +21,8 @@ mod tests {
     use time::{Duration, OffsetDateTime};
 
     fn install_acknowledged() {
-        install_health_primitives(HealthAccessPolicy::UnauthenticatedAcknowledged, "isolate")
-            .expect("identical reinstalls of the acknowledged policy are idempotent");
+        config_funding::install();
+        install_health_counter_scope("isolate").unwrap();
     }
 
     fn generated_at() -> OffsetDateTime {
@@ -59,7 +54,11 @@ mod tests {
             .body(Body::from_bytes(Vec::new()))
             .unwrap();
         request.extensions_mut().insert(TestClockHandle(clock));
-        let ctx = RequestContext::new(request, PathParams::default());
+        request.extensions_mut().insert(runtime_registry(
+            &serde_json::json!({"schema_version": 1_u8,
+            "host": {"gvl": {"authenticate_health": false}}}),
+        ));
+        let ctx = context(request);
         let response = health_gvl(ctx).await.expect("handler returns Ok");
         let (parts, body) = response.into_parts();
         let bytes = body

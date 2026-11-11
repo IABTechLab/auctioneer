@@ -118,7 +118,13 @@ mod tests {
             let mut rows: Vec<_> = default_active_site_media(&[MediaType::Banner])
                 .into_iter()
                 .filter(|row| {
-                    !row.info.disabled && row.info.uses_https && !row.info.endpoint.contains("{{")
+                    !row.info.disabled
+                        && row.info.uses_https
+                        && row
+                            .info
+                            .endpoint
+                            .as_deref()
+                            .is_some_and(|endpoint| !endpoint.contains("{{"))
                 })
                 .collect();
             rows.sort_by_key(ServingBidder::name);

@@ -50,7 +50,10 @@ mod tests {
             !info.disabled
                 && info.uses_https
                 && info.debug_allow
-                && !info.endpoint.contains("{{")
+                && info
+                    .endpoint
+                    .as_deref()
+                    .is_some_and(|endpoint| !endpoint.contains("{{"))
                 && info.endpoint_compression.is_none()
                 && info.capabilities.site.contains(&MediaType::Banner)
         })
@@ -172,7 +175,7 @@ mod tests {
         let first = parsed(&response);
         assert_eq!(
             first["ext"]["debug"]["httpcalls"]["fake_lifecycle_alias"][0]["request"]["endpoint_origin"],
-            url::Url::parse(&base_a.info.endpoint)
+            url::Url::parse(base_a.info.endpoint.as_deref().unwrap())
                 .unwrap()
                 .origin()
                 .ascii_serialization()
@@ -180,7 +183,7 @@ mod tests {
         assert_eq!(app.store().reads(), 1);
         assert_eq!(
             fanout.caps.lock().unwrap().as_slice(),
-            &[(base_a.info.endpoint.clone(), 4096, 4096)]
+            &[(base_a.info.endpoint.clone().unwrap(), 4096, 4096)]
         );
         let second = parsed(&app.dispatch_with(
             Method::POST,
@@ -194,7 +197,7 @@ mod tests {
         assert_eq!(
             fanout.caps.lock().unwrap()[1],
             (
-                base_b.info.endpoint.clone(),
+                base_b.info.endpoint.clone().unwrap(),
                 limits.max_transport_bytes,
                 limits.max_decoded_bytes
             )

@@ -872,6 +872,48 @@ mod tests {
         }
     }
 
+    #[test]
+    fn admitted_endpoint_spellings_reach_the_transport() {
+        for (literal, expected) in [
+            (
+                "https://bidder.example/auction",
+                "https://bidder.example/auction",
+            ),
+            (
+                "https://xn--bcher-kva.example/auction",
+                "https://xn--bcher-kva.example/auction",
+            ),
+            (
+                "https://bidder.example/a%3Cb",
+                "https://bidder.example/a%3Cb",
+            ),
+            (
+                "https://bidder.example/a%60b",
+                "https://bidder.example/a%60b",
+            ),
+            (
+                "https://bidder.example/caf\u{e9}",
+                "https://bidder.example/caf%C3%A9",
+            ),
+            (
+                "HTTPS://BIDDER.EXAMPLE:443/auction?q=a%2Fb",
+                "https://bidder.example/auction?q=a%2Fb",
+            ),
+        ] {
+            let endpoint = auctioneer_bidder::ConfiguredEndpoint::new(literal).unwrap();
+            let converted = to_outbound(
+                BoundedOutboundRequest {
+                    request: request(endpoint.as_str()),
+                    policy: test_policy(),
+                    deadline: composed(),
+                },
+                &limits(),
+            )
+            .expect("admitted literal must survive transport preflight");
+            assert_eq!(converted.uri().to_string(), expected);
+        }
+    }
+
     /// Every converted request carries `Bypass`, never the
     /// `PlatformDefault` an unset policy would inherit: a cached bid
     /// response is both a stale-bid correctness bug and a cross-auction

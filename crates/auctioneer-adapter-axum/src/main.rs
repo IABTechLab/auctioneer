@@ -4,8 +4,8 @@ mod limits;
 mod resource_profile;
 
 use auctioneer_core::host_primitives::{
-    BearerToken, DevRng, SystemClock, axum_production_strategy, bootstrap_adapter_with_envelope,
-    decide_health_policy, install_health_primitives, read_bool_flag,
+    DevRng, SystemClock, axum_production_strategy, bootstrap_adapter_with_envelope,
+    install_health_counter_scope,
 };
 use auctioneer_runtime::NoopDecodeCooperator;
 use edgezero_adapter_axum::dev_server::run_app_with_preflight;
@@ -13,9 +13,6 @@ use edgezero_core::env_config::EnvConfig;
 use edgezero_core::logging::{BOOT_LOG_LEVEL, BOOT_LOG_TARGET, resolve_logging_level};
 use std::env;
 use std::sync::Arc;
-
-const HEALTH_TOKEN_VAR: &str = "AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN";
-const ALLOW_UNAUTH_VAR: &str = "AUCTIONEER__RUNTIME__ALLOW_UNAUTHENTICATED_HEALTH";
 
 fn main() -> anyhow::Result<()> {
     let mut args = env::args_os().skip(1);
@@ -61,18 +58,8 @@ fn serve() -> anyhow::Result<()> {
     // has been installed, so there is nothing to serve with. The error
     // names the limit that failed.
     boot_result.map_err(|error| anyhow::anyhow!("boot envelope rejected: {error}"))?;
-    // Health-endpoint access policy, resolved ONCE from the process
-    // environment before the server accepts requests. Both inputs are
-    // boot-scoped: `HEALTH_POLICY` is a process-global installed once,
-    // so per-request `RuntimeConfig` can never carry them. With no
-    // token and no explicit opt-in the frozen `Closed` policy is
-    // installed and `/_auctioneer/health/gvl` answers 401 (fail-closed).
-    let raw_flag = env::var(ALLOW_UNAUTH_VAR).ok();
-    let allow_unauth = read_bool_flag(ALLOW_UNAUTH_VAR, raw_flag.as_deref())?;
-    // An empty configured secret is a misconfiguration; `BearerToken::
-    // new` maps it to "no token configured".
-    let token = env::var(HEALTH_TOKEN_VAR).ok().and_then(BearerToken::new);
-    install_health_primitives(decide_health_policy(token, allow_unauth)?, "process")?;
+    // Policy and secret resolution belongs to the shared health handler.
+    install_health_counter_scope("process")?;
     run_app_with_preflight::<auctioneer_core::App, _>(|| {
         envelope::validate_sdk_settings(&EnvConfig::from_env())
     })
@@ -133,8 +120,8 @@ mod logging_tests {
     fn assert_configured_levels(test_name: &str, oversized: bool) {
         const CHILD_LEVEL: &str = "AUCTIONEER__TEST__LOG_LEVEL";
         if let Ok(expected) = env::var(CHILD_LEVEL) {
-            let error = super::serve().expect_err("invalid health flag stops before serving");
-            assert!(error.to_string().contains(super::ALLOW_UNAUTH_VAR));
+            let error = super::serve().expect_err("invalid SDK settings stop before serving");
+            assert!(error.to_string().contains("max_connections"));
             let gates = boot_gates().expect("the actual shipped row bootstrapped");
             assert!(gates.derived.total_bytes <= gates.limits.isolate_total_bytes);
             if oversized {
@@ -172,9 +159,8 @@ mod logging_tests {
             command
                 .args(["--exact", test_name, "--nocapture"])
                 .env(CHILD_LEVEL, expected.to_string())
-                .env(super::ALLOW_UNAUTH_VAR, "invalid")
-                .env_remove("EDGEZERO__LOGGING__LEVEL")
-                .env_remove(super::HEALTH_TOKEN_VAR);
+                .env("EDGEZERO__ADAPTER__INGRESS__MAX_CONNECTIONS", "385")
+                .env_remove("EDGEZERO__LOGGING__LEVEL");
             if let Some(level) = configured {
                 command.env("EDGEZERO__LOGGING__LEVEL", level);
             }

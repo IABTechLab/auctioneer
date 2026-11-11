@@ -1,6 +1,8 @@
 key = "mocktioneer"
 factory = true
-required_feature = "insecure-bidders"
+
+[settings.fields]
+endpoint = "optional_string"
 
 [endpoint.fields]
 account_id = "AccountID"
@@ -54,10 +56,11 @@ source_blob = "693721b93363c430d97fa8d4bf7649dfdd56ddaa"
 source_bytes = 497
 source_sha256 = "86aef303c594f1a249f44cb0681a9cceec9c7887ef29ce4a228616f699e398c8"
 transformation = """\
-    Existing effective TOML metadata retained; no verbatim metadata capture is claimed."""
+    Effective capabilities retained with an operator-required destination; \
+    no verbatim metadata capture is claimed."""
 port_differences = [
     """\
-    The existing insecure-bidders-only loopback endpoint and Auctioneer maintainer address differ \
+    The operator-required endpoint and Auctioneer maintainer address differ \
     from the source's hosted HTTPS endpoint and maintainer. This is development configuration, \
     not deployment or routing approval.""",
 ]
@@ -83,7 +86,7 @@ source_bytes = 10760
 source_sha256 = "9d130cc11efd232f041473f0cd62c43806b9389d63b599c8ee0862b699e8bc58"
 
 [definitions.mocktioneer]
-endpoint = "http://127.0.0.1:8787/openrtb2/auction"
+defaultEnabled = false
 
 [definitions.mocktioneer.maintainer]
 email = "maintainer@auctioneer.example"

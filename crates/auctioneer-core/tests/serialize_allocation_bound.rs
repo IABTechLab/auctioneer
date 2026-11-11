@@ -141,7 +141,13 @@ mod alloc_track {
 static COUNTING_ALLOC: alloc_track::CountingAllocator = alloc_track::CountingAllocator;
 
 #[cfg(test)]
+mod config_funding_support;
+#[cfg(test)]
+mod fanout_limits;
+
+#[cfg(test)]
 mod tests {
+    use crate::config_funding_support as config_funding;
     use std::{hint::black_box, thread};
 
     use super::alloc_track::{
@@ -149,15 +155,13 @@ mod tests {
         track_reallocations_at_least_on_this_thread,
     };
     use auctioneer_core::handlers::health_gvl::health_gvl;
-    use auctioneer_core::host_primitives::{
-        HealthAccessPolicy, TestClockHandle, install_health_primitives,
-    };
+    use auctioneer_core::host_primitives::{TestClockHandle, install_health_counter_scope};
     use auctioneer_core::serialize::{SerializeError, serialize_response_within};
+    use auctioneer_core::test_support::config_store::{context, runtime_registry};
     use auctioneer_openrtb::types::bid_response::BidResponse;
     use auctioneer_runtime::FakeClock;
     use edgezero_core::body::Body;
     use edgezero_core::context::RequestContext;
-    use edgezero_core::params::PathParams;
     use futures::executor::block_on;
     use http::{Request, StatusCode};
     use std::sync::Arc;
@@ -336,7 +340,11 @@ mod tests {
             .insert(TestClockHandle(Arc::new(FakeClock::new(
                 OffsetDateTime::UNIX_EPOCH,
             ))));
-        RequestContext::new(request, PathParams::default())
+        request.extensions_mut().insert(runtime_registry(
+            &serde_json::json!({"schema_version": 1_u8,
+            "host": {"gvl": {"authenticate_health": false}}}),
+        ));
+        context(request)
     }
 
     #[test]
@@ -344,8 +352,8 @@ mod tests {
         thread::spawn(|| {
             let scope: &'static str =
                 Box::leak("isolate\0\n\"\\\u{00e9}".repeat(4097).into_boxed_str());
-            install_health_primitives(HealthAccessPolicy::UnauthenticatedAcknowledged, scope)
-                .unwrap();
+            config_funding::install();
+            install_health_counter_scope(scope).unwrap();
             let warmup = block_on(health_gvl(health_context())).unwrap();
             assert_eq!(warmup.status(), StatusCode::OK);
             assert_eq!(warmup.headers()["content-type"], "application/json");

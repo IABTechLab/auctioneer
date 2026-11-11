@@ -4,20 +4,13 @@ spin_manifest_version = 2
 name = "auctioneer-adapter-spin"
 version = "0.1.0"
 
-# Spin resolves a component variable only when the APPLICATION
-# declares it and the component maps it. An undeclared variable cannot
-# be set by `spin up --variable` or by a runtime config provider, so
-# leaving these out made authenticated health checks unconfigurable:
-# `variables::get` always errored, the adapter read both as absent, and
-# the decision table fail-closed to 401 with no way to supply a token.
-#
-# `allow_unauthenticated_health` defaults to "false" so an operator who
-# sets nothing gets the fail-closed policy rather than a boot error.
-# Optional Spin variables require a default. Empty secret defaults are
-# unusable: health stays closed and UID processing refuses without keys.
-# Operators provision real credentials through a variable provider.
+# SDK secret reads need both the application declaration and component mapping.
+# Select health_gvl_token via host.gvl.authenticate_health_token_secret in the
+# pushed operator policy. Different entry names need their own secret declaration
+# and component mapping; the SDK lowercases names before variables::get.
+# Empty secret defaults cannot authenticate health. Provision real
+# credentials through a variable provider.
 [variables]
-allow_unauthenticated_health = { default = "false" }
 health_gvl_token = { required = false, default = "", secret = true }
 # One atomic JSON keyring, resolved only when user-sync needs UID state.
 # Provision through a variable provider; never bake a usable signing key.
@@ -36,7 +29,6 @@ allowed_outbound_hosts = ["https://*:*"]
 # resolve them. Declaring without mapping leaves the reads failing
 # exactly as if nothing were declared.
 [component.auctioneer-adapter-spin.variables]
-allow_unauthenticated_health = "{{ allow_unauthenticated_health }}"
 health_gvl_token = "{{ health_gvl_token }}"
 usersync_cookie_keyring = "{{ usersync_cookie_keyring }}"
 edgezero_logging_level = "{{ edgezero_logging_level }}"

@@ -19,8 +19,8 @@ entry = "crates/auctioneer-core"
 #
 # Privacy reference-data health:
 #   /_auctioneer/health/gvl (GET)  operator-only; fail-closed 401 unless
-#                               the adapter boot installed an access
-#                               policy — restrict /_auctioneer/* at the
+#                               operator policy grants access through
+#                               host.gvl; restrict /_auctioneer/* at the
 #                               ingress (docs/deployment/restrict-operational-endpoints.md)
 #
 # User-sync routes:
@@ -139,12 +139,12 @@ description = "Read current UID cookie families"
 # aliases. Other adapters resolve their bindings through their host setup.
 
 [stores.config]
-ids = ["auctioneer_runtime"]
-default = "auctioneer_runtime"
+ids = ["auctioneer_config"]
+default = "auctioneer_config"
 
 [stores.secrets]
-ids = ["default"]
-default = "default"
+ids = ["auctioneer_secrets"]
+default = "auctioneer_secrets"
 
 # -- Adapters and their build/deploy/serve commands ------------------------
 #

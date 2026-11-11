@@ -257,7 +257,9 @@ mod tests {
             ("/status", StatusCode::OK, 1),
             ("/info/bidders", StatusCode::OK, 1),
             (detail_path.as_str(), StatusCode::OK, 1),
-            ("/_auctioneer/health/gvl", StatusCode::UNAUTHORIZED, 0),
+            // Health resolves its access policy once through bounded config,
+            // including when the caller has not presented a bearer token.
+            ("/_auctioneer/health/gvl", StatusCode::UNAUTHORIZED, 1),
         ] {
             for (body, framing) in bodies(DEFAULT_CAP_BYTES) {
                 let reads = fixture.reads();

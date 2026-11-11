@@ -8,7 +8,7 @@ mod tests {
     #[test]
     fn generated_settings_keep_owned_fields_and_implementation_key() {
         let settings: BidderSettings = serde_json::from_value(json!({
-            "implementation": "msft", "values": {}
+            "implementation": "msft", "settings": {}
         }))
         .unwrap();
         assert_eq!(settings.implementation_key(), "msft");
@@ -18,7 +18,7 @@ mod tests {
         assert!(settings.as_thetradedesk().is_none());
 
         let wire = json!({
-            "implementation": "msft", "values": {"hb_source": 50_i32, "hb_source_video": 60_i32}
+            "implementation": "msft", "settings": {"hb_source": 50_i32, "hb_source_video": 60_i32}
         });
         let populated: BidderSettings = serde_json::from_value(wire.clone()).unwrap();
         let view = msft::resolve(populated.as_msft(), None);
@@ -31,7 +31,7 @@ mod tests {
     fn settings_refuse_another_owners_field() {
         assert!(
             serde_json::from_value::<BidderSettings>(json!({
-                "implementation": "msft", "values": {"supply_id": "x"}
+                "implementation": "msft", "settings": {"supply_id": "x"}
             }))
             .unwrap_err()
             .is_data()

@@ -58,10 +58,10 @@ mod tests {
 /// Boot the Worker isolate and dispatch a request through the application.
 ///
 /// # Errors
-/// Returns an error for invalid boot limits, conflicting health-policy
+/// Returns an error for invalid boot limits, conflicting health counter-scope
 /// installation or request/response dispatch. The SDK delivers application
 /// assembly failures as typed HTTP error responses through its owned egress path.
-/// Health configuration resolution errors degrade to a closed health policy.
+/// Health policy and credentials are resolved by the shared request handler.
 #[cfg(target_arch = "wasm32")]
 #[event(fetch)]
 pub async fn main(req: Request, env: Env, ctx: Context) -> Result<Response> {
@@ -101,30 +101,13 @@ pub async fn main(req: Request, env: Env, ctx: Context) -> Result<Response> {
         || Arc::new(DelegateToDevStrategy),
     )
     .map_err(|e| Error::RustError(format!("auctioneer boot envelope rejected: {e}")))?;
-    install_health(&env)?;
+    install_health()?;
     run_app::<AuctioneerApp>(req, env, ctx).await
 }
 
-/// Resolve the health-endpoint access policy from the Worker
-/// environment and install it. Runs on every fetch; the install is
-/// idempotent for identical inputs, and the first fetch freezes the
-/// policy `OnceLock` — including the fail-closed `Closed` policy when
-/// neither input resolves — so a later fetch cannot flip the endpoint
-/// open.
-///
-/// Invalid health configuration installs `Closed` without stopping
-/// `/status` or auctions, matching Fastly. An installation conflict
-/// still fails the fetch: a frozen policy must never be ignored.
+/// Install the isolate's immutable health observation scope.
 #[cfg(target_arch = "wasm32")]
-fn install_health(env: &Env) -> Result<()> {
-    const TOKEN_SECRET: &str = "AUCTIONEER__RUNTIME__HEALTH_GVL_TOKEN";
-    // A missing secret / var reads as absent; the decision table
-    // fail-closes on (no token, no opt-in).
-    let raw_flag = env
-        .var(health::FLAG_VARIABLE)
-        .ok()
-        .map(|value| value.to_string());
-    let raw_token = env.secret(TOKEN_SECRET).ok().map(|value| value.to_string());
-    health::install(raw_flag.as_deref(), raw_token)
-        .map_err(|err| Error::RustError(format!("health policy install conflicted: {err}")))
+fn install_health() -> Result<()> {
+    health::install()
+        .map_err(|err| Error::RustError(format!("health counter scope install conflicted: {err}")))
 }

@@ -348,7 +348,7 @@ fn main() {
     traits::<generated::BidderSettings>();
     for key in ["fake_probe", "std", "serde", "V0"] {
         assert!(serde_json::from_value::<generated::BidderSettings>(serde_json::json!({
-            "implementation": key, "values": {}
+            "implementation": key, "settings": {}
         })).is_err());
     }
     for wire in [serde_json::json!({}), serde_json::json!([]), serde_json::json!(null)] {
@@ -411,7 +411,7 @@ const ERROR: &str = "invalid credential reference";
 const CANARY: &str = "private-reference-canary";
 
 fn wire(values: Value) -> Value {
-    json!({"implementation": "fake_credential_probe", "values": values})
+    json!({"implementation": "fake_credential_probe", "settings": values})
 }
 
 fn main() {
@@ -553,7 +553,7 @@ pub mod generated {
 }
 macro_rules! check {
     ($key:literal, $module:ident, $accessor:ident) => {{
-        let wire = serde_json::json!({"implementation": $key, "values": {
+        let wire = serde_json::json!({"implementation": $key, "settings": {
             "resolve": 0, "requested": 11, "base": 12,
             "clone": "", "fmt": "private-fmt", "deserialize": "private-deserialize"
         }});
@@ -635,7 +635,7 @@ pub mod expanded {
 macro_rules! check {
     ($key:literal, $module:ident, $accessor:ident) => {{
         for (number, text) in [(0, ""), (i64::MIN, "min"), (i64::MAX, "max")] {
-            let wire = serde_json::json!({"implementation": $key, "values": {
+            let wire = serde_json::json!({"implementation": $key, "settings": {
                 "number": number, "text": text
             }});
             let before: baseline::BidderSettings = serde_json::from_value(wire.clone()).unwrap();
@@ -656,7 +656,7 @@ macro_rules! check {
 fn main() {
     check!("fake_middle_probe", fake_middle_probe, as_fake_middle_probe);
     check!("fake_zeta_probe", fake_zeta_probe, as_fake_zeta_probe);
-    let wire = serde_json::json!({"implementation": "fake_aaa_probe", "values": {"token": "new"}});
+    let wire = serde_json::json!({"implementation": "fake_aaa_probe", "settings": {"token": "new"}});
     assert!(serde_json::from_value::<baseline::BidderSettings>(wire.clone()).is_err());
     let inserted: expanded::BidderSettings = serde_json::from_value(wire).unwrap();
     assert_eq!(inserted.as_fake_aaa_probe().unwrap().token.as_deref(), Some("new"));

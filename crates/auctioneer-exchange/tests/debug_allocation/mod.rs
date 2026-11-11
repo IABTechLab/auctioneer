@@ -196,7 +196,7 @@ pub fn deadline(clock: &FakeClock) -> MonotonicInstant {
 pub fn outbound(value: &Value, headers: bool) -> BidderHttpRequest {
     let endpoint = "https://bidder.example/PATH_CANARY?token=URL_CANARY#FRAGMENT_CANARY";
     let bidder = BidderInfo {
-        endpoint: endpoint.into(),
+        endpoint: Some(endpoint.into()),
         ..BidderInfo::default()
     };
     let info = BidderRequestInfo::new(
@@ -393,7 +393,7 @@ impl Engine {
             .register(
                 Box::leak(Box::new(BidderInfo {
                     name: "fake_bb".into(),
-                    endpoint: "https://bidder.example/private?token=ENGINE_URL_CANARY".into(),
+                    endpoint: Some("https://bidder.example/private?token=ENGINE_URL_CANARY".into()),
                     debug_allow: base_allow,
                     ..BidderInfo::default()
                 })),

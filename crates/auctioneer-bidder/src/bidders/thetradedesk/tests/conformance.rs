@@ -16,7 +16,7 @@ mod generated_settings_tests {
     #[test]
     fn generated_settings_keep_owned_field_and_implementation_key() {
         let settings: BidderSettings = serde_json::from_value(json!({
-            "implementation": "thetradedesk", "values": {}
+            "implementation": "thetradedesk", "settings": {}
         }))
         .unwrap();
         assert_eq!(settings.implementation_key(), "thetradedesk");
@@ -24,7 +24,7 @@ mod generated_settings_tests {
         assert!(settings.as_msft().is_none());
 
         let wire = json!({
-            "implementation": "thetradedesk", "values": {"supply_id": "reference-route"}
+            "implementation": "thetradedesk", "settings": {"supply_id": "reference-route"}
         });
         let populated: BidderSettings = serde_json::from_value(wire.clone()).unwrap();
         assert_eq!(
@@ -37,8 +37,8 @@ mod generated_settings_tests {
     #[test]
     fn settings_refuse_public_aliases_and_another_owners_field() {
         for wire in [
-            json!({"implementation": "ttd", "values": {}}),
-            json!({"implementation": "thetradedesk", "values": {"hb_source": 5_i64}}),
+            json!({"implementation": "ttd", "settings": {}}),
+            json!({"implementation": "thetradedesk", "settings": {"hb_source": 5_i64}}),
         ] {
             assert!(
                 serde_json::from_value::<BidderSettings>(wire)
@@ -121,7 +121,7 @@ mod tests {
         let before = serde_json::to_value(&request).unwrap();
         // TestJsonSamples explicitly supplies this setting. It is not a runtime default.
         let settings: BidderSettings = serde_json::from_value(json!({
-            "implementation":"thetradedesk", "values":{"supply_id":"ttd"},
+            "implementation":"thetradedesk", "settings":{"supply_id":"ttd"},
         }))
         .unwrap();
         let mut info = BidderRequestInfo::new(

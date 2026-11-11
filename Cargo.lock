@@ -240,6 +240,7 @@ dependencies = [
  "futures",
  "log",
  "once_cell",
+ "serde_json",
  "time",
  "toml 0.8.23",
 ]
@@ -368,6 +369,7 @@ dependencies = [
  "auctioneer-openrtb-catalogue",
  "auctioneer-runtime",
  "hex",
+ "http",
  "ipnetwork",
  "percent-encoding",
  "proc-macro2",

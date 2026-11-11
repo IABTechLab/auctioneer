@@ -13,8 +13,8 @@ mod tests {
         let stores = <App as Hooks>::stores()
             .secrets
             .expect("the default secret store exists");
-        assert_eq!(stores.default, "default");
-        assert_eq!(stores.ids, &["default"]);
+        assert_eq!(stores.default, "auctioneer_secrets");
+        assert_eq!(stores.ids, &["auctioneer_secrets"]);
         let local_stores = manifest["local_server"]["secret_stores"]
             .as_table()
             .expect("local secret stores");

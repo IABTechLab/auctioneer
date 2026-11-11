@@ -779,7 +779,7 @@ mod tests {
                 ]
                 .map(|name| BidderInfo {
                     name: name.into(),
-                    endpoint: format!("https://{name}.example.test/bid"),
+                    endpoint: Some(format!("https://{name}.example.test/bid")),
                     gvl_vendor_id: Some(if name == "fake_base" { 7 } else { 9 }),
                     disabled: name == "fake_child",
                     ..BidderInfo::default()

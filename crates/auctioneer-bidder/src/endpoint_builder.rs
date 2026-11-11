@@ -94,12 +94,13 @@ impl<'info> EndpointBuilder<'info> {
     /// Construct a builder over a bidder's template.
     ///
     /// # Errors
-    /// Returns no errors today; the `Result` shape is the GDPR enforcement-stable
-    /// signature for when codegen-time template validation moves to a
-    /// runtime parser.
+    /// Rejects metadata without a compiled destination. Such bidders require
+    /// their configured endpoint through the request-time selection API.
     pub fn new(info: &'info BidderInfo) -> Result<Self, EndpointBuilderError> {
         Ok(Self {
-            template: &info.endpoint,
+            template: info.endpoint.as_deref().ok_or_else(|| {
+                EndpointBuilderError::MalformedTemplate("missing endpoint".to_owned())
+            })?,
             host_allowlist: info.host_allowlist.as_deref().map(StringList::Owned),
             allowed_macros: StringList::Owned(&info.endpoint_macros),
             values: BTreeMap::new(),
@@ -544,10 +545,25 @@ mod tests {
 
     fn info(endpoint: &str) -> BidderInfo {
         BidderInfo {
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             endpoint_macros: vec!["AccountID".into()],
             ..BidderInfo::default()
         }
+    }
+
+    #[test]
+    fn absent_compiled_endpoint_requires_request_time_selection() {
+        let definition = BidderInfo::default();
+        assert!(
+            matches!(EndpointBuilder::new(&definition), Err(EndpointBuilderError::MalformedTemplate(reason)) if reason == "missing endpoint")
+        );
+        let request = typed_info("https://configured.example.test/auction", &[]);
+        assert_eq!(
+            EndpointBuilder::from_request(&request, &[])
+                .build()
+                .unwrap(),
+            "https://configured.example.test/auction"
+        );
     }
 
     #[test]
@@ -793,7 +809,7 @@ mod tests {
         let info = info("https://bidder.example.test/path?member_id=1&member_id=2");
         let mut pool = Vec::with_capacity(META_BYTES_CAPACITY);
         let mut meta = OutboundRequestMetaBuilder::new(&mut pool, 1);
-        meta.set_url(&info.endpoint).unwrap();
+        meta.set_url(info.endpoint.as_deref().unwrap()).unwrap();
         let before = meta.written();
         assert_eq!(
             EndpointBuilder::new(&info)
@@ -804,7 +820,7 @@ mod tests {
             })
         );
         assert_eq!(meta.written(), before);
-        assert_eq!(meta.finish().url(), info.endpoint);
+        assert_eq!(meta.finish().url(), info.endpoint.as_deref().unwrap());
     }
 
     #[test]
@@ -835,7 +851,7 @@ mod tests {
     fn info_fixed_host() -> BidderInfo {
         BidderInfo {
             name: "fake_synthetic".into(),
-            endpoint: "https://hb.example.test/openrtb?acct={{.AccountID}}".into(),
+            endpoint: Some("https://hb.example.test/openrtb?acct={{.AccountID}}".into()),
             uses_https: true,
             host_allowlist: None,
             endpoint_macros: vec!["AccountID".into()],
@@ -846,7 +862,7 @@ mod tests {
     fn info_host_varying() -> BidderInfo {
         BidderInfo {
             name: "fake_synthetic".into(),
-            endpoint: "https://{{.Host}}/openrtb".into(),
+            endpoint: Some("https://{{.Host}}/openrtb".into()),
             uses_https: true,
             host_allowlist: Some(vec!["eu.example.test".into(), "us.example.test".into()]),
             // {{.Host}} is excluded from endpoint_macros — it's the

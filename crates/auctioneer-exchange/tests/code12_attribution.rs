@@ -95,7 +95,7 @@ mod tests {
     fn leak_info(name: &'static str, endpoint: &'static str) -> &'static BidderInfo {
         Box::leak(Box::new(BidderInfo {
             name: name.into(),
-            endpoint: endpoint.into(),
+            endpoint: Some(endpoint.into()),
             uses_https: true,
             ..BidderInfo::default()
         }))

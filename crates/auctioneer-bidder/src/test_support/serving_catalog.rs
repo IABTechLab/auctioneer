@@ -163,7 +163,7 @@ pub fn passthrough_info() -> &'static BidderInfo {
                     && info.capabilities.site.contains(&MediaType::Banner)
                     // Retention tests inspect the endpoint and debug body directly.
                     && info.debug_allow
-                    && !info.endpoint.contains("{{")
+                    && info.endpoint.as_deref().is_some_and(|endpoint| !endpoint.contains("{{"))
                     && info.endpoint_compression.is_none()
                     && row.owner_expected_request_body.as_ref() == Some(&row.owner_request)
             })
@@ -192,7 +192,7 @@ fn default_active(mut info: &BidderInfo) -> bool {
 }
 
 /// Existing default-active publications for baseline handler/receipt controls.
-/// New opt-in native flows require their own funded generated-App acceptance;
+/// Opt-in publications require their own generated-App acceptance;
 /// [`published`] remains the complete catalog and is never filtered here.
 ///
 /// # Panics
@@ -208,6 +208,26 @@ pub fn default_active_publications() -> Vec<ServingBidder> {
         "default-active baseline must not disappear"
     );
     rows
+}
+
+/// Publications that require an explicit operator-configured endpoint.
+/// Generated-App acceptance exercises this cohort separately from the frozen
+/// default-active and native-schema cohorts, using each implementation's fixtures.
+///
+/// # Panics
+/// Panics if catalog discovery fails or an endpoint-free publication is active by default.
+#[must_use]
+pub fn configured_endpoint_publications() -> Vec<ServingBidder> {
+    published()
+        .into_iter()
+        .filter(|row| row.info.endpoint.is_none())
+        .inspect(|row| {
+            assert!(
+                !row.info.disabled && !default_active(row.info),
+                "endpoint-free publications require explicit activation"
+            );
+        })
+        .collect()
 }
 
 /// Default-active counterpart of [`site_media`] for unfunded baseline tests.
@@ -272,7 +292,7 @@ mod tests {
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn baseline_and_native_admission_cohorts_cover_each_publication_once() {
+    fn baseline_native_and_configured_endpoint_cohorts_cover_each_publication_once() {
         use crate::schema::native_schema_required;
         use std::collections::BTreeSet;
 
@@ -281,19 +301,30 @@ mod tests {
             .into_iter()
             .map(|row| row.name())
             .collect();
+        let configured: BTreeSet<_> = super::configured_endpoint_publications()
+            .into_iter()
+            .map(|row| row.name())
+            .collect();
         let mut native = 0;
         for row in &rows {
             let controlled = native_schema_required(row.name());
-            assert_ne!(
-                baseline.contains(row.name()),
-                controlled,
+            assert_eq!(
+                usize::from(baseline.contains(row.name()))
+                    + usize::from(controlled)
+                    + usize::from(configured.contains(row.name())),
+                1,
                 "{} must have exactly one explicit acceptance cohort",
                 row.name()
             );
             native += usize::from(controlled);
         }
         assert_eq!(native, 14, "13 new priority flows plus canonical ancestry");
-        assert_eq!(baseline.len() + native, rows.len());
+        assert_eq!(
+            configured.len(),
+            1,
+            "explicit configured-endpoint acceptance"
+        );
+        assert_eq!(baseline.len() + native + configured.len(), rows.len());
     }
     use auctioneer_config_data::types::BidderInfo;
 

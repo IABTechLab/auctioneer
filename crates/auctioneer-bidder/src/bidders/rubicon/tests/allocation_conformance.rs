@@ -30,7 +30,7 @@ fn factory() -> fn() -> Box<dyn Bidder> {
 }
 
 fn settings() -> BidderSettings {
-    serde_json::from_value(json!({"implementation":"rubicon","values":{
+    serde_json::from_value(json!({"implementation":"rubicon","settings":{
         "credentials_secret":"fake_credential_bundle","external_url":"http://hosturl.com",
         "region":"us-east"
     }}))

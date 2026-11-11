@@ -163,7 +163,7 @@ mod tests {
         .into_iter()
         .map(|name| BidderInfo {
             name: name.into(),
-            endpoint: "https://example.test/bid".into(),
+            endpoint: Some("https://example.test/bid".into()),
             uses_https: true,
             ..BidderInfo::default()
         })
@@ -172,7 +172,7 @@ mod tests {
 
     static GZIP_INFO: LazyLock<BidderInfo> = LazyLock::new(|| BidderInfo {
         name: "fake_gzip".into(),
-        endpoint: "https://example.test/bid".into(),
+        endpoint: Some("https://example.test/bid".into()),
         uses_https: true,
         endpoint_compression: Some(Compression::Gzip),
         ..BidderInfo::default()
@@ -180,7 +180,7 @@ mod tests {
 
     static EMPTY_INFO: LazyLock<BidderInfo> = LazyLock::new(|| BidderInfo {
         name: "fake_z0".into(),
-        endpoint: "https://example.test/bid".into(),
+        endpoint: Some("https://example.test/bid".into()),
         uses_https: true,
         ..BidderInfo::default()
     });

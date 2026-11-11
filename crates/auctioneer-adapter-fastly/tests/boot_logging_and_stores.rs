@@ -72,34 +72,19 @@ mod tests {
     }
 
     #[test]
-    fn the_health_bootstrap_opens_the_same_logical_aliases_as_sdk_registries() {
-        let source = source();
-        assert!(source.contains("let stores = <AuctioneerApp as Hooks>::stores();"));
-        for direct in [
-            "ConfigStore::try_open(config_id)?",
-            "SecretStore::open(secrets_id)?",
+    fn health_boot_installs_only_a_counter_scope_and_sdk_dispatch_owns_stores() {
+        let production = source().split("mod health_setup_tests").next().unwrap();
+        assert!(production.contains("install_health_counter_scope(\"request\")"));
+        for removed in [
+            "resolve_health_policy",
+            "ConfigStore::",
+            "SecretStore::",
+            "read_bool_flag",
         ] {
             assert!(
-                source.contains(direct),
-                "health and SDK registries must open baked resource-link aliases: {direct}"
+                !production.contains(removed),
+                "boot must not resolve health policy: {removed}"
             );
         }
-    }
-
-    #[test]
-    fn a_store_fault_leaves_health_closed_rather_than_stopping_the_router() {
-        let source = source();
-        let install_body = source
-            .split("fn install_health(")
-            .nth(1)
-            .and_then(|rest| rest.split("fn resolve_health_policy(").next())
-            .expect("health installation precedes fallible policy resolution");
-        assert!(install_body.contains("match resolve_health_policy()"));
-        assert!(install_body.contains("install_health_primitives(HealthAccessPolicy::Closed"));
-        assert!(install_body.contains("health policy unresolved"));
-        assert!(!install_body.contains("ConfigStore::try_open"));
-        assert!(!install_body.contains("SecretStore::open"));
-        assert!(!source.contains("ConfigStore::open("));
-        assert!(!source.contains(".plaintext()"));
     }
 }

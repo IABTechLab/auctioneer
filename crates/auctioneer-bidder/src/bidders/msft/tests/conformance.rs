@@ -392,7 +392,7 @@ mod tests {
     fn fixture_settings() -> BidderSettings {
         // Literal values from pinned TestJsonSamplesWithExtraInfo, not actual output.
         serde_json::from_value(json!({"implementation":"msft",
-            "values":{"hb_source":50,"hb_source_video":60}}))
+            "settings":{"hb_source":50,"hb_source_video":60}}))
         .unwrap()
     }
 

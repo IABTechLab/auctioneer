@@ -2,7 +2,10 @@
 
 #[cfg(test)]
 mod tests {
+    use auctioneer_bidder::test_support::serving_catalog;
+    use auctioneer_core::App as AuctioneerApp;
     use auctioneer_core::test_support::live_catalog;
+    use edgezero_core::app::Hooks as _;
     use edgezero_core::blob_envelope::BlobEnvelope;
     use serde_json::{Value, json};
     use std::env::{temp_dir, var_os};
@@ -76,12 +79,16 @@ mod tests {
                     .create(&dir)
                     .expect("private child directory");
                 if let Some(blob) = config_blob {
+                    let config_id = AuctioneerApp::stores()
+                        .config
+                        .expect("the production app declares a config store")
+                        .default;
                     DirBuilder::new()
                         .create(dir.join(".edgezero"))
                         .expect("private config directory");
                     fs::write(
-                        dir.join(".edgezero/local-config-auctioneer_runtime.json"),
-                        serde_json::to_vec(&json!({"auctioneer_runtime": blob}))
+                        dir.join(format!(".edgezero/local-config-{config_id}.json")),
+                        serde_json::to_vec(&json!({(config_id): blob}))
                             .expect("serialize config-store fixture"),
                     )
                     .expect("private config blob");
@@ -925,12 +932,23 @@ mod tests {
         let bidders = server.request("GET", "/info/bidders", &[], b"");
         assert_eq!(bidders.status, 200);
         let names: Vec<String> = serde_json::from_slice(&bidders.body).expect("bidder list");
-        for row in live_catalog::feature_declarations("insecure-bidders") {
+        let configurable = serving_catalog::configured_endpoint_publications();
+        assert_eq!(
+            configurable.len(),
+            1,
+            "exercise the configurable publication"
+        );
+        for row in configurable {
             assert!(
-                names.iter().any(|name| name == row.bidder),
-                "missing feature-gated identity {}",
-                row.bidder
+                names.iter().any(|name| name == row.name()),
+                "missing configurable identity {}",
+                row.name()
             );
+            let details = server.request("GET", &format!("/info/bidders/{}", row.name()), &[], b"");
+            assert_eq!(details.status, 200);
+            let info: Value =
+                serde_json::from_slice(&details.body).expect("configurable bidder details");
+            assert_eq!(info["status"], "DISABLED");
         }
 
         let local = Server::start(Some(&loopback_config()));
@@ -960,12 +978,24 @@ mod tests {
         let bidders = defaults.request("GET", "/info/bidders", &[], b"");
         assert_eq!(bidders.status, 200);
         let names: Vec<String> = serde_json::from_slice(&bidders.body).expect("secure bidder list");
-        for row in live_catalog::feature_declarations("insecure-bidders") {
+        let configurable = serving_catalog::configured_endpoint_publications();
+        assert_eq!(
+            configurable.len(),
+            1,
+            "exercise the configurable publication"
+        );
+        for row in configurable {
             assert!(
-                !names.iter().any(|name| name == row.bidder),
-                "secure binary exposes gated identity {}",
-                row.bidder
+                names.iter().any(|name| name == row.name()),
+                "secure binary lacks configurable identity {}",
+                row.name()
             );
+            let details =
+                defaults.request("GET", &format!("/info/bidders/{}", row.name()), &[], b"");
+            assert_eq!(details.status, 200);
+            let info: Value =
+                serde_json::from_slice(&details.body).expect("secure configurable bidder details");
+            assert_eq!(info["status"], "DISABLED");
         }
     }
 }

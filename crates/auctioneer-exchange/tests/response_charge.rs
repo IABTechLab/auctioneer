@@ -213,7 +213,7 @@ mod tests {
                 if bidder != "fake_bb" { input["ext"]["prebid"]["aliases"] = json!({bidder.clone():"fake_bb"}); }
                 let req = prepare(serde_json::from_value(input).unwrap(), &RequestHeaders::default(), &PrepareLimits {max_impressions:100, ..PrepareLimits::default()}).unwrap();
                 let mut registry = auctioneer_bidder::BidderRegistry::new();
-                registry.register(Box::leak(Box::new(BidderInfo {name:"fake_bb".into(), endpoint:"https://example.test/bid".into(), ..BidderInfo::default()})), Box::new(FakeBidder::default())).expect("unique test bidder");
+                registry.register(Box::leak(Box::new(BidderInfo {name:"fake_bb".into(), endpoint:Some("https://example.test/bid".into()), ..BidderInfo::default()})), Box::new(FakeBidder::default())).expect("unique test bidder");
                 let mut host = auctioneer_config_data::host_default().clone();
                 host.gdpr.enabled = false;
                 let plan = AuctionPlan::new(
@@ -315,7 +315,7 @@ mod tests {
                     .register(
                         Box::leak(Box::new(BidderInfo {
                             name: "fake_bb".into(),
-                            endpoint: "https://example.test/bid".into(),
+                            endpoint: Some("https://example.test/bid".into()),
                             ..BidderInfo::default()
                         })),
                         Box::new(FakeBidder::default()),
@@ -491,9 +491,10 @@ mod tests {
             .register(
                 Box::leak(Box::new(BidderInfo {
                     name: "fake_bb____".into(),
-                    endpoint:
+                    endpoint: Some(
                         "https://bidder.example.test/openrtb?fixture=browser_coverage_controls"
                             .into(),
+                    ),
                     ..BidderInfo::default()
                 })),
                 Box::new(FakeBidder {
@@ -1356,7 +1357,7 @@ mod tests {
             .register(
                 Box::leak(Box::new(BidderInfo {
                     name: "fake_bb".into(),
-                    endpoint: "https://example.test/bid".into(),
+                    endpoint: Some("https://example.test/bid".into()),
                     ..BidderInfo::default()
                 })),
                 Box::new(FakeBidder::default()),

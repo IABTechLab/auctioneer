@@ -334,7 +334,7 @@ mod tests {
             let _: &Option<u32> = bidder_timeout_ms;
             self.string(name);
             self.optional_string(alias_of.as_ref());
-            self.string(endpoint);
+            self.optional_string(endpoint.as_ref());
             if let Some(hosts) = host_allowlist {
                 self.strings(hosts);
             }

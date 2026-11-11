@@ -18,7 +18,7 @@ mod tests {
     fn info_fixed_host_https() -> BidderInfo {
         BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://hb.example.test/openrtb".into(),
+            endpoint: Some("https://hb.example.test/openrtb".into()),
             uses_https: true,
             host_allowlist: None,
             ..BidderInfo::default()
@@ -28,7 +28,7 @@ mod tests {
     fn info_host_varying() -> BidderInfo {
         BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://{{.Host}}/openrtb".into(),
+            endpoint: Some("https://{{.Host}}/openrtb".into()),
             uses_https: true,
             host_allowlist: Some(vec!["eu.example.test".into(), "us.example.test".into()]),
             ..BidderInfo::default()
@@ -73,7 +73,7 @@ mod tests {
             let info = macro_info(template);
             let budget = CallBudget::new(1);
             let configured = BidderInfo {
-                endpoint: template.into(),
+                endpoint: Some(template.into()),
                 ..info_fixed_host_https()
             };
             let validator = ExchangeEndpointValidator::new(&configured);
@@ -101,7 +101,7 @@ mod tests {
             let info = macro_info(template);
             let budget = CallBudget::new(1);
             let configured = BidderInfo {
-                endpoint: template.into(),
+                endpoint: Some(template.into()),
                 ..info_fixed_host_https()
             };
             let validator = ExchangeEndpointValidator::new(&configured);
@@ -180,7 +180,7 @@ mod tests {
     fn private_ip_literals_rejected() {
         let info = BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://10.0.0.1/x".into(),
+            endpoint: Some("https://10.0.0.1/x".into()),
             uses_https: true,
             host_allowlist: None,
             ..BidderInfo::default()
@@ -194,7 +194,7 @@ mod tests {
     fn localhost_literal_rejected_in_default_build() {
         let info = BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://localhost/x".into(),
+            endpoint: Some("https://localhost/x".into()),
             uses_https: true,
             host_allowlist: None,
             ..BidderInfo::default()
@@ -208,7 +208,7 @@ mod tests {
     fn ipv6_loopback_rejected_in_default_build() {
         let info = BidderInfo {
             name: "fake_ax".into(),
-            endpoint: "https://[::1]/x".into(),
+            endpoint: Some("https://[::1]/x".into()),
             uses_https: true,
             host_allowlist: None,
             ..BidderInfo::default()
@@ -229,7 +229,7 @@ mod tests {
             let url = format!("https://[{literal}]/x");
             let info = BidderInfo {
                 name: "fake_ax".into(),
-                endpoint: url.clone(),
+                endpoint: Some(url.clone()),
                 uses_https: true,
                 host_allowlist: None,
                 ..BidderInfo::default()
@@ -255,7 +255,7 @@ mod tests {
             let url = format!("https://{literal}/x");
             let info = BidderInfo {
                 name: "fake_ax".into(),
-                endpoint: url.clone(),
+                endpoint: Some(url.clone()),
                 uses_https: true,
                 host_allowlist: None,
                 ..BidderInfo::default()
@@ -271,7 +271,7 @@ mod tests {
     fn loopback_allowed_under_feature() {
         let info = BidderInfo {
             name: "fake_ddddd".into(),
-            endpoint: "http://127.0.0.1:8787/openrtb2/auction".into(),
+            endpoint: Some("http://127.0.0.1:8787/openrtb2/auction".into()),
             uses_https: false,
             host_allowlist: None,
             ..BidderInfo::default()

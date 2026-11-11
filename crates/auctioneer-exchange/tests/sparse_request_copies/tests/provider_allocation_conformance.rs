@@ -201,7 +201,7 @@ fn copied_advisory_headers_on_borrowed_published_transform_fit_the_funded_charge
                 BidderName::new(bidder.name()),
                 "acct",
                 None,
-                &bidder.info.endpoint,
+                bidder.info.endpoint.as_deref().unwrap(),
                 &endpoint_macros,
                 host_allowlist.as_deref(),
                 None,
@@ -269,7 +269,7 @@ fn published_transform_copies_a_sparse_extension_at_most_once() {
             let scoped = scoped_provider(&bidder, &grouped, &registry, NODE_CAP, usize::try_from(BODY_CAP).unwrap()).unwrap();
             let info = BidderRequestInfo::new(
                 BidderName::new(bidder.name()), BidderName::new(bidder.name()), "acct", None,
-                &bidder.info.endpoint, &endpoint_macros, host_allowlist.as_deref(),
+                bidder.info.endpoint.as_deref().unwrap(), &endpoint_macros, host_allowlist.as_deref(),
                 None, EntryPoint::Auction, &[],
             );
             let budget = CallBudget::new(1);

@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn typed_signed_sources_preserve_values_and_independent_field_fallback() {
         let definition = BidderInfo::default();
-        let base: BidderSettings = serde_json::from_value(json!({"implementation":"msft", "values":{"hb_source":i64::MIN, "hb_source_video":i64::MAX}})).unwrap();
+        let base: BidderSettings = serde_json::from_value(json!({"implementation":"msft", "settings":{"hb_source":i64::MIN, "hb_source_video":i64::MAX}})).unwrap();
         for (values, expected) in [
             (json!({}), (i64::MIN, i64::MAX)),
             (
@@ -48,7 +48,8 @@ mod tests {
             (json!({"hb_source_video":-7_i64}), (i64::MIN, -7)),
         ] {
             let requested: BidderSettings =
-                serde_json::from_value(json!({"implementation":"msft", "values":values})).unwrap();
+                serde_json::from_value(json!({"implementation":"msft", "settings":values}))
+                    .unwrap();
             let resolved = msft::resolve(requested.as_msft(), base.as_msft());
             assert_eq!(
                 (resolved.hb_source(), resolved.hb_source_video()),
