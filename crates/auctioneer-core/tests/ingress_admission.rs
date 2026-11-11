@@ -22,17 +22,21 @@ mod tests {
     use auctioneer_core::host_primitives::gates::BootGates;
     use auctioneer_core::host_primitives::{
         AuctioneerIngressLease, BootEnvelope, DelegateToDevStrategy, DevRng, RouteAdmissionMarker,
-        StderrBootLog, SystemClock, admission_gate, aux_gate, boot_gates,
+        StderrBootLog, SystemClock, TestClockHandle, admission_gate, aux_gate, boot_gates,
         bootstrap_adapter_with_envelope, probe_egress_gate, static_egress_gate,
     };
     use auctioneer_core::ingress::{AUCTION_CLASS, AUX_CLASS, PROBE_CLASS, decide};
+    use auctioneer_core::test_support::{
+        config_store::runtime_registry, live_catalog, usersync_keys,
+    };
     use auctioneer_runtime::body_caps::DEFAULT_CAP_BYTES;
     use auctioneer_runtime::budget::ASSEMBLY_FACTOR;
     use auctioneer_runtime::{
-        ImmediateResolveTimer, MAX_GVL_PARSED_BYTES, MIN_INBOUND_PARSE_FACTOR,
+        FakeClock, ImmediateResolveTimer, MAX_GVL_PARSED_BYTES, MIN_INBOUND_PARSE_FACTOR,
         MIN_RESPONSE_NODE_PEAK_BYTES, MIN_RESPONSE_PARSE_FACTOR, NoopDecodeCooperator,
         ResolvedIsolateLimits, TargetPlatformConstants,
     };
+    use bytes::Bytes;
     use edgezero_core::app::App;
     use edgezero_core::body::Body;
     use edgezero_core::config_store::{
@@ -51,7 +55,10 @@ mod tests {
     };
     use edgezero_core::response_egress_framing::ResponseEgressFramingMode;
     use edgezero_core::router::RouteResolution;
-    use edgezero_core::store_registry::{ConfigRegistry, ConfigStoreBinding, StoreRegistry};
+    use edgezero_core::secret_store::{SecretError, SecretHandle, SecretStore};
+    use edgezero_core::store_registry::{
+        BoundSecretStore, ConfigRegistry, ConfigStoreBinding, SecretRegistry, StoreRegistry,
+    };
     use edgezero_core::time::{Deadline, MonotonicClock, MonotonicInstant};
     use futures::{
         channel::oneshot, executor::block_on, future::pending, stream, task::noop_waker_ref,
@@ -63,6 +70,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
     use std::task::{Context, Poll};
+    use time::OffsetDateTime;
+    use time::format_description::well_known::Rfc3339;
 
     const CAP_256_KIB: u64 = 1 << 18;
     const BYTES_1_MIB: u64 = 1 << 20;
@@ -367,6 +376,117 @@ mod tests {
             },
         );
         request.extensions_mut().insert(registry);
+        request
+    }
+
+    enum SecretBehavior {
+        Ready,
+        Pending,
+        Unavailable,
+    }
+
+    struct AdmissionSecretStore {
+        behavior: SecretBehavior,
+        key: &'static str,
+        value: Bytes,
+        reads: AtomicUsize,
+        active: AtomicUsize,
+    }
+
+    #[async_trait(?Send)]
+    impl SecretStore for AdmissionSecretStore {
+        async fn get_bytes(&self, _store: &str, _key: &str) -> Result<Option<Bytes>, SecretError> {
+            panic!("admitted handlers must use bounded secret reads");
+        }
+
+        async fn get_bytes_bounded(
+            &self,
+            store_name: &str,
+            key: &str,
+            _clock: &MonotonicClock,
+            _deadline: Deadline,
+            max_backend_bytes: u64,
+            max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<Bytes>, SecretError> {
+            assert_eq!((store_name, key), ("fake_secrets", self.key));
+            assert_eq!((max_backend_bytes, max_value_bytes), (4096, 4096));
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.active.fetch_add(1, Ordering::SeqCst);
+            let _read = StoreRead(&self.active);
+            match self.behavior {
+                SecretBehavior::Ready => Ok(BoundedStoreRead {
+                    backend_bytes: u64::try_from(self.value.len()).unwrap(),
+                    value: Some(self.value.clone()),
+                }),
+                SecretBehavior::Pending => pending().await,
+                SecretBehavior::Unavailable => Err(SecretError::Unavailable),
+            }
+        }
+    }
+
+    fn admission_secret_store(
+        behavior: SecretBehavior,
+        key: &'static str,
+        value: &'static [u8],
+    ) -> Arc<AdmissionSecretStore> {
+        Arc::new(AdmissionSecretStore {
+            behavior,
+            key,
+            value: Bytes::from_static(value),
+            reads: AtomicUsize::new(0),
+            active: AtomicUsize::new(0),
+        })
+    }
+
+    fn health_secret_store(behavior: SecretBehavior) -> Arc<AdmissionSecretStore> {
+        admission_secret_store(behavior, "fake_health_token", b"fixture-token")
+    }
+
+    fn attach_secret_store(request: &mut Request, store: Arc<AdmissionSecretStore>) {
+        let registry: SecretRegistry = StoreRegistry::single_id(
+            "fake_secret_store".to_owned(),
+            BoundSecretStore::new(SecretHandle::new(store), "fake_secrets".to_owned()),
+        );
+        request.extensions_mut().insert(registry);
+    }
+
+    fn authorized_health_request(store: Arc<AdmissionSecretStore>) -> Request {
+        let mut request = request_builder()
+            .uri("/_auctioneer/health/gvl")
+            .header("authorization", "Bearer fixture-token")
+            .body(Body::empty())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(runtime_registry(&serde_json::json!({
+                "schema_version": 1_u8,
+                "host": {"gvl": {
+                    "authenticate_health": true,
+                    "authenticate_health_token_secret": "fake_health_token"
+                }}
+            })));
+        let generated =
+            OffsetDateTime::parse(auctioneer_config_data::gvl_archive_generated_at(), &Rfc3339)
+                .unwrap();
+        request
+            .extensions_mut()
+            .insert(TestClockHandle(Arc::new(FakeClock::new(generated))));
+        attach_secret_store(&mut request, store);
+        request
+    }
+
+    fn configured_request(
+        method: Method,
+        path: &str,
+        body: Body,
+        config: &serde_json::Value,
+    ) -> Request {
+        let mut request = request_builder()
+            .method(method)
+            .uri(path)
+            .body(body)
+            .unwrap();
+        request.extensions_mut().insert(runtime_registry(config));
         request
     }
 
@@ -878,10 +998,418 @@ mod tests {
     #[derive(Clone, Default)]
     struct EgressReports(Arc<Mutex<Vec<ResponseEgressReport>>>);
 
+    impl EgressReports {
+        fn assert_single_application_completion(&self, expected: ResponseEgressOutcome) {
+            let completed = take(&mut *self.0.lock().unwrap());
+            assert_eq!(completed.len(), 1);
+            assert_eq!(completed[0].body_kind, ResponseEgressBodyKind::Application);
+            assert_eq!(completed[0].fallback_disposition, None);
+            assert_eq!(completed[0].outcome, expected);
+        }
+    }
+
     impl ResponseEgressObserver for EgressReports {
         fn complete(&self, report: &ResponseEgressReport) {
             self.0.lock().unwrap().push(report.clone());
         }
+    }
+
+    #[test]
+    fn authorized_health_retains_original_work_through_egress_completion_and_abandonment() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let reports = EgressReports::default();
+        let mut app = configured_app();
+        app.set_response_egress_observer(reports.clone());
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let endings = TERMINAL_OUTCOMES
+            .into_iter()
+            .map(|outcome| (Some(outcome), true))
+            .chain([(None, false), (None, true)]);
+        let mut checked = 0_usize;
+        for (outcome, writing) in endings {
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            let store = health_secret_store(SecretBehavior::Ready);
+            let request = authorized_health_request(Arc::clone(&store));
+            let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+            let response = envelope.response_mut();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["content-type"], "application/json");
+            assert_eq!(response.headers()["cache-control"], "no-store");
+            assert!(!response.headers().contains_key("www-authenticate"));
+            let payload: serde_json::Value =
+                serde_json::from_slice(response.body().as_bytes().unwrap()).unwrap();
+            assert_eq!(payload["status"], "ok");
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_auxiliary_receipt_held(gates, peak);
+            let (prepared, _policy, mut attempt, clock) = envelope
+                .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                .unwrap_or_else(|_| panic!("authorized health egress begins"));
+            if writing {
+                assert!(attempt.begin_writing());
+            }
+            drop(prepared);
+            assert_auxiliary_receipt_held(gates, peak);
+            assert!(reports.0.lock().unwrap().is_empty());
+            assert!(gates.aux.try_acquire().is_none());
+            if let Some(terminal) = outcome {
+                assert!(attempt.terminate(terminal, clock.now()));
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                assert!(!attempt.terminate(terminal, clock.now()));
+            }
+            drop(attempt);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            reports.assert_single_application_completion(outcome.unwrap_or(if writing {
+                ResponseEgressOutcome::TransportError
+            } else {
+                ResponseEgressOutcome::ConversionError
+            }));
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(checked, 11);
+    }
+
+    #[test]
+    fn pending_health_secret_cancellation_releases_original_work_without_borrowing_probe_slots() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let store = health_secret_store(SecretBehavior::Pending);
+        let request = authorized_health_request(Arc::clone(&store));
+        let mut construction = Box::pin(dispatch_request(&app, request));
+        assert!(
+            construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()))
+                .is_pending()
+        );
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(store.active.load(Ordering::SeqCst), 1);
+        assert_auxiliary_receipt_held(gates, peak);
+        let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+        assert_eq!(gates.static_egress.in_use(), 1);
+        let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(construction);
+        assert_eq!(store.active.load(Ordering::SeqCst), 0);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        assert_eq!(gates.static_egress.in_use(), 1);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        drop(refusal);
+        drop(probe);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        assert_eq!(probe_egress_gate().in_use(), 0);
+        let recovered = health_secret_store(SecretBehavior::Ready);
+        let mut envelope =
+            block_on(dispatch_request(&app, authorized_health_request(recovered))).unwrap();
+        assert_eq!(envelope.response_mut().status(), StatusCode::OK);
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    #[test]
+    fn unavailable_health_secret_keeps_original_work_through_denial_handoff() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let store = health_secret_store(SecretBehavior::Unavailable);
+        let request = authorized_health_request(Arc::clone(&store));
+        let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(store.active.load(Ordering::SeqCst), 0);
+        let response = envelope.response_mut();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.headers()["www-authenticate"], "Bearer");
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    fn assert_info_payload(payload: &serde_json::Value, index: usize, base: &str, disabled: bool) {
+        let expected_status = if disabled { "DISABLED" } else { "ACTIVE" };
+        match index {
+            0 | 1 => {
+                let names = payload.as_array().unwrap();
+                let present = index == 0 || !disabled;
+                assert_eq!(names.iter().any(|name| name == base), present);
+                assert_eq!(names.iter().any(|name| name == "fake_info_alias"), present);
+            }
+            2 => assert_eq!(payload["status"], expected_status),
+            3 => {
+                assert_eq!(payload["status"], expected_status);
+                assert_eq!(payload["aliasOf"], base);
+            }
+            4 => {
+                assert_eq!(payload[base]["status"], expected_status);
+                assert_eq!(payload["fake_info_alias"]["status"], expected_status);
+                assert_eq!(payload["fake_info_alias"]["aliasOf"], base);
+            }
+            _ => panic!("every info response shape has an explicit oracle"),
+        }
+    }
+
+    #[test]
+    fn successful_info_list_detail_and_all_keep_runtime_alias_policy_and_terminal_funding() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        // The real App owns a discovered catalog. No provider protocol or
+        // handwritten bidder-name list is part of this metadata-only control.
+        let base = auctioneer_config_data::bidders()
+            .iter()
+            .find(|info| {
+                !info.disabled && info.alias_of.is_none() && info.default_enabled != Some(false)
+            })
+            .expect("the published catalog has a default-active base");
+        let paths = [
+            "/info/bidders".to_owned(),
+            "/info/bidders?enabledonly=true".to_owned(),
+            format!("/info/bidders/{}", base.name),
+            "/info/bidders/fake_info_alias".to_owned(),
+            "/info/bidders/all".to_owned(),
+        ];
+        let mut checked = 0_usize;
+        for disabled in [false, true] {
+            let config = serde_json::json!({
+                "schema_version": 1_u8,
+                "host": {"aliases": {"fake_info_alias": base.name}},
+                "bidders": {(base.name.as_str()): {"enabled": !disabled}}
+            });
+            for (index, path) in paths.iter().enumerate() {
+                for (complete, writing) in [(true, true), (false, false), (false, true)] {
+                    let request = configured_request(Method::GET, path, Body::empty(), &config);
+                    let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+                    let response = envelope.response_mut();
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{path}, disabled={disabled}"
+                    );
+                    assert_eq!(response.headers()["content-type"], "application/json");
+                    let payload: serde_json::Value =
+                        serde_json::from_slice(response.body().as_bytes().unwrap()).unwrap();
+                    assert_info_payload(&payload, index, &base.name, disabled);
+                    assert_auxiliary_receipt_held(gates, peak);
+                    let (prepared, _policy, mut attempt, clock) = envelope
+                        .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                        .unwrap_or_else(|_| panic!("successful info egress begins"));
+                    if writing {
+                        assert!(attempt.begin_writing());
+                    }
+                    drop(prepared);
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(gates.aux.try_acquire().is_none());
+                    if complete {
+                        assert!(attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                        assert_eq!(gates.aux.in_use(), 0);
+                        assert_eq!(gates.aux_work_budget.in_use(), 0);
+                        assert!(!attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                    }
+                    drop(attempt);
+                    assert_eq!(gates.aux.in_use(), 0);
+                    assert_eq!(gates.aux_work_budget.in_use(), 0);
+                    checked = checked.checked_add(1).unwrap();
+                }
+            }
+        }
+        assert_eq!(checked, 30);
+    }
+
+    fn assert_signing_response_handoff(
+        app: &App,
+        request: Request,
+        store: &AdmissionSecretStore,
+        expected: StatusCode,
+    ) {
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let path = request.uri().to_string();
+        let mut envelope = block_on(dispatch_request(app, request)).unwrap();
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(store.active.load(Ordering::SeqCst), 0);
+        assert_eq!(envelope.response_mut().status(), expected, "{path}");
+        if expected != StatusCode::OK {
+            assert!(!envelope.response_mut().headers().contains_key("set-cookie"));
+        }
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    #[test]
+    fn pending_sync_signing_reads_keep_original_receipts_until_cancellation_and_recover() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let role = live_catalog::redirect();
+        let config = serde_json::json!({
+            "schema_version": 1_u8,
+            "host": {
+                "user_sync": {"external_url": "https://sync.example.test"},
+                "aliases": {"fake_sync_alias": role.name()}
+            },
+            "bidders": {(role.name()): {"enabled": true}}
+        });
+        let cases = [
+            (Method::GET, "/getuids", Vec::new()),
+            (
+                Method::POST,
+                "/cookie_sync",
+                serde_json::to_vec(&serde_json::json!({"bidders": [], "gdpr": 0_u8})).unwrap(),
+            ),
+            (
+                Method::GET,
+                "/setuid?bidder=fake_sync_alias&uid=partner-user",
+                Vec::new(),
+            ),
+        ];
+        let mut checked = 0_usize;
+        for (method, path, body) in cases {
+            let request_for = |store| {
+                let mut request = configured_request(
+                    method.clone(),
+                    path,
+                    Body::from_bytes(body.clone()),
+                    &config,
+                );
+                attach_secret_store(&mut request, store);
+                request
+            };
+            let store = admission_secret_store(
+                SecretBehavior::Pending,
+                "usersync_cookie_keyring",
+                usersync_keys::SECRET_JSON.as_bytes(),
+            );
+            let mut construction =
+                Box::pin(dispatch_request(&app, request_for(Arc::clone(&store))));
+            assert!(
+                construction
+                    .as_mut()
+                    .poll(&mut Context::from_waker(noop_waker_ref()))
+                    .is_pending(),
+                "{path} must suspend in the keyring read"
+            );
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 1);
+            assert_auxiliary_receipt_held(gates, peak);
+            let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+            let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+            assert_eq!(gates.static_egress.in_use(), 1);
+            assert_eq!(probe_egress_gate().in_use(), 1);
+            assert_auxiliary_receipt_held(gates, peak);
+            drop(construction);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            assert_eq!(gates.static_egress.in_use(), 1);
+            assert_eq!(probe_egress_gate().in_use(), 1);
+            drop(refusal);
+            drop(probe);
+            assert_eq!(gates.static_egress.in_use(), 0);
+            assert_eq!(probe_egress_gate().in_use(), 0);
+            let recovered = admission_secret_store(
+                SecretBehavior::Ready,
+                "usersync_cookie_keyring",
+                usersync_keys::SECRET_JSON.as_bytes(),
+            );
+            assert_signing_response_handoff(
+                &app,
+                request_for(Arc::clone(&recovered)),
+                &recovered,
+                StatusCode::OK,
+            );
+            let unavailable = admission_secret_store(
+                SecretBehavior::Unavailable,
+                "usersync_cookie_keyring",
+                usersync_keys::SECRET_JSON.as_bytes(),
+            );
+            assert_signing_response_handoff(
+                &app,
+                request_for(Arc::clone(&unavailable)),
+                &unavailable,
+                StatusCode::SERVICE_UNAVAILABLE,
+            );
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(checked, 3);
+    }
+
+    #[test]
+    fn configured_info_query_and_unknown_name_errors_keep_original_terminal_funding() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let config = serde_json::json!({"schema_version": 1_u8});
+        let cases: [(&str, StatusCode, &[u8]); 3] = [
+            (
+                "/info/bidders?enabledonly=not_bool",
+                StatusCode::BAD_REQUEST,
+                b"Invalid value for 'enabledonly' query param, must be of boolean type",
+            ),
+            (
+                "/info/bidders?baseadaptersonly=not_bool",
+                StatusCode::BAD_REQUEST,
+                b"Invalid value for 'baseadaptersonly' query param, must be of boolean type",
+            ),
+            (
+                "/info/bidders/fake_missing_info_bidder",
+                StatusCode::NOT_FOUND,
+                b"",
+            ),
+        ];
+        let mut checked = 0_usize;
+        for (path, status, body) in cases {
+            for (complete, writing) in [(true, true), (false, false), (false, true)] {
+                let request = configured_request(Method::GET, path, Body::empty(), &config);
+                let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+                let response = envelope.response_mut();
+                assert_eq!(response.status(), status);
+                assert_eq!(response.body().as_bytes().unwrap(), body);
+                assert!(!response.headers().contains_key("content-type"));
+                assert_auxiliary_receipt_held(gates, peak);
+                let (prepared, _policy, mut attempt, clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("configured info error egress begins"));
+                if writing {
+                    assert!(attempt.begin_writing());
+                }
+                drop(prepared);
+                assert_auxiliary_receipt_held(gates, peak);
+                if complete {
+                    assert!(attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                    assert_eq!(gates.aux.in_use(), 0);
+                    assert_eq!(gates.aux_work_budget.in_use(), 0);
+                    assert!(!attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                }
+                drop(attempt);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                checked = checked.checked_add(1).unwrap();
+            }
+        }
+        assert_eq!(checked, 9);
     }
 
     #[test]
