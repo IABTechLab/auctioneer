@@ -575,9 +575,28 @@ mod tests {
                 .unwrap(),
                 expected_json: Some(expected),
                 deny_size: raw_size,
-                failure_status: StatusCode::BAD_REQUEST,
+                failure_status: StatusCode::INTERNAL_SERVER_ERROR,
                 failure_body: b"response limit exceeded\n",
             }];
+            let denied = json!({"status": "no_cookie", "bidder_status": []});
+            cases.push(ReservationCase {
+                method: Method::POST,
+                uri: "/cookie_sync".to_owned(),
+                headers: vec![("content-type", "application/json".to_owned())],
+                body: serde_json::to_vec(&json!({
+                    "bidders": ["fake_privacy_denied"], "debug": true,
+                    "gdpr": 1_u8, "gdpr_consent": "malformed-tcf"
+                }))
+                .unwrap(),
+                deny_size: serde_json::to_vec(&denied)
+                    .unwrap()
+                    .len()
+                    .checked_add(1)
+                    .unwrap(),
+                expected_json: Some(denied),
+                failure_status: StatusCode::INTERNAL_SERVER_ERROR,
+                failure_body: b"response limit exceeded\n",
+            });
             let (cookie, raw, escaped) = html_json_fixture(1049, usersync_app::TEST_NOW);
             let header = format!(
                 "uids={}",
@@ -722,7 +741,7 @@ mod tests {
                 return;
             }
             let app = usersync_app::TestApp::new(
-                "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n",
+                "schema_version = 1\n[host.user_sync]\nexternal_url = 'https://sync.example.test'\n[host.gdpr]\nenabled = true\nhost_vendor_id = 32\n[host.gdpr.tcf2]\nenabled = true\n",
             );
             let mut failures = 0_usize;
             for case in reservation_cases() {
@@ -760,8 +779,8 @@ mod tests {
                 assert_success(dispatch(&app, &case, None), &case);
             }
             assert_eq!(
-                failures, 12,
-                "all four reservations and three egress endings must execute"
+                failures, 15,
+                "all five response paths and three egress endings must execute"
             );
         }
     }
