@@ -1710,86 +1710,139 @@ mod tests {
         assert!(checked > 0);
     }
 
+    fn body_read_request(
+        method: &Method,
+        path: &str,
+        config: &serde_json::Value,
+    ) -> (Request, Option<Arc<AdmissionStore>>) {
+        let sync = matches!(path, "/cookie_sync" | "/getuids" | "/setuid");
+        let store = (!sync).then(|| admission_store(StoreBehavior::Pending));
+        let mut request = if let Some(pending_store) = &store {
+            store_request(method.clone(), path, Arc::clone(pending_store))
+        } else {
+            configured_request(method.clone(), path, Body::empty(), config)
+        };
+        if method == Method::OPTIONS {
+            request
+                .headers_mut()
+                .insert("origin", "https://publisher.example.test".parse().unwrap());
+            request
+                .headers_mut()
+                .insert("access-control-request-method", "POST".parse().unwrap());
+            request.headers_mut().insert(
+                "access-control-request-headers",
+                "Content-Type".parse().unwrap(),
+            );
+        }
+        (request, store)
+    }
+
+    fn assert_body_read_terminal(
+        app: &App,
+        method: &Method,
+        path: &str,
+        config: &serde_json::Value,
+        cancel: bool,
+    ) {
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        assert!(peak > 0, "the pending body must retain nonzero funded work");
+        let (mut request, store) = body_read_request(method, path, config);
+        let (wake, timeout) = oneshot::channel::<()>();
+        let body_polls = Arc::new(AtomicUsize::new(0));
+        let observed_polls = Arc::clone(&body_polls);
+        *request.body_mut() = Body::from_stream(stream::once(async move {
+            observed_polls.fetch_add(1, Ordering::SeqCst);
+            timeout
+                .await
+                .expect("the fixture delivers the adapter timeout");
+            Err::<bytes::Bytes, _>(EdgeError::request_timeout("fixed adapter timeout"))
+        }));
+        let mut construction = Box::pin(dispatch_request(app, request));
+        assert!(
+            construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()))
+                .is_pending()
+        );
+        assert!(!wake.is_canceled(), "the admitted body must still be held");
+        assert_eq!(body_polls.load(Ordering::SeqCst), 1, "{method} {path}");
+        if let Some(pending_store) = &store {
+            assert_eq!(pending_store.reads.load(Ordering::SeqCst), 0);
+        }
+        assert_eq!(gates.aux.in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), peak);
+        assert_eq!(gates.admission.in_use(), 0);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        if cancel {
+            drop(construction);
+            assert!(
+                wake.is_canceled(),
+                "cancellation must drop the stalled body"
+            );
+        } else {
+            wake.send(()).unwrap();
+            let Poll::Ready(Some(mut response)) = construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()))
+            else {
+                panic!("{method} {path}: the adapter timeout must finish dispatch");
+            };
+            assert_eq!(
+                response.response_mut().status(),
+                StatusCode::REQUEST_TIMEOUT
+            );
+            assert_eq!(
+                response.response_mut().body().as_bytes(),
+                Some(b"request timeout\n".as_slice())
+            );
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(response);
+            drop(construction);
+        }
+        if let Some(pending_store) = &store {
+            assert_eq!(pending_store.reads.load(Ordering::SeqCst), 0);
+        }
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        drop(dispatch(app, method.clone(), path, Body::empty()).unwrap());
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
     #[test]
     fn body_read_timeout_and_cancellation_preserve_the_original_auxiliary_receipt() {
         boot();
         let _serialized = gate_counters_lock();
         let app = configured_app();
-        let gates = boot_gates().unwrap();
-        let peak = gates.aux_work_derived.peak_bytes();
-        // Exercise the matched non-body collector and both SDK fallback drains.
-        // Sync handlers resolve configuration before their own body reads;
-        // their fault/byte controls remain in the usersync route owner.
+        // Sync handlers must resolve configured policy before polling their
+        // bodies; the collector and fallback drains must not read policy.
+        let config = serde_json::json!({
+            "schema_version": 1_u8,
+            "host": {"user_sync": {
+                "external_url": "https://sync.example.test",
+                "allowed_origins": ["https://publisher.example.test"]
+            }}
+        });
         let cases = auxiliary_terminal_requests(&app)
             .into_iter()
             .filter(|(method, path)| {
-                path == "/info/bidders"
-                    || !matches!(
-                        app.router().resolve(method, path).resolution(),
-                        RouteResolution::Matched(_)
-                    )
+                matches!(
+                    path.as_str(),
+                    "/info/bidders" | "/cookie_sync" | "/getuids" | "/setuid"
+                ) || !matches!(
+                    app.router().resolve(method, path).resolution(),
+                    RouteResolution::Matched(_)
+                )
             })
             .collect::<Vec<_>>();
-        assert_eq!(cases.len(), 3);
+        assert_eq!(cases.len(), 7);
         let expected_cases = cases.len().checked_mul(2).unwrap();
         let mut checked = 0_usize;
         for (method, path) in cases {
             for cancel in [false, true] {
-                let store = admission_store(StoreBehavior::Pending);
-                let mut request = store_request(method.clone(), &path, Arc::clone(&store));
-                let (wake, timeout) = oneshot::channel::<()>();
-                *request.body_mut() = Body::from_stream(stream::once(async move {
-                    timeout
-                        .await
-                        .expect("the fixture delivers the adapter timeout");
-                    Err::<bytes::Bytes, _>(EdgeError::request_timeout("fixed adapter timeout"))
-                }));
-                let mut construction = Box::pin(dispatch_request(&app, request));
-                assert!(
-                    construction
-                        .as_mut()
-                        .poll(&mut Context::from_waker(noop_waker_ref()))
-                        .is_pending()
-                );
-                assert!(!wake.is_canceled(), "the admitted body must still be held");
-                assert_eq!(store.reads.load(Ordering::SeqCst), 0);
-                assert_eq!(gates.aux.in_use(), 1);
-                assert_eq!(gates.aux_work_budget.in_use(), peak);
-                assert_eq!(gates.admission.in_use(), 0);
-                assert_eq!(gates.static_egress.in_use(), 0);
-                if cancel {
-                    drop(construction);
-                    assert!(
-                        wake.is_canceled(),
-                        "cancellation must drop the stalled body"
-                    );
-                } else {
-                    wake.send(()).unwrap();
-                    let Poll::Ready(Some(mut response)) = construction
-                        .as_mut()
-                        .poll(&mut Context::from_waker(noop_waker_ref()))
-                    else {
-                        panic!("{method} {path}: the adapter timeout must finish dispatch");
-                    };
-                    assert_eq!(
-                        response.response_mut().status(),
-                        StatusCode::REQUEST_TIMEOUT
-                    );
-                    assert_eq!(
-                        response.response_mut().body().as_bytes(),
-                        Some(b"request timeout\n".as_slice())
-                    );
-                    assert_eq!(gates.aux.in_use(), 1);
-                    assert_eq!(gates.aux_work_budget.in_use(), peak);
-                    drop(response);
-                    drop(construction);
-                }
-                assert_eq!(store.reads.load(Ordering::SeqCst), 0);
-                assert_eq!(gates.aux.in_use(), 0);
-                assert_eq!(gates.aux_work_budget.in_use(), 0);
-                drop(dispatch(&app, method.clone(), &path, Body::empty()).unwrap());
-                assert_eq!(gates.aux.in_use(), 0);
-                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                assert_body_read_terminal(&app, &method, &path, &config, cancel);
                 checked = checked.checked_add(1).unwrap();
             }
         }

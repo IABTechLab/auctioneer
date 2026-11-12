@@ -58,10 +58,14 @@ pub fn response_header_cap() -> usize {
     usize::try_from(MAX_SYNC_RESPONSE_HEADER_BYTES).unwrap_or(0)
 }
 
+/// Why bounded sync response construction could not complete.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResponseBuildError {
+    /// Counting or HTML expansion exceeded the declared body ceiling.
     BodyLimit,
+    /// Application-owned headers could not be built within their bounds.
     HeaderLimit,
+    /// JSON failed, output reservation was refused, or serialization disagreed with counting.
     Serialization,
 }
 
@@ -490,7 +494,8 @@ struct CookieSyncBody<'a> {
 /// Serializes a bounded cookie-sync response with a trailing newline.
 ///
 /// # Errors
-/// Returns `BodyLimit` if the body exceeds the cap, or `Serialization` on JSON failure.
+/// Returns `BodyLimit` if counting exceeds the cap. Returns `Serialization` on
+/// JSON failure, output-reservation refusal, or count/serialization disagreement.
 pub fn cookie_sync_success(
     cookie: &UidCookie,
     now: OffsetDateTime,
@@ -522,7 +527,9 @@ struct GetUidsBody<'a> {
 /// Serializes the cookie's UIDs with HTML escaping and a trailing newline.
 ///
 /// # Errors
-/// Returns `BodyLimit` if the body exceeds the cap, or `Serialization` on JSON failure.
+/// Returns `BodyLimit` if counting or HTML expansion exceeds the cap. Returns
+/// `Serialization` on JSON failure, output-reservation refusal, or
+/// count/serialization disagreement.
 pub fn getuids_success(
     cookie: &UidCookie,
     max_body_bytes: usize,
@@ -723,7 +730,8 @@ fn bounded_json_line(
     let mut raw = reserve_body(raw_capacity)?;
     let mut raw_writer = CappedWriter::new(&mut raw, count.len)
         .map_err(|_capacity| ResponseBuildError::Serialization)?;
-    serde_json::to_writer(&mut raw_writer, value).map_err(|error| sync_json_error(&error))?;
+    serde_json::to_writer(&mut raw_writer, value)
+        .map_err(|_error| ResponseBuildError::Serialization)?;
     if raw.len() != count.len {
         return Err(ResponseBuildError::Serialization);
     }
@@ -1593,7 +1601,7 @@ mod tests {
     fn sync_json_line_refuses_serialization_growth_and_shrinkage() {
         for escape_html in [false, true] {
             for (first, second, error) in [
-                ("a", "longer", ResponseBuildError::BodyLimit),
+                ("a", "longer", ResponseBuildError::Serialization),
                 ("longer", "a", ResponseBuildError::Serialization),
             ] {
                 let value = ChangingString {
