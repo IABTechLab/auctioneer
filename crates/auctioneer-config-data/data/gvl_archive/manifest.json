@@ -1,16 +1,16 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-11-05T16:37:51.881795153Z",
+  "generated_at": "2026-11-12T16:36:50.265355843Z",
   "retention": {
     "max_age_days": 180
   },
   "oversize_bundle_ack": false,
   "gcl": {
     "path": "gcl.json",
-    "sha256": "94adeba18a41d618d60099e933ce8f239a0d39187bed5de642ea54035f467e5d",
-    "last_updated": "2026-11-05T16:00:21Z",
-    "fetched_at": "2026-11-05T16:37:48.364448842Z",
-    "cache_max_age_secs": 603262
+    "sha256": "ec1dabb9d80ee325fe387dd3fd32e1399e3c9c6dd22dc16bfcd8db7629ed1947",
+    "last_updated": "2026-11-12T16:00:22Z",
+    "fetched_at": "2026-11-12T16:36:46.737028455Z",
+    "cache_max_age_secs": 602664
   },
   "entries": [
     {
@@ -23,13 +23,21 @@
     },
     {
       "spec": 3,
+      "vendor_list_version": 185,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-11-12T16:00:19Z",
+      "path": "spec3/vendor-list-v185.json",
+      "sha256": "c11e919a25ec72e00e380ab38c7396b2fa6fcc33997287dbfa863278ef79f726",
+      "fetched_at": "2026-11-12T16:36:46.386981652Z",
+      "cache_max_age_secs": 602655
+    },
+    {
+      "spec": 3,
       "vendor_list_version": 184,
       "tcf_policy_version": 5,
       "last_updated": "2026-11-05T16:00:18Z",
       "path": "spec3/vendor-list-v184.json",
-      "sha256": "293eb03c9458723608e858bda55c5498402ae6e003aebce669e102f2e7a41aef",
-      "fetched_at": "2026-11-05T16:37:48.060859932Z",
-      "cache_max_age_secs": 602590
+      "sha256": "293eb03c9458723608e858bda55c5498402ae6e003aebce669e102f2e7a41aef"
     },
     {
       "spec": 3,
@@ -190,14 +198,6 @@
       "last_updated": "2026-06-18T16:00:19Z",
       "path": "spec3/vendor-list-v164.json",
       "sha256": "25ea5d5e6c224596fbf0d40d7308ff7e1a4125453e8e0e9ab347eca66b2825c6"
-    },
-    {
-      "spec": 3,
-      "vendor_list_version": 163,
-      "tcf_policy_version": 5,
-      "last_updated": "2026-06-11T16:00:18Z",
-      "path": "spec3/vendor-list-v163.json",
-      "sha256": "576aac579b17f1cdcac5a2f58378019259e911406778f9cfe09673463d60c8e0"
     }
   ]
 }
