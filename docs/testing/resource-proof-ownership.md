@@ -91,6 +91,8 @@ Sync final headers are rebuilt only after their current limits pass. Final names
 
 Complete cookie formatting still uses `cookie::Cookie`'s formatter, now writing to a fallibly reserved capped field instead of a growable string. The original preflight, complete 4-KiB field limit, dates, attributes, signed payload and byte-reference tests remain. Its phases differ: date-format scratch overlaps the reserved field during formatting, then dies before conversion; field backing overlaps the copied `HeaderValue` during conversion. Later response decoration can overlap that value with its detached replacement. A physical proof must account for each reachable phase, not invent a simultaneous three-buffer peak or omit the later copy.
 
+Cookie field storage failures have the public `CookieWriteError::Allocation` variant, separate from codec and hard limits. Setuid returns HTTP 500 for that server-side failure and retains HTTP 400 for existing cookie transaction errors, with the same fixed error body and no cookie. The real-App allocator control verifies the status and original receipt lifetime; the exhaustive handler mapping separately pins the unchanged limit responses. This adds a public enum variant; downstream exhaustive matches must handle it. It changes no signed-cookie format, cap or resource charge.
+
 ### Actual Application Producers
 
 These are current application-owned fields, before SDK/provider framing. The limits of the sync decorator do not apply automatically to info, health, probe or canonical errors.

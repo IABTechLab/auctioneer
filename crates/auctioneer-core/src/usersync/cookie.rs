@@ -438,6 +438,8 @@ pub enum CookieWriteError {
     ExpiryOverflow,
     #[error("cookie codec resource limit exceeded")]
     CodecLimit,
+    #[error("cookie field allocation failed")]
+    Allocation,
     #[error("cookie write forbidden by opt-out")]
     OptedOut,
     #[error("invalid cookie priority configuration")]
@@ -467,8 +469,8 @@ impl PreparedCookie {
 }
 
 /// # Errors
-/// Rejects invalid cookie attributes, an unrepresentable expiry, or a complete
-/// serialized field exceeding the hard byte limit.
+/// Rejects invalid cookie attributes, an unrepresentable expiry, a complete
+/// serialized field exceeding the hard byte limit, or a field allocation failure.
 pub fn prepare_set_cookie_value(
     encoded: &str,
     options: &CookieWriteOptions<'_>,
@@ -525,9 +527,9 @@ pub fn prepare_set_cookie_value(
     let mut field = Vec::new();
     field
         .try_reserve_exact(hard_cap)
-        .map_err(|_allocation| CookieWriteError::CodecLimit)?;
+        .map_err(|_allocation| CookieWriteError::Allocation)?;
     let mut writer = CappedWriter::new(&mut field, hard_cap)
-        .map_err(|_capacity| CookieWriteError::CodecLimit)?;
+        .map_err(|_capacity| CookieWriteError::Allocation)?;
     // Keep the library's complete cookie grammar, but never grow its field buffer.
     write!(&mut writer, "{cookie}").map_err(|error| {
         if error.kind() == io::ErrorKind::WriteZero {

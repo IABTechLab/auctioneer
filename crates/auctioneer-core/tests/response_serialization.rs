@@ -434,7 +434,7 @@ mod tests {
                 });
                 drop(name);
                 let (failed, measured) = measure(Some(reservation), build);
-                assert_eq!(failed.unwrap_err(), CookieWriteError::CodecLimit);
+                assert_eq!(failed.unwrap_err(), CookieWriteError::Allocation);
                 assert_eq!(measured.denied_requests, 1, "{measured:?}");
                 assert_eq!(measured.largest_request, reservation);
                 assert_eq!(
@@ -621,7 +621,7 @@ mod tests {
                 body: Vec::new(),
                 expected_json: None,
                 deny_size: 4096,
-                failure_status: StatusCode::BAD_REQUEST,
+                failure_status: StatusCode::INTERNAL_SERVER_ERROR,
                 failure_body: b"cookie resource limit exceeded",
             });
             cases
