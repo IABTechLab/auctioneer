@@ -105,6 +105,53 @@ Those are the CLI binary, `bidders_evidence` and `bidders_resources`, respective
 
 The scoped read-only author audit found no cryptographic, Unicode or compiler-patch semantic blockers. It did not execute tests and is not formal independent approval.
 
+## Hosted Schema Repairs
+
+The hosted matrix at `8c70466ea62ceca14dc173fafced7981c0aefe7b` completed with 23 successful checks and two schema failures. Both failures were reproduced locally before correction; they are not waived or relabeled as environmental failures.
+
+The locked `wasm-bindgen` upgrade from 0.2.126 to 0.2.130 adds `__wbindgen_externref_xform__.__wbindgen_externref_statics_end`, the `() -> i32` fixed-reference-table-boundary intrinsic. Inspection of the actual linked bare artifact with the locked `wasmparser` established its namespace, name and signature; the locked upstream `src/externref.rs` declaration and its clone/drop uses were audited. The exact import policy now recognizes that one additional function. It still refuses other namespaces, names, non-function imports and duplicates. Recognition does not provide an implementation: the isolated runner retains `unknown-imports-trap=y` and cannot silently substitute a default value.
+
+Before correction, the new exact-name policy row and expanded real-runtime control each failed with `unreviewed bare probe import`. After correction, all 13 bare controls and 18 guest-runner controls passed. The latter execute each of the four reviewed imports with its actual ABI, both unused (successful integer export) and invoked (required trap), including discarding imported return values so a default-returning stub cannot satisfy the negative control.
+
+The second failure was a source-cohort fingerprint, not a serving reservation: the maximum reverse sparse entries changed from 292 to 336. The upstream 0.61.2 ECMA translator now expands wildcard dot to `[^\n\r\x{2028}\x{2029}]`. The imported `limelightDigital` pattern `^.+\..+$` therefore has 84 reverse states and four sparse slots per state. The unchanged `yandex` helper still determines the largest reported cache-pair size (3,550 bytes on the native 64-bit host); the reverse stack maximum remains 31. Per-pattern diagnostics now precede the assertions so a future drift identifies its owner.
+
+Only the source-cohort exact fingerprint changes to 336. The synthetic 292-entry ceiling, all checked storage formulae, the maximum cache-pair assertion, serving reservations, workload and resource ceilings remain unchanged. A new generated-pattern control pins the literal translation, rejects LF, CR, U+2028 and U+2029 separately, and preserves ordinary ASCII, a multibyte character, vertical tab and NEL. The executed secure/development selection manifest contains four generated regex helpers, all owned by OpenX or Rubicon; their dots are escaped literals, not wildcard atoms. This imported-catalogue correction does not introduce a new matching policy for the currently selected serving schemas or promote an unimplemented bidder.
+
+The complete affected CI owners then passed, using the pinned Wasmtime 48.0.2 and the existing source-checkout prerequisites:
+
+```sh
+bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh schema
+```
+
+Exit 0, including strict explicit-target Clippy:
+
+```text
+test result: ok. 330 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 903.38s
+test result: ok. 686 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 360.62s
+```
+
+The six filters are the existing separately owned application/layout/selected-probe checks, not new exclusions. The originally failing selected-probe owner also ran separately, executing the full native, bare-WASM, WASI 1 and WASI 2 cohort in both secure and development lanes:
+
+```sh
+bash .github/workflows/scripts/test/verify-schema-source.sh 1 \
+  tests::selected_schema_probe_links_and_executes_the_source_bound_cohort \
+  --locked -p auctioneer-bidder
+```
+
+Exit 0:
+
+```text
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 691 filtered out; finished in 279.47s
+```
+
+`cargo test --locked --offline -p auctioneer-core --test codec_pins` also exited 0:
+
+```text
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+Strict workspace Clippy, ordinary Cargo formatting, dedicated discovered-bidder formatting and `git diff --check` each exited 0. The lockfile SHA-256 remains `9cd3a303b4cebde1619220ef8a3eb67a7d1540ec836d308bf2571f28040746fe`; the EdgeZero PR #275 revision and constraints above are unchanged. The scoped read-only author audit found no import-policy safety regression; it ran no builds and is not independent PR approval. The corrective commit still requires its complete hosted matrix and independent review.
+
 ## Outstanding Acceptance
 
 The first hosted run at `651c0874a1bbf5a2b286cc3e3adc4ad88b68a797` passed ordinary `cargo fmt`, but its separate discovered-bidder source formatting step found one assertion layout in MSFT conformance that ordinary Cargo traversal does not visit. The correction changes only whitespace, not the assertion or fixture. The exact dedicated check (`find crates/auctioneer-bidder/src/bidders -type f -name '*.rs' -exec rustfmt --edition 2024 --check {} +`) then passed locally alongside `cargo fmt --all -- --check`. All bidder library tests were rerun after correction:
