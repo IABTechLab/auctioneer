@@ -311,6 +311,31 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn inventory_input_accepts_toml11_escapes_and_retains_malformed_input_refusals() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("inventory.toml");
+        for (input, expected) in [(r#"value = "\x41""#, "A"), (r#"value = "\e""#, "\u{001b}")] {
+            fs::write(&path, input).unwrap();
+            let parsed = read_inventory(&path).unwrap();
+            assert_eq!(parsed["value"].as_str(), Some(expected), "{input}");
+        }
+        for input in [
+            r#"value = "\x4""#,
+            r#"value = "\xGG""#,
+            r#"value = "\q""#,
+            r#"value = "\uD800""#,
+            "value = \"unterminated",
+            "value = 'first'\nvalue = 'second'\n",
+            "[record]\n[record]\n",
+        ] {
+            fs::write(&path, input).unwrap();
+            assert_eq!(read_inventory(&path), Err(Error::InventoryInput), "{input}");
+        }
+        fs::write(&path, [0xff]).unwrap();
+        assert_eq!(read_inventory(&path), Err(Error::InventoryInput));
+    }
+
+    #[test]
     fn inventory_input_limit_accepts_the_exact_boundary_and_refuses_one_extra_byte() {
         let directory = tempdir().unwrap();
         let path = directory.path().join("inventory.toml");

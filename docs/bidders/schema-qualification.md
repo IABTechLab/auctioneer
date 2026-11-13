@@ -1,5 +1,16 @@
 # Schema Compiler Qualification
 
+**2026-11-13 dependency amendment:** The selected runtime/compiler family is
+now `jsonschema = "=0.61.2"`, with the three compiler patches replayed against
+that release. Current source/archive/patch identities are recorded in
+[vendor documentation](../../vendor/README.md) and the
+[dependency-upgrade evidence](../testing/evidence/rust-dependency-upgrade-20261112.md).
+The bare probe permits four exact, unavailable binding imports, including
+`__wbindgen_externref_statics_end`; every import still traps if invoked.
+Historical 0.58.6 checksums and observations below retain their original scope.
+This refresh does not change native tested reservations, admit the inspection
+feature to serving, or establish complete guest/provider resource qualification.
+
 **2026-11-10 publication amendment:** Mocktioneer is now compiled in both
 feature lanes, disabled by default, with an explicit endpoint required to enable
 it. Current shipped source checks require 18 native bindings (four guest
@@ -16,16 +27,14 @@ the selected validators for separately funded native admission. New guest
 publications remain excluded. The checkpoint narrative below predates this
 amendment and is not a statement that the formal engine gate has passed.
 
-**Status: patched candidate under qualification.** The published 0.58.6
-generator bypasses numeric type restrictions in two committed schemas. The
-approved bounded compiler patch below repairs those controls; complete engine
-and resource qualification remain pending. This record covers structural,
-native compatibility and linked compiler controls, not completion of the
-engine gate or permission to enable
-request-time schema validation. No production registry or auction path uses the
-candidate. Normal serving dependency graphs exclude the candidate runtime;
-the inspection-only staging feature also links it for native and guest checks
-and explicitly refuses application startup and serving admission.
+**Status: patched compiler under qualification.** The selected 0.61.2 compiler
+retains the approved numeric-type, initialization and explicit-cache patches;
+complete engine and resource certification remain pending. Normal native
+serving uses the separately funded tested-reservation contract from the
+2026-10-30 amendment, not a complete worst-case certificate. The inspection-only
+staging feature links the candidate for native and guest checks but still
+refuses application startup and serving admission. Earlier pre-adoption
+checkpoint narratives below do not supersede these current boundaries.
 
 ## Shipped Qualification Scope
 
@@ -490,14 +499,17 @@ mode constructs a cache per parseable row; reused mode replays the complete
 original prefix with one cache for each batch. It does not claim cache
 persistence across separate Wasmtime processes.
 
-The unchanged `jsonschema` runtime dependency retains three unavailable
-binding imports in this standalone module. The probe's import check admits
+With the locked `wasm-bindgen` 0.2.130 dependency, this standalone module
+retains four unavailable binding imports. The probe's import check admits
 only `__wbindgen_describe`, `__wbindgen_externref_table_grow` and
-`__wbindgen_externref_table_set_null` under their exact binding namespaces,
-rejecting duplicates and nonfunction imports. Bare invocation uses Wasmtime's
+`__wbindgen_externref_table_set_null`, plus
+`__wbindgen_externref_statics_end`, under their exact binding namespaces,
+rejecting duplicates and nonfunction imports. The describe import belongs to
+`__wbindgen_placeholder__`; the three externref imports belong to
+`__wbindgen_externref_xform__`. Bare invocation uses Wasmtime's
 trapping-only unknown-import policy, never default return values. A valid
-control module succeeds with its import unused; the same module calling it
-must produce an execution trap. These constrained observations do not establish
+control module for each reviewed signature succeeds with its import unused;
+the same module calling it must produce an execution trap. These constrained observations do not establish
 Cloudflare handler execution or the behavior of those imported services.
 
 The source-bound matrix passes both 15/16-schema cohorts across all four build
@@ -681,16 +693,20 @@ complete production-source coverage. The [isolation plan](../superpowers/plans/2
 records the cutover and its verification. Neither scope qualifies serving
 validation or target memory fit.
 
-## Candidate Identity
+## Historical Candidate Identity (0.58.6)
 
-`jsonschema = "=0.58.6"`, with default features disabled and only `macros`
-enabled. No HTTP, file-resolution, TLS, async-resolution or arbitrary-precision
-feature is enabled on that dependency. This does not mean every transitive
-package avoids arbitrary-precision types; the allocation proof is still pending.
+The original candidate was `jsonschema = "=0.58.6"`, with default features
+disabled and only `macros` enabled. The current 0.61.2 family retains that
+feature boundary: no HTTP, file-resolution, TLS, async-resolution or
+arbitrary-precision feature is enabled on the dependency. This does not mean
+every transitive package avoids arbitrary-precision types; the allocation proof
+is still pending.
 
-The reviewed published-package checksums are listed below. All except
-`jsonschema-macros-core` remain registry entries in Cargo.lock; that compiler
-now resolves through the checksum-verified local override described below.
+The original reviewed published-package checksums are retained below, not
+presented as the current Cargo.lock. At that checkpoint all except
+`jsonschema-macros-core` were registry entries; the compiler used the
+checksum-verified local override described below. The current family and
+replayed override identities are linked in the 2026-11-13 amendment above.
 
 | Package                | Version | SHA-256                                                          |
 | ---------------------- | ------- | ---------------------------------------------------------------- |
@@ -701,14 +717,14 @@ now resolves through the checksum-verified local override described below.
 | jsonschema-value       | 0.58.6  | 39b7670345e5ce87371339d13705dbb9276b7e3e934bbe1efa2c6734a1f65a96 |
 | referencing            | 0.58.6  | 558f3855529c0a7e78a48e409fa653456e55f1b167eab4109c16a255b7727e3f |
 
-The probes additionally use maintained `regex = "=1.12.4"` and
+Those historical probes additionally used maintained `regex = "=1.12.4"` and
 `uuid-simd = "=0.8.0"`, with the latter's UUID integration feature disabled.
 No hand-written schema compiler or parameter validator was introduced.
 
-Resolution requires two existing shared lockfile upgrades: `regex-automata`
-0.4.14 to 0.4.18 (`fancy-regex` now requires at least 0.4.16), and `zmij`
-1.0.21 to 1.0.23 (required by `jsonschema-value`). These changes affect shared
-dependency resolution even though the candidate itself is test-only. Resource
+That original candidate required two shared lockfile upgrades: `regex-automata`
+0.4.14 to 0.4.18 (`fancy-regex` required at least 0.4.16), and `zmij`
+1.0.21 to 1.0.23 (required by `jsonschema-value`). Those changes affected shared
+dependency resolution while the candidate itself was test-only. Resource
 and behavioral regressions must therefore be checked separately from the new
 compiler controls. These dependencies are not added to production guest builds;
 the temporary linked harness has its own explicit cross-target dependency graph.
