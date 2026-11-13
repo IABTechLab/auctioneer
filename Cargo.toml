@@ -91,7 +91,7 @@ http-body-util = "0.1"
 ipnetwork = { version = "0.20", default-features = false }
 log = "0.4"
 # Entry-count-bounded parse cache behind auctioneer-privacy's GvlStore.
-lru = "0.12"
+lru = "0.16"
 auctioneer-bidder = { path = "crates/auctioneer-bidder" }
 auctioneer-cli = { path = "crates/auctioneer-cli", default-features = false }
 auctioneer-config-data = { path = "crates/auctioneer-config-data" }
