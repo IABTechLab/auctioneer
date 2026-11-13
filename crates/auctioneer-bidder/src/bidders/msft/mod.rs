@@ -161,7 +161,7 @@ mod tests {
         use sha2::{Digest as _, Sha256};
         let manifest_source = include_str!("bidder.toml");
         assert_eq!(
-            format!("{:x}", Sha256::digest(manifest_source.as_bytes())),
+            hex::encode(Sha256::digest(manifest_source.as_bytes())),
             CAPTURE_MANIFEST_SHA256
         );
         let manifest: toml::Value = toml::from_str(manifest_source).unwrap();
@@ -182,7 +182,7 @@ mod tests {
         assert_eq!(retained.bytes, u64::try_from(source.len()).unwrap());
         assert_eq!(
             retained.sha256,
-            format!("{:x}", Sha256::digest(source.as_bytes()))
+            hex::encode(Sha256::digest(source.as_bytes()))
         );
         serde_json::from_str(source).unwrap()
     }

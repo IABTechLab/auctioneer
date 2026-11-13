@@ -257,7 +257,7 @@ pub(crate) fn check_canonical_schema(
         return Err(SchemaError::Source);
     }
     let actual_length = u64::try_from(bytes.len()).map_err(|_error| SchemaError::Witness)?;
-    let digest = format!("{:x}", Sha256::digest(bytes));
+    let digest = hex::encode(Sha256::digest(bytes));
     let source_length = schema
         .get("source_bytes")
         .and_then(toml::Value::as_integer)

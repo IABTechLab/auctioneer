@@ -58,6 +58,59 @@ mod tests {
     }
 
     #[test]
+    fn repeated_and_collapsed_patterns_cannot_bypass_engine_construction_limits() {
+        use quote::quote;
+
+        struct Refusals(Vec<String>);
+        impl VisitMut for Refusals {
+            fn visit_macro_mut(&mut self, i: &mut syn::Macro) {
+                if i.path.is_ident("compile_error") {
+                    self.0.push(i.parse_body::<syn::LitStr>().unwrap().value());
+                }
+                visit_mut::visit_macro_mut(self, i);
+            }
+        }
+
+        for pattern in ["^[a-z]{1,10000000}$", "a{1,10000000}"] {
+            for explicit in [false, true] {
+                for configured in [false, true] {
+                    let mut builder = regex::RegexBuilder::new(pattern);
+                    let limits = if configured {
+                        builder.size_limit(0x0001_0000).dfa_size_limit(0x0001_0000);
+                        quote!(size_limit = 65_536, dfa_size_limit = 65_536,)
+                    } else {
+                        quote!()
+                    };
+                    assert!(builder.build().is_err(), "engine must refuse {pattern}");
+                    let cache = explicit.then(|| quote!(cache = explicit,));
+                    let schema = syn::LitStr::new(
+                        &json!({"type": "string", "pattern": pattern}).to_string(),
+                        proc_macro2::Span::call_site(),
+                    );
+                    let mut syntax: syn::File = syn::parse2(jsonschema_macros_core::expand(
+                        quote!(
+                            schema = #schema, draft = Draft4,
+                            pattern_options = { engine = regex, #cache #limits },
+                            methods = { is_valid = true, validate = false, iter_errors = false }
+                        ),
+                        quote!(
+                            pub struct BoundedPattern;
+                        ),
+                    ))
+                    .unwrap();
+                    let mut errors = Refusals(Vec::new());
+                    errors.visit_file_mut(&mut syntax);
+                    assert_eq!(
+                        errors.0,
+                        [format!("Invalid `pattern` regular expression: {pattern}")],
+                        "pattern={pattern}, explicit={explicit}, configured={configured}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn direct_automata_dependency_preserves_the_locked_engine_feature_closure() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let output = Command::new("cargo")

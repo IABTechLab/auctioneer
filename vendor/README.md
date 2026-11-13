@@ -2,16 +2,17 @@
 
 ## Schema Compiler
 
-`jsonschema-macros-core/` contains the published 0.58.6 package from
+`jsonschema-macros-core/` contains the published 0.61.2 package from
 [Stranger6667/jsonschema](https://github.com/Stranger6667/jsonschema), with three
 separate compiler patches. It is excluded from the Auctioneer workspace and patched through
-the root manifest. The selected schema engine remains a native test dependency;
-this does not enable schema validation in deployed auctions.
+the root manifest. It generates the controlled-native validators and the
+explicitly staged guest probes. This upgrade does not promote a bidder or
+qualify guest serving.
 
 The adjacent original `.crate` archive is retained for offline provenance
 verification. Its SHA-256 is
-`bf3ebe067f2c25a981a7d1b2f696fc213e10dbf80ba5fe997f7dc2e4fe261f26`.
-Its source revision is `55ac1664384793c5d3b20745d3f9c169dfe2c06f`.
+`75afa4b5e6986cc221f5339d7d6149360f0bf8e65bcb23617dc0f92900b576d2`.
+Its source revision is `0e82636fde8b2afb5e712ede6c261166ea10fc17`.
 All 280 published members are preserved. The upstream MIT license, fetched
 from that source revision, is added because the published package omits it.
 
@@ -44,9 +45,18 @@ shared regex constructors and returns `None` on a cached constructor error.
 Non-opted-in output keeps the existing ABI. The existing `syn` dependency
 enables structured mutable AST traversal for this isolated lowering pass.
 
-This patch changes exactly six existing members: `Cargo.toml`,
+This patch changes exactly seven existing members: `Cargo.toml`,
 `Cargo.toml.orig`, `src/codegen.rs`, `src/context.rs`, `src/lib.rs`, and
-`src/tests.rs`. It adds one member, `src/codegen/explicit_cache.rs`.
+`src/tests.rs`, plus `src/codegen/regex.rs`. It adds one member,
+`src/codegen/explicit_cache.rs`.
+
+Version 0.61.2 introduces repetition-count matchers and collapsed search
+patterns before engine construction. The rebased patch retains original-pattern
+engine construction in every mode, including the default and supplied size
+limits. Otherwise these substitutions bypass the constructor limits and the
+initialization failure contract. The unchanged constructor controls and direct
+oversized-repetition refusal tests cover this compatibility requirement; it is
+not permission to substitute a matcher or relax a resource limit.
 
 The direct automata dependency is native test-only. Its resolved engine
 features and configured NFA/hybrid limits are unchanged. Explicit ownership
@@ -69,14 +79,18 @@ the complete schema compatibility set, and target/resource qualification.
 ## Upgrades
 
 The portable changes are
-[`patches/jsonschema-macros-core-type-check.patch`](patches/jsonschema-macros-core-type-check.patch),
-[`patches/jsonschema-macros-core-regex-initialization.patch`](patches/jsonschema-macros-core-regex-initialization.patch),
-and [`patches/jsonschema-macros-core-explicit-cache.patch`](patches/jsonschema-macros-core-explicit-cache.patch).
+[`patches/jsonschema-macros-core-0.61.2-type-check.patch`](patches/jsonschema-macros-core-0.61.2-type-check.patch),
+[`patches/jsonschema-macros-core-0.61.2-regex-initialization.patch`](patches/jsonschema-macros-core-0.61.2-regex-initialization.patch),
+and [`patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch`](patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch).
 Their SHA-256 values match the portable compiler replay test pins:
 
 - Type-check: `1d1ed4cdfdd21abbd2c469bbee6f7aa3ea8079c736dd22b9abe5d08e76265358`.
-- Regex initialization: `a3a0e791aeedd859835cb97e8a36d9c5c6cdb1db523c6348a21f41d1876a65f2`.
-- Explicit cache: `32d16bb697447d2158b0b40da829fc1e93d16527b2b7c1b42345ae5689a18993`.
+- Regex initialization: `b21e13915ba100b27a8db5c1b765b5f81c302be806d763359f73e0ca5a5be798`.
+- Explicit cache: `846658280e27162d5ea8334ba347eb86e0cf9ff05d22f701e632ce648868befe`.
+
+The original 0.58.6 archive and unversioned patch files remain historical
+artifacts. They are not the active compiler pins. Published 0.61.2 snapshots
+come unchanged from its original archive, not from recapturing patched output.
 
 Integration tests replay them in order against fresh published source and
 compare every changed or added member with the checked-in compiler tree.
@@ -88,12 +102,12 @@ For a new upstream version, retain the new original package and its checksum,
 refresh the expanded source, then rebase all three patches in order. From the repository root:
 
 ```sh
-git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-type-check.patch
-git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-type-check.patch
-git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-regex-initialization.patch
-git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-regex-initialization.patch
-git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-explicit-cache.patch
-git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-explicit-cache.patch
+git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-type-check.patch
+git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-type-check.patch
+git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-regex-initialization.patch
+git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-regex-initialization.patch
+git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch
+git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch
 ```
 
 Update the exact version, archive and patched-file pins only in that reviewed

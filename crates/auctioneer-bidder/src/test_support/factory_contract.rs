@@ -145,7 +145,7 @@ pub(crate) fn assert_factory_contract(key: &str, source: &str) {
         .join(key)
         .join("bidder.toml");
     assert_eq!(
-        format!("{:x}", Sha256::digest(fs::read(manifest).unwrap())),
+        hex::encode(Sha256::digest(fs::read(manifest).unwrap())),
         fixture.manifest_sha256,
         "factory manifest digest"
     );

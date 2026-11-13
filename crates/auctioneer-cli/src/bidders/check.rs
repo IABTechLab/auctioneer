@@ -114,7 +114,7 @@ fn parse_inventory(bytes: &[u8]) -> Result<toml::Value, Error> {
 }
 
 pub(super) fn parse_factory_bindings(bytes: &[u8]) -> Result<toml::Value, Error> {
-    if format!("{:x}", Sha256::digest(bytes)) != FACTORY_CAPTURE_SHA256 {
+    if hex::encode(Sha256::digest(bytes)) != FACTORY_CAPTURE_SHA256 {
         return Err(Error::InvalidSource);
     }
     parse_inventory(bytes).map_err(|_error| Error::InvalidSource)
@@ -215,7 +215,7 @@ pub(super) async fn run_bytes(
         report.scope = "wave_design_only";
         report.wave = Some(WaveSummary {
             id: design.id,
-            sha256: format!("{:x}", Sha256::digest(&bytes)),
+            sha256: hex::encode(Sha256::digest(&bytes)),
             review_status: "pending",
             operations,
             drivers,

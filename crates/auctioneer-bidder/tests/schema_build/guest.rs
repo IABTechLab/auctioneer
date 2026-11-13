@@ -107,7 +107,7 @@ impl Runtime {
             "expected_version": pinned_version(TOOL_VERSIONS).unwrap(),
             "invoked_program": self.path, "invoked_program_bytes": self.identity.0,
             "invoked_program_sha256": self.identity.1,
-            "tool_versions_sha256": format!("{:x}", Sha256::digest(TOOL_VERSIONS.as_bytes())),
+            "tool_versions_sha256": hex::encode(Sha256::digest(TOOL_VERSIONS.as_bytes())),
             "host_arch": env::consts::ARCH, "host_os": env::consts::OS,
             "code_cache": false, "filesystem_preopens": [], "inherited_guest_environment": false,
             "network": false, "debugger": false,
@@ -345,7 +345,7 @@ fn file_identity(path: &Path, limit: u64) -> Result<(u64, String), String> {
     if metadata.len() != bytes {
         return Err("guest identity changed while reading".to_owned());
     }
-    Ok((bytes, format!("{:x}", hash.finalize())))
+    Ok((bytes, hex::encode(hash.finalize())))
 }
 
 fn empty_config(root: &Path) -> Result<PathBuf, String> {
@@ -705,7 +705,7 @@ mod tests {
                 target: "wasm32-wasip1".to_owned(),
                 validators: 1,
                 artifact_bytes: u64::try_from(bytes.len()).unwrap(),
-                sha256: format!("{:x}", Sha256::digest(bytes)),
+                sha256: hex::encode(Sha256::digest(bytes)),
                 names: vec!["fake_bidder".to_owned()],
                 results: vec![false],
                 wasm: None,

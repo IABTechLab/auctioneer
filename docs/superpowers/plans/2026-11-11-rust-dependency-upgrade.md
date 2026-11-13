@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade the complete Auctioneer Rust dependency graph after a separately reviewed EdgeZero upgrade, preserving protocol behavior, safety limits and all existing acceptance owners.
+**Goal:** Upgrade the Auctioneer Rust dependency graph within the existing PR #275 SDK constraints, preserving protocol behavior, safety limits and all existing acceptance owners. Report retained upstream constraints rather than claiming an all-latest graph.
 
-**Architecture:** EdgeZero owns its provider/shared-type/codec tuple; Auctioneer adopts one immutable reviewed SDK revision before migrating its remaining dependency families. Workspace requirements, the resolved lockfile and independently replayable vendor patches remain the sources of dependency identity. Unicode 16 is the one explicitly approved matching-policy change; historical captures remain immutable.
+**Architecture:** EdgeZero owns its provider/shared-type/codec tuple; Auctioneer retains its existing immutable PR #275 revision while migrating independently owned dependency families. Workspace requirements, the resolved lockfile and independently replayable vendor patches remain the sources of dependency identity. Unicode 16 is the one explicitly approved matching-policy change; historical captures remain immutable.
 
 **Tech Stack:** Rust and provider tools from `.tool-versions`, Cargo, the current EdgeZero outbound contract, existing `quote!`/`syn` generators, patched upstream schema/regex libraries and existing native/guest test owners.
 
@@ -12,9 +12,9 @@
 
 ## Authority And Sequence
 
-Spec: [Complete Rust Dependency Upgrade](../specs/2026-11-11-rust-dependency-upgrade-design.md). Tracking: [Auctioneer #165](https://github.com/IABTechLab/auctioneer/issues/165), blocked by [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467). The maintainer approved the written spec, Unicode 16 and the separate SDK-first coordination on 2026-11-11. This plan still requires planning review/merge and implementation authorization. Neither repository has merge authorization.
+Spec: [Complete Rust Dependency Upgrade](../specs/2026-11-11-rust-dependency-upgrade-design.md). Tracking: [Auctioneer #165](https://github.com/IABTechLab/auctioneer/issues/165). The maintainer approved the written spec, Unicode 16 and the initial separate SDK-first coordination on 2026-11-11. On 2026-11-12 the user directed implementation in existing PR #166 without another PR, required EdgeZero to stay on PR #275, and instructed CREATOR to continue. This supersedes the separate planning-merge/implementation-PR sequence and the SDK-first gate for independent upgrades. Neither repository has merge authorization. [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467) still owns future upstream tuple changes, not independent Auctioneer work.
 
-The upstream SDK task has its own spec, plan, worktree, implementation and review. Task 1 below is its handoff gate, not an instruction to modify the PR #275 implementer's checkout. Do not start Auctioneer production edits by guessing the eventual SDK tuple. After the planning PR merges and implementation is authorized, create a new implementation worktree from refreshed `origin/main`; do not reuse this planning branch. Reconcile any merged PR #162 changes before freezing the implementation baseline.
+Use PR #166's existing owned branch/worktree under that explicit user exception; do not open another Auctioneer PR or edit the PR #275 implementer's checkout. Task 1 now freezes the retained SDK and its constraints rather than waiting for another SDK delivery. Refresh `origin/main` and reconcile merged changes before freezing the implementation baseline. An unmerged PR #162 remains separate work, not source to copy or accepted proof.
 
 A family can require several small commits. Keep the final deliverable one Auctioneer implementation PR, not one PR per package. A compile failure does not justify changing privacy, workload, resource or test contracts. A newly discovered behavioral migration beyond the approved Unicode change returns to review before implementation.
 
@@ -23,7 +23,7 @@ A family can require several small commits. Keep the final deliverable one Aucti
 | Owner | Files And Responsibility |
 | --- | --- |
 | Dependency graph | `Cargo.toml`, `Cargo.lock`, inherited `crates/*/Cargo.toml`; `.tool-versions` only if a justified compatibility decision changes a tool |
-| Current upgrade record | Create `docs/testing/evidence/rust-dependency-upgrade-20261111.md` during implementation for selected package IDs, upstream constraints, source/patch identities, actual commands/results and outstanding blockers; not a new backlog |
+| Current upgrade record | `docs/testing/evidence/rust-dependency-upgrade-20261112.md` records the implementation selection, upstream constraints, source/patch identities, actual commands/results and outstanding blockers; not a new backlog |
 | SDK adoption | `crates/auctioneer-adapter-{axum,cloudflare,fastly,spin}/src/`, `crates/auctioneer-core/tests/codec_pins.rs`, current acquisition instructions in `docs/testing/development.md` |
 | Config and generators | `crates/auctioneer-config/src/`, `crates/auctioneer-config-data/build.rs`, `crates/auctioneer-macros/src/`, existing generated syntax/compiler tests |
 | Crypto and utility APIs | `crates/auctioneer-core/src/usersync/signed.rs`, `crates/auctioneer-privacy/src/gvl.rs`, `crates/auctioneer-config/src/url_safety.rs`, `crates/auctioneer-openrtb/src/prepare/implicit_fill.rs`, native CLI maintenance modules |
@@ -35,21 +35,21 @@ A family can require several small commits. Keep the final deliverable one Aucti
 
 Use `rg` to derive the complete call-site set for each changed package. The table identifies owners, not permission to skip additional real consumers. Colocate new unit cases; extend existing integration/conformance owners. Use synthetic fake bidders for shared controls and preserve bidder-local protocol/provenance data.
 
-## Task 1: Accept The Coordinated SDK Delivery
+## Task 1: Freeze The Retained SDK Constraints
 
-**External owner:** EdgeZero #467, retaining the API lineage of PR #275. No Auctioneer source changes in this task.
+**External owner:** EdgeZero PR #275, with future tuple upgrades tracked in #467. No SDK/provider/codec source changes in this task.
 
-- [ ] Read the approved upstream spec/plan and exact proposed commit. Confirm the upgrade includes provider families, shared HTTP/JSON, native HTTP and the entire codec tuple, rather than only versions mentioned by the first downstream compile error.
-- [ ] Read its root and excluded/generated-consumer lockfiles, package IDs and feature graph. Verify the maintained Spin 8 candidate includes eager spawned-task progress, narrow explicit features, compatible host/guest ABI and retained response/completion ownership. A tag or default-branch HEAD is insufficient.
-- [ ] Require actual upstream verification for its prescribed workspace tests, strict lint, feature builds, all three guest targets, generated consumers/demo and existing runtime/codec/progress controls. Record unrun hosted checks explicitly. Confirm no limit, readiness or capability claim was widened to pass.
-- [ ] Record the reviewed immutable official `IABTechLab/edgezero` revision and exact shared tuple in #165 and the current upgrade record. Coordinate the carrying base with #275's owner; do not rebase or mutate that owner's branch.
-- [ ] Stop Auctioneer adoption if any required tuple, retained-outbound contract, review or verification is missing. Keeping the dependency issue open is not a substitute for delivery. No claims of release stability or all-target qualification follow from this gate.
+- [ ] Verify all six SDK requirements and locked packages retain one official-repository revision on PR #275's lineage. Do not adopt unrelated main or a new provider SDK independently.
+- [ ] Record the exact provider/shared-type/HTTP/JSON/codec requirements and resolved feature graph. Preserve the Spin fork until its owning SDK permits a coherent replacement.
+- [ ] Classify each retained older package instance by its actual upstream owner and constraint. Independent package upgrades may proceed; conflicting shared-version upgrades may not.
+- [ ] Preserve the codec single-copy, retained-outbound, deadline/cancellation and provider boundary controls. A resolver failure does not justify removing them or adding incompatible exposed types.
+- [ ] Keep future #467 work and missing qualification explicit. This task does not deliver a newer SDK tuple or claim release stability or target fit.
 
 ## Task 2: Freeze The Implementation Inventory And Baseline
 
 **Files:** `Cargo.toml`, `Cargo.lock`, current upgrade record. Read `.tool-versions`, `vendor/README.md`, [test ownership](../../testing/development.md) and current workflows.
 
-- [ ] Fetch main, create the separate owned implementation worktree and record the exact base and accepted SDK commit. Preserve concurrent work, particularly PR #162 if it has merged. Confirm the locked base builds before changing requirements.
+- [ ] Fetch main into the existing PR #166 cycle and record the exact base and retained SDK commit. Preserve concurrent work, particularly PR #162 if it has merged. Confirm the locked base builds before changing requirements.
 - [ ] Capture `cargo metadata --locked --format-version 1` and `cargo tree --locked --duplicates`, then run `cargo upgrade --dry-run --incompatible allow --pinned allow --recursive false` and `cargo update --dry-run --verbose`. These are audit commands, not permission to rewrite the manifest mechanically.
 - [ ] Expand every workspace requirement to its owning call sites and every resolved package to its full Cargo package ID/source. Independently inspect Git release tags and relevant upstream repairs. Record selected stable versions and retained upstream constraints; do not depend on `cargo-outdated`'s broken vendor-copy path.
 - [ ] Freeze candidates after this selection. The spec's 23 requirements and 147 compatible changes are dated discovery data, not asserted counts for a later resolution. Record new releases discovered afterward without moving a graph already under acceptance.
@@ -57,6 +57,8 @@ Use `rg` to derive the complete call-site set for each changed package. The tabl
 - [ ] Commit the inventory/selection record only; no dependency change may be described as tested by this unchanged-graph baseline.
 
 ## Task 3: Adopt The SDK And Shared Tuple
+
+The original adoption checklist below is conditional on a future explicitly selected PR #275 revision permitting a coherent newer tuple. For this implementation, retain the current SDK/provider/codec pins and record constrained versions; this task does not authorize replacing the SDK, bypassing exact requirements or editing its checkout. Keep the executable SDK locator/provider pins unchanged when no revision is adopted.
 
 **Files:** root and inherited manifests/lockfile; adapter source; `crates/auctioneer-core/tests/codec_pins.rs`; `.github/workflows/scripts/test/locate-pinned-sdk.sh`; `crates/auctioneer-cli/src/qualification/harness/providers/mod.rs`; current source acquisition instructions and current upgrade record.
 
@@ -146,7 +148,7 @@ Use `rg` to derive the complete call-site set for each changed package. The tabl
 - [ ] Execute actual WASI catalog/storage controls in both feature modes through `execute-catalog-publication.sh`, all adapter-specific guest checks/lints/conformance builds, the existing Fastly guest runner and the provider workflows' packaging/size gates. Native artifacts cannot stand in for guest/provider evidence.
 - [ ] Run the existing raw-JSON, roster, batch-rebase, secure-usersync, libtest-result and feature/dependency-purity gates. Preserve their failure controls. Use the existing scripts rather than adding Rust snapshots of workflow bodies.
 - [ ] Record per-command exit status, real libtest result lines, skipped/ignored counts and environmental prerequisites at the exact tested head. Publish CI results separately from local results. Missing provider tooling, unavailable upstream objects, disk failures or jobs that never start remain blocked, not passing. Do not raise timeouts/budgets or remove cases to obtain green.
-- [ ] Have the implementation independently reviewed. Open the single implementation PR with the complete version/source delta, compatibility decisions and current proof record. Keep it draft while any required upgrade or acceptance is incomplete. Mark ready only after the full required checks and review handoff gates are satisfied; do not merge without authorization.
+- [ ] Have the implementation independently reviewed in existing PR #166, with its phase/description updated to the complete version/source delta, compatibility decisions and current proof record. Do not create a second PR. Keep incomplete upgrade/acceptance gates explicit and do not merge without authorization.
 - [ ] After approved merge and verified #165 acceptance only, reconcile superseded Dependabot PRs and close the task. Do not close #165 because this planning PR or the upstream prerequisite alone merged.
 
 ## Verification Discipline
@@ -155,4 +157,4 @@ Use @superpowers:test-driven-development for new compatibility repairs, @superpo
 
 Keep ordinary Cargo caches and serialize heavy local experiments. Compiler/measurement processes retain their existing freshness and independent feature graphs. Do not routinely clean unrelated targets, add result caches, skip slow checks or exceed local disk capacity to run the entire matrix concurrently. Where an existing workflow provides exhaustive isolated owners, preserve that ownership instead of repeating the same expensive child builds in every feature lane.
 
-This planning change contains no upgraded production dependency and does not certify the discovery candidates. The next execution gate is reviewed SDK #467 delivery plus approval of this plan, not another request for the Unicode or SDK scope decisions already made.
+The initial planning change contained no upgraded production dependency and did not certify the discovery candidates. Implementation now follows the explicit 2026-11-12 same-PR/retained-SDK amendment above. Preserve the original safety, Unicode-oracle and full acceptance requirements; the later direction changes delivery sequence, not proof or merge gates.

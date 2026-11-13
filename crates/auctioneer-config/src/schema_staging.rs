@@ -345,13 +345,13 @@ pub fn identify(
     }
     Ok(ArtifactIdentity {
         qualification: Qualification::Unqualified,
-        sha256: format!("{:x}", hash.finalize()),
+        sha256: hex::encode(hash.finalize()),
         inputs: input_identities,
     })
 }
 
 pub(crate) fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn hash_field(hash: &mut Sha256, field: &str) -> Result<(), String> {
@@ -652,7 +652,7 @@ mod tests {
 
     #[test]
     fn fake_identity_is_explicitly_unqualified_and_input_order_independent() {
-        let hash = format!("{:x}", Sha256::digest(b"fake bytes"));
+        let hash = hex::encode(Sha256::digest(b"fake bytes"));
         let mut inputs = inputs(&hash);
         let expected = identity(&fake_selection(), context(), &inputs);
         assert_eq!(expected.qualification, Qualification::Unqualified);
@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn fake_identity_changes_with_each_build_context_axis_and_membership() {
-        let hash = format!("{:x}", Sha256::digest(b"fake bytes"));
+        let hash = hex::encode(Sha256::digest(b"fake bytes"));
         let inputs = inputs(&hash);
         let selection = fake_selection();
         let baseline = identity(&selection, context(), &inputs);
@@ -705,7 +705,7 @@ mod tests {
 
     #[test]
     fn fake_identity_requires_all_planning_code_lock_and_schema_inputs() {
-        let hash = format!("{:x}", Sha256::digest(b"fake bytes"));
+        let hash = hex::encode(Sha256::digest(b"fake bytes"));
         let inputs = inputs(&hash);
         for index in 0..inputs.len() {
             let mut missing = inputs.clone();
@@ -748,8 +748,8 @@ mod tests {
 
     #[test]
     fn fake_identity_rebinds_every_changed_input_including_code_helpers_and_lock() {
-        let old_hash = format!("{:x}", Sha256::digest(b"fake bytes"));
-        let new_hash = format!("{:x}", Sha256::digest(b"fake changed bytes"));
+        let old_hash = hex::encode(Sha256::digest(b"fake bytes"));
+        let new_hash = hex::encode(Sha256::digest(b"fake changed bytes"));
         let inputs = inputs(&old_hash);
         let baseline = identity(&fake_selection(), context(), &inputs);
         for index in 0..inputs.len() {

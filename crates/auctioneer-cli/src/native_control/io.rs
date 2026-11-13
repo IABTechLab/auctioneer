@@ -192,7 +192,7 @@ fn write_json_bytes<W: Write>(
 /// Return the lowercase SHA-256 digest of the supplied bytes.
 #[must_use]
 pub fn sha256(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 /// Hash compact JSON with canonically ordered object keys.
@@ -244,7 +244,7 @@ fn hash_open_file(mut file: File, cap: usize) -> Result<String> {
         }
         digest.update(chunk.get(..count).ok_or(HarnessError::new("input_io"))?);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    Ok(hex::encode(digest.finalize()))
 }
 
 /// Hash a bounded regular file, refusing final symlinks and hardlinks on Unix.

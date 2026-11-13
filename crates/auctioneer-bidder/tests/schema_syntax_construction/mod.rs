@@ -210,7 +210,7 @@ fn verify_source_bytes(
     expected: &str,
     bytes: &[u8],
 ) -> Result<(), ConstructionError> {
-    if format!("{:x}", Sha256::digest(bytes)) != expected {
+    if hex::encode(Sha256::digest(bytes)) != expected {
         return Err(ConstructionError::Source(relative));
     }
     Ok(())
@@ -1230,7 +1230,7 @@ mod tests {
     fn syntax_construction_source_digest_checks_refuse_changed_bytes() {
         use sha2::{Digest as _, Sha256};
         let bytes = b"fake_reviewed_source";
-        let expected = format!("{:x}", Sha256::digest(bytes));
+        let expected = hex::encode(Sha256::digest(bytes));
         assert_eq!(
             super::verify_source_bytes("fake_source.rs", &expected, bytes),
             Ok(())

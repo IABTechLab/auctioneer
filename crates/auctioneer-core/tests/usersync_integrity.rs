@@ -28,7 +28,7 @@ mod tests {
         body::Body,
         http::{Method, StatusCode},
     };
-    use hmac::{Hmac, Mac as _};
+    use hmac::{Hmac, KeyInit as _, Mac as _};
     use serde_json::json;
     use sha2::Sha256;
     use usersync_app::{TestApp, body};

@@ -40,3 +40,12 @@ affiliation or endorsement, and do not grant trademark rights.
 
 Other third-party components and data retain their own licenses and notices.
 This attribution record is not a complete dependency or data-license inventory.
+
+Unicode Character Database 16.0.0
+https://www.unicode.org/versions/Unicode16.0.0/
+Copyright 2024 Unicode, Inc.
+
+The case-folding conformance tests retain original Unicode data and notices
+under crates/auctioneer-config-data/tests/fixtures/unicode/, including the
+Unicode License v3 permission notice. These are test data, not a new runtime
+Unicode implementation.

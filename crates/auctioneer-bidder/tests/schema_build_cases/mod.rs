@@ -20,14 +20,15 @@ mod tests {
 
     const ROOT: &str = include_str!("../../../../Cargo.toml");
     const LOCK: &str = include_str!("../../../../Cargo.lock");
-    const ARCHIVE_SHA256: &str = "bf3ebe067f2c25a981a7d1b2f696fc213e10dbf80ba5fe997f7dc2e4fe261f26";
+    const ARCHIVE_SHA256: &str = "75afa4b5e6986cc221f5339d7d6149360f0bf8e65bcb23617dc0f92900b576d2";
     const TYPE_CHECK_SHA256: &str =
         "c5fe64170d5154c5967280d28c2fcb269c24d49ef756322d269ac8eb8998d912";
     const INITIALIZATION_SHA256: &str =
-        "0fe3dfb41dd37dab3fa8fe7613fb20084b91550b100798da2c21adbcd21a6730";
-    const EXPLICIT_CACHE_PATCH: &str = "jsonschema-macros-core-explicit-cache.patch";
+        "5a757b0f4d360fcc9fb8dce7af0031b107067be9f5c451321ec94d49ff3fb2f8";
+    const EXPLICIT_CACHE_PATCH: &str =
+        "jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch";
     const EXPLICIT_CACHE_PATCH_SHA256: &str =
-        "32d16bb697447d2158b0b40da829fc1e93d16527b2b7c1b42345ae5689a18993";
+        "846658280e27162d5ea8334ba347eb86e0cf9ff05d22f701e632ce648868befe";
 
     // Source tables fix accepts/refusals; lexical inputs distinguish JSON
     // refusals from schema refusals independently of the generated validator.
@@ -246,7 +247,7 @@ mod tests {
     fn compiler_metadata_requires_the_exact_local_package_and_manifest() {
         let vendor = Path::new("/reviewed/compiler");
         let original = json!({"packages": [{
-            "name": "jsonschema-macros-core", "version": "0.58.6",
+            "name": "jsonschema-macros-core", "version": "0.61.2",
             "source": null, "manifest_path": "/reviewed/compiler/Cargo.toml"
         }, {"name": "unrelated"}]});
         assert_eq!(
@@ -308,8 +309,8 @@ mod tests {
             .join("../..")
             .canonicalize()
             .unwrap();
-        let raw = fs::read(workspace.join("vendor/jsonschema-macros-core-0.58.6.crate")).unwrap();
-        assert_eq!(format!("{:x}", Sha256::digest(&raw)), ARCHIVE_SHA256);
+        let raw = fs::read(workspace.join("vendor/jsonschema-macros-core-0.61.2.crate")).unwrap();
+        assert_eq!(hex::encode(Sha256::digest(&raw)), ARCHIVE_SHA256);
         let mut archive = tar::Archive::new(GzDecoder::new(raw.as_slice()));
         let mut files = BTreeMap::new();
         for entry_result in archive.entries().unwrap() {
@@ -318,7 +319,7 @@ mod tests {
             let relative = entry
                 .path()
                 .unwrap()
-                .strip_prefix("jsonschema-macros-core-0.58.6")
+                .strip_prefix("jsonschema-macros-core-0.61.2")
                 .unwrap()
                 .to_owned();
             assert!(!relative.as_os_str().is_empty());
@@ -362,17 +363,17 @@ mod tests {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let patch = workspace.join("vendor/patches").join(patch_name);
         let checksum = match patch_name {
-            "jsonschema-macros-core-type-check.patch" => {
+            "jsonschema-macros-core-0.61.2-type-check.patch" => {
                 "1d1ed4cdfdd21abbd2c469bbee6f7aa3ea8079c736dd22b9abe5d08e76265358"
             }
-            "jsonschema-macros-core-regex-initialization.patch" => {
-                "a3a0e791aeedd859835cb97e8a36d9c5c6cdb1db523c6348a21f41d1876a65f2"
+            "jsonschema-macros-core-0.61.2-regex-initialization.patch" => {
+                "b21e13915ba100b27a8db5c1b765b5f81c302be806d763359f73e0ca5a5be798"
             }
             EXPLICIT_CACHE_PATCH => EXPLICIT_CACHE_PATCH_SHA256,
             _ => panic!("unreviewed portable patch: {patch_name}"),
         };
         assert_eq!(
-            format!("{:x}", Sha256::digest(fs::read(&patch).unwrap())),
+            hex::encode(Sha256::digest(fs::read(&patch).unwrap())),
             checksum
         );
         let original = compiler_tree(directory);
@@ -415,7 +416,7 @@ mod tests {
         fs::write(&file, original).unwrap();
         apply_portable_compiler_patch(temporary.path(), patch_name);
         assert_eq!(
-            format!("{:x}", Sha256::digest(fs::read(file).unwrap())),
+            hex::encode(Sha256::digest(fs::read(file).unwrap())),
             expected_sha256
         );
     }
@@ -424,7 +425,7 @@ mod tests {
     fn portable_type_check_patch_recreates_the_reviewed_object_schema_file() {
         assert_portable_patch_recreates_historical_file(
             "src/codegen/object_schema.rs",
-            "jsonschema-macros-core-type-check.patch",
+            "jsonschema-macros-core-0.61.2-type-check.patch",
             TYPE_CHECK_SHA256,
         );
     }
@@ -433,7 +434,7 @@ mod tests {
     fn portable_regex_initialization_patch_recreates_the_reviewed_emit_root_file() {
         assert_portable_patch_recreates_historical_file(
             "src/codegen/emit_root.rs",
-            "jsonschema-macros-core-regex-initialization.patch",
+            "jsonschema-macros-core-0.61.2-regex-initialization.patch",
             INITIALIZATION_SHA256,
         );
     }
@@ -452,23 +453,20 @@ mod tests {
         // The separately pinned license is not part of any compiler patch.
         let license = fs::read(workspace.join("vendor/jsonschema-macros-core/LICENSE")).unwrap();
         assert_eq!(
-            format!("{:x}", Sha256::digest(&license)),
+            hex::encode(Sha256::digest(&license)),
             "117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038"
         );
         fs::write(temporary.path().join("LICENSE"), license).unwrap();
         for patch in [
-            "jsonschema-macros-core-type-check.patch",
-            "jsonschema-macros-core-regex-initialization.patch",
+            "jsonschema-macros-core-0.61.2-type-check.patch",
+            "jsonschema-macros-core-0.61.2-regex-initialization.patch",
         ] {
             apply_portable_compiler_patch(temporary.path(), patch);
         }
         assert_eq!(
-            format!(
-                "{:x}",
-                Sha256::digest(
-                    fs::read(temporary.path().join("src/codegen/emit_root.rs")).unwrap()
-                )
-            ),
+            hex::encode(Sha256::digest(
+                fs::read(temporary.path().join("src/codegen/emit_root.rs")).unwrap()
+            )),
             INITIALIZATION_SHA256
         );
         let two_patch_base = compiler_tree(temporary.path());

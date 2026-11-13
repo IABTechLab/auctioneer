@@ -398,7 +398,7 @@ shared_prerequisites = ["core_gate"]
             "../../../auctioneer-bidder/tests/conformance/fixtures/waves/priority.toml"
         );
         assert_eq!(
-            format!("{:x}", Sha256::digest(bytes)),
+            hex::encode(Sha256::digest(bytes)),
             "aa9d38e3e6221c13d13b28ba18684e041f48e3c15608aa60ee11db86924a0c24"
         );
         let wave = parse(bytes).unwrap();

@@ -177,7 +177,7 @@ mod tests {
         assert!(matches!(method.vis, Visibility::Public(_)));
         assert!(method.sig.constness.is_some());
         assert!(method.sig.asyncness.is_none());
-        assert!(method.sig.unsafety.is_none());
+        assert!(matches!(method.sig.safety, syn::Safety::Default));
         assert!(method.sig.abi.is_none());
         assert!(method.sig.variadic.is_none());
         assert!(method.sig.generics.params.is_empty());
@@ -190,9 +190,11 @@ mod tests {
         let syn::FnArg::Receiver(receiver) = &method.sig.inputs[0] else {
             panic!("expected &self");
         };
-        assert!(receiver.reference.is_some());
+        assert!(matches!(
+            receiver.kind,
+            syn::ReceiverKind::Reference(_, None, None)
+        ));
         assert!(receiver.mutability.is_none());
-        assert!(receiver.colon_token.is_none());
 
         let syn::ReturnType::Type(_, result) = &method.sig.output else {
             panic!("expected the stack array return type");

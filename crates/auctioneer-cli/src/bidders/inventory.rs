@@ -24,7 +24,7 @@ impl Inventory {
     fn validate_source_pin(&self) -> Result<(), Error> {
         // Independently frozen source inventory, not a digest learned from this scan.
         let bytes = toml::to_string_pretty(self).map_err(|_error| Error::Output)?;
-        if format!("{:x}", Sha256::digest(bytes.as_bytes()))
+        if hex::encode(Sha256::digest(bytes.as_bytes()))
             != "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6"
         {
             return Err(Error::InvalidSource);
@@ -126,7 +126,7 @@ fn artifact(entry: &Entry, bytes: &[u8], root: &str, suffix: &str) -> Result<Art
         path: entry.path.clone(),
         blob: entry.oid.clone(),
         bytes: entry.bytes,
-        sha256: format!("{:x}", Sha256::digest(bytes)),
+        sha256: hex::encode(Sha256::digest(bytes)),
     })
 }
 

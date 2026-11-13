@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn capture_membership_and_literal_parameter_cases_have_frozen_witnesses() {
-        assert_eq!(format!("{:x}", Sha256::digest(MANIFEST)), MANIFEST_SHA256);
+        assert_eq!(hex::encode(Sha256::digest(MANIFEST)), MANIFEST_SHA256);
         let manifest: toml::Value = toml::from_str(MANIFEST).unwrap();
         assert_eq!(manifest["native_only"].as_bool(), Some(true));
         let definitions = manifest["definitions"].as_table().unwrap();
@@ -251,7 +251,7 @@ mod tests {
             );
             assert_eq!(
                 rows[0]["retained"]["source_sha256"].as_str().unwrap(),
-                format!("{:x}", Sha256::digest(bytes))
+                hex::encode(Sha256::digest(bytes))
             );
         }
         let cases: Value =
@@ -349,7 +349,7 @@ mod tests {
                 row["source_bytes"].as_integer().unwrap()
             );
             assert_eq!(
-                format!("{:x}", Sha256::digest(&bytes.stdout)),
+                hex::encode(Sha256::digest(&bytes.stdout)),
                 row["source_sha256"].as_str().unwrap()
             );
             let blob = Command::new("git")

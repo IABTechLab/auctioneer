@@ -210,7 +210,7 @@ mod tests {
         "capability":c,"status":"verified","evidence_sha256":d})
             })
             .collect();
-        let mut o = json!({"schema_version":2_i32,"profile_sha256":format!("{:x}",Sha256::digest(serde_json::to_vec(&p).unwrap())),
+        let mut o = json!({"schema_version":2_i32,"profile_sha256":hex::encode(Sha256::digest(serde_json::to_vec(&p).unwrap())),
         "identity":p["identity"],"resources":p["resources"],"platform":p["platform"],"hardware":p["hardware"],"backend":p["backend"],
         "variants":variant_rows,"capabilities":capabilities,"scenarios":rows});
         bind_debug(&mut p, &mut o);
@@ -218,7 +218,7 @@ mod tests {
     }
 
     fn hash(value: &Value) -> String {
-        format!("{:x}", Sha256::digest(serde_json::to_vec(value).unwrap()))
+        hex::encode(Sha256::digest(serde_json::to_vec(value).unwrap()))
     }
 
     fn bind_debug(p: &mut Value, o: &mut Value) {

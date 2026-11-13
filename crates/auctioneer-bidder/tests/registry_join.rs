@@ -126,7 +126,7 @@ mod tests {
         let (mut manifest, mut bytes, inventory) = schema_fixture();
         bytes.push(b'\n');
         let length = i64::try_from(bytes.len()).unwrap();
-        let digest = format!("{:x}", Sha256::digest(&bytes));
+        let digest = hex::encode(Sha256::digest(&bytes));
         let schema = manifest.provenance["artifacts"]
             .as_array_mut()
             .unwrap()

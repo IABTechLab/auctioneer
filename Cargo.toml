@@ -46,14 +46,14 @@ axum = "0.8"
 base64 = { version = "=0.23.1", default-features = false, features = ["std"] }
 bytes = "=1.12.1"
 cookie = { version = "=0.18.2", default-features = false }
-hmac = { version = "=0.12.1", default-features = false }
+hmac = { version = "=0.13.0", default-features = false }
 # Native HTTP version entries. The adapter's real-socket fixtures use Tokio TCP;
 # production crates route HTTP through EdgeZero, not directly through hyper.
 hyper = { version = "1", default-features = false }
 hyper-util = { version = "0.1", default-features = false }
 # Qualification-only candidate; do not add to deployed dependencies before its gate passes.
-jsonschema = { version = "=0.58.6", default-features = false, features = ["macros"] }
-jsonschema-macros-core = "=0.58.6"
+jsonschema = { version = "=0.61.2", default-features = false, features = ["macros"] }
+jsonschema-macros-core = "=0.61.2"
 # Dev-only log-capture helper used by regression tests that inspect
 # `log::warn!` output. Idempotent global setup — no cross-test
 # serialisation lock.
@@ -82,16 +82,16 @@ hex = "0.4"
 # `executor` adds the single-threaded LocalPool used in synchronous test
 # contexts. No async runtime is added — `block_on` here is test-only.
 futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
-getrandom = { version = "0.3", default-features = false }
+getrandom = { version = "0.4", default-features = false }
 # Native qualification reads compiler-emitted DWARF layout facts, never guesses
 # private dependency layouts. Write support is for synthetic conformance input.
-gimli = { version = "=0.32.3", default-features = false, features = ["read", "write", "std"] }
+gimli = { version = "=0.34.0", default-features = false, features = ["read", "write", "std"] }
 http = "1"
 http-body-util = "0.1"
-ipnetwork = { version = "0.20", default-features = false }
+ipnetwork = { version = "0.21", default-features = false }
 log = "0.4"
 # Entry-count-bounded parse cache behind auctioneer-privacy's GvlStore.
-lru = "0.12"
+lru = "0.19"
 auctioneer-bidder = { path = "crates/auctioneer-bidder" }
 auctioneer-cli = { path = "crates/auctioneer-cli", default-features = false }
 auctioneer-config-data = { path = "crates/auctioneer-config-data" }
@@ -104,13 +104,13 @@ auctioneer-openrtb = { path = "crates/auctioneer-openrtb" }
 auctioneer-openrtb-catalogue = { path = "crates/auctioneer-openrtb-catalogue" }
 auctioneer-privacy = { path = "crates/auctioneer-privacy" }
 auctioneer-runtime = { path = "crates/auctioneer-runtime" }
-mime = "0.3.17"
+mime = "0.3.18"
 once_cell = "1"
 # Native-only application artifact inspection and synthetic object controls.
-object = { version = "=0.37.3", default-features = false, features = ["read", "write", "std"] }
+object = { version = "=0.41.0", default-features = false, features = ["read", "write", "std"] }
 percent-encoding = "2"
 # Test-only decoder for the original Prebid tracking pixel.
-png = { version = "=0.17.16", default-features = false }
+png = { version = "=0.18.1", default-features = false }
 # Dev-only property testing (auctioneer-privacy TCF parser: never-panic +
 # round-trip properties).
 # Property tests run in-process on native and WASM; no test uses fork/timeout.
@@ -120,7 +120,7 @@ quote = "1"
 psl = "2"
 # Native maintenance fetches retain the archive tool's existing HTTP policy.
 reqwest = { version = "0.12", features = ["blocking", "json", "gzip"] }
-regex = "=1.12.4"
+regex = "=1.13.1"
 # Qualification-only direct API; this is the existing regex feature closure.
 regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "meta", "nfa", "dfa-onepass", "dfa-search", "hybrid", "perf", "unicode"] }
 # Structured HIR inspection in native schema qualification only.
@@ -133,27 +133,27 @@ yaml-rust2 = { version = "=0.13.0", default-features = false }
 # Dotted-field-path retention for GVL/GCL schema errors
 # (`MalformedEntry { path }` diagnostics in auctioneer-gvl-schema).
 serde_path_to_error = "0.1"
-sha2 = "0.10"
+sha2 = "0.11"
 rustix = { version = "1.1", features = ["fs", "process", "system"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
 tempfile = "3"
 tar = { version = "0.4.46", default-features = false }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
-zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
+zeroize = { version = "1.9", default-features = false, features = ["alloc"] }
 simple_logger = "5"
 spin-sdk = { version = "=7.0.0", git = "https://github.com/stackpop/spin-rust-sdk.git", rev = "6c59ed5b4fcb377072763aee0b27a3abdd8edb72", default-features = false, features = ["http", "key-value", "variables"] }
 # Constant-time comparison for the health-endpoint bearer digest —
 # wasm-compatible, no timing side channel on token verification.
 subtle = "2"
-syn = { version = "2", features = ["full"] }
-thiserror = "1"
+syn = { version = "3", features = ["full"] }
+thiserror = "2"
 time = { version = "0.3", default-features = false, features = ["std", "macros", "parsing", "formatting"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-toml = "0.8"
+toml = "1.2"
 trybuild = "=1.0.122"
 tracing = "0.1"
-# Unicode 15 simple folding, qualified against Go 1.23.12 over every scalar.
-unicode-case-mapping = "=0.5.0"
+# Unicode 16 C/S folding, qualified over every scalar with the frozen Go delta.
+unicode-case-mapping = "=1.0.0"
 # `url` is needed by auctioneer-exchange::validate_endpoint.
 url = { version = "2", default-features = false }
 uuid-simd = { version = "=0.8.0", default-features = false, features = ["std", "detect"] }
@@ -164,9 +164,9 @@ uuid-simd = { version = "=0.8.0", default-features = false, features = ["std", "
 # they have arguments validator's per-field derive cannot pass
 # (e.g. `allow_insecure: bool` for the URL gate).
 validator = { version = "0.21", features = ["derive"] }
-wasmparser = { version = "=0.247.0", default-features = false, features = ["std", "validate", "features", "component-model", "simd"] }
+wasmparser = { version = "=0.263.0", default-features = false, features = ["std", "validate", "features", "component-model", "simd"] }
 # Native-only artifact conformance fixtures use the matching standard encoder.
-wasm-encoder = { version = "=0.247.0", default-features = false, features = ["std", "component-model"] }
+wasm-encoder = { version = "=0.263.0", default-features = false, features = ["std", "component-model"] }
 # Portable monotonic clock. The SAME major as EdgeZero's own pin, so
 # Cargo unifies both on one `web-time` crate and
 # `auctioneer_runtime::MonotonicInstant` IS

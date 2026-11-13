@@ -226,7 +226,7 @@ protocol_fixtures!(run_fixture, "../fixtures/protocol/";
 
 #[test]
 fn exact_capture_membership_and_retained_bytes_are_independently_frozen() {
-    assert_eq!(format!("{:x}", Sha256::digest(MANIFEST)), MANIFEST_SHA256);
+    assert_eq!(hex::encode(Sha256::digest(MANIFEST)), MANIFEST_SHA256);
     let manifest: toml::Value = toml::from_str(MANIFEST).unwrap();
     assert_eq!(manifest["native_only"].as_bool(), Some(true));
     let definitions = manifest["definitions"].as_table().unwrap();
@@ -288,7 +288,7 @@ fn exact_capture_membership_and_retained_bytes_are_independently_frozen() {
     );
     assert_eq!(
         schema_row["source_sha256"].as_str().unwrap(),
-        format!("{:x}", Sha256::digest(schema))
+        hex::encode(Sha256::digest(schema))
     );
 }
 
@@ -351,7 +351,7 @@ fn source_objects_match_pinned_rubicon_tree_and_all_artifacts() {
         );
         assert_eq!(
             row["source_sha256"].as_str().unwrap(),
-            format!("{:x}", Sha256::digest(&bytes))
+            hex::encode(Sha256::digest(&bytes))
         );
         assert_eq!(
             from_utf8(&git("rev-parse", &object)).unwrap().trim(),

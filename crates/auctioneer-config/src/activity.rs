@@ -59,7 +59,8 @@ impl<'de> Deserialize<'de> for ComponentType {
     }
 }
 
-/// Unicode 15 simple folding, qualified against Go 1.23.12 `strings.EqualFold`.
+/// Unicode 16 simple folding, qualified against official C/S equivalence classes.
+/// The frozen Go 1.23.12 classes are retained with the audited Unicode 16 delta.
 /// Does not normalize, expand characters, or allocate folded strings.
 #[must_use]
 pub fn simple_fold_eq(left: &str, right: &str) -> bool {

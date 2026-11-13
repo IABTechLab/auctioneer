@@ -241,10 +241,9 @@ mod tests {
             assert!(!fixture["cases"].as_array().unwrap().is_empty());
             // Frozen bidder-owned expectations pin all effective metadata and provenance,
             // including supplemental sources, inactive factories and schema-less owners.
-            let digest = format!(
-                "{:x}",
-                Sha256::digest(fs::read(directory.join("bidder.toml")).unwrap())
-            );
+            let digest = hex::encode(Sha256::digest(
+                fs::read(directory.join("bidder.toml")).unwrap(),
+            ));
             assert_eq!(
                 fixture["manifest_sha256"].as_str(),
                 Some(digest.as_str()),

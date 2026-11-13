@@ -38,9 +38,17 @@ mod unix {
         let flags = fcntl_getfl(&file).map_err(|_error| HarnessError::new("output_io"))?;
         fcntl_setfl(&file, flags | OFlags::NONBLOCK)
             .map_err(|_error| HarnessError::new("output_io"))?;
-        Ok(Output::Ready(
-            AsyncFd::new(file).map_err(|_error| HarnessError::new("output_io"))?,
-        ))
+        #[expect(
+            unsafe_code,
+            reason = "the private writer retains exclusive ownership of its duplicated descriptor"
+        )]
+        // SAFETY: File owns a valid duplicated descriptor. Output never exposes
+        // or replaces it, and retains it across readiness waits and timeout.
+        // AsyncFd unregisters before dropping the owned File; forgetting it
+        // would retain both the registration and descriptor instead of closing it.
+        let output =
+            unsafe { AsyncFd::register(file) }.map_err(|_error| HarnessError::new("output_io"))?;
+        Ok(Output::Ready(output))
     }
 
     async fn ready_write(output: &AsyncFd<File>, mut bytes: &[u8]) -> io::Result<()> {

@@ -257,7 +257,7 @@ mod tests {
                     assert_eq!(row.bytes, literal.len());
                     assert_eq!(
                         row.sha256,
-                        format!("{:x}", Sha256::digest(literal.as_bytes()))
+                        hex::encode(Sha256::digest(literal.as_bytes()))
                     );
                     let end = row.source_offset.checked_add(row.bytes).unwrap();
                     assert_eq!(text.get(row.source_offset..end), Some(row.input.as_str()));
