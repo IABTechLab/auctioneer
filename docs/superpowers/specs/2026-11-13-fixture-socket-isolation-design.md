@@ -2,7 +2,7 @@
 
 ## Status And Scope
 
-Planning contract for [Bug #168](https://github.com/IABTechLab/auctioneer/issues/168), under [development reliability](https://github.com/IABTechLab/auctioneer/issues/12). The user approved scoped process isolation and a separate spec/plan PR on 2026-11-13. This document proposes the precise test-only bounds below; implementation starts only after written-spec approval, plan review and the separate planning PR's merge.
+Planning contract for [Bug #168](https://github.com/IABTechLab/auctioneer/issues/168), under [development reliability](https://github.com/IABTechLab/auctioneer/issues/12). The user approved scoped process isolation and a separate spec/plan PR, then approved this written specification and its precise test-only bounds on 2026-11-13. The [implementation plan](../plans/2026-11-13-fixture-socket-isolation.md) accompanies this contract; implementation starts only after plan review and the separate planning PR's merge.
 
 The repair does not waive [PR #162](https://github.com/IABTechLab/auctioneer/pull/162)'s failed local check, approve that PR, change its code or resolve its review threads. Its full acceptance and current-head review remain separate gates.
 
