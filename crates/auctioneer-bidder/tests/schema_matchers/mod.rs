@@ -612,7 +612,7 @@ fn gather(value: &Value, origin: &str, output: &mut BTreeMap<String, BTreeSet<St
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn check_deadline(deadline: Instant) -> Result<(), &'static str> {
@@ -677,7 +677,7 @@ fn metadata() -> Value {
         "rustc":String::from_utf8(rustc.stdout).unwrap(),"profile":"release","debug_assertions":cfg!(debug_assertions),
         "engine_version":engine["version"].as_str(),"engine_checksum":engine.get("checksum").and_then(toml::Value::as_str),
         "engine_source_identity":engine_identity,
-        "compiler_version":"0.58.6 with existing pinned patches","os":env::consts::OS,
+        "compiler_version":"0.61.2 with existing pinned patches","os":env::consts::OS,
         "arch":env::consts::ARCH,"word_bytes":size_of::<usize>(),
         "test_binary_sha256":digest(&binary),"test_binary_bytes":binary.len(),"host_exclusive":false,
         "method_revision":2_u32,"samples":7_u32,"iterations_rule":"clamp(65536 / max(input_bytes, 64), 64, 1024)",

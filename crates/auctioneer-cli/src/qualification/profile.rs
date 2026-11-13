@@ -51,7 +51,7 @@ pub type Revision = Hex<40>;
 
 impl Digest {
     pub fn of(bytes: &[u8]) -> Self {
-        Self(format!("{:x}", Sha256::digest(bytes)))
+        Self(hex::encode(Sha256::digest(bytes)))
     }
 
     /// Compact sorted-key JSON is shared with the offline fixture reviewer.

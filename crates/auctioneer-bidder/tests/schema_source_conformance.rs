@@ -253,7 +253,7 @@ mod tests {
             );
             assert_eq!(
                 record["source_sha256"].as_str(),
-                Some(format!("{:x}", Sha256::digest(bytes)).as_str())
+                Some(hex::encode(Sha256::digest(bytes)).as_str())
             );
         }
     }
@@ -386,7 +386,7 @@ mod tests {
                 assert!(certificate.work_upper_bound > 0);
                 certificates.push(json!({"owner":owner, "pattern":pattern,
                     "lane":cohort.manifest["lane"],
-                    "cohort_sha256":format!("{:x}", Sha256::digest(serde_json::to_vec(&cohort.manifest).unwrap())),
+                    "cohort_sha256":hex::encode(Sha256::digest(serde_json::to_vec(&cohort.manifest).unwrap())),
                     "peak_requested_bytes":certificate.peak_requested_bytes,
                     "source_record_visit_upper_bound":certificate.work_upper_bound,
                     "bound_class":"conditional_target_syntax_component",
@@ -475,7 +475,7 @@ mod tests {
                     assert!(certificate.requested_heap_bytes > 0);
                     certificates.push(json!({"owner":owner,"pattern":pattern,"reverse":reverse,
                         "lane":cohort.manifest["lane"],
-                        "cohort_sha256":format!("{:x}", Sha256::digest(serde_json::to_vec(&cohort.manifest).unwrap())),
+                        "cohort_sha256":hex::encode(Sha256::digest(serde_json::to_vec(&cohort.manifest).unwrap())),
                         "target":report["binding"]["target"],"states":certificate.states,
                         "arc_bytes":certificate.arc_bytes,"states_bytes":certificate.states_bytes,
                         "start_patterns_bytes":certificate.start_patterns_bytes,
@@ -510,18 +510,18 @@ mod tests {
     fn attach_target_components(report: &mut Value, package: &str) {
         if package == "regex-syntax" {
             report["target_syntax_model_sources"] = json!({
-                "syntax_construction": format!("{:x}", Sha256::digest(include_bytes!("schema_syntax_construction/mod.rs"))),
-                "heap_layout": format!("{:x}", Sha256::digest(include_bytes!("schema_heap_layout/mod.rs"))),
-                "producer": format!("{:x}", Sha256::digest(include_bytes!("schema_source_conformance.rs"))),
+                "syntax_construction": hex::encode(Sha256::digest(include_bytes!("schema_syntax_construction/mod.rs"))),
+                "heap_layout": hex::encode(Sha256::digest(include_bytes!("schema_heap_layout/mod.rs"))),
+                "producer": hex::encode(Sha256::digest(include_bytes!("schema_source_conformance.rs"))),
             });
             report["target_syntax_components"] = syntax_components(report);
         } else {
             assert_eq!(package, "regex-automata");
             report["target_nfa_model_sources"] = json!({
-                "target_projection": format!("{:x}", Sha256::digest(include_bytes!("schema_nfa_heap/target.rs"))),
-                "native_owner_source": format!("{:x}", Sha256::digest(include_bytes!("schema_nfa_heap/mod.rs"))),
-                "topology_constructor": format!("{:x}", Sha256::digest(include_bytes!("schema_cache_model/mod.rs"))),
-                "producer": format!("{:x}", Sha256::digest(include_bytes!("schema_source_conformance.rs"))),
+                "target_projection": hex::encode(Sha256::digest(include_bytes!("schema_nfa_heap/target.rs"))),
+                "native_owner_source": hex::encode(Sha256::digest(include_bytes!("schema_nfa_heap/mod.rs"))),
+                "topology_constructor": hex::encode(Sha256::digest(include_bytes!("schema_cache_model/mod.rs"))),
+                "producer": hex::encode(Sha256::digest(include_bytes!("schema_source_conformance.rs"))),
             });
             report["target_nfa_layout_names"] = json!(nfa_layout_requests());
             report["target_nfa_components"] = nfa_components(report);
@@ -1488,8 +1488,8 @@ mod tests {
             "probe_enum_inline_bytes": observed["owner_inline_bytes"],
             "probe_enum_storage": "outside measurement windows; not the production owner representation",
             "derivation_sources_sha256": {
-                "cache": format!("{:x}", Sha256::digest(include_bytes!("schema_meta_heap/mod.rs"))),
-                "bundle": format!("{:x}", Sha256::digest(include_bytes!("schema_bundle_heap/mod.rs")))},
+                "cache": hex::encode(Sha256::digest(include_bytes!("schema_meta_heap/mod.rs"))),
+                "bundle": hex::encode(Sha256::digest(include_bytes!("schema_bundle_heap/mod.rs")))},
             "observations": observed,
             "excludes": ["constructor_peak_and_work", "compiled_programs_and_other_schema_state", "complete_call_frames",
                 "work_bound", "allocator_and_physical_memory", "guest_layouts", "serving_profile_qualification"]})
@@ -1598,7 +1598,7 @@ mod tests {
                 .expect("selected serial native cache owner");
             peaks.push(heap.peak);
             rows.push(json!({"helper": helper,
-                "pattern_sha256": format!("{:x}", Sha256::digest(pattern.as_bytes())),
+                "pattern_sha256": hex::encode(Sha256::digest(pattern.as_bytes())),
                 "eager_bytes": heap.eager_bytes, "forward_bytes": heap.forward_bytes,
                 "reverse_bytes": heap.reverse_bytes, "optional_prefix_peak_bytes": heap.prefix_peak_bytes,
                 "fallback_bytes": heap.fallback_bytes, "growth_overlap_bytes": heap.growth_overlap,
@@ -1910,7 +1910,7 @@ mod tests {
                 }
             };
             rows.push(json!({"owner": owner, "helper": name,
-                "pattern_sha256": format!("{:x}", Sha256::digest(pattern.as_bytes())),
+                "pattern_sha256": hex::encode(Sha256::digest(pattern.as_bytes())),
                 "metadata_bytes": heap.metadata_bytes, "strategy_arc_bytes": heap.strategy_arc_bytes,
                 "nfa_bytes": heap.nfa_bytes, "onepass_tables_bytes": heap.onepass_tables_bytes,
                 "automatic_prefilter": disposition, "automatic_prefilter_bytes": heap.automatic_prefilter_bytes,
@@ -1933,13 +1933,13 @@ mod tests {
             "layout_profile_correspondence_with_child": "not_established",
             "owners": rows, "requested_heap_bytes": total, "static_inline_bytes": inline,
             "derivation_sources_sha256": {
-                "program": format!("{:x}", Sha256::digest(include_bytes!("schema_program_heap/mod.rs"))),
-                "literal": format!("{:x}", Sha256::digest(include_bytes!("schema_literal_heap/mod.rs"))),
-                "metadata": format!("{:x}", Sha256::digest(include_bytes!("schema_metadata_heap/mod.rs"))),
-                "nfa": format!("{:x}", Sha256::digest(include_bytes!("schema_nfa_heap/mod.rs"))),
-                "onepass": format!("{:x}", Sha256::digest(include_bytes!("schema_onepass_bounds/mod.rs"))),
-                "pool": format!("{:x}", Sha256::digest(include_bytes!("schema_pool_heap/mod.rs"))),
-                "arc": format!("{:x}", Sha256::digest(include_bytes!("schema_heap_layout/mod.rs")))},
+                "program": hex::encode(Sha256::digest(include_bytes!("schema_program_heap/mod.rs"))),
+                "literal": hex::encode(Sha256::digest(include_bytes!("schema_literal_heap/mod.rs"))),
+                "metadata": hex::encode(Sha256::digest(include_bytes!("schema_metadata_heap/mod.rs"))),
+                "nfa": hex::encode(Sha256::digest(include_bytes!("schema_nfa_heap/mod.rs"))),
+                "onepass": hex::encode(Sha256::digest(include_bytes!("schema_onepass_bounds/mod.rs"))),
+                "pool": hex::encode(Sha256::digest(include_bytes!("schema_pool_heap/mod.rs"))),
+                "arc": hex::encode(Sha256::digest(include_bytes!("schema_heap_layout/mod.rs")))},
             "constructor_observations": observed,
             "excludes": ["non_regex_schema_state", "compiled_code_and_data_residency", "constructor_peak_and_work", "search_cache_and_work",
                 "allocator_and_physical_memory", "guest_layouts", "serving_profile_qualification"]})
@@ -2930,29 +2930,21 @@ mod tests {
             .map(|(name, pattern)| ExpectedOwner {
                 name: name.clone(),
                 kind: OwnerKind::Regex,
-                pattern_config_digest: format!(
-                    "{:x}",
-                    Sha256::digest(
-                        serde_json::to_vec(
-                            &json!({"pattern": pattern, "constructor": constructor})
-                        )
-                        .unwrap()
-                    )
-                ),
+                pattern_config_digest: hex::encode(Sha256::digest(
+                    serde_json::to_vec(&json!({"pattern": pattern, "constructor": constructor}))
+                        .unwrap(),
+                )),
             })
             .collect();
         owners.push(ExpectedOwner {
             name: "fake_public_prefilter".to_owned(),
             kind: OwnerKind::PublicPrefilter,
-            pattern_config_digest: format!(
-                "{:x}",
-                Sha256::digest(
-                    serde_json::to_vec(
-                        &json!({"match_kind": "leftmost_first", "needles": ["fake_layout_literal"]})
-                    )
-                    .unwrap()
+            pattern_config_digest: hex::encode(Sha256::digest(
+                serde_json::to_vec(
+                    &json!({"match_kind": "leftmost_first", "needles": ["fake_layout_literal"]}),
                 )
-            ),
+                .unwrap(),
+            )),
         });
         owners
     }
@@ -3871,7 +3863,7 @@ mod tests {
                     .join(filename),
             )
             .unwrap();
-            assert_eq!(format!("{:x}", Sha256::digest(&bytes)), expected_sha256);
+            assert_eq!(hex::encode(Sha256::digest(&bytes)), expected_sha256);
             let record: Value = serde_json::from_slice(&bytes).unwrap();
             assert_eq!(
                 record["metadata"]["scope"],
@@ -3925,7 +3917,7 @@ mod tests {
         let inventory_bytes =
             include_bytes!("conformance/fixtures/reference/catalog/source-inventory.toml");
         assert_eq!(
-            format!("{:x}", Sha256::digest(inventory_bytes)),
+            hex::encode(Sha256::digest(inventory_bytes)),
             "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6"
         );
         let frozen_inventory: toml::Value =
@@ -3953,7 +3945,7 @@ mod tests {
         let capture_bytes =
             include_bytes!("conformance/fixtures/reference/schema-reference/parameters.json");
         assert_eq!(
-            format!("{:x}", Sha256::digest(capture_bytes)),
+            hex::encode(Sha256::digest(capture_bytes)),
             "6efc0eaea62063f86d391df46265e1df2fb06789cfe2e746f53c3c9e4c41863e"
         );
         let frozen_capture: serde_json::Value = serde_json::from_slice(capture_bytes).unwrap();

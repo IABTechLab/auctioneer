@@ -328,16 +328,14 @@ fn read_unit<R: Reader<Offset = usize>>(
 ) -> Result<(), Error> {
     let mut entries = unit.entries();
     let mut scopes = Vec::new();
-    let mut depth = 0_isize;
-    while let Some((delta, entry)) = entries.next_dfs().map_err(|_error| Error::MalformedDwarf)? {
+    while let Some(entry) = entries.next_dfs().map_err(|_error| Error::MalformedDwarf)? {
         spend(
             &mut budget.entries,
             1,
             budget.limits.entries,
             Limit::Entries,
         )?;
-        depth = depth.checked_add(delta).ok_or(Error::MalformedDwarf)?;
-        let level = usize::try_from(depth).map_err(|_error| Error::MalformedDwarf)?;
+        let level = usize::try_from(entry.depth()).map_err(|_error| Error::MalformedDwarf)?;
         if level > budget.limits.depth {
             return Err(Error::Limit(Limit::Depth));
         }
@@ -374,13 +372,10 @@ fn read_unit<R: Reader<Offset = usize>>(
 fn entry_name<R: Reader<Offset = usize>>(
     dwarf: &Dwarf<R>,
     unit: &Unit<R>,
-    entry: &DebuggingInformationEntry<'_, '_, R>,
+    entry: &DebuggingInformationEntry<R>,
     budget: &mut ReadBudget,
 ) -> Result<Option<String>, Error> {
-    let Some(value) = entry
-        .attr_value(gimli::DW_AT_name)
-        .map_err(|_error| Error::MalformedDwarf)?
-    else {
+    let Some(value) = entry.attr_value(gimli::DW_AT_name) else {
         return Ok(None);
     };
     let raw_name = dwarf
@@ -428,12 +423,9 @@ fn qualified_name(
 }
 
 fn declaration<R: Reader<Offset = usize>>(
-    entry: &DebuggingInformationEntry<'_, '_, R>,
+    entry: &DebuggingInformationEntry<R>,
 ) -> Result<bool, Error> {
-    match entry
-        .attr_value(gimli::DW_AT_declaration)
-        .map_err(|_error| Error::MalformedDwarf)?
-    {
+    match entry.attr_value(gimli::DW_AT_declaration) {
         None | Some(AttributeValue::Flag(false)) => Ok(false),
         Some(AttributeValue::Flag(true)) => Ok(true),
         _ => Err(Error::MalformedDwarf),
@@ -441,17 +433,15 @@ fn declaration<R: Reader<Offset = usize>>(
 }
 
 fn type_field<R: Reader<Offset = usize>>(
-    entry: &DebuggingInformationEntry<'_, '_, R>,
+    entry: &DebuggingInformationEntry<R>,
     name: &str,
 ) -> Result<NativeField, Error> {
     let size = entry
         .attr_value(gimli::DW_AT_byte_size)
-        .map_err(|_error| Error::MalformedDwarf)?
         .and_then(|value| value.udata_value())
         .ok_or_else(|| Error::MissingByteSize(name.to_owned()))?;
     let encoded_alignment = entry
         .attr_value(gimli::DW_AT_alignment)
-        .map_err(|_error| Error::MalformedDwarf)?
         .and_then(|value| value.udata_value())
         .ok_or_else(|| Error::MissingAlignment(name.to_owned()))?;
     let bytes = usize::try_from(size).map_err(|_error| Error::InvalidLayout(name.to_owned()))?;

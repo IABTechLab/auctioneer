@@ -5,7 +5,7 @@ use std::{borrow::Cow, collections::BTreeMap, fmt};
 use auctioneer_runtime::aux_work::MAX_SYNC_KEYRING_BYTES;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use edgezero_core::http::HeaderMap;
-use hmac::{Hmac, Mac as _};
+use hmac::{Hmac, KeyInit as _, Mac as _};
 use serde::Deserialize;
 use sha2::Sha256;
 use time::OffsetDateTime;

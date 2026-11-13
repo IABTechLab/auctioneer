@@ -76,6 +76,7 @@ auctioneer-bidder   = { workspace = true, features = ["test-support"] }
 auctioneer-runtime  = { workspace = true, features = ["test-support"] }
 auctioneer-privacy  = { workspace = true, features = ["test-support"] }
 bytes           = { workspace = true }
+hex             = { workspace = true }
 edgezero-adapter-axum = { workspace = true, features = ["axum"] }
 futures         = { workspace = true }
 png             = { workspace = true }

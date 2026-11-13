@@ -564,7 +564,7 @@ impl ManagedProcess {
         let output = self.inner.output.lock().await;
         ProcessSummary {
             output_bytes: output.bytes,
-            output_sha256: format!("{:x}", output.digest.clone().finalize()),
+            output_sha256: hex::encode(output.digest.clone().finalize()),
             closed: self.closed(),
         }
     }

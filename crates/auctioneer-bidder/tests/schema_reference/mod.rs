@@ -149,7 +149,7 @@ pub(crate) enum CaptureError {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 pub(crate) fn captured() -> Result<Corpus, CaptureError> {

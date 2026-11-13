@@ -562,7 +562,8 @@ pub(crate) mod tests {
                 };
                 assert_eq!(object.section(target).flags, SectionFlags::None);
                 object.section_mut(target).flags = SectionFlags::Elf {
-                    sh_flags: u64::from(elf::SHF_ALLOC | elf::SHF_WRITE),
+                    sh_type: elf::SHT_PROGBITS,
+                    sh_flags: elf::SHF_ALLOC | elf::SHF_WRITE,
                 };
             });
             let file = object::File::parse(bytes.as_slice()).unwrap();

@@ -17,6 +17,8 @@ pub(super) fn translate_and_validate_regex<E: ValueEmitter>(
     let Ok(translated) = jsonschema_regex::to_rust_regex(pattern) else {
         return Err(invalid_regex_expression(keyword, pattern));
     };
+    // The initialization API preserves engine constructors and their default or supplied
+    // limits in every mode; search-only substitutions must not bypass them.
     let translated = translated.into_owned();
     let valid = match ctx.config.pattern_options {
         PatternEngineConfig::FancyRegex {
@@ -73,13 +75,35 @@ fn get_or_create_regex_helper<E: ValueEmitter>(
     format_ident!("{}", name)
 }
 
+/// Where a regex match happens, for reporting a match `fancy-regex` cannot finish.
+pub(super) struct RegexSite<'a> {
+    pub(super) schema_path: &'a str,
+    /// The `pattern` keyword's source pattern.
+    pub(super) pattern: Option<&'a str>,
+    /// Emitted into `validate` or `collect_errors` code, where `__path` is the instance location.
+    pub(super) located: bool,
+}
+
 pub(super) fn compile_regex_match<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     pattern: &str,
     subject: &TokenStream,
+    site: &RegexSite<'_>,
 ) -> TokenStream {
     let helper = get_or_create_regex_helper(ctx, pattern);
-    quote! {
-        #helper(#subject)
+    match ctx.config.pattern_options {
+        PatternEngineConfig::FancyRegex { .. } => {
+            let schema_path = site.schema_path;
+            let source = site
+                .pattern
+                .map_or_else(|| quote! { None }, |p| quote! { Some(#p) });
+            let instance_path = if site.located {
+                quote! { Some(__path) }
+            } else {
+                quote! { None }
+            };
+            quote! { #helper(#subject, #schema_path, #source, #instance_path) }
+        }
+        PatternEngineConfig::Regex { .. } => quote! { #helper(#subject) },
     }
 }

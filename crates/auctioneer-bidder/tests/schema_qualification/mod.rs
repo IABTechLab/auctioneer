@@ -518,17 +518,17 @@ fn owned_witnesses(
 
 /// Verify committed witnesses before auditing every raw schema. Neither input is optional.
 pub fn inventory(bidders_root: &Path, source_path: &Path) -> Result<Inventory, InventoryError> {
-    if format!("{:x}", Sha256::digest(COMMITTED_SOURCE.as_bytes()))
+    if hex::encode(Sha256::digest(COMMITTED_SOURCE.as_bytes()))
         != "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6"
     {
         return Err(InventoryError::Witness);
     }
-    if format!("{:x}", Sha256::digest(COMMITTED_BINDINGS.as_bytes()))
+    if hex::encode(Sha256::digest(COMMITTED_BINDINGS.as_bytes()))
         != "d1a0f18d99f53cbd4f62fe74c5d1e5580f8688fce95a29b1b05ee934dbe9ff0c"
     {
         return Err(InventoryError::Witness);
     }
-    if format!("{:x}", Sha256::digest(COMMITTED_SUPPLEMENTAL.as_bytes()))
+    if hex::encode(Sha256::digest(COMMITTED_SUPPLEMENTAL.as_bytes()))
         != "2022d18b8e5580824111a2a3781039b701c7c6df85a0456206ce2b370775ebbb"
     {
         return Err(InventoryError::Witness);
@@ -642,7 +642,7 @@ fn verify_exclusion(
     }
     let bytes = read_bounded(&root.join(key).join(&retained.path), MAX_SCHEMA_BYTES)?;
     if u64::try_from(bytes.len()).map_err(|_error| InventoryError::Limit)? != pin.retained.bytes
-        || format!("{:x}", Sha256::digest(&bytes)) != pin.retained.sha256
+        || hex::encode(Sha256::digest(&bytes)) != pin.retained.sha256
     {
         return Err(InventoryError::Witness);
     }
@@ -712,7 +712,7 @@ pub fn inventory_with_pins(
     for witness in actual.into_values() {
         let bytes = read_bounded(&bidders_root.join(&witness.path), MAX_SCHEMA_BYTES)?;
         let length = u64::try_from(bytes.len()).map_err(|_error| InventoryError::Limit)?;
-        if length != witness.bytes || format!("{:x}", Sha256::digest(&bytes)) != witness.sha256 {
+        if length != witness.bytes || hex::encode(Sha256::digest(&bytes)) != witness.sha256 {
             return Err(InventoryError::Witness);
         }
         schema_bytes = schema_bytes
@@ -1988,8 +1988,7 @@ mod tests {
                     &mut *row
                 };
                 target["source_bytes"] = toml::Value::Integer(i64::try_from(bytes.len())?);
-                target["source_sha256"] =
-                    toml::Value::String(format!("{:x}", Sha256::digest(&bytes)));
+                target["source_sha256"] = toml::Value::String(hex::encode(Sha256::digest(&bytes)));
             }
             fs::write(
                 fixture.bidders.join("fake_supplemental/parameters.json"),
@@ -2307,7 +2306,7 @@ mod tests {
             assert_eq!(bytes.len(), original.len());
             assert_ne!(bytes, original);
             assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), schema);
-            let digest = format!("{:x}", Sha256::digest(&bytes));
+            let digest = hex::encode(Sha256::digest(&bytes));
             fs::write(path, bytes).unwrap();
             fixture
                 .manifest("fake_base", |manifest| {

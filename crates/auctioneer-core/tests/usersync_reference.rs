@@ -163,7 +163,10 @@ mod tests {
         options.set_skip_ancillary_crc_failures(false);
         let decoder = png::Decoder::new_with_options(Cursor::new(bytes), options);
         let mut reader = decoder.read_info()?;
-        let mut rgba = vec![0; reader.output_buffer_size()];
+        let output_bytes = reader
+            .output_buffer_size()
+            .ok_or(png::DecodingError::LimitsExceeded)?;
+        let mut rgba = vec![0; output_bytes];
         let info = reader.next_frame(&mut rgba)?;
         reader.finish()?;
         Ok((info, rgba))
@@ -174,7 +177,7 @@ mod tests {
         let bytes = fixture("pixel.png");
         assert_eq!(bytes.len(), 86);
         assert_eq!(
-            format!("{:x}", Sha256::digest(&bytes)),
+            hex::encode(Sha256::digest(&bytes)),
             "c2ecff291918a3caf0b7e470323e89f2a1f05b92e12a10649e598cacebe62acf"
         );
         let (info, rgba) = decode_pixel(&bytes).unwrap();
@@ -776,7 +779,7 @@ mod tests {
             }
         }
         assert_eq!(
-            format!("{:x}", Sha256::digest(fixture("LICENSE.prebid"))),
+            hex::encode(Sha256::digest(fixture("LICENSE.prebid"))),
             hashes["LICENSE"]
         );
     }

@@ -277,7 +277,7 @@ struct Profile {
 }
 
 fn digest<T: Serialize + ?Sized>(value: &T) -> anyhow::Result<String> {
-    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+    Ok(hex::encode(Sha256::digest(serde_json::to_vec(value)?)))
 }
 
 fn reference_digest() -> anyhow::Result<String> {
