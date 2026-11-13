@@ -107,4 +107,12 @@ The scoped read-only author audit found no cryptographic, Unicode or compiler-pa
 
 ## Outstanding Acceptance
 
+The first hosted run at `651c0874a1bbf5a2b286cc3e3adc4ad88b68a797` passed ordinary `cargo fmt`, but its separate discovered-bidder source formatting step found one assertion layout in MSFT conformance that ordinary Cargo traversal does not visit. The correction changes only whitespace, not the assertion or fixture. The exact dedicated check (`find crates/auctioneer-bidder/src/bidders -type f -name '*.rs' -exec rustfmt --edition 2024 --check {} +`) then passed locally alongside `cargo fmt --all -- --check`. All bidder library tests were rerun after correction:
+
+```text
+test result: ok. 1229 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 0.50s
+```
+
+Any successful hosted checks on the earlier commit are not credited as completion of the corrective commit's matrix.
+
 The full hosted matrix remains required: secure/insecure/maintenance/conformance lanes, fresh compiler/producer experiments, normal/staged source controls, actual guest execution and provider packaging. Current-head hosted results and independent implementation review remain pending; local default-workspace success is not a substitute. The two existing workspace producer exclusions retain their separate mandatory CI owner; this record does not create another exclusion. Missing tools, unavailable storage or unexecuted checks are not passes. No hosted acceptance, deployment readiness, issue completion or merge is claimed by this checkpoint. The SDK-constrained candidates above are not upgraded or certified by this work.
