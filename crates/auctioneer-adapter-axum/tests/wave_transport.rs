@@ -72,6 +72,9 @@ mod tests {
         StreamGate, Timer,
     };
     use edgezero_adapter_axum::outbound::AxumOutboundClient;
+    use edgezero_adapter_axum::outbound_executor::{
+        AxumOutboundExecutor, AxumOutboundExecutorHandle,
+    };
     use edgezero_core::config_store::DEFAULT_CONFIG_JSON_NODES;
     use edgezero_core::outbound::HttpClient;
     use futures::future::{Either, select};
@@ -86,7 +89,7 @@ mod tests {
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
     use tokio::net::{TcpListener, TcpStream};
     use tokio::sync::oneshot;
-    use tokio::task::{JoinHandle, LocalSet};
+    use tokio::task::JoinHandle;
     use tokio::time::{sleep, timeout};
 
     /// How long the server waits after answering before it concludes
@@ -739,12 +742,15 @@ mod tests {
     /// The fanout under test: the SAME constructor
     /// `handlers::auction::fanout_from_context` returns on a served
     /// request, over a real `reqwest`-backed outbound client.
-    fn wave_fanout() -> EdgeZeroFanout {
-        wave_fanout_with_gate(StreamGate::new(WAVE_GATE_CAPACITY))
+    fn wave_fanout(executor: AxumOutboundExecutorHandle) -> EdgeZeroFanout {
+        wave_fanout_with_gate(executor, StreamGate::new(WAVE_GATE_CAPACITY))
     }
 
-    fn wave_fanout_with_gate(gate: Arc<StreamGate>) -> EdgeZeroFanout {
-        let client = AxumOutboundClient::try_new().expect("reqwest client init");
+    fn wave_fanout_with_gate(
+        executor: AxumOutboundExecutorHandle,
+        gate: Arc<StreamGate>,
+    ) -> EdgeZeroFanout {
+        let client = AxumOutboundClient::try_new(executor).expect("reqwest client init");
         let clock: Arc<dyn Clock + Send + Sync> = Arc::new(SystemClock::new());
         let timer: Arc<dyn Timer + Send + Sync> = Arc::new(TransportTestTimer);
         EdgeZeroFanout::with_wave_scheduler(
@@ -788,8 +794,8 @@ mod tests {
     }
 
     /// The fallback drive, for the rows that contrast the two.
-    fn bridge_fanout() -> EdgeZeroFanout {
-        let client = AxumOutboundClient::try_new().expect("reqwest client init");
+    fn bridge_fanout(executor: AxumOutboundExecutorHandle) -> EdgeZeroFanout {
+        let client = AxumOutboundClient::try_new(executor).expect("reqwest client init");
         let clock: Arc<dyn Clock + Send + Sync> = Arc::new(SystemClock::new());
         let timer: Arc<dyn Timer + Send + Sync> = Arc::new(TransportTestTimer);
         EdgeZeroFanout::new(
@@ -888,18 +894,23 @@ mod tests {
         }
     }
 
-    // SDK batches eagerly schedule local tasks, matching the production Axum runner.
-    async fn with_local_scheduler(work: impl Future<Output = ()>) {
-        LocalSet::new().run_until(work).await;
+    // Drive the same explicit task owner used by the production Axum runner.
+    async fn with_local_scheduler<Work>(work: impl FnOnce(AxumOutboundExecutorHandle) -> Work)
+    where
+        Work: Future<Output = ()>,
+    {
+        let mut executor = AxumOutboundExecutor::new();
+        let handle = executor.handle();
+        executor.run_until(work(handle)).await;
     }
 
     /// Deadline expiry may precede connection establishment. Once headers
     /// were sent, expiry must also close the established connection.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_cancels_a_lost_race_over_a_real_socket() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_cancellation_fixture().await;
-            let fanout = wave_fanout();
+            let fanout = wave_fanout(executor);
 
             let completed = fanout
                 .send_all(
@@ -978,9 +989,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_cancels_an_established_body_read_when_dropped() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let gate = StreamGate::new(1);
-            let fanout = wave_fanout_with_gate(Arc::clone(&gate));
+            let fanout = wave_fanout_with_gate(executor, Arc::clone(&gate));
             assert_post_headers_cancellation(&fanout).await;
             assert_healthy_wave_reuses_gate(&fanout, &gate).await;
         })
@@ -992,9 +1003,9 @@ mod tests {
     /// unconditionally.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_publishes_a_fast_upstream_and_records_no_drop() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_fixture(ResponseMode::Complete).await;
-            let fanout = wave_fanout();
+            let fanout = wave_fanout(executor);
 
             let results = fanout
                 .send_all(
@@ -1038,9 +1049,9 @@ mod tests {
     /// while the body streams.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_refuses_a_body_past_the_transport_cap_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_fixture(ResponseMode::OversizeChunkedBody).await;
-            let fanout = wave_fanout();
+            let fanout = wave_fanout(executor);
 
             let results = fanout
                 .send_all(
@@ -1087,9 +1098,9 @@ mod tests {
     /// sibling test proves individual slots expire while others remain live.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_carries_its_composed_deadline_to_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_cancellation_fixture().await;
-            let fanout = wave_fanout();
+            let fanout = wave_fanout(executor);
             let started = MonotonicInstant::now();
 
             let completed = fanout
@@ -1137,9 +1148,9 @@ mod tests {
     /// the assertion names the origin rather than just "refused".
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_narrows_the_response_cap_to_the_call_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_fixture(ResponseMode::OversizeChunkedBody).await;
-            let fanout = wave_fanout();
+            let fanout = wave_fanout(executor);
 
             let results = fanout
                 .send_all(
@@ -1169,13 +1180,13 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_preserves_sibling_deadlines_and_original_slots_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let short = start_fixture(ResponseMode::PromisedBodyNeverArrives).await;
             let healthy =
                 start_fixture(ResponseMode::CompleteAfterDrop(Arc::clone(&short.outcomes))).await;
             let cutoff_anchor = start_fixture(ResponseMode::Complete).await;
             let gate = StreamGate::new(3);
-            let fanout = wave_fanout_with_gate(Arc::clone(&gate));
+            let fanout = wave_fanout_with_gate(executor, Arc::clone(&gate));
             let short_timeout = Duration::from_secs(1);
             let healthy_timeout = Duration::from_secs(3);
             let cutoff_timeout = Duration::from_secs(4);
@@ -1278,10 +1289,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_decodes_gzip_at_both_exact_caps_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_fixture(ResponseMode::GzipChunkedBody).await;
             let gate = StreamGate::new(1);
-            let fanout = wave_fanout_with_gate(Arc::clone(&gate));
+            let fanout = wave_fanout_with_gate(executor, Arc::clone(&gate));
             let expected = gzip_decoded_body();
             let results = timeout(
                 READ_TIMEOUT,
@@ -1319,10 +1330,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_caps_compressed_bytes_before_decoding_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
         let fixture = start_fixture(ResponseMode::GzipChunkedBody).await;
         let gate = StreamGate::new(1);
-        let fanout = wave_fanout_with_gate(Arc::clone(&gate));
+        let fanout = wave_fanout_with_gate(executor, Arc::clone(&gate));
         let results = timeout(
             READ_TIMEOUT,
             fanout.send_all(
@@ -1354,10 +1365,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_caps_gzip_expansion_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_fixture(ResponseMode::GzipChunkedBody).await;
             let gate = StreamGate::new(1);
-            let fanout = wave_fanout_with_gate(Arc::clone(&gate));
+            let fanout = wave_fanout_with_gate(executor, Arc::clone(&gate));
             let decoded_cap =
                 u64::try_from(gzip_decoded_body().len() - 1).expect("decoded cap fits");
             assert!(u64::try_from(GZIP_BODY.len()).expect("encoded length fits") < decoded_cap);
@@ -1388,7 +1399,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_wave_drive_waits_for_gzip_eof_and_refuses_a_missing_trailer_on_the_wire() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let prefix_sent = Arc::new(AtomicBool::new(false));
             let release_eof = Arc::new(AtomicBool::new(false));
             let fixture = start_fixture(ResponseMode::GzipLateEof {
@@ -1398,7 +1409,7 @@ mod tests {
             .await;
             let healthy = start_fixture(ResponseMode::Complete).await;
             let gate = StreamGate::new(2);
-            let fanout = wave_fanout_with_gate(Arc::clone(&gate));
+            let fanout = wave_fanout_with_gate(executor, Arc::clone(&gate));
             let published = AtomicBool::new(false);
             let send = async {
                 let results = timeout(
@@ -1459,9 +1470,9 @@ mod tests {
     /// would otherwise go unnoticed here.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_per_call_bridge_still_cancels_over_the_same_fixture() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             let fixture = start_cancellation_fixture().await;
-            let fanout = bridge_fanout();
+            let fanout = bridge_fanout(executor);
 
             let completed = fanout
                 .send_all(
@@ -1488,7 +1499,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn original_content_type_controls_safe_projection_over_real_transports() {
-        with_local_scheduler(async {
+        with_local_scheduler(|executor| async move {
             use auctioneer_bidder::{DebugBodySchema, DebugBodyStatus};
             use serde_json::{Value, json};
 
@@ -1522,7 +1533,10 @@ mod tests {
                     DebugBodyStatus::OmittedType,
                 ),
             ];
-            for (drive, fanout) in [("wave", wave_fanout()), ("bridge", bridge_fanout())] {
+            for (drive, fanout) in [
+                ("wave", wave_fanout(executor.clone())),
+                ("bridge", bridge_fanout(executor)),
+            ] {
                 for (values, expected) in cases {
                     let mut wire = format!("HTTP/1.1 200 OK\r\ncontent-length: {}\r\n", body.len())
                         .into_bytes();

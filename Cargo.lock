@@ -1226,7 +1226,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 [[package]]
 name = "edgezero-adapter"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "base16ct",
  "edgezero-core",
@@ -1240,7 +1240,7 @@ dependencies = [
 [[package]]
 name = "edgezero-adapter-axum"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1274,7 +1274,7 @@ dependencies = [
 [[package]]
 name = "edgezero-adapter-cloudflare"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1284,6 +1284,7 @@ dependencies = [
  "ctor",
  "edgezero-adapter",
  "edgezero-core",
+ "fern",
  "flate2",
  "futures",
  "futures-util",
@@ -1300,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "edgezero-adapter-fastly"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1332,7 +1333,7 @@ dependencies = [
 [[package]]
 name = "edgezero-adapter-spin"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1341,6 +1342,7 @@ dependencies = [
  "ctor",
  "edgezero-adapter",
  "edgezero-core",
+ "fern",
  "futures",
  "futures-util",
  "log",
@@ -1358,7 +1360,7 @@ dependencies = [
 [[package]]
 name = "edgezero-cli"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "chrono",
  "clap",
@@ -1383,7 +1385,7 @@ dependencies = [
 [[package]]
 name = "edgezero-core"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "adler2",
  "alloc-no-stdlib",
@@ -1427,7 +1429,7 @@ dependencies = [
 [[package]]
 name = "edgezero-macros"
 version = "0.1.0"
-source = "git+https://github.com/IABTechLab/edgezero.git?rev=598f0a2a490eb83dd31c06c024a0cefa8e049628#598f0a2a490eb83dd31c06c024a0cefa8e049628"
+source = "git+https://github.com/IABTechLab/edgezero.git?rev=e9ffaa8f8057144155ffe164280994445fa0f6d8#e9ffaa8f8057144155ffe164280994445fa0f6d8"
 dependencies = [
  "log",
  "proc-macro2",
@@ -3702,8 +3704,9 @@ dependencies = [
 
 [[package]]
 name = "spin-macro"
-version = "7.0.0"
-source = "git+https://github.com/stackpop/spin-rust-sdk.git?rev=6c59ed5b4fcb377072763aee0b27a3abdd8edb72#6c59ed5b4fcb377072763aee0b27a3abdd8edb72"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45fefea15ed93ab2b6830a0249ce7cae2300202f569e013e12d39f3fba519ecc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3712,8 +3715,9 @@ dependencies = [
 
 [[package]]
 name = "spin-sdk"
-version = "7.0.0"
-source = "git+https://github.com/stackpop/spin-rust-sdk.git?rev=6c59ed5b4fcb377072763aee0b27a3abdd8edb72#6c59ed5b4fcb377072763aee0b27a3abdd8edb72"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9df1f876031b7906a9e802a8bbadf599a423f49adacde532535c6270dc4f11a1"
 dependencies = [
  "anyhow",
  "bytes",

@@ -17,10 +17,10 @@
 //! - **Axum** installs `SimpleLogger` inside `run_app`, which the
 //!   adapter calls AFTER the boot sequence. The over-ceiling warning
 //!   fired into no sink and the server then started talking.
-//! - **Cloudflare and Spin**: the pinned `EdgeZero` revision's
-//!   `init_logger` for both targets is a documented no-op, so those
-//!   isolates have no `log` sink at any point unless the application
-//!   installs one.
+//! - **Cloudflare and Spin**: earlier SDK revisions left backend
+//!   installation to the application. The current SDK offers managed
+//!   loggers, but Auctioneer still installs its sink before validating
+//!   the envelope and opts out of later installation with `owns_logging`.
 //!
 //! The warning also fires at most once per process, guarded by a
 //! `OnceLock` so a warm isolate does not repeat it on every fetch. That
@@ -46,8 +46,9 @@
 //! The install is best-effort and never fails a boot. `log` permits one
 //! global logger per process, and several things may want to be it: a
 //! serverless entrypoint re-enters the boot sequence on every request,
-//! a test harness installs a capturing logger, and `EdgeZero`'s own
-//! `run_app` installs one on the targets where it is not a no-op. So a
+//! a test harness installs a capturing logger, and applications may use
+//! the SDK's managed backend instead. Auctioneer's `owns_logging` hook
+//! prevents that later SDK installation. So a
 //! second install is expected and is not an error — the first sink
 //! wins, and what matters is only that SOME sink exists before the
 //! envelope is validated.

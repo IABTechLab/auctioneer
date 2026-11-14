@@ -4,7 +4,7 @@
 
 **Goal:** Upgrade the Auctioneer Rust dependency graph within the existing PR #275 SDK constraints, preserving protocol behavior, safety limits and all existing acceptance owners. Report retained upstream constraints rather than claiming an all-latest graph.
 
-**Architecture:** EdgeZero owns its provider/shared-type/codec tuple; Auctioneer retains its existing immutable PR #275 revision while migrating independently owned dependency families. Workspace requirements, the resolved lockfile and independently replayable vendor patches remain the sources of dependency identity. Unicode 16 is the one explicitly approved matching-policy change; historical captures remain immutable.
+**Architecture:** EdgeZero owns its provider/shared-type/codec tuple; Auctioneer adopts the explicitly selected immutable PR #275 revision while migrating independently owned dependency families. Workspace requirements, the resolved lockfile and independently replayable vendor patches remain the sources of dependency identity. Unicode 16 is the one explicitly approved matching-policy change; historical captures remain immutable.
 
 **Tech Stack:** Rust and provider tools from `.tool-versions`, Cargo, the current EdgeZero outbound contract, existing `quote!`/`syn` generators, patched upstream schema/regex libraries and existing native/guest test owners.
 
@@ -15,6 +15,8 @@
 Spec: [Complete Rust Dependency Upgrade](../specs/2026-11-11-rust-dependency-upgrade-design.md). Tracking: [Auctioneer #165](https://github.com/IABTechLab/auctioneer/issues/165). The maintainer approved the written spec, Unicode 16 and the initial separate SDK-first coordination on 2026-11-11. On 2026-11-12 the user directed implementation in existing PR #166 without another PR, required EdgeZero to stay on PR #275, and instructed CREATOR to continue. This supersedes the separate planning-merge/implementation-PR sequence and the SDK-first gate for independent upgrades. Neither repository has merge authorization. [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467) still owns future upstream tuple changes, not independent Auctioneer work.
 
 Use PR #166's existing owned branch/worktree under that explicit user exception; do not open another Auctioneer PR or edit the PR #275 implementer's checkout. Task 1 now freezes the retained SDK and its constraints rather than waiting for another SDK delivery. Refresh `origin/main` and reconcile merged changes before freezing the implementation baseline. An unmerged PR #162 remains separate work, not source to copy or accepted proof.
+
+On 2026-11-14 the user requested the latest EdgeZero PR #275 in this same PR. Freeze it at `e9ffaa8f8057144155ffe164280994445fa0f6d8`; Task 3 is now authorized for that revision, its matching upstream Spin SDK 8 and explicit native executor ownership. Keep the Rust/tool tuple, all workload/resource limits and the existing decoder/parser tuple unchanged. The user approved using the unchanged full CI matrix instead of duplicate local feature sweeps; focused compatibility checks and strict lint still run locally. The recorded Axum 503 failure remains blocking and is not waived.
 
 A family can require several small commits. Keep the final deliverable one Auctioneer implementation PR, not one PR per package. A compile failure does not justify changing privacy, workload, resource or test contracts. A newly discovered behavioral migration beyond the approved Unicode change returns to review before implementation.
 
@@ -58,7 +60,7 @@ Use `rg` to derive the complete call-site set for each changed package. The tabl
 
 ## Task 3: Adopt The SDK And Shared Tuple
 
-The original adoption checklist below is conditional on a future explicitly selected PR #275 revision permitting a coherent newer tuple. For this implementation, retain the current SDK/provider/codec pins and record constrained versions; this task does not authorize replacing the SDK, bypassing exact requirements or editing its checkout. Keep the executable SDK locator/provider pins unchanged when no revision is adopted.
+The 2026-11-14 direction selects the revision above and activates this adoption checklist. Update the workspace SDK pins, matching Spin SDK, executable SDK locator and provider identities together. It does not authorize unrelated provider/codec upgrades, bypassing exact requirements or editing the SDK implementer's checkout. Preserve historical captures and distinguish current verification from old-pin results.
 
 **Files:** root and inherited manifests/lockfile; adapter source; `crates/auctioneer-core/tests/codec_pins.rs`; `.github/workflows/scripts/test/locate-pinned-sdk.sh`; `crates/auctioneer-cli/src/qualification/harness/providers/mod.rs`; current source acquisition instructions and current upgrade record.
 

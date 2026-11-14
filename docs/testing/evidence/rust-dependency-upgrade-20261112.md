@@ -4,7 +4,7 @@ This is the current implementation record for [#165](https://github.com/IABTechL
 
 ## Selection And Retained Sources
 
-The 2026-11-12 requirement audit found 23 candidate requirement changes; the compatible lockfile audit found 148 updates. Those are selection observations, not test counts. Nineteen candidate requirements are updated below. `Cargo.lock` records the full resolved graph, including remaining transitive versions and sources. Its selected bytes have SHA-256 `9cd3a303b4cebde1619220ef8a3eb67a7d1540ec836d308bf2571f28040746fe`.
+The 2026-11-12 requirement audit found 23 candidate requirement changes; the compatible lockfile audit found 148 updates. Those are selection observations, not test counts. Nineteen candidate requirements are updated below. `Cargo.lock` records the full resolved graph, including remaining transitive versions and sources. The initial selected bytes had SHA-256 `9cd3a303b4cebde1619220ef8a3eb67a7d1540ec836d308bf2571f28040746fe`; the later SDK adoption below records its own identity and verification rather than rewriting these checkpoints.
 
 The implementation incorporates main's archive refresh at `7f6773e29d7657819a90dd53522055623b9fd6f2` and preserves the concurrent PR-branch refresh merge `c29c44d608b244994b1bcc05a3391fee85b53aed`; their integrated source trees matched. No separate upgrade PR is created.
 
@@ -30,7 +30,7 @@ The implementation incorporates main's archive refresh at `7f6773e29d7657819a90d
 | wasmparser | `=0.263.0` | 0.263.0 |
 | wasm-encoder | `=0.263.0` | 0.263.0 |
 
-All six EdgeZero requirements and eight resolved EdgeZero packages retain the official repository and immutable PR #275 revision `598f0a2a490eb83dd31c06c024a0cefa8e049628`. No SDK checkout or exact pin is patched to force a newer shared tuple. Future coordinated tuple work belongs to [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467).
+The initial independent slice retained all six EdgeZero requirements and eight resolved EdgeZero packages at official-repository PR #275 revision `598f0a2a490eb83dd31c06c024a0cefa8e049628`. The 2026-11-14 adoption below supersedes that revision and the Spin source only. No SDK checkout or exact pin is patched to force a newer shared tuple. Other coordinated tuple work belongs to [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467).
 
 | Retained Owner | Selected Version | Candidate Not Adopted | Constraint |
 | --- | --- | --- | --- |
@@ -300,6 +300,71 @@ The failure is at `crates/auctioneer-adapter-axum/tests/usersync_transport.rs:65
 The explicit insecure-workspace sweep was interrupted during compilation (process-group exit 130) as concurrent builds reduced free disk from 65 GiB to below 25 GiB; it produced no completed test result and is not a pass. The later standalone CLI, maintenance and insecure-Clippy steps in that batch were not run. No repository test, workflow, exclusion or feature lane was removed. The complete hosted matrix remains mandatory for the carrying commit, including the existing separately owned producer cases.
 
 The unchanged raw-JSON gate reported `203 raw JSON fixture(s) across 56 file(s), all budgeted`; its negative controls, batch rebase, roster and roster-negative controls each exited 0. The roster enumerated 139 uniquely owned members, and libtest-summary controls reported `18 passed`. A read-only author-side audit found no issue in the two-file correction; it ran no builds and is not formal independent approval. Cargo.lock retains the SHA-256 recorded above. Overall acceptance remains blocked by the failed local target, incomplete current-commit matrix and required REVIEWER re-review.
+
+## EdgeZero PR 275 Adoption (2026-11-14)
+
+The user requested the latest official PR #275 in PR #166. GitHub returned `e9ffaa8f8057144155ffe164280994445fa0f6d8`, and a later read confirmed that head was unchanged during verification. It is 15 commits ahead of the previous `598f0a2a490eb83dd31c06c024a0cefa8e049628` pin. All six workspace requirements, eight resolved SDK packages, active resource/provider identities, the CI locator and current acquisition instructions now use that immutable revision from `https://github.com/IABTechLab/edgezero.git`.
+
+The selected SDK replaces its Spin version-7 fork with published Spin SDK 8, so Auctioneer's inherited direct dependency changes to `spin-sdk = "=8.0.0"` with the same explicit `http`, `key-value` and `variables` features. The lockfile changes only the eight SDK package records and the `spin-sdk`/`spin-macro` pair; the new SDK logging dependencies reuse the existing Fern package. An independent standard-library TOML comparison found all other 458 package records unchanged. The ten asserted codec/HTTP versions match the selected SDK's own workspace requirements, not a newly calculated expected tuple. Its six shared tool versions match Auctioneer; `.tool-versions` and the existing `worker-build` selection are unchanged.
+
+Current Cargo.lock SHA-256: `78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c`. Earlier digests and results above remain historical checkpoints, not evidence for these new bytes. The remaining provider/HTTP/codec constraints still prevent a complete all-latest claim.
+
+The source delta includes explicit native outbound executor ownership, absolute native timer targets, managed logging and upload/framing repairs. `Body` also gains `forwarded_content_length`; unchanged parser versions do not imply an unchanged SDK memory layout. Auctioneer changes no workload/resource constant, reservation, ceiling or additive equation. Current native bounds and guest compilation are checked below; complete resource/host qualification is not inferred from them.
+
+`AxumOutboundClient` now requires a revocable executor handle. The existing cancellation, wave and privacy fixtures retain and drive an `AxumOutboundExecutor` across the complete operation, socket observations, permit recovery and shutdown, rather than relying on an ambient `LocalSet`. No assertion, timeout or test definition was removed. A read-only author-side audit checked all 18 fixture definitions and found no early-owner-drop or vacuous-observation regression; it ran no tests and is not formal independent approval. Auctioneer still owns its pre-envelope logging backend; the SDK's `owns_logging` bypass was checked in source, and stale no-op comments were corrected without changing that policy.
+
+The existing pin guard first failed against the old lockfile with `1 passed; 1 failed`. After resolution, the following commands exited 0:
+
+```sh
+cargo test --locked --offline -p auctioneer-core --test codec_pins --test upstream_primitives --test edgezero_fanout
+cargo test --locked --offline -p auctioneer-adapter-axum --test cancellation --test wave_transport --test privacy_wire --test usersync_transport
+cargo test --locked --offline -p auctioneer-adapter-axum -p auctioneer-adapter-cloudflare -p auctioneer-adapter-fastly -p auctioneer-adapter-spin --lib
+cargo test --locked --offline -p auctioneer-cli --bin auctioneer-cli qualification::harness::providers::
+cargo test --locked --offline -p auctioneer-cli --test qualification_harness
+cargo test --locked --offline -p auctioneer-runtime -p auctioneer-exchange -p auctioneer-core --lib
+cargo clippy --locked --offline --workspace --all-targets -- -D warnings
+```
+
+| Owner | Actual Result Lines |
+| --- | --- |
+| Codec/source guard, fanout, upstream primitives | `2 passed; 0 failed`, `2 passed; 0 failed`, `5 passed; 0 failed` |
+| Cancellation, privacy wire, wave transport | `3 passed; 0 failed`, `1 passed; 0 failed`, `14 passed; 0 failed` |
+| Real-server usersync transport | `12 passed; 0 failed; 1 ignored` |
+| Axum, Cloudflare, Fastly, Spin libraries | `24 passed; 0 failed`, `19 passed; 0 failed`, `15 passed; 0 failed`, `21 passed; 0 failed` |
+| Provider harness units | `97 passed; 0 failed; 687 filtered out` |
+| Public qualification harness | `8 passed; 0 failed` |
+| Core, exchange, runtime units | `674 passed; 0 failed`, `302 passed; 0 failed`, `273 passed; 0 failed` |
+
+Final socket/harness and strict-lint output includes:
+
+```text
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 12 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.15s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.14s
+Finished `dev` profile [unoptimized] target(s) in 19.55s
+```
+
+The one ignored usersync case retains its existing secure-production-binary CI owner. The whole real-server target ran once on the new SDK and passed; this does not erase the earlier full-workspace 503 failure, establish its cause, or prove that an intermittent failure is repaired.
+
+Actual guest binding/shared-code Clippy commands also exited 0:
+
+```sh
+cargo clippy --locked --offline -p auctioneer-adapter-cloudflare -p auctioneer-exchange -p auctioneer-privacy --all-targets --features conformance-suite --target wasm32-unknown-unknown -- -D warnings
+cargo clippy --locked --offline -p auctioneer-adapter-fastly -p auctioneer-exchange -p auctioneer-privacy --all-targets --features conformance-suite --target wasm32-wasip1 -- -D warnings
+cargo clippy --locked --offline -p auctioneer-adapter-spin -p auctioneer-exchange -p auctioneer-privacy --all-targets --features conformance-suite --target wasm32-wasip2 -- -D warnings
+```
+
+```text
+Finished `dev` profile [unoptimized] target(s) in 1m 51s
+Finished `dev` profile [unoptimized] target(s) in 2m 36s
+Finished `dev` profile [unoptimized] target(s) in 2m 41s
+```
+
+These are compile/lint results, not guest execution or provider packaging. Formatting, diff checks, the 203-fixture raw-JSON budget and its negative controls exited 0. The first local locator probe omitted the required `RUNNER_TEMP` and failed; its subsequent empty-path head lookup is not valid SDK evidence. The corrected probe supplies both `RUNNER_TEMP` and `GITHUB_ENV`, requires a nonempty SDK path, and verifies its Git HEAD equals the selected revision. It exited 0 with `SDK locator HEAD: e9ffaa8f8057144155ffe164280994445fa0f6d8`. The standalone TOML audit initially could not select Python through the project shim; the existing installed interpreter completed it without changing project tools or dependencies.
+
+The maintainer approved the unchanged full CI matrix in place of duplicate local feature sweeps. That matrix and independent re-review are still required on the carrying commit. Historical captures, frozen qualification profiles and their original pins are not rewritten. No failed local check is dismissed, no review thread is resolved by CREATOR, and no deployment readiness, issue closure or merge is claimed.
 
 ## Outstanding Acceptance
 

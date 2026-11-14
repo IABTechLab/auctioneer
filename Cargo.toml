@@ -60,12 +60,12 @@ jsonschema-macros-core = "=0.61.2"
 testing_logger = "0.1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
-edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "598f0a2a490eb83dd31c06c024a0cefa8e049628", default-features = false }
+edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
+edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
+edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
+edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
+edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
+edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
 fastly = "=0.13.1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
@@ -141,7 +141,8 @@ tar = { version = "0.4.46", default-features = false }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
 zeroize = { version = "1.9", default-features = false, features = ["alloc"] }
 simple_logger = "5"
-spin-sdk = { version = "=7.0.0", git = "https://github.com/stackpop/spin-rust-sdk.git", rev = "6c59ed5b4fcb377072763aee0b27a3abdd8edb72", default-features = false, features = ["http", "key-value", "variables"] }
+# Match EdgeZero's upstream SDK 8 tuple, including the eager-progress repair.
+spin-sdk = { version = "=8.0.0", default-features = false, features = ["http", "key-value", "variables"] }
 # Constant-time comparison for the health-endpoint bearer digest —
 # wasm-compatible, no timing side channel on token verification.
 subtle = "2"

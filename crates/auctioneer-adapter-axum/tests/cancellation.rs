@@ -24,6 +24,9 @@ mod tests {
     };
     use auctioneer_runtime::{Clock, MonotonicInstant, Timer};
     use edgezero_adapter_axum::outbound::AxumOutboundClient;
+    use edgezero_adapter_axum::outbound_executor::{
+        AxumOutboundExecutor, AxumOutboundExecutorHandle,
+    };
     use edgezero_core::outbound::HttpClient;
     use std::io::ErrorKind;
     use std::str::from_utf8;
@@ -257,8 +260,8 @@ mod tests {
         Vec::new()
     }
 
-    fn edgezero_fanout() -> EdgeZeroFanout {
-        let client = AxumOutboundClient::try_new().expect("reqwest client init");
+    fn edgezero_fanout(executor: AxumOutboundExecutorHandle) -> EdgeZeroFanout {
+        let client = AxumOutboundClient::try_new(executor).expect("reqwest client init");
         let clock: Arc<dyn Clock + Send + Sync> = Arc::new(SystemClock::new());
         let timer: Arc<dyn Timer + Send + Sync> = Arc::new(TransportTestTimer);
         EdgeZeroFanout::new(
@@ -345,64 +348,76 @@ mod tests {
     /// go away, which only happens if the losing send arm was dropped.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_lost_race_cancels_the_in_flight_transport_future() {
-        let fixture = start_fixture(ResponseMode::PromisedBodyNeverArrives).await;
-        let fanout = edgezero_fanout();
+        let mut executor = AxumOutboundExecutor::new();
+        let handle = executor.handle();
+        executor
+            .run_until(async move {
+                let fixture = start_fixture(ResponseMode::PromisedBodyNeverArrives).await;
+                let fanout = edgezero_fanout(handle);
 
-        let results = fanout
-            .send_all(vec![call_to(fixture.port, CALL_TIMEOUT)], deadline())
-            .await
-            .expect("send_all itself succeeds");
-        assert_eq!(results.len(), 1, "one call in, one result out");
-        assert!(
-            matches!(
-                results.first().map(|row| &row.result),
-                Some(Err(FanoutError::Timeout(TimeoutCause::Bidder))),
-            ),
-            "the per-bidder budget ran out first, got {:?}",
-            results.first().map(|row| &row.result),
-        );
+                let results = fanout
+                    .send_all(vec![call_to(fixture.port, CALL_TIMEOUT)], deadline())
+                    .await
+                    .expect("send_all itself succeeds");
+                assert_eq!(results.len(), 1, "one call in, one result out");
+                assert!(
+                    matches!(
+                        results.first().map(|row| &row.result),
+                        Some(Err(FanoutError::Timeout(TimeoutCause::Bidder))),
+                    ),
+                    "the per-bidder budget ran out first, got {:?}",
+                    results.first().map(|row| &row.result),
+                );
 
-        let seen = wait_for_outcome(&fixture, Duration::from_millis(250)).await;
-        assert_eq!(
-            seen,
-            vec![ConnOutcome::ClientDrop],
-            "the server must observe the connection go away right after the timeout; an empty \
-             record means the transport future was orphaned rather than cancelled",
-        );
-        drop(fanout);
+                let seen = wait_for_outcome(&fixture, Duration::from_millis(250)).await;
+                assert_eq!(
+                    seen,
+                    vec![ConnOutcome::ClientDrop],
+                    "the server must observe the connection go away right after the timeout; an empty \
+                     record means the transport future was orphaned rather than cancelled",
+                );
+                drop(fanout);
+            })
+            .await;
     }
 
     /// The mirror image, so the classifier is shown to distinguish the
     /// two outcomes rather than reporting a drop unconditionally.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_fast_upstream_completes_and_the_server_records_no_drop() {
-        let fixture = start_fixture(ResponseMode::Complete).await;
-        let fanout = edgezero_fanout();
+        let mut executor = AxumOutboundExecutor::new();
+        let handle = executor.handle();
+        executor
+            .run_until(async move {
+                let fixture = start_fixture(ResponseMode::Complete).await;
+                let fanout = edgezero_fanout(handle);
 
-        let results = fanout
-            .send_all(
-                vec![call_to(fixture.port, Duration::from_secs(5))],
-                deadline(),
-            )
-            .await
-            .expect("send_all itself succeeds");
-        assert_eq!(results.len(), 1, "one call in, one result out");
-        assert!(
-            results.first().is_some_and(|row| row.result.is_ok()),
-            "an upstream that answers inside the budget succeeds, got {:?}",
-            results.first().map(|row| &row.result),
-        );
+                let results = fanout
+                    .send_all(
+                        vec![call_to(fixture.port, Duration::from_secs(5))],
+                        deadline(),
+                    )
+                    .await
+                    .expect("send_all itself succeeds");
+                assert_eq!(results.len(), 1, "one call in, one result out");
+                assert!(
+                    results.first().is_some_and(|row| row.result.is_ok()),
+                    "an upstream that answers inside the budget succeeds, got {:?}",
+                    results.first().map(|row| &row.result),
+                );
 
-        // The fanout — and with it the pooled connection — stays alive
-        // until the server's peek window closes, so a `Responded` here
-        // is the server outliving the call rather than a lucky race.
-        let seen = wait_for_outcome(&fixture, Duration::from_secs(3)).await;
-        assert_eq!(
-            seen,
-            vec![ConnOutcome::Responded],
-            "a completed call leaves the connection in place for the whole peek window",
-        );
-        drop(fanout);
+                // The fanout — and with it the pooled connection — stays alive
+                // until the server's peek window closes, so a `Responded` here
+                // is the server outliving the call rather than a lucky race.
+                let seen = wait_for_outcome(&fixture, Duration::from_secs(3)).await;
+                assert_eq!(
+                    seen,
+                    vec![ConnOutcome::Responded],
+                    "a completed call leaves the connection in place for the whole peek window",
+                );
+                drop(fanout);
+            })
+            .await;
     }
 
     /// Headers and body in a SINGLE write, which is the interleaving a

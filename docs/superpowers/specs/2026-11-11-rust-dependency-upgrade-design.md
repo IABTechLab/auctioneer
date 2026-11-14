@@ -8,7 +8,7 @@ The requested outcome is one Auctioneer dependency-upgrade implementation PR, wi
 
 The user initially authorized a separate, coordinated EdgeZero upgrade first and approved this written spec, including the Unicode 16 proposal, on 2026-11-11. On 2026-11-12 the user directed implementation in existing Auctioneer PR #166 without a new PR, clarified that EdgeZero must stay on PR #275, and instructed CREATOR to continue. This later direction supersedes the separate SDK-first delivery gate for independent Auctioneer upgrades and the separate implementation-PR step. It does not authorize editing PR #275's checkout, forcing incompatible SDK dependencies, weakening acceptance, or merging either repository.
 
-Retain the existing immutable PR #275 SDK revision and its shared provider/HTTP/JSON/codec constraints while upgrading the remaining graph. [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467) remains the owner of future upstream tuple work, not a prerequisite to independent upgrades in #166. Record every version held back by that source explicitly; do not call a constrained package latest. The full all-latest outcome remains unavailable until the corresponding upstream constraints change.
+The initial implementation retained its immutable PR #275 revision while upgrading independently owned packages. On 2026-11-14 the user requested the latest PR #275 in PR #166. Freeze that adoption at official-repository revision `e9ffaa8f8057144155ffe164280994445fa0f6d8`, including its matching upstream Spin SDK 8 tuple and explicit native executor ownership. This supersedes the old revision hold, not the safety or acceptance gates. [EdgeZero #467](https://github.com/IABTechLab/edgezero/issues/467) remains the owner of other upstream tuple work. Record every version held back by the selected source explicitly; do not call a constrained package latest. The full all-latest outcome remains unavailable until the corresponding upstream constraints change.
 
 ## Baseline And Inventory
 
@@ -62,11 +62,11 @@ Keep features and platform ownership intentional. Native CLI fetches, artifact i
 
 ## SDK And Shared-Type Gate
 
-The observed EdgeZero PR #275 head is `b97efec185abbaa901e633a980975c98ef2f6c3b`. This is an integration revision, not a published stable SDK release. Adoption must stay on the required retained-outbound/lifetime lineage and use an immutable official-repository revision; changing to an unrelated default branch is not an upgrade strategy.
+The planning audit observed EdgeZero PR #275 head `b97efec185abbaa901e633a980975c98ef2f6c3b`. This was an integration revision, not a published stable SDK release. Adoption must stay on the required retained-outbound/lifetime lineage and use an immutable official-repository revision; changing to an unrelated default branch is not an upgrade strategy.
 
 A follow-up read during planning found head `14a6ca8bb5a5cbe055a1f725bdab8f42569a3bf0`, two commits ahead, changing Fastly lifecycle/progress-test files but not `Cargo.toml`. Direct inspection confirmed the shared constraints below remain. This is an audit update, not adoption or verification of those new commits. The separate SDK effort must select and review its carrying revision; do not chase a moving tip during downstream acceptance.
 
-That source still exact-pins older versions in these groups:
+Those planning sources recorded the constraints below. They are historical observations, not a claim that the later selected revision still uses the Spin version-7 fork:
 
 | Group | Concrete Upstream Constraints | Required Decision And Evidence |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ That source still exact-pins older versions in these groups:
 | Native HTTP | reqwest 0.13.4 | Verify resolver compatibility and native transport policy. The maintenance fetcher and SDK client have different owners; preserving a crate name does not preserve TLS, redirects, pooling or timeout behavior. |
 | Codec stack | async-compression, compression-codecs/core, brotli/decompressor, flate2, CRC/adler helpers | Reconcile the actual decoding tuple and window/framing/cleanup contract. Auctioneer's archive encoder can have a separate owner; do not relabel the SDK decoder as upgraded when only the encoder moved. |
 
-A newer requirement is not assumed resolvable while an SDK exact pin remains. Obtain concrete resolver/source evidence. Cargo [rejects conflicting exact compatible-version requirements and treats different-version public types as distinct](https://doc.rust-lang.org/cargo/reference/resolver.html). The original SDK-first sequence is superseded narrowly by the 2026-11-12 direction above: retain the existing PR #275 revision for this implementation and upgrade independently owned dependencies around its constraints. Any later SDK adoption must still retain PR #275's required outbound/lifetime contract and publish the shared version tuple, native and guest verification, and unresolved qualification boundaries. Upstream constraints remain blockers to an all-latest outcome; an issue, release tag or successful resolver run is not delivery evidence.
+A newer requirement is not assumed resolvable while an SDK exact pin remains. Obtain concrete resolver/source evidence. Cargo [rejects conflicting exact compatible-version requirements and treats different-version public types as distinct](https://doc.rust-lang.org/cargo/reference/resolver.html). The 2026-11-12 direction permitted independent upgrades around the then-retained SDK; the 2026-11-14 direction additionally selects the immutable revision above. This SDK adoption must retain PR #275's required outbound/lifetime contract and publish the shared version tuple, native and guest verification, and unresolved qualification boundaries. Upstream constraints remain blockers to an all-latest outcome; an issue, release tag or successful resolver run is not delivery evidence.
 
 The current `codec_pins` owner also requires one resolved copy of each asserted codec. Do not weaken that check merely to admit a newer build-time encoder beside an old SDK decoder. Default to a coordinated tuple upgrade; any replacement with a graph-scoped check requires independent build/runtime ownership evidence and at least the same rejection coverage before cutover.
 
