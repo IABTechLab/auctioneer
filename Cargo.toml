@@ -85,7 +85,7 @@ futures = { version = "0.3", default-features = false, features = ["std", "execu
 getrandom = { version = "0.3", default-features = false }
 # Native qualification reads compiler-emitted DWARF layout facts, never guesses
 # private dependency layouts. Write support is for synthetic conformance input.
-gimli = { version = "=0.32.3", default-features = false, features = ["read", "write", "std"] }
+gimli = { version = "=0.34.0", default-features = false, features = ["read", "write", "std"] }
 http = "1"
 http-body-util = "0.1"
 ipnetwork = { version = "0.20", default-features = false }
