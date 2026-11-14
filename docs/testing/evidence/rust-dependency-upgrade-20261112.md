@@ -89,7 +89,9 @@ SHA-256 output now uses the existing workspace `hex::encode` rather than formatt
 
 Syn consumers use the maintained trait-implementation, receiver, safety, function-pointer and guarded-pattern AST shapes. Object/DWARF readers use typed flags, checked writer offsets, fallible imports, decoded attributes and absolute tree depth while retaining their refusal predicates and input limits. The PNG decoder handles an absent bounded output size as `LimitsExceeded`.
 
-Tokio's new descriptor registration API requires one user-approved, narrowly checked unsafe exception in the private stdout writer; the explicit decision was **"Allow one audited registration call."** The owned descriptor remains private and valid across readiness waits, cancellation and timeout; the existing full-pipe deadline control ran successfully. No workspace unsafe policy is widened.
+Tokio's new descriptor registration API requires one user-approved, narrowly checked unsafe exception in the private stdout writer; the original explicit decision was **"Allow one audited registration call."** The review correction narrows that exception to socket and terminal output, where no safe Tokio constructor applies. FIFO output instead transfers the duplicated descriptor to the safe `pipe::Sender::from_owned_fd` constructor, which checks pipe type and write access and sets nonblocking mode. Its readiness/`try_write` loop retains the same two-second deadline as the socket/terminal path. The fallback's owned descriptor remains private and valid across readiness waits, cancellation and timeout. No dependency, feature or workspace unsafe policy is widened, and the existing full-pipe deadline test is byte-unchanged.
+
+The added inline selection controls first compiled and reported `2 passed; 2 failed`: FIFO output still reached generic registration, and a read-only pipe was admitted. After the safe FIFO branch was added, the same four controls reported `4 passed; 0 failed`; the file/dev-null and socket controls remain positive witnesses for the unchanged paths. These targeted results establish the requested routing correction, not complete current-head acceptance; the broader verification and its limitations are recorded below.
 
 The WASM parser now enables async components by default. The existing negative stream control explicitly disables the proposal, rather than relying on the superseded default; positive static component support and malformed-payload refusal remain tested. Local guest controls use the `.tool-versions` Wasmtime 48.0.2, not the unrelated version 45.0.0 found first on the shell's PATH.
 
@@ -246,6 +248,58 @@ The independent literal grammar comparison produced two expected old-library fai
 Two local launcher attempts did not complete their intended checks: one omitted `asdf` from PATH (exit 127 before Cargo); another selected macOS Python 3.9 without `tomllib`. Restoring the existing PATH and using the already installed Python 3.14 standard parser completed the respective checks without changing repository code or adding dependencies. These attempts are not credited as passing checks.
 
 A scoped read-only author audit found no introduced defects in the six repaired files; it executed no builds and is not formal PRfection approval. All 25 hosted checks passed at the preceding head `e3a0e22c2e9bd2d9938a14f1d939ad44c18accb4`. Those are historical results, not acceptance of this fixing revision. Its complete hosted matrix and independent re-review remain mandatory.
+
+## Safe FIFO Review Verification (2026-11-14)
+
+REVIEWER accepted and resolved the seven preceding findings at `d773e7fabb2cad740e924e7caa727ecbd4cb25ad`. This correction addresses the subsequent FIFO finding; its thread remains open for REVIEWER acceptance. The public `qualification_harness.rs` test file, dependency manifests, lockfile and workflows are byte-unchanged from that head.
+
+The first strict lint run caught `clippy::similar_names` in the new socket control (`received` versus `receiver`). Renaming only the buffer to `payload` corrected it without an allowance or assertion change. The final executable sources then passed these commands, each with exit 0:
+
+```sh
+cargo test --locked --offline -p auctioneer-cli --bin auctioneer-cli qualification::harness::stdio::unix::tests:: -- --nocapture
+cargo test --locked --offline -p auctioneer-cli --test qualification_harness
+cargo clippy --locked --offline --workspace --all-targets -- -D warnings
+cargo fmt --all -- --check
+git diff --check
+```
+
+Actual result lines:
+
+```text
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 780 filtered out; finished in 0.00s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.27s
+Finished `dev` profile [unoptimized] target(s) in 35.88s
+```
+
+The broader local sweep ran before that final test-only buffer rename. Its commands and actual outcomes were:
+
+```sh
+cargo test --locked --offline --workspace --all-targets --no-fail-fast -- \
+  --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification \
+  --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
+cargo test --locked --offline -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core --all-targets
+```
+
+| Local Lane | Exit | Actual Summaries | Passed | Failed | Ignored |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default workspace | 101 | 245 | 6,577 | 1 | 19 |
+| Secure bidder/exchange/core | 0 | 154 | 3,890 | 0 | 11 |
+
+The complete CLI unit binary in the default lane reported `781 passed; 0 failed; 3 ignored`. The failed target was Axum's `usersync_transport`, not a passing or waived check:
+
+```text
+tests::real_binary_remains_available_after_partial_body_disconnect
+assertion `left == right` failed: overloaded
+  left: 503
+ right: 200
+test result: FAILED. 11 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.35s
+```
+
+The failure is at `crates/auctioneer-adapter-axum/tests/usersync_transport.rs:658`; this correction does not modify that file. Its cause has not been established or reproduced at the exact base with the same full command, so it is not classified as pre-existing. No retry erased this failed sweep, and no assertion or timeout was weakened.
+
+The explicit insecure-workspace sweep was interrupted during compilation (process-group exit 130) as concurrent builds reduced free disk from 65 GiB to below 25 GiB; it produced no completed test result and is not a pass. The later standalone CLI, maintenance and insecure-Clippy steps in that batch were not run. No repository test, workflow, exclusion or feature lane was removed. The complete hosted matrix remains mandatory for the carrying commit, including the existing separately owned producer cases.
+
+The unchanged raw-JSON gate reported `203 raw JSON fixture(s) across 56 file(s), all budgeted`; its negative controls, batch rebase, roster and roster-negative controls each exited 0. The roster enumerated 139 uniquely owned members, and libtest-summary controls reported `18 passed`. A read-only author-side audit found no issue in the two-file correction; it ran no builds and is not formal independent approval. Cargo.lock retains the SHA-256 recorded above. Overall acceptance remains blocked by the failed local target, incomplete current-commit matrix and required REVIEWER re-review.
 
 ## Outstanding Acceptance
 
