@@ -1,5 +1,7 @@
 # Schema Compiler Qualification
 
+For the current source-bound closure, implemented components and remaining proof owners, see [resource proof ownership](../testing/resource-proof-ownership.md). Historical checkpoint prose below retains its original scope; it is not current target certification.
+
 **2026-11-10 publication amendment:** Mocktioneer is now compiled in both
 feature lanes, disabled by default, with an explicit endpoint required to enable
 it. Current shipped source checks require 18 native bindings (four guest

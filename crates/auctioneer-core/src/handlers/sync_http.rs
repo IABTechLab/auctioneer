@@ -7,6 +7,7 @@ use std::{
     str::from_utf8,
 };
 
+use auctioneer_bidder::CappedWriter;
 use auctioneer_config_data::usersync::{SyncResponseFormat, SyncType, UserSyncConfig};
 use auctioneer_runtime::aux_work::{
     MAX_SYNC_OUTPUT_BYTES, MAX_SYNC_RESPONSE_HEADER_BYTES, MAX_SYNC_RESPONSE_HEADER_COUNT,
@@ -14,7 +15,7 @@ use auctioneer_runtime::aux_work::{
 use edgezero_core::body::Body;
 use edgezero_core::error::{EdgeError, RequestBodyOverflowOrigin};
 use edgezero_core::http::{
-    HeaderMap, HeaderValue, Response, StatusCode,
+    HeaderMap, HeaderName, HeaderValue, Response, StatusCode,
     header::{
         CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, ORIGIN, SET_COOKIE, VARY,
     },
@@ -57,10 +58,14 @@ pub fn response_header_cap() -> usize {
     usize::try_from(MAX_SYNC_RESPONSE_HEADER_BYTES).unwrap_or(0)
 }
 
+/// Why bounded sync response construction could not complete.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResponseBuildError {
+    /// Counting or HTML expansion exceeded the declared body ceiling.
     BodyLimit,
+    /// Application-owned headers could not be built within their bounds.
     HeaderLimit,
+    /// JSON failed, output reservation was refused, or serialization disagreed with counting.
     Serialization,
 }
 
@@ -278,7 +283,7 @@ fn bound_headers(
     if serialized_header_bytes(response.headers())? > max_header_bytes {
         return Err(ResponseBuildError::HeaderLimit);
     }
-    Ok(response)
+    own_header_storage(response)
 }
 
 fn bound_setuid_headers(
@@ -306,6 +311,25 @@ fn bound_setuid_headers(
     if other_bytes > max_other_header_bytes {
         return Err(ResponseBuildError::HeaderLimit);
     }
+    own_header_storage(response)
+}
+
+fn own_header_storage(mut response: Response) -> Result<Response, ResponseBuildError> {
+    let mut headers = HeaderMap::try_with_capacity(response.headers().len())
+        .map_err(|_capacity| ResponseBuildError::HeaderLimit)?;
+    // Both maps coexist during construction; final values must not retain
+    // an ingress slice or map capacity left over from removed fields.
+    for (name, value) in response.headers() {
+        let owned_name = HeaderName::from_bytes(name.as_str().as_bytes())
+            .map_err(|_name| ResponseBuildError::HeaderLimit)?;
+        let mut owned = HeaderValue::from_bytes(value.as_bytes())
+            .map_err(|_value| ResponseBuildError::HeaderLimit)?;
+        owned.set_sensitive(value.is_sensitive());
+        headers
+            .try_append(owned_name, owned)
+            .map_err(|_capacity| ResponseBuildError::HeaderLimit)?;
+    }
+    *response.headers_mut() = headers;
     Ok(response)
 }
 
@@ -470,7 +494,8 @@ struct CookieSyncBody<'a> {
 /// Serializes a bounded cookie-sync response with a trailing newline.
 ///
 /// # Errors
-/// Returns `BodyLimit` if the body exceeds the cap, or `Serialization` on JSON failure.
+/// Returns `BodyLimit` if counting exceeds the cap. Returns `Serialization` on
+/// JSON failure, output-reservation refusal, or count/serialization disagreement.
 pub fn cookie_sync_success(
     cookie: &UidCookie,
     now: OffsetDateTime,
@@ -502,7 +527,9 @@ struct GetUidsBody<'a> {
 /// Serializes the cookie's UIDs with HTML escaping and a trailing newline.
 ///
 /// # Errors
-/// Returns `BodyLimit` if the body exceeds the cap, or `Serialization` on JSON failure.
+/// Returns `BodyLimit` if counting or HTML expansion exceeds the cap. Returns
+/// `Serialization` on JSON failure, output-reservation refusal, or
+/// count/serialization disagreement.
 pub fn getuids_success(
     cookie: &UidCookie,
     max_body_bytes: usize,
@@ -632,35 +659,55 @@ fn response(status: StatusCode, body: Vec<u8>) -> Response {
     response
 }
 
-struct BoundedBody {
-    bytes: Vec<u8>,
+struct BodyCount {
+    len: usize,
     max: usize,
-}
-
-impl BoundedBody {
-    fn new(max: usize) -> Self {
-        Self {
-            bytes: Vec::new(),
-            max,
-        }
-    }
 }
 
 #[expect(
     clippy::missing_trait_methods,
-    reason = "default Write helpers delegate to the bounded write method; flush has no buffered side effects"
+    reason = "default Write helpers delegate to the capped counter; flush has no buffered side effects"
 )]
-impl io::Write for BoundedBody {
+impl io::Write for BodyCount {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if buf.len() > self.max.saturating_sub(self.bytes.len()) {
-            return Err(io::Error::other("sync response body limit"));
+        if buf.len() > self.max.saturating_sub(self.len) {
+            return Err(io::ErrorKind::WriteZero.into());
         }
-        self.bytes.extend_from_slice(buf);
+        self.len = self
+            .len
+            .checked_add(buf.len())
+            .ok_or(io::ErrorKind::WriteZero)?;
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+fn sync_json_error(error: &serde_json::Error) -> ResponseBuildError {
+    if error.io_error_kind() == Some(io::ErrorKind::WriteZero) {
+        ResponseBuildError::BodyLimit
+    } else {
+        ResponseBuildError::Serialization
+    }
+}
+
+fn reserve_body(bytes: usize) -> Result<Vec<u8>, ResponseBuildError> {
+    let mut body = Vec::new();
+    body.try_reserve_exact(bytes)
+        .map_err(|_allocation| ResponseBuildError::Serialization)?;
+    Ok(body)
+}
+
+fn html_fragment(ch: char, buffer: &mut [u8; 4]) -> &[u8] {
+    match ch {
+        '<' => b"\\u003c",
+        '>' => b"\\u003e",
+        '&' => b"\\u0026",
+        '\u{2028}' => b"\\u2028",
+        '\u{2029}' => b"\\u2029",
+        _ => ch.encode_utf8(buffer).as_bytes(),
     }
 }
 
@@ -670,34 +717,52 @@ fn bounded_json_line(
     escape_html: bool,
 ) -> Result<Vec<u8>, ResponseBuildError> {
     let payload_cap = max.checked_sub(1).ok_or(ResponseBuildError::BodyLimit)?;
-    let mut raw = BoundedBody::new(payload_cap);
-    serde_json::to_writer(&mut raw, value).map_err(|error| {
-        if error.is_io() {
-            ResponseBuildError::BodyLimit
-        } else {
-            ResponseBuildError::Serialization
-        }
-    })?;
+    // Refuse during counting, before reserving either output buffer.
+    let mut count = BodyCount {
+        len: 0,
+        max: payload_cap,
+    };
+    serde_json::to_writer(&mut count, value).map_err(|error| sync_json_error(&error))?;
+    let raw_capacity = count
+        .len
+        .checked_add(usize::from(!escape_html))
+        .ok_or(ResponseBuildError::BodyLimit)?;
+    let mut raw = reserve_body(raw_capacity)?;
+    let mut raw_writer = CappedWriter::new(&mut raw, count.len)
+        .map_err(|_capacity| ResponseBuildError::Serialization)?;
+    serde_json::to_writer(&mut raw_writer, value)
+        .map_err(|_error| ResponseBuildError::Serialization)?;
+    if raw.len() != count.len {
+        return Err(ResponseBuildError::Serialization);
+    }
     let mut body = if escape_html {
-        let raw_text = from_utf8(&raw.bytes).map_err(|_error| ResponseBuildError::Serialization)?;
-        let mut escaped = BoundedBody::new(payload_cap);
+        let raw_text = from_utf8(&raw).map_err(|_error| ResponseBuildError::Serialization)?;
+        let mut escaped_count = BodyCount {
+            len: 0,
+            max: payload_cap,
+        };
+        let mut buffer = [0; 4];
         for ch in raw_text.chars() {
-            match ch {
-                '<' => escaped.write_all(b"\\u003c"),
-                '>' => escaped.write_all(b"\\u003e"),
-                '&' => escaped.write_all(b"\\u0026"),
-                '\u{2028}' => escaped.write_all(b"\\u2028"),
-                '\u{2029}' => escaped.write_all(b"\\u2029"),
-                _ => {
-                    let mut buffer = [0; 4];
-                    escaped.write_all(ch.encode_utf8(&mut buffer).as_bytes())
-                }
-            }
-            .map_err(|_error| ResponseBuildError::BodyLimit)?;
+            escaped_count
+                .write_all(html_fragment(ch, &mut buffer))
+                .map_err(|_limit| ResponseBuildError::BodyLimit)?;
         }
-        escaped.bytes
+        // Raw and escaped backing coexist until this transformation completes.
+        let escaped_capacity = escaped_count
+            .len
+            .checked_add(1)
+            .ok_or(ResponseBuildError::BodyLimit)?;
+        let mut escaped = reserve_body(escaped_capacity)?;
+        let mut writer = CappedWriter::new(&mut escaped, escaped_count.len)
+            .map_err(|_capacity| ResponseBuildError::Serialization)?;
+        for ch in raw_text.chars() {
+            writer
+                .write_all(html_fragment(ch, &mut buffer))
+                .map_err(|_limit| ResponseBuildError::BodyLimit)?;
+        }
+        escaped
     } else {
-        raw.bytes
+        raw
     };
     body.push(b'\n');
     Ok(body)
@@ -1489,6 +1554,159 @@ mod tests {
     use auctioneer_runtime::aux_work::MAX_SYNC_OUTPUT_BYTES;
 
     #[test]
+    fn sync_json_line_reserves_only_the_complete_final_body() {
+        for value in ["", "abc", "x".repeat(127).as_str(), "<>&\u{2028}\u{2029}"] {
+            for escape_html in [false, true] {
+                let body = bounded_json_line(&value, 4096, escape_html).unwrap();
+                assert_eq!(body.capacity(), body.len(), "{value:?}, {escape_html}");
+                for cap in [body.len(), body.len().checked_add(23).unwrap()] {
+                    assert_eq!(bounded_json_line(&value, cap, escape_html).unwrap(), body);
+                }
+                assert_eq!(
+                    bounded_json_line(&value, body.len().checked_sub(1).unwrap(), escape_html),
+                    Err(ResponseBuildError::BodyLimit)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sync_json_line_keeps_all_html_json_and_newline_escapes() {
+        let input = "<>&\u{2028}\u{2029}\"\\\n\0\u{e9}";
+        let expected = "\"\\u003c\\u003e\\u0026\\u2028\\u2029\\\"\\\\\\n\\u0000\u{e9}\"\n";
+        assert_eq!(
+            bounded_json_line(&input, expected.len(), true).unwrap(),
+            expected.as_bytes()
+        );
+        assert_eq!(
+            bounded_json_line(&input, expected.len().checked_sub(1).unwrap(), true),
+            Err(ResponseBuildError::BodyLimit)
+        );
+    }
+
+    struct ChangingString<'a> {
+        first: &'a str,
+        second: &'a str,
+        calls: Cell<usize>,
+    }
+
+    impl serde::Serialize for ChangingString<'_> {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let call = self.calls.replace(self.calls.get().checked_add(1).unwrap());
+            serializer.serialize_str(if call == 0 { self.first } else { self.second })
+        }
+    }
+
+    #[test]
+    fn sync_json_line_refuses_serialization_growth_and_shrinkage() {
+        for escape_html in [false, true] {
+            for (first, second, error) in [
+                ("a", "longer", ResponseBuildError::Serialization),
+                ("longer", "a", ResponseBuildError::Serialization),
+            ] {
+                let value = ChangingString {
+                    first,
+                    second,
+                    calls: Cell::new(0),
+                };
+                assert_eq!(bounded_json_line(&value, 128, escape_html), Err(error));
+                assert_eq!(value.calls.get(), 2);
+            }
+        }
+    }
+
+    struct VisitedSequence {
+        entries: usize,
+        visited: Cell<usize>,
+    }
+
+    impl serde::Serialize for VisitedSequence {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            use serde::ser::SerializeSeq as _;
+            let mut sequence = serializer.serialize_seq(Some(self.entries))?;
+            for _ in 0..self.entries {
+                self.visited.set(self.visited.get().checked_add(1).unwrap());
+                sequence.serialize_element("x")?;
+            }
+            sequence.end()
+        }
+    }
+
+    #[test]
+    fn sync_json_counting_stops_at_the_first_overflow_before_output_reservation() {
+        use auctioneer_runtime::test_support::alloc_track::allocated;
+        for escape_html in [false, true] {
+            let value = VisitedSequence {
+                entries: 1024,
+                visited: Cell::new(0),
+            };
+            let before = allocated();
+            let result = bounded_json_line(&value, 2048, escape_html);
+            let allocated_bytes = allocated().checked_sub(before).unwrap();
+            assert_eq!(result, Err(ResponseBuildError::BodyLimit));
+            assert!(value.visited.get() > 0 && value.visited.get() < value.entries);
+            assert!(
+                allocated_bytes < 512,
+                "overflow allocated {allocated_bytes} bytes"
+            );
+
+            value.visited.set(0);
+            let body = bounded_json_line(&value, 8192, escape_html).unwrap();
+            assert_eq!(value.visited.get(), value.entries.checked_mul(2).unwrap());
+            assert_eq!(body.len(), 4098);
+        }
+    }
+
+    #[test]
+    fn sync_json_line_checks_newline_capacity_before_visiting_input() {
+        let value = VisitedSequence {
+            entries: 1,
+            visited: Cell::new(0),
+        };
+        for escape_html in [false, true] {
+            assert_eq!(
+                bounded_json_line(&value, 0, escape_html),
+                Err(ResponseBuildError::BodyLimit)
+            );
+            assert_eq!(value.visited.get(), 0);
+        }
+    }
+
+    #[test]
+    fn sync_html_overflow_never_reserves_the_escaped_output() {
+        use auctioneer_runtime::test_support::alloc_track::allocated;
+        for input_bytes in [1024, 8192] {
+            let value = "<".repeat(input_bytes);
+            let before = allocated();
+            let result = bounded_json_line(&value, input_bytes.checked_mul(2).unwrap(), true);
+            let allocated_bytes = allocated().checked_sub(before).unwrap();
+            assert_eq!(result, Err(ResponseBuildError::BodyLimit));
+            assert!(
+                allocated_bytes
+                    <= u64::try_from(input_bytes.checked_add(2 + 256).unwrap()).unwrap(),
+                "only raw JSON plus fixed error scratch is allowed: {allocated_bytes}"
+            );
+        }
+    }
+
+    #[test]
+    fn sync_json_line_keeps_genuine_serializer_errors_distinct_from_limits() {
+        struct Broken;
+        impl serde::Serialize for Broken {
+            fn serialize<S: serde::Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::Error as _;
+                Err(S::Error::custom("fixed serialization failure"))
+            }
+        }
+        for escape_html in [false, true] {
+            assert_eq!(
+                bounded_json_line(&Broken, 128, escape_html),
+                Err(ResponseBuildError::Serialization)
+            );
+        }
+    }
+
+    #[test]
     fn json_output_cap_includes_newline_and_never_exposes_a_partial_body() {
         let cap = usize::try_from(MAX_SYNC_OUTPUT_BYTES).unwrap();
         let empty = serde_json::json!({"debug": ""});
@@ -1531,6 +1749,66 @@ mod tests {
             policy.decorate_setuid(response, &HeaderMap::new(), 16 * 1024),
             Err(ResponseBuildError::HeaderLimit)
         ));
+    }
+
+    #[test]
+    fn sync_header_bounds_detach_backing_and_discard_removed_map_capacity() {
+        for backing_bytes in [16 * 1024, 1024 * 1024] {
+            for value_bytes in [17, 271] {
+                for setuid in [false, true] {
+                    let backing = Bytes::from(vec![b'x'; backing_bytes]);
+                    let mut shared = HeaderValue::from_maybe_shared(
+                        backing.slice(32..32_usize.checked_add(value_bytes).unwrap()),
+                    )
+                    .unwrap();
+                    shared.set_sensitive(true);
+                    let start = backing.as_ptr().addr();
+                    let addresses = start..start.checked_add(backing.len()).unwrap();
+                    assert!(addresses.contains(&shared.as_bytes().as_ptr().addr()));
+                    let mut response = Response::new(Body::from_bytes(b"unchanged".to_vec()));
+                    *response.status_mut() = StatusCode::ACCEPTED;
+                    *response.headers_mut() = HeaderMap::with_capacity(1024);
+                    response
+                        .headers_mut()
+                        .insert("x-removed", HeaderValue::from_static("removed"));
+                    assert!(response.headers_mut().remove("x-removed").is_some());
+                    for _ in 0_usize..3 {
+                        response.headers_mut().append("x-shared", shared.clone());
+                    }
+                    response
+                        .headers_mut()
+                        .append("vary", HeaderValue::from_static("Origin"));
+                    response
+                        .headers_mut()
+                        .append("vary", HeaderValue::from_static("Accept-Encoding"));
+                    if setuid {
+                        response.headers_mut().insert(
+                            SET_COOKIE,
+                            HeaderValue::from_static("uids=payload; HttpOnly"),
+                        );
+                    }
+                    let before = response.headers().clone();
+                    assert!(before.capacity() >= 1024);
+                    let fresh_capacity =
+                        HeaderMap::<HeaderValue>::with_capacity(before.len()).capacity();
+                    let bounded = if setuid {
+                        super::bound_setuid_headers(response, 4096)
+                    } else {
+                        super::bound_headers(response, 4096)
+                    }
+                    .unwrap();
+                    assert_eq!(bounded.status(), StatusCode::ACCEPTED);
+                    assert_eq!(body_bytes(&bounded), b"unchanged");
+                    assert_eq!(bounded.headers(), &before);
+                    assert!(bounded.headers().capacity() <= fresh_capacity);
+                    assert_eq!(bounded.headers().get_all("x-shared").iter().count(), 3);
+                    for value in bounded.headers().get_all("x-shared") {
+                        assert!(value.is_sensitive());
+                        assert!(!addresses.contains(&value.as_bytes().as_ptr().addr()));
+                    }
+                }
+            }
+        }
     }
 
     #[test]

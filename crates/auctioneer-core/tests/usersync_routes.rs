@@ -385,7 +385,21 @@ mod tests {
             MonotonicInstant::now(),
             config,
         );
-        mem::replace(envelope.response_mut(), Response::new(Body::empty()))
+        // These wire fixtures include URL/body/cookie construction refusals.
+        // Handler return must preserve the original admission receipt on all
+        // of them; extracting bytes here is not the production egress path.
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        assert!(peak > 0);
+        assert_eq!(gates.aux.in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), peak);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        let response = mem::replace(envelope.response_mut(), Response::new(Body::empty()));
+        assert_eq!(gates.aux_work_budget.in_use(), peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        response
     }
 
     fn assert_browser_wire(

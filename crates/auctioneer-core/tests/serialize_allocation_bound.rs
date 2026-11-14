@@ -13,8 +13,9 @@
 //! the call, and the allocator is the only place it is observable. A
 //! counting global allocator can only exist in a test binary, which is
 //! why this measurement lives here rather than beside the function.
-//! Caller-owned response fixtures are built before measurement; no fixture
-//! subtraction or host-exact allocation baseline contributes to the bound.
+//! Serialization fixtures are built before measurement. Header-history controls
+//! build and drop input owners inside their window before sampling retention.
+//! Neither uses fixture subtraction or claims physical allocator/guest bounds.
 
 /// Test-scoped counting allocator (per-thread, peak bytes) backing the
 /// serialization allocation bound. Delegates every operation to
@@ -53,6 +54,15 @@ mod alloc_track {
     /// has to survive.
     pub fn peak_on_this_thread() -> usize {
         PEAK.try_with(Cell::get).unwrap_or(0)
+    }
+
+    pub fn live_on_this_thread() -> usize {
+        LIVE.try_with(Cell::get).unwrap_or(0)
+    }
+
+    pub fn reset_peak_on_this_thread() {
+        let live = live_on_this_thread();
+        let _peak = PEAK.try_with(|cell| cell.set(live));
     }
 
     pub fn track_reallocations_at_least_on_this_thread(size: usize) {
@@ -148,22 +158,26 @@ mod fanout_limits;
 #[cfg(test)]
 mod tests {
     use crate::config_funding_support as config_funding;
-    use std::{hint::black_box, thread};
+    use std::{hint::black_box, str, thread};
 
     use super::alloc_track::{
-        peak_on_this_thread, reallocations_on_this_thread, reset_on_this_thread,
+        live_on_this_thread, peak_on_this_thread, reallocations_on_this_thread,
+        reset_on_this_thread, reset_peak_on_this_thread,
         track_reallocations_at_least_on_this_thread,
     };
+    use auctioneer_config_data::usersync::UserSyncConfig;
     use auctioneer_core::handlers::health_gvl::health_gvl;
+    use auctioneer_core::handlers::sync_http::{SyncBrowserPolicy, response_header_cap};
     use auctioneer_core::host_primitives::{TestClockHandle, install_health_counter_scope};
     use auctioneer_core::serialize::{SerializeError, serialize_response_within};
     use auctioneer_core::test_support::config_store::{context, runtime_registry};
     use auctioneer_openrtb::types::bid_response::BidResponse;
     use auctioneer_runtime::FakeClock;
+    use bytes::Bytes;
     use edgezero_core::body::Body;
     use edgezero_core::context::RequestContext;
     use futures::executor::block_on;
-    use http::{Request, StatusCode};
+    use http::{HeaderMap, HeaderName, HeaderValue, Request, Response, StatusCode};
     use std::sync::Arc;
     use time::OffsetDateTime;
 
@@ -384,5 +398,484 @@ mod tests {
         })
         .join()
         .unwrap();
+    }
+
+    #[test]
+    fn sync_json_outputs_do_not_reallocate_at_two_independent_sizes() {
+        use auctioneer_core::handlers::sync_http::{
+            SyncDebugStatus, cookie_sync_success, getuids_success,
+        };
+        use auctioneer_core::usersync::{cookie::UidCookie, limits::CookieLimits};
+
+        thread::spawn(|| {
+            for input_bytes in [2049, 8193] {
+                let input = "<".repeat(input_bytes);
+                let debug = [SyncDebugStatus {
+                    bidder: "fake_bidder",
+                    error: &input,
+                }];
+                let mut cookie = UidCookie::default();
+                cookie
+                    .set_uid(
+                        "fake_bidder",
+                        &input,
+                        OffsetDateTime::UNIX_EPOCH,
+                        &CookieLimits::default(),
+                    )
+                    .unwrap();
+                for escape_html in [false, true] {
+                    let build = |cap| {
+                        if escape_html {
+                            getuids_success(&cookie, cap)
+                        } else {
+                            cookie_sync_success(
+                                &UidCookie::default(),
+                                OffsetDateTime::UNIX_EPOCH,
+                                &[],
+                                Some(&debug),
+                                cap,
+                            )
+                        }
+                    };
+                    let expected = build(128 * 1024).unwrap().into_body().into_bytes().unwrap();
+                    track_reallocations_at_least_on_this_thread(expected.len().div_euclid(2));
+                    let mut growable = Vec::new();
+                    for chunk in expected.chunks(17) {
+                        growable.extend_from_slice(chunk);
+                    }
+                    let control = reallocations_on_this_thread();
+                    assert_eq!(growable, expected);
+                    assert!(
+                        control > 0,
+                        "the growable control must register body-sized reallocations"
+                    );
+
+                    track_reallocations_at_least_on_this_thread(expected.len().div_euclid(2));
+                    let actual = build(expected.len()).unwrap();
+                    let reallocations = reallocations_on_this_thread();
+                    assert_eq!(actual.into_body().into_bytes().unwrap(), expected);
+                    assert_eq!(
+                        reallocations, 0,
+                        "{input_bytes} input bytes, escaped={escape_html}"
+                    );
+                }
+            }
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn complete_cookie_formatting_never_grows_its_reserved_field() {
+        use auctioneer_core::usersync::cookie::{CookieWriteOptions, prepare_set_cookie_value};
+
+        thread::spawn(|| {
+            for value_bytes in [2049, 3553] {
+                let value = "a".repeat(value_bytes);
+                let options = CookieWriteOptions {
+                    domain: "sync.example.test",
+                    user_agent: Some("Chrome/130.0"),
+                    ..CookieWriteOptions::default()
+                };
+                let expected =
+                    prepare_set_cookie_value(&value, &options, OffsetDateTime::UNIX_EPOCH).unwrap();
+                let field = expected.field_value();
+                assert!(field.as_bytes().len() > value_bytes);
+                track_reallocations_at_least_on_this_thread(value_bytes.div_euclid(2));
+                let mut control = String::new();
+                for chunk in field.to_str().unwrap().as_bytes().chunks(17) {
+                    control.push_str(str::from_utf8(chunk).unwrap());
+                }
+                assert!(reallocations_on_this_thread() > 0);
+                assert_eq!(control.as_bytes(), field.as_bytes());
+
+                track_reallocations_at_least_on_this_thread(value_bytes.div_euclid(2));
+                let prepared =
+                    prepare_set_cookie_value(&value, &options, OffsetDateTime::UNIX_EPOCH).unwrap();
+                let growth = reallocations_on_this_thread();
+                assert_eq!(prepared.field_value(), field);
+                assert_eq!(growth, 0, "complete {value_bytes}-byte cookie value");
+            }
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct HeaderShape {
+        unique_fields: usize,
+        duplicate_values: usize,
+        name_bytes: usize,
+        value_bytes: usize,
+    }
+
+    const SMALL_HEADER_BACKING_BYTES: usize = 16 * 1024;
+    const LARGE_HEADER_BACKING_BYTES: usize = 1024 * 1024;
+
+    fn header_history_response(
+        shape: HeaderShape,
+        backing_bytes: usize,
+        removed_fields: usize,
+    ) -> (Response<Body>, Bytes) {
+        let origin = b"https://buyer.example";
+        let origin_end = 32_usize.checked_add(origin.len()).unwrap();
+        let values = shape
+            .unique_fields
+            .checked_add(shape.duplicate_values)
+            .unwrap();
+        let mut storage = vec![b'x'; backing_bytes];
+        storage[32..origin_end].copy_from_slice(origin);
+        for index in 0..values {
+            let start = origin_end
+                .checked_add(index.checked_mul(shape.value_bytes).unwrap())
+                .unwrap();
+            let end = start.checked_add(shape.value_bytes).unwrap();
+            let marker = b'a'.checked_add(u8::try_from(index).unwrap()).unwrap();
+            storage[start..end].fill(marker);
+        }
+        let backing = Bytes::from(storage);
+        let mut headers = HeaderMap::new();
+        for index in 0..removed_fields {
+            let name = HeaderName::from_bytes(format!("x-removed-{index}").as_bytes()).unwrap();
+            headers.append(name.clone(), HeaderValue::from_static("removed-first"));
+            headers.append(name, HeaderValue::from_static("removed-second"));
+        }
+        assert_eq!(headers.len(), removed_fields.checked_mul(2).unwrap());
+        let capacity = headers.capacity();
+        assert!(capacity >= removed_fields);
+        for index in 0..removed_fields {
+            let name = format!("x-removed-{index}");
+            assert_eq!(headers.get_all(&name).iter().count(), 2);
+            assert_eq!(headers.remove(&name).unwrap(), "removed-first");
+            assert!(!headers.contains_key(&name));
+        }
+        assert!(headers.is_empty());
+        assert_eq!(headers.capacity(), capacity);
+        for index in 0..values {
+            let field = if index < shape.unique_fields {
+                index
+            } else {
+                0
+            };
+            let mut name = "x".repeat(shape.name_bytes.checked_sub(1).unwrap());
+            name.push(char::from(
+                b'a'.checked_add(u8::try_from(field).unwrap()).unwrap(),
+            ));
+            let start = origin_end
+                .checked_add(index.checked_mul(shape.value_bytes).unwrap())
+                .unwrap();
+            let end = start.checked_add(shape.value_bytes).unwrap();
+            let mut value = HeaderValue::from_maybe_shared(backing.slice(start..end)).unwrap();
+            assert_eq!(
+                value.as_bytes().as_ptr().addr(),
+                backing.as_ptr().addr().checked_add(start).unwrap(),
+            );
+            assert_eq!(value.as_bytes().len(), shape.value_bytes);
+            value.set_sensitive(index.is_multiple_of(2));
+            headers.append(HeaderName::from_bytes(name.as_bytes()).unwrap(), value);
+        }
+        headers.append("vary", HeaderValue::from_static("Accept-Encoding"));
+        headers.append("vary", HeaderValue::from_static("Origin"));
+        headers.insert("cache-control", HeaderValue::from_static("no-store"));
+        headers.insert(
+            "access-control-allow-origin",
+            HeaderValue::from_maybe_shared(backing.slice(32..origin_end)).unwrap(),
+        );
+        headers.insert(
+            "access-control-allow-credentials",
+            HeaderValue::from_static("true"),
+        );
+        let mut response = Response::new(Body::from_bytes(b"unchanged".to_vec()));
+        *response.status_mut() = StatusCode::ACCEPTED;
+        *response.headers_mut() = headers;
+        (response, backing)
+    }
+
+    fn assert_header_history_output(response: &Response<Body>, before: &[(String, Vec<u8>, bool)]) {
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+        assert_eq!(response.body().as_bytes().unwrap(), b"unchanged");
+        assert_eq!(response.headers().len(), before.len());
+        for ((name, value), (old_name, old_value, sensitive)) in
+            response.headers().iter().zip(before)
+        {
+            assert_eq!(name.as_str(), old_name);
+            assert_eq!(value.as_bytes(), old_value);
+            assert_eq!(value.is_sensitive(), *sensitive);
+        }
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_eq!(
+            response.headers()["access-control-allow-origin"],
+            "https://buyer.example",
+        );
+        assert_eq!(
+            response.headers()["access-control-allow-credentials"],
+            "true"
+        );
+        assert!(
+            response
+                .headers()
+                .get_all("vary")
+                .iter()
+                .map(HeaderValue::as_bytes)
+                .eq([b"Accept-Encoding".as_slice(), b"Origin".as_slice()]),
+        );
+    }
+
+    // An independent compact reference, not the production decorator. Collection
+    // reserves for the full value count and preserves duplicate values.
+    fn compact_header_heap(shape: HeaderShape) -> usize {
+        thread::spawn(move || {
+            let (source, backing) = header_history_response(shape, SMALL_HEADER_BACKING_BYTES, 0);
+            let before: Vec<_> = source
+                .headers()
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.as_str().to_owned(),
+                        value.as_bytes().to_vec(),
+                        value.is_sensitive(),
+                    )
+                })
+                .collect();
+            drop(source);
+            drop(backing);
+            // Borrow the reference inputs without counting their storage.
+            // This thread measures only the independent compact map.
+            reset_on_this_thread();
+            let headers: HeaderMap = before
+                .iter()
+                .map(|(name, bytes, sensitive)| {
+                    let mut value = HeaderValue::from_bytes(bytes).unwrap();
+                    value.set_sensitive(*sensitive);
+                    (HeaderName::from_bytes(name.as_bytes()).unwrap(), value)
+                })
+                .collect();
+            assert_eq!(headers.len(), before.len());
+            let retained = live_on_this_thread();
+            drop(headers);
+            assert_eq!(live_on_this_thread(), 0);
+            retained
+        })
+        .join()
+        .expect("compact-header reference thread completed")
+    }
+
+    struct HeaderAllocation {
+        retained: usize,
+        input_live: usize,
+        construction_peak: usize,
+        construction_allowance: usize,
+    }
+
+    impl HeaderAllocation {
+        fn construction_within_bound(&self) -> bool {
+            self.construction_peak
+                <= self
+                    .input_live
+                    .checked_add(self.construction_allowance)
+                    .unwrap()
+        }
+    }
+
+    // Requested native heap only: retain the input in the construction window;
+    // all fixture owners die before the final live sample. This is a regression
+    // control, not an allocator/guest certificate or a new production reserve.
+    fn measured_header_history(
+        shape: HeaderShape,
+        backing_bytes: usize,
+        removed_fields: usize,
+        decorate: bool,
+        transient_control: bool,
+    ) -> HeaderAllocation {
+        // Complete the reference before starting the measured thread. Spawning
+        // a nested thread inside it would mix cross-thread ownership into TLS
+        // allocation counters, even after that nested thread has been joined.
+        let construction_allowance = compact_header_heap(shape).checked_mul(2).unwrap();
+        thread::spawn(move || {
+            reset_on_this_thread();
+            let input_live;
+            let construction_peak;
+            let response = {
+                let (source_response, backing) =
+                    header_history_response(shape, backing_bytes, removed_fields);
+                let source_capacity = source_response.headers().capacity();
+                let before: Vec<_> = source_response
+                    .headers()
+                    .iter()
+                    .map(|(name, value)| {
+                        (
+                            name.as_str().to_owned(),
+                            value.as_bytes().to_vec(),
+                            value.is_sensitive(),
+                        )
+                    })
+                    .collect();
+                let config = UserSyncConfig {
+                    allowed_origins: vec!["https://buyer.example".to_owned()],
+                    ..UserSyncConfig::default()
+                };
+                let mut request = HeaderMap::new();
+                request.insert(
+                    "origin",
+                    source_response.headers()["access-control-allow-origin"].clone(),
+                );
+                assert_eq!(
+                    request["origin"].as_bytes().as_ptr().addr(),
+                    backing.as_ptr().addr().checked_add(32).unwrap(),
+                );
+                // One compact final set plus at most one complete set of CORS
+                // replacement scratch. The reference uses the locked HTTP
+                // allocator behavior, without guessing its private layouts.
+                input_live = live_on_this_thread();
+                assert!(input_live >= backing_bytes);
+                reset_peak_on_this_thread();
+                if transient_control {
+                    let scratch = vec![0_u8; construction_allowance.checked_add(1).unwrap()];
+                    black_box(&scratch);
+                    drop(scratch);
+                }
+                let response = if decorate {
+                    SyncBrowserPolicy::new(&config)
+                        .decorate(source_response, &request, response_header_cap())
+                        .expect("the complete fixture fits the existing header contract")
+                } else {
+                    source_response
+                };
+                construction_peak = peak_on_this_thread();
+                assert_header_history_output(&response, &before);
+                let start = backing.as_ptr().addr();
+                let addresses = start..start.checked_add(backing.len()).unwrap();
+                let shared = response
+                    .headers()
+                    .values()
+                    .filter(|value| addresses.contains(&value.as_bytes().as_ptr().addr()))
+                    .count();
+                if decorate {
+                    assert_eq!(shared, 0);
+                    if removed_fields > 0 {
+                        assert!(response.headers().capacity() < source_capacity);
+                    }
+                } else {
+                    let expected_shared = shape
+                        .unique_fields
+                        .checked_add(shape.duplicate_values)
+                        .unwrap()
+                        .checked_add(1)
+                        .unwrap();
+                    assert_eq!(shared, expected_shared);
+                    assert_eq!(response.headers().capacity(), source_capacity);
+                }
+                response
+            };
+            let retained = live_on_this_thread();
+            assert!(retained > 0 && retained <= construction_peak);
+            drop(response);
+            assert_eq!(
+                live_on_this_thread(),
+                0,
+                "the response was the last measured owner",
+            );
+            HeaderAllocation {
+                retained,
+                input_live,
+                construction_peak,
+                construction_allowance,
+            }
+        })
+        .join()
+        .expect("header-history measurement thread completed")
+    }
+
+    #[test]
+    fn sync_header_retention_is_independent_of_source_backing_and_map_history() {
+        for unique_fields in [1_usize, 5] {
+            for duplicate_values in [0_usize, 3] {
+                for name_bytes in [17_usize, 129] {
+                    for value_bytes in [19_usize, 271] {
+                        let shape = HeaderShape {
+                            unique_fields,
+                            duplicate_values,
+                            name_bytes,
+                            value_bytes,
+                        };
+                        let reference = measured_header_history(
+                            shape,
+                            SMALL_HEADER_BACKING_BYTES,
+                            0,
+                            true,
+                            false,
+                        );
+                        assert!(reference.construction_within_bound());
+                        for backing_bytes in
+                            [SMALL_HEADER_BACKING_BYTES, LARGE_HEADER_BACKING_BYTES]
+                        {
+                            for removed_fields in [0_usize, 256] {
+                                let measured = measured_header_history(
+                                    shape,
+                                    backing_bytes,
+                                    removed_fields,
+                                    true,
+                                    false,
+                                );
+                                assert!(
+                                    measured.construction_within_bound(),
+                                    "construction peak {}, input {}, allowance {}: {shape:?}, backing={backing_bytes}, removed={removed_fields}",
+                                    measured.construction_peak,
+                                    measured.input_live,
+                                    measured.construction_allowance
+                                );
+                                assert_eq!(
+                                    measured.retained, reference.retained,
+                                    "{shape:?}, backing={backing_bytes}, removed={removed_fields}",
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn header_history_control_detects_retained_shared_backing_and_map_storage() {
+        let shape = HeaderShape {
+            unique_fields: 2,
+            duplicate_values: 3,
+            name_bytes: 17,
+            value_bytes: 19,
+        };
+        let small = measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, false, false);
+        let large = measured_header_history(shape, LARGE_HEADER_BACKING_BYTES, 0, false, false);
+        assert_eq!(
+            large.retained.checked_sub(small.retained).unwrap(),
+            LARGE_HEADER_BACKING_BYTES
+                .checked_sub(SMALL_HEADER_BACKING_BYTES)
+                .unwrap(),
+        );
+        let with_history =
+            measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 256, false, false);
+        assert!(
+            with_history.retained > small.retained,
+            "removed fields must leave detectable map storage",
+        );
+    }
+
+    #[test]
+    fn header_construction_control_detects_temporary_storage_that_is_not_retained() {
+        let shape = HeaderShape {
+            unique_fields: 2,
+            duplicate_values: 3,
+            name_bytes: 17,
+            value_bytes: 19,
+        };
+        let reference = measured_header_history(shape, SMALL_HEADER_BACKING_BYTES, 0, true, false);
+        assert!(reference.construction_within_bound());
+        for backing in [SMALL_HEADER_BACKING_BYTES, LARGE_HEADER_BACKING_BYTES] {
+            for removed in [0, 256] {
+                let transient = measured_header_history(shape, backing, removed, true, true);
+                assert_eq!(transient.retained, reference.retained);
+                assert!(!transient.construction_within_bound());
+            }
+        }
     }
 }

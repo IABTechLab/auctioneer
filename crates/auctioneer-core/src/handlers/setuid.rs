@@ -14,7 +14,10 @@ use crate::{
     host_primitives::clock_handle,
     usersync::{
         catalog::{Candidate, Catalog},
-        cookie::{CookieWriteOptions, HostCookie, MAX_SET_COOKIE_FIELD_BYTES, read_cookie},
+        cookie::{
+            CookieWriteError, CookieWriteOptions, HostCookie, MAX_SET_COOKIE_FIELD_BYTES,
+            read_cookie,
+        },
         evict::{CookieWriteDecision, FamilyPriorities, prepare_cookie_transaction},
         limits::CookieLimits,
         wire::{ParsedQuery, parse_setuid_query},
@@ -257,7 +260,7 @@ async fn respond_with_registry(
             .and_then(|value| value.to_str().ok()),
         hard_cap_bytes: MAX_SET_COOKIE_FIELD_BYTES,
     };
-    let Ok(write) = prepare_cookie_transaction(
+    let write = match prepare_cookie_transaction(
         &cookie,
         candidate.family,
         &priorities,
@@ -266,10 +269,24 @@ async fn respond_with_registry(
         &limits,
         host.host_cookie.max_cookie_size_bytes,
         &keys,
-    ) else {
-        return bad("cookie resource limit exceeded");
+    ) {
+        Ok(write) => write,
+        Err(error) => return cookie_write_error(error),
     };
     write_response(write, format, &candidate)
+}
+
+fn cookie_write_error(error: CookieWriteError) -> Response {
+    let status = match error {
+        CookieWriteError::Allocation => StatusCode::INTERNAL_SERVER_ERROR,
+        CookieWriteError::HardLimit
+        | CookieWriteError::InvalidAttributes
+        | CookieWriteError::ExpiryOverflow
+        | CookieWriteError::CodecLimit
+        | CookieWriteError::OptedOut
+        | CookieWriteError::InvalidPriorities => StatusCode::BAD_REQUEST,
+    };
+    sync_http::setuid_error(status, "cookie resource limit exceeded")
 }
 
 fn privacy_refusal(
@@ -453,6 +470,27 @@ pub(super) mod tests {
 
     fn body(response: &Response) -> &[u8] {
         response.body().as_bytes().unwrap()
+    }
+
+    #[test]
+    fn cookie_write_failures_distinguish_allocation_from_cookie_limits() {
+        for (error, status) in [
+            (
+                CookieWriteError::Allocation,
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (CookieWriteError::HardLimit, StatusCode::BAD_REQUEST),
+            (CookieWriteError::InvalidAttributes, StatusCode::BAD_REQUEST),
+            (CookieWriteError::ExpiryOverflow, StatusCode::BAD_REQUEST),
+            (CookieWriteError::CodecLimit, StatusCode::BAD_REQUEST),
+            (CookieWriteError::OptedOut, StatusCode::BAD_REQUEST),
+            (CookieWriteError::InvalidPriorities, StatusCode::BAD_REQUEST),
+        ] {
+            let response = cookie_write_error(error);
+            assert_eq!(response.status(), status, "{error:?}");
+            assert_eq!(body(&response), b"cookie resource limit exceeded");
+            assert!(!response.headers().contains_key("set-cookie"));
+        }
     }
 
     #[test]

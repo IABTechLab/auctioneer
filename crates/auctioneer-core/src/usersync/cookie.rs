@@ -7,7 +7,7 @@ use std::{
     str,
 };
 
-use auctioneer_bidder::accepts_sync_uid;
+use auctioneer_bidder::{CappedWriter, accepts_sync_uid};
 use base64::{
     Engine as _, alphabet,
     engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig, URL_SAFE},
@@ -438,6 +438,8 @@ pub enum CookieWriteError {
     ExpiryOverflow,
     #[error("cookie codec resource limit exceeded")]
     CodecLimit,
+    #[error("cookie field allocation failed")]
+    Allocation,
     #[error("cookie write forbidden by opt-out")]
     OptedOut,
     #[error("invalid cookie priority configuration")]
@@ -467,8 +469,8 @@ impl PreparedCookie {
 }
 
 /// # Errors
-/// Rejects invalid cookie attributes, an unrepresentable expiry, or a complete
-/// serialized field exceeding the hard byte limit.
+/// Rejects invalid cookie attributes, an unrepresentable expiry, a complete
+/// serialized field exceeding the hard byte limit, or a field allocation failure.
 pub fn prepare_set_cookie_value(
     encoded: &str,
     options: &CookieWriteOptions<'_>,
@@ -521,12 +523,23 @@ pub fn prepare_set_cookie_value(
     if chrome_same_site_none(options.user_agent) {
         builder = builder.secure(true).same_site(SameSite::None);
     }
-    let field = builder.build().to_string();
-    if field.len() > hard_cap {
-        return Err(CookieWriteError::HardLimit);
-    }
+    let cookie = builder.build();
+    let mut field = Vec::new();
+    field
+        .try_reserve_exact(hard_cap)
+        .map_err(|_allocation| CookieWriteError::Allocation)?;
+    let mut writer = CappedWriter::new(&mut field, hard_cap)
+        .map_err(|_capacity| CookieWriteError::Allocation)?;
+    // Keep the library's complete cookie grammar, but never grow its field buffer.
+    write!(&mut writer, "{cookie}").map_err(|error| {
+        if error.kind() == io::ErrorKind::WriteZero {
+            CookieWriteError::HardLimit
+        } else {
+            CookieWriteError::InvalidAttributes
+        }
+    })?;
     let field_value =
-        HeaderValue::from_str(&field).map_err(|_error| CookieWriteError::InvalidAttributes)?;
+        HeaderValue::from_bytes(&field).map_err(|_error| CookieWriteError::InvalidAttributes)?;
     Ok(PreparedCookie { field_value })
 }
 

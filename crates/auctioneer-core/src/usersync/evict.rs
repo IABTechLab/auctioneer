@@ -124,8 +124,9 @@ pub enum CookieWriteDecision {
 }
 
 /// # Errors
-/// Returns an error for opt-out, codec limits, invalid attributes, or a field
-/// exceeding the hard output limit. Logical eviction refusal is a decision.
+/// Returns an error for opt-out, codec limits, invalid attributes, a field
+/// exceeding the hard output limit, or field allocation failure.
+/// Logical eviction refusal is a decision.
 #[expect(
     clippy::too_many_arguments,
     reason = "transaction keeps independent state, policy, bounds, clock and signing inputs explicit"
