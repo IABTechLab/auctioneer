@@ -26,6 +26,23 @@ At the observed failure, a diagnostic child still held the listening descriptor.
 
 Six later unmodified CLI-binary runs each reported `776 passed; 0 failed; 3 ignored`. They establish neither a repair nor permission to disregard the reviewer's failure. The regression controls for this repair must test the isolation boundary deterministically, not require that a scheduling race happen.
 
+### Known Exposures Outside This Repair
+
+Two more tests in the same CLI unit binary and application feature graph depend on descriptor closure. They remain outside the approved three-case boundary and are tracked by [Task #174](https://github.com/IABTechLab/auctioneer/issues/174), under [development reliability](https://github.com/IABTechLab/auctioneer/issues/12):
+
+| Owner, relative to `crates/auctioneer-cli/src/` | Full libtest selector | Exposed observation |
+| --- | --- | --- |
+| `qualification/harness/native/system.rs` | `qualification::harness::native::system::tests::reserve_port_releases_the_loopback_listener_before_returning` | `reserve_port` drops its loopback listener, then the test immediately rebinds that exact port; an inherited listener can prevent rebind |
+| `qualification/harness/fixture/server/mod.rs` | `qualification::harness::fixture::server::tests::both_socket_populations_are_bounded_without_unbounded_waiting_tasks` | The server drops an over-capacity accepted stream and the client must observe `NetworkError` or `Disconnect`; an inherited accepted stream can delay EOF until the existing client timeout instead |
+
+REVIEWER verified both code paths and demonstrated these two inheritance shapes with external models. Both actual tests passed during that review; neither is claimed to have failed. The inventory is based on post-close connection assertions, exact-port rebinds and client-observed server drops across the CLI's source and integration tests. Recheck these candidates and their owning assertions, not just a count of grep matches:
+
+```sh
+rg -n 'TcpStream::connect|TcpListener::bind|Category::NetworkError|Category::Disconnect' crates/auctioneer-cli/src crates/auctioneer-cli/tests
+```
+
+The public `qualification_harness` closure checks bind their listeners inside spawned CLI children, not in the parent test process; the HTTP disconnect case drops the client side. They are different ownership paths. The helper proposed here adds child spawns in the parallel parent and does not remove the exposure of the two unisolated tests. Failures of either remain reportable under PR #162's local macOS verification gate, even after this three-case repair lands.
+
 ## Chosen Boundary
 
 Run only these three existing cases in fresh exact-test child invocations of the same compiled CLI unit-test executable:
@@ -40,7 +57,7 @@ Paths in this table are relative to `crates/auctioneer-cli/src/`. The names, att
 
 Add one private, inline `#[cfg(test)]` helper module under the existing `qualification/harness/fixture/mod.rs`. Its own unit controls also stay inline. It is not a new production API, crate, integration binary, process framework or shared source import. The existing `application` feature continues to own the fixture module; maintenance-only builds acquire no application test dependency.
 
-The parent suite remains parallel. The selected child runs one test with one libtest thread and does not launch native subprocesses. Existing Tokio tasks inside that test are retained. This separates listener creation from unrelated native spawning rather than globally serializing the suite or changing fixture shutdown.
+The parent suite remains parallel. The selected child runs one test with one libtest thread and does not launch native subprocesses. Existing Tokio tasks inside that test are retained. For these three isolated cases only, this separates listener creation from unrelated native spawning rather than globally serializing the suite or changing fixture shutdown. It does not isolate the two known exposures above.
 
 ## Parent And Child Contract
 
@@ -50,7 +67,7 @@ The parent suite remains parallel. The selected child runs one test with one lib
 4. In the child, validate the marker, exact selector and single-test arguments before constructing fixture resources. A malformed marker, mismatched selector or recursive spawn attempt fails. In the parent, do not construct or poll the fixture body. A deferred body factory separates parent delegation from child execution.
 5. Execute the original case body exactly once in the matching child. Panic, assertion failure and runtime error remain failures. Do not catch an assertion and convert it to success.
 6. A successful exit is necessary but insufficient. Validate the child's bounded stdout: exactly one `running 1 test` record, exactly one success for the requested full selector and one complete successful summary with one passed, zero failed, zero ignored and zero measured. The filtered count can vary with the binary's test roster. Reject zero-test, mismatched, duplicated, ignored, truncated and malformed result records.
-7. Consume successful child output in the parent. Do not forward nested `test result:` summaries into the outer suite's accounting. Failure diagnostics identify the fixed case and failure category; any retained child diagnostic is subject to the capture bound.
+7. Consume successful child output in the parent. Do not forward nested `test result:` summaries into the outer suite's accounting. On a child-exit failure, the parent diagnostic must identify the fixed case and failure category and include the child's bounded stderr, preserving its panic location and message. Read it only after confirmed reap through the existing bounded capture path; an oversized or unreadable capture still refuses as that error, without bypassing its bounds. Do not attach the child's stdout to any failure diagnostic. No diagnostic may retain or forward more than 16,384 bytes of child stderr; other capture/cleanup failures remain explicit rather than inventing missing panic details.
 
 No original test assertion is replaced by a process exit or output marker. The child report proves dispatch; the retained case body still proves closure and the protocol/lifecycle contract.
 
@@ -89,7 +106,7 @@ Review the original and wrapped bodies directly, including every loop row and be
 - Prove parent delegation does not construct or poll the body factory, and matching child dispatch executes it exactly once. Include a positive witness so an unconditional early return cannot pass.
 - Run the real exact child with an intentionally stale selector. Its zero-test successful exit must be rejected. No roster rename may silently stop exercising a case.
 - Assert literal expected decisions for good, failed, ignored, wrong-selector, duplicate-summary, zero-test and truncated libtest records. No newly ignored test is needed to produce an ignored-report control.
-- Exercise actual child assertion failure, a finite over-cap stdout payload, a separately varied over-cap stderr payload, and a child that exceeds a short injected test deadline. Assert failure and observed reap, not merely a returned error.
+- Exercise actual child assertion failure, a finite over-cap stdout payload, a separately varied over-cap stderr payload, and a child that exceeds a short injected test deadline. Assert failure and observed reap, not merely a returned error. For the assertion-failure control, require the parent's diagnostic to contain the child's panic location and fixed panic message from bounded stderr, and to contain neither its stdout canary nor a nested `test result:` summary.
 - Inject a private supervision-setup failure after a real child has been spawned and retained. Require the setup refusal and an observed OS exit/reap for that child; an error return or a drop/kill flag alone is insufficient. The injection must not add a production hook or release ownership to Tokio registration.
 - Check the production test-helper policy values against independent literals and use cap-minus-one, cap and cap-plus-one controls. Keep the three fixture deadlines independent from the short helper timeout test.
 - Reject malformed/mismatched child markers without entering the fixture body or recursively spawning. The closed child test modes must perform no native process spawn.
@@ -103,7 +120,7 @@ Review the original and wrapped bodies directly, including every loop row and be
 4. Run the owning fixture filter and full CLI binary in the default and existing insecure workspace feature graphs, without globally setting `RUST_TEST_THREADS` or reducing suite parallelism. Record dispatched names and actual results. Any declared repetition cohort records all results; no retry-until-green acceptance.
 5. Run the unchanged prescribed workspace/secure/standalone CLI lanes, explicit once-owned compiler/producer owners, strict all-target Clippy, source-import gate, fixture gates and adapter checks from the current workflows. Local execution and hosted execution are distinct evidence. Under the existing verification-location decision, expensive unchanged owners may execute in the complete GitHub matrix, but missing or failed checks are not passing results.
 6. Keep the confirmed macOS failure and deterministic inheritance diagnostic separate from implementation verification. Exercise the repair on macOS as well as the unchanged hosted Linux matrix; neither alone establishes the other's result.
-7. Merge the reviewed planning PR before implementing in a separate bug-fix PR. After that fix lands on `main`, integrate it into PR #162 without force-push, refresh that PR's source-bound evidence and full checks, and obtain review of its resulting head. This planning document does not authorize any of those merges or transfer an older approval to a changed head.
+7. Merge the reviewed planning PR before implementing in a separate bug-fix PR. After that fix lands on `main`, integrate it into PR #162 without force-push, refresh that PR's source-bound evidence and full checks, and obtain review of its resulting head. This repair does not cover a local macOS failure of either test tracked by #174; any such failure remains reportable and blocking under PR #162's gate, not waived by the three-case repair. This planning document does not authorize any of those merges or transfer an older approval to a changed head.
 
 ## Non-Goals
 
