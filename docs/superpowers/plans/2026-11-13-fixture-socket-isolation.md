@@ -4,15 +4,17 @@
 
 **Goal:** Make three inline CLI socket-closure checks independent of unrelated child spawning without weakening their assertions or serializing the surrounding suite.
 
-**Architecture:** A private fixture-owned test helper invokes the existing CLI unit binary with one closed exact selector. It defers fixture construction to that child, monitors private regular-file captures, verifies one successful test, and explicitly reaps the child. Serving code and the existing production process supervisor are unchanged.
+**Architecture:** A private fixture-owned test helper invokes the existing CLI unit binary with one closed exact selector. It retains the standard-library child handle immediately after spawn, defers fixture construction to that child, monitors private regular-file captures, verifies one successful test, and explicitly reaps the child with nonblocking polling under Tokio timers. Serving code and the existing production process supervisor are unchanged.
 
-**Tech Stack:** Existing Rust/libtest, Tokio process/time, `tempfile`, and ordinary inline unit modules; no new dependency, crate, Cargo target or source include.
+**Tech Stack:** Existing Rust/libtest, `std::process`, Tokio time, `tempfile`, and ordinary inline unit modules; no new dependency, crate, Cargo target or source include.
 
 ---
 
 ## Contract And Execution Gate
 
 Issue: [#168](https://github.com/IABTechLab/auctioneer/issues/168). Approved specification: [fixture socket isolation](../specs/2026-11-13-fixture-socket-isolation-design.md). The maintainer approved the written specification on 2026-11-13; this plan is proposed for review, not implementation evidence. Every result below is **expected**, unless explicitly identified as previously executed baseline evidence.
+
+The self-review amendment replaces Tokio child registration with immediate standard-child ownership and limits cleanup guarantees to directly awaited returns. Its numeric bounds and test-only scope are unchanged; the amended pair still requires review before implementation.
 
 Publish the spec and plan together in a separate planning PR with `Refs #168`. After review and explicit merge authorization, merge that planning PR, then create a fresh implementation worktree from updated `origin/main`. Do not implement on the planning branch or fold this repair into PR #162 before its own implementation has landed. Use @superpowers:test-driven-development, @superpowers:verification-before-completion and the PRfection CREATOR thread/merge rules during implementation.
 
@@ -88,11 +90,13 @@ cargo test --locked --offline -p auctioneer-cli --bin auctioneer-cli qualificati
 
 **Modify/test:** The same inline `fixture::test_support` owner. Do not modify the production supervisor.
 
-- [ ] Build the command directly from `std::env::current_exe()` with `--exact`, the closed selector, `--test-threads=1`, `--nocapture`, `--color=never`, null stdin and kill-on-drop. Clear inherited environment as specified in Task 2. Use no shell, Cargo invocation, guessed executable or native subprocess inside a selected child.
+- [ ] Build a `std::process::Command` directly from `std::env::current_exe()` with `--exact`, the closed selector, `--test-threads=1`, `--nocapture`, `--color=never` and null stdin. Clear inherited environment as specified in Task 2. Use no shell, Cargo invocation, guessed executable or native subprocess inside a selected child.
 - [ ] Create a private scoped temporary directory with distinct stdout/stderr regular files. Attach file handles to the child. Keep readable ownership that can start at byte zero after exit: cloned descriptors share offsets, so explicitly seek or reopen appropriately. Do not create capture pipes or background reader tasks.
-- [ ] Supervise child wait with one monotonic 20,000-ms execution deadline. While it runs, periodically check both file lengths. Use an observation interval no greater than 10 ms without extending the absolute deadline. A length above 16,384 bytes refuses that stream. The interval does not grant a disk quota; a finite writer may overshoot before observation.
-- [ ] On any active-child refusal, request termination without cancelling the ownership guard, then wait with a separate 2,000-ms cleanup fence. On every path observe whether `try_wait`/`wait` confirmed exit and reap. Surface cleanup failure if not; do not turn kill-on-drop or a successful signal into a reap receipt. Spawn failures have no child to reap.
+- [ ] Retain the returned `std::process::Child` immediately in one private owner before any fallible post-spawn operation. Do not transfer it to `tokio::process::Child` or an orphan queue: locked Tokio can fail during registration after OS spawn, before installing its drop guard. Add a best-effort kill-on-drop fallback to the private owner without treating it as observed reap.
+- [ ] Anchor one monotonic 20,000-ms execution deadline before spawn and check it immediately after spawn returns; synchronous OS spawn is not preemptible and must not receive a fresh budget afterward. Poll `Child::try_wait()` and both capture lengths with existing Tokio timers at intervals no greater than 10 ms, without extending the absolute deadline. A length above 16,384 bytes refuses that stream. Use no blocking `wait()` or blocking wait thread. The interval does not grant a disk quota; a finite writer may overshoot before observation.
+- [ ] On every post-spawn setup error or active-child refusal, retain the same owner, request termination, and poll `try_wait()` with a separate absolute 2,000-ms cleanup fence anchored before the kill request. A kill error must not bypass polling for reap. On every returning path observe whether `try_wait()` confirmed exit and reap. Surface cleanup failure if not; do not turn dropping a handle, a kill flag or a successful signal into a reap receipt. Do not assume a fallible post-spawn operation failed before a child existed.
 - [ ] After confirmed exit, read each regular file from its beginning with a 16,385-byte maximum, and reject cap-plus-one before parsing. A successful status plus the strict report check from Task 2 is required. Accept at most 16,384 bytes per stream; consume successful nested reports instead of reprinting them into the outer harness. Explicitly close/remove temporary captures after reap. Cleanup or file-operation failure remains failure.
+- [ ] Keep every wrapper and ordinary helper control directly awaiting the owner through its success/refusal return. Do not externally abort, time out or drop that future, or introduce detached cleanup. Document that parent panic, caller cancellation, runtime teardown and process termination have only best-effort drop cleanup, not bounded reap or post-reap capture-removal guarantees, and produce no verified success receipt.
 - [ ] Exercise the real runner with fixed inline helper modes, all inside tests that perform real parent assertions when not in child mode:
 
 | Control | Required independent observation |
@@ -100,6 +104,7 @@ cargo test --locked --offline -p auctioneer-cli --bin auctioneer-cli qualificati
 | Positive exact dispatch | Actual child status success, exactly one requested test, probe witness present once, parent construction/poll counters both zero |
 | Static nonexistent selector | Actual child exits successfully after zero tests; runner refuses it as dispatch failure |
 | Assertion failure | Actual child fails; runner refuses with child-exit failure and confirms reap |
+| Post-spawn setup failure | A real child handle is retained before private fault injection; the runner refuses setup and observes that same child's OS exit/reap before normal capture removal |
 | Timeout | A child waits beyond a short injected test deadline; runner refuses timeout and confirms reap within the cleanup fence |
 | Stdout overflow | Finite 16,385-byte stdout payload; runner refuses output size and confirms reap |
 | Stderr overflow | Independently varied finite 16,385-byte stderr payload; runner refuses output size and confirms reap |
@@ -112,7 +117,7 @@ For raw capture-boundary tests use the file-reading component, not a child paylo
 - [ ] Re-run the helper filter until the implementation satisfies the already-written tests; inspect every failed run rather than retrying unchanged. In a controlled local mutation, bypass child-body execution or dispatch validation separately: the probe or malformed/zero-report controls must fail. Restore the fix and re-run. Never mutate another worktree or claim a compile failure is a killed behavioral mutant.
 - [ ] Commit the now-passing fixture-local helper and controls with no semantic prefix or byline.
 
-**Expected:** All new helper controls pass; the Task 2 passthrough red is closed by actual isolation. Parent success cannot come from an empty probe, a stale selector, a nonzero child or unconfirmed cleanup.
+**Expected:** All new helper controls pass; the Task 2 passthrough red is closed by actual isolation. Parent success cannot come from an empty probe, a stale selector, a nonzero child or unconfirmed cleanup. Post-spawn setup failure cannot lose the standard child handle; no stronger cancellation guarantee is implied.
 
 ## Task 4: Delegate The Three Original Cases Without Rewriting Them
 
@@ -130,6 +135,8 @@ fixture_test_support::run(SocketCase::Eof, || async {
 
 This is an integration pattern, not permission to replace the body with the comment. The private helper import uses ordinary module paths. No socket, control channel, configuration, timer or task may be constructed before the helper chooses parent versus child.
 
+The wrapper directly awaits `run`; do not put an outer timeout around it or hand it to an abortable task. The helper owns the execution deadline and cleanup fence. Preserve the original inner timeouts within the deferred body.
+
 - [ ] Compare each wrapped inner body with Task 1's original body, ignoring only indentation. Independently check every row of the spec's assertion table: EOF ready/stats/closure, malformed-frame loop/no-echo/interrupt/EOF, and delay/held-request/state/closure/rebind. Reconfirm the 5-second waits, 40-ms delay and immediate `unwrap_err()` checks are intact.
 - [ ] Repeat both roster commands from Task 1. Require the original three names and gates exactly once; added helper controls are the only new cases. Ensure no new `#[ignore]`, skip, Cargo target, source import, feature or global test-thread override appears.
 - [ ] Run the fixture filters from Task 1 in both feature graphs, then full binaries:
@@ -141,7 +148,7 @@ cargo test --locked --offline --workspace --exclude auctioneer-config-data --fea
 
 **Expected:** All selected tests execute and pass with ordinary parent parallelism. The three wrappers each verify a child result but add only their ordinary single outer test result. Do not predict a future numeric total by subtracting existing cases.
 
-- [ ] Add the short test-ownership explanation to `docs/testing/development.md`, including the scoped marker, child-only single-thread selection, 20-second/2-second bounds, 16-KiB stream caps and explicit lack of a hard disk quota. Keep the normal focused commands and full CI owners unchanged.
+- [ ] Add the short test-ownership explanation to `docs/testing/development.md`, including immediate standard-child ownership, the scoped marker, child-only single-thread selection, 20-second/2-second bounds, 16-KiB stream caps, directly awaited cleanup scope and explicit lack of a hard disk quota. Keep the normal focused commands and full CI owners unchanged.
 - [ ] Commit the case delegation and focused documentation after the owning checks pass.
 
 ## Task 5: Full Verification And Separate Bug-Fix Handoff
