@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.85.0"
 name = "jsonschema-macros-core"
-version = "0.58.6"
+version = "0.61.2"
 authors = ["Dmitry Dygalo <dmitry@dygalo.dev>"]
 build = false
 autolib = false
@@ -43,13 +43,13 @@ harness = false
 required-features = ["bench"]
 
 [dependencies.fancy-regex]
-version = "0.19"
+version = "0.20.2"
 
 [dependencies.indexmap]
 version = "2"
 
 [dependencies.jsonschema-regex]
-version = "0.58.6"
+version = "0.61.2"
 
 [dependencies.percent-encoding]
 version = "2.3"
@@ -64,7 +64,7 @@ version = "1"
 version = "1"
 
 [dependencies.referencing]
-version = "0.58.6"
+version = "0.61.2"
 
 [dependencies.regex]
 version = "1"

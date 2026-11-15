@@ -13,7 +13,7 @@ error: expected one of `>`, a const expression, lifetime, or type, found `}`
    |
    = note: this error originates in the macro `malformed_model` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: unexpected end of input, expected one of: `for`, parentheses, `fn`, `unsafe`, `extern`, identifier, `::`, `<`, `dyn`, square brackets, `*`, `&`, `!`, `impl`, `_`, lifetime
+error: unexpected end of input, expected one of: `for`, parentheses, `unsafe`, `fn`, `extern`, identifier, `::`, `<`, `dyn`, square brackets, `*`, `&`, `!`, `impl`, `_`, lifetime
   --> tests/conformance/fail/malformed_source.rs:8:9
    |
  8 |         }

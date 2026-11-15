@@ -45,7 +45,7 @@ mod tests {
             "../../auctioneer-bidder/tests/conformance/fixtures/reference/catalog/source-inventory.toml"
         );
         assert_eq!(
-            format!("{:x}", Sha256::digest(bytes)),
+            hex::encode(Sha256::digest(bytes)),
             "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6"
         );
         toml::from_str(from_utf8(bytes).unwrap()).unwrap()
@@ -56,7 +56,7 @@ mod tests {
             "../../auctioneer-bidder/tests/conformance/fixtures/reference/catalog/source-bindings.toml"
         );
         assert_eq!(
-            format!("{:x}", Sha256::digest(bytes)),
+            hex::encode(Sha256::digest(bytes)),
             "d1a0f18d99f53cbd4f62fe74c5d1e5580f8688fce95a29b1b05ee934dbe9ff0c"
         );
         toml::from_str(from_utf8(bytes).unwrap()).unwrap()
@@ -124,7 +124,7 @@ mod tests {
         );
         assert_eq!(
             artifact["source_sha256"].as_str().unwrap(),
-            format!("{:x}", Sha256::digest(&original))
+            hex::encode(Sha256::digest(&original))
         );
         original
     }
@@ -139,7 +139,7 @@ mod tests {
         );
         assert_eq!(
             retained["source_sha256"].as_str().unwrap(),
-            format!("{:x}", Sha256::digest(original))
+            hex::encode(Sha256::digest(original))
         );
     }
 

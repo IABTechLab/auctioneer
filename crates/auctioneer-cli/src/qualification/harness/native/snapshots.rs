@@ -505,7 +505,7 @@ fn copy_stream(input: &mut File, output: &mut File) -> Result<Digest> {
             .write_all(chunk)
             .map_err(|_error| HarnessError::new("output_io"))?;
     }
-    Digest::try_from(format!("{:x}", digest.finalize()))
+    Digest::try_from(hex::encode(digest.finalize()))
         .map_err(|_error| HarnessError::new("invalid_input"))
 }
 

@@ -717,9 +717,10 @@ pub fn envelope<'a>(
         // Installed BEFORE the envelope is validated, which is the
         // whole point: this row is over its ceiling, the warning is the
         // only safety signal on that path, and it fires once per
-        // process. The pinned `EdgeZero`'s Cloudflare `init_logger` is
-        // a documented no-op, so without this the isolate has no `log`
-        // sink at any point and that warning is lost permanently.
+        // process. Auctioneer installs before SDK dispatch and sets
+        // `owns_logging`, so the SDK's later managed-logger setup is
+        // intentionally bypassed. Without this early sink the warning
+        // is lost permanently.
         //
         // The channel is the WORKER CONSOLE, selected by target in
         // `crate::boot_log`. It used to be stderr, on the reasoning that

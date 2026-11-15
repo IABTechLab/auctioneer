@@ -80,7 +80,7 @@ mod tests {
 
     fn pinned_inventory() -> Value {
         assert_eq!(
-            format!("{:x}", Sha256::digest(committed_inventory().as_bytes())),
+            hex::encode(Sha256::digest(committed_inventory().as_bytes())),
             "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6"
         );
         let reference: Value = toml::from_str(committed_inventory()).unwrap();
@@ -93,7 +93,7 @@ mod tests {
             "../../auctioneer-bidder/tests/conformance/fixtures/reference/catalog/supplemental-schemas.toml"
         );
         assert_eq!(
-            format!("{:x}", Sha256::digest(capture.as_bytes())),
+            hex::encode(Sha256::digest(capture.as_bytes())),
             "2022d18b8e5580824111a2a3781039b701c7c6df85a0456206ce2b370775ebbb",
             "frozen supplemental source pins"
         );
@@ -125,7 +125,7 @@ mod tests {
     fn verify_manifest_snapshot(bytes: &[u8], fixture: &serde_json::Value) {
         assert_eq!(fixture["schema_version"].as_u64(), Some(1));
         assert_eq!(
-            format!("{:x}", Sha256::digest(bytes)),
+            hex::encode(Sha256::digest(bytes)),
             fixture["manifest_sha256"].as_str().unwrap(),
             "bidder-owned frozen manifest"
         );
@@ -320,7 +320,7 @@ mod tests {
                 "retained length {object}"
             );
             assert_eq!(
-                format!("{:x}", Sha256::digest(&retained_bytes)),
+                hex::encode(Sha256::digest(&retained_bytes)),
                 retained["source_sha256"].as_str().unwrap(),
                 "retained digest {object}"
             );
@@ -389,7 +389,7 @@ mod tests {
                 "source length {object}"
             );
             assert_eq!(
-                format!("{:x}", Sha256::digest(&bytes)),
+                hex::encode(Sha256::digest(&bytes)),
                 artifact["source_sha256"].as_str().unwrap(),
                 "source digest {object}"
             );
@@ -581,7 +581,7 @@ mod tests {
         let bytes = toml::to_string(&manifest).unwrap().into_bytes();
         let fixture = serde_json::json!({
             "schema_version": 1_u8,
-            "manifest_sha256": format!("{:x}", Sha256::digest(&bytes)),
+            "manifest_sha256": hex::encode(Sha256::digest(&bytes)),
         });
         verify_manifest_snapshot(&bytes, &fixture);
         for hash in [
@@ -847,7 +847,7 @@ mod tests {
         );
         let mut repinned = schema.clone();
         repinned["retained"]["source_sha256"] =
-            Value::String(format!("{:x}", Sha256::digest(&corrupt)));
+            Value::String(hex::encode(Sha256::digest(&corrupt)));
         assert!(
             catch_unwind(|| verify_retained_artifact(&repinned, directory.path(), Some(&bytes)))
                 .is_err(),
@@ -1138,7 +1138,7 @@ mod tests {
             "../../auctioneer-bidder/tests/conformance/fixtures/reference/catalog/source-bindings.toml"
         );
         assert_eq!(
-            format!("{:x}", Sha256::digest(bytes)),
+            hex::encode(Sha256::digest(bytes)),
             "d1a0f18d99f53cbd4f62fe74c5d1e5580f8688fce95a29b1b05ee934dbe9ff0c"
         );
         let capture: Value = toml::from_str(from_utf8(bytes).unwrap()).unwrap();

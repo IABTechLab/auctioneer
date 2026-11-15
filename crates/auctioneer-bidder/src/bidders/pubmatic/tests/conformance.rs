@@ -604,7 +604,7 @@ mod tests {
 
     #[test]
     fn exact_capture_membership_and_parameter_literals_have_frozen_witnesses() {
-        assert_eq!(format!("{:x}", Sha256::digest(MANIFEST)), MANIFEST_SHA256);
+        assert_eq!(hex::encode(Sha256::digest(MANIFEST)), MANIFEST_SHA256);
         let manifest: TomlValue = toml::from_str(MANIFEST).unwrap();
         assert_eq!(manifest["factory"].as_bool(), Some(true));
         let artifacts = manifest["provenance"]["artifacts"].as_array().unwrap();
@@ -671,7 +671,7 @@ mod tests {
             );
             assert_eq!(
                 witnesses[0]["retained"]["source_sha256"].as_str().unwrap(),
-                format!("{:x}", Sha256::digest(bytes))
+                hex::encode(Sha256::digest(bytes))
             );
         }
         assert_parameter_literals();
@@ -754,7 +754,7 @@ mod tests {
             assert!(output.status.success());
             output.stdout
         };
-        assert_eq!(format!("{:x}", Sha256::digest(MANIFEST)), MANIFEST_SHA256);
+        assert_eq!(hex::encode(Sha256::digest(MANIFEST)), MANIFEST_SHA256);
         let manifest: TomlValue = toml::from_str(MANIFEST).unwrap();
         assert_eq!(
             manifest["provenance"]["sources"]["upstream"]["revision"].as_str(),
@@ -797,7 +797,7 @@ mod tests {
                 row["source_bytes"].as_integer().unwrap()
             );
             assert_eq!(
-                format!("{:x}", Sha256::digest(&bytes)),
+                hex::encode(Sha256::digest(&bytes)),
                 row["source_sha256"].as_str().unwrap()
             );
             let fields = source_object_info(&checkout, &object);

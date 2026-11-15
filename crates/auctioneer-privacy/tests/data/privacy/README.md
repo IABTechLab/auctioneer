@@ -14,11 +14,15 @@ in `reference.json`.
 `fold_orbits` contains every nonidentity mapping to the least scalar in each
 Go `unicode.SimpleFold` orbit. Identity rows are implicit. This permits an
 exhaustive equivalence comparison across all 1,112,064 Unicode scalars without
-storing a million rows. Qualification selected `unicode-case-mapping =0.5.0`,
-whose tables are Unicode 15.0.0, matching Go 1.23.12; locale/full folding and
-normalization are not used. The candidate has no dependencies and passed an
-isolated native exhaustive comparison and compile checks for the three
-existing WASM targets before workspace adoption.
+storing a million rows. The original qualification selected
+`unicode-case-mapping =0.5.0`, whose Unicode 15.0.0 tables matched Go 1.23.12.
+This capture preserves that historical Go/Unicode 15 reference unchanged.
+Current Auctioneer uses `unicode-case-mapping =1.0.0` and the approved Unicode 16
+simple-fold relation, not universal parity with the Go capture. The
+[Unicode qualification record](../../../../auctioneer-config-data/tests/fixtures/unicode/README.md)
+documents its independent official C/S oracle and exactly 30 merges of two old
+singleton classes (60 scalars). Locale/full folding and normalization are not
+used; unchanged historical equivalence classes remain covered.
 
 Validate from the Auctioneer worktree root:
 

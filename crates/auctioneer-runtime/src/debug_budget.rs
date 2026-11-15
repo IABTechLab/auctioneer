@@ -34,11 +34,14 @@ pub const DEBUG_GROWING_BUFFER_FACTOR: u64 = 3;
 
 /// One owned MIME source and one construction/normalization working copy.
 pub const DEBUG_MIME_SOURCE_FACTOR: u64 = 2;
-/// `mime` 0.3.17's shortest parameter suffix is `;a=` (it accepts a final
+/// `mime` 0.3.18's shortest parameter suffix is `;a=` (it accepts a final
 /// empty unquoted value). This deliberately overcounts non-final parameters.
 pub const DEBUG_MIME_MIN_PARAMETER_BYTES: u64 = 3;
-/// Two Indexed ranges = four 64-bit words per parameter; old/new Vec
-/// capacity overlap is at most three populations. Independent of JSON nodes.
+/// Two Indexed ranges = at most four 64-bit words per parameter; three
+/// populations cover old/new Vec overlap under the geometric-growth premise.
+/// Independent of JSON nodes.
+/// In 0.3.18, quoted `charset="utf-8"` uses the Custom one-entry Vec rather
+/// than the compact Utf8 case; its pair of Indexed ranges is included here.
 pub const DEBUG_MIME_PARAMETER_PEAK_BYTES: u64 = 96;
 /// Sixteen eight-byte words for the MIME source/parameter handles and iterators.
 pub const DEBUG_MIME_FIXED_BYTES: u64 = 128;

@@ -102,7 +102,7 @@ fn retained_inputs(
             let path = Path::new(&manifest.key).join(relative);
             let bytes = actual.get(&path).ok_or(Error::ImportInput)?;
             if u64::try_from(bytes.len()).ok() != Some(retained.bytes)
-                || format!("{:x}", Sha256::digest(bytes)) != retained.sha256
+                || hex::encode(Sha256::digest(bytes)) != retained.sha256
             {
                 return Err(Error::ImportInput);
             }

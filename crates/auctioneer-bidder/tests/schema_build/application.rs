@@ -83,7 +83,7 @@ struct ExpectedBuild<'a> {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn enabled_features(development: bool) -> Vec<&'static str> {
@@ -733,13 +733,17 @@ fn imports(bytes: &[u8], guest: bool) -> Result<Vec<Value>, String> {
         use object::Object as _;
         let file =
             object::File::parse(bytes).map_err(|_error| "invalid native application imports")?;
-        for import in file
+        for import_result in file
             .imports()
             .map_err(|_error| "invalid native application imports")?
         {
+            let import = import_result.map_err(|_error| "invalid native application imports")?;
+            let object::NameOrOrdinal::Name(name) = import.name() else {
+                return Err("unsupported native application import ordinal".into());
+            };
             imports.push(json!({"encoding":"native",
                 "library":from_utf8(import.library()).map_err(|_error| "invalid native import library")?,
-                "name":from_utf8(import.name()).map_err(|_error| "invalid native import name")?}));
+                "name":from_utf8(name).map_err(|_error| "invalid native import name")?}));
             if imports.len() > 0x4000 {
                 return Err("application imports exceed count cap".into());
             }

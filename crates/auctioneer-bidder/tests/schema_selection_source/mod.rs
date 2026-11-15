@@ -111,7 +111,7 @@ struct LaneReport {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn pinned<T: DeserializeOwned>(text: &str, sha256: &str) -> Result<T, String> {

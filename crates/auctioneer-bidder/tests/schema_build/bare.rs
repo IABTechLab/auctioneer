@@ -210,6 +210,8 @@ pub fn trapped_imports(bytes: &[u8]) -> Result<Vec<(String, String)>, String> {
         {
             for parsed_import in section.into_imports() {
                 let import = parsed_import.map_err(|_error| "invalid bare module imports")?;
+                // Bindgen's externref intrinsics may remain linked but unavailable.
+                // The isolated runner traps every import if validation reaches it.
                 let allowed = matches!(
                     (import.module, import.name),
                     ("__wbindgen_placeholder__", "__wbindgen_describe")
@@ -217,6 +219,7 @@ pub fn trapped_imports(bytes: &[u8]) -> Result<Vec<(String, String)>, String> {
                             "__wbindgen_externref_xform__",
                             "__wbindgen_externref_table_set_null"
                                 | "__wbindgen_externref_table_grow"
+                                | "__wbindgen_externref_statics_end"
                         )
                 );
                 if !allowed
@@ -501,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn bare_import_policy_only_admits_the_three_trapping_binding_functions() {
+    fn bare_import_policy_only_admits_reviewed_trapping_binding_functions() {
         for (module, name) in [
             ("__wbindgen_placeholder__", "__wbindgen_describe"),
             (
@@ -511,6 +514,10 @@ mod tests {
             (
                 "__wbindgen_externref_xform__",
                 "__wbindgen_externref_table_grow",
+            ),
+            (
+                "__wbindgen_externref_xform__",
+                "__wbindgen_externref_statics_end",
             ),
         ] {
             assert_eq!(

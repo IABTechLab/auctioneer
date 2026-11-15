@@ -459,7 +459,7 @@ pub fn verify_lock(child: &str, workspace: &str) -> Result<(), String> {
             own = own.checked_add(1).ok_or("package overflow")?;
             continue;
         }
-        if identity == ("jsonschema-macros-core".into(), "0.58.6".into(), None, None)
+        if identity == ("jsonschema-macros-core".into(), "0.61.2".into(), None, None)
             && reviewed.contains(&identity)
         {
             compiler = true;
@@ -513,7 +513,7 @@ pub fn verify_compiler_metadata(bytes: &[u8], vendor: &Path) -> Result<(), Strin
     });
     let package = matching.next().ok_or("missing patched compiler")?;
     if matching.next().is_some()
-        || package.get("version").and_then(Json::as_str) != Some("0.58.6")
+        || package.get("version").and_then(Json::as_str) != Some("0.61.2")
         || !package.get("source").is_some_and(Json::is_null)
         || package.get("manifest_path").and_then(Json::as_str) != vendor.join("Cargo.toml").to_str()
     {
@@ -1048,7 +1048,7 @@ fn artifact_with_count(
     {
         return Err("linked artifact lost schema membership".into());
     }
-    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let sha256 = hex::encode(Sha256::digest(&bytes));
     Ok(LinkReport {
         target: target.into(),
         validators,
@@ -1891,7 +1891,7 @@ mod tests {
                 item.attrs.is_empty(),
                 "both guest and native must typecheck the queries"
             );
-            let syn::Type::BareFn(signature) = item.ty.as_ref() else {
+            let syn::Type::FnPtr(signature) = item.ty.as_ref() else {
                 panic!("query witness must be a function pointer");
             };
             assert_eq!(signature.inputs.len(), 2);
@@ -2580,15 +2580,18 @@ mod tests {
             })
             .unwrap();
         dispatch.arms.iter().find(|arm| {
-            let Some((_, guard)) = &arm.guard else { return false; };
-            let syn::Expr::Binary(and) = guard.as_ref() else { return false; };
+            let syn::Pat::Guard(guard) = &arm.pat else { return false; };
+            let syn::Expr::Binary(and) = guard.guard.as_ref() else { return false; };
             let syn::Expr::Binary(equal) = and.left.as_ref() else { return false; };
             matches!(equal.right.as_ref(), syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(operation), .. }) if operation.value() == "sequence")
         }).unwrap()
     }
 
     fn assert_sequence_byte_limit(sequence: &syn::Arm) {
-        let syn::Expr::Binary(guard) = sequence.guard.as_ref().unwrap().1.as_ref() else {
+        let syn::Pat::Guard(pattern) = &sequence.pat else {
+            panic!("sequence must bound its input");
+        };
+        let syn::Expr::Binary(guard) = pattern.guard.as_ref() else {
             panic!("sequence must bound its input");
         };
         assert!(matches!(guard.op, syn::BinOp::And(_)));

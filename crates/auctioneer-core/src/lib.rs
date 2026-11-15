@@ -40,13 +40,11 @@ pub const CONFORMANCE_SUITE_ENABLED: bool = cfg!(feature = "conformance-suite");
 // sink has to be auctioneer's to install, and the adapter installs it at the
 // top of `run`.
 //
-// Without this, the Fastly adapter never started. `run_app` calls
-// `init_logger(...)?` when an endpoint is configured, which is
-// `log::set_boxed_logger` — and it PROPAGATES `SetLoggerError` as a
-// `fastly::Error`. auctioneer's boot had already installed a sink by then,
-// so the second install failed and the error returned from `run_app`
-// before routing, on every request. The flag is the ownership switch
-// upstream provides for precisely this split.
+// Without this, earlier SDK versions attempted a second logger install
+// after boot and failed before routing. The current managed backend is
+// idempotent for its own settings but still rejects a foreign sink.
+// `owns_logging` explicitly bypasses that later installation, retaining
+// Auctioneer's pre-envelope sink and filters.
 //
 // The adapter still installs the ENDPOINT sink when one is configured —
 // see `auctioneer_adapter_fastly::install_boot_log` — so owning logging does

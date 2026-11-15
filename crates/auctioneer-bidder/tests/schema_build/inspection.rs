@@ -141,15 +141,15 @@ impl NativeRelocations {
 
 fn check_native_relocation_encodings(file: &ObjectFile<'_>) -> Result<(), &'static str> {
     use object::read::elf::SectionHeader as _;
-    let unsupported = |kind: u32, flags: u64| {
-        flags & u64::from(elf::SHF_ALLOC) != 0
+    let unsupported = |kind: elf::SectionType, flags: elf::SectionFlags| {
+        flags.contains(elf::SHF_ALLOC)
             && matches!(kind, elf::SHT_REL | elf::SHT_RELR | elf::SHT_CREL)
     };
     let unaccounted = if let ObjectFile::Elf32(elf_file) = file {
         elf_file.elf_section_table().iter().any(|header| {
             unsupported(
                 header.sh_type(elf_file.endian()),
-                u64::from(header.sh_flags(elf_file.endian())),
+                header.sh_flags(elf_file.endian()),
             )
         })
     } else if let ObjectFile::Elf64(elf_file) = file {
@@ -1039,7 +1039,7 @@ mod tests {
         fake_linked_elf_for_machine(relocations, elf::EM_X86_64)
     }
 
-    fn fake_linked_elf_for_machine(relocations: Option<&[Rel]>, machine: u16) -> Vec<u8> {
+    fn fake_linked_elf_for_machine(relocations: Option<&[Rel]>, machine: elf::Machine) -> Vec<u8> {
         fake_linked_elf_with_extra_encoding(relocations, machine, None)
     }
 
@@ -1049,8 +1049,8 @@ mod tests {
     )]
     fn fake_linked_elf_with_extra_encoding(
         relocations: Option<&[Rel]>,
-        machine: u16,
-        extra_encoding: Option<u32>,
+        machine: elf::Machine,
+        extra_encoding: Option<elf::SectionType>,
     ) -> Vec<u8> {
         use object::write::elf::{FileHeader, ProgramHeader, SectionHeader, Sym, Writer};
         use object::{Endianness, elf};
@@ -1092,24 +1092,24 @@ mod tests {
         }
         writer.reserve_null_dynamic_symbol_index();
 
-        let text_offset = writer.reserve(text.len(), 16);
-        let data_offset = writer.reserve(data.len(), 8);
-        let dynstr_offset = writer.reserve_dynstr();
+        let text_offset = writer.reserve(u64::try_from(text.len()).unwrap(), 16);
+        let data_offset = writer.reserve(u64::try_from(data.len()).unwrap(), 8);
+        let dynstr_offset = writer.reserve_dynstr().unwrap();
         let dynsym_offset = writer.reserve_dynsym();
         let rela_offset = relocations.map(|rows| writer.reserve_relocations(rows.len(), true));
         let extra_offset = extra_encoding.map(|_| writer.reserve(0, 8));
         let allocated_end = writer.reserved_len();
         writer.reserve_symtab();
-        writer.reserve_strtab();
-        writer.reserve_shstrtab();
+        writer.reserve_strtab().unwrap();
+        writer.reserve_shstrtab().unwrap();
         writer.reserve_section_headers();
         let reserved_end = writer.reserved_len();
-        let data_address = |offset: usize| {
+        let data_address = |offset: u64| {
             0x2000_u64
-                .checked_add(u64::try_from(offset.checked_sub(data_offset).unwrap()).unwrap())
+                .checked_add(offset.checked_sub(data_offset).unwrap())
                 .unwrap()
         };
-        let data_size = u64::try_from(allocated_end.checked_sub(data_offset).unwrap()).unwrap();
+        let data_size = allocated_end.checked_sub(data_offset).unwrap();
 
         writer
             .write_file_header(&FileHeader {
@@ -1118,14 +1118,14 @@ mod tests {
                 e_type: elf::ET_DYN,
                 e_machine: machine,
                 e_entry: 0x1010,
-                e_flags: 0,
+                e_flags: elf::FileFlags::default(),
             })
             .unwrap();
         writer.write_align_program_headers();
         writer.write_program_header(&ProgramHeader {
             p_type: elf::PT_LOAD,
             p_flags: elf::PF_R | elf::PF_X,
-            p_offset: u64::try_from(text_offset).unwrap(),
+            p_offset: text_offset,
             p_vaddr: 0x1000,
             p_paddr: 0x1000,
             p_filesz: u64::try_from(text.len()).unwrap(),
@@ -1135,7 +1135,7 @@ mod tests {
         writer.write_program_header(&ProgramHeader {
             p_type: elf::PT_LOAD,
             p_flags: elf::PF_R | elf::PF_W,
-            p_offset: u64::try_from(data_offset).unwrap(),
+            p_offset: data_offset,
             p_vaddr: 0x2000,
             p_paddr: 0x2000,
             p_filesz: data_size,
@@ -1158,11 +1158,11 @@ mod tests {
         writer.write_null_symbol();
         for (name, address) in function_symbols.into_iter().zip([0x1010, 0x1020, 0x1030]) {
             writer.write_symbol(&Sym {
-                name: Some(name),
-                section: Some(text_section),
-                st_info: (elf::STB_GLOBAL << 4) | elf::STT_FUNC,
-                st_other: elf::STV_DEFAULT,
-                st_shndx: 0,
+                st_name: writer.string_offset(Some(name)),
+                section: Some(text_section.0),
+                st_info: elf::SymbolInfo::new(elf::STB_GLOBAL, elf::STT_FUNC),
+                st_other: elf::STV_DEFAULT.into(),
+                st_shndx: elf::SHN_UNDEF,
                 st_value: address,
                 st_size: 1,
             });
@@ -1172,11 +1172,11 @@ mod tests {
 
         writer.write_null_section_header();
         writer.write_section_header(&SectionHeader {
-            name: Some(text_name),
+            sh_name: writer.section_name_offset(Some(text_name)),
             sh_type: elf::SHT_PROGBITS,
-            sh_flags: u64::from(elf::SHF_ALLOC | elf::SHF_EXECINSTR),
+            sh_flags: elf::SHF_ALLOC | elf::SHF_EXECINSTR,
             sh_addr: 0x1000,
-            sh_offset: u64::try_from(text_offset).unwrap(),
+            sh_offset: text_offset,
             sh_size: u64::try_from(text.len()).unwrap(),
             sh_link: 0,
             sh_info: 0,
@@ -1184,11 +1184,11 @@ mod tests {
             sh_entsize: 0,
         });
         writer.write_section_header(&SectionHeader {
-            name: Some(data_name),
+            sh_name: writer.section_name_offset(Some(data_name)),
             sh_type: elf::SHT_PROGBITS,
-            sh_flags: u64::from(elf::SHF_ALLOC | elf::SHF_WRITE),
+            sh_flags: elf::SHF_ALLOC | elf::SHF_WRITE,
             sh_addr: 0x2000,
-            sh_offset: u64::try_from(data_offset).unwrap(),
+            sh_offset: data_offset,
             sh_size: u64::try_from(data.len()).unwrap(),
             sh_link: 0,
             sh_info: 0,
@@ -1200,11 +1200,11 @@ mod tests {
         if let (Some(name), Some(offset), Some(rows)) = (rela_name, rela_offset, relocations) {
             let entry_size = size_of::<elf::Rela64<Endianness>>();
             writer.write_section_header(&SectionHeader {
-                name: Some(name),
+                sh_name: writer.section_name_offset(Some(name)),
                 sh_type: elf::SHT_RELA,
-                sh_flags: u64::from(elf::SHF_ALLOC),
+                sh_flags: elf::SHF_ALLOC,
                 sh_addr: data_address(offset),
-                sh_offset: u64::try_from(offset).unwrap(),
+                sh_offset: offset,
                 sh_size: u64::try_from(rows.len().checked_mul(entry_size).unwrap()).unwrap(),
                 // object discovers dynamic relocations through this .dynsym link.
                 sh_link: dynsym_section.0,
@@ -1215,11 +1215,11 @@ mod tests {
         }
         if let (Some(kind), Some(name), Some(offset)) = (extra_encoding, extra_name, extra_offset) {
             writer.write_section_header(&SectionHeader {
-                name: Some(name),
+                sh_name: writer.section_name_offset(Some(name)),
                 sh_type: kind,
-                sh_flags: u64::from(elf::SHF_ALLOC),
+                sh_flags: elf::SHF_ALLOC,
                 sh_addr: data_address(offset),
-                sh_offset: u64::try_from(offset).unwrap(),
+                sh_offset: offset,
                 sh_size: 0,
                 sh_link: dynsym_section.0,
                 sh_info: 0,
@@ -1530,7 +1530,7 @@ mod tests {
                 unbounded.push(Rel {
                     r_offset: offset,
                     r_sym: 0,
-                    r_type: u32::MAX,
+                    r_type: elf::RelocationType(u32::MAX),
                     r_addend: 0,
                 });
                 let bytes = fake_linked_elf_for_machine(Some(&unbounded), machine);
