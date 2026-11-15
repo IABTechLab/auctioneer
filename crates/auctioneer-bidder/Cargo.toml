@@ -49,7 +49,7 @@ test = false
 # Forwards into auctioneer-config-data so build.rs's syncer-URL template-validation
 # pass also relaxes its scheme rule under the feature.
 insecure-bidders = ["auctioneer-config-data/insecure-bidders"]
-test-support = ["dep:toml"]
+test-support = ["dep:hex", "dep:toml"]
 # Inspection only; enables the unqualified build, never serving admission.
 # Guest graphs include the candidate only in this inspection lane. Normal native
 # serving uses the approved tested-reservation contract, not bound qualification.
@@ -78,6 +78,7 @@ validator = { workspace = true }
 uuid-simd = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+hex = { workspace = true, optional = true }
 jsonschema = { workspace = true }
 regex-automata = { workspace = true }
 uuid-simd = { workspace = true }
@@ -106,6 +107,7 @@ url = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 aho-corasick = { workspace = true }
+hex = { workspace = true }
 gimli = { workspace = true }
 jsonschema = { workspace = true }
 jsonschema-macros-core = { workspace = true }

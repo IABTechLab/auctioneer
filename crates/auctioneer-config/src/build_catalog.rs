@@ -422,7 +422,7 @@ fn validate_retained(directory: &Path, key: &str, artifact: &Artifact) -> Result
     if u64::try_from(bytes.len()).ok() != Some(retained.bytes) {
         return Err(input(&location, "retained byte length mismatch"));
     }
-    if format!("{:x}", Sha256::digest(bytes)) != retained.sha256 {
+    if hex::encode(Sha256::digest(bytes)) != retained.sha256 {
         return Err(input(&location, "retained SHA256 mismatch"));
     }
     Ok(())
@@ -614,7 +614,7 @@ mod tests {
     }
 
     fn digest(bytes: &[u8]) -> String {
-        format!("{:x}", Sha256::digest(bytes))
+        hex::encode(Sha256::digest(bytes))
     }
 
     #[test]

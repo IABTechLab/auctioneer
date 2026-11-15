@@ -255,7 +255,7 @@ mod tests {
                 let syn::Item::Impl(implementation) = item else {
                     continue;
                 };
-                if implementation.trait_.as_ref().is_none_or(|(_, path, _)| {
+                if implementation.trait_.as_ref().is_none_or(|(path, _)| {
                     path.segments
                         .last()
                         .is_none_or(|segment| segment.ident != "Bidder")

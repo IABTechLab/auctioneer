@@ -61,7 +61,7 @@ mod tests {
     }
 
     fn digest(bytes: &[u8]) -> String {
-        format!("{:x}", Sha256::digest(bytes))
+        hex::encode(Sha256::digest(bytes))
     }
 
     fn exact_members(actual: &BTreeSet<&str>, expected: &[&str]) -> Result<(), String> {

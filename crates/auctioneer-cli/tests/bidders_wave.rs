@@ -20,7 +20,7 @@ mod tests {
     fn pinned_manifest() -> toml::Value {
         let bytes = fs::read(manifest()).unwrap();
         assert_eq!(
-            format!("{:x}", Sha256::digest(&bytes)),
+            hex::encode(Sha256::digest(&bytes)),
             "aa9d38e3e6221c13d13b28ba18684e041f48e3c15608aa60ee11db86924a0c24",
             "complete frozen priority contract, including membership and per-owner operations"
         );

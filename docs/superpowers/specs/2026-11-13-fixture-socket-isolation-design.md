@@ -10,11 +10,11 @@ The author-side self-review amendment retains the standard-library child handle 
 
 ## Problem And Evidence
 
-Three inline CLI unit cases assert that a fixture listener is closed after EOF, cancellation or explicit stop. Other tests in the same libtest process spawn native programs concurrently. On macOS, the locked Mio listener creation sets close-on-exec separately from creating the socket. A concurrent child spawn can inherit the descriptor in that interval, retaining the listening socket after the fixture drops its own descriptor. Accepted sockets can encounter the same ownership issue.
+Three inline CLI unit cases assert that a fixture listener is closed after EOF, cancellation or explicit stop. Other tests in the same libtest process spawn native programs concurrently. On macOS, currently locked Mio 1.2.4 sets close-on-exec separately from creating the socket. A concurrent child spawn can inherit the descriptor in that interval, retaining the listening socket after the fixture drops its own descriptor. Accepted sockets can encounter the same ownership issue.
 
 The reviewer observed a post-shutdown connection succeed in PR #162's full insecure-feature CLI test process. The recorded result was `775 passed; 1 failed; 3 ignored`. Its EOF case ended with `unwrap_err()` receiving a successful `TcpStream`. A sibling server-stop failure was also reproduced at the base; the exact protocol failure was not, so its pre-existence at that base is not established.
 
-A bounded diagnostic using the locked Mio 1.2.1 listener, without changing repository source, produced:
+A historical bounded diagnostic using the then-locked Mio 1.2.1 listener, without changing repository source, produced:
 
 | Diagnostic condition | Completed checks | Connection after dropping listener |
 | --- | ---: | --- |
@@ -28,20 +28,21 @@ Six later unmodified CLI-binary runs each reported `776 passed; 0 failed; 3 igno
 
 ### Known Exposures Outside This Repair
 
-Two more tests in the same CLI unit binary and application feature graph depend on descriptor closure. They remain outside the approved three-case boundary and are tracked by [Task #174](https://github.com/IABTechLab/auctioneer/issues/174), under [development reliability](https://github.com/IABTechLab/auctioneer/issues/12):
+Three more tests in the same CLI unit binary and application feature graph depend on descriptor closure. They remain outside the approved three-case boundary and are tracked by [Task #174](https://github.com/IABTechLab/auctioneer/issues/174), under [development reliability](https://github.com/IABTechLab/auctioneer/issues/12):
 
 | Owner, relative to `crates/auctioneer-cli/src/` | Full libtest selector | Exposed observation |
 | --- | --- | --- |
 | `qualification/harness/native/system.rs` | `qualification::harness::native::system::tests::reserve_port_releases_the_loopback_listener_before_returning` | `reserve_port` drops its loopback listener, then the test immediately rebinds that exact port; an inherited listener can prevent rebind |
 | `qualification/harness/fixture/server/mod.rs` | `qualification::harness::fixture::server::tests::both_socket_populations_are_bounded_without_unbounded_waiting_tasks` | The server drops an over-capacity accepted stream and the client must observe `NetworkError` or `Disconnect`; an inherited accepted stream can delay EOF until the existing client timeout instead |
+| `qualification/harness/fixture/server/mod.rs` | `qualification::harness::fixture::server::tests::header_timeout_releases_connection_capacity_without_dispatch` | The client must observe EOF within its existing 1,800-ms read deadline after the native fixture's 1-second header timeout; Hyper's error path drops the accepted stream without `shutdown()`, so an inherited copy can keep the read open |
 
-REVIEWER verified both code paths and demonstrated these two inheritance shapes with external models. Both actual tests passed during that review; neither is claimed to have failed. The inventory is based on post-close connection assertions, exact-port rebinds and client-observed server drops across the CLI's source and integration tests. Recheck these candidates and their owning assertions, not just a count of grep matches:
+REVIEWER verified all three code paths and demonstrated the listener and accepted-stream inheritance shapes with external models. All three actual tests passed in the reported second-round CLI run and hosted jobs; none is claimed to have failed. For the header-timeout case, the source path is Hyper 1.12.0's `poll_read_head` returning `HeaderTimeout`, through `Server::recv_msg` and `poll_catch`: the error returns before `poll_inner` reaches `poll_shutdown`, so dropping the socket does not shut down an inherited copy. The inventory covers post-close connection assertions, exact-port rebinds, EOF reads and client-observed server drops across the CLI's source and integration tests. Recheck these candidates and their owning assertions, not just a count of grep matches:
 
 ```sh
-rg -n 'TcpStream::connect|TcpListener::bind|Category::NetworkError|Category::Disconnect' crates/auctioneer-cli/src crates/auctioneer-cli/tests
+rg -n 'TcpStream::connect|TcpListener::bind|read_to_end|Category::NetworkError|Category::Disconnect' crates/auctioneer-cli/src crates/auctioneer-cli/tests
 ```
 
-The public `qualification_harness` closure checks bind their listeners inside spawned CLI children, not in the parent test process; the HTTP disconnect case drops the client side. They are different ownership paths. The helper proposed here adds child spawns in the parallel parent and does not remove the exposure of the two unisolated tests. Failures of either remain reportable under PR #162's local macOS verification gate, even after this three-case repair lands.
+The public `qualification_harness` closure checks bind their listeners inside spawned CLI children, not in the parent test process; the HTTP disconnect case drops the client side. They are different ownership paths. The helper proposed here adds child spawns in the parallel parent and does not remove the exposure of the three unisolated tests. Failure of any of them remains reportable under PR #162's local macOS verification gate, even after this three-case repair lands.
 
 ## Chosen Boundary
 
@@ -57,7 +58,7 @@ Paths in this table are relative to `crates/auctioneer-cli/src/`. The names, att
 
 Add one private, inline `#[cfg(test)]` helper module under the existing `qualification/harness/fixture/mod.rs`. Its own unit controls also stay inline. It is not a new production API, crate, integration binary, process framework or shared source import. The existing `application` feature continues to own the fixture module; maintenance-only builds acquire no application test dependency.
 
-The parent suite remains parallel. The selected child runs one test with one libtest thread and does not launch native subprocesses. Existing Tokio tasks inside that test are retained. For these three isolated cases only, this separates listener creation from unrelated native spawning rather than globally serializing the suite or changing fixture shutdown. It does not isolate the two known exposures above.
+The parent suite remains parallel. The selected child runs one test with one libtest thread and does not launch native subprocesses. Existing Tokio tasks inside that test are retained. For these three isolated cases only, this separates listener creation from unrelated native spawning rather than globally serializing the suite or changing fixture shutdown. It does not isolate the three known exposures above.
 
 ## Parent And Child Contract
 
@@ -77,7 +78,7 @@ The proposed outer execution watchdog is **20,000 ms per child**, followed by a 
 
 Anchor the execution deadline before spawn and check it immediately after spawn returns. Synchronous OS spawn and other synchronous system calls are not preempted by Tokio timers; this is an observed deadline, not a hard real-time OS guarantee. Startup must not reset the child budget. Anchor the separate cleanup deadline before requesting termination and do not reset it while polling for reap.
 
-Use `std::process::Command` and retain its returned `std::process::Child` immediately in one private owner, before any fallible post-spawn work. Use the existing Tokio timers to poll `try_wait()` and the existing `tempfile` dependency for captures. Do not convert the child to `tokio::process::Child`: locked Tokio 1.52.3 spawns the OS process before fallible exit-notification registration, and installs its kill-on-drop guard only afterward. An error at that intermediate stage can lose the handle to an already-running child. No such registration or ownership-transfer stage is needed for regular-file captures and nonblocking `try_wait()` polling.
+Use `std::process::Command` and retain its returned `std::process::Child` immediately in one private owner, before any fallible post-spawn work. Use the existing Tokio timers to poll `try_wait()` and the existing `tempfile` dependency for captures. Do not convert the child to `tokio::process::Child`: currently locked Tokio 1.54.1 spawns the OS process before fallible exit-notification registration, and installs its kill-on-drop guard only afterward. This ordering remains the same as the historical 1.52.3 implementation examined for the initial design. An error at that intermediate stage can lose the handle to an already-running child. No such registration or ownership-transfer stage is needed for regular-file captures and nonblocking `try_wait()` polling.
 
 Give the private owner a best-effort kill-on-drop fallback, but successful cleanup still requires observing the direct child's exit/reap through `try_wait()`. Do not use blocking `wait()`, blocking wait threads, detached cleanup/reader tasks or an orphan queue. The selected children and finite negative-control children do not create subprocess descendants, so this is direct-child ownership, not a claim of arbitrary process-tree supervision.
 
@@ -120,7 +121,7 @@ Review the original and wrapped bodies directly, including every loop row and be
 4. Run the owning fixture filter and full CLI binary in the default and existing insecure workspace feature graphs, without globally setting `RUST_TEST_THREADS` or reducing suite parallelism. Record dispatched names and actual results. Any declared repetition cohort records all results; no retry-until-green acceptance.
 5. Run the unchanged prescribed workspace/secure/standalone CLI lanes, explicit once-owned compiler/producer owners, strict all-target Clippy, source-import gate, fixture gates and adapter checks from the current workflows. Local execution and hosted execution are distinct evidence. Under the existing verification-location decision, expensive unchanged owners may execute in the complete GitHub matrix, but missing or failed checks are not passing results.
 6. Keep the confirmed macOS failure and deterministic inheritance diagnostic separate from implementation verification. Exercise the repair on macOS as well as the unchanged hosted Linux matrix; neither alone establishes the other's result.
-7. Merge the reviewed planning PR before implementing in a separate bug-fix PR. After that fix lands on `main`, integrate it into PR #162 without force-push, refresh that PR's source-bound evidence and full checks, and obtain review of its resulting head. This repair does not cover a local macOS failure of either test tracked by #174; any such failure remains reportable and blocking under PR #162's gate, not waived by the three-case repair. This planning document does not authorize any of those merges or transfer an older approval to a changed head.
+7. Merge the reviewed planning PR before implementing in a separate bug-fix PR. After that fix lands on `main`, integrate it into PR #162 without force-push, refresh that PR's source-bound evidence and full checks, and obtain review of its resulting head. This repair does not cover a local macOS failure of any of the three tests tracked by #174; any such failure remains reportable and blocking under PR #162's gate, not waived by the three-case repair. This planning document does not authorize any of those merges or transfer an older approval to a changed head.
 
 ## Non-Goals
 

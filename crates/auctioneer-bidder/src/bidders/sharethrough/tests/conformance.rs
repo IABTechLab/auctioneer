@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn exact_capture_membership_retained_bytes_and_parameter_literals_are_frozen() {
-        assert_eq!(format!("{:x}", Sha256::digest(MANIFEST)), MANIFEST_SHA256);
+        assert_eq!(hex::encode(Sha256::digest(MANIFEST)), MANIFEST_SHA256);
         let manifest: toml::Value = toml::from_str(MANIFEST).unwrap();
         assert_eq!(manifest["factory"].as_bool(), Some(true));
         assert_eq!(manifest["native_only"].as_bool(), Some(true));
@@ -229,7 +229,7 @@ mod tests {
             );
             assert_eq!(
                 retained["source_sha256"].as_str().unwrap(),
-                format!("{:x}", Sha256::digest(bytes))
+                hex::encode(Sha256::digest(bytes))
             );
             retained_count = retained_count.checked_add(1).unwrap();
         }
@@ -318,7 +318,7 @@ mod tests {
             );
             assert_eq!(
                 row["source_sha256"].as_str().unwrap(),
-                format!("{:x}", Sha256::digest(&bytes))
+                hex::encode(Sha256::digest(&bytes))
             );
             assert_eq!(
                 from_utf8(&git("rev-parse", &object)).unwrap().trim(),

@@ -1,0 +1,19 @@
+--- a/src/codegen/object_schema.rs
++++ b/src/codegen/object_schema.rs
+@@ -125,13 +125,13 @@
+ 
+         let has_type_constraint = schema.contains_key("type") && validation_vocab_enabled;
+ 
+-        let typed = compile_typed(ctx, schema, has_type_constraint);
+-        let has_typed_checks = typed.is_some();
++        // Enforce `type` independently of type-specific keyword dispatch.
++        let typed = compile_typed(ctx, schema, false);
+ 
+         let mut untyped: Vec<CompiledExpr> = Vec::new();
+         let type_is_redundant = type_check_is_redundant(schema, ctx.draft);
+ 
+-        if has_type_constraint && !has_typed_checks && !type_is_redundant {
++        if has_type_constraint && !type_is_redundant {
+             if let Some(value) = schema.get("type") {
+                 untyped.push(keywords::type_::compile(ctx, value));
+             }

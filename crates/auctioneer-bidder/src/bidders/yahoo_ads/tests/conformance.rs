@@ -382,7 +382,7 @@ mod tests {
         );
         assert_eq!(
             row["source_sha256"].as_str(),
-            Some(format!("{:x}", Sha256::digest(source.as_bytes())).as_str())
+            Some(hex::encode(Sha256::digest(source.as_bytes())).as_str())
         );
     }
 
