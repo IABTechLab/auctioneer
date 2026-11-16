@@ -1358,7 +1358,8 @@ mod socket_test_support {
             for item in items {
                 if let syn::Item::Fn(function) = item {
                     found.push((function, blocked || disabled(&function.attrs)));
-                } else if let syn::Item::Mod(module) = item
+                }
+                if let syn::Item::Mod(module) = item
                     && let Some((_, contents)) = &module.content
                 {
                     functions(contents, blocked || disabled(&module.attrs), found);
@@ -1440,7 +1441,8 @@ mod socket_test_support {
                     if function.sig.ident == name {
                         mutate(function);
                     }
-                } else if let syn::Item::Mod(module) = item
+                }
+                if let syn::Item::Mod(module) = item
                     && let Some((_, contents)) = &mut module.content
                 {
                     change(contents, name, mutate);
