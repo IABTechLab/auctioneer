@@ -445,9 +445,7 @@ mod socket_test_support {
                 (&owner.stdout, Stream::Stdout),
                 (&owner.stderr, Stream::Stderr),
             ] {
-                if metadata(path)
-                    .map_err(|_error| Kind::Capture)?
-                    .len()
+                if metadata(path).map_err(|_error| Kind::Capture)?.len()
                     > u64::try_from(CAPTURE_LIMIT).map_err(|_error| Kind::Capture)?
                 {
                     return Err(stream.limit());
@@ -565,17 +563,16 @@ mod socket_test_support {
         let output = File::create(&stdout).map_err(|_error| Failure::new(target, Kind::Setup))?;
         let diagnostic =
             File::create(&stderr).map_err(|_error| Failure::new(target, Kind::Setup))?;
-        let child = Command::new(
-            current_exe().map_err(|_error| Failure::new(target, Kind::Setup))?,
-        )
-        .args(child_args(target))
-        .env_clear()
-        .env(MARKER, target.marker())
-        .stdin(Stdio::null())
-        .stdout(output)
-        .stderr(diagnostic)
-        .spawn()
-        .map_err(|_error| Failure::new(target, Kind::Spawn))?;
+        let child =
+            Command::new(current_exe().map_err(|_error| Failure::new(target, Kind::Setup))?)
+                .args(child_args(target))
+                .env_clear()
+                .env(MARKER, target.marker())
+                .stdin(Stdio::null())
+                .stdout(output)
+                .stderr(diagnostic)
+                .spawn()
+                .map_err(|_error| Failure::new(target, Kind::Spawn))?;
         // No fallible registration or ownership transfer is allowed after spawn.
         let mut owner = ChildOwner {
             child,
@@ -1141,7 +1138,9 @@ mod socket_test_support {
                     }
                     verify_receipt(Target::Control(Control::Probe), &receipt)
                 }
-                Execution::Child if child_invocation && (constructed.get(), polled.get()) == (1, 1) => {
+                Execution::Child
+                    if child_invocation && (constructed.get(), polled.get()) == (1, 1) =>
+                {
                     Ok(())
                 }
                 Execution::Child => Err(Kind::Control),
@@ -1194,10 +1193,7 @@ mod socket_test_support {
             }
 
             async fn pause(&mut self) {
-                self.elapsed = self
-                    .elapsed
-                    .checked_add(Duration::from_secs(1))
-                    .unwrap();
+                self.elapsed = self.elapsed.checked_add(Duration::from_secs(1)).unwrap();
             }
         }
 
@@ -1210,7 +1206,12 @@ mod socket_test_support {
                 poll_count: 0,
             };
             let result = terminate(&mut operations, Duration::from_secs(2)).await;
-            let error = refusal(Target::Control(Control::Hold), Kind::Timeout, false, &result);
+            let error = refusal(
+                Target::Control(Control::Hold),
+                Kind::Timeout,
+                false,
+                &result,
+            );
             assert_eq!(operations.poll_count, 2);
             assert_eq!(error.kind, Kind::Timeout);
             assert!(error.kill_failed);
@@ -1226,7 +1227,12 @@ mod socket_test_support {
                 poll_count: 0,
             };
             let result = terminate(&mut operations, Duration::from_secs(2)).await;
-            let error = refusal(Target::Control(Control::Hold), Kind::Timeout, false, &result);
+            let error = refusal(
+                Target::Control(Control::Hold),
+                Kind::Timeout,
+                false,
+                &result,
+            );
             assert_eq!(operations.poll_count, 3);
             assert_eq!(error.kind, Kind::Cleanup);
             assert_eq!(error.cause, Some(Kind::Timeout));
