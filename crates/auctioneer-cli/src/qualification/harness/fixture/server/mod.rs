@@ -649,6 +649,7 @@ async fn native_response(connection: &Connection, auction: Auction) -> Result<Re
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::socket_test_support::{self, SocketCase};
     use super::super::super::http::{Category, RequestSpec, Response, request as owned_request};
     use super::super::super::process::Supervisor;
     use super::super::super::{HarnessError, Result};
@@ -1046,151 +1047,159 @@ mod tests {
 
     #[tokio::test]
     async fn delay_applies_to_responses_and_stop_joins_held_connections_before_returning() {
-        let mut server = Server::start(native(20, 4)).await.unwrap();
-        server
-            .command(control("configure", settings(Mode::Gzip, 40)))
-            .await
-            .unwrap();
-        let started = Instant::now();
-        assert_eq!(
-            request(&url(server.port), post(&native_body(1)))
+        socket_test_support::run(SocketCase::FixtureStop, || async {
+            let mut server = Server::start(native(20, 4)).await.unwrap();
+            server
+                .command(control("configure", settings(Mode::Gzip, 40)))
                 .await
-                .unwrap()
-                .category,
-            Category::Success
-        );
-        assert!(started.elapsed() >= Duration::from_millis(40));
-        wait_active(&mut server, 0).await;
-        server
-            .command(control("configure", settings(Mode::Park, 0)))
-            .await
-            .unwrap();
-        let target = url(server.port);
-        let held =
-            tokio::spawn(
-                async move { request(&target, post(&native_body(700_001))).await.unwrap() },
-            );
-        let observed = wait_active(&mut server, 1).await;
-        assert_eq!(observed.completed, 0);
-        assert_eq!(observed.max_active_debug_auctions, 1);
-        let shared = Arc::clone(&server.lifecycle.state);
-        let port = server.port;
-        server.stop().await.unwrap();
-        let stopped_observation = {
-            let stopped = shared.lock().unwrap();
-            (
-                stopped.running(),
-                stopped.stats().current_active_calls,
-                stopped.stats().disconnected,
-                stopped.stats().completed,
-            )
-        };
-        assert_eq!(stopped_observation, (false, 0_u32, 1_u32, 0_u32));
-        assert_ne!(held.await.unwrap().category, Category::Success);
-        TcpStream::connect((Ipv4Addr::LOCALHOST, port))
-            .await
-            .unwrap_err();
-        let rebound = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
-            .await
-            .unwrap();
-        drop(rebound);
-    }
-
-    #[tokio::test]
-    async fn both_socket_populations_are_bounded_without_unbounded_waiting_tasks() {
-        for provider_mode in [false, true] {
-            let mut server = Server::start(if provider_mode {
-                provider(ProviderMode::Stall, 32)
-            } else {
-                native(20, 2)
-            })
-            .await
-            .unwrap();
-            if !provider_mode {
-                server
-                    .command(control("configure", settings(Mode::Park, 0)))
-                    .await
-                    .unwrap();
-            }
-            let capacity = if provider_mode { 8_u32 } else { 2_u32 };
-            let hold = install_hold(&server, None);
-            let mut tasks = Vec::new();
-            for index in 1..=capacity {
-                let target = url(server.port);
-                tasks.push(tokio::spawn(async move {
-                    request(
-                        &target,
-                        RequestSpec {
-                            timeout_ms: 20_000,
-                            ..post(&if provider_mode {
-                                provider_body(1)
-                            } else {
-                                native_body(index)
-                            })
-                        },
-                    )
+                .unwrap();
+            let started = Instant::now();
+            assert_eq!(
+                request(&url(server.port), post(&native_body(1)))
                     .await
                     .unwrap()
-                }));
-                wait_held(&hold, index).await;
-                if !provider_mode {
-                    wait_active(&mut server, index).await;
-                }
-            }
-            assert_eq!(hold.active(), capacity);
-            assert!(tasks.iter().all(|task| !task.is_finished()));
-            let refused = request(
-                &url(server.port),
-                post(&if provider_mode {
-                    provider_body(1)
-                } else {
-                    native_body(3)
-                }),
-            )
-            .await
-            .unwrap();
-            assert!(matches!(
-                refused.category,
-                Category::NetworkError | Category::Disconnect
-            ));
-            assert_eq!(hold.active(), capacity);
-            assert!(tasks.iter().all(|task| !task.is_finished()));
-            if provider_mode {
-                assert_eq!(
-                    server
-                        .command(control("snapshot", Value::Null))
-                        .await
-                        .unwrap()["dispatches"],
-                    capacity
+                    .category,
+                Category::Success
+            );
+            assert!(started.elapsed() >= Duration::from_millis(40));
+            wait_active(&mut server, 0).await;
+            server
+                .command(control("configure", settings(Mode::Park, 0)))
+                .await
+                .unwrap();
+            let target = url(server.port);
+            let held =
+                tokio::spawn(
+                    async move { request(&target, post(&native_body(700_001))).await.unwrap() },
                 );
-            } else {
-                assert_eq!(stats(&mut server).await.calls, capacity);
-            }
+            let observed = wait_active(&mut server, 1).await;
+            assert_eq!(observed.completed, 0);
+            assert_eq!(observed.max_active_debug_auctions, 1);
             let shared = Arc::clone(&server.lifecycle.state);
+            let port = server.port;
             server.stop().await.unwrap();
-            assert_eq!(hold.active(), 0);
             let stopped_observation = {
                 let stopped = shared.lock().unwrap();
                 (
                     stopped.running(),
                     stopped.stats().current_active_calls,
-                    stopped.stats().completed,
                     stopped.stats().disconnected,
+                    stopped.stats().completed,
                 )
             };
-            assert_eq!(
-                stopped_observation,
-                (
-                    false,
-                    0_u32,
-                    0_u32,
-                    if provider_mode { 0_u32 } else { capacity }
+            assert_eq!(stopped_observation, (false, 0_u32, 1_u32, 0_u32));
+            assert_ne!(held.await.unwrap().category, Category::Success);
+            TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+                .await
+                .unwrap_err();
+            let rebound = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
+                .await
+                .unwrap();
+            drop(rebound);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn both_socket_populations_are_bounded_without_unbounded_waiting_tasks() {
+        socket_test_support::run(SocketCase::SocketCapacity, || async {
+            for provider_mode in [false, true] {
+                let mut server = Server::start(if provider_mode {
+                    provider(ProviderMode::Stall, 32)
+                } else {
+                    native(20, 2)
+                })
+                .await
+                .unwrap();
+                if !provider_mode {
+                    server
+                        .command(control("configure", settings(Mode::Park, 0)))
+                        .await
+                        .unwrap();
+                }
+                let capacity = if provider_mode { 8_u32 } else { 2_u32 };
+                let hold = install_hold(&server, None);
+                let mut tasks = Vec::new();
+                for index in 1..=capacity {
+                    let target = url(server.port);
+                    tasks.push(tokio::spawn(async move {
+                        request(
+                            &target,
+                            RequestSpec {
+                                timeout_ms: 20_000,
+                                ..post(&if provider_mode {
+                                    provider_body(1)
+                                } else {
+                                    native_body(index)
+                                })
+                            },
+                        )
+                        .await
+                        .unwrap()
+                    }));
+                    wait_held(&hold, index).await;
+                    if !provider_mode {
+                        wait_active(&mut server, index).await;
+                    }
+                }
+                assert_eq!(hold.active(), capacity);
+                assert!(tasks.iter().all(|task| !task.is_finished()));
+                let refused = request(
+                    &url(server.port),
+                    post(&if provider_mode {
+                        provider_body(1)
+                    } else {
+                        native_body(3)
+                    }),
                 )
-            );
-            for task in tasks {
-                assert_ne!(task.await.unwrap().category, Category::Success);
+                .await
+                .unwrap();
+                assert!(matches!(
+                    refused.category,
+                    Category::NetworkError | Category::Disconnect
+                ));
+                assert_eq!(hold.active(), capacity);
+                assert!(tasks.iter().all(|task| !task.is_finished()));
+                if provider_mode {
+                    assert_eq!(
+                        server
+                            .command(control("snapshot", Value::Null))
+                            .await
+                            .unwrap()["dispatches"],
+                        capacity
+                    );
+                } else {
+                    assert_eq!(stats(&mut server).await.calls, capacity);
+                }
+                let shared = Arc::clone(&server.lifecycle.state);
+                server.stop().await.unwrap();
+                assert_eq!(hold.active(), 0);
+                let stopped_observation = {
+                    let stopped = shared.lock().unwrap();
+                    (
+                        stopped.running(),
+                        stopped.stats().current_active_calls,
+                        stopped.stats().completed,
+                        stopped.stats().disconnected,
+                    )
+                };
+                assert_eq!(
+                    stopped_observation,
+                    (
+                        false,
+                        0_u32,
+                        0_u32,
+                        if provider_mode { 0_u32 } else { capacity }
+                    )
+                );
+                for task in tasks {
+                    assert_ne!(task.await.unwrap().category, Category::Success);
+                }
             }
-        }
+        })
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1464,25 +1473,29 @@ mod tests {
 
     #[tokio::test]
     async fn header_timeout_releases_connection_capacity_without_dispatch() {
-        use tokio::io::AsyncReadExt as _;
-        let mut server = Server::start(native(5, 1)).await.unwrap();
-        let mut idle = TcpStream::connect((Ipv4Addr::LOCALHOST, server.port))
-            .await
-            .unwrap();
-        let mut captured = Vec::new();
-        timeout(Duration::from_millis(1800), idle.read_to_end(&mut captured))
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(stats(&mut server).await.calls, 0);
-        assert_eq!(
-            request(&url(server.port), post(&native_body(1)))
+        socket_test_support::run(SocketCase::HeaderTimeout, || async {
+            use tokio::io::AsyncReadExt as _;
+            let mut server = Server::start(native(5, 1)).await.unwrap();
+            let mut idle = TcpStream::connect((Ipv4Addr::LOCALHOST, server.port))
+                .await
+                .unwrap();
+            let mut captured = Vec::new();
+            timeout(Duration::from_millis(1800), idle.read_to_end(&mut captured))
                 .await
                 .unwrap()
-                .category,
-            Category::Success
-        );
-        server.stop().await.unwrap();
+                .unwrap();
+            assert_eq!(stats(&mut server).await.calls, 0);
+            assert_eq!(
+                request(&url(server.port), post(&native_body(1)))
+                    .await
+                    .unwrap()
+                    .category,
+                Category::Success
+            );
+            server.stop().await.unwrap();
+        })
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

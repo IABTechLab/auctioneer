@@ -376,6 +376,85 @@ jobs:
         if: ${{ always() }}
         run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
+  cli-socket-isolation-macos:
+    name: cargo test (cli-socket-isolation-macos)
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check CLI socket cohort selection and report controls
+        run: bash .github/workflows/scripts/test/check-cli-socket-isolation-fixtures.sh
+
+      - name: Cache Cargo downloads
+        id: download-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-downloads-v1-${{ hashFiles('.tool-versions', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-downloads-v1-
+
+      - name: Report disk before toolchain and tests
+        run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
+      - name: Retrieve Rust version
+        id: rust-version
+        run: echo "rust-version=$(grep '^rust ' .tool-versions | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Set up Rust tool chain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+          toolchain: ${{ steps.rust-version.outputs.rust-version }}
+
+      - name: Record socket cohort source and toolchain
+        shell: bash
+        run: |
+          {
+            git rev-parse HEAD
+            uname -a
+            rustc --version --verbose
+            cargo --version
+          } 2>&1 | tee "$RUNNER_TEMP/cli-socket-isolation-identity.log"
+
+      - name: Fetch dependencies (locked)
+        timeout-minutes: 10
+        run: cargo fetch --locked
+
+      # One parallel parent cohort per graph, sequentially on this runner.
+      - name: Verify CLI socket isolation (default graph)
+        run: bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh default
+
+      - name: Verify CLI socket isolation (insecure workspace graph)
+        run: bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh workspace-insecure
+
+      - name: Save Cargo downloads
+        if: ${{ always() && !cancelled() && steps.download-cache.outputs.cache-primary-key != '' && steps.download-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ steps.download-cache.outputs.cache-primary-key }}
+
+      - name: Retain CLI socket cohort logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-socket-isolation-macos-logs
+          path: ${{ runner.temp }}/cli-socket-isolation-*
+          if-no-files-found: warn
+
+      - name: Report disk after test commands
+        if: ${{ always() }}
+        run: df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
   compiler-conformance:
     name: cargo test (compiler conformance ${{ matrix.lane }})
     runs-on: ubuntu-latest
