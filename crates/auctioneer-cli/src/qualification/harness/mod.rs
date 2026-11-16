@@ -1437,10 +1437,10 @@ mod socket_test_support {
 
         fn change(items: &mut [syn::Item], name: &str, mutate: fn(&mut syn::ItemFn)) {
             for item in items {
-                if let syn::Item::Fn(function) = item {
-                    if function.sig.ident == name {
-                        mutate(function);
-                    }
+                if let syn::Item::Fn(function) = item
+                    && function.sig.ident == name
+                {
+                    mutate(function);
                 }
                 if let syn::Item::Mod(module) = item
                     && let Some((_, contents)) = &mut module.content
