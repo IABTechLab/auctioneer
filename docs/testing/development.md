@@ -282,12 +282,17 @@ requests best-effort termination, not verified reap or capture removal. Do not
 spawn, externally time out or abandon the helper future, or treat it as a
 general process-tree supervisor.
 
-The Tests workflow's `cli-socket-isolation-macos` job, named exactly
-`cargo test (cli-socket-isolation-macos)`, owns these future hosted commands
-on `macos-latest`, sequentially within the existing CLI 75-minute safety limit:
+The existing Linux CLI lane runs the finite checker controls before its full
+CLI suite, without adding a runner or repeating the Cargo test suites:
 
 ```sh
 bash .github/workflows/scripts/test/check-cli-socket-isolation-fixtures.sh
+```
+
+The cohort script remains available for separately authorized focused
+verification in either graph:
+
+```sh
 bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh default
 bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh workspace-insecure
 ```
@@ -298,19 +303,18 @@ including 19 independently required helper names. It runs one parallel parent
 process per graph with multiple exact selectors, requires one matching summary
 and one success per selected name, and counts every other listed test as
 filtered. Finite fixtures exercise the same selection/report functions without
-Cargo and do not print synthetic libtest reports. Logs, source SHA, OS/toolchain
-and Cargo exit statuses are retained under `RUNNER_TEMP` and uploaded by the
-job. Rust comes from `.tool-versions`; only Cargo downloads are cached. The
-focused native owner needs no yq, Wasmtime or provider tooling. All existing
-full Linux jobs and their selections remain unchanged.
+Cargo and do not print synthetic libtest reports. The optional cohort command
+retains its roster, output and exit statuses under `RUNNER_TEMP`. Existing full
+Linux suites execute all six wrappers and the helper controls with their
+unchanged feature selections. Rust comes from `.tool-versions`; only Cargo
+downloads are cached.
 
-Verification for this delivery is GitHub CI only, not local script or Cargo
-execution. Adding this workflow job does **not** install its required-check
-gate. After its first green run, obtain separate explicit user approval for an
-authorized maintainer to add the exact check context to the active `main`
-ruleset without changing existing contexts or strict enforcement. Approval,
-settings readback and current-head green results remain implementation merge
-prerequisites; a missing check or missing settings readback is not acceptance.
+On 2026-11-15 the maintainer declined macOS GitHub runners because of cost.
+There is no added macOS job or proposed required-check setting. Existing Linux
+checks remain mandatory. The current delivery uses GitHub verification only;
+no local script or Cargo execution was authorized. macOS execution is deferred
+and unverified, not established by Linux results or historical diagnostics.
+That limitation remains explicit for #174 and PR #162's acceptance decision.
 
 All workflows share one registry/Git download cache. Compiled outputs are not
 restored or saved across jobs: the whole-workspace archive exhausted runners

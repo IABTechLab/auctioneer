@@ -11,13 +11,15 @@ use auctioneer_cli::native_control::{io, process};
 
 #[cfg(test)]
 mod socket_test_support {
+    use std::env::{args_os, current_exe, var_os};
     use std::ffi::{OsStr, OsString};
     use std::fmt;
-    use std::fs::File;
+    use std::fs::{File, metadata};
     use std::future::Future;
-    use std::io::Read as _;
+    use std::io::{Read as _, Result as IoResult};
     use std::path::{Path, PathBuf};
     use std::process::{Child, Command, ExitStatus, Stdio};
+    use std::str::from_utf8;
     use std::time::Duration;
     use tempfile::TempDir;
     use tokio::time::{Instant, sleep};
@@ -25,7 +27,7 @@ mod socket_test_support {
     const MARKER: &str = "AUCTIONEER__TEST__FIXTURE_SOCKET_CASE";
     const READY: &str = "SOCKET_CHILD_READY";
     const WITNESS: &str = "SOCKET_CHILD_COMPLETED";
-    const CAPTURE_LIMIT: usize = 16_384;
+    const CAPTURE_LIMIT: usize = 0x4000;
     const POLL: Duration = Duration::from_millis(5);
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -161,9 +163,8 @@ mod socket_test_support {
     }
 
     impl fmt::Debug for Failure {
-        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            formatter
-                .debug_struct("SocketChildFailure")
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("SocketChildFailure")
                 .field("case", &self.case)
                 .field("kind", &self.kind)
                 .field("cause", &self.cause)
@@ -208,8 +209,8 @@ mod socket_test_support {
     impl Default for Policy {
         fn default() -> Self {
             Self {
-                execution: Duration::from_millis(20_000),
-                cleanup: Duration::from_millis(2_000),
+                execution: Duration::from_secs(20),
+                cleanup: Duration::from_secs(2),
                 fault: Fault::None,
             }
         }
@@ -218,7 +219,7 @@ mod socket_test_support {
     impl Policy {
         fn control() -> Self {
             Self {
-                execution: Duration::from_millis(1_000),
+                execution: Duration::from_secs(1),
                 ..Self::default()
             }
         }
@@ -280,8 +281,8 @@ mod socket_test_support {
         F: FnOnce() -> B,
         B: Future<Output = ()>,
     {
-        let marker = std::env::var_os(MARKER);
-        let args: Vec<_> = std::env::args_os().skip(1).collect();
+        let marker = var_os(MARKER);
+        let args: Vec<_> = args_os().skip(1).collect();
         enter_checked(target, policy, marker.as_deref(), &args, body).await
     }
 
@@ -306,7 +307,7 @@ mod socket_test_support {
     }
 
     fn validate_report(bytes: &[u8], selector: &str) -> Result<(), Kind> {
-        let text = std::str::from_utf8(bytes).map_err(|_error| Kind::ReportUtf8)?;
+        let text = from_utf8(bytes).map_err(|_error| Kind::ReportUtf8)?;
         let lines: Vec<_> = text
             .lines()
             .filter(|line| !line.trim().is_empty())
@@ -329,8 +330,8 @@ mod socket_test_support {
         {
             return Err(Kind::Dispatch);
         }
-        let duration = duration.strip_suffix('s').ok_or(Kind::Dispatch)?;
-        let mut segments = duration.split('.');
+        let seconds = duration.strip_suffix('s').ok_or(Kind::Dispatch)?;
+        let mut segments = seconds.split('.');
         let first = segments.next().ok_or(Kind::Dispatch)?;
         let fraction = segments.next();
         if first.is_empty()
@@ -339,7 +340,7 @@ mod socket_test_support {
                 part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit())
             })
             || segments.next().is_some()
-            || !duration.parse::<f64>().is_ok_and(f64::is_finite)
+            || !seconds.parse::<f64>().is_ok_and(f64::is_finite)
         {
             return Err(Kind::Dispatch);
         }
@@ -419,8 +420,8 @@ mod socket_test_support {
             if Instant::now() >= deadline {
                 return Err(Kind::Timeout);
             }
-            let status = owner.child.try_wait().map_err(|_error| Kind::Wait)?;
-            if let Some(status) = status {
+            let observed_status = owner.child.try_wait().map_err(|_error| Kind::Wait)?;
+            if let Some(status) = observed_status {
                 owner.status = Some(status);
                 return if Instant::now() >= deadline {
                     Err(Kind::Timeout)
@@ -444,7 +445,7 @@ mod socket_test_support {
                 (&owner.stdout, Stream::Stdout),
                 (&owner.stderr, Stream::Stderr),
             ] {
-                if std::fs::metadata(path)
+                if metadata(path)
                     .map_err(|_error| Kind::Capture)?
                     .len()
                     > u64::try_from(CAPTURE_LIMIT).map_err(|_error| Kind::Capture)?
@@ -461,8 +462,8 @@ mod socket_test_support {
 
     trait CleanupOps {
         fn elapsed(&self) -> Duration;
-        fn kill(&mut self) -> std::io::Result<()>;
-        fn poll(&mut self) -> std::io::Result<Option<ExitStatus>>;
+        fn kill(&mut self) -> IoResult<()>;
+        fn poll(&mut self) -> IoResult<Option<ExitStatus>>;
         async fn pause(&mut self);
     }
 
@@ -476,11 +477,11 @@ mod socket_test_support {
             self.started.elapsed()
         }
 
-        fn kill(&mut self) -> std::io::Result<()> {
+        fn kill(&mut self) -> IoResult<()> {
             self.child.kill()
         }
 
-        fn poll(&mut self) -> std::io::Result<Option<ExitStatus>> {
+        fn poll(&mut self) -> IoResult<Option<ExitStatus>> {
             self.child.try_wait()
         }
 
@@ -511,7 +512,7 @@ mod socket_test_support {
         }
     }
 
-    fn refusal(target: Target, reason: Kind, live: bool, reaped: Reaped) -> Failure {
+    fn refusal(target: Target, reason: Kind, live: bool, reaped: &Reaped) -> Failure {
         let mut error = Failure::new(target, reason);
         error.reaped = reaped.status.is_some();
         error.status = reaped.status;
@@ -528,13 +529,13 @@ mod socket_test_support {
         target: Target,
         result: Result<T, Failure>,
         reaped: bool,
-        remove: impl FnOnce() -> std::io::Result<()>,
+        remove: impl FnOnce() -> IoResult<()>,
     ) -> Result<T, Failure> {
         if !reaped {
             let mut error = result
                 .err()
                 .unwrap_or_else(|| Failure::new(target, Kind::Cleanup));
-            if error.kind != Kind::Cleanup {
+            if error.kind != Kind::Cleanup && error.cause.is_none() {
                 error.cause = Some(error.kind);
             }
             error.kind = Kind::Cleanup;
@@ -544,7 +545,7 @@ mod socket_test_support {
             let mut error = result
                 .err()
                 .unwrap_or_else(|| Failure::new(target, Kind::CaptureCleanup));
-            if error.kind != Kind::CaptureCleanup {
+            if error.kind != Kind::CaptureCleanup && error.cause.is_none() {
                 error.cause = Some(error.kind);
             }
             error.kind = Kind::CaptureCleanup;
@@ -565,7 +566,7 @@ mod socket_test_support {
         let diagnostic =
             File::create(&stderr).map_err(|_error| Failure::new(target, Kind::Setup))?;
         let child = Command::new(
-            std::env::current_exe().map_err(|_error| Failure::new(target, Kind::Setup))?,
+            current_exe().map_err(|_error| Failure::new(target, Kind::Setup))?,
         )
         .args(child_args(target))
         .env_clear()
@@ -589,7 +590,7 @@ mod socket_test_support {
         } else {
             watch(&mut owner, target, policy, deadline).await
         };
-        let result = match observed {
+        let execution_result = match observed {
             Ok(status) => {
                 owner.status = Some(status);
                 read_receipt(&owner, target, status)
@@ -609,21 +610,21 @@ mod socket_test_support {
                     terminate(&mut operations, policy.cleanup).await
                 };
                 owner.status = reaped.status;
-                Err(refusal(target, reason, owner.live, reaped))
+                Err(refusal(target, reason, owner.live, &reaped))
             }
         };
         let reaped = owner.status.is_some();
-        let result = if let Some(directory) = owner.directory.take() {
+        let final_result = if let Some(captures) = owner.directory.take() {
             if reaped {
-                finish(target, result, true, || directory.close())
+                finish(target, execution_result, true, || captures.close())
             } else {
-                drop(directory.keep());
-                finish(target, result, false, || Ok(()))
+                drop(captures.keep());
+                finish(target, execution_result, false, || Ok(()))
             }
         } else {
             Err(Failure::new(target, Kind::CaptureCleanup))
         };
-        result.map_err(|mut error| {
+        final_result.map_err(|mut error| {
             error.reaped = reaped;
             error.status = owner.status;
             error.live = owner.live;
@@ -664,7 +665,8 @@ mod socket_test_support {
         use quote::ToTokens as _;
         use std::cell::Cell;
         use std::collections::VecDeque;
-        use std::io::Write as _;
+        use std::fs;
+        use std::io::{Error as IoError, Write as _, stderr, stdout};
         use std::pin::Pin;
 
         const PROBE: &str = "qualification::harness::socket_test_support::tests::parent_delegation_defers_body_and_child_runs_it_once";
@@ -811,7 +813,7 @@ mod socket_test_support {
         }
 
         fn controls(allowed: &[Control]) -> Vec<Control> {
-            let Some(marker) = std::env::var_os(MARKER) else {
+            let Some(marker) = var_os(MARKER) else {
                 return allowed.to_vec();
             };
             let selected = allowed
@@ -823,23 +825,23 @@ mod socket_test_support {
         }
 
         async fn held(control: Control) {
-            writeln!(std::io::stderr(), "{READY}").unwrap();
-            let payload = vec![b'x'; 16_385];
+            writeln!(stderr(), "{READY}").unwrap();
+            let payload = vec![b'x'; 0x4001];
             match control {
                 Control::Stdout => {
-                    std::io::stdout().write_all(&payload).unwrap();
-                    std::io::stdout().flush().unwrap();
+                    stdout().write_all(&payload).unwrap();
+                    stdout().flush().unwrap();
                 }
                 Control::Stderr => {
-                    std::io::stderr().write_all(&payload).unwrap();
-                    std::io::stderr().flush().unwrap();
+                    stderr().write_all(&payload).unwrap();
+                    stderr().flush().unwrap();
                 }
                 Control::Hold => {}
                 Control::Probe | Control::Panic | Control::Missing => {
                     panic!("invalid hold control");
                 }
             }
-            tokio::time::sleep(Duration::from_millis(20_000)).await;
+            sleep(Duration::from_secs(20)).await;
         }
 
         fn assert_killed(error: &Failure, kind: Kind) {
@@ -853,7 +855,7 @@ mod socket_test_support {
             #[cfg(unix)]
             {
                 use std::os::unix::process::ExitStatusExt as _;
-                assert_eq!(status.signal(), Some(9));
+                assert_eq!(status.signal(), Some(9_i32));
             }
             #[cfg(not(unix))]
             assert!(!status.success());
@@ -892,7 +894,8 @@ mod socket_test_support {
             assert_eq!(rows.len(), 20);
             for index in 0..rows.len() {
                 let mut missing = rows.clone();
-                missing.remove(index);
+                let removed = missing.remove(index);
+                assert_eq!(removed.0, rows[index].0);
                 assert!(!complete_rows(&missing));
             }
             let mut duplicate = rows.clone();
@@ -914,7 +917,7 @@ mod socket_test_support {
                     role(target, Some(OsStr::new(marker)), &args),
                     Err(Kind::Control)
                 );
-                let constructed = Cell::new(0);
+                let constructed = Cell::new(0_usize);
                 let error = enter_checked(
                     target,
                     Policy::default(),
@@ -967,7 +970,7 @@ mod socket_test_support {
                 Target::Control(Control::Panic),
                 Policy::default(),
                 || async {
-                    writeln!(std::io::stdout(), "PRIVATE_STDOUT_CANARY").unwrap();
+                    writeln!(stdout(), "PRIVATE_STDOUT_CANARY").unwrap();
                     panic!("fixed socket child panic");
                 },
             )
@@ -980,7 +983,7 @@ mod socket_test_support {
             assert!(diagnostic.contains("mod.rs:"));
             assert!(!diagnostic.contains("PRIVATE_STDOUT_CANARY"));
             assert!(!diagnostic.contains("test result:"));
-            assert!(error.stderr.len() <= 16_384);
+            assert!(error.stderr.len() <= 0x4000);
         }
 
         #[tokio::test]
@@ -1020,7 +1023,9 @@ mod socket_test_support {
                 let expected = match control {
                     Control::Stdout => Kind::StdoutLimit,
                     Control::Stderr => Kind::StderrLimit,
-                    _ => panic!("unexpected stream control"),
+                    Control::Probe | Control::Panic | Control::Hold | Control::Missing => {
+                        panic!("unexpected stream control");
+                    }
                 };
                 assert_killed(&result.unwrap_err(), expected);
             }
@@ -1031,10 +1036,10 @@ mod socket_test_support {
             let directory = tempfile::tempdir().unwrap();
             let path = directory.path().join("capture");
             for stream in [Stream::Stdout, Stream::Stderr] {
-                for size in [16_383, 16_384, 16_385] {
+                for size in [0x3fff_usize, 0x4000, 0x4001] {
                     let bytes = vec![b'x'; size];
-                    std::fs::write(&path, &bytes).unwrap();
-                    if size <= 16_384 {
+                    fs::write(&path, &bytes).unwrap();
+                    if size <= 0x4000 {
                         assert_eq!(read_capture(&path, stream).unwrap(), bytes);
                     } else {
                         assert_eq!(read_capture(&path, stream), Err(stream.limit()));
@@ -1047,9 +1052,9 @@ mod socket_test_support {
         #[test]
         fn helper_policy_defaults_match_independent_literals() {
             let policy = Policy::default();
-            assert_eq!(policy.execution, Duration::from_millis(20_000));
-            assert_eq!(policy.cleanup, Duration::from_millis(2_000));
-            assert_eq!(CAPTURE_LIMIT, 16_384);
+            assert_eq!(policy.execution, Duration::from_secs(20));
+            assert_eq!(policy.cleanup, Duration::from_secs(2));
+            assert_eq!(CAPTURE_LIMIT, 0x4000);
             assert!(POLL <= Duration::from_millis(10));
         }
 
@@ -1100,9 +1105,22 @@ mod socket_test_support {
             Box::pin(async { Ok(Execution::Parent(receipt(""))) })
         }
 
+        fn claimed_child_probe(body: Deferred<'_>) -> ProbeRun<'_> {
+            Box::pin(async move {
+                body().await;
+                Ok(Execution::Child)
+            })
+        }
+
         async fn delegation_contract(
             candidate: for<'a> fn(Deferred<'a>) -> ProbeRun<'a>,
         ) -> Result<(), Kind> {
+            // The caller's role is independent of the candidate's return label.
+            let child_invocation = match var_os(MARKER) {
+                None => false,
+                Some(marker) if marker == "control-probe" => true,
+                Some(_) => return Err(Kind::Control),
+            };
             let constructed = Cell::new(0_usize);
             let polled = Cell::new(0_usize);
             let built = &constructed;
@@ -1111,17 +1129,21 @@ mod socket_test_support {
                 built.set(built.get().checked_add(1).unwrap());
                 Box::pin(async move {
                     entered.set(entered.get().checked_add(1).unwrap());
-                    writeln!(std::io::stderr(), "{WITNESS}").unwrap();
+                    if child_invocation {
+                        writeln!(stderr(), "{WITNESS}").unwrap();
+                    }
                 })
             });
             match candidate(body).await.map_err(|error| error.kind)? {
                 Execution::Parent(receipt) => {
-                    if (constructed.get(), polled.get()) != (0, 0) {
+                    if child_invocation || (constructed.get(), polled.get()) != (0, 0) {
                         return Err(Kind::Control);
                     }
                     verify_receipt(Target::Control(Control::Probe), &receipt)
                 }
-                Execution::Child if (constructed.get(), polled.get()) == (1, 1) => Ok(()),
+                Execution::Child if child_invocation && (constructed.get(), polled.get()) == (1, 1) => {
+                    Ok(())
+                }
                 Execution::Child => Err(Kind::Control),
             }
         }
@@ -1130,6 +1152,10 @@ mod socket_test_support {
         async fn contract_controls_reject_passthrough_empty_success_and_accept_all() {
             assert_eq!(
                 delegation_contract(passthrough_probe).await,
+                Err(Kind::Control)
+            );
+            assert_eq!(
+                delegation_contract(claimed_child_probe).await,
                 Err(Kind::Control)
             );
             assert_eq!(delegation_contract(empty_probe).await, Err(Kind::Witness));
@@ -1154,15 +1180,15 @@ mod socket_test_support {
                 self.elapsed
             }
 
-            fn kill(&mut self) -> std::io::Result<()> {
+            fn kill(&mut self) -> IoResult<()> {
                 if self.kill_error {
-                    Err(std::io::Error::other("fixed kill error"))
+                    Err(IoError::other("fixed kill error"))
                 } else {
                     Ok(())
                 }
             }
 
-            fn poll(&mut self) -> std::io::Result<Option<ExitStatus>> {
+            fn poll(&mut self) -> IoResult<Option<ExitStatus>> {
                 self.poll_count = self.poll_count.checked_add(1).unwrap();
                 Ok(self.polls.pop_front().flatten())
             }
@@ -1170,7 +1196,7 @@ mod socket_test_support {
             async fn pause(&mut self) {
                 self.elapsed = self
                     .elapsed
-                    .checked_add(Duration::from_millis(1_000))
+                    .checked_add(Duration::from_secs(1))
                     .unwrap();
             }
         }
@@ -1183,8 +1209,8 @@ mod socket_test_support {
                 elapsed: Duration::ZERO,
                 poll_count: 0,
             };
-            let result = terminate(&mut operations, Duration::from_millis(2_000)).await;
-            let error = refusal(Target::Control(Control::Hold), Kind::Timeout, false, result);
+            let result = terminate(&mut operations, Duration::from_secs(2)).await;
+            let error = refusal(Target::Control(Control::Hold), Kind::Timeout, false, &result);
             assert_eq!(operations.poll_count, 2);
             assert_eq!(error.kind, Kind::Timeout);
             assert!(error.kill_failed);
@@ -1199,8 +1225,8 @@ mod socket_test_support {
                 elapsed: Duration::ZERO,
                 poll_count: 0,
             };
-            let result = terminate(&mut operations, Duration::from_millis(2_000)).await;
-            let error = refusal(Target::Control(Control::Hold), Kind::Timeout, false, result);
+            let result = terminate(&mut operations, Duration::from_secs(2)).await;
+            let error = refusal(Target::Control(Control::Hold), Kind::Timeout, false, &result);
             assert_eq!(operations.poll_count, 3);
             assert_eq!(error.kind, Kind::Cleanup);
             assert_eq!(error.cause, Some(Kind::Timeout));
@@ -1215,7 +1241,7 @@ mod socket_test_support {
             let failure = Failure::new(target, Kind::Timeout);
             let error = finish::<()>(target, Err(failure), true, || {
                 removed.set(removed.get().checked_add(1).unwrap());
-                Err(std::io::Error::other("fixed removal error"))
+                Err(IoError::other("fixed removal error"))
             })
             .unwrap_err();
             assert_eq!(error.kind, Kind::CaptureCleanup);
@@ -1229,7 +1255,7 @@ mod socket_test_support {
                 Ok(())
             );
             assert_eq!(removed.get(), 2);
-            let error = finish::<()>(
+            let unreaped_error = finish::<()>(
                 target,
                 Err(Failure::new(target, Kind::Timeout)),
                 false,
@@ -1239,8 +1265,29 @@ mod socket_test_support {
                 },
             )
             .unwrap_err();
-            assert_eq!(error.kind, Kind::Cleanup);
+            assert_eq!(unreaped_error.kind, Kind::Cleanup);
             assert_eq!(removed.get(), 2);
+        }
+
+        #[test]
+        fn capture_removal_failure_preserves_original_cleanup_cause() {
+            let target = Target::Control(Control::Hold);
+            let late_reap = Reaped {
+                status: Some(ExitStatus::default()),
+                timely: false,
+                kill_failed: false,
+            };
+            let original = refusal(target, Kind::Timeout, true, &late_reap);
+            assert_eq!(original.kind, Kind::Cleanup);
+            assert_eq!(original.cause, Some(Kind::Timeout));
+            assert!(original.reaped);
+            let combined = finish::<()>(target, Err(original), true, || {
+                Err(IoError::other("fixed removal error"))
+            })
+            .unwrap_err();
+            assert_eq!(combined.kind, Kind::CaptureCleanup);
+            assert_eq!(combined.cause, Some(Kind::Timeout));
+            assert!(combined.reaped);
         }
 
         const OWNERS: [(&str, &str, usize); 6] = [
@@ -1291,7 +1338,9 @@ mod socket_test_support {
                 attribute.path().is_ident("ignore")
                     || attribute.path().is_ident("cfg_attr")
                     || (attribute.path().is_ident("cfg")
-                        && attribute.to_token_stream().to_string() != "# [cfg (test)]")
+                        && !attribute
+                            .parse_args::<syn::Path>()
+                            .is_ok_and(|path| path.is_ident("test")))
             })
         }
 
@@ -1301,16 +1350,12 @@ mod socket_test_support {
             found: &mut Vec<(&'a syn::ItemFn, bool)>,
         ) {
             for item in items {
-                match item {
-                    syn::Item::Fn(function) => {
-                        found.push((function, blocked || disabled(&function.attrs)));
-                    }
-                    syn::Item::Mod(module) => {
-                        if let Some((_, contents)) = &module.content {
-                            functions(contents, blocked || disabled(&module.attrs), found);
-                        }
-                    }
-                    _ => {}
+                if let syn::Item::Fn(function) = item {
+                    found.push((function, blocked || disabled(&function.attrs)));
+                } else if let syn::Item::Mod(module) = item
+                    && let Some((_, contents)) = &module.content
+                {
+                    functions(contents, blocked || disabled(&module.attrs), found);
                 }
             }
         }
@@ -1371,7 +1416,7 @@ mod socket_test_support {
                 let mut found = Vec::new();
                 for (index, file) in files.iter().enumerate() {
                     let mut candidates = Vec::new();
-                    functions(&file.items, false, &mut candidates);
+                    functions(&file.items, disabled(&file.attrs), &mut candidates);
                     found.extend(
                         candidates
                             .into_iter()
@@ -1385,14 +1430,14 @@ mod socket_test_support {
 
         fn change(items: &mut [syn::Item], name: &str, mutate: fn(&mut syn::ItemFn)) {
             for item in items {
-                match item {
-                    syn::Item::Fn(function) if function.sig.ident == name => mutate(function),
-                    syn::Item::Mod(module) => {
-                        if let Some((_, contents)) = &mut module.content {
-                            change(contents, name, mutate);
-                        }
+                if let syn::Item::Fn(function) = item {
+                    if function.sig.ident == name {
+                        mutate(function);
                     }
-                    _ => {}
+                } else if let syn::Item::Mod(module) = item
+                    && let Some((_, contents)) = &mut module.content
+                {
+                    change(contents, name, mutate);
                 }
             }
         }
@@ -1411,7 +1456,7 @@ mod socket_test_support {
                 &mut absent.first_mut().unwrap().items,
                 OWNERS.first().unwrap().0,
                 |function| {
-                    function.block = Box::new(syn::parse_quote!({}));
+                    *function.block = syn::parse_quote!({});
                 },
             );
             assert!(!wrappers(&absent));
@@ -1424,6 +1469,22 @@ mod socket_test_support {
                 },
             );
             assert!(!wrappers(&disabled));
+            let blocked_file_attributes: [syn::Attribute; 2] = [
+                syn::parse_quote!(#![cfg(any())]),
+                syn::parse_quote!(#![cfg_attr(test, cfg(any()))]),
+            ];
+            for attribute in blocked_file_attributes {
+                let mut disabled_file = original.clone();
+                disabled_file.first_mut().unwrap().attrs.push(attribute);
+                assert!(!wrappers(&disabled_file));
+            }
+            let mut enabled_file = original.clone();
+            enabled_file
+                .first_mut()
+                .unwrap()
+                .attrs
+                .push(syn::parse_quote!(#![cfg(test)]));
+            assert!(wrappers(&enabled_file));
             let mut unregistered = original.clone();
             change(
                 &mut unregistered.first_mut().unwrap().items,
@@ -1438,13 +1499,13 @@ mod socket_test_support {
                 &mut wrong.first_mut().unwrap().items,
                 OWNERS.first().unwrap().0,
                 |function| {
-                    function.block = Box::new(syn::parse_quote!({
+                    *function.block = syn::parse_quote!({
                         socket_test_support::run(SocketCase::HeaderTimeout, || async {
                             assert!(true);
                         })
                         .await
                         .unwrap();
-                    }));
+                    });
                 },
             );
             assert!(!wrappers(&wrong));
