@@ -1,13 +1,13 @@
 # Recipient-Scoped Bidder Roots And Materialization Measurements
 
 Date: 2026-11-16
-Status: Design direction approved; written specification awaiting user review
+Status: Written specification approved by the user on 2026-11-16; implementation, publication and merge remain separately gated
 Issues: [#176](https://github.com/IABTechLab/auctioneer/issues/176), [#182](https://github.com/IABTechLab/auctioneer/issues/182)
 Inspected base: `86fe367b9fb91ed2123fdaedb512cd19a5ca65b6`
 
 ## 1. Scope And Approval
 
-The user approved a shared recipient-specific root builder that selects fields before copying, preserves parameter precedence, aliases, privacy ordering and funding, and stops forwarding unresolved request-only FPD. The associated benchmark reuses production stages through the existing test-support boundary. This document proposes that contract; implementation, publication and merge remain separately gated.
+The user approved a shared recipient-specific root builder that selects fields before copying, preserves parameter precedence, aliases, privacy ordering and funding, and stops forwarding unresolved request-only FPD. The associated benchmark reuses production stages through the existing test-support boundary. The user approved this written contract on 2026-11-16 and authorized writing the implementation plan; implementation, publication and merge remain separately gated.
 
 #176 is the P1 disclosure correction. #182 is P3 measurement and a recommendation, not authorization to redesign the request model. They share the materialization owner and one planning package. A missing benchmark result must not delay an otherwise accepted privacy correction: implementation may deliver the correction first and measurement in a separate follow-up under this same reviewed plan, without closing #182 prematurely.
 
