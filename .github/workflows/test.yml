@@ -307,13 +307,14 @@ jobs:
 
       # These use local fixtures and processes, not credentialed providers.
       # All targets includes the actual qualification_harness CLI integration tests.
+      - name: Check CLI socket cohort selection and report controls
+        if: matrix.lane == 'cli'
+        run: bash .github/workflows/scripts/test/check-cli-socket-isolation-fixtures.sh
+
       - name: Test Rust resource qualification and provider harnesses
         timeout-minutes: 45
         if: matrix.lane == 'cli'
-        run: >
-          cargo test --locked -p auctioneer-cli --all-targets --
-          --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification
-          --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
+        run: bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh full-cli
 
       # The scratch CLI and boot probe select and compare their own features.
       # One explicit owner avoids repeating the same closed-graph experiment.

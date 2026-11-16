@@ -910,6 +910,7 @@ const fn usable_port(port: u16) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::socket_test_support::{self, SocketCase};
     use super::*;
     use serde_json::{Value, json};
     use std::fs;
@@ -2498,13 +2499,17 @@ mod tests {
 
     #[tokio::test]
     async fn reserve_port_releases_the_loopback_listener_before_returning() {
-        let port = reserve_port().await.unwrap();
-        assert!(port >= 1024);
-        assert_ne!(port, 8787);
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
-            .await
-            .unwrap();
-        assert_eq!(listener.local_addr().unwrap().port(), port);
+        socket_test_support::run(SocketCase::PortRebind, || async {
+            let port = reserve_port().await.unwrap();
+            assert!(port >= 1024);
+            assert_ne!(port, 8787);
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
+                .await
+                .unwrap();
+            assert_eq!(listener.local_addr().unwrap().port(), port);
+        })
+        .await
+        .unwrap();
     }
 
     #[test]

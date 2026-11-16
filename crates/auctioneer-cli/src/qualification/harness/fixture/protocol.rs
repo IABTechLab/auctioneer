@@ -154,6 +154,7 @@ pub async fn serve<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::socket_test_support::{self, SocketCase};
     use super::*;
     use serde_json::{Value, json};
     use std::time::Duration;
@@ -189,90 +190,98 @@ mod tests {
 
     #[tokio::test]
     async fn private_fixture_channel_announces_the_bound_port_and_closes_it_on_eof() {
-        let (mut control, input) = duplex(8192);
-        let (output, responses) = duplex(8192);
-        let supervisor = Supervisor::new();
-        let child = tokio::spawn(async move { serve(input, output, &supervisor).await });
-        control.write_all(b"{\"kind\":\"native\",\"port\":0,\"body_cap\":4096,\"max_requests\":100,\"max_sockets\":4}\n").await.unwrap();
-        let mut reader = BufReader::new(responses);
-        let mut line = String::new();
-        timeout(Duration::from_secs(5), reader.read_line(&mut line))
-            .await
-            .unwrap()
-            .unwrap();
-        let ready: Value = serde_json::from_str(&line).unwrap();
-        assert_eq!(ready["protocol"], 1_u8);
-        assert_eq!(ready["ready"], true);
-        let port = u16::try_from(ready["port"].as_u64().unwrap()).unwrap();
-        let connected = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        drop(connected);
-        control
-            .write_all(b"{\"id\":1,\"command\":\"stats\",\"settings\":null}\n")
-            .await
-            .unwrap();
-        line.clear();
-        timeout(Duration::from_secs(5), reader.read_line(&mut line))
-            .await
-            .unwrap()
-            .unwrap();
-        let reply: Value = serde_json::from_str(&line).unwrap();
-        assert_eq!(reply["id"], 1_u32);
-        assert_eq!(reply["stats"]["calls"], 0_u32);
-        drop(control);
-        timeout(Duration::from_secs(5), child)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        TcpStream::connect(("127.0.0.1", port)).await.unwrap_err();
-        assert_eq!(
-            reply.as_object().unwrap().keys().collect::<Vec<_>>(),
-            vec!["id", "stats"]
-        );
-        assert_eq!(json!({"protocol":1_u8,"ready":true,"port":port}), ready);
-    }
-
-    #[tokio::test]
-    async fn malformed_or_unknown_private_frames_cannot_echo_input_or_leave_a_listener() {
-        for message in [
-            b"{\"kind\":\"SECRET_CANARY\"}\n".as_slice(),
-            b"{\"kind\":\"native\",\"kind\":\"provider\"}\n",
-            b"{\"kind\":\"native\",\"port\":0,\"body_cap\":4096,\"max_requests\":100,\"max_sockets\":4,\"SECRET_CANARY\":true}\n",
-        ] {
+        socket_test_support::run(SocketCase::ProtocolEof, || async {
             let (mut control, input) = duplex(8192);
             let (output, responses) = duplex(8192);
-            control.write_all(message).await.unwrap();
-            drop(control);
-            let error = serve(input, output, &Supervisor::new()).await.unwrap_err();
-            assert_eq!(error, HarnessError::new("invalid_input"));
+            let supervisor = Supervisor::new();
+            let child = tokio::spawn(async move { serve(input, output, &supervisor).await });
+            control.write_all(b"{\"kind\":\"native\",\"port\":0,\"body_cap\":4096,\"max_requests\":100,\"max_sockets\":4}\n").await.unwrap();
+            let mut reader = BufReader::new(responses);
             let mut line = String::new();
-            assert_eq!(BufReader::new(responses).read_line(&mut line).await.unwrap(), 0);
-        }
-        let (mut control, input) = duplex(8192);
-        let (output, responses) = duplex(8192);
-        let supervisor = Supervisor::new();
-        let cancellation = supervisor.clone();
-        let child = tokio::spawn(async move { serve(input, output, &cancellation).await });
-        control.write_all(b"{\"kind\":\"native\",\"port\":0,\"body_cap\":4096,\"max_requests\":100,\"max_sockets\":4}\n").await.unwrap();
-        let mut reader = BufReader::new(responses);
-        let mut line = String::new();
-        timeout(Duration::from_secs(5), reader.read_line(&mut line))
-            .await
-            .unwrap()
-            .unwrap();
-        let ready: Value = serde_json::from_str(&line).unwrap();
-        let port = u16::try_from(ready["port"].as_u64().unwrap()).unwrap();
-        supervisor.interrupt(143);
-        assert_eq!(
+            timeout(Duration::from_secs(5), reader.read_line(&mut line))
+                .await
+                .unwrap()
+                .unwrap();
+            let ready: Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(ready["protocol"], 1_u8);
+            assert_eq!(ready["ready"], true);
+            let port = u16::try_from(ready["port"].as_u64().unwrap()).unwrap();
+            let connected = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+            drop(connected);
+            control
+                .write_all(b"{\"id\":1,\"command\":\"stats\",\"settings\":null}\n")
+                .await
+                .unwrap();
+            line.clear();
+            timeout(Duration::from_secs(5), reader.read_line(&mut line))
+                .await
+                .unwrap()
+                .unwrap();
+            let reply: Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(reply["id"], 1_u32);
+            assert_eq!(reply["stats"]["calls"], 0_u32);
+            drop(control);
             timeout(Duration::from_secs(5), child)
                 .await
                 .unwrap()
                 .unwrap()
-                .unwrap_err(),
-            HarnessError::new("interrupted")
-        );
-        TcpStream::connect(("127.0.0.1", port)).await.unwrap_err();
-        line.clear();
-        assert_eq!(reader.read_line(&mut line).await.unwrap(), 0);
+                .unwrap();
+            TcpStream::connect(("127.0.0.1", port)).await.unwrap_err();
+            assert_eq!(
+                reply.as_object().unwrap().keys().collect::<Vec<_>>(),
+                vec!["id", "stats"]
+            );
+            assert_eq!(json!({"protocol":1_u8,"ready":true,"port":port}), ready);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn malformed_or_unknown_private_frames_cannot_echo_input_or_leave_a_listener() {
+        socket_test_support::run(SocketCase::ProtocolMalformed, || async {
+            for message in [
+                b"{\"kind\":\"SECRET_CANARY\"}\n".as_slice(),
+                b"{\"kind\":\"native\",\"kind\":\"provider\"}\n",
+                b"{\"kind\":\"native\",\"port\":0,\"body_cap\":4096,\"max_requests\":100,\"max_sockets\":4,\"SECRET_CANARY\":true}\n",
+            ] {
+                let (mut control, input) = duplex(8192);
+                let (output, responses) = duplex(8192);
+                control.write_all(message).await.unwrap();
+                drop(control);
+                let error = serve(input, output, &Supervisor::new()).await.unwrap_err();
+                assert_eq!(error, HarnessError::new("invalid_input"));
+                let mut line = String::new();
+                assert_eq!(BufReader::new(responses).read_line(&mut line).await.unwrap(), 0);
+            }
+            let (mut control, input) = duplex(8192);
+            let (output, responses) = duplex(8192);
+            let supervisor = Supervisor::new();
+            let cancellation = supervisor.clone();
+            let child = tokio::spawn(async move { serve(input, output, &cancellation).await });
+            control.write_all(b"{\"kind\":\"native\",\"port\":0,\"body_cap\":4096,\"max_requests\":100,\"max_sockets\":4}\n").await.unwrap();
+            let mut reader = BufReader::new(responses);
+            let mut line = String::new();
+            timeout(Duration::from_secs(5), reader.read_line(&mut line))
+                .await
+                .unwrap()
+                .unwrap();
+            let ready: Value = serde_json::from_str(&line).unwrap();
+            let port = u16::try_from(ready["port"].as_u64().unwrap()).unwrap();
+            supervisor.interrupt(143);
+            assert_eq!(
+                timeout(Duration::from_secs(5), child)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap_err(),
+                HarnessError::new("interrupted")
+            );
+            TcpStream::connect(("127.0.0.1", port)).await.unwrap_err();
+            line.clear();
+            assert_eq!(reader.read_line(&mut line).await.unwrap(), 0);
+        })
+        .await
+        .unwrap();
     }
 }
