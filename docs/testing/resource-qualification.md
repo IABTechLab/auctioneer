@@ -1,5 +1,7 @@
 # Native Resource Qualification
 
+See [current resource proof ownership](resource-proof-ownership.md) for the source/SDK-bound closure, existing ownership controls and remaining target facts. This document's retained captures keep their original source, profile and acceptance scope.
+
 The Rust harness in the existing `auctioneer-cli` measures the actual
 manifest-generated Axum application through bounded external processes. The
 harness itself is not acceptance evidence; each measured run needs its own

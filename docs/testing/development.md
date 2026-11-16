@@ -66,7 +66,7 @@ git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --
 
 Historical evidence retains the revision and original bytes it exercised.
 Its older SDK pin is not a current-source reproduction instruction; use the
-[current SDK update record](evidence/edgezero-pr275-update-20261102.md) and
+[current source/SDK ownership index](resource-proof-ownership.md) and
 the commands above for the current tree. Fetching dependencies alone does not
 requalify historical results for another executable.
 

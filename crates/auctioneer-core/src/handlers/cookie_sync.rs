@@ -6,7 +6,7 @@ use crate::{
     handlers::{
         aux_egress::with_aux_egress_preserving_body,
         egress_deadline::EgressDeadline,
-        sync_http::{self, BidderSyncStatus, SyncDebugStatus, SyncUrl},
+        sync_http::{self, BidderSyncStatus, ResponseBuildError, SyncDebugStatus, SyncUrl},
         usersync_keys::{self, KeyringResult},
     },
     host_primitives::{clock_handle, rng_handle},
@@ -349,7 +349,7 @@ async fn respond_with_registry(
                 None,
                 sync_http::response_body_cap(),
             )
-            .unwrap_or_else(|_| bad("response limit exceeded"));
+            .unwrap_or_else(response_build_error);
         }
     }
     let Ok(filter_value) = request.filter_settings_value() else {
@@ -531,7 +531,7 @@ fn chosen_response(
         debug_enabled.then_some(debug.as_slice()),
         sync_http::response_body_cap(),
     )
-    .unwrap_or_else(|_| bad("response limit exceeded"))
+    .unwrap_or_else(response_build_error)
 }
 
 pub(crate) fn push_selected_url(
@@ -548,6 +548,14 @@ pub(crate) fn push_selected_url(
     *retained_bytes = next;
     urls.push((name, url, kind));
     Ok(())
+}
+
+fn response_build_error(error: ResponseBuildError) -> Response {
+    let status = match error {
+        ResponseBuildError::BodyLimit | ResponseBuildError::HeaderLimit => StatusCode::BAD_REQUEST,
+        ResponseBuildError::Serialization => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    sync_http::cookie_sync_error(status, "response limit exceeded")
 }
 
 fn bad(message: &'static str) -> Response {
@@ -644,6 +652,23 @@ pub(super) mod tests {
     use serde_json::json;
     use std::cell::Cell;
     use std::future::ready;
+
+    #[test]
+    fn response_build_failures_distinguish_server_failure_from_resource_limits() {
+        for (error, status) in [
+            (ResponseBuildError::BodyLimit, StatusCode::BAD_REQUEST),
+            (ResponseBuildError::HeaderLimit, StatusCode::BAD_REQUEST),
+            (
+                ResponseBuildError::Serialization,
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        ] {
+            let response = response_build_error(error);
+            assert_eq!(response.status(), status, "{error:?}");
+            assert_eq!(body(&response), b"response limit exceeded\n");
+            assert!(!response.headers().contains_key("set-cookie"));
+        }
+    }
 
     pub(in crate::handlers) async fn wire_response(
         request: &CookieSyncWire,

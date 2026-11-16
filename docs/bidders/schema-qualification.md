@@ -1,5 +1,7 @@
 # Schema Compiler Qualification
 
+For the current source-bound closure, implemented components and remaining proof owners, see [resource proof ownership](../testing/resource-proof-ownership.md). Historical checkpoint prose below retains its original scope; it is not current target certification.
+
 **2026-11-13 dependency amendment:** The selected runtime/compiler family is
 now `jsonschema = "=0.61.2"`, with the three compiler patches replayed against
 that release. Current source/archive/patch identities are recorded in

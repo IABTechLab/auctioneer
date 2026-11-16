@@ -16,36 +16,62 @@
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use auctioneer_core::auction::audit::construction_costs as core_construction_costs;
     use auctioneer_core::configure::configure_app;
+    use auctioneer_core::host_primitives::gates::BootGates;
     use auctioneer_core::host_primitives::{
         AuctioneerIngressLease, BootEnvelope, DelegateToDevStrategy, DevRng, RouteAdmissionMarker,
-        StderrBootLog, SystemClock, admission_gate, aux_gate, boot_gates,
+        StderrBootLog, SystemClock, TestClockHandle, admission_gate, aux_gate, boot_gates,
         bootstrap_adapter_with_envelope, probe_egress_gate, static_egress_gate,
     };
     use auctioneer_core::ingress::{AUCTION_CLASS, AUX_CLASS, PROBE_CLASS, decide};
+    use auctioneer_core::test_support::{
+        config_store::runtime_registry, live_catalog, usersync_keys,
+    };
     use auctioneer_runtime::body_caps::DEFAULT_CAP_BYTES;
     use auctioneer_runtime::budget::ASSEMBLY_FACTOR;
     use auctioneer_runtime::{
-        ImmediateResolveTimer, MAX_GVL_PARSED_BYTES, MIN_INBOUND_PARSE_FACTOR,
+        FakeClock, ImmediateResolveTimer, MAX_GVL_PARSED_BYTES, MIN_INBOUND_PARSE_FACTOR,
         MIN_RESPONSE_NODE_PEAK_BYTES, MIN_RESPONSE_PARSE_FACTOR, NoopDecodeCooperator,
         ResolvedIsolateLimits, TargetPlatformConstants,
     };
+    use bytes::Bytes;
     use edgezero_core::app::App;
     use edgezero_core::body::Body;
-    use edgezero_core::config_store::DEFAULT_CONFIG_JSON_NODES;
-    use edgezero_core::http::{Method, StatusCode, request_builder};
+    use edgezero_core::config_store::{
+        BoundedStoreRead, ConfigStore, ConfigStoreError, ConfigStoreHandle, ConfigValue,
+        DEFAULT_CONFIG_JSON_NODES,
+    };
+    use edgezero_core::error::EdgeError;
+    use edgezero_core::http::{Method, Request, StatusCode, request_builder};
     use edgezero_core::ingress::{
         AdmissionDecision, IngressDispatchOutcome, IngressFraming, IngressHead,
         IngressHeadAccounting,
     };
-    use edgezero_core::response_egress::{ResponseEgressEnvelope, ResponseEgressOutcome};
+    use edgezero_core::response_egress::{
+        ResponseEgressBodyKind, ResponseEgressEnvelope, ResponseEgressFallbackDisposition,
+        ResponseEgressObserver, ResponseEgressOutcome, ResponseEgressReport,
+    };
     use edgezero_core::response_egress_framing::ResponseEgressFramingMode;
     use edgezero_core::router::RouteResolution;
-    use edgezero_core::time::MonotonicInstant;
-    use futures::executor::block_on;
+    use edgezero_core::secret_store::{SecretError, SecretHandle, SecretStore};
+    use edgezero_core::store_registry::{
+        BoundSecretStore, ConfigRegistry, ConfigStoreBinding, SecretRegistry, StoreRegistry,
+    };
+    use edgezero_core::time::{Deadline, MonotonicClock, MonotonicInstant};
+    use futures::{
+        channel::oneshot, executor::block_on, future::pending, stream, task::noop_waker_ref,
+    };
+    use std::collections::HashSet;
+    use std::future::Future as _;
     use std::iter::repeat_with;
+    use std::mem::take;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+    use std::task::{Context, Poll};
+    use time::OffsetDateTime;
+    use time::format_description::well_known::Rfc3339;
 
     const CAP_256_KIB: u64 = 1 << 18;
     const BYTES_1_MIB: u64 = 1 << 20;
@@ -65,6 +91,18 @@ mod tests {
     const AUX_PERMITS: u32 = 1;
     const CONCURRENT_AUCTIONS: u32 = 1;
     const TERMINAL_PERMITS: u32 = 8;
+    // Every terminal value in the pinned SDK, supplied from the writing state.
+    const TERMINAL_OUTCOMES: [ResponseEgressOutcome; 9] = [
+        ResponseEgressOutcome::Completed,
+        ResponseEgressOutcome::ClientDisconnected,
+        ResponseEgressOutcome::ConversionError,
+        ResponseEgressOutcome::DeadlineExceeded,
+        ResponseEgressOutcome::HostHandoff,
+        ResponseEgressOutcome::RequestCancelled,
+        ResponseEgressOutcome::SourceError,
+        ResponseEgressOutcome::TransportError,
+        ResponseEgressOutcome::Unspecified,
+    ];
 
     /// Serializes every test that reads a gate's in-use counter.
     ///
@@ -80,24 +118,26 @@ mod tests {
 
     fn boot() {
         static BOOTED: OnceLock<()> = OnceLock::new();
-        BOOTED.get_or_init(|| {
-            bootstrap_adapter_with_envelope(
-                BootEnvelope {
-                    limits: &limits(),
-                    target: &target(),
-                    outbound_meta_bytes: OUTBOUND_META_BYTES,
-                    construction_costs: core_construction_costs(),
-                    log_sink: &StderrBootLog,
-                    catalog_costs: auctioneer_runtime::CatalogResourceCosts::UNCHANGED,
-                },
-                || Arc::new(SystemClock),
-                || Arc::new(DevRng::new()),
-                || Arc::new(ImmediateResolveTimer),
-                || Arc::new(NoopDecodeCooperator),
-                || Arc::new(DelegateToDevStrategy),
-            )
-            .expect("the fixture envelope validates");
-        });
+        BOOTED.get_or_init(|| install_envelope(&limits()));
+    }
+
+    fn install_envelope(limits: &ResolvedIsolateLimits) {
+        bootstrap_adapter_with_envelope(
+            BootEnvelope {
+                limits,
+                target: &target(),
+                outbound_meta_bytes: OUTBOUND_META_BYTES,
+                construction_costs: core_construction_costs(),
+                log_sink: &StderrBootLog,
+                catalog_costs: auctioneer_runtime::CatalogResourceCosts::UNCHANGED,
+            },
+            || Arc::new(SystemClock),
+            || Arc::new(DevRng::new()),
+            || Arc::new(ImmediateResolveTimer),
+            || Arc::new(NoopDecodeCooperator),
+            || Arc::new(DelegateToDevStrategy),
+        )
+        .expect("the fixture envelope validates");
     }
 
     fn limits() -> ResolvedIsolateLimits {
@@ -192,13 +232,72 @@ mod tests {
             builder = builder.header("origin", origin_value);
         }
         let request = builder.body(body).expect("the fixture request builds");
-        let outcome = block_on(app.dispatch_ingress(
-            request,
-            MonotonicInstant::now(),
-            IngressHeadAccounting::HostManaged,
-            IngressFraming::HostManaged,
-        ))
-        .expect("admission begins");
+        block_on(dispatch_request(app, request))
+    }
+
+    fn assert_auxiliary_receipt_held(gates: &BootGates, peak: u64) {
+        assert_eq!(gates.aux.in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), peak);
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn ran_isolated_child(control: &str, test: &str) -> bool {
+        use std::env::{current_exe, var_os};
+        use std::process::Command;
+        if var_os(control).is_some() {
+            return false;
+        }
+        let child = Command::new(current_exe().expect("ingress test executable"))
+            .args(["--exact", test, "--nocapture"])
+            .env(control, "1")
+            .output()
+            .expect("isolated ingress test executes");
+        let output = format!(
+            "{}{}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        assert!(child.status.success(), "{output}");
+        assert!(
+            output.contains("1 passed"),
+            "the child must execute: {output}"
+        );
+        true
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn immediate_probe(app: &App) -> ResponseEgressEnvelope {
+        use futures::FutureExt as _;
+        let request = request_builder()
+            .uri("/status")
+            .body(Body::empty())
+            .unwrap();
+        let outcome = app
+            .dispatch_ingress(
+                request,
+                MonotonicInstant::now(),
+                IngressHeadAccounting::HostManaged,
+                IngressFraming::HostManaged,
+            )
+            .now_or_never()
+            .expect("liveness must not wait for disabled aux capacity")
+            .unwrap();
+        let IngressDispatchOutcome::Response(response) = outcome else {
+            panic!("the independent probe must be admitted");
+        };
+        *response
+    }
+
+    async fn dispatch_request(app: &App, request: Request) -> Option<ResponseEgressEnvelope> {
+        let outcome = app
+            .dispatch_ingress(
+                request,
+                MonotonicInstant::now(),
+                IngressHeadAccounting::HostManaged,
+                IngressFraming::HostManaged,
+            )
+            .await
+            .expect("admission begins");
         match outcome {
             IngressDispatchOutcome::Response(envelope) => Some(*envelope),
             IngressDispatchOutcome::Aborted => None,
@@ -208,6 +307,187 @@ mod tests {
             // passing the abort assertions.
             _ => panic!("unrecognized ingress dispatch outcome"),
         }
+    }
+
+    enum StoreBehavior {
+        Pending,
+        Unavailable,
+    }
+
+    struct AdmissionStore {
+        behavior: StoreBehavior,
+        reads: AtomicUsize,
+        active: AtomicUsize,
+    }
+
+    struct StoreRead<'a>(&'a AtomicUsize);
+
+    impl Drop for StoreRead<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    #[async_trait(?Send)]
+    impl ConfigStore for AdmissionStore {
+        async fn get(&self, _key: &str) -> Result<Option<ConfigValue>, ConfigStoreError> {
+            panic!("admitted configuration must use bounded reads");
+        }
+
+        async fn get_bounded(
+            &self,
+            _key: &str,
+            _clock: &MonotonicClock,
+            _deadline: Deadline,
+            _max_backend_bytes: u64,
+            _max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<ConfigValue>, ConfigStoreError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.active.fetch_add(1, Ordering::SeqCst);
+            let _read = StoreRead(&self.active);
+            match self.behavior {
+                StoreBehavior::Pending => pending().await,
+                StoreBehavior::Unavailable => Err(ConfigStoreError::Unavailable {
+                    message: "fixed test outage".to_owned(),
+                }),
+            }
+        }
+    }
+
+    fn admission_store(behavior: StoreBehavior) -> Arc<AdmissionStore> {
+        Arc::new(AdmissionStore {
+            behavior,
+            reads: AtomicUsize::new(0),
+            active: AtomicUsize::new(0),
+        })
+    }
+
+    fn store_request(method: Method, path: &str, store: Arc<AdmissionStore>) -> Request {
+        let mut request = request_builder()
+            .method(method)
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        let registry: ConfigRegistry = StoreRegistry::single_id(
+            "auctioneer_runtime".to_owned(),
+            ConfigStoreBinding {
+                default_key: "auctioneer_runtime".to_owned(),
+                handle: ConfigStoreHandle::new(store),
+            },
+        );
+        request.extensions_mut().insert(registry);
+        request
+    }
+
+    enum SecretBehavior {
+        Ready,
+        Pending,
+        Unavailable,
+    }
+
+    struct AdmissionSecretStore {
+        behavior: SecretBehavior,
+        key: &'static str,
+        value: Bytes,
+        reads: AtomicUsize,
+        active: AtomicUsize,
+    }
+
+    #[async_trait(?Send)]
+    impl SecretStore for AdmissionSecretStore {
+        async fn get_bytes(&self, _store: &str, _key: &str) -> Result<Option<Bytes>, SecretError> {
+            panic!("admitted handlers must use bounded secret reads");
+        }
+
+        async fn get_bytes_bounded(
+            &self,
+            store_name: &str,
+            key: &str,
+            _clock: &MonotonicClock,
+            _deadline: Deadline,
+            max_backend_bytes: u64,
+            max_value_bytes: u64,
+        ) -> Result<BoundedStoreRead<Bytes>, SecretError> {
+            assert_eq!((store_name, key), ("fake_secrets", self.key));
+            assert_eq!((max_backend_bytes, max_value_bytes), (4096, 4096));
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.active.fetch_add(1, Ordering::SeqCst);
+            let _read = StoreRead(&self.active);
+            match self.behavior {
+                SecretBehavior::Ready => Ok(BoundedStoreRead {
+                    backend_bytes: u64::try_from(self.value.len()).unwrap(),
+                    value: Some(self.value.clone()),
+                }),
+                SecretBehavior::Pending => pending().await,
+                SecretBehavior::Unavailable => Err(SecretError::Unavailable),
+            }
+        }
+    }
+
+    fn admission_secret_store(
+        behavior: SecretBehavior,
+        key: &'static str,
+        value: &'static [u8],
+    ) -> Arc<AdmissionSecretStore> {
+        Arc::new(AdmissionSecretStore {
+            behavior,
+            key,
+            value: Bytes::from_static(value),
+            reads: AtomicUsize::new(0),
+            active: AtomicUsize::new(0),
+        })
+    }
+
+    fn health_secret_store(behavior: SecretBehavior) -> Arc<AdmissionSecretStore> {
+        admission_secret_store(behavior, "fake_health_token", b"fixture-token")
+    }
+
+    fn attach_secret_store(request: &mut Request, store: Arc<AdmissionSecretStore>) {
+        let registry: SecretRegistry = StoreRegistry::single_id(
+            "fake_secret_store".to_owned(),
+            BoundSecretStore::new(SecretHandle::new(store), "fake_secrets".to_owned()),
+        );
+        request.extensions_mut().insert(registry);
+    }
+
+    fn authorized_health_request(store: Arc<AdmissionSecretStore>) -> Request {
+        let mut request = request_builder()
+            .uri("/_auctioneer/health/gvl")
+            .header("authorization", "Bearer fixture-token")
+            .body(Body::empty())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(runtime_registry(&serde_json::json!({
+                "schema_version": 1_u8,
+                "host": {"gvl": {
+                    "authenticate_health": true,
+                    "authenticate_health_token_secret": "fake_health_token"
+                }}
+            })));
+        let generated =
+            OffsetDateTime::parse(auctioneer_config_data::gvl_archive_generated_at(), &Rfc3339)
+                .unwrap();
+        request
+            .extensions_mut()
+            .insert(TestClockHandle(Arc::new(FakeClock::new(generated))));
+        attach_secret_store(&mut request, store);
+        request
+    }
+
+    fn configured_request(
+        method: Method,
+        path: &str,
+        body: Body,
+        config: &serde_json::Value,
+    ) -> Request {
+        let mut request = request_builder()
+            .method(method)
+            .uri(path)
+            .body(body)
+            .unwrap();
+        request.extensions_mut().insert(runtime_registry(config));
+        request
     }
 
     /// Builds the admission view the policy sees, without a router: the
@@ -237,33 +517,15 @@ mod tests {
     fn an_auction_without_boot_gates_aborts_before_body_reads() {
         use auctioneer_core::host_primitives::{boot_gates, bootstrap_adapter};
         use futures::stream::poll_fn;
-        use std::env::{current_exe, var_os};
-        use std::process::Command;
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::task::Poll;
 
         const CHILD_ENV: &str = "AUCTIONEER__TEST__INGRESS_WITHOUT_BOOT_GATES_CHILD";
         // OnceLock gates cannot be cleared; a fresh process excludes sibling boots.
-        if var_os(CHILD_ENV).is_none() {
-            let child = Command::new(current_exe().expect("ingress test executable"))
-                .args([
-                    "--exact",
-                    "tests::an_auction_without_boot_gates_aborts_before_body_reads",
-                    "--nocapture",
-                ])
-                .env(CHILD_ENV, "1")
-                .output()
-                .expect("isolated missing-boot test executes");
-            let output = format!(
-                "{}{}",
-                String::from_utf8_lossy(&child.stdout),
-                String::from_utf8_lossy(&child.stderr),
-            );
-            assert!(child.status.success(), "{output}");
-            assert!(
-                output.contains("1 passed"),
-                "the child must execute: {output}"
-            );
+        if ran_isolated_child(
+            CHILD_ENV,
+            "tests::an_auction_without_boot_gates_aborts_before_body_reads",
+        ) {
             return;
         }
 
@@ -540,6 +802,58 @@ mod tests {
         drop(held);
     }
 
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn zero_auxiliary_capacity_preserves_independent_probe_and_static_owners() {
+        use auctioneer_core::handlers::probe_config::{
+            config_work_capacity, config_work_in_flight,
+        };
+        use auctioneer_runtime::PROBE_CONFIG_MIN_PERMITS;
+
+        const CHILD_ENV: &str = "AUCTIONEER__TEST__ZERO_AUX_TERMINAL_CHILD";
+        if ran_isolated_child(
+            CHILD_ENV,
+            "tests::zero_auxiliary_capacity_preserves_independent_probe_and_static_owners",
+        ) {
+            return;
+        }
+        let mut zero_aux = limits();
+        zero_aux.aux_route_permits = 0;
+        install_envelope(&zero_aux);
+        let gates = boot_gates().unwrap();
+        assert_eq!(gates.aux.capacity(), 0);
+        assert_eq!(gates.aux_work_budget.limit(), 0);
+        assert!(gates.derived.aux_term > 0, "probe config remains funded");
+        let app = configured_app();
+        let mut probe = immediate_probe(&app);
+        assert_eq!(probe.response_mut().status(), StatusCode::OK);
+        assert_eq!(config_work_capacity(), Some(PROBE_CONFIG_MIN_PERMITS));
+        assert_eq!(config_work_in_flight(), 0);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        assert_eq!(gates.admission.in_use(), 0);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        let mut refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+        assert_eq!(
+            refusal.response_mut().status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(gates.static_egress.in_use(), 1);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        drop(refusal);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        drop(probe);
+        assert_eq!(probe_egress_gate().in_use(), 0);
+        drop(immediate_probe(&app));
+        assert_eq!(probe_egress_gate().in_use(), 0);
+        assert_eq!(config_work_in_flight(), 0);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
     #[test]
     fn retained_probe_outputs_saturate_and_recover_independently() {
         boot();
@@ -575,31 +889,965 @@ mod tests {
         let _serialized = gate_counters_lock();
         let app = configured_app();
         let gate = probe_egress_gate();
-        for outcome in [
-            ResponseEgressOutcome::Completed,
-            ResponseEgressOutcome::ClientDisconnected,
-            ResponseEgressOutcome::DeadlineExceeded,
-            ResponseEgressOutcome::RequestCancelled,
-            ResponseEgressOutcome::TransportError,
-        ] {
+        let routes = registered_terminal_requests(&app, PROBE_CLASS);
+        let expected_routes = routes.len();
+        let mut checked = 0_usize;
+        for (method, path) in routes {
+            for outcome in TERMINAL_OUTCOMES {
+                assert_eq!(gate.in_use(), 0);
+                let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                assert_eq!(
+                    gate.in_use(),
+                    1,
+                    "handler return must retain probe capacity"
+                );
+                let (prepared, _policy, mut attempt, clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("probe response egress begins"));
+                assert!(attempt.begin_writing());
+                drop(prepared);
+                assert!(attempt.terminate(outcome, clock.now()));
+                assert_eq!(gate.in_use(), 0, "terminal outcome {outcome:?}");
+                assert!(!attempt.terminate(outcome, clock.now()));
+                drop(attempt);
+                assert_eq!(gate.in_use(), 0, "terminal/drop must not release twice");
+            }
+            drop(dispatch(&app, method, &path, Body::empty()).unwrap());
             assert_eq!(gate.in_use(), 0);
-            let envelope = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
-            assert_eq!(
-                gate.in_use(),
-                1,
-                "handler return must retain probe capacity"
-            );
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(checked, expected_routes);
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn aux_output_and_work_stay_funded_until_each_real_sdk_terminal_outcome() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        assert!(peak > 0);
+        let cases = auxiliary_terminal_requests(&app);
+        let expected_cases = cases.len();
+        let mut checked = 0_usize;
+        for (method, path) in cases {
+            for outcome in TERMINAL_OUTCOMES {
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                assert_auxiliary_receipt_held(gates, peak);
+                let (prepared, _policy, mut attempt, clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("aux response egress begins"));
+                assert!(attempt.begin_writing());
+                drop(prepared);
+                assert_auxiliary_receipt_held(gates, peak);
+                assert!(gates.aux.try_acquire().is_none());
+                assert!(attempt.terminate(outcome, clock.now()));
+                assert_eq!(gates.aux.in_use(), 0, "{path}, {outcome:?}");
+                assert_eq!(gates.aux_work_budget.in_use(), 0, "{path}, {outcome:?}");
+                assert!(!attempt.terminate(outcome, clock.now()));
+                drop(attempt);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+            }
+            let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+            let (prepared, _policy, attempt, _clock) = envelope
+                .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                .unwrap_or_else(|_| panic!("aux response egress begins"));
+            drop(prepared);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(attempt);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            drop(dispatch(&app, method, &path, Body::empty()).unwrap());
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(checked, expected_cases);
+        assert!(checked > 0);
+    }
+
+    fn registered_terminal_requests(app: &App, class: &str) -> Vec<(Method, String)> {
+        app.router()
+            .routes()
+            .into_iter()
+            .filter(|route| route.class() == Some(class))
+            .map(|route| {
+                (
+                    route.method().clone(),
+                    route.pattern().replace("{name}", "fake_fixture_bidder"),
+                )
+            })
+            .collect()
+    }
+
+    fn auxiliary_terminal_requests(app: &App) -> Vec<(Method, String)> {
+        registered_terminal_requests(app, AUX_CLASS)
+            .into_iter()
+            .chain([
+                (Method::GET, "/no/such/route".to_owned()),
+                (Method::POST, "/status".to_owned()),
+            ])
+            .collect()
+    }
+
+    #[derive(Clone, Default)]
+    struct EgressReports(Arc<Mutex<Vec<ResponseEgressReport>>>);
+
+    impl EgressReports {
+        fn assert_single_application_completion(&self, expected: ResponseEgressOutcome) {
+            let completed = take(&mut *self.0.lock().unwrap());
+            assert_eq!(completed.len(), 1);
+            assert_eq!(completed[0].body_kind, ResponseEgressBodyKind::Application);
+            assert_eq!(completed[0].fallback_disposition, None);
+            assert_eq!(completed[0].outcome, expected);
+        }
+    }
+
+    impl ResponseEgressObserver for EgressReports {
+        fn complete(&self, report: &ResponseEgressReport) {
+            self.0.lock().unwrap().push(report.clone());
+        }
+    }
+
+    #[test]
+    fn authorized_health_retains_original_work_through_egress_completion_and_abandonment() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let reports = EgressReports::default();
+        let mut app = configured_app();
+        app.set_response_egress_observer(reports.clone());
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let endings = TERMINAL_OUTCOMES
+            .into_iter()
+            .map(|outcome| (Some(outcome), true))
+            .chain([(None, false), (None, true)]);
+        let mut checked = 0_usize;
+        for (outcome, writing) in endings {
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            let store = health_secret_store(SecretBehavior::Ready);
+            let request = authorized_health_request(Arc::clone(&store));
+            let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+            let response = envelope.response_mut();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["content-type"], "application/json");
+            assert_eq!(response.headers()["cache-control"], "no-store");
+            assert!(!response.headers().contains_key("www-authenticate"));
+            let payload: serde_json::Value =
+                serde_json::from_slice(response.body().as_bytes().unwrap()).unwrap();
+            assert_eq!(payload["status"], "ok");
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_auxiliary_receipt_held(gates, peak);
             let (prepared, _policy, mut attempt, clock) = envelope
                 .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
-                .unwrap_or_else(|_| panic!("probe response egress begins"));
-            assert!(attempt.begin_writing());
+                .unwrap_or_else(|_| panic!("authorized health egress begins"));
+            if writing {
+                assert!(attempt.begin_writing());
+            }
             drop(prepared);
-            assert!(attempt.terminate(outcome, clock.now()));
-            assert_eq!(gate.in_use(), 0, "terminal outcome {outcome:?}");
-            assert!(!attempt.terminate(outcome, clock.now()));
+            assert_auxiliary_receipt_held(gates, peak);
+            assert!(reports.0.lock().unwrap().is_empty());
+            assert!(gates.aux.try_acquire().is_none());
+            if let Some(terminal) = outcome {
+                assert!(attempt.terminate(terminal, clock.now()));
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                assert!(!attempt.terminate(terminal, clock.now()));
+            }
             drop(attempt);
-            assert_eq!(gate.in_use(), 0, "terminal/drop must not release twice");
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            reports.assert_single_application_completion(outcome.unwrap_or(if writing {
+                ResponseEgressOutcome::TransportError
+            } else {
+                ResponseEgressOutcome::ConversionError
+            }));
+            checked = checked.checked_add(1).unwrap();
         }
+        assert_eq!(checked, 11);
+    }
+
+    #[test]
+    fn pending_health_secret_cancellation_releases_original_work_without_borrowing_probe_slots() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let store = health_secret_store(SecretBehavior::Pending);
+        let request = authorized_health_request(Arc::clone(&store));
+        let mut construction = Box::pin(dispatch_request(&app, request));
+        assert!(
+            construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()))
+                .is_pending()
+        );
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(store.active.load(Ordering::SeqCst), 1);
+        assert_auxiliary_receipt_held(gates, peak);
+        let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+        assert_eq!(gates.static_egress.in_use(), 1);
+        let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(construction);
+        assert_eq!(store.active.load(Ordering::SeqCst), 0);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        assert_eq!(gates.static_egress.in_use(), 1);
+        assert_eq!(probe_egress_gate().in_use(), 1);
+        drop(refusal);
+        drop(probe);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        assert_eq!(probe_egress_gate().in_use(), 0);
+        let recovered = health_secret_store(SecretBehavior::Ready);
+        let mut envelope =
+            block_on(dispatch_request(&app, authorized_health_request(recovered))).unwrap();
+        assert_eq!(envelope.response_mut().status(), StatusCode::OK);
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    #[test]
+    fn unavailable_health_secret_keeps_original_work_through_denial_handoff() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let store = health_secret_store(SecretBehavior::Unavailable);
+        let request = authorized_health_request(Arc::clone(&store));
+        let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(store.active.load(Ordering::SeqCst), 0);
+        let response = envelope.response_mut();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.headers()["www-authenticate"], "Bearer");
+        assert_eq!(response.headers()["cache-control"], "no-store");
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    fn assert_info_payload(payload: &serde_json::Value, index: usize, base: &str, disabled: bool) {
+        let expected_status = if disabled { "DISABLED" } else { "ACTIVE" };
+        match index {
+            0 | 1 => {
+                let names = payload.as_array().unwrap();
+                let present = index == 0 || !disabled;
+                assert_eq!(names.iter().any(|name| name == base), present);
+                assert_eq!(names.iter().any(|name| name == "fake_info_alias"), present);
+            }
+            2 => assert_eq!(payload["status"], expected_status),
+            3 => {
+                assert_eq!(payload["status"], expected_status);
+                assert_eq!(payload["aliasOf"], base);
+            }
+            4 => {
+                assert_eq!(payload[base]["status"], expected_status);
+                assert_eq!(payload["fake_info_alias"]["status"], expected_status);
+                assert_eq!(payload["fake_info_alias"]["aliasOf"], base);
+            }
+            _ => panic!("every info response shape has an explicit oracle"),
+        }
+    }
+
+    #[test]
+    fn successful_info_list_detail_and_all_keep_runtime_alias_policy_and_terminal_funding() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        // The real App owns a discovered catalog. No provider protocol or
+        // handwritten bidder-name list is part of this metadata-only control.
+        let base = auctioneer_config_data::bidders()
+            .iter()
+            .find(|info| {
+                !info.disabled && info.alias_of.is_none() && info.default_enabled != Some(false)
+            })
+            .expect("the published catalog has a default-active base");
+        let paths = [
+            "/info/bidders".to_owned(),
+            "/info/bidders?enabledonly=true".to_owned(),
+            format!("/info/bidders/{}", base.name),
+            "/info/bidders/fake_info_alias".to_owned(),
+            "/info/bidders/all".to_owned(),
+        ];
+        let mut checked = 0_usize;
+        for disabled in [false, true] {
+            let config = serde_json::json!({
+                "schema_version": 1_u8,
+                "host": {"aliases": {"fake_info_alias": base.name}},
+                "bidders": {(base.name.as_str()): {"enabled": !disabled}}
+            });
+            for (index, path) in paths.iter().enumerate() {
+                for (complete, writing) in [(true, true), (false, false), (false, true)] {
+                    let request = configured_request(Method::GET, path, Body::empty(), &config);
+                    let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+                    let response = envelope.response_mut();
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{path}, disabled={disabled}"
+                    );
+                    assert_eq!(response.headers()["content-type"], "application/json");
+                    let payload: serde_json::Value =
+                        serde_json::from_slice(response.body().as_bytes().unwrap()).unwrap();
+                    assert_info_payload(&payload, index, &base.name, disabled);
+                    assert_auxiliary_receipt_held(gates, peak);
+                    let (prepared, _policy, mut attempt, clock) = envelope
+                        .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                        .unwrap_or_else(|_| panic!("successful info egress begins"));
+                    if writing {
+                        assert!(attempt.begin_writing());
+                    }
+                    drop(prepared);
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(gates.aux.try_acquire().is_none());
+                    if complete {
+                        assert!(attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                        assert_eq!(gates.aux.in_use(), 0);
+                        assert_eq!(gates.aux_work_budget.in_use(), 0);
+                        assert!(!attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                    }
+                    drop(attempt);
+                    assert_eq!(gates.aux.in_use(), 0);
+                    assert_eq!(gates.aux_work_budget.in_use(), 0);
+                    checked = checked.checked_add(1).unwrap();
+                }
+            }
+        }
+        assert_eq!(checked, 30);
+    }
+
+    fn assert_signing_response_handoff(
+        app: &App,
+        request: Request,
+        store: &AdmissionSecretStore,
+        expected: StatusCode,
+    ) {
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let path = request.uri().to_string();
+        let mut envelope = block_on(dispatch_request(app, request)).unwrap();
+        assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(store.active.load(Ordering::SeqCst), 0);
+        assert_eq!(envelope.response_mut().status(), expected, "{path}");
+        if expected != StatusCode::OK {
+            assert!(!envelope.response_mut().headers().contains_key("set-cookie"));
+        }
+        assert_auxiliary_receipt_held(gates, peak);
+        drop(envelope);
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    #[test]
+    fn pending_sync_signing_reads_keep_original_receipts_until_cancellation_and_recover() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let role = live_catalog::redirect();
+        let config = serde_json::json!({
+            "schema_version": 1_u8,
+            "host": {
+                "user_sync": {"external_url": "https://sync.example.test"},
+                "aliases": {"fake_sync_alias": role.name()}
+            },
+            "bidders": {(role.name()): {"enabled": true}}
+        });
+        let cases = [
+            (Method::GET, "/getuids", Vec::new()),
+            (
+                Method::POST,
+                "/cookie_sync",
+                serde_json::to_vec(&serde_json::json!({"bidders": [], "gdpr": 0_u8})).unwrap(),
+            ),
+            (
+                Method::GET,
+                "/setuid?bidder=fake_sync_alias&uid=partner-user",
+                Vec::new(),
+            ),
+        ];
+        let mut checked = 0_usize;
+        for (method, path, body) in cases {
+            let request_for = |store| {
+                let mut request = configured_request(
+                    method.clone(),
+                    path,
+                    Body::from_bytes(body.clone()),
+                    &config,
+                );
+                attach_secret_store(&mut request, store);
+                request
+            };
+            let store = admission_secret_store(
+                SecretBehavior::Pending,
+                "usersync_cookie_keyring",
+                usersync_keys::SECRET_JSON.as_bytes(),
+            );
+            let mut construction =
+                Box::pin(dispatch_request(&app, request_for(Arc::clone(&store))));
+            assert!(
+                construction
+                    .as_mut()
+                    .poll(&mut Context::from_waker(noop_waker_ref()))
+                    .is_pending(),
+                "{path} must suspend in the keyring read"
+            );
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 1);
+            assert_auxiliary_receipt_held(gates, peak);
+            let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+            let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+            assert_eq!(gates.static_egress.in_use(), 1);
+            assert_eq!(probe_egress_gate().in_use(), 1);
+            assert_auxiliary_receipt_held(gates, peak);
+            drop(construction);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            assert_eq!(gates.static_egress.in_use(), 1);
+            assert_eq!(probe_egress_gate().in_use(), 1);
+            drop(refusal);
+            drop(probe);
+            assert_eq!(gates.static_egress.in_use(), 0);
+            assert_eq!(probe_egress_gate().in_use(), 0);
+            let recovered = admission_secret_store(
+                SecretBehavior::Ready,
+                "usersync_cookie_keyring",
+                usersync_keys::SECRET_JSON.as_bytes(),
+            );
+            assert_signing_response_handoff(
+                &app,
+                request_for(Arc::clone(&recovered)),
+                &recovered,
+                StatusCode::OK,
+            );
+            let unavailable = admission_secret_store(
+                SecretBehavior::Unavailable,
+                "usersync_cookie_keyring",
+                usersync_keys::SECRET_JSON.as_bytes(),
+            );
+            assert_signing_response_handoff(
+                &app,
+                request_for(Arc::clone(&unavailable)),
+                &unavailable,
+                StatusCode::SERVICE_UNAVAILABLE,
+            );
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(checked, 3);
+    }
+
+    #[test]
+    fn configured_info_query_and_unknown_name_errors_keep_original_terminal_funding() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let config = serde_json::json!({"schema_version": 1_u8});
+        let cases: [(&str, StatusCode, &[u8]); 3] = [
+            (
+                "/info/bidders?enabledonly=not_bool",
+                StatusCode::BAD_REQUEST,
+                b"Invalid value for 'enabledonly' query param, must be of boolean type",
+            ),
+            (
+                "/info/bidders?baseadaptersonly=not_bool",
+                StatusCode::BAD_REQUEST,
+                b"Invalid value for 'baseadaptersonly' query param, must be of boolean type",
+            ),
+            (
+                "/info/bidders/fake_missing_info_bidder",
+                StatusCode::NOT_FOUND,
+                b"",
+            ),
+        ];
+        let mut checked = 0_usize;
+        for (path, status, body) in cases {
+            for (complete, writing) in [(true, true), (false, false), (false, true)] {
+                let request = configured_request(Method::GET, path, Body::empty(), &config);
+                let mut envelope = block_on(dispatch_request(&app, request)).unwrap();
+                let response = envelope.response_mut();
+                assert_eq!(response.status(), status);
+                assert_eq!(response.body().as_bytes().unwrap(), body);
+                assert!(!response.headers().contains_key("content-type"));
+                assert_auxiliary_receipt_held(gates, peak);
+                let (prepared, _policy, mut attempt, clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("configured info error egress begins"));
+                if writing {
+                    assert!(attempt.begin_writing());
+                }
+                drop(prepared);
+                assert_auxiliary_receipt_held(gates, peak);
+                if complete {
+                    assert!(attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                    assert_eq!(gates.aux.in_use(), 0);
+                    assert_eq!(gates.aux_work_budget.in_use(), 0);
+                    assert!(!attempt.terminate(ResponseEgressOutcome::Completed, clock.now()));
+                }
+                drop(attempt);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                checked = checked.checked_add(1).unwrap();
+            }
+        }
+        assert_eq!(checked, 9);
+    }
+
+    #[test]
+    fn aux_work_is_released_once_when_application_egress_is_abandoned_before_or_during_writing() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let reports = EgressReports::default();
+        let mut app = configured_app();
+        app.set_response_egress_observer(reports.clone());
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let cases = auxiliary_terminal_requests(&app);
+        assert!(!cases.is_empty());
+        for (method, path) in cases {
+            for writing in [false, true] {
+                let envelope = dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                let (prepared, _policy, mut attempt, _clock) = envelope
+                    .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                    .unwrap_or_else(|_| panic!("aux response egress begins"));
+                if writing {
+                    assert!(attempt.begin_writing());
+                }
+                drop(prepared);
+                assert_auxiliary_receipt_held(gates, peak);
+                assert!(reports.0.lock().unwrap().is_empty());
+                assert!(gates.aux.try_acquire().is_none());
+                drop(attempt);
+                assert_eq!(gates.aux.in_use(), 0);
+                assert_eq!(gates.aux_work_budget.in_use(), 0);
+                let completed = take(&mut *reports.0.lock().unwrap());
+                assert_eq!(completed.len(), 1, "{path}, writing={writing}");
+                assert_eq!(completed[0].body_kind, ResponseEgressBodyKind::Application);
+                assert_eq!(completed[0].fallback_disposition, None);
+                assert_eq!(
+                    completed[0].outcome,
+                    if writing {
+                        ResponseEgressOutcome::TransportError
+                    } else {
+                        ResponseEgressOutcome::ConversionError
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn aux_work_survives_real_sdk_fallback_preparation_until_completion_or_abandonment() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let reports = EgressReports::default();
+        let mut app = configured_app();
+        app.set_response_egress_observer(reports.clone());
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let cases = auxiliary_terminal_requests(&app);
+        assert!(!cases.is_empty());
+        let endings = [
+            (Some(ResponseEgressFallbackDisposition::Completed), true),
+            (Some(ResponseEgressFallbackDisposition::Aborted), false),
+            (Some(ResponseEgressFallbackDisposition::Aborted), true),
+            (None, false),
+            (None, true),
+        ];
+        for (method, path) in cases {
+            for cause in [
+                ResponseEgressOutcome::ConversionError,
+                ResponseEgressOutcome::DeadlineExceeded,
+            ] {
+                for (disposition, writing) in endings {
+                    let mut envelope =
+                        dispatch(&app, method.clone(), &path, Body::empty()).unwrap();
+                    assert_auxiliary_receipt_held(gates, peak);
+                    let (mut attempt, clock) = if cause == ResponseEgressOutcome::ConversionError {
+                        // The real normalizer returns the original live attempt,
+                        // rather than a fabricated completion or a second grant.
+                        envelope
+                            .response_mut()
+                            .headers_mut()
+                            .insert("content-length", "invalid".parse().unwrap());
+                        let Err(failure) =
+                            envelope.begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                        else {
+                            panic!("invalid framing must return the live attempt");
+                        };
+                        let (attempt, clock, actual) = failure.into_parts();
+                        assert_eq!(actual, cause);
+                        (attempt, clock)
+                    } else {
+                        let (prepared, _policy, attempt, clock) = envelope
+                            .begin(ResponseEgressFramingMode::ExplicitBufferedLength)
+                            .unwrap_or_else(|_| panic!("aux response egress begins"));
+                        drop(prepared);
+                        (attempt, clock)
+                    };
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(attempt.begin_fallback(cause));
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(!attempt.begin_fallback(cause));
+                    let fallback = http::Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::from_bytes(b"internal error\n".to_vec()))
+                        .unwrap();
+                    let prepared = attempt
+                        .prepare_response(
+                            ResponseEgressFramingMode::ExplicitBufferedLength,
+                            &method,
+                            fallback,
+                        )
+                        .unwrap();
+                    assert_auxiliary_receipt_held(gates, peak);
+                    if writing {
+                        assert!(attempt.begin_writing());
+                    }
+                    drop(prepared);
+                    assert_auxiliary_receipt_held(gates, peak);
+                    assert!(reports.0.lock().unwrap().is_empty());
+                    assert!(gates.aux.try_acquire().is_none());
+                    if let Some(ending) = disposition {
+                        assert!(attempt.finish_fallback(ending, clock.now()));
+                        assert_eq!(gates.aux.in_use(), 0);
+                        assert_eq!(gates.aux_work_budget.in_use(), 0);
+                        assert!(!attempt.finish_fallback(ending, clock.now()));
+                    }
+                    drop(attempt);
+                    assert_eq!(gates.aux.in_use(), 0);
+                    assert_eq!(gates.aux_work_budget.in_use(), 0);
+                    let completed = take(&mut *reports.0.lock().unwrap());
+                    assert_eq!(
+                        completed.len(),
+                        1,
+                        "{path}, {cause:?}, {disposition:?}, writing={writing}"
+                    );
+                    assert_eq!(completed[0].body_kind, ResponseEgressBodyKind::Fallback);
+                    assert_eq!(completed[0].outcome, cause);
+                    assert_eq!(
+                        completed[0].fallback_disposition,
+                        Some(disposition.unwrap_or(ResponseEgressFallbackDisposition::Aborted))
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn terminal_cases_join_every_registered_auxiliary_and_both_router_fallbacks() {
+        let app = configured_app();
+        let expected: HashSet<_> = app
+            .router()
+            .routes()
+            .into_iter()
+            .filter(|route| route.class() == Some(AUX_CLASS))
+            .map(|route| route.id().clone())
+            .collect();
+        assert!(!expected.is_empty());
+        let mut matched = HashSet::new();
+        let mut not_found = 0_usize;
+        let mut wrong_method = 0_usize;
+        for (method, path) in auxiliary_terminal_requests(&app) {
+            assert!(
+                !path.contains(['{', '}']),
+                "unexpanded route fixture: {path}"
+            );
+            match app.router().resolve(&method, &path).resolution() {
+                RouteResolution::Matched(route) => {
+                    assert_eq!(route.class(), Some(AUX_CLASS));
+                    assert!(
+                        matched.insert(route.id().clone()),
+                        "duplicate route: {method} {path}"
+                    );
+                }
+                RouteResolution::NotFound => not_found = not_found.checked_add(1).unwrap(),
+                RouteResolution::MethodNotAllowed { .. } => {
+                    wrong_method = wrong_method.checked_add(1).unwrap();
+                }
+                _ => panic!("unrecognized router disposition"),
+            }
+        }
+        assert_eq!(matched, expected);
+        assert_eq!(not_found, 1);
+        assert_eq!(wrong_method, 1);
+
+        let expected_probes: HashSet<_> = app
+            .router()
+            .routes()
+            .into_iter()
+            .filter(|route| route.class() == Some(PROBE_CLASS))
+            .map(|route| route.id().clone())
+            .collect();
+        assert!(!expected_probes.is_empty());
+        let mut matched_probes = HashSet::new();
+        for (method, path) in registered_terminal_requests(&app, PROBE_CLASS) {
+            assert!(
+                !path.contains(['{', '}']),
+                "unexpanded probe fixture: {path}"
+            );
+            let resolved = app.router().resolve(&method, &path);
+            let RouteResolution::Matched(route) = resolved.resolution() else {
+                panic!("probe fixture must reach its registered handler");
+            };
+            assert_eq!(route.class(), Some(PROBE_CLASS));
+            assert!(matched_probes.insert(route.id().clone()));
+        }
+        assert_eq!(matched_probes, expected_probes);
+    }
+
+    #[test]
+    fn pending_configuration_cancellation_releases_each_admitted_owner() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let mut checked = 0_usize;
+        for (method, path) in registered_terminal_requests(&app, AUX_CLASS) {
+            let store = admission_store(StoreBehavior::Pending);
+            let request = store_request(method.clone(), &path, Arc::clone(&store));
+            let mut construction = Box::pin(dispatch_request(&app, request));
+            let first = construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()));
+            assert_auxiliary_receipt_held(gates, peak);
+            assert!(
+                first.is_pending(),
+                "{method} {path} must suspend at its bounded config read"
+            );
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 1);
+            let refusal = dispatch(&app, Method::GET, "/info/bidders", Body::empty()).unwrap();
+            assert_eq!(gates.static_egress.in_use(), 1);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(refusal);
+            assert_eq!(gates.static_egress.in_use(), 0);
+            let probe = dispatch(&app, Method::GET, "/status", Body::empty()).unwrap();
+            assert_eq!(probe_egress_gate().in_use(), 1);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(probe);
+            assert_eq!(probe_egress_gate().in_use(), 0);
+            assert_eq!(store.active.load(Ordering::SeqCst), 1);
+            drop(construction);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            drop(dispatch(&app, method, &path, Body::empty()).unwrap());
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(
+            checked,
+            app.router()
+                .routes()
+                .iter()
+                .filter(|route| route.class() == Some(AUX_CLASS))
+                .count()
+        );
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn failed_configuration_keeps_original_work_receipt_through_error_handoff() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        let mut checked = 0_usize;
+        for (method, path) in registered_terminal_requests(&app, AUX_CLASS) {
+            let store = admission_store(StoreBehavior::Unavailable);
+            let request = store_request(method, &path, Arc::clone(&store));
+            let mut response = block_on(dispatch_request(&app, request)).unwrap();
+            assert_eq!(
+                response.response_mut().status(),
+                if path == "/_auctioneer/health/gvl" {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
+            );
+            assert_eq!(store.reads.load(Ordering::SeqCst), 1);
+            assert_eq!(store.active.load(Ordering::SeqCst), 0);
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(response);
+            assert_eq!(gates.aux.in_use(), 0);
+            assert_eq!(gates.aux_work_budget.in_use(), 0);
+            checked = checked.checked_add(1).unwrap();
+        }
+        assert_eq!(
+            checked,
+            app.router()
+                .routes()
+                .iter()
+                .filter(|route| route.class() == Some(AUX_CLASS))
+                .count()
+        );
+        assert!(checked > 0);
+    }
+
+    fn body_read_request(
+        method: &Method,
+        path: &str,
+        config: &serde_json::Value,
+    ) -> (Request, Option<Arc<AdmissionStore>>) {
+        let sync = matches!(path, "/cookie_sync" | "/getuids" | "/setuid");
+        let store = (!sync).then(|| admission_store(StoreBehavior::Pending));
+        let mut request = if let Some(pending_store) = &store {
+            store_request(method.clone(), path, Arc::clone(pending_store))
+        } else {
+            configured_request(method.clone(), path, Body::empty(), config)
+        };
+        if method == Method::OPTIONS {
+            request
+                .headers_mut()
+                .insert("origin", "https://publisher.example.test".parse().unwrap());
+            request
+                .headers_mut()
+                .insert("access-control-request-method", "POST".parse().unwrap());
+            request.headers_mut().insert(
+                "access-control-request-headers",
+                "Content-Type".parse().unwrap(),
+            );
+        }
+        (request, store)
+    }
+
+    fn assert_body_read_terminal(
+        app: &App,
+        method: &Method,
+        path: &str,
+        config: &serde_json::Value,
+        cancel: bool,
+    ) {
+        let gates = boot_gates().unwrap();
+        let peak = gates.aux_work_derived.peak_bytes();
+        assert!(peak > 0, "the pending body must retain nonzero funded work");
+        let (mut request, store) = body_read_request(method, path, config);
+        let (wake, timeout) = oneshot::channel::<()>();
+        let body_polls = Arc::new(AtomicUsize::new(0));
+        let observed_polls = Arc::clone(&body_polls);
+        *request.body_mut() = Body::from_stream(stream::once(async move {
+            observed_polls.fetch_add(1, Ordering::SeqCst);
+            timeout
+                .await
+                .expect("the fixture delivers the adapter timeout");
+            Err::<bytes::Bytes, _>(EdgeError::request_timeout("fixed adapter timeout"))
+        }));
+        let mut construction = Box::pin(dispatch_request(app, request));
+        assert!(
+            construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()))
+                .is_pending()
+        );
+        assert!(!wake.is_canceled(), "the admitted body must still be held");
+        assert_eq!(body_polls.load(Ordering::SeqCst), 1, "{method} {path}");
+        if let Some(pending_store) = &store {
+            assert_eq!(pending_store.reads.load(Ordering::SeqCst), 0);
+        }
+        assert_eq!(gates.aux.in_use(), 1);
+        assert_eq!(gates.aux_work_budget.in_use(), peak);
+        assert_eq!(gates.admission.in_use(), 0);
+        assert_eq!(gates.static_egress.in_use(), 0);
+        if cancel {
+            drop(construction);
+            assert!(
+                wake.is_canceled(),
+                "cancellation must drop the stalled body"
+            );
+        } else {
+            wake.send(()).unwrap();
+            let Poll::Ready(Some(mut response)) = construction
+                .as_mut()
+                .poll(&mut Context::from_waker(noop_waker_ref()))
+            else {
+                panic!("{method} {path}: the adapter timeout must finish dispatch");
+            };
+            assert_eq!(
+                response.response_mut().status(),
+                StatusCode::REQUEST_TIMEOUT
+            );
+            assert_eq!(
+                response.response_mut().body().as_bytes(),
+                Some(b"request timeout\n".as_slice())
+            );
+            assert_eq!(gates.aux.in_use(), 1);
+            assert_eq!(gates.aux_work_budget.in_use(), peak);
+            drop(response);
+            drop(construction);
+        }
+        if let Some(pending_store) = &store {
+            assert_eq!(pending_store.reads.load(Ordering::SeqCst), 0);
+        }
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+        drop(dispatch(app, method.clone(), path, Body::empty()).unwrap());
+        assert_eq!(gates.aux.in_use(), 0);
+        assert_eq!(gates.aux_work_budget.in_use(), 0);
+    }
+
+    #[test]
+    fn body_read_timeout_and_cancellation_preserve_the_original_auxiliary_receipt() {
+        boot();
+        let _serialized = gate_counters_lock();
+        let app = configured_app();
+        // Sync handlers must resolve configured policy before polling their
+        // bodies; the collector and fallback drains must not read policy.
+        let config = serde_json::json!({
+            "schema_version": 1_u8,
+            "host": {"user_sync": {
+                "external_url": "https://sync.example.test",
+                "allowed_origins": ["https://publisher.example.test"]
+            }}
+        });
+        let cases = auxiliary_terminal_requests(&app)
+            .into_iter()
+            .filter(|(method, path)| {
+                matches!(
+                    path.as_str(),
+                    "/info/bidders" | "/cookie_sync" | "/getuids" | "/setuid"
+                ) || !matches!(
+                    app.router().resolve(method, path).resolution(),
+                    RouteResolution::Matched(_)
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(cases.len(), 7);
+        let expected_cases = cases.len().checked_mul(2).unwrap();
+        let mut checked = 0_usize;
+        for (method, path) in cases {
+            for cancel in [false, true] {
+                assert_body_read_terminal(&app, &method, &path, &config, cancel);
+                checked = checked.checked_add(1).unwrap();
+            }
+        }
+        assert_eq!(checked, expected_cases);
+        assert!(checked > 0);
     }
 
     #[test]
