@@ -1,5 +1,5 @@
 //! Checks the approved crates.io payload from revision
-//! 55ac1664384793c5d3b20745d3f9c169dfe2c06f, with exact patched and added files.
+//! 0e82636fde8b2afb5e712ede6c261166ea10fc17, with exact patched and added files.
 
 use flate2::read::GzDecoder;
 use sha2::{Digest as _, Sha256};
@@ -9,30 +9,30 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 
-const ARCHIVE_PATH: &str = "vendor/jsonschema-macros-core-0.58.6.crate";
+const ARCHIVE_PATH: &str = "vendor/jsonschema-macros-core-0.61.2.crate";
 const VENDOR_PATH: &str = "vendor/jsonschema-macros-core";
-const ARCHIVE_PREFIX: &str = "jsonschema-macros-core-0.58.6/";
-const ARCHIVE_SHA256: &str = "bf3ebe067f2c25a981a7d1b2f696fc213e10dbf80ba5fe997f7dc2e4fe261f26";
-const PATCHED_FILES: [(&str, &str); 8] = [
+const ARCHIVE_PREFIX: &str = "jsonschema-macros-core-0.61.2/";
+const ARCHIVE_SHA256: &str = "75afa4b5e6986cc221f5339d7d6149360f0bf8e65bcb23617dc0f92900b576d2";
+const PATCHED_FILES: [(&str, &str); 9] = [
     (
         "Cargo.toml",
-        "4f5e5fae8a57a8f400542804fba6199b969deaeb0519b1f1aa6d84b005a7363e",
+        "7e20e3d63945bdeed04afb10a8763be91419577c510891e87a5bbbd1eaf559c3",
     ),
     (
         "Cargo.toml.orig",
-        "8084eeeaa19a83442d0fc29325c5861ead328886021bbb6a0abb13415d7faefb",
+        "467286fa79c0c70a4952e386a960af50874868ff40caaf1e44722daf97436d6d",
     ),
     (
         "src/lib.rs",
-        "9411c0283761acfb41305686bba260e723235e6620713893b3efaf1b9dd09623",
+        "8fdaf9996475baf95ad42a820d2f9e1a8b7d3fe80e3bb9144b624507c150e5cd",
     ),
     (
         "src/context.rs",
-        "c6191b58242eda136efc7e498ff2a8ac217066416e2f8da10f5aec1ffb637d2b",
+        "ce580d3bcb085388ed8c11cd20e32c00789c972f461402d36233d799d93f6da5",
     ),
     (
         "src/codegen.rs",
-        "df60bb9e815bf5568696c3c9930c1132ae3bd10b8a88bbdb0b7bc06117899511",
+        "68d9a7a692f6f9891ab9e19077ec24d22b45cb884a9281664a0c947c0c9ab35f",
     ),
     (
         "src/codegen/object_schema.rs",
@@ -40,7 +40,11 @@ const PATCHED_FILES: [(&str, &str); 8] = [
     ),
     (
         "src/codegen/emit_root.rs",
-        "0fe3dfb41dd37dab3fa8fe7613fb20084b91550b100798da2c21adbcd21a6730",
+        "5a757b0f4d360fcc9fb8dce7af0031b107067be9f5c451321ec94d49ff3fb2f8",
+    ),
+    (
+        "src/codegen/regex.rs",
+        "bb2103f10ab1f5a14ed490401dc74f24ddcb6a875146f35eaed581de25c4994b",
     ),
     (
         "src/tests.rs",
@@ -57,7 +61,7 @@ const MAX_MEMBER_BYTES: u64 = 512 * 1024;
 const MAX_MEMBERS: usize = 512;
 
 fn sha256(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn directory(path: &Path) -> Result<(), String> {
@@ -296,7 +300,11 @@ mod tests {
     #[test]
     fn rejects_edits_to_unpatched_source_lock_and_vcs_provenance() {
         let temporary = fixture();
-        for name in ["src/codegen/regex.rs", "Cargo.lock", ".cargo_vcs_info.json"] {
+        for name in [
+            "src/codegen/dispatch.rs",
+            "Cargo.lock",
+            ".cargo_vcs_info.json",
+        ] {
             let path = temporary.path().join(VENDOR_PATH).join(name);
             let original = fs::read(&path).unwrap();
             let mut changed = original.clone();
@@ -437,7 +445,9 @@ mod tests {
             .map(|(name, _)| (*name, fs::read(vendor.join(name)).unwrap()))
             .collect();
         let patch = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../vendor/patches/jsonschema-macros-core-explicit-cache.patch")
+            .join(
+                "../../vendor/patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch",
+            )
             .canonicalize()
             .unwrap();
         let mut child = Command::new("git")
@@ -478,7 +488,7 @@ mod tests {
                 ),
                 "src/codegen/emit_root.rs" => assert_eq!(
                     sha256(&actual),
-                    "0fe3dfb41dd37dab3fa8fe7613fb20084b91550b100798da2c21adbcd21a6730"
+                    "5a757b0f4d360fcc9fb8dce7af0031b107067be9f5c451321ec94d49ff3fb2f8"
                 ),
                 _ => assert_eq!(actual, original, "{}", name.display()),
             }

@@ -441,7 +441,7 @@ mod tests {
 
     fn retained_witness(category: &str, source: &str, bytes: &[u8]) {
         assert_eq!(
-            format!("{:x}", Sha256::digest(MANIFEST.as_bytes())),
+            hex::encode(Sha256::digest(MANIFEST.as_bytes())),
             MANIFEST_SHA256
         );
         let manifest: toml::Value = toml::from_str(MANIFEST).unwrap();
@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(matches.len(), 1);
         let retained: Retained = matches[0]["retained"].clone().try_into().unwrap();
         assert_eq!(retained.bytes, bytes.len());
-        assert_eq!(retained.sha256, format!("{:x}", Sha256::digest(bytes)));
+        assert_eq!(retained.sha256, hex::encode(Sha256::digest(bytes)));
         assert_eq!(
             retained.path,
             if category == "schema" {
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn source_capture_membership_and_counts_cannot_silently_shrink() {
         assert_eq!(
-            format!("{:x}", Sha256::digest(MANIFEST.as_bytes())),
+            hex::encode(Sha256::digest(MANIFEST.as_bytes())),
             MANIFEST_SHA256
         );
         let manifest: toml::Value = toml::from_str(MANIFEST).unwrap();
@@ -585,7 +585,7 @@ mod tests {
                 u64::try_from(row["source_bytes"].as_integer().unwrap()).unwrap()
             );
             assert_eq!(
-                format!("{:x}", Sha256::digest(&bytes.stdout)),
+                hex::encode(Sha256::digest(&bytes.stdout)),
                 row["source_sha256"].as_str().unwrap()
             );
             let blob = Command::new("git")

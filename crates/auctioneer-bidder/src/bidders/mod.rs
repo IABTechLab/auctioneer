@@ -89,7 +89,7 @@ pub(crate) mod harness {
         source: &str,
     ) -> Result<(), &'static str> {
         use sha2::{Digest as _, Sha256};
-        let digest = |bytes: &str| format!("{:x}", Sha256::digest(bytes.as_bytes()));
+        let digest = |bytes: &str| hex::encode(Sha256::digest(bytes.as_bytes()));
         if digest(manifest) != manifest_sha256 {
             return Err("protocol manifest digest mismatch");
         }
@@ -446,7 +446,7 @@ pub(crate) mod harness {
         }
 
         fn sha256(source: &str) -> String {
-            format!("{:x}", Sha256::digest(source.as_bytes()))
+            hex::encode(Sha256::digest(source.as_bytes()))
         }
 
         fn fixture() -> (String, String, String) {

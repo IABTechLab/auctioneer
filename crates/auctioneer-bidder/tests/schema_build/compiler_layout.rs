@@ -750,7 +750,7 @@ fn profile(target: &str) -> &'static str {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn verify_compiler_pin(tool_versions: &str, compiler: &str) -> Result<String, String> {
@@ -1374,13 +1374,12 @@ fn debug_producers(
         }
         let unit = dwarf.unit(header).map_err(|error| error.to_string())?;
         let mut entries = unit.entries();
-        let (_, root) = entries
+        let root = entries
             .next_dfs()
             .map_err(|error| error.to_string())?
             .ok_or("compiler layout compile unit missing")?;
         let producer_attribute = root
             .attr_value(gimli::DW_AT_producer)
-            .map_err(|error| error.to_string())?
             .ok_or("compiler layout DWARF producer missing")?;
         let producer_reader = dwarf
             .attr_string(&unit, producer_attribute)

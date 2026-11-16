@@ -107,7 +107,7 @@ impl Runtime {
             "expected_version": pinned_version(TOOL_VERSIONS).unwrap(),
             "invoked_program": self.path, "invoked_program_bytes": self.identity.0,
             "invoked_program_sha256": self.identity.1,
-            "tool_versions_sha256": format!("{:x}", Sha256::digest(TOOL_VERSIONS.as_bytes())),
+            "tool_versions_sha256": hex::encode(Sha256::digest(TOOL_VERSIONS.as_bytes())),
             "host_arch": env::consts::ARCH, "host_os": env::consts::OS,
             "code_cache": false, "filesystem_preopens": [], "inherited_guest_environment": false,
             "network": false, "debugger": false,
@@ -345,7 +345,7 @@ fn file_identity(path: &Path, limit: u64) -> Result<(u64, String), String> {
     if metadata.len() != bytes {
         return Err("guest identity changed while reading".to_owned());
     }
-    Ok((bytes, format!("{:x}", hash.finalize())))
+    Ok((bytes, hex::encode(hash.finalize())))
 }
 
 fn empty_config(root: &Path) -> Result<PathBuf, String> {
@@ -705,7 +705,7 @@ mod tests {
                 target: "wasm32-wasip1".to_owned(),
                 validators: 1,
                 artifact_bytes: u64::try_from(bytes.len()).unwrap(),
-                sha256: format!("{:x}", Sha256::digest(bytes)),
+                sha256: hex::encode(Sha256::digest(bytes)),
                 names: vec!["fake_bidder".to_owned()],
                 results: vec![false],
                 wasm: None,
@@ -835,7 +835,12 @@ mod tests {
         runtime.verify().unwrap();
     }
 
-    fn fake_binding_import_module(call_import: bool) -> Vec<u8> {
+    fn fake_binding_import_module(
+        import: (&str, &str),
+        params: &[wasm_encoder::ValType],
+        results: &[wasm_encoder::ValType],
+        call_import: bool,
+    ) -> Vec<u8> {
         use wasm_encoder::{
             CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection,
             ImportSection, Instruction, Module, TypeSection, ValType,
@@ -845,15 +850,13 @@ mod tests {
         // export. Only the negative control calls the imported function.
         let mut module = Module::new();
         let mut types = TypeSection::new();
-        types.ty().function([], []);
+        types
+            .ty()
+            .function(params.iter().copied(), results.iter().copied());
         types.ty().function([], [ValType::I64]);
         module.section(&types);
         let mut imports = ImportSection::new();
-        imports.import(
-            "__wbindgen_placeholder__",
-            "__wbindgen_describe",
-            EntityType::Function(0),
-        );
+        imports.import(import.0, import.1, EntityType::Function(0));
         module.section(&imports);
         let mut functions = FunctionSection::new();
         functions.function(1);
@@ -863,7 +866,13 @@ mod tests {
         module.section(&exports);
         let mut function = Function::new([]);
         if call_import {
+            for _ in params {
+                function.instruction(&Instruction::I32Const(0));
+            }
             function.instruction(&Instruction::Call(0));
+            for _ in results {
+                function.instruction(&Instruction::Drop);
+            }
         }
         function.instruction(&Instruction::I64Const(1));
         function.instruction(&Instruction::End);
@@ -875,19 +884,53 @@ mod tests {
 
     #[test]
     fn runner_bare_unavailable_imports_trap_instead_of_returning_default_values() {
+        use wasm_encoder::ValType::I32;
+
         let runtime = super::Runtime::discover().unwrap();
-        for calls_import in [false, true] {
-            let bytes = fake_binding_import_module(calls_import);
-            wasmparser::Validator::new().validate_all(&bytes).unwrap();
-            let imports = super::super::bare::trapped_imports(&bytes).unwrap();
-            assert_eq!(imports.len(), 1);
-            let catalog = fake_bare_catalog(&bytes);
-            let result = runtime.bare_scalar(&catalog, super::super::bare::Call::Version);
-            if calls_import {
-                let error = result.unwrap_err();
-                assert!(error.contains("wasm backtrace"), "{error}");
-            } else {
-                assert_eq!(result, Ok(1));
+        for (import, params, results) in [
+            (
+                ("__wbindgen_placeholder__", "__wbindgen_describe"),
+                &[I32][..],
+                &[][..],
+            ),
+            (
+                (
+                    "__wbindgen_externref_xform__",
+                    "__wbindgen_externref_table_set_null",
+                ),
+                &[I32][..],
+                &[][..],
+            ),
+            (
+                (
+                    "__wbindgen_externref_xform__",
+                    "__wbindgen_externref_table_grow",
+                ),
+                &[I32][..],
+                &[I32][..],
+            ),
+            (
+                (
+                    "__wbindgen_externref_xform__",
+                    "__wbindgen_externref_statics_end",
+                ),
+                &[][..],
+                &[I32][..],
+            ),
+        ] {
+            for calls_import in [false, true] {
+                let bytes = fake_binding_import_module(import, params, results, calls_import);
+                wasmparser::Validator::new().validate_all(&bytes).unwrap();
+                let imports = super::super::bare::trapped_imports(&bytes).unwrap();
+                assert_eq!(imports, [(import.0.to_owned(), import.1.to_owned())]);
+                let catalog = fake_bare_catalog(&bytes);
+                let result = runtime.bare_scalar(&catalog, super::super::bare::Call::Version);
+                if calls_import {
+                    let error = result.unwrap_err();
+                    assert!(error.contains("wasm backtrace"), "{import:?}: {error}");
+                } else {
+                    assert_eq!(result, Ok(1), "{import:?}");
+                }
             }
         }
         runtime.verify().unwrap();

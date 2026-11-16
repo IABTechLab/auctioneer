@@ -647,7 +647,7 @@ pub mod tests {
                 })
             })
             .collect();
-        json!({"schema_version":2,"profile_sha256":format!("{:x}",Sha256::digest(serde_json::to_vec(p).unwrap())),
+        json!({"schema_version":2,"profile_sha256":hex::encode(Sha256::digest(serde_json::to_vec(p).unwrap())),
             "identity":p["identity"],"resources":p["resources"],"hardware":p["hardware"],"platform":p["platform"],
             "backend":p["backend"],"variants":variants,"capabilities":capabilities,"scenarios":rows})
     }

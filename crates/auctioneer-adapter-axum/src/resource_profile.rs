@@ -21,7 +21,7 @@ use sha2::{Digest as _, Sha256};
 use std::io::{self, Write as _};
 
 const MAX_OUTPUT_BYTES: usize = 0x8000;
-const EDGEZERO_PIN: &str = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6";
+const EDGEZERO_PIN: &str = "e9ffaa8f8057144155ffe164280994445fa0f6d8";
 
 // Exhaustive destructuring makes new runtime terms a compile error here. The
 // original fields retain their owning types, including every integer width.
@@ -277,7 +277,7 @@ struct Profile {
 }
 
 fn digest<T: Serialize + ?Sized>(value: &T) -> anyhow::Result<String> {
-    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(value)?)))
+    Ok(hex::encode(Sha256::digest(serde_json::to_vec(value)?)))
 }
 
 fn reference_digest() -> anyhow::Result<String> {

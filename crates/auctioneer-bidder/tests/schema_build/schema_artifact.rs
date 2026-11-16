@@ -132,9 +132,10 @@ fn record_payload(artifact: &mut WasmArtifact, payload: Payload<'_>) -> Result<(
         }
         Payload::CodeSectionEntry(body) => {
             add(&mut artifact.code_bodies, 1)?;
+            let range = body.range();
             add(
                 &mut artifact.code_body_bytes,
-                u64::try_from(body.range().len()).map_err(|_error| OVERFLOW)?,
+                range.end.checked_sub(range.start).ok_or(OVERFLOW)?,
             )?;
         }
         Payload::DataSection(section) => {
@@ -265,41 +266,35 @@ pub(super) fn native_program_data<'data>(
     {
         return Ok(false);
     }
-    match section.flags() {
-        SectionFlags::Elf { sh_flags } => Ok(sh_flags & u64::from(elf::SHF_ALLOC) != 0
-            && sh_flags & u64::from(elf::SHF_EXECINSTR) == 0),
-        SectionFlags::MachO { flags } => {
-            if flags
-                & (macho::S_ATTR_DEBUG
-                    | macho::S_ATTR_PURE_INSTRUCTIONS
-                    | macho::S_ATTR_SOME_INSTRUCTIONS)
-                != 0
-            {
-                return Ok(false);
-            }
-            let start = section.address();
-            let end = start
-                .checked_add(section.size())
-                .ok_or("native inspection address overflow")?;
-            for segment in file.segments() {
-                if matches!(segment.flags(), SegmentFlags::MachO {initprot, ..} if initprot & macho::VM_PROT_READ != 0)
-                {
-                    let segment_end = segment
-                        .address()
-                        .checked_add(segment.size())
-                        .ok_or("native inspection address overflow")?;
-                    if segment.address() <= start && end <= segment_end {
-                        return Ok(true);
-                    }
-                }
-            }
-            Ok(false)
-        }
-        SectionFlags::None | SectionFlags::Coff { .. } | SectionFlags::Xcoff { .. } => {
-            Err("unsupported native inspection section")
-        }
-        _ => Err("unsupported native inspection section"),
+    let section_flags = section.flags();
+    if let SectionFlags::Elf { sh_flags, .. } = section_flags {
+        return Ok(sh_flags.contains(elf::SHF_ALLOC) && !sh_flags.intersects(elf::SHF_EXECINSTR));
     }
+    let SectionFlags::MachO { flags, .. } = section_flags else {
+        return Err("unsupported native inspection section");
+    };
+    if flags.intersects(
+        macho::S_ATTR_DEBUG | macho::S_ATTR_PURE_INSTRUCTIONS | macho::S_ATTR_SOME_INSTRUCTIONS,
+    ) {
+        return Ok(false);
+    }
+    let start = section.address();
+    let end = start
+        .checked_add(section.size())
+        .ok_or("native inspection address overflow")?;
+    for segment in file.segments() {
+        if matches!(segment.flags(), SegmentFlags::MachO {initprot, ..} if initprot.contains(macho::VM_PROT_READ))
+        {
+            let segment_end = segment
+                .address()
+                .checked_add(segment.size())
+                .ok_or("native inspection address overflow")?;
+            if segment.address() <= start && end <= segment_end {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 #[cfg(test)]
@@ -320,7 +315,20 @@ mod tests {
         let bytes = fake_stream_component(wasm_encoder::ComponentValType::Primitive(
             wasm_encoder::PrimitiveValType::U8,
         ));
-        assert!(wasmparser::Validator::new().validate_all(&bytes).is_err());
+        // New parser releases enable async components by default. The negative
+        // control must actually disable the proposal instead of relying on that default.
+        let mut features = wasmparser::WasmFeatures::default();
+        features.remove(wasmparser::WasmFeatures::CM_ASYNC);
+        assert!(
+            wasmparser::Validator::new_with_features(features)
+                .validate_all(&bytes)
+                .is_err()
+        );
+        assert!(
+            super::validator()
+                .features()
+                .contains(wasmparser::WasmFeatures::CM_ASYNC)
+        );
         let measured = measure(&bytes).expect("valid stream type used by the Spin component");
         assert_eq!(measured.format, ArtifactFormat::Component);
         assert_eq!(measured.components, 1);

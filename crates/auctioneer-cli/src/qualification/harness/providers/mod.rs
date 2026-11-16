@@ -11,7 +11,7 @@ pub mod sdk;
 #[cfg(test)]
 mod recovery;
 
-const SDK_PIN: &str = "a7d7fd0f2face027e3810ed67e80f6341fcf68b6";
+const SDK_PIN: &str = "e9ffaa8f8057144155ffe164280994445fa0f6d8";
 const OVERRIDE_FEATURE: &str = "auctioneer-config-data/test-harness-override";
 
 #[derive(Deserialize)]
@@ -686,7 +686,7 @@ mod tests {
 
     fn identity() -> Value {
         json!({"auctioneer_commit":"a".repeat(40_usize),
-            "edgezero_pin":"a7d7fd0f2face027e3810ed67e80f6341fcf68b6",
+            "edgezero_pin":"e9ffaa8f8057144155ffe164280994445fa0f6d8",
             "artifact_sha256":"a".repeat(64_usize),"source_sha256":"a".repeat(64_usize),
             "build_features":["spin","auctioneer-config-data/test-harness-override"],"target":"wasm32-wasip2",
             "runtime_version":{"major":3_usize,"minor":0_usize,"patch":0_usize},"harness_sha256":"a".repeat(64_usize),

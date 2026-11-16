@@ -417,7 +417,7 @@ mod tests {
             "catalog_costs": retained::catalog(&gates.catalog_costs),
             "outbound_meta_bytes": gates.outbound_meta_bytes,
             "baked_config_bytes": gates.baked_config_bytes,
-            "baked_config_sha256": format!("{:x}", Sha256::digest(&baked)),
+            "baked_config_sha256": hex::encode(Sha256::digest(&baked)),
             "terms": retained::terms(&gates.derived.isolate_terms),
             "auction_receipts": retained::receipts(&gates.derived.auction_charges),
             "derived": retained::derived(&gates.derived),

@@ -84,7 +84,7 @@ impl fmt::Display for VerifyError {
 type SourceFiles = BTreeMap<PathBuf, Vec<u8>>;
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn directory(path: &Path) -> Result<(), ()> {
@@ -274,7 +274,7 @@ fn tree_digest(files: &SourceFiles) -> Result<String, VerifyError> {
         );
         checksum.update(bytes);
     }
-    Ok(format!("{:x}", checksum.finalize()))
+    Ok(hex::encode(checksum.finalize()))
 }
 
 pub fn verify(root: &Path) -> Result<VerifiedSource, VerifyError> {
@@ -552,7 +552,7 @@ mod tests {
 
     fn metadata() -> serde_json::Value {
         json!({"packages": [
-            {"name": "jsonschema-macros-core", "version": "0.58.6", "source": null, "manifest_path": "/reviewed/compiler/Cargo.toml"},
+            {"name": "jsonschema-macros-core", "version": "0.61.2", "source": null, "manifest_path": "/reviewed/compiler/Cargo.toml"},
             {"name": "regex-automata", "version": "0.4.18", "source": null, "manifest_path": "/reviewed/engine/Cargo.toml", "id": "path+file:///reviewed/engine#regex-automata@0.4.18"}
         ], "resolve": {"nodes": [{"id": "path+file:///reviewed/engine#regex-automata@0.4.18", "features": FEATURES}]}})
     }

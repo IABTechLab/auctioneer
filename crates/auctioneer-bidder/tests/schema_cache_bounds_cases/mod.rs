@@ -291,6 +291,28 @@ mod tests {
     }
 
     #[test]
+    fn emitted_dot_pattern_rejects_each_ecma_line_terminator() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("translated.json");
+        fs::write(
+            &path,
+            serde_json::to_vec(&json!({"type": "string", "pattern": "."})).unwrap(),
+        )
+        .unwrap();
+        let syntax = expand_schema(&path, &Draft::Draft4);
+        let patterns = emitted_patterns(&syntax).unwrap();
+        assert_eq!(patterns.len(), 1);
+        assert_eq!(patterns[0].1, r"[^\n\r\x{2028}\x{2029}]");
+        let regex = regex::Regex::new(&patterns[0].1).unwrap();
+        for subject in ["a", "\u{00e9}", "\u{000b}", "\u{0085}"] {
+            assert!(regex.is_match(subject), "{subject:?}");
+        }
+        for subject in ["\n", "\r", "\u{2028}", "\u{2029}"] {
+            assert!(!regex.is_match(subject), "{subject:?}");
+        }
+    }
+
+    #[test]
     fn every_emitted_primary_hybrid_graph_is_completed_or_explicitly_refused() {
         let inputs = schema_profile::inputs();
         let snapshot = &inputs.snapshot;
@@ -484,7 +506,9 @@ mod tests {
             assert_eq!(max_onepass_slots, 4);
             assert_eq!((onepass_built.len(), max_built_slots), (19, 2));
             assert_eq!(hybrid_pairs, 23);
-            assert_eq!((max_reverse_sparse, max_reverse_stack), (292, 31));
+            // ECMA dot translation excludes four line terminators; the emitted
+            // limelightDigital helper now has 84 reverse states, four slots each.
+            assert_eq!((max_reverse_sparse, max_reverse_stack), (336, 31));
             assert_eq!(
                 max_hybrid_pair_reported,
                 if size_of::<usize>() == 4 { 3486 } else { 3550 }
@@ -570,6 +594,7 @@ mod tests {
                 .unwrap();
             }
         }
+        writeln!(stderr(), "forward-nfa logical audit: schemas=261 helper-schemas={schemas} helpers={helpers} max-slots={max_slots} max-table-entries={max_tables}\n{rows}").unwrap();
         assert_forward_storage_maxima(
             (helpers, schemas, max_slots, max_tables),
             (max_words32, max_words64, max_backtrack_frames),
@@ -586,6 +611,5 @@ mod tests {
         for name in &onepass_refusals {
             writeln!(stderr(), "one-pass raw candidate refusal: {name}").unwrap();
         }
-        writeln!(stderr(), "forward-nfa logical audit: schemas=261 helper-schemas={schemas} helpers={helpers} max-slots={max_slots} max-table-entries={max_tables}\n{rows}").unwrap();
     }
 }

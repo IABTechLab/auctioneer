@@ -15,7 +15,7 @@ use std::time::Duration;
 use std::{fs, path::Path};
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn membership(schemas: &[SchemaInventory], binding: &Value) -> Result<String, String> {

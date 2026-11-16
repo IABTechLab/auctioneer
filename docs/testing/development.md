@@ -27,7 +27,7 @@ their diagnostics include standard-library source excerpts. CI installs the same
 component; do not regenerate snapshots to compensate for missing Rust sources.
 
 The current EdgeZero dependency is the immutable PR #275 integration revision
-`a7d7fd0f2face027e3810ed67e80f6341fcf68b6`, not a moving branch selector.
+`e9ffaa8f8057144155ffe164280994445fa0f6d8`, not a moving branch selector.
 Acquisition requires that upstream Git object to remain available. A missing
 object is a source-availability failure, not a failed runtime test; do not
 silently select another revision. Resolve the actual fetched checkout for
@@ -35,7 +35,7 @@ SDK-dependent tests rather than guessing Cargo's cache directory:
 
 ```sh
 set -euo pipefail
-pin=a7d7fd0f2face027e3810ed67e80f6341fcf68b6
+pin=e9ffaa8f8057144155ffe164280994445fa0f6d8
 metadata=$(mktemp)
 cargo metadata --locked --offline --format-version 1 > "$metadata"
 manifest=$(jq -er --arg source "git+https://github.com/IABTechLab/edgezero.git?rev=$pin#$pin" '
@@ -240,6 +240,89 @@ child compiler suites does not move that predicate out of the parent graphs.
 Large schema diagnostic reports are opt-in with
 `AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS=true`; assertions and artifact inspection
 do not depend on that flag.
+
+### CLI Socket Isolation
+
+The joint [#168](https://github.com/IABTechLab/auctioneer/issues/168) /
+[#174](https://github.com/IABTechLab/auctioneer/issues/174) owner covers six
+inline CLI cases under `qualification::harness::`: protocol EOF/closed port
+and malformed-frame cleanup in `fixture::protocol::tests`, delay/stop join,
+both socket-capacity populations and header-timeout EOF/recovery in
+`fixture::server::tests`, and exact-port release/rebind in
+`native::system::tests`. Their names, feature gates, complete bodies and
+assertions stay with those owners; the [cohort script](../../.github/workflows/scripts/test/verify-cli-socket-isolation.sh)
+pins their full selectors. This is not isolation of every socket test or a
+full macOS CLI qualification.
+
+Each parent delegates before constructing resources to the private test-only
+`socket_test_support` helper. It invokes `std::env::current_exe()` directly
+with the closed full selector, `--exact`, `--test-threads=1`, `--nocapture`
+and `--color=never`; no shell, Cargo child build or guessed executable is used.
+The child environment is cleared and receives only
+`AUCTIONEER__TEST__FIXTURE_SOCKET_CASE`. The helper immediately retains the
+`std::process::Child` before fallible setup, and validates the child's exact
+single-case success report. Selected child bodies spawn no native descendants;
+their existing Tokio tasks remain. Only children are single-threaded: the
+parent suite is not serialized and does not set `RUST_TEST_THREADS`.
+
+The fixed test-only bounds are a **20-second execution watchdog** anchored
+before spawn, a separate **2-second kill/reap fence**, and **16 KiB per stream**
+in private regular-file captures. The deadline is observed, not preemption of
+synchronous OS calls, and does not extend any original inner wait. Post-reap
+reads are limited to cap plus one byte to detect overflow; diagnostics retain
+only bounded child stderr, never child stdout or nested libtest summaries.
+Lengths are monitored, not an OS disk quota: a writer may overshoot between
+observations. Finite overflow controls use cap-plus-one payloads.
+
+All wrappers directly await the helper. Returning success/refusal requires
+observed direct-child reap followed by checked capture removal; cleanup-fence
+failure reports that cleanup was not established. Parent panic, cancellation,
+runtime teardown or process termination is outside that guarantee: drop only
+requests best-effort termination, not verified reap or capture removal. Do not
+spawn, externally time out or abandon the helper future, or treat it as a
+general process-tree supervisor.
+
+The existing Linux CLI lane runs the finite checker controls before its full
+CLI suite, without adding a runner or repeating the Cargo test suites:
+
+```sh
+bash .github/workflows/scripts/test/check-cli-socket-isolation-fixtures.sh
+```
+
+The existing full CLI step uses `verify-cli-socket-isolation.sh full-cli` to
+retain the same all-targets command and its two existing producer skips. Cargo
+must succeed; then the captured output must contain one exact success for
+each of the six cases and 19 independently required helper controls. Missing,
+renamed, ignored, failed or duplicate owned cases are refused. Other targets
+and unrelated ignored tests remain governed by the full Cargo invocation.
+This checks the existing run, not a second compilation or test suite.
+
+The cohort script remains available for separately authorized focused
+verification in either graph:
+
+```sh
+bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh default
+bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh workspace-insecure
+```
+
+The checker first enumerates each locked CLI binary graph, refuses duplicate
+or missing names, and selects all six cases plus every discovered helper test,
+including 19 independently required helper names. It runs one parallel parent
+process per graph with multiple exact selectors, requires one matching summary
+and one success per selected name, and counts every other listed test as
+filtered. Finite fixtures exercise the same selection/report functions without
+Cargo and do not print synthetic libtest reports. The optional cohort command
+retains its roster, output and exit statuses under `RUNNER_TEMP`. Existing full
+Linux suites execute all six wrappers and the helper controls with their
+unchanged feature selections. Rust comes from `.tool-versions`; only Cargo
+downloads are cached.
+
+On 2026-11-15 the maintainer declined macOS GitHub runners because of cost.
+There is no added macOS job or proposed required-check setting. Existing Linux
+checks remain mandatory. The current delivery uses GitHub verification only;
+no local script or Cargo execution was authorized. macOS execution is deferred
+and unverified, not established by Linux results or historical diagnostics.
+That limitation remains explicit for #174 and PR #162's acceptance decision.
 
 All workflows share one registry/Git download cache. Compiled outputs are not
 restored or saved across jobs: the whole-workspace archive exhausted runners

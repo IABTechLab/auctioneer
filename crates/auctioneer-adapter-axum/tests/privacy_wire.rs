@@ -18,6 +18,9 @@ mod tests {
     use axum::http::{HeaderMap, Method, Request, StatusCode};
     use axum::routing::post;
     use edgezero_adapter_axum::outbound::AxumOutboundClient;
+    use edgezero_adapter_axum::outbound_executor::{
+        AxumOutboundExecutor, AxumOutboundExecutorHandle,
+    };
     use edgezero_core::app::App;
     use edgezero_core::blob_envelope::BlobEnvelope;
     use edgezero_core::body::Body;
@@ -33,7 +36,6 @@ mod tests {
     use std::time::Duration;
     use tokio::net::TcpListener;
     use tokio::sync::{mpsc, oneshot};
-    use tokio::task::LocalSet;
     use tokio::time::{sleep, timeout};
 
     const WAIT: Duration = Duration::from_secs(10);
@@ -298,7 +300,7 @@ mod tests {
         assert!(!captured.headers.contains_key("content-encoding"));
     }
 
-    fn boot_outbound_client() -> HttpClient {
+    fn boot_outbound_client(executor: AxumOutboundExecutorHandle) -> HttpClient {
         let clock = Arc::new(SystemClock::new());
         let profile = resource_profile();
         bootstrap_adapter_with_envelope(
@@ -325,7 +327,8 @@ mod tests {
             },
         );
         HttpClient::with_client(
-            AxumOutboundClient::try_with_time(time).expect("native outbound client builds"),
+            AxumOutboundClient::try_with_time(executor, time)
+                .expect("native outbound client builds"),
         )
     }
 
@@ -379,8 +382,10 @@ mod tests {
 
     #[tokio::test]
     async fn handler_privacy_denials_and_allowed_context_reach_the_real_bidder_socket() {
-        LocalSet::new()
-            .run_until(Box::pin(privacy_wire_scenario()))
+        let mut executor = AxumOutboundExecutor::new();
+        let handle = executor.handle();
+        executor
+            .run_until(Box::pin(privacy_wire_scenario(handle)))
             .await;
     }
 
@@ -400,7 +405,7 @@ mod tests {
         }
     }
 
-    async fn privacy_wire_scenario() {
+    async fn privacy_wire_scenario(executor: AxumOutboundExecutorHandle) {
         let local_bidders: Vec<_> = serving_catalog::published()
             .into_iter()
             .filter(|row| {
@@ -443,7 +448,7 @@ mod tests {
                 .expect("fixture server runs");
         });
 
-        let client = boot_outbound_client();
+        let client = boot_outbound_client(executor);
         let app = configured_app();
         let original = fixture();
         assert_complete_disclosure_fixture(&original);

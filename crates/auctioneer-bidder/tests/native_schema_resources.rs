@@ -196,7 +196,7 @@ mod tests {
             u64::try_from(retained["source_bytes"].as_integer().unwrap()).unwrap()
         );
         assert_eq!(
-            format!("{:x}", Sha256::digest(&bytes)),
+            hex::encode(Sha256::digest(&bytes)),
             retained["source_sha256"].as_str().unwrap(),
             "{relative}: captured source digest"
         );
@@ -250,7 +250,7 @@ mod tests {
         let document: toml::Value = toml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
         assert_eq!(
             document["schema_sha256"].as_str().unwrap(),
-            format!("{:x}", Sha256::digest(schema_bytes)),
+            hex::encode(Sha256::digest(schema_bytes)),
             "{}: authored expectation schema pin",
             path.display()
         );
@@ -661,7 +661,7 @@ mod tests {
                 .unwrap();
         assert_eq!(
             factory["manifest_sha256"].as_str().unwrap(),
-            format!("{:x}", Sha256::digest(manifest_bytes)),
+            hex::encode(Sha256::digest(manifest_bytes)),
             "{}: first factory case manifest pin",
             row.name()
         );

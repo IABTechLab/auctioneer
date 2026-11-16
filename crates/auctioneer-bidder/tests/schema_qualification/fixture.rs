@@ -70,7 +70,7 @@ pub fn pins() -> (String, String) {
     assert_eq!(implementations.len(), OWNERS);
     let schemas: Vec<_> = ROWS.iter().enumerate().map(|(index, (name, _, build_schema))| {
         let schema = build_schema().to_string();
-        json!({"name": name, "path": format!("static/bidder-params/{name}.json"), "blob": format!("{:040x}", index.checked_add(1).unwrap()), "bytes": schema.len(), "sha256": format!("{:x}", Sha256::digest(schema.as_bytes()))})
+        json!({"name": name, "path": format!("static/bidder-params/{name}.json"), "blob": format!("{:040x}", index.checked_add(1).unwrap()), "bytes": schema.len(), "sha256": hex::encode(Sha256::digest(schema.as_bytes()))})
     }).collect();
     let source = json!({"schema_version": 2_i32, "kind": "reference_inventory_only", "revision": REVISION, "counts": {"schemas": SCHEMAS, "schema_bytes": schema_bytes(), "largest_schema_bytes": largest_bytes()}, "implementations": implementations, "schema": schemas});
     // Public source identities may differ from their filesystem implementation key.
@@ -109,7 +109,7 @@ pub fn inventory(bidders: &Path, source: &Path) -> Result<Inventory, InventoryEr
 
 fn supplemental_pins() -> String {
     let schema = (ROWS[2].2)().to_string();
-    let sha256 = format!("{:x}", Sha256::digest(schema.as_bytes()));
+    let sha256 = hex::encode(Sha256::digest(schema.as_bytes()));
     toml::to_string(&json!({"schema_version":1_i32,"kind":"supplemental_schema_reference_only","require_all":false,"schema":[{
         "key":"fake_supplemental","name":"fake_supplemental","repository":REPOSITORY,"revision":"2222222222222222222222222222222222222222",
         "source_path":"static/bidder-params/fake_supplemental.json","source_blob":format!("{:040x}", 3_usize),"source_bytes":schema.len(),"source_sha256":sha256,
@@ -142,7 +142,7 @@ impl Fixture {
             fs::create_dir_all(path.parent().unwrap())?;
             fs::write(path, &schema)?;
             let artifacts = manifests.entry(*key).or_insert_with(Vec::new);
-            artifacts.push(json!({"category": "schema", "source": "upstream", "source_path": format!("static/bidder-params/{name}.json"), "source_blob": format!("{:040x}", index.checked_add(1).unwrap()), "source_bytes": schema.len(), "source_sha256": format!("{:x}", Sha256::digest(schema.as_bytes())), "retained": {"source_path": retained, "source_bytes": schema.len(), "source_sha256": format!("{:x}", Sha256::digest(schema.as_bytes()))}}));
+            artifacts.push(json!({"category": "schema", "source": "upstream", "source_path": format!("static/bidder-params/{name}.json"), "source_blob": format!("{:040x}", index.checked_add(1).unwrap()), "source_bytes": schema.len(), "source_sha256": hex::encode(Sha256::digest(schema.as_bytes())), "retained": {"source_path": retained, "source_bytes": schema.len(), "source_sha256": hex::encode(Sha256::digest(schema.as_bytes()))}}));
         }
         for (key, artifacts) in manifests {
             let manifest = json!({"key": key, "factory": false, "provenance": {"origin": "reference", "sources": {"upstream": {"repository": REPOSITORY, "revision": REVISION}}, "artifacts": artifacts}});

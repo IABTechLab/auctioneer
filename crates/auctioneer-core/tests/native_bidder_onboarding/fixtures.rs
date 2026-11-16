@@ -200,7 +200,7 @@ fn approved_members(bidder_root: &Path) -> BTreeMap<String, Member> {
         let bytes = fs::read(path).unwrap();
         assert_eq!(u64::try_from(bytes.len()).unwrap(), witness.bytes);
         assert_eq!(
-            format!("{:x}", Sha256::digest(&bytes)),
+            hex::encode(Sha256::digest(&bytes)),
             witness.sha256,
             "reviewed requirements changed; do not refresh this digest automatically"
         );
