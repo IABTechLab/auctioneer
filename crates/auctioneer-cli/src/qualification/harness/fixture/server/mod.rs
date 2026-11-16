@@ -649,9 +649,9 @@ async fn native_response(connection: &Connection, auction: Auction) -> Result<Re
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::socket_test_support::{self, SocketCase};
     use super::super::super::http::{Category, RequestSpec, Response, request as owned_request};
     use super::super::super::process::Supervisor;
+    use super::super::super::socket_test_support::{self, SocketCase};
     use super::super::super::{HarnessError, Result};
     use super::super::{Control, Options};
     use super::super::{Mode, ProviderMode};
@@ -1068,10 +1068,9 @@ mod tests {
                 .await
                 .unwrap();
             let target = url(server.port);
-            let held =
-                tokio::spawn(
-                    async move { request(&target, post(&native_body(700_001))).await.unwrap() },
-                );
+            let held = tokio::spawn(async move {
+                request(&target, post(&native_body(700_001))).await.unwrap()
+            });
             let observed = wait_active(&mut server, 1).await;
             assert_eq!(observed.completed, 0);
             assert_eq!(observed.max_active_debug_auctions, 1);

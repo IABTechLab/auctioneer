@@ -258,7 +258,9 @@ mod socket_test_support {
     fn role(target: Target, marker: Option<&OsStr>, args: &[OsString]) -> Result<Role, Kind> {
         match marker {
             None => Ok(Role::Parent),
-            Some(value) if value == target.marker() && args == child_args(target) => Ok(Role::Child),
+            Some(value) if value == target.marker() && args == child_args(target) => {
+                Ok(Role::Child)
+            }
             Some(_) => Err(Kind::Control),
         }
     }
@@ -438,7 +440,10 @@ mod socket_test_support {
             if policy.fault == Fault::AfterReady && owner.live {
                 return Err(Kind::Setup);
             }
-            for (path, stream) in [(&owner.stdout, Stream::Stdout), (&owner.stderr, Stream::Stderr)] {
+            for (path, stream) in [
+                (&owner.stdout, Stream::Stdout),
+                (&owner.stderr, Stream::Stderr),
+            ] {
                 if std::fs::metadata(path)
                     .map_err(|_error| Kind::Capture)?
                     .len()
@@ -526,7 +531,9 @@ mod socket_test_support {
         remove: impl FnOnce() -> std::io::Result<()>,
     ) -> Result<T, Failure> {
         if !reaped {
-            let mut error = result.err().unwrap_or_else(|| Failure::new(target, Kind::Cleanup));
+            let mut error = result
+                .err()
+                .unwrap_or_else(|| Failure::new(target, Kind::Cleanup));
             if error.kind != Kind::Cleanup {
                 error.cause = Some(error.kind);
             }
@@ -534,7 +541,9 @@ mod socket_test_support {
             return Err(error);
         }
         if remove().is_err() {
-            let mut error = result.err().unwrap_or_else(|| Failure::new(target, Kind::CaptureCleanup));
+            let mut error = result
+                .err()
+                .unwrap_or_else(|| Failure::new(target, Kind::CaptureCleanup));
             if error.kind != Kind::CaptureCleanup {
                 error.cause = Some(error.kind);
             }
@@ -553,16 +562,19 @@ mod socket_test_support {
         let stdout = directory.path().join("stdout");
         let stderr = directory.path().join("stderr");
         let output = File::create(&stdout).map_err(|_error| Failure::new(target, Kind::Setup))?;
-        let diagnostic = File::create(&stderr).map_err(|_error| Failure::new(target, Kind::Setup))?;
-        let child = Command::new(std::env::current_exe().map_err(|_error| Failure::new(target, Kind::Setup))?)
-            .args(child_args(target))
-            .env_clear()
-            .env(MARKER, target.marker())
-            .stdin(Stdio::null())
-            .stdout(output)
-            .stderr(diagnostic)
-            .spawn()
-            .map_err(|_error| Failure::new(target, Kind::Spawn))?;
+        let diagnostic =
+            File::create(&stderr).map_err(|_error| Failure::new(target, Kind::Setup))?;
+        let child = Command::new(
+            std::env::current_exe().map_err(|_error| Failure::new(target, Kind::Setup))?,
+        )
+        .args(child_args(target))
+        .env_clear()
+        .env(MARKER, target.marker())
+        .stdin(Stdio::null())
+        .stdout(output)
+        .stderr(diagnostic)
+        .spawn()
+        .map_err(|_error| Failure::new(target, Kind::Spawn))?;
         // No fallible registration or ownership transfer is allowed after spawn.
         let mut owner = ChildOwner {
             child,
@@ -624,12 +636,15 @@ mod socket_test_support {
         target: Target,
         status: ExitStatus,
     ) -> Result<Receipt, Failure> {
-        let stdout = read_capture(&owner.stdout, Stream::Stdout).map_err(|kind| Failure::new(target, kind))?;
-        let stderr = read_capture(&owner.stderr, Stream::Stderr).map_err(|kind| Failure::new(target, kind))?;
+        let stdout = read_capture(&owner.stdout, Stream::Stdout)
+            .map_err(|kind| Failure::new(target, kind))?;
+        let stderr = read_capture(&owner.stderr, Stream::Stderr)
+            .map_err(|kind| Failure::new(target, kind))?;
         let receipt = Receipt {
             status,
             stdout,
-            stderr: String::from_utf8(stderr).map_err(|_error| Failure::new(target, Kind::Capture))?,
+            stderr: String::from_utf8(stderr)
+                .map_err(|_error| Failure::new(target, Kind::Capture))?,
         };
         match verify_receipt(target, &receipt) {
             Ok(()) => Ok(receipt),
@@ -694,7 +709,11 @@ mod socket_test_support {
             let bad = Err(Kind::Dispatch);
             vec![
                 ("success", valid.as_bytes().to_vec(), Ok(())),
-                ("success_other_filtered", transcript(PROBE, "8", "2"), Ok(())),
+                (
+                    "success_other_filtered",
+                    transcript(PROBE, "8", "2"),
+                    Ok(()),
+                ),
                 (
                     "success_whitespace",
                     format!(" \n{valid}\t\n").into_bytes(),
@@ -727,7 +746,9 @@ mod socket_test_support {
                 ),
                 (
                     "multiple_tests",
-                    valid.replace("running 1 test", "running 2 tests").into_bytes(),
+                    valid
+                        .replace("running 1 test", "running 2 tests")
+                        .into_bytes(),
                     bad,
                 ),
                 (
@@ -747,7 +768,11 @@ mod socket_test_support {
                     valid.replace(&case, &format!("{case}{case}")).into_bytes(),
                     bad,
                 ),
-                ("missing_summary", valid.replace(summary, "").into_bytes(), bad),
+                (
+                    "missing_summary",
+                    valid.replace(summary, "").into_bytes(),
+                    bad,
+                ),
                 (
                     "duplicate_summary",
                     format!("{valid}{summary}\n").into_bytes(),
@@ -819,7 +844,10 @@ mod socket_test_support {
 
         fn assert_killed(error: &Failure, kind: Kind) {
             assert_eq!(error.kind, kind);
-            assert!(error.live, "child readiness and live state were not observed");
+            assert!(
+                error.live,
+                "child readiness and live state were not observed"
+            );
             assert!(error.reaped, "child OS exit was not observed");
             let status = error.status.unwrap();
             #[cfg(unix)]
@@ -882,7 +910,10 @@ mod socket_test_support {
                 Ok(Role::Child)
             );
             for marker in ["", "unknown", "protocol-eof"] {
-                assert_eq!(role(target, Some(OsStr::new(marker)), &args), Err(Kind::Control));
+                assert_eq!(
+                    role(target, Some(OsStr::new(marker)), &args),
+                    Err(Kind::Control)
+                );
                 let constructed = Cell::new(0);
                 let error = enter_checked(
                     target,
@@ -932,10 +963,14 @@ mod socket_test_support {
 
         #[tokio::test]
         async fn child_assertion_failure_preserves_only_bounded_stderr() {
-            let result = enter(Target::Control(Control::Panic), Policy::default(), || async {
-                writeln!(std::io::stdout(), "PRIVATE_STDOUT_CANARY").unwrap();
-                panic!("fixed socket child panic");
-            })
+            let result = enter(
+                Target::Control(Control::Panic),
+                Policy::default(),
+                || async {
+                    writeln!(std::io::stdout(), "PRIVATE_STDOUT_CANARY").unwrap();
+                    panic!("fixed socket child panic");
+                },
+            )
             .await;
             let error = result.unwrap_err();
             assert_eq!(error.kind, Kind::ChildExit);
@@ -954,7 +989,9 @@ mod socket_test_support {
                 fault: Fault::AfterReady,
                 ..Policy::control()
             };
-            let error = supervise(Target::Control(Control::Hold), policy).await.unwrap_err();
+            let error = supervise(Target::Control(Control::Hold), policy)
+                .await
+                .unwrap_err();
             assert_killed(&error, Kind::Setup);
         }
 
@@ -973,7 +1010,10 @@ mod socket_test_support {
         #[tokio::test]
         async fn stdout_and_stderr_overflow_are_independent_refusals() {
             for control in controls(&[Control::Stdout, Control::Stderr]) {
-                let result = enter(Target::Control(control), Policy::control(), || held(control)).await;
+                let result = enter(Target::Control(control), Policy::control(), || {
+                    held(control)
+                })
+                .await;
                 if matches!(result, Ok(Execution::Child)) {
                     return;
                 }
@@ -1042,7 +1082,11 @@ mod socket_test_support {
         type ProbeRun<'a> = Pin<Box<dyn Future<Output = Result<Execution, Failure>> + 'a>>;
 
         fn real_probe(body: Deferred<'_>) -> ProbeRun<'_> {
-            Box::pin(enter(Target::Control(Control::Probe), Policy::default(), body))
+            Box::pin(enter(
+                Target::Control(Control::Probe),
+                Policy::default(),
+                body,
+            ))
         }
 
         fn passthrough_probe(body: Deferred<'_>) -> ProbeRun<'_> {
@@ -1124,7 +1168,10 @@ mod socket_test_support {
             }
 
             async fn pause(&mut self) {
-                self.elapsed = self.elapsed.checked_add(Duration::from_millis(1_000)).unwrap();
+                self.elapsed = self
+                    .elapsed
+                    .checked_add(Duration::from_millis(1_000))
+                    .unwrap();
             }
         }
 
@@ -1182,10 +1229,15 @@ mod socket_test_support {
                 Ok(())
             );
             assert_eq!(removed.get(), 2);
-            let error = finish::<()>(target, Err(Failure::new(target, Kind::Timeout)), false, || {
-                removed.set(removed.get().checked_add(1).unwrap());
-                Ok(())
-            })
+            let error = finish::<()>(
+                target,
+                Err(Failure::new(target, Kind::Timeout)),
+                false,
+                || {
+                    removed.set(removed.get().checked_add(1).unwrap());
+                    Ok(())
+                },
+            )
             .unwrap_err();
             assert_eq!(error.kind, Kind::Cleanup);
             assert_eq!(removed.get(), 2);
@@ -1264,9 +1316,11 @@ mod socket_test_support {
         }
 
         fn wrapper(function: &syn::ItemFn, variant: &str) -> bool {
-            if !function.attrs.iter().any(|attribute| {
-                attribute.path().to_token_stream().to_string() == "tokio :: test"
-            }) {
+            if !function
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().to_token_stream().to_string() == "tokio :: test")
+            {
                 return false;
             }
             if function.block.stmts.len() != 1 {
