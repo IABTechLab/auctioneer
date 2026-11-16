@@ -164,7 +164,59 @@ cli_socket_check_result() {
   }
 }
 
+# Cargo owns full-suite status; this guard additionally prevents silent deletion,
+# renaming or ignoring of the mandatory cases in that same, already-required run.
+cli_socket_check_execution() {
+  local log="$1" line name status helper_count=0
+  local successful=()
+  [[ -r "$log" ]] || { cli_socket_refuse 'unreadable CLI log'; return 1; }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^test\ ([a-zA-Z0-9_]+(::[a-zA-Z0-9_]+)*)\ \.\.\.\ (.*)$ ]]; then
+      name="${BASH_REMATCH[1]}"
+      status="${BASH_REMATCH[3]}"
+      if [[ "$name" == "$cli_socket_helper_prefix"* ]] || \
+        cli_socket_contains "$name" "${cli_socket_real_cases[@]}"; then
+        [[ "$status" == ok ]] || { cli_socket_refuse "non-successful required case: $name"; return 1; }
+        if [[ "${#successful[@]}" -gt 0 ]] && cli_socket_contains "$name" "${successful[@]}"; then
+          cli_socket_refuse "duplicate required case: $name"; return 1
+        fi
+        successful[${#successful[@]}]="$name"
+        if [[ "$name" == "$cli_socket_helper_prefix"* ]]; then
+          helper_count=$((helper_count + 1))
+        fi
+      fi
+    fi
+  done < "$log"
+  [[ "${#successful[@]}" -gt 0 ]] || { cli_socket_refuse 'no required cases executed'; return 1; }
+  for name in "${cli_socket_real_cases[@]}" "${cli_socket_required_helpers[@]}"; do
+    if ! cli_socket_contains "$name" "${successful[@]}"; then
+      cli_socket_refuse "required case did not execute: $name"; return 1
+    fi
+  done
+  printf 'CLI socket execution: %s required cases and %s required controls passed (%s helper tests observed)\n' \
+    "${#cli_socket_real_cases[@]}" "${#cli_socket_required_helpers[@]}" "$helper_count"
+}
+
+cli_socket_full_cli() {
+  local log_dir log status=0
+  : "${RUNNER_TEMP:?RUNNER_TEMP is required for retained CLI logs}"
+  log_dir="$(mktemp -d "$RUNNER_TEMP/cli-socket-full.XXXXXX")" || return 1
+  log="$log_dir/full.log"
+  printf 'CLI socket full-suite logs: %s\n' "$log_dir"
+  cargo test --locked -p auctioneer-cli --all-targets -- --color=never \
+    --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification \
+    --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog \
+    2>&1 | tee "$log" || status=$?
+  printf 'full CLI exit status: %s\n' "$status" | tee "$log_dir/status.log"
+  [[ "$status" -eq 0 ]] || return "$status"
+  cli_socket_check_execution "$log" 2>&1 | tee "$log_dir/check.log"
+}
+
 cli_socket_main() {
+  if [[ $# -eq 1 && "$1" == full-cli ]]; then
+    cli_socket_full_cli
+    return $?
+  fi
   cli_socket_lane "$@" || return 1
   local lane="$1" log_dir listing log status=0
   : "${RUNNER_TEMP:?RUNNER_TEMP is required for retained cohort logs}"

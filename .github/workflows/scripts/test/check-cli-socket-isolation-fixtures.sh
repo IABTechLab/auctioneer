@@ -168,5 +168,42 @@ report_control invalid-report "${valid/$summary/test result: invalid}"
 report_control extra-content "$valid"$'\n''unexpected trailing content'
 report_control empty-report ''
 
+# The full CLI owner has other targets and unrelated cases. Its additional
+# dispatch guard must still require every owned name, without another Cargo run.
+{
+  printf '    Finished `test` profile\n     Running CLI unit tests\n\nrunning 28 tests\n'
+  printf 'test %s ... ok\n' "${fixture_cases[@]}" tests::unrelated
+  printf 'test tests::unrelated_ignored ... ignored\n'
+  printf 'test result: ok. 27 passed; 0 failed; 1 ignored; 0 measured; 2 filtered out; finished in 1s\n'
+  printf '     Running another integration target\nrunning 1 test\n'
+  printf 'test tests::another_target ... ok\n'
+  printf 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n'
+} > "$scratch/full.log"
+check pass full-cli-execution cli_socket_check_execution "$scratch/full.log"
+check pass minimum-cli-execution cli_socket_check_execution "$scratch/minimum.log"
+check refuse missing-cli-log cli_socket_check_execution "$scratch/does-not-exist.log"
+check refuse empty-cli-log cli_socket_check_execution "$scratch/empty.list"
+full="$(< "$scratch/full.log")"
+
+full_control() {
+  local label="$1" body="$2"
+  printf '%s\n' "$body" > "$scratch/full-control.log"
+  check refuse "$label" cli_socket_check_execution "$scratch/full-control.log"
+}
+
+for ((i = 0; i < 25; i++)); do
+  name="${fixture_cases[$i]}"
+  case_line="test $name ... ok"
+  full_control "full-missing-$i" "${full/$case_line/}"
+  full_control "full-renamed-$i" "${full/$case_line/test ${name}_renamed ... ok}"
+  full_control "full-ignored-$i" "${full/$case_line/test $name ... ignored}"
+  full_control "full-failed-$i" "${full/$case_line/test $name ... FAILED}"
+  full_control "full-duplicate-$i" "$full"$'\n'"$case_line"
+done
+case_line="test ${fixture_cases[25]} ... ok"
+full_control full-extra-helper-ignored "${full/$case_line/test ${fixture_cases[25]} ... ignored}"
+full_control full-extra-helper-failed "${full/$case_line/test ${fixture_cases[25]} ... FAILED}"
+full_control full-extra-helper-duplicate "$full"$'\n'"$case_line"
+
 # Never echo synthetic libtest reports into the workflow's result accounting.
 printf 'CLI socket checker fixtures: %s decisions matched\n' "$checked"

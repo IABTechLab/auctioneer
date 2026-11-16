@@ -289,6 +289,14 @@ CLI suite, without adding a runner or repeating the Cargo test suites:
 bash .github/workflows/scripts/test/check-cli-socket-isolation-fixtures.sh
 ```
 
+The existing full CLI step uses `verify-cli-socket-isolation.sh full-cli` to
+retain the same all-targets command and its two existing producer skips. Cargo
+must succeed; then the captured output must contain one exact success for
+each of the six cases and 19 independently required helper controls. Missing,
+renamed, ignored, failed or duplicate owned cases are refused. Other targets
+and unrelated ignored tests remain governed by the full Cargo invocation.
+This checks the existing run, not a second compilation or test suite.
+
 The cohort script remains available for separately authorized focused
 verification in either graph:
 
