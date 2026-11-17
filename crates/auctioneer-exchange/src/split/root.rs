@@ -53,7 +53,7 @@ fn project_prebid(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Va
                 if let Some(params) = value.get(bidder.as_str()).and_then(Value::as_object)
                     && !params.is_empty()
                 {
-                    prebid.insert(key.clone(), Value::Object(params.clone()));
+                    prebid.insert(key.clone(), value.clone());
                 }
             }
             "aliases" => {
