@@ -75,6 +75,7 @@ fn project_prebid(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Va
             | "multibid"
             | "sdk"
             | "server"
+            | "bidderconfig"
             | "targeting" => {
                 prebid.insert(key.clone(), value.clone());
             }
