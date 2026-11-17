@@ -27,6 +27,8 @@
 //! auctioneer rejects fail-closed; go-gdpr parity holds only for the
 //! core segment's content semantics.
 
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::mem;
 use std::ops::{Deref, RangeInclusive};
@@ -449,6 +451,8 @@ impl RestrictionIndex {
     ) -> bool {
         let rank = restriction_rank(restriction_type);
         let after = self.spans.partition_point(|span| {
+            #[cfg(test)]
+            SPAN_COMPARISONS.with(|count| count.set(count.get().saturating_add(1)));
             (span.purpose_id, span.restriction_type, span.start) <= (purpose_id, rank, vendor_id)
         });
         after
@@ -460,6 +464,12 @@ impl RestrictionIndex {
                     && vendor_id <= span.end
             })
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Span comparisons made by [`RestrictionIndex::covers`] lookups on this thread.
+    static SPAN_COMPARISONS: Cell<u32> = const { Cell::new(0) };
 }
 
 const fn restriction_rank(restriction_type: PubRestrictionType) -> u8 {
@@ -1501,9 +1511,9 @@ mod tests {
     use crate::{AuctionPermissions, BidderDecision, FetchDenial, PrivacyContext};
 
     use super::{
-        IndexedTcf, MAX_PUBLISHER_RESTRICTION_LIST_LEN, PubRestrictionType, PublisherRestriction,
-        RangeSection, RestrictionIndex, TcfParseError, TcfParser, TcfString, VendorBitSet,
-        parse_tcf_v2,
+        Cell, IndexedTcf, MAX_PUBLISHER_RESTRICTION_LIST_LEN, PubRestrictionType,
+        PublisherRestriction, RangeSection, RestrictionIndex, SPAN_COMPARISONS, TcfParseError,
+        TcfParser, TcfString, VendorBitSet, parse_tcf_v2,
     };
     use crate::purposes::effective_publisher_restriction;
     use crate::test_support::tc_encode::{
@@ -1803,6 +1813,46 @@ mod tests {
             size_of::<Option<IndexedTcf>>(),
             size_of::<Option<Box<TcfString>>>()
         );
+    }
+
+    #[test]
+    fn effective_restriction_lookups_stay_within_the_logarithmic_comparison_bound() {
+        // Non-adjacent single vendors cannot merge, so all 2,048 spans stay
+        // in the index and every search runs over the full list.
+        let records = (1_u16..)
+            .step_by(2)
+            .take(MAX_PUBLISHER_RESTRICTION_LIST_LEN)
+            .map(|vendor_id| restriction(1, PubRestrictionType::NotAllowed, vendor_id..=vendor_id))
+            .collect();
+        let consent = IndexedTcf::new(Box::new(
+            TcfSpec {
+                publisher_restrictions: records,
+                ..TcfSpec::default()
+            }
+            .build(),
+        ));
+        assert_eq!(consent.restrictions().spans.len(), 2_048);
+
+        // #213's bound for one effective-restriction lookup at R = 2,048 is
+        // 3 x (ceil(log2 2,048) + 1) = 36 comparisons. A NotAllowed hit stops
+        // after the first of the three searches, so it gets 12.
+        for (purpose_id, vendor_id, searches, bound, expected) in [
+            (2, 4_096, 3, 36, None),
+            (1, 2, 3, 36, None),
+            (1, 1, 1, 12, Some(PubRestrictionType::NotAllowed)),
+            (1, 4_095, 1, 12, Some(PubRestrictionType::NotAllowed)),
+        ] {
+            SPAN_COMPARISONS.with(|count| count.set(0));
+            assert_eq!(
+                effective_publisher_restriction(Some(&consent), purpose_id, vendor_id),
+                expected
+            );
+            let comparisons = SPAN_COMPARISONS.with(Cell::get);
+            assert!(
+                (searches..=bound).contains(&comparisons),
+                "purpose {purpose_id} vendor {vendor_id}: {comparisons} comparisons for {searches} searches"
+            );
+        }
     }
 
     #[test]
