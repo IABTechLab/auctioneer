@@ -99,9 +99,11 @@ Unit cases stay inline beside their production owner. Cross-module wire cases ex
 
 #176's request-level parameter-consumer concern is covered in two owned places: a shared fake observer checks the shape delivered by the exchange, and PubMatic-local conformance checks its real `wrapper`/`acat` consumer. Do not add a PubMatic factory or fixture to exchange/core tests or a handwritten cross-crate source import. A contract mismatch discovered between those owners is repaired at the shared shape boundary, not hidden by changing the capture.
 
+This deliberately replaces #176's original exchange-level real-PubMatic acceptance criterion, not the consumer behavior it requires. During PR #202 review the user authorized amending only that criterion to the two-owner check. Record/read back the issue amendment before claiming acceptance, keep its other criteria unchanged and leave the issue open until implementation delivers both owners. Reuse the existing wrapper capture, valid root `acat` outgoing-wire unit and malformed-root rejection units; do not add a duplicate consumer test.
+
 Change the existing grouped snapshot only at the reviewed outbound root paths. Keep response bookkeeping and all unrelated fields identical. Update the clone-first comparison oracle to construct the new expected root independently rather than cloning the original `ext`. Existing impression-scoping oracles remain independent.
 
-The implementation also updates the master's root extension row, step-7/9 competitor contract and deferred-FPD divergence, plus the model comments that currently call `data`/`bidderconfig` pass-through. Inbound round-trip representation remains supported; bidder forwarding is no longer implied by a typed field.
+The implementation also updates all five master passages: the root extension field row, step-7 competitor contract, step-9 materialization contract, deferred-FPD prose and deferred-FPD divergence row, plus the model comments that currently call `data`/`bidderconfig` pass-through. Inbound round-trip representation remains supported; bidder forwarding is no longer implied by a typed field.
 
 ## 6. Measurement Contract For #182
 
