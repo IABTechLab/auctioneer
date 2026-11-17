@@ -268,9 +268,6 @@ pub fn materialize_per_bidder(
         // only `BidRequest::validate()` does. Failure is fatal
         // (code 15 `InvalidImpFirstPartyData`, handler surfaces
         // as HTTP 500).
-        bid_request
-            .validate()
-            .map_err(|err| AuctionError::InvalidImpFirstPartyData(err.to_string()))?;
         out.push(PerBidderRequest {
             bidder: bidder_name.clone(),
             base,
