@@ -12,6 +12,13 @@ pub(super) fn project(
     let source = request
         .as_object()
         .ok_or_else(|| AuctionError::Internal("grouped request is not an object".into()))?;
+    if source.contains_key("ext") {
+        return Ok(source
+            .iter()
+            .filter(|(key, _)| key.as_str() != "imp")
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect());
+    }
     let mut root = Map::new();
     for (key, value) in source {
         match key.as_str() {
