@@ -28,13 +28,13 @@ pub(super) fn project(
 }
 
 fn project_ext(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Value {
-    let Some(source) = source.as_object() else {
+    let Some(members) = source.as_object() else {
         // Normal grouping always serializes a typed extension object.
         // Preserve a corrupt non-object for the existing typed decode to reject.
         return source.clone();
     };
     let mut ext = Map::new();
-    for (key, value) in source {
+    for (key, value) in members {
         let projected = if key == "prebid" {
             project_prebid(value, bidder, aliases)
         } else {
@@ -67,8 +67,15 @@ fn project_prebid(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Va
                     prebid.insert(key.clone(), Value::Object(selected));
                 }
             }
-            "alternatebiddercodes" | "channel" | "currency" | "debug" | "integration"
-            | "multibid" | "sdk" | "server" | "targeting" => {
+            "alternatebiddercodes"
+            | "channel"
+            | "currency"
+            | "debug"
+            | "integration"
+            | "multibid"
+            | "sdk"
+            | "server"
+            | "targeting" => {
                 prebid.insert(key.clone(), value.clone());
             }
             _ => {}
@@ -89,8 +96,8 @@ mod tests {
             "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32}}],
             "source": {"ext": {"schain": {"ver": "1.0", "complete": 1_i32}}}
         });
-        if let Some(ext) = ext {
-            source["ext"] = ext;
+        if let Some(input_ext) = ext {
+            source["ext"] = input_ext;
         }
         let typed: BidRequest = serde_json::from_value(source).unwrap();
         typed.validate().unwrap();
@@ -159,13 +166,14 @@ mod tests {
                     "fake_base": {"private": "no-base-fallback"},
                     "fake_competitor": {"private": "competitor"}
                 }});
-                if let Some(params) = &params {
-                    prebid["bidderparams"]["fake_selected/~"] = params.clone();
+                if let Some(selected_params) = &params {
+                    prebid["bidderparams"]["fake_selected/~"] = selected_params.clone();
                 }
                 let mut expected = json!({"debug": debug});
-                if params.as_ref().is_some_and(|value| {
-                    value.as_object().is_some_and(|object| !object.is_empty())
-                }) {
+                if params
+                    .as_ref()
+                    .is_some_and(|value| value.as_object().is_some_and(|object| !object.is_empty()))
+                {
                     expected["bidderparams"] = json!({"own": "selected", "nested": {"keep": true}});
                 }
                 let mut aliases = AliasMap::default();
@@ -187,10 +195,9 @@ mod tests {
         for accepted_base in [None, Some("fake_base"), Some("fake_other_base")] {
             let mut aliases = AliasMap::default();
             if let Some(base) = accepted_base {
-                aliases.bases.insert(
-                    BidderName::new("fake_selected/~"),
-                    BidderName::new(base),
-                );
+                aliases
+                    .bases
+                    .insert(BidderName::new("fake_selected/~"), BidderName::new(base));
             }
             let mut expected = json!({});
             if accepted_base == Some("fake_base") {
@@ -209,8 +216,8 @@ mod tests {
     #[test]
     fn non_object_grouping_keeps_the_fixed_internal_error() {
         for source in [Value::Null, json!([]), json!("private-root")] {
-            let error = project(&source, &BidderName::new("fake_base"), &AliasMap::default())
-                .unwrap_err();
+            let error =
+                project(&source, &BidderName::new("fake_base"), &AliasMap::default()).unwrap_err();
             assert!(matches!(error, AuctionError::Internal(message)
                 if message == "grouped request is not an object"));
         }

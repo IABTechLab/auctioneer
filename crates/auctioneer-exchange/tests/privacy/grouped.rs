@@ -251,7 +251,10 @@ fn assert_recipient_root_privacy_inputs(
             assert!(!plan.aliases.map.gvlids.contains_key(&identity));
         }
         let decision = privacy.context.bidder_decision(base.as_str(), recipient);
-        assert!(decision.fetch_denial.is_none(), "both recipients must fetch");
+        assert!(
+            decision.fetch_denial.is_none(),
+            "both recipients must fetch"
+        );
         let pass_id = match decision.gdpr {
             AuctionPermissions::AllowAll => true,
             AuctionPermissions::Partial {
@@ -262,7 +265,10 @@ fn assert_recipient_root_privacy_inputs(
             permissions => panic!("unexpected fetch denial: {permissions:?}"),
         };
         assert_eq!(pass_id, expected_vendor == 8, "real PassID for {recipient}");
-        assert_eq!(decision.transmit_ufpd, recipient != selected || transmit_ufpd);
+        assert_eq!(
+            decision.transmit_ufpd,
+            recipient != selected || transmit_ufpd
+        );
         assert!(decision.allow_host_ids);
         assert!(decision.transmit_precise_geo);
         assert!(decision.transmit_tid);
@@ -299,7 +305,8 @@ fn assert_recipient_root_privacy_wire(
                 .expect("both ID locations present");
             assert!(!before.as_array().unwrap().is_empty());
             assert_eq!(
-                body.pointer(path), keep_ids.then_some(before),
+                body.pointer(path),
+                keep_ids.then_some(before),
                 "{recipient}: {path}, vendor={vendor}, transmitUfpd={transmit_ufpd}"
             );
         }
@@ -359,7 +366,9 @@ fn recipient_root_selection_fixture(cause: &str) -> (Harness, Value) {
     }
     match cause {
         "disabled" => {
-            harness.disabled.insert(BidderName::new("fake_z_filtered/~"));
+            harness
+                .disabled
+                .insert(BidderName::new("fake_z_filtered/~"));
         }
         "privacy" => harness.activities(json!({"fetchBids": {"rules": [
             {"condition": {"componentName": ["fake_z_filtered/~"]}, "allow": false}
