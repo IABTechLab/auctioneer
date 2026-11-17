@@ -2,6 +2,7 @@
 //! ops for the per-imp ext rewrite + FPD merge; typed FPD is deferred.
 
 mod resource;
+mod root;
 
 use crate::{alias::AliasMap, error::AuctionError, response::ErrorEntry};
 use auctioneer_bidder::{BidderName, BidderRegistry};
@@ -253,14 +254,7 @@ pub fn materialize_per_bidder(
             .get(bidder_name)
             .cloned()
             .unwrap_or_else(|| bidder_name.clone());
-        // Do not clone the original imp array just to replace it.
-        let mut object = request_value
-            .as_object()
-            .ok_or_else(|| AuctionError::Internal("grouped request is not an object".into()))?
-            .iter()
-            .filter(|(key, _)| key.as_str() != "imp")
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect::<serde_json::Map<_, _>>();
+        let mut object = root::project(request_value, bidder_name, aliases)?;
         object.insert("imp".into(), Value::Array(imps));
         let br_value = Value::Object(object);
         let bid_request: BidRequest = serde_json::from_value(br_value)
@@ -821,13 +815,19 @@ mod tests {
                             "chosen": slot, "fill": "supplement", "nested": {"keep": 1_i64, "add": 2_i64}
                         })
                     };
-                    let mut expected_value = grouped.request_value.clone();
-                    expected_value["imp"][0] = clone_first_scoped_imp(
+                    let expected_imp = clone_first_scoped_imp(
                         &grouped.request_value["imp"][0],
                         &bidder,
                         params,
                         &inputs,
                     );
+                    let expected_value = json!({
+                        "id": "request", "site": {"id": "site"}, "imp": [expected_imp],
+                        "ext": {"prebid": {"bidderparams": {
+                            "chosen": "supplement-decoy", "fill": "supplement",
+                            "nested": {"keep": 9_i64, "add": 2_i64}
+                        }}}
+                    });
                     let expected: BidRequest = serde_json::from_value(expected_value).unwrap();
                     expected.validate().unwrap();
                     let scoped =
@@ -855,9 +855,7 @@ mod tests {
 
     #[test]
     fn recipient_root_selects_only_own_parameters_and_request_alias() {
-        use crate::alias::resolve_aliases;
         use serde_json::json;
-        use std::collections::BTreeMap;
 
         let registry = registry_with(&["fake_aaa", "fake_ccc", "fake_competitor"]);
         for (name, selected_root_params, selected_imp_params) in [
@@ -884,169 +882,204 @@ mod tests {
                 }),
             ),
         ] {
-            let request: BidRequest = serde_json::from_value(json!({
-                "id": "recipient-root", "site": {"id": "fictional-site"},
-                "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32},
-                    "ext": {"bidder": {
-                        (name): {"wrapper": {"profile": 1_i32}, "acat": ["IAB5"],
-                            "nested": {"keep": "imp-selected"}},
-                        "fake_ccc": {"wrapper": {"profile": 3_i32}, "acat": ["IAB6"],
-                            "nested": {"keep": "imp-ccc"}}
-                    }}}],
-                "ext": {"ordinary": {"keep": "root-sibling"}, "prebid": {
-                    "aliases": {"fake_selected/~": "fake_aaa", "fake_competitor/~": "fake_competitor"},
-                    "aliasgvlids": {"fake_selected/~": 8_i32, "fake_competitor/~": 9_i32},
-                    "bidderparams": {
-                        "fake_selected/~": {
-                            "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
-                            "nested": {"keep": "alias-root", "add": "alias-only"}
-                        },
-                        "fake_aaa": {
-                            "wrapper": {"profile": 21_i32, "version": 22_i32}, "acat": ["IAB2"],
-                            "nested": {"keep": "base-root", "add": "base-only"}
-                        },
-                        "fake_ccc": {
-                            "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
-                            "nested": {"keep": "ccc-root", "add": "ccc-only"}
-                        },
-                        "fake_competitor": {
-                            "wrapper": {"profile": 91_i32, "version": 92_i32}, "acat": ["IAB4"],
-                            "nested": {"secret": "competitor-only"}
-                        }
+            assert_recipient_root_row(&registry, name, &selected_root_params, &selected_imp_params);
+        }
+    }
+
+    fn recipient_root_fixture(name: &str) -> BidRequest {
+        use serde_json::json;
+
+        serde_json::from_value(json!({
+            "id": "recipient-root", "site": {"id": "fictional-site"},
+            "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32},
+                "ext": {"bidder": {
+                    (name): {"wrapper": {"profile": 1_i32}, "acat": ["IAB5"],
+                        "nested": {"keep": "imp-selected"}},
+                    "fake_ccc": {"wrapper": {"profile": 3_i32}, "acat": ["IAB6"],
+                        "nested": {"keep": "imp-ccc"}}
+                }}}],
+            "ext": {"ordinary": {"keep": "root-sibling"}, "prebid": {
+                "aliases": {"fake_selected/~": "fake_aaa", "fake_competitor/~": "fake_competitor"},
+                "aliasgvlids": {"fake_selected/~": 8_i32, "fake_competitor/~": 9_i32},
+                "bidderparams": {
+                    "fake_selected/~": {
+                        "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
+                        "nested": {"keep": "alias-root", "add": "alias-only"}
                     },
-                    "nosale": ["fake_competitor"], "returnallbidstatus": true,
-                    "data": {"user": {"keywords": "raw-root-fpd"}},
-                    "bidderconfig": [{"bidders": ["fake_competitor"],
-                        "config": {"ortb2": {"user": {"keywords": "raw-config-fpd"}}}}],
-                    "schains": [{"bidders": ["fake_competitor"],
-                        "schain": {"ver": "1.0", "complete": 1_i32, "nodes": [
-                            {"asi": "supply.example.test", "sid": "fictional-seller", "hp": 1_i32}
-                        ]}}],
-                    "future_root": {"secret": "future-decoy"},
-                    "alternatebiddercodes": {"enabled": true, "bidders": {
-                        "fake_aaa": {"allowedbiddercodes": ["fake_alt"]}
-                    }},
-                    "channel": {"name": "web", "version": "1.0"},
-                    "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
-                    "integration": "fake-integration",
-                    "multibid": [{"bidder": "fake_aaa", "maxbids": 2_i32}],
-                    "sdk": {"source": "fake-sdk", "version": "1.0"},
-                    "server": {"externalurl": "https://exchange.example.test"},
-                    "targeting": {"includewinners": true, "includebidderkeys": false,
-                        "prefix": "fake", "future_targeting": {"keep": true}}
-                }}
-            }))
-            .expect("recipient fixture deserializes");
-            request.validate().expect("recipient fixture is valid");
-            let input_before = serde_json::to_vec(&request).unwrap();
-            let input_value = serde_json::to_value(&request).unwrap();
-            let disabled = BTreeSet::new();
-            let resolved = resolve_aliases(&request, &registry, &disabled, &BTreeMap::new())
-                .expect("request aliases resolve");
-            assert!(resolved.disabled_warnings.is_empty());
-            assert!(resolved.dropped_alias_names.is_empty());
-            assert_eq!(
-                resolved.map.bases.get(&BidderName::new("fake_selected/~")),
-                Some(&BidderName::new("fake_aaa"))
-            );
-            let grouped = group_by_bidder(
-                &request,
-                &resolved.map,
-                &registry,
-                &disabled,
-                &resolved.dropped_alias_names,
-            )
-            .expect("only impression bidders participate");
-            let grouped_before = serde_json::to_vec(&grouped.request_value).unwrap();
-            for before in [&input_value, &grouped.request_value] {
-                let prebid = &before["ext"]["prebid"];
-                for field in [
-                    "aliasgvlids",
-                    "nosale",
-                    "returnallbidstatus",
-                    "data",
-                    "bidderconfig",
-                    "schains",
-                    "future_root",
-                ] {
-                    assert!(prebid.get(field).is_some(), "fixture must contain {field}");
-                }
-                for bidder in ["fake_selected/~", "fake_aaa", "fake_ccc", "fake_competitor"] {
-                    assert!(prebid["bidderparams"].get(bidder).is_some());
-                }
-                assert_eq!(prebid["aliases"]["fake_selected/~"], "fake_aaa");
-                assert_eq!(prebid["aliases"]["fake_competitor/~"], "fake_competitor");
-            }
-            assert_eq!(
-                grouped
-                    .bidder_imps()
-                    .keys()
-                    .map(BidderName::as_str)
-                    .collect::<BTreeSet<_>>(),
-                BTreeSet::from([name, "fake_ccc"])
-            );
-            let survivors = [BidderName::new(name), BidderName::new("fake_ccc")];
-            let scoped = materialize_per_bidder(
-                &grouped,
-                &survivors,
-                &resolved.map,
-                &registry,
-                &resolved.dropped_alias_names,
-            )
-            .expect("valid recipients reach the outgoing-root assertion");
-            assert_eq!(scoped.len(), 2);
-            assert_eq!(serde_json::to_vec(&request).unwrap(), input_before);
-            assert_eq!(
-                serde_json::to_vec(&grouped.request_value).unwrap(),
-                grouped_before
-            );
-            for (outbound, (bidder, base, root_params, imp_params)) in scoped.iter().zip([
-                (name, "fake_aaa", selected_root_params, selected_imp_params),
-                (
-                    "fake_ccc",
-                    "fake_ccc",
-                    json!({
+                    "fake_aaa": {
+                        "wrapper": {"profile": 21_i32, "version": 22_i32}, "acat": ["IAB2"],
+                        "nested": {"keep": "base-root", "add": "base-only"}
+                    },
+                    "fake_ccc": {
                         "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
                         "nested": {"keep": "ccc-root", "add": "ccc-only"}
-                    }),
-                    json!({
-                        "wrapper": {"profile": 3_i32, "version": 32_i32}, "acat": ["IAB6"],
-                        "nested": {"keep": "imp-ccc", "add": "ccc-only"}
-                    }),
-                ),
-            ]) {
-                assert_eq!(outbound.bidder.as_str(), bidder);
-                assert_eq!(outbound.base.as_str(), base);
-                // Independent canonical root, not the input root or a production key list.
-                let mut prebid = json!({
-                    "bidderparams": root_params,
-                    "alternatebiddercodes": {"enabled": true, "bidders": {
-                        "fake_aaa": {"allowedbiddercodes": ["fake_alt"]}
-                    }},
-                    "channel": {"name": "web", "version": "1.0"},
-                    "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
-                    "integration": "fake-integration",
-                    "multibid": [{"bidder": "fake_aaa", "maxbids": 2_i32}],
-                    "sdk": {"source": "fake-sdk", "version": "1.0"},
-                    "server": {"externalurl": "https://exchange.example.test"},
-                    "targeting": {"includewinners": true, "includebidderkeys": false,
-                        "prefix": "fake", "future_targeting": {"keep": true}}
-                });
-                if bidder == "fake_selected/~" {
-                    prebid["aliases"] = json!({"fake_selected/~": "fake_aaa"});
-                }
-                let expected = json!({
-                    "id": "recipient-root", "site": {"id": "fictional-site"},
-                    "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32},
-                        "ext": {"bidder": imp_params}}],
-                    "ext": {"ordinary": {"keep": "root-sibling"}, "prebid": prebid}
-                });
-                assert_eq!(
-                    serde_json::to_value(&outbound.request).unwrap(),
-                    expected,
-                    "recipient-scoped complete root for {bidder}, requested row {name}"
-                );
-            }
+                    },
+                    "fake_competitor": {
+                        "wrapper": {"profile": 91_i32, "version": 92_i32}, "acat": ["IAB4"],
+                        "nested": {"secret": "competitor-only"}
+                    }
+                },
+                "nosale": ["fake_competitor"], "returnallbidstatus": true,
+                "data": {"user": {"keywords": "raw-root-fpd"}},
+                "bidderconfig": [{"bidders": ["fake_competitor"],
+                    "config": {"ortb2": {"user": {"keywords": "raw-config-fpd"}}}}],
+                "schains": [{"bidders": ["fake_competitor"],
+                    "schain": {"ver": "1.0", "complete": 1_i32, "nodes": [
+                        {"asi": "supply.example.test", "sid": "fictional-seller", "hp": 1_i32}
+                    ]}}],
+                "future_root": {"secret": "future-decoy"},
+                "alternatebiddercodes": {"enabled": true, "bidders": {
+                    "fake_aaa": {"allowedbiddercodes": ["fake_alt"]}
+                }},
+                "channel": {"name": "web", "version": "1.0"},
+                "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
+                "integration": "fake-integration",
+                "multibid": [{"bidder": "fake_aaa", "maxbids": 2_i32}],
+                "sdk": {"source": "fake-sdk", "version": "1.0"},
+                "server": {"externalurl": "https://exchange.example.test"},
+                "targeting": {"includewinners": true, "includebidderkeys": false,
+                    "prefix": "fake", "future_targeting": {"keep": true}}
+            }}
+        }))
+        .expect("recipient fixture deserializes")
+    }
+
+    fn assert_recipient_root_before_state(before: &serde_json::Value) {
+        let prebid = &before["ext"]["prebid"];
+        for field in [
+            "aliasgvlids",
+            "nosale",
+            "returnallbidstatus",
+            "data",
+            "bidderconfig",
+            "schains",
+            "future_root",
+        ] {
+            assert!(prebid.get(field).is_some(), "fixture must contain {field}");
+        }
+        for bidder in ["fake_selected/~", "fake_aaa", "fake_ccc", "fake_competitor"] {
+            assert!(prebid["bidderparams"].get(bidder).is_some());
+        }
+        assert_eq!(prebid["aliases"]["fake_selected/~"], "fake_aaa");
+        assert_eq!(prebid["aliases"]["fake_competitor/~"], "fake_competitor");
+    }
+
+    fn expected_recipient_root(
+        bidder: &str,
+        root_params: &serde_json::Value,
+        imp_params: &serde_json::Value,
+    ) -> serde_json::Value {
+        use serde_json::json;
+
+        // Independent canonical root, not the input root or a production key list.
+        let mut prebid = json!({
+            "bidderparams": root_params,
+            "alternatebiddercodes": {"enabled": true, "bidders": {
+                "fake_aaa": {"allowedbiddercodes": ["fake_alt"]}
+            }},
+            "channel": {"name": "web", "version": "1.0"},
+            "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
+            "integration": "fake-integration",
+            "multibid": [{"bidder": "fake_aaa", "maxbids": 2_i32}],
+            "sdk": {"source": "fake-sdk", "version": "1.0"},
+            "server": {"externalurl": "https://exchange.example.test"},
+            "targeting": {"includewinners": true, "includebidderkeys": false,
+                "prefix": "fake", "future_targeting": {"keep": true}}
+        });
+        if bidder == "fake_selected/~" {
+            prebid["aliases"] = json!({"fake_selected/~": "fake_aaa"});
+        }
+        json!({
+            "id": "recipient-root", "site": {"id": "fictional-site"},
+            "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32},
+                "ext": {"bidder": imp_params}}],
+            "ext": {"ordinary": {"keep": "root-sibling"}, "prebid": prebid}
+        })
+    }
+
+    fn assert_recipient_root_row(
+        registry: &BidderRegistry,
+        name: &str,
+        selected_root_params: &serde_json::Value,
+        selected_imp_params: &serde_json::Value,
+    ) {
+        use crate::alias::resolve_aliases;
+        use serde_json::json;
+        use std::collections::BTreeMap;
+
+        let request = recipient_root_fixture(name);
+        request.validate().expect("recipient fixture is valid");
+        let input_before = serde_json::to_vec(&request).unwrap();
+        let input_value = serde_json::to_value(&request).unwrap();
+        let disabled = BTreeSet::new();
+        let resolved = resolve_aliases(&request, registry, &disabled, &BTreeMap::new())
+            .expect("request aliases resolve");
+        assert!(resolved.disabled_warnings.is_empty());
+        assert!(resolved.dropped_alias_names.is_empty());
+        assert_eq!(
+            resolved.map.bases.get(&BidderName::new("fake_selected/~")),
+            Some(&BidderName::new("fake_aaa"))
+        );
+        let grouped = group_by_bidder(
+            &request,
+            &resolved.map,
+            registry,
+            &disabled,
+            &resolved.dropped_alias_names,
+        )
+        .expect("only impression bidders participate");
+        let grouped_before = serde_json::to_vec(&grouped.request_value).unwrap();
+        for before in [&input_value, &grouped.request_value] {
+            assert_recipient_root_before_state(before);
+        }
+        assert_eq!(
+            grouped
+                .bidder_imps()
+                .keys()
+                .map(BidderName::as_str)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([name, "fake_ccc"])
+        );
+        let survivors = [BidderName::new(name), BidderName::new("fake_ccc")];
+        let scoped = materialize_per_bidder(
+            &grouped,
+            &survivors,
+            &resolved.map,
+            registry,
+            &resolved.dropped_alias_names,
+        )
+        .expect("valid recipients reach the outgoing-root assertion");
+        assert_eq!(scoped.len(), 2);
+        assert_eq!(serde_json::to_vec(&request).unwrap(), input_before);
+        assert_eq!(
+            serde_json::to_vec(&grouped.request_value).unwrap(),
+            grouped_before
+        );
+        let sibling_root_params = json!({
+            "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
+            "nested": {"keep": "ccc-root", "add": "ccc-only"}
+        });
+        let sibling_imp_params = json!({
+            "wrapper": {"profile": 3_i32, "version": 32_i32}, "acat": ["IAB6"],
+            "nested": {"keep": "imp-ccc", "add": "ccc-only"}
+        });
+        for (outbound, (bidder, base, root_params, imp_params)) in scoped.iter().zip([
+            (name, "fake_aaa", selected_root_params, selected_imp_params),
+            (
+                "fake_ccc",
+                "fake_ccc",
+                &sibling_root_params,
+                &sibling_imp_params,
+            ),
+        ]) {
+            assert_eq!(outbound.bidder.as_str(), bidder);
+            assert_eq!(outbound.base.as_str(), base);
+            let expected = expected_recipient_root(bidder, root_params, imp_params);
+            assert_eq!(
+                serde_json::to_value(&outbound.request).unwrap(),
+                expected,
+                "recipient-scoped complete root for {bidder}, requested row {name}"
+            );
         }
     }
 

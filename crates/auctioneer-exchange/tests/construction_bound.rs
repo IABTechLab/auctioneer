@@ -1272,13 +1272,10 @@ mod tests {
     /// which is `SUPPLEMENT_IMPS x BIDDER_COUNT` copies of this; the
     /// funded shape is `SUPPLEMENT_IMPS x BIDDER_CAP`.
     ///
-    /// Sized so the whole supplement BLOCK — all `BIDDER_COUNT` of them,
-    /// which `materialize_per_bidder` carries into each survivor's outbound
-    /// body because `ext.prebid` is request-level and is not scoped per
-    /// bidder — stays under the 256 KiB outbound raw cap. At 8 KiB it
-    /// did not: both survivors failed with code 5 `OversizeRaw` and the
-    /// over-cap run dispatched nobody, so the comparison would have been
-    /// between a working auction and a broken one.
+    /// Retain the original stress size: the former full-root forwarding
+    /// needed the whole block under the 256 KiB outbound raw cap. The
+    /// recipient projection now sends only the recipient's root entry;
+    /// this does not justify reducing the fixture or its conservative bound.
     const SUPPLEMENT_BYTES: usize = 2 * 1_024;
 
     /// `SUPPLEMENT_IMPS` imps naming `count` bidders, carrying
@@ -1475,11 +1472,10 @@ mod tests {
         //
         // * its scoped imps — one supplement copy per imp, which
         //   `build_scoped_imp` merges into a copy it is making anyway;
-        // * its whole-request clone, which carries `ext.prebid` and so
-        //   carries the WHOLE supplement block, all `BIDDER_COUNT`
-        //   entries of it. `ext.prebid` is request-level and is not
-        //   scoped per bidder, so that is the request the bidder is
-        //   genuinely being sent.
+        // * a conservative allowance for the original full root block,
+        //   all `BIDDER_COUNT` entries, although recipient root projection
+        //   now copies only its own entry. Keep the independent ceiling
+        //   rather than recalibrating it from the lower observed allocation.
         //
         // Doubled for the typed round-trip the materializer runs over
         // the same bytes, and the fixtures' own shape gap added on top.

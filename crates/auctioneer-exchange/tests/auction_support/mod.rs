@@ -269,7 +269,15 @@ impl Harness {
     }
 
     pub fn run(&self, request_value: Value) -> Observed {
-        self.run_with_context(request_value, None, None)
+        self.run_with_context(request_value, None, None, |_, _, _| {})
+    }
+
+    pub fn run_observing_inputs(
+        &self,
+        request_value: Value,
+        observe: impl FnOnce(&BidRequest, &AuctionContext<'_>, &AuctionPlan),
+    ) -> Observed {
+        self.run_with_context(request_value, None, None, observe)
     }
 
     pub fn run_with_host_restrictions(
@@ -278,7 +286,7 @@ impl Harness {
         source: &dyn HostRestrictionSource,
         bindings: &[BidderImplementationBinding],
     ) -> Observed {
-        self.run_with_context(request_value, Some(source), Some(bindings))
+        self.run_with_context(request_value, Some(source), Some(bindings), |_, _, _| {})
     }
 
     fn run_with_context(
@@ -286,6 +294,7 @@ impl Harness {
         request_value: Value,
         host_restrictions: Option<&dyn HostRestrictionSource>,
         bindings: Option<&[BidderImplementationBinding]>,
+        observe: impl FnOnce(&BidRequest, &AuctionContext<'_>, &AuctionPlan),
     ) -> Observed {
         let request: BidRequest = serde_json::from_value(request_value).expect("typed fixture");
         let normalized = prepare(
@@ -363,6 +372,7 @@ impl Harness {
         if let Some(provided_bindings) = bindings {
             ctx.bidder_bindings = provided_bindings;
         }
+        observe(&normalized, &ctx, &plan);
         let mut audit = DisclosureAudit::default();
         let result = block_on(run_auction(&normalized, &ctx, &plan, &mut audit))
             .and_then(auctioneer_exchange::AuctionOutcome::into_bid_response);
