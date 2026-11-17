@@ -60,11 +60,7 @@ fn project_prebid(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Va
                 if let Some(base) = aliases.bases.get(bidder)
                     && value.get(bidder.as_str()).and_then(Value::as_str) == Some(base.as_str())
                 {
-                    let selected = Map::from_iter([(
-                        bidder.as_str().to_owned(),
-                        Value::String(base.as_str().to_owned()),
-                    )]);
-                    prebid.insert(key.clone(), Value::Object(selected));
+                    prebid.insert(key.clone(), value.clone());
                 }
             }
             "alternatebiddercodes"
