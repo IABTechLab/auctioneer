@@ -35,7 +35,7 @@ use crate::gpp::Limits;
 use crate::gvl::{Gvl, GvlStore, gvl_spec_for_policy};
 use crate::signal::{AuctionGeoInput, GeoView, Signal, auction_geo_signal};
 use crate::sources::{self, ConsentSource, LegacyProjection, NormalizedSources, SelectedConsent};
-use crate::tcf::{TcfString, parse_tcf_v2};
+use crate::tcf::{IndexedTcf, TcfString, parse_tcf_v2};
 use crate::warnings::{gcl_stale, gvl_version_unavailable, invalid_privacy_consent};
 
 /// Exchange-owned identity validation and narrow GDPR exemption.
@@ -351,7 +351,7 @@ fn with_consent(
         authorization_now: now,
         p2_enforced: base.p2_enforced,
         sf1_enforced: base.sf1_enforced,
-        tcf: Some(Box::new(tcf)),
+        tcf: Some(IndexedTcf::new(Box::new(tcf))),
         gvl,
         alias_gvl_ids: base.alias_gvl_ids,
         basic_enforcement_vendors: base.basic_enforcement_vendors,
