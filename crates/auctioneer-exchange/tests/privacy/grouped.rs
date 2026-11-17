@@ -6,6 +6,151 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 #[test]
+fn recipient_root_wire_shape_is_scoped_before_fake_construction() {
+    let harness = Harness::default();
+    let mut req = request(&["fake_selected/~", "fake_ccc"]);
+    req["imp"][0]["ext"]["bidder"] = json!({
+        "fake_selected/~": {"wrapper": {"profile": 1_i32}, "acat": ["IAB5"],
+            "nested": {"keep": "imp-selected"}},
+        "fake_ccc": {"wrapper": {"profile": 3_i32}, "acat": ["IAB6"],
+            "nested": {"keep": "imp-ccc"}}
+    });
+    req["ext"] = json!({"ordinary": {"keep": "root-sibling"}, "prebid": {
+        "aliases": {"fake_selected/~": "fake_bb", "fake_competitor/~": "fake_aaa"},
+        "aliasgvlids": {"fake_selected/~": 8_i32, "fake_competitor/~": 9_i32},
+        "bidderparams": {
+            "fake_selected/~": {
+                "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
+                "nested": {"keep": "alias-root", "add": "alias-only"}
+            },
+            "fake_bb": {
+                "wrapper": {"profile": 21_i32, "version": 22_i32}, "acat": ["IAB2"],
+                "nested": {"keep": "base-root", "add": "base-only"}
+            },
+            "fake_ccc": {
+                "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
+                "nested": {"keep": "ccc-root", "add": "ccc-only"}
+            },
+            "fake_aaa": {
+                "wrapper": {"profile": 91_i32, "version": 92_i32}, "acat": ["IAB4"],
+                "nested": {"secret": "competitor-only"}
+            }
+        },
+        "nosale": ["fake_aaa"], "returnallbidstatus": true,
+        "data": {"user": {"keywords": "raw-root-fpd"}},
+        "bidderconfig": [{"bidders": ["fake_aaa"],
+            "config": {"ortb2": {"user": {"keywords": "raw-config-fpd"}}}}],
+        "schains": [{"bidders": ["fake_aaa"],
+            "schain": {"ver": "1.0", "complete": 1_i32, "nodes": [
+                {"asi": "supply.example.test", "sid": "fictional-seller", "hp": 1_i32}
+            ]}}],
+        "future_root": {"secret": "future-decoy"},
+        "alternatebiddercodes": {"enabled": true, "bidders": {
+            "fake_bb": {"allowedbiddercodes": ["fake_alt"]}
+        }},
+        "channel": {"name": "web", "version": "1.0"},
+        "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
+        "integration": "fake-integration",
+        "multibid": [{"bidder": "fake_bb", "maxbids": 2_i32}],
+        "sdk": {"source": "fake-sdk", "version": "1.0"},
+        "server": {"externalurl": "https://exchange.example.test"},
+        "targeting": {"includewinners": true, "includebidderkeys": false,
+            "prefix": "fake", "future_targeting": {"keep": true}}
+    }});
+    for field in [
+        "aliasgvlids",
+        "nosale",
+        "returnallbidstatus",
+        "data",
+        "bidderconfig",
+        "schains",
+        "future_root",
+    ] {
+        assert!(
+            req["ext"]["prebid"].get(field).is_some(),
+            "fixture lacks {field}"
+        );
+    }
+    assert_eq!(
+        req["ext"]["prebid"]["aliases"]["fake_competitor/~"],
+        "fake_aaa"
+    );
+    for bidder in ["fake_selected/~", "fake_bb", "fake_ccc", "fake_aaa"] {
+        assert!(req["ext"]["prebid"]["bidderparams"].get(bidder).is_some());
+    }
+    let observed = harness.run(req);
+    assert!(
+        observed.result.is_ok(),
+        "recipient auction: {:?}",
+        observed.result
+    );
+    observed.assert_built(&["fake_selected/~", "fake_ccc"]);
+    assert_eq!(observed.outbound.len(), 2, "exactly one call per recipient");
+    for (bidder, base, root_params, imp_params) in [
+        (
+            "fake_selected/~",
+            "fake_bb",
+            json!({
+                "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
+                "nested": {"keep": "alias-root", "add": "alias-only"}
+            }),
+            json!({
+                "wrapper": {"profile": 1_i32, "version": 12_i32}, "acat": ["IAB5"],
+                "nested": {"keep": "imp-selected", "add": "alias-only"}
+            }),
+        ),
+        (
+            "fake_ccc",
+            "fake_ccc",
+            json!({
+                "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
+                "nested": {"keep": "ccc-root", "add": "ccc-only"}
+            }),
+            json!({
+                "wrapper": {"profile": 3_i32, "version": 32_i32}, "acat": ["IAB6"],
+                "nested": {"keep": "imp-ccc", "add": "ccc-only"}
+            }),
+        ),
+    ] {
+        let build = observed
+            .constructions
+            .iter()
+            .find(|build| build.bidder == bidder)
+            .expect("each allowed recipient was constructed exactly once");
+        assert_eq!(build.core, base);
+        let body = observed.body(bidder);
+        assert_eq!(body["imp"][0]["ext"]["bidder"], imp_params);
+        assert_eq!(
+            body["ext"],
+            build.input["ext"],
+            "the fake serializes its actual input root"
+        );
+        let mut prebid = json!({
+            "bidderparams": root_params,
+            "alternatebiddercodes": {"enabled": true, "bidders": {
+                "fake_bb": {"allowedbiddercodes": ["fake_alt"]}
+            }},
+            "channel": {"name": "web", "version": "1.0"},
+            "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
+            "integration": "fake-integration",
+            "multibid": [{"bidder": "fake_bb", "maxbids": 2_i32}],
+            "sdk": {"source": "fake-sdk", "version": "1.0"},
+            "server": {"externalurl": "https://exchange.example.test"},
+            "targeting": {"includewinners": true, "includebidderkeys": false,
+                "prefix": "fake", "future_targeting": {"keep": true}}
+        });
+        if bidder == "fake_selected/~" {
+            prebid["aliases"] = json!({"fake_selected/~": "fake_bb"});
+        }
+        assert_eq!(
+            body["ext"],
+            json!({"ordinary": {"keep": "root-sibling"}, "prebid": prebid}),
+            "serialized root must already be recipient-scoped before fake construction: {bidder}"
+        );
+    }
+}
+
+#[test]
 fn sampled_out_fpd_is_not_validated() {
     for patch in [json!({"banner": null}), json!({"banner": 7_i32})] {
         let mut harness = Harness::default();
