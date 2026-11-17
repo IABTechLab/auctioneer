@@ -531,7 +531,7 @@ fn merge_supplement(target: &mut Value, supplement: &Value) {
                 slot.insert(value.clone());
             }
             Entry::Occupied(mut slot) => {
-                merge_supplement(slot.get_mut(), value);
+                slot.insert(value.clone());
             }
         }
     }
