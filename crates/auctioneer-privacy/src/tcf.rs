@@ -358,8 +358,16 @@ impl TcfString {
 /// lookup. The index is built from the string it wraps and the string is
 /// reachable only read-only, so enforcement can never consult an index that
 /// disagrees with its consent.
+///
+/// The string keeps the allocation it was parsed into, so authorizing a
+/// cached sync consent never moves it. The pair sits behind one more pointer,
+/// so holding consent costs a privacy context no more inline bytes than the
+/// bare boxed string did.
 #[derive(Debug)]
-pub(crate) struct IndexedTcf {
+pub(crate) struct IndexedTcf(Box<Indexed>);
+
+#[derive(Debug)]
+struct Indexed {
     tcf: Box<TcfString>,
     restrictions: RestrictionIndex,
 }
@@ -367,11 +375,11 @@ pub(crate) struct IndexedTcf {
 impl IndexedTcf {
     pub(crate) fn new(tcf: Box<TcfString>) -> Self {
         let restrictions = RestrictionIndex::new(&tcf.publisher_restrictions);
-        Self { tcf, restrictions }
+        Self(Box::new(Indexed { tcf, restrictions }))
     }
 
     pub(crate) fn restrictions(&self) -> &RestrictionIndex {
-        &self.restrictions
+        &self.0.restrictions
     }
 }
 
@@ -379,7 +387,7 @@ impl Deref for IndexedTcf {
     type Target = TcfString;
 
     fn deref(&self) -> &TcfString {
-        &self.tcf
+        &self.0.tcf
     }
 }
 
@@ -1480,6 +1488,7 @@ pub fn parse_tcf_v2(input: &str) -> Result<TcfString, TcfParseError> {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
+    use std::mem::size_of;
     use std::ops::RangeInclusive;
 
     use auctioneer_config_data::types::{
@@ -1493,7 +1502,8 @@ mod tests {
 
     use super::{
         IndexedTcf, MAX_PUBLISHER_RESTRICTION_LIST_LEN, PubRestrictionType, PublisherRestriction,
-        RangeSection, RestrictionIndex, TcfParseError, TcfParser, VendorBitSet, parse_tcf_v2,
+        RangeSection, RestrictionIndex, TcfParseError, TcfParser, TcfString, VendorBitSet,
+        parse_tcf_v2,
     };
     use crate::purposes::effective_publisher_restriction;
     use crate::test_support::tc_encode::{
@@ -1785,6 +1795,14 @@ mod tests {
             restriction_type,
             vendor_range,
         }
+    }
+
+    #[test]
+    fn indexed_consent_adds_no_inline_bytes_to_the_privacy_context() {
+        assert_eq!(
+            size_of::<Option<IndexedTcf>>(),
+            size_of::<Option<Box<TcfString>>>()
+        );
     }
 
     #[test]

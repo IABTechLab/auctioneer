@@ -95,10 +95,10 @@ pub struct PrivacyContext {
     /// Parsed TCF string when the request supplied a usable one, with its
     /// publisher restrictions indexed for per-identity lookup.
     ///
-    /// The string stays boxed inside [`IndexedTcf`]: `TcfString` carries
-    /// three fixed 8 KiB vendor bitsets, and `run_auction` holds a
-    /// `PrivacyContext` across await points, so storing it inline would put
-    /// 24 KiB of mostly-zero bits into every in-flight auction future.
+    /// [`IndexedTcf`] is one pointer: `TcfString` carries three fixed 8 KiB
+    /// vendor bitsets, and `run_auction` holds a `PrivacyContext` across
+    /// await points, so storing the string or its index inline would grow
+    /// every in-flight auction future and its funded layout.
     pub(crate) tcf: Option<IndexedTcf>,
     /// The GVL revision the TC string declared. `Gvl` is a cheap-clone
     /// `Arc` wrapper, so holding it is a refcount bump, not a copy of
