@@ -29,7 +29,7 @@
 
 use std::collections::BTreeSet;
 use std::mem;
-use std::ops::RangeInclusive;
+use std::ops::{Deref, RangeInclusive};
 
 use time::macros::datetime;
 use time::{OffsetDateTime, Time};
@@ -351,6 +351,114 @@ impl TcfString {
             .iter()
             .find(|r| r.purpose_id == purpose_id && r.covers(vendor_id))
             .map(|r| r.restriction_type)
+    }
+}
+
+/// A decoded TC string paired with its publisher restrictions indexed for
+/// lookup. The index is built from the string it wraps and the string is
+/// reachable only read-only, so enforcement can never consult an index that
+/// disagrees with its consent.
+#[derive(Debug)]
+pub(crate) struct IndexedTcf {
+    tcf: Box<TcfString>,
+    restrictions: RestrictionIndex,
+}
+
+impl IndexedTcf {
+    pub(crate) fn new(tcf: Box<TcfString>) -> Self {
+        let restrictions = RestrictionIndex::new(&tcf.publisher_restrictions);
+        Self { tcf, restrictions }
+    }
+
+    pub(crate) fn restrictions(&self) -> &RestrictionIndex {
+        &self.restrictions
+    }
+}
+
+impl Deref for IndexedTcf {
+    type Target = TcfString;
+
+    fn deref(&self) -> &TcfString {
+        &self.tcf
+    }
+}
+
+/// Publisher restrictions indexed for `(purpose, type, vendor)` lookup.
+///
+/// Spans are sorted by `(purpose, type, start)`, and spans sharing a
+/// `(purpose, type)` are disjoint and non-adjacent, so a single binary search
+/// finds the only span that can cover a vendor. Merging overlapping and
+/// adjacent records preserves the answer of
+/// [`TcfString::check_pub_restriction`], which only asks whether any record
+/// covers the vendor. Capacity is the decoded record count, at most
+/// [`MAX_PUBLISHER_RESTRICTION_LIST_LEN`] spans of six bytes.
+#[derive(Debug)]
+pub(crate) struct RestrictionIndex {
+    spans: Vec<RestrictionSpan>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct RestrictionSpan {
+    purpose_id: u8,
+    restriction_type: u8,
+    start: u16,
+    end: u16,
+}
+
+impl RestrictionIndex {
+    fn new(records: &[PublisherRestriction]) -> Self {
+        let mut spans = Vec::with_capacity(records.len());
+        spans.extend(
+            records
+                .iter()
+                .filter(|record| !record.vendor_range.is_empty())
+                .map(|record| RestrictionSpan {
+                    purpose_id: record.purpose_id,
+                    restriction_type: restriction_rank(record.restriction_type),
+                    start: *record.vendor_range.start(),
+                    end: *record.vendor_range.end(),
+                }),
+        );
+        spans.sort_unstable();
+        spans.dedup_by(|next, kept| {
+            let mergeable = next.purpose_id == kept.purpose_id
+                && next.restriction_type == kept.restriction_type
+                && next.start <= kept.end.saturating_add(1);
+            if mergeable {
+                kept.end = kept.end.max(next.end);
+            }
+            mergeable
+        });
+        Self { spans }
+    }
+
+    /// Indexed equivalent of [`TcfString::check_pub_restriction`].
+    pub(crate) fn covers(
+        &self,
+        purpose_id: u8,
+        restriction_type: PubRestrictionType,
+        vendor_id: u16,
+    ) -> bool {
+        let rank = restriction_rank(restriction_type);
+        let after = self.spans.partition_point(|span| {
+            (span.purpose_id, span.restriction_type, span.start) <= (purpose_id, rank, vendor_id)
+        });
+        after
+            .checked_sub(1)
+            .and_then(|last| self.spans.get(last))
+            .is_some_and(|span| {
+                span.purpose_id == purpose_id
+                    && span.restriction_type == rank
+                    && vendor_id <= span.end
+            })
+    }
+}
+
+const fn restriction_rank(restriction_type: PubRestrictionType) -> u8 {
+    match restriction_type {
+        PubRestrictionType::NotAllowed => 0,
+        PubRestrictionType::RequireConsent => 1,
+        PubRestrictionType::RequireLegitInterest => 2,
     }
 }
 
@@ -1372,19 +1480,22 @@ pub fn parse_tcf_v2(input: &str) -> Result<TcfString, TcfParseError> {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs;
+    use std::ops::RangeInclusive;
 
     use auctioneer_config_data::types::{
         EnforceAlgo, PurposeEnforcement, SpecialFeatureEnforcement, TriState,
     };
+    use proptest::prelude::*;
     use time::macros::datetime;
 
-    use crate::testkit::{VendorSpec, gvl};
+    use crate::testkit::{TcfSpec, VendorSpec, gvl};
     use crate::{AuctionPermissions, BidderDecision, FetchDenial, PrivacyContext};
 
     use super::{
-        MAX_PUBLISHER_RESTRICTION_LIST_LEN, PubRestrictionType, RangeSection, TcfParseError,
-        TcfParser, VendorBitSet, parse_tcf_v2,
+        IndexedTcf, MAX_PUBLISHER_RESTRICTION_LIST_LEN, PubRestrictionType, PublisherRestriction,
+        RangeSection, RestrictionIndex, TcfParseError, TcfParser, VendorBitSet, parse_tcf_v2,
     };
+    use crate::purposes::effective_publisher_restriction;
     use crate::test_support::tc_encode::{
         BitWriter, CoreSpec, PubRestrictionSpec, RangeEntrySpec, VendorSectionSpec,
         dv_bitfield_segment, encode_core, minimal_dv_segment, valid_core_spec, with_minimal_dv,
@@ -1656,6 +1767,176 @@ mod tests {
         assert!(tcf.check_pub_restriction(7, PubRestrictionType::RequireLegitInterest, 32));
         assert!(tcf.check_pub_restriction(7, PubRestrictionType::RequireLegitInterest, 40));
         assert!(!tcf.check_pub_restriction(7, PubRestrictionType::RequireLegitInterest, 41));
+    }
+
+    const RESTRICTION_TYPES: [PubRestrictionType; 3] = [
+        PubRestrictionType::NotAllowed,
+        PubRestrictionType::RequireConsent,
+        PubRestrictionType::RequireLegitInterest,
+    ];
+
+    fn restriction(
+        purpose_id: u8,
+        restriction_type: PubRestrictionType,
+        vendor_range: RangeInclusive<u16>,
+    ) -> PublisherRestriction {
+        PublisherRestriction {
+            purpose_id,
+            restriction_type,
+            vendor_range,
+        }
+    }
+
+    #[test]
+    fn restriction_index_merges_overlapping_adjacent_and_nested_records() {
+        let index = RestrictionIndex::new(&[
+            restriction(1, PubRestrictionType::NotAllowed, 21..=30),
+            restriction(1, PubRestrictionType::NotAllowed, 10..=20),
+            restriction(1, PubRestrictionType::NotAllowed, 15..=18),
+            restriction(1, PubRestrictionType::NotAllowed, 10..=20),
+            restriction(1, PubRestrictionType::NotAllowed, 0..=0),
+            restriction(
+                1,
+                PubRestrictionType::NotAllowed,
+                RangeInclusive::new(40, 35),
+            ),
+            restriction(1, PubRestrictionType::RequireConsent, 25..=25),
+            restriction(1, PubRestrictionType::RequireLegitInterest, 200..=300),
+            restriction(1, PubRestrictionType::RequireLegitInterest, 100..=u16::MAX),
+            restriction(2, PubRestrictionType::NotAllowed, u16::MAX..=u16::MAX),
+        ]);
+        assert_eq!(index.spans.len(), 5, "{index:?}");
+
+        let not_allowed = |vendor_id| index.covers(1, PubRestrictionType::NotAllowed, vendor_id);
+        for covered in [0, 10, 15, 20, 21, 30] {
+            assert!(not_allowed(covered), "vendor {covered}");
+        }
+        for uncovered in [1, 9, 31, 35, 38, 40, u16::MAX] {
+            assert!(!not_allowed(uncovered), "vendor {uncovered}");
+        }
+
+        assert!(!index.covers(1, PubRestrictionType::RequireConsent, 24));
+        assert!(index.covers(1, PubRestrictionType::RequireConsent, 25));
+        assert!(!index.covers(1, PubRestrictionType::RequireConsent, 26));
+
+        let require_li =
+            |vendor_id| index.covers(1, PubRestrictionType::RequireLegitInterest, vendor_id);
+        assert!(!require_li(99));
+        for covered in [100, 250, 301, u16::MAX] {
+            assert!(require_li(covered), "vendor {covered}");
+        }
+
+        assert!(!index.covers(2, PubRestrictionType::NotAllowed, u16::MAX - 1));
+        assert!(index.covers(2, PubRestrictionType::NotAllowed, u16::MAX));
+        assert!(!index.covers(2, PubRestrictionType::RequireConsent, u16::MAX));
+        for other_purpose in [0, 3, u8::MAX] {
+            for restriction_type in RESTRICTION_TYPES {
+                assert!(!index.covers(other_purpose, restriction_type, 25));
+            }
+        }
+        assert!(!RestrictionIndex::new(&[]).covers(1, PubRestrictionType::NotAllowed, 0));
+    }
+
+    fn restriction_record(
+        purposes: impl Strategy<Value = u8>,
+    ) -> impl Strategy<Value = PublisherRestriction> {
+        let types = prop::sample::select(RESTRICTION_TYPES.to_vec());
+        let vendors = || prop_oneof![0_u16..=48, 65_487_u16..=u16::MAX];
+        (
+            purposes,
+            types,
+            vendors(),
+            vendors(),
+            prop::bool::weighted(0.1),
+        )
+            .prop_map(|(purpose_id, restriction_type, a, b, reversed)| {
+                let (low, high) = (a.min(b), a.max(b));
+                let vendor_range = if reversed {
+                    RangeInclusive::new(high, low)
+                } else {
+                    low..=high
+                };
+                restriction(purpose_id, restriction_type, vendor_range)
+            })
+    }
+
+    /// Compares every indexed lookup with the linear oracle, and the effective
+    /// restriction with the publisher-basis rules applied to oracle answers.
+    fn index_matches_linear_oracle(
+        records: Vec<PublisherRestriction>,
+    ) -> Result<(), TestCaseError> {
+        let mut purposes: BTreeSet<u8> = (0..=25).chain([u8::MAX]).collect();
+        purposes.extend(records.iter().map(|record| record.purpose_id));
+        let consent = IndexedTcf::new(Box::new(
+            TcfSpec {
+                publisher_restrictions: records,
+                ..TcfSpec::default()
+            }
+            .build(),
+        ));
+        // Every generated endpoint and both of its neighbours lie in these bands.
+        let vendors: Vec<u16> = (0..=50).chain([0x8000]).chain(65_485..=u16::MAX).collect();
+        for &purpose_id in &purposes {
+            for &vendor_id in &vendors {
+                let linear = RESTRICTION_TYPES.map(|restriction_type| {
+                    consent.check_pub_restriction(purpose_id, restriction_type, vendor_id)
+                });
+                for (restriction_type, expected) in RESTRICTION_TYPES.into_iter().zip(linear) {
+                    prop_assert_eq!(
+                        consent
+                            .restrictions()
+                            .covers(purpose_id, restriction_type, vendor_id),
+                        expected,
+                        "purpose {} {:?} vendor {}",
+                        purpose_id,
+                        restriction_type,
+                        vendor_id
+                    );
+                }
+                let expected = match linear {
+                    [true, _, _] | [false, true, true] => Some(PubRestrictionType::NotAllowed),
+                    [false, true, false] => Some(PubRestrictionType::RequireConsent),
+                    [false, false, true] => Some(PubRestrictionType::RequireLegitInterest),
+                    [false, false, false] => None,
+                };
+                prop_assert_eq!(
+                    effective_publisher_restriction(Some(&consent), purpose_id, vendor_id),
+                    expected,
+                    "purpose {} vendor {}",
+                    purpose_id,
+                    vendor_id
+                );
+            }
+        }
+        Ok(())
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, failure_persistence: None, ..ProptestConfig::default() })]
+
+        #[test]
+        fn restriction_index_answers_like_the_linear_oracle(
+            records in prop::collection::vec(
+                restriction_record(prop_oneof![3 => 1_u8..=3, 1 => any::<u8>()]),
+                0..=32,
+            ),
+        ) {
+            index_matches_linear_oracle(records)?;
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 16, failure_persistence: None, ..ProptestConfig::default() })]
+
+        #[test]
+        fn full_restriction_lists_answer_like_the_linear_oracle(
+            records in prop::collection::vec(
+                restriction_record(1_u8..=24),
+                0..=MAX_PUBLISHER_RESTRICTION_LIST_LEN,
+            ),
+        ) {
+            index_matches_linear_oracle(records)?;
+        }
     }
 
     #[test]

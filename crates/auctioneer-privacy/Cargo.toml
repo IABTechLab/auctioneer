@@ -55,3 +55,7 @@ getrandom = { workspace = true, features = ["wasm_js"] }
 [[bench]]
 name = "gvl_cold_parse"
 harness = false
+
+[[bench]]
+name = "publisher_restrictions"
+harness = false

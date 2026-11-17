@@ -16,7 +16,7 @@ use crate::{
         purpose_allowed_basic, purpose_effective_algo,
     },
     signal::Signal,
-    tcf::{PubRestrictionType, TcfParseError, TcfString, parse_tcf_v2},
+    tcf::{IndexedTcf, PubRestrictionType, TcfParseError, TcfString, parse_tcf_v2},
 };
 
 pub(super) enum ConsentState {
@@ -117,7 +117,7 @@ impl SyncPrivacyContext<'_> {
             .iter()
             .cloned()
             .collect();
-        ctx.tcf = Some(tcf);
+        ctx.tcf = Some(IndexedTcf::new(tcf));
         ctx.gvl = gvl;
         ctx
     }
@@ -141,7 +141,7 @@ impl SyncPrivacyContext<'_> {
         if vendor.is_deleted_at(now) {
             return SyncDecision::BlockedByPrivacy;
         }
-        let Some(tcf) = ctx.tcf.as_deref() else {
+        let Some(tcf) = ctx.tcf.as_ref() else {
             return SyncDecision::BlockedByPrivacy;
         };
         if effective_publisher_restriction(Some(tcf), 1, vendor_id)

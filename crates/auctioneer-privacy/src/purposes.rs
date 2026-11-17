@@ -23,7 +23,7 @@ use auctioneer_config_data::types::{EnforceAlgo, TriState};
 
 use crate::auction_context::PrivacyContext;
 use crate::gvl::Vendor;
-use crate::tcf::{PubRestrictionType, TcfString};
+use crate::tcf::{IndexedTcf, PubRestrictionType, TcfString};
 
 /// The effective per-purpose enforcement bits, resolved from the
 /// account-over-host tri-states before dispatch. The identity path
@@ -46,7 +46,7 @@ pub fn purpose_allowed(
 ) -> bool {
     let consent = ctx.tcf.as_deref();
 
-    let restriction = effective_publisher_restriction(consent, purpose_id, vendor_id);
+    let restriction = effective_publisher_restriction(ctx.tcf.as_ref(), purpose_id, vendor_id);
     // Publisher denial and ambiguous bases precede every policy bypass.
     if restriction == Some(PubRestrictionType::NotAllowed) {
         return false;
@@ -123,7 +123,7 @@ pub fn purpose_allowed_basic(
     allow_li_transparency: bool,
 ) -> bool {
     let consent = ctx.tcf.as_deref();
-    if effective_publisher_restriction(consent, purpose_id, vendor_id)
+    if effective_publisher_restriction(ctx.tcf.as_ref(), purpose_id, vendor_id)
         == Some(PubRestrictionType::NotAllowed)
     {
         return false;
@@ -203,18 +203,20 @@ pub fn effective_flags_for_purpose(ctx: &PrivacyContext, purpose_id: u8) -> Enfo
 
 /// Collapse conflicting publisher bases to an effective denial without
 /// altering the decoded records. Duplicate same-type matches remain valid.
+/// Each check is a binary search of the indexed restrictions, so the cost grows
+/// with the logarithm of the decoded restriction count, not with the count.
 pub(crate) fn effective_publisher_restriction(
-    consent: Option<&TcfString>,
+    consent: Option<&IndexedTcf>,
     purpose_id: u8,
     vendor_id: u16,
 ) -> Option<PubRestrictionType> {
-    let tcf = consent?;
-    if tcf.check_pub_restriction(purpose_id, PubRestrictionType::NotAllowed, vendor_id) {
+    let restrictions = consent?.restrictions();
+    if restrictions.covers(purpose_id, PubRestrictionType::NotAllowed, vendor_id) {
         return Some(PubRestrictionType::NotAllowed);
     }
     let require_consent =
-        tcf.check_pub_restriction(purpose_id, PubRestrictionType::RequireConsent, vendor_id);
-    let require_li = tcf.check_pub_restriction(
+        restrictions.covers(purpose_id, PubRestrictionType::RequireConsent, vendor_id);
+    let require_li = restrictions.covers(
         purpose_id,
         PubRestrictionType::RequireLegitInterest,
         vendor_id,

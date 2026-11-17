@@ -20,6 +20,8 @@ use auctioneer_config_data::types::{EnforceAlgo, PurposeEnforcement, SpecialFeat
 use time::OffsetDateTime;
 
 #[cfg(test)]
+use crate::tcf::TcfString;
+#[cfg(test)]
 use crate::testkit::AUTHORIZATION_NOW;
 use crate::{
     activity::{Activity, Component},
@@ -31,7 +33,7 @@ use crate::{
         purpose_effective_algo,
     },
     resolve::SPECIAL_FEATURE_GEO,
-    tcf::TcfString,
+    tcf::IndexedTcf,
 };
 
 /// Identity passes only under full enforcement of both legs, whatever
@@ -90,13 +92,14 @@ pub struct PrivacyContext {
     /// Resolved special-feature-1 enforcement, cached for the
     /// unusable-consent default row (`PassGeo = !sf1_enforced`).
     pub(crate) sf1_enforced: bool,
-    /// Parsed TCF string when the request supplied a usable one.
+    /// Parsed TCF string when the request supplied a usable one, with its
+    /// publisher restrictions indexed for per-identity lookup.
     ///
-    /// Boxed: `TcfString` carries three fixed 8 KiB vendor bitsets, and
-    /// `run_auction` holds a `PrivacyContext` across await points, so
-    /// storing it inline would put 24 KiB of mostly-zero bits into every
-    /// in-flight auction future.
-    pub(crate) tcf: Option<Box<TcfString>>,
+    /// The string stays boxed inside [`IndexedTcf`]: `TcfString` carries
+    /// three fixed 8 KiB vendor bitsets, and `run_auction` holds a
+    /// `PrivacyContext` across await points, so storing it inline would put
+    /// 24 KiB of mostly-zero bits into every in-flight auction future.
+    pub(crate) tcf: Option<IndexedTcf>,
     /// The GVL revision the TC string declared. `Gvl` is a cheap-clone
     /// `Arc` wrapper, so holding it is a refcount bump, not a copy of
     /// the vendor map.
@@ -175,7 +178,7 @@ impl PrivacyContext {
             // deletion is evaluated against this field, and nothing has
             // been deleted as of 1970.
             authorization_now: AUTHORIZATION_NOW,
-            tcf: tcf.map(Box::new),
+            tcf: tcf.map(Box::new).map(IndexedTcf::new),
             gvl,
             basic_enforcement_vendors,
             ..Self::allow_all_no_scrub()
@@ -369,7 +372,8 @@ mod tests {
     use time::macros::datetime;
 
     use super::{
-        Activity, ActivityConfigs, AuctionPermissions, Component, PrivacyContext, TcfString,
+        Activity, ActivityConfigs, AuctionPermissions, Component, IndexedTcf, PrivacyContext,
+        TcfString,
     };
     use crate::decision::IndependentPolicies;
     use crate::gcl::{CmpRecord, Gcl};
@@ -442,7 +446,7 @@ mod tests {
                 authorization_now: self.now,
                 p2_enforced,
                 sf1_enforced,
-                tcf: self.tcf.map(Box::new),
+                tcf: self.tcf.map(Box::new).map(IndexedTcf::new),
                 gvl: self.gvl,
                 alias_gvl_ids: self.alias_gvl_ids,
                 basic_enforcement_vendors: self.basic_enforcement_vendors,
