@@ -233,7 +233,7 @@ fn assert_recipient_root_privacy_inputs(
     assert!(privacy.context.take_warnings().is_empty());
     for recipient in ["fake_a_privacy/~", "fake_b_privacy/~"] {
         let identity = BidderName::new(recipient);
-        let base = plan.aliases.map.bases.get(&identity).unwrap();
+        let base = &plan.aliases.map.bases[&identity];
         let expected_vendor = if recipient == selected { vendor } else { 8 };
         let resolved_vendor = plan
             .aliases
@@ -258,11 +258,14 @@ fn assert_recipient_root_privacy_inputs(
         let pass_id = match decision.gdpr {
             AuctionPermissions::AllowAll => true,
             AuctionPermissions::Partial {
-                allow_bid_request: true,
+                allow_bid_request,
                 pass_id,
                 ..
-            } => pass_id,
-            permissions => panic!("unexpected fetch denial: {permissions:?}"),
+            } => {
+                assert!(allow_bid_request, "both recipients must fetch");
+                pass_id
+            }
+            AuctionPermissions::DenyBidRequest => panic!("unexpected fetch denial"),
         };
         assert_eq!(pass_id, expected_vendor == 8, "real PassID for {recipient}");
         assert_eq!(
@@ -403,15 +406,13 @@ fn assert_recipient_root_selection_bookkeeping(observed: &Observed, cause: &str)
     };
     assert_eq!(observed.ext().get("warnings"), expected_warnings.as_ref());
     assert!(observed.ext().get("errors").is_none());
-    let expected_status = if cause == "privacy" {
+    let expected_status = (cause == "privacy").then(|| {
         observed.assert_blocked("fake_z_filtered/~", &["imp-1", "imp-2"]);
-        Some(json!([{"seat": "fake_z_filtered/~", "nonbid": [
+        json!([{"seat": "fake_z_filtered/~", "nonbid": [
             {"impid": "imp-1", "statuscode": 300_i32},
             {"impid": "imp-2", "statuscode": 300_i32}
-        ]}]))
-    } else {
-        None
-    };
+        ]}])
+    });
     assert_eq!(
         observed.ext()["prebid"].get("seatnonbid"),
         expected_status.as_ref()

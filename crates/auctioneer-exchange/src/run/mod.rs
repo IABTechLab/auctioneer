@@ -505,6 +505,7 @@ pub async fn run_auction(
         ctx,
         &capped,
         aliases,
+        return_all_bid_status,
         slots,
         results,
         &mut bundles,
@@ -1421,6 +1422,7 @@ fn process_results(
     ctx: &AuctionContext<'_>,
     bidder_requests: &[PerBidderRequest],
     aliases: &AliasMap,
+    return_all_bid_status: bool,
     slots: Vec<PreparedSlot>,
     results: Vec<BidderCallResult>,
     bundles: &mut BTreeMap<BidderName, BidderResultBundle>,
@@ -1489,6 +1491,7 @@ fn process_results(
                 &bidder_request.request,
                 aliases,
                 &bidder_name,
+                return_all_bid_status,
                 row,
                 bundle,
                 seatnonbid,
@@ -1513,6 +1516,7 @@ fn process_one_result(
     sanitized_request: &BidRequest,
     aliases: &AliasMap,
     bidder_name: &BidderName,
+    return_all_bid_status: bool,
     row: &PreparedResult,
     bundle: &mut BidderResultBundle,
     seatnonbid: &mut BTreeMap<BidderName, Vec<NonBidRow>>,
@@ -1614,7 +1618,9 @@ fn process_one_result(
                 // an adapter-supplied payload; the wire never does.
                 message: fanout_err.public_message().to_owned(),
             });
-            if returnallbidstatus(sanitized_request, ctx.features) {
+            // Exchange bookkeeping follows the original request, not controls
+            // deliberately omitted from the bidder-visible projection.
+            if return_all_bid_status {
                 let rows = http_request.covered_imp_ids().map(|id| NonBidRow {
                     imp_id: id.to_owned(),
                     statuscode: sn_code,

@@ -471,6 +471,13 @@ fn exchange_context(input: &Value) -> Value {
             prebid.insert("channel".into(), json!({"name":"app"}));
         }
     }
+    // The fixture's no-sale control affects privacy but is not sent to bidders.
+    if let Some(root_prebid) = context
+        .pointer_mut("/ext/prebid")
+        .and_then(Value::as_object_mut)
+    {
+        root_prebid.remove("nosale");
+    }
     context
 }
 
