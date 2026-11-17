@@ -275,12 +275,19 @@ mod tests {
                     }
                 }
                 let (result, requested, peak) = measured_root(&source);
-                assert_eq!(result, expected, "omitted={omitted:?}, bytes={bytes}");
-                observations.push((requested, peak));
+                observations.push((result, requested, peak));
             }
             assert_eq!(observations.len(), 3);
-            assert_eq!(observations[0], observations[1], "omitted={omitted:?}");
-            assert_eq!(observations[1], observations[2], "omitted={omitted:?}");
+            for pair in observations.windows(2) {
+                assert_eq!(
+                    (pair[0].1, pair[0].2),
+                    (pair[1].1, pair[1].2),
+                    "omitted allocation growth: {omitted:?}"
+                );
+            }
+            for (result, _, _) in observations {
+                assert_eq!(result, expected, "omitted={omitted:?}");
+            }
         }
 
         let mut retained = Vec::with_capacity(3);
