@@ -278,10 +278,10 @@ mod tests {
                 observations.push((result, requested, peak));
             }
             assert_eq!(observations.len(), 3);
-            for pair in observations.windows(2) {
+            for (left, right) in observations.iter().zip(observations.iter().skip(1)) {
                 assert_eq!(
-                    (pair[0].1, pair[0].2),
-                    (pair[1].1, pair[1].2),
+                    (left.1, left.2),
+                    (right.1, right.2),
                     "omitted allocation growth: {omitted:?}"
                 );
             }
@@ -300,10 +300,10 @@ mod tests {
             retained.push((u64::try_from(bytes).unwrap(), requested, peak));
         }
         assert_eq!(retained.len(), 3);
-        for pair in retained.windows(2) {
-            let payload_growth = pair[1].0.checked_sub(pair[0].0).unwrap();
-            assert!(pair[1].1.checked_sub(pair[0].1).unwrap() >= payload_growth);
-            assert!(pair[1].2.checked_sub(pair[0].2).unwrap() >= payload_growth);
+        for (smaller, larger) in retained.iter().zip(retained.iter().skip(1)) {
+            let payload_growth = larger.0.checked_sub(smaller.0).unwrap();
+            assert!(larger.1.checked_sub(smaller.1).unwrap() >= payload_growth);
+            assert!(larger.2.checked_sub(smaller.2).unwrap() >= payload_growth);
         }
     }
 }
