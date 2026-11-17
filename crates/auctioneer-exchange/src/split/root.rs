@@ -53,10 +53,8 @@ fn project_prebid(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Va
                 if let Some(params) = value
                     .get(bidder.as_str())
                     .or_else(|| {
-                        aliases
-                            .bases
-                            .get(bidder)
-                            .and_then(|base| value.get(base.as_str()))
+                        let base = aliases.bases.get(bidder)?;
+                        value.get(base.as_str())
                     })
                     .and_then(Value::as_object)
                     && !params.is_empty()
