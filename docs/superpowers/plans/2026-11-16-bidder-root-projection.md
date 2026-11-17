@@ -117,14 +117,32 @@ Keep ordinary module declarations. Unit tests stay inline; conformance stays wit
 
 ## Task 5: Expose The Same Production Stages For Measurement
 
-**Files:** `src/split/mod.rs`, new native/test-support `src/split/measurement.rs`, `src/test_support/mod.rs`; inline tests only.
+**Files:** `src/split/mod.rs`, new native/test-support `src/split/measurement.rs`, `src/test_support/mod.rs`, and `Cargo.toml` under `crates/auctioneer-exchange`; inline tests only.
 
 - [ ] After the privacy checkpoint, extract the existing per-recipient scoped-impression loop into a private helper; retain parameter precedence, ID comparison and error strings verbatim. Extract typed decoding and request validation into separate private helpers with the same code-15 mapping. Production calls these helpers and the Task 2 root helper in the same order. Preserve base resolution, result-vector reservation, survivor order and retained output lifetime.
 - [ ] Add an ordinary native-only test-support child module under `split`. It may call those private helpers and the public grouping function; reexport its deliberate observation API through `test_support`, not the private helpers or grouping internals. The observation wrapper owns only stage boundaries/records; no duplicate field-disposition, merge, filtering or serialization logic. No generic serving observer framework, callbacks in the public serving API or root-model reuse optimization.
+- [ ] Make the existing opt-in library feature own its dependencies explicitly. Replace exchange's empty `test-support` feature with the following forwarding, retaining the existing workspace dependencies/dev-dependencies. Do not enable these dependency features unconditionally on normal dependencies or add them to defaults:
+
+  ```toml
+  test-support = [
+      "auctioneer-bidder/test-support",
+      "auctioneer-runtime/test-support",
+  ]
+  ```
+
+  This uses existing features; it adds no dependency or feature name. Native measurement modules remain native-gated. An isolated normal library build must work without dev-dependency feature unification; passing only `cargo test` or an all-target workspace build cannot establish that boundary.
 - [ ] Define six observation phases: grouping (once), scoped impressions (per recipient), root projection (per recipient), typed decode (per recipient), typed validation (per recipient), and actual fake-bidder bounded serialization (per recipient). Full operation means grouping through serialization of all survivors; clearly exclude ingress/privacy evaluation/network/response processing from these measurements.
 - [ ] Separate phased and **unphased** complete-operation runs. Peak resets for individual phases must not corrupt an outer peak; never claim a sum of per-phase peaks is the whole peak. The unphased control uses ordinary production grouping/materialization plus the same bounded serialization, without stage callbacks/resets.
 - [ ] Add `measured_materialization_matches_ordinary_outputs_and_errors`: compare full typed/wire outputs and structured errors for all matrix shapes plus missing grouped recipient, FPD-rewritten ID, typed FPD failure and validation failure. Each failing row must reach the same error stage, not be rejected by an earlier fixture setup. Retain existing materialization tests rather than replacing them with observer tests.
-- [ ] Hosted command: `cargo test --locked -p auctioneer-exchange --lib --features test-support`. Expected: new equivalence test and all existing units execute successfully. Commit: `Expose real materialization stages for native measurement`.
+- [ ] Hosted commands, as separate invocations selecting only this package:
+
+  ```sh
+  cargo check --locked -p auctioneer-exchange --lib
+  cargo check --locked -p auctioneer-exchange --lib --features test-support
+  cargo test --locked -p auctioneer-exchange --lib --features test-support
+  ```
+
+  Expected: both normal library checks exit 0; the new equivalence test and all existing units execute successfully. Do not add `--all-targets` or another selected package to the checks, which would mask the dependency-feature boundary. Once Task 6's native runner is wired, independently remove each dependency-feature forward in disposable hosted controls and require the isolated feature-enabled library check to reject its unresolved API import; no surviving dev-feature rescue. Commit: `Expose real materialization stages for native measurement`.
 
 ## Task 6: Add Calibrated Counters And A Bounded Benchmark Entrypoint
 
@@ -155,7 +173,7 @@ Baseline: **4 survivors, 4 impressions per recipient, 64-byte retained root-ext/
 | Axis | Rows, all other declared axes at baseline | Additional unique cases |
 | --- | --- | --- |
 | Survivors | 1, 4, 16 | 2 |
-| Impressions per recipient | 1, 4, 16 | 2 |
+| Impressions per recipient | 1, 4, 8 | 2 |
 | Retained non-Prebid root ext string | 64, 1,024, 8,192 bytes | 2 |
 | `user.keywords` string | 64, 1,024, 8,192 bytes | 2 |
 | `device.ua` string | 64, 1,024, 8,192 bytes | 2 |
@@ -164,7 +182,10 @@ Baseline: **4 survivors, 4 impressions per recipient, 64-byte retained root-ext/
 
 **Exactly 17 unique cases:** baseline + five independent two-case additions + two three-case additions. This is not a cross product or guest workload declaration. Presence is independently observed; "present empty" is a correctness control, not substituted for a measured size. Keep independent ordinal/case-membership expectations in tests rather than deriving them from the matrix generator alone.
 
-- [ ] Generate valid fixtures with `json!`, use object supplements such as `{"own":99,"fill":"..."}` against explicit imp `own=1`, and FPD patches that preserve original imp IDs/media. Validate original and materialized requests. Check actual input bytes/nodes/depth/imp count against the existing native ingress constraints and all selected call/body/meta caps. If a declared row does not admit, stop and review the fixture; never enlarge a production cap or silently drop it.
+The reference workload is Axum's source-bound resource profile, not the more permissive exchange harness defaults. At the inspected base, `crates/auctioneer-adapter-axum/src/envelope.rs` declares a 32,768-byte input ceiling, 2,048 input nodes, 16 bidders, 16 calls, **8 impressions** and a 32,768-byte raw outbound body ceiling. Core admission uses `max_impressions_per_auction` in `auction/prepare.rs::normalization_limits`; 16 impressions is not an admitted native row. The revised impression sweep keeps three sizes and all 17 cases without changing any production limit.
+
+- [ ] Generate valid fixtures with `json!`, use object supplements such as `{"own":99,"fill":"..."}` against explicit imp `own=1`, and FPD patches that preserve original imp IDs/media. Validate original and materialized requests. Pin the smoke's reference admission values above independently from the matrix generator; assert the exact impression sweep `[1, 4, 8]`, admit the 8-impression boundary and refuse a separate 9-impression negative control before measured grouping. The negative control is not an eighteenth successful matrix case.
+- [ ] Check actual input bytes/nodes/depth/imp count and selected call/body/meta usage against that reference profile before measuring. Full-mode setup must also check the cases against the existing secure job's source-bound `resource-fit.json` Axum `effective_limits` row and include those limits in report metadata. Use exported data outside measurement windows, not a new adapter/core dependency or a private source import in exchange. Do not substitute the harness's 100-impression fixture allowance. If a declared row no longer admits or the frozen reference differs from current exported limits, stop and review that drift; never enlarge a production cap or silently drop a case.
 - [ ] Outside windows, record each case's actual canonical bytes, node/depth counts, declared/selected names, selected imp IDs, supplement/FPD sizes and expected output size/content. Record unavoidable structural overhead when membership changes. Before every counted iteration, grouping must perform one canonical conversion; do not reuse a precomputed grouped object and call it grouping time.
 - [ ] Freeze **8 warmups and 80 measured iterations for each of phased and unphased runs, per case and mode**. Thus each process reports 1,360 phased and 1,360 unphased samples, plus separately identified warmups. No outlier removal, retry-until-fast or postmeasurement threshold. Record raw nanosecond timings and summary method; do not round short phases into missing/zero-work rows.
 - [ ] In each complete operation require 1 grouping, exactly S projections/decodes/validations/accepted fake calls/body writes and S*M sent impression associations. Include real sink outcome errors/rejected/suppressed counts, not just writer attempts. Use `FakeBidder` aggregate mode, `OutboundRequestSink`, `CallBudget`, existing `SinkLimits`, endpoint validator and real bounded JSON serialization. A deliberately underfunded sink is a negative control, not an accepted zero-bid sample.
@@ -178,8 +199,9 @@ Baseline: **4 survivors, 4 impressions per recipient, 64-byte retained root-ext/
 **Files:** `.github/workflows/test.yml`, colocated `.github/workflows/scripts/test/measure-materialization.sh`, `docs/testing/development.md`.
 
 - [ ] Add an explicit **bounded benchmark smoke command** to the existing secure test lane using Task 6's `cargo test ... --bench ... --features test-support`. Do not rely on implicit dev-feature unification or Cargo silently selecting a `required-features` target. Other `--all-targets` lanes may also execute its bounded smoke, but no ordinary PR/push runs repeated release measurements.
+- [ ] Give Task 5's two isolated `cargo check --lib` commands mandatory ownership in that same secure lane, as separate package-only invocations before the smoke. Keep the existing full workspace/guest checks too; they do not replace the isolated normal-dependency checks. This adds no job/compiler lane and enables no test-support feature in ordinary serving builds.
 - [ ] Extend the existing workflow with a `workflow_dispatch` boolean input `measure_materialization`, default false. Preserve `push: branches: [main]`, `pull_request:`, all jobs, lanes, assertions, timeouts, permissions and caches. The one full-measure step runs only for a manually requested dispatch with that input true in **the existing secure lane**. No new paid/macOS runner, matrix/compiler lane or branch-name exemption. Keep shell logic in the colocated script, not a large YAML block.
-- [ ] In that script, reject a dirty checkout, create a fresh output directory under runner temp, record exact source/tree/lock/toolchain/CPU/workflow-run metadata, then run:
+- [ ] In that script, reject a dirty checkout, create a fresh output directory under runner temp, record exact source/tree/lock/toolchain/CPU/workflow-run metadata and the Axum `effective_limits` from the existing current-source `resource-fit.json`. Require exactly one Axum row, source identity matching the measured checkout and agreement with the frozen reference admission values in Task 7; a missing/stale profile is a refusal, not permission to use larger harness defaults. Then run:
 
   ```sh
   cargo bench --locked -p auctioneer-exchange --bench request_materialization --features test-support -- --measure timing --metadata "$metadata" --output "$output/timing.json"
