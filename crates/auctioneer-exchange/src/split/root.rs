@@ -90,13 +90,13 @@ mod tests {
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use serde_json::json;
 
-    fn round_trip_root(ext: Option<Value>, aliases: &AliasMap, expected_ext: Option<Value>) {
+    fn round_trip_root(extension: Option<Value>, aliases: &AliasMap, expected_ext: Option<Value>) {
         let mut source = json!({
             "id": "recipient-presence", "site": {"id": "fictional-site"},
             "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32}}],
             "source": {"ext": {"schain": {"ver": "1.0", "complete": 1_i32}}}
         });
-        if let Some(input_ext) = ext {
+        if let Some(input_ext) = extension {
             source["ext"] = input_ext;
         }
         let typed: BidRequest = serde_json::from_value(source).unwrap();
@@ -241,7 +241,13 @@ mod tests {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn omitted_root_payloads_are_not_cloned() {
-        for omitted in ["competitor_params", "bidderconfig"] {
+        #[derive(Debug)]
+        enum Omitted {
+            CompetitorParams,
+            BidderConfig,
+        }
+
+        for omitted in [Omitted::CompetitorParams, Omitted::BidderConfig] {
             let mut observations = Vec::with_capacity(3);
             let expected = json!({
                 "id": "allocation-root", "ext": {"ordinary": "keep", "prebid": {
@@ -257,25 +263,24 @@ mod tests {
                     }}
                 });
                 match omitted {
-                    "competitor_params" => {
+                    Omitted::CompetitorParams => {
                         source["ext"]["prebid"]["bidderparams"]["fake_competitor"] =
                             json!({"private": payload});
                     }
-                    "bidderconfig" => {
+                    Omitted::BidderConfig => {
                         source["ext"]["prebid"]["bidderconfig"] = json!([{
                             "bidders": ["fake_competitor"],
                             "config": {"ortb2": {"user": {"keywords": payload}}}
                         }]);
                     }
-                    _ => unreachable!("fixed omitted-payload cases"),
                 }
                 let (result, requested, peak) = measured_root(&source);
-                assert_eq!(result, expected, "omitted={omitted}, bytes={bytes}");
+                assert_eq!(result, expected, "omitted={omitted:?}, bytes={bytes}");
                 observations.push((requested, peak));
             }
             assert_eq!(observations.len(), 3);
-            assert_eq!(observations[0], observations[1], "omitted={omitted}");
-            assert_eq!(observations[1], observations[2], "omitted={omitted}");
+            assert_eq!(observations[0], observations[1], "omitted={omitted:?}");
+            assert_eq!(observations[1], observations[2], "omitted={omitted:?}");
         }
 
         let mut retained = Vec::with_capacity(3);
