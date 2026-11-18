@@ -861,10 +861,10 @@ mod tests {
         for (name, selected_root_params, selected_imp_params) in [
             (
                 "fake_selected/~",
-                json!({
+                Some(json!({
                     "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
                     "nested": {"keep": "alias-root", "add": "alias-only"}
-                }),
+                })),
                 json!({
                     "wrapper": {"profile": 1_i32, "version": 12_i32}, "acat": ["IAB5"],
                     "nested": {"keep": "imp-selected", "add": "alias-only"}
@@ -872,24 +872,39 @@ mod tests {
             ),
             (
                 "fake_aaa",
-                json!({
+                Some(json!({
                     "wrapper": {"profile": 21_i32, "version": 22_i32}, "acat": ["IAB2"],
-                    "nested": {"keep": "base-root", "add": "base-only"}
-                }),
+                    "nested": {"keep": "base-root", "add": "base-only"},
+                    "base_only": "must-not-fill-alias"
+                })),
                 json!({
                     "wrapper": {"profile": 1_i32, "version": 22_i32}, "acat": ["IAB5"],
-                    "nested": {"keep": "imp-selected", "add": "base-only"}
+                    "nested": {"keep": "imp-selected", "add": "base-only"},
+                    "base_only": "must-not-fill-alias"
+                }),
+            ),
+            (
+                "fake_selected/~",
+                None,
+                json!({
+                    "wrapper": {"profile": 1_i32}, "acat": ["IAB5"],
+                    "nested": {"keep": "imp-selected"}
                 }),
             ),
         ] {
-            assert_recipient_root_row(&registry, name, &selected_root_params, &selected_imp_params);
+            assert_recipient_root_row(
+                &registry,
+                name,
+                selected_root_params.as_ref(),
+                &selected_imp_params,
+            );
         }
     }
 
-    fn recipient_root_fixture(name: &str) -> BidRequest {
+    fn recipient_root_fixture(name: &str, has_root_params: bool) -> BidRequest {
         use serde_json::json;
 
-        serde_json::from_value(json!({
+        let mut request: BidRequest = serde_json::from_value(json!({
             "id": "recipient-root", "site": {"id": "fictional-site"},
             "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32},
                 "ext": {"bidder": {
@@ -908,7 +923,8 @@ mod tests {
                     },
                     "fake_aaa": {
                         "wrapper": {"profile": 21_i32, "version": 22_i32}, "acat": ["IAB2"],
-                        "nested": {"keep": "base-root", "add": "base-only"}
+                        "nested": {"keep": "base-root", "add": "base-only"},
+                        "base_only": "must-not-fill-alias"
                     },
                     "fake_ccc": {
                         "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
@@ -941,10 +957,19 @@ mod tests {
                     "prefix": "fake", "future_targeting": {"keep": true}}
             }}
         }))
-        .expect("recipient fixture deserializes")
+        .expect("recipient fixture deserializes");
+        if !has_root_params {
+            let prebid = request.ext.as_mut().unwrap().prebid.as_mut().unwrap();
+            assert!(prebid.bidderparams.remove(name).is_some());
+        }
+        request
     }
 
-    fn assert_recipient_root_before_state(before: &serde_json::Value) {
+    fn assert_recipient_root_before_state(
+        before: &serde_json::Value,
+        recipient: &str,
+        has_root_params: bool,
+    ) {
         let prebid = &before["ext"]["prebid"];
         for field in [
             "aliasgvlids",
@@ -958,22 +983,29 @@ mod tests {
             assert!(prebid.get(field).is_some(), "fixture must contain {field}");
         }
         for bidder in ["fake_selected/~", "fake_aaa", "fake_ccc", "fake_competitor"] {
-            assert!(prebid["bidderparams"].get(bidder).is_some());
+            assert_eq!(
+                prebid["bidderparams"].get(bidder).is_some(),
+                bidder != recipient || has_root_params,
+                "before-state parameter entry: {bidder}"
+            );
         }
+        assert_eq!(
+            prebid["bidderparams"]["fake_aaa"]["base_only"],
+            "must-not-fill-alias"
+        );
         assert_eq!(prebid["aliases"]["fake_selected/~"], "fake_aaa");
         assert_eq!(prebid["aliases"]["fake_competitor/~"], "fake_competitor");
     }
 
     fn expected_recipient_root(
         bidder: &str,
-        root_params: &serde_json::Value,
+        root_params: Option<&serde_json::Value>,
         imp_params: &serde_json::Value,
     ) -> serde_json::Value {
         use serde_json::json;
 
         // Independent canonical root, not the input root or a production key list.
         let mut prebid = json!({
-            "bidderparams": root_params,
             "alternatebiddercodes": {"enabled": true, "bidders": {
                 "fake_aaa": {"allowedbiddercodes": ["fake_alt"]}
             }},
@@ -986,6 +1018,9 @@ mod tests {
             "targeting": {"includewinners": true, "includebidderkeys": false,
                 "prefix": "fake", "future_targeting": {"keep": true}}
         });
+        if let Some(params) = root_params {
+            prebid["bidderparams"] = params.clone();
+        }
         if bidder == "fake_selected/~" {
             prebid["aliases"] = json!({"fake_selected/~": "fake_aaa"});
         }
@@ -1000,14 +1035,14 @@ mod tests {
     fn assert_recipient_root_row(
         registry: &BidderRegistry,
         name: &str,
-        selected_root_params: &serde_json::Value,
+        selected_root_params: Option<&serde_json::Value>,
         selected_imp_params: &serde_json::Value,
     ) {
         use crate::alias::resolve_aliases;
         use serde_json::json;
         use std::collections::BTreeMap;
 
-        let request = recipient_root_fixture(name);
+        let request = recipient_root_fixture(name, selected_root_params.is_some());
         request.validate().expect("recipient fixture is valid");
         let input_before = serde_json::to_vec(&request).unwrap();
         let input_value = serde_json::to_value(&request).unwrap();
@@ -1030,7 +1065,7 @@ mod tests {
         .expect("only impression bidders participate");
         let grouped_before = serde_json::to_vec(&grouped.request_value).unwrap();
         for before in [&input_value, &grouped.request_value] {
-            assert_recipient_root_before_state(before);
+            assert_recipient_root_before_state(before, name, selected_root_params.is_some());
         }
         assert_eq!(
             grouped
@@ -1068,7 +1103,7 @@ mod tests {
             (
                 "fake_ccc",
                 "fake_ccc",
-                &sibling_root_params,
+                Some(&sibling_root_params),
                 &sibling_imp_params,
             ),
         ]) {

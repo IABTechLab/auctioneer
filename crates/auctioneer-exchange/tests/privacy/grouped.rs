@@ -8,7 +8,7 @@ use auctioneer_runtime::{Rng as _, SeededRng};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-fn recipient_root_wire_fixture() -> Value {
+fn recipient_root_wire_fixture(has_alias_params: bool) -> Value {
     let mut req = request(&["fake_selected/~", "fake_ccc"]);
     req["imp"][0]["ext"]["bidder"] = json!({
         "fake_selected/~": {"wrapper": {"profile": 1_i32}, "acat": ["IAB5"],
@@ -26,7 +26,8 @@ fn recipient_root_wire_fixture() -> Value {
             },
             "fake_bb": {
                 "wrapper": {"profile": 21_i32, "version": 22_i32}, "acat": ["IAB2"],
-                "nested": {"keep": "base-root", "add": "base-only"}
+                "nested": {"keep": "base-root", "add": "base-only"},
+                "base_only": "must-not-fill-alias"
             },
             "fake_ccc": {
                 "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
@@ -58,13 +59,28 @@ fn recipient_root_wire_fixture() -> Value {
         "targeting": {"includewinners": true, "includebidderkeys": false,
             "prefix": "fake", "future_targeting": {"keep": true}}
     }});
+    if !has_alias_params {
+        assert!(
+            req["ext"]["prebid"]["bidderparams"]
+                .as_object_mut()
+                .unwrap()
+                .remove("fake_selected/~")
+                .is_some()
+        );
+    }
     req
 }
 
 #[test]
 fn recipient_root_wire_shape_is_scoped_before_fake_construction() {
+    for has_alias_params in [true, false] {
+        assert_recipient_root_wire_row(has_alias_params);
+    }
+}
+
+fn assert_recipient_root_wire_row(has_alias_params: bool) {
     let harness = Harness::default();
-    let req = recipient_root_wire_fixture();
+    let req = recipient_root_wire_fixture(has_alias_params);
     for field in [
         "aliasgvlids",
         "nosale",
@@ -84,8 +100,21 @@ fn recipient_root_wire_shape_is_scoped_before_fake_construction() {
         "fake_aaa"
     );
     for bidder in ["fake_selected/~", "fake_bb", "fake_ccc", "fake_aaa"] {
-        assert!(req["ext"]["prebid"]["bidderparams"].get(bidder).is_some());
+        assert_eq!(
+            req["ext"]["prebid"]["bidderparams"].get(bidder).is_some(),
+            bidder != "fake_selected/~" || has_alias_params,
+            "before-state parameter entry: {bidder}"
+        );
     }
+    assert_eq!(
+        req["ext"]["prebid"]["bidderparams"]["fake_bb"]["base_only"],
+        "must-not-fill-alias"
+    );
+    assert!(
+        req["imp"][0]["ext"]["bidder"]["fake_selected/~"]
+            .get("base_only")
+            .is_none()
+    );
     let observed = harness.run(req);
     assert!(
         observed.result.is_ok(),
@@ -98,63 +127,82 @@ fn recipient_root_wire_shape_is_scoped_before_fake_construction() {
         (
             "fake_selected/~",
             "fake_bb",
-            json!({
+            has_alias_params.then(|| json!({
                 "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
                 "nested": {"keep": "alias-root", "add": "alias-only"}
-            }),
-            json!({
-                "wrapper": {"profile": 1_i32, "version": 12_i32}, "acat": ["IAB5"],
-                "nested": {"keep": "imp-selected", "add": "alias-only"}
-            }),
+            })),
+            if has_alias_params {
+                json!({
+                    "wrapper": {"profile": 1_i32, "version": 12_i32}, "acat": ["IAB5"],
+                    "nested": {"keep": "imp-selected", "add": "alias-only"}
+                })
+            } else {
+                json!({
+                    "wrapper": {"profile": 1_i32}, "acat": ["IAB5"],
+                    "nested": {"keep": "imp-selected"}
+                })
+            },
         ),
         (
             "fake_ccc",
             "fake_ccc",
-            json!({
+            Some(json!({
                 "wrapper": {"profile": 31_i32, "version": 32_i32}, "acat": ["IAB3"],
                 "nested": {"keep": "ccc-root", "add": "ccc-only"}
-            }),
+            })),
             json!({
                 "wrapper": {"profile": 3_i32, "version": 32_i32}, "acat": ["IAB6"],
                 "nested": {"keep": "imp-ccc", "add": "ccc-only"}
             }),
         ),
     ] {
-        let build = observed
-            .constructions
-            .iter()
-            .find(|build| build.bidder == bidder)
-            .expect("each allowed recipient was constructed exactly once");
-        assert_eq!(build.core, base);
-        let body = observed.body(bidder);
-        assert_eq!(body["imp"][0]["ext"]["bidder"], imp_params);
-        assert_eq!(
-            body["ext"], build.input["ext"],
-            "the fake serializes its actual input root"
-        );
-        let mut prebid = json!({
-            "bidderparams": root_params,
-            "alternatebiddercodes": {"enabled": true, "bidders": {
-                "fake_bb": {"allowedbiddercodes": ["fake_alt"]}
-            }},
-            "channel": {"name": "web", "version": "1.0"},
-            "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
-            "integration": "fake-integration",
-            "multibid": [{"bidder": "fake_bb", "maxbids": 2_i32}],
-            "sdk": {"source": "fake-sdk", "version": "1.0"},
-            "server": {"externalurl": "https://exchange.example.test"},
-            "targeting": {"includewinners": true, "includebidderkeys": false,
-                "prefix": "fake", "future_targeting": {"keep": true}}
-        });
-        if bidder == "fake_selected/~" {
-            prebid["aliases"] = json!({"fake_selected/~": "fake_bb"});
-        }
-        assert_eq!(
-            body["ext"],
-            json!({"ordinary": {"keep": "root-sibling"}, "prebid": prebid}),
-            "serialized root must already be recipient-scoped before fake construction: {bidder}"
-        );
+        assert_recipient_root_wire_body(&observed, bidder, base, root_params, &imp_params);
     }
+}
+
+fn assert_recipient_root_wire_body(
+    observed: &Observed,
+    bidder: &str,
+    base: &str,
+    root_params: Option<Value>,
+    imp_params: &Value,
+) {
+    let build = observed
+        .constructions
+        .iter()
+        .find(|build| build.bidder == bidder)
+        .expect("each allowed recipient was constructed exactly once");
+    assert_eq!(build.core, base);
+    let body = observed.body(bidder);
+    assert_eq!(&body["imp"][0]["ext"]["bidder"], imp_params);
+    assert_eq!(
+        body["ext"], build.input["ext"],
+        "the fake serializes its actual input root"
+    );
+    let mut prebid = json!({
+        "alternatebiddercodes": {"enabled": true, "bidders": {
+            "fake_bb": {"allowedbiddercodes": ["fake_alt"]}
+        }},
+        "channel": {"name": "web", "version": "1.0"},
+        "currency": {"adserverCurrency": "USD"}, "debug": 1_i32,
+        "integration": "fake-integration",
+        "multibid": [{"bidder": "fake_bb", "maxbids": 2_i32}],
+        "sdk": {"source": "fake-sdk", "version": "1.0"},
+        "server": {"externalurl": "https://exchange.example.test"},
+        "targeting": {"includewinners": true, "includebidderkeys": false,
+            "prefix": "fake", "future_targeting": {"keep": true}}
+    });
+    if let Some(params) = root_params {
+        prebid["bidderparams"] = params;
+    }
+    if bidder == "fake_selected/~" {
+        prebid["aliases"] = json!({"fake_selected/~": "fake_bb"});
+    }
+    assert_eq!(
+        body["ext"],
+        json!({"ordinary": {"keep": "root-sibling"}, "prebid": prebid}),
+        "serialized root must already be recipient-scoped before fake construction: {bidder}"
+    );
 }
 
 fn recipient_root_privacy_fixture(

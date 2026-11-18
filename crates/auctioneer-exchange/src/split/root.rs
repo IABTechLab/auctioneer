@@ -223,6 +223,38 @@ mod tests {
         }
     }
 
+    #[test]
+    fn malformed_extensions_preserve_the_existing_typed_decode_error() {
+        for malformed in [
+            json!("private-extension"),
+            json!(7_i32),
+            json!(false),
+            json!([false]),
+        ] {
+            for nested in [false, true] {
+                let extension = if nested {
+                    json!({"ordinary": "keep", "prebid": malformed})
+                } else {
+                    malformed.clone()
+                };
+                let source = json!({
+                    "id": "malformed-extension", "site": {"id": "fictional-site"},
+                    "imp": [{"id": "imp-1", "banner": {"w": 300_i32, "h": 250_i32}}],
+                    "ext": extension
+                });
+                let expected_error = serde_json::from_value::<BidRequest>(source.clone())
+                    .expect_err("the original extension is not a typed object");
+                let mut projected =
+                    project(&source, &BidderName::new("fake_base"), &AliasMap::default()).unwrap();
+                assert_eq!(projected["ext"], extension, "nested={nested}");
+                projected.insert("imp".into(), source["imp"].clone());
+                let actual_error = serde_json::from_value::<BidRequest>(Value::Object(projected))
+                    .expect_err("projection must not normalize the corrupt extension");
+                assert_eq!(actual_error.to_string(), expected_error.to_string());
+            }
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn measured_root(source: &Value) -> (Value, u64, u64) {
         use auctioneer_runtime::test_support::alloc_track;
