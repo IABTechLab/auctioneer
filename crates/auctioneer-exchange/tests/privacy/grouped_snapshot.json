@@ -5,22 +5,11 @@
     "ext": {
       "prebid": {
         "aliases": {
-          "fake_a_denied": "fake_bb",
-          "fake_b_sampled": "fake_bb",
-          "fake_c~": "fake_bb",
-          "fake_d/": "fake_bb",
-          "fake_e_cap": "fake_bb"
+          "fake_d/": "fake_bb"
         },
         "bidderparams": {
-          "fake_c~": {
-            "own": 99,
-            "supplement": "tilde"
-          },
-          "fake_d/": {
-            "supplement": "slash"
-          }
-        },
-        "returnallbidstatus": true
+          "supplement": "slash"
+        }
       }
     },
     "id": "mixed",
@@ -189,22 +178,12 @@
     "ext": {
       "prebid": {
         "aliases": {
-          "fake_a_denied": "fake_bb",
-          "fake_b_sampled": "fake_bb",
-          "fake_c~": "fake_bb",
-          "fake_d/": "fake_bb",
-          "fake_e_cap": "fake_bb"
+          "fake_c~": "fake_bb"
         },
         "bidderparams": {
-          "fake_c~": {
-            "own": 99,
-            "supplement": "tilde"
-          },
-          "fake_d/": {
-            "supplement": "slash"
-          }
-        },
-        "returnallbidstatus": true
+          "own": 99,
+          "supplement": "tilde"
+        }
       }
     },
     "id": "mixed",

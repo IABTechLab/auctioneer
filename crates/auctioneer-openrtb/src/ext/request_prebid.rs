@@ -10,10 +10,11 @@ use crate::field_metadata::{FieldMetadata, Storage};
 )]
 #[openrtb_metadata(crate_path = crate::field_metadata)]
 pub struct ExtRequestPrebid {
-    /// Request alias map: alias -> base bidder. Resolved in `run_auction`.
+    /// Inbound alias -> base map, resolved before splitting. A bidder request
+    /// retains only its own accepted alias originally declared by the request.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub aliases: BTreeMap<String, String>,
-    /// GVL vendor id overrides for aliases.
+    /// Inbound GVL vendor id overrides for aliases; not forwarded to bidders.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub aliasgvlids: BTreeMap<String, u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -26,23 +27,26 @@ pub struct ExtRequestPrebid {
     pub debug: Option<DebugSignal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub channel: Option<Channel>,
-    /// No-sale list for CCPA — `["*"]` = all bidders.
+    /// Inbound no-sale list for CCPA — `["*"]` = all bidders. Not forwarded.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub nosale: Vec<String>,
-    /// Request-level bidder params; merged into `imp.ext.<bidder>`
-    /// (supplement-only, never creates participation).
+    /// Inbound bidder-name -> params map, supplementing impression params
+    /// without creating participation. Outbound, the exact recipient's object
+    /// is unwrapped into this slot; it is not the merged impression params.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub bidderparams: BTreeMap<String, serde_json::Value>,
-    /// Controls whether `ext.prebid.seatnonbid` is emitted.
+    /// Inbound control for `ext.prebid.seatnonbid`; not forwarded to bidders.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub returnallbidstatus: Option<bool>,
     /// `multibid` — typed pass-through; bid-limiting deferred.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multibid: Option<serde_json::Value>,
-    /// `ext.prebid.data` — typed pass-through; FPD resolution deferred.
+    /// Inbound `ext.prebid.data` round-trip storage. Omitted from bidder
+    /// requests until request-level first-party-data resolution is implemented.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
-    /// `ext.prebid.bidderconfig` — typed pass-through.
+    /// Inbound `ext.prebid.bidderconfig` round-trip storage, not bidder
+    /// forwarding. Request-level first-party-data resolution is deferred.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bidderconfig: Option<serde_json::Value>,
     #[serde(flatten)]

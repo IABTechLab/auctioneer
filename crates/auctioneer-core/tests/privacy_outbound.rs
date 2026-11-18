@@ -291,6 +291,15 @@ mod tests {
                 extension["prebid"]["channel"] = json!({"name": "app"});
             }
         }
+        // No-sale policy is consumed from the original auction request, not
+        // forwarded in this fixture's bidder-visible extension.
+        if let Some(prebid) = prepared_extension
+            .as_mut()
+            .and_then(|ext| ext.get_mut("prebid"))
+            .and_then(Value::as_object_mut)
+        {
+            prebid.remove("nosale");
+        }
         let expected = contract
             .request_extension(prepared_extension.as_ref(), bidder)
             .unwrap();
