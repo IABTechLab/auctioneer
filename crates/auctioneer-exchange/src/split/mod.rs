@@ -233,14 +233,15 @@ pub fn materialize_per_bidder(
                 .or_else(|| ext.get(name))
                 .cloned()
                 .unwrap_or(Value::Null);
-            if let Some(supplement) = request_value
-                .pointer("/ext/prebid/bidderparams")
-                .and_then(|supplements| {
-                    supplements.get(name).or_else(|| {
-                        let base = aliases.bases.get(bidder_name)?;
-                        supplements.get(base.as_str())
+            if let Some(supplement) =
+                request_value
+                    .pointer("/ext/prebid/bidderparams")
+                    .and_then(|supplements| {
+                        supplements.get(name).or_else(|| {
+                            let base = aliases.bases.get(bidder_name)?;
+                            supplements.get(base.as_str())
+                        })
                     })
-                })
             {
                 merge_supplement(&mut params, supplement);
             }
