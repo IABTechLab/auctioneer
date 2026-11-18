@@ -1,7 +1,7 @@
 //! Allocation evidence for fixed privacy scratch and cold GVL parsing.
 
 #[cfg(test)]
-use auctioneer_privacy::test_support::tc_encode;
+use auctioneer_privacy::test_support::{self, tc_encode};
 #[cfg(test)]
 use auctioneer_runtime::test_support::alloc_track;
 
@@ -10,7 +10,7 @@ static ALLOCATOR: alloc_track::CountingAllocator = alloc_track::CountingAllocato
 
 #[cfg(test)]
 mod tests {
-    use super::{alloc_track, tc_encode};
+    use super::{alloc_track, tc_encode, test_support};
     use auctioneer_config_data::types::{HostConfig, PurposeEnforcement, TriState};
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_privacy::gpp::Envelope;
@@ -73,7 +73,35 @@ mod tests {
         assert!(charged <= PRIVACY_FIXED_BYTES);
     }
 
+    /// The larger peak of the two extreme restriction layouts: every record in
+    /// one (purpose, type) slot, and the same records spread over all 72.
     fn hostile_tcf_peak() -> u64 {
+        let one_slot = vec![tc_encode::PubRestrictionSpec {
+            purpose_id: 1,
+            restriction_type: 0,
+            entries: (1..=2048).map(tc_encode::RangeEntrySpec::Single).collect(),
+        }];
+        let mut slots = vec![Vec::new(); 72];
+        for (vendor_id, slot) in (1..=2048).zip((0..72).cycle()) {
+            slots[slot].push(tc_encode::RangeEntrySpec::Single(vendor_id));
+        }
+        let all_slots = (1..=24)
+            .flat_map(|purpose_id| {
+                (0..3).map(move |restriction_type| (purpose_id, restriction_type))
+            })
+            .zip(slots)
+            .map(
+                |((purpose_id, restriction_type), entries)| tc_encode::PubRestrictionSpec {
+                    purpose_id,
+                    restriction_type,
+                    entries,
+                },
+            )
+            .collect();
+        tcf_peak("one slot", one_slot).max(tcf_peak("all slots", all_slots))
+    }
+
+    fn tcf_peak(layout: &str, pub_restrictions: Vec<tc_encode::PubRestrictionSpec>) -> u64 {
         let mut spec = tc_encode::valid_core_spec();
         spec.vendor_consent = tc_encode::VendorSectionSpec::Range {
             max_vendor_id: u16::MAX,
@@ -91,11 +119,7 @@ mod tests {
             max_vendor_id: u16::MAX,
             set: vec![1, u16::MAX],
         };
-        spec.pub_restrictions = vec![tc_encode::PubRestrictionSpec {
-            purpose_id: 1,
-            restriction_type: 0,
-            entries: (1..=2048).map(tc_encode::RangeEntrySpec::Single).collect(),
-        }];
+        spec.pub_restrictions = pub_restrictions;
         let encoded = format!(
             "{}.{}",
             tc_encode::encode_core(&spec),
@@ -105,7 +129,7 @@ mod tests {
             let parsed = parse_tcf_v2(&encoded).unwrap();
             assert!(parsed.disclosed_vendors.contains(u16::MAX));
             assert_eq!(parsed.publisher_restrictions.len(), 2048);
-            Box::new(parsed)
+            test_support::retained_tcf(Box::new(parsed))
         });
         // Inline parser/result state is invisible to GlobalAlloc. Include
         // both plus the bounded GPP slot array rather than omitting it.
@@ -119,7 +143,7 @@ mod tests {
             .unwrap();
         writeln!(
             io::stderr(),
-            "TCF: heap_peak={measured} inline={inline} total={charged}"
+            "TCF {layout}: heap_peak={measured} inline={inline} total={charged}"
         )
         .unwrap();
         charged
