@@ -1,7 +1,7 @@
 # Shared Auction Foundations
 
 Date: 2026-11-18
-Status: Draft for user review. The shared-contract scope is approved; the policy choices below are proposals, not implementation, publication or merge authorization.
+Status: Written specification approved by the user for implementation planning on 2026-11-18. This is not implementation, publication or merge authorization.
 Issue: [#36](https://github.com/IABTechLab/auctioneer/issues/36)
 Related delivery: [#54](https://github.com/IABTechLab/auctioneer/issues/54), [#55](https://github.com/IABTechLab/auctioneer/issues/55), [#56](https://github.com/IABTechLab/auctioneer/issues/56), [#57](https://github.com/IABTechLab/auctioneer/issues/57), [#79](https://github.com/IABTechLab/auctioneer/issues/79), [#59](https://github.com/IABTechLab/auctioneer/issues/59)
 
@@ -314,4 +314,6 @@ The plan must specifically preserve #57's trust decision, #180's recovery/privac
 
 On 2026-11-18 the user approved drafting one shared contract covering currency/freshness, multibid ordering/limits, UID precedence/trust and the global mode, with implementation split across existing child issues. This approval permits this draft, not its proposed policy choices or their implementation.
 
-This specification deliberately leaves numerical implementation proof packages and the external producer's detailed design to their existing delivery owners; it does not claim them complete. The next gate is user review of the written draft, followed by the implementation plan. Publication, issue changes and merge need their respective approval. PR #244 remains a separate stored-object planning cycle.
+The user subsequently approved the written specification at `b9c6d158cd8d30ed0e667edd2e713cd1dc728e18` with "Approve written spec; write the plan". That approval includes the explicitly proposed checked-`f64` policy, operator-published rates without per-auction fetching/request overrides, per-rule multibid wire limits and fail-closed all-source UID suppression when supplied cookie negative state cannot permissibly be verified. The earlier draft-only approval is superseded for planning, not for implementation.
+
+This specification deliberately leaves numerical implementation proof packages and the external producer's detailed design to their existing delivery owners; it does not claim them complete. The next artifact is the ordered implementation plan. Publication, issue changes and merge need their respective approval. PR #244 remains a separate stored-object planning cycle.
