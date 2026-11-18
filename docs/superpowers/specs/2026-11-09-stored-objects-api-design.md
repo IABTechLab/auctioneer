@@ -47,6 +47,14 @@ The proposed cutover deliberately:
 - Refuses a selected account that is absent, denied, malformed or unavailable;
   it never silently substitutes default policy for that account.
 - Rejects duplicate object keys before merged documents can erase their meaning.
+- Refuses a present non-string account-ID selector result instead of skipping
+  it for a lower-priority account. The existing
+  `nonstring_publisher_candidates_do_not_mask_lower_priority_identity` test
+  deliberately changes from account-disabled HTTP 503 to invalid-input HTTP 400.
+  Missing/null/empty results still advance as section 2.1 specifies.
+- Removes the superseded synchronous preparation entrypoint, inline-account
+  readers and unknown-named-account fallback when the new path activates.
+  These are not deprecated aliases or a compatibility implementation.
 
 OpenRTB defines the auction wire objects, not this record-storage protocol.
 Publisher IDs are seller/account selection claims, not proof of caller identity.
@@ -82,11 +90,25 @@ account_id_paths = ["/site/publisher/id", "/app/publisher/id"]
 account_policy_path = "/auctioneer"
 ```
 
-`endpoint` is the complete batch API URL. It must be absolute HTTPS, with a
-nonempty host and without user information, query, fragment or template macros.
-An operator may choose an internal service hostname; this is not a requirement
-to make tenant data public. Requests do not influence host/backend selection.
-No redirects are followed. Existing adapter egress/backend bindings still apply.
+`endpoint` is the complete batch API URL. Reuse
+`auctioneer_config::validate_configured_bidder_endpoint`, passing the existing
+`insecure-bidders` feature decision, then additionally reject any query.
+The shared validator owns the 2,048-byte UTF-8 ceiling, explicit HTTP(S)
+authority and transport-`Uri` compatibility, control/whitespace/backslash and
+macro refusal, no user information/fragment, localhost-alias and private-IP
+literal checks. Do not copy or replace those rules in a new URL parser.
+Secure builds require HTTPS and reject loopback. The sole development exception,
+under `insecure-bidders` only, permits HTTP or HTTPS for the exact raw hosts
+`127.0.0.1`, `[::1]` and case-insensitive `localhost`; no additional runtime
+switch, private-IP exception, alternative loopback spelling or production bypass
+is introduced. The no-query rule applies in both feature modes.
+
+An operator may choose an internal DNS service hostname, subject to the same
+spelling rules and existing adapter egress/backend bindings; private-IP literals
+remain refused. This is an operator-authorized destination, not a promise of
+DNS-rebinding protection or permission for request-selected hosts. Controlled
+real-HTTP fixtures use the development loopback exception; secure-mode tests
+independently prove its rejection. No redirects are followed.
 
 `namespace` is a nonempty, operator-selected record namespace, not a field read
 from OpenRTB. `credential_key` is a nonempty key in the existing bound secret
@@ -112,6 +134,39 @@ an explicit hard cut. Do not accept format 1, an empty legacy `accounts` map,
 dual-source modes or legacy environment aliases after this cutover. Update
 current examples and CLI validation together; preserve historical evidence.
 The API protocol version below is independent of this operator-schema version.
+
+### 2.0 Hard-cut deployment and recovery
+
+There is no rolling compatibility window or automatic rollback to format 1.
+For an existing deployment, first prepare and validate the format-2 publication
+and matching new binary, provision the API namespace/records and secret/backend
+bindings, and verify them in a dedicated nonproduction deployment. Drain or
+stop production policy-consuming traffic before the first mismatched pairing.
+Install the format-2 binary while traffic remains stopped, publish its matching
+format-2 policy through the existing CLI, verify readiness and representative
+account/template/default-only requests, then reopen traffic. Deploying with
+new isolated bindings can avoid the mismatch, but is operator orchestration,
+not a second Auctioneer configuration source.
+
+Either mismatched pairing (format-1 binary/format-2 publication or the reverse)
+is a permanent configuration failure: config-consuming auction, catalog,
+`/cookie_sync`, `/setuid` and `/getuids` paths fail closed through the existing
+HTTP 500 config renderer before source I/O or cookie mutation. The existing
+GVL-health authorization route keeps its HTTP 401 config-failure shape.
+`/status` keeps its permissive bounded HTTP 200 liveness response with a fixed
+config-failure diagnostic and `x-auctioneer-config-status: degraded` once the
+mismatch is observed; that is not readiness to reopen traffic. Preserve
+existing admission/resource refusal precedence and cached-status freshness
+semantics: an earlier cached non-fault probe can still have its normal 200/204
+shape and must not be mistaken for a fresh read of the changed publication.
+
+Operational rollback after the cut is to a known-good format-2 binary and its
+matching format-2 publication, with traffic drained for any incompatible pair.
+If none exists, keep policy-consuming traffic stopped and roll forward with
+corrected format 2. Restoring format 1 or reconstructing inline accounts from
+API records is not a supported recovery mechanism. No legacy reader, old
+preparation API, migration toggle or fallback policy ships in the new binary.
+Keep historical evidence as history, not an executable compatibility path.
 
 Push-time validation checks source structure, URL safety, secret-reference shape
 and effective default policy without fetching records or secrets. Selected API
@@ -156,7 +211,8 @@ consent or browser identity. This enforces data origin, not semantic recognition
 of arbitrary strings: a caller can put unrelated data in a publisher ID too.
 Neither this restriction nor a matching record proves caller authorization.
 
-Omission, including an absent `auction_data` block, uses the current precedence:
+Omission, including an absent `auction_data` block, uses the current path order
+(not the old non-string-skipping or unknown-account fallback behavior):
 
 ```text
 /app/publisher/ext/prebid/parentAccount
@@ -330,9 +386,13 @@ before a head is returned follow section 7.1 instead. Do not deserialize respons
 bodies from failed HTTP responses
 or echo them. No automatic redirects, retries, fallback source, stale account
 reuse or negative cross-request cache is allowed in the initial implementation.
-The source must bypass SDK/provider response caching for these requests and
-return `Cache-Control: no-store`. A service may cache internally only while
-preserving its latest-committed and pinned-snapshot contract. This does not
+The Auctioneer client must set `OutboundCachePolicy::Bypass` for these requests;
+no response-header value enables a client cache. Returning
+`Cache-Control: no-store` is a service obligation, not a client admission gate:
+an otherwise valid 200 response is not rejected merely because that header is
+absent. It does not prove freshness or original-header provenance. A service
+may cache internally only while preserving its latest-committed and
+pinned-snapshot contract. This does not
 promise instantaneous visibility of a write that the service has not committed.
 
 Each new auction starts with `snapshot: null`. Therefore a completed external
@@ -490,8 +550,53 @@ Store the captured, possibly shortened absolute deadline in the prepared
 operation and forward it to execution; execution must not re-anchor it at the
 end of lookup or reconstruct a longer budget from the merged `tmax`.
 Reuse the existing `resolve_tmax` default/max semantics at the original time
-anchor, including `tmax = 0` selecting the host default; do not treat zero as an
-immediate-expiry budget or cap an explicit positive `tmax` by the host default.
+anchor. To make both outputs and their attribution explicit, let L be its
+resolution of admitted live `tmax`, and F its resolution of the final merged
+`tmax`, both at the original start. Absent/null and zero use the host default;
+positive values pass through to the bidder (subject to the existing u32
+representation ceiling), while only the execution deadline is clamped by the
+host maximum. The effective deadline is the earliest of L's deadline, F's
+deadline and the outer deadline. This deliberately preserves the approved
+never-extend policy: a stored timeout cannot raise an absent/zero live timeout
+above the initial host-default deadline. It is not permission to replace that
+initial bound with the host maximum.
+
+Bidder-visible `tmax` is F's existing unclamped/defaulted value. Do not subtract
+lookup time from it: lookup/merge time is charged by the absolute deadline,
+not by rewriting that field. As with the existing host/outer clamp, the
+advertised value is not a guarantee that Auctioneer waits that long. The
+recorded `TmaxSource` comes from the earlier of L and F; ties retain L.
+An outer-deadline clamp does not change the source, as today. `Request` means
+the resolved request value, including a template-supplied value, not proof of
+live origin. Preserve `HostDefault` and `CappedByHost`; add no parallel
+legacy timeout path.
+
+For example, with default 1,000 ms, maximum 2,000 ms and no outer cap:
+
+| Live tmax | Template tmax | Final bidder-visible tmax | Deadline from original start | TmaxSource |
+| --- | --- | --- | --- | --- |
+| absent | 1,500 | 1,500 | 1,000 ms | HostDefault |
+| absent | 500 | 500 | 500 ms | Request |
+| 0 | 1,500 | 1,000 | 1,000 ms | HostDefault |
+| 500 | 1,500 | 500 | 500 ms | Request |
+| 1,500 | 500 | 1,500 | 1,500 ms | Request |
+| 3,000 | 500 | 3,000 | 2,000 ms | CappedByHost |
+
+The live overlay wins when present, so the 1,500/500 row is not shortened by
+the template. Null deletes a stored value and then resolves as absent. A
+100-ms lookup leaves 900 ms until a 1,000-ms deadline without changing the
+bidder-visible column. Freeze this complete resolution in prepared state;
+execution consumes it rather than recalculating the source or deadline from F.
+
+Synchronous JSON admission/expansion/projection can consume time while a
+Cloudflare Workers clock is frozen. Carry the existing host-provided
+`DecodeCooperator` through the preparation services; use its real-host-event
+checkpoint at bounded work intervals and after synchronous construction before
+the next lookup or bidder dispatch, then re-read the deadline. A ready future,
+bare executor yield or repeated clock read is insufficient on that target.
+Native adapters may reuse the existing no-op implementation. Include checkpoint
+cadence and future storage in the same reviewed work/resource package, not a
+new timer abstraction, SDK extension or unreviewed work limit.
 
 ## 6. Bounds and accounting acceptance
 
@@ -593,6 +698,18 @@ Fail before any bidder call on a source/merge/account failure. Preserve typed
 internal categories without returning API bodies, tokens or record IDs in
 errors, Debug, logs, auction debug output or metrics labels.
 
+Once any stored request/impression document participates, canonical decode,
+validation and later FPD failures for the expanded document use fixed reason
+categories and fixed bounded wire diagnostics. Never format its serde error,
+offending value, duplicate/media-less impression ID or backend-selected text
+into any public diagnostic or log, even when the final failure is HTTP 400.
+Keep a request-owned provenance boolean through those projections, not raw
+source documents or per-field provenance trees. This rule includes disabled
+account and malformed-policy failures; their existing HTTP status/route shape
+does not authorize echoing the selected account ID. Direct live-only request
+diagnostics retain their current bounded behavior; they cannot be used as a
+fallback renderer for an expanded request.
+
 | Condition | Outcome |
 | --- | --- |
 | Bad live JSON, duplicate key, reference, selected account-ID type, merge result or final OpenRTB | Invalid request; existing HTTP 400 family |
@@ -604,6 +721,10 @@ errors, Debug, logs, auction debug output or metrics labels.
 | Found template structurally invalid | Source-data failure; HTTP 500, not caller-missing |
 | Source required but unconfigured, secret missing/invalid, returned HTTP 401/403, invalid protocol or visible unsupported response coding | Fixed source configuration/protocol failure; HTTP 500 |
 | Source I/O/unavailable/returned 429/5xx or snapshot expired/mismatched | Source unavailable; HTTP 503 with bounded retry diagnostic |
+| Secret read SecretBackendUnavailable, BackendUnavailable or BackendFailure | Source unavailable; HTTP 503 with the same fixed bounded retry diagnostic |
+| Secret read DeadlineExceeded | Existing typed deadline refusal; never a renewed lookup timeout |
+| Secret read ValueTooLarge or StructuralLimit | Existing typed resource refusal |
+| Secret read MissingSecret, InvalidSecretValue, InvalidKey, UnknownStore or another non-resource/non-outage extraction reason | Fixed source configuration/protocol failure; HTTP 500 |
 | Original auction deadline spent | Existing typed auction-deadline outcome; not a refreshed API timeout |
 | Funded storage/construction exhausted | Existing typed resource refusal; never truncate, skip a required row or substitute policy |
 
@@ -647,7 +768,13 @@ final success.
 `HttpClient::send` performs header normalization, framing and declared-length
 checks before returning even a streamed/original response. The client cannot
 inspect an upstream status or coding header when that operation returns only
-an SDK error. Apply this order independently at each lookup:
+an SDK error. First apply the table's typed secret-read classification under the
+original deadline, before any send. Recheck expiry after the secret await;
+never stringify the SDK/store detail or recapture a token for stage two.
+Typed secret `DeadlineExceeded` remains a deadline refusal even when a
+turn-frozen clock has not refreshed. Unknown future extraction reasons fail
+closed as a fixed source-configuration failure. Apply this order independently
+to send/collection at each lookup:
 
 1. Recheck the original absolute deadline after the await; if spent, return the
    existing typed deadline outcome. Do not extend the deadline or reinterpret a
@@ -690,6 +817,32 @@ host integration. No new crate, HTTP framework or provider-specific resolver.
 Reuse the current SDK typed CLI flow. Static validation does not fetch backend
 records; API responses reuse the same account validators at read time.
 
+### 8.1 Issue acceptance alignment before implementation
+
+This planning PR proposes no Auctioneer cross-request object cache. It does
+not silently claim delivery of older cache wording. CREATOR owns reconciling
+the existing issue bodies, preserving their project/dependency fields and
+obtaining user approval of any changed acceptance criteria before implementing
+them. Approval of the HTTP/snapshot design is not evidence that a cache exists.
+
+| Issue and current acceptance phrase | Contract coverage or required issue amendment |
+| --- | --- |
+| #35: root/impression expansion, independent accounts, precedence, account-required, deadlines, failure ordering | Sections 2-7 specify these; independent accounts are API records, not fields in a stored request. |
+| #35: caching/invalidation | Sections 3.3 and 6 specify zero cross-request retention, fresh initial snapshots and in-flight snapshot pinning. This is an explicit no-cache policy, not a cache implementation. |
+| #35: reuse host-store/config boundaries; bound bytes/nodes/depth/cycles/allocations in both modes | One operator policy plus existing host HTTP/secret handles and sections 4-6; no database or per-provider resolver. Clarify HTTP-backed host services in the issue if host-store implies another persistence interface. |
+| #53: validated objects, coherent snapshots, fail-closed missing/stale/corrupt/backend failure | Strict protocol/record admission, snapshot mismatch/expiry refusal and fixed failure ordering; no stale fallback. |
+| #53: bounded cache/invalidation; cold/warm controls | Amend before implementation to no Auctioneer cache, no stale/negative fallback, fresh-request/pinned-request update controls and bounded state disposal. Cold/repeated executions measure initialization effects, never claim warm cache hits. |
+| #53: storage I/O outside bidders, portable policy, update/cancellation/allocation controls | Shared source/resolver, original receipts and Tasks 3-5/10; portable tests plus actual SDK/provider boundaries. |
+| #77: reviewed merge/identity order and bounded deterministic expansion | Section 4 and Task 6, including final IDs and per-impression repeated expansion charges. |
+| #77: mixed/stored/missing/invalid/nested inputs and standalone/embedded equivalence | Sections 4/8 and Tasks 6/9/10; equivalent representations, not impossible raw parity. |
+| #78: independent account authorization/config and required-account precedence | Service-authorized records, account selection separate from template identity and shared strict account projection; IDs alone do not authenticate callers. |
+| #78: cache updates and missing/corrupt/unauthorized/host failures cannot bypass policy | Amend cache updates to committed API updates, pinned in-flight snapshots, next-request freshness and no stale fallback; retain every failure/privacy/resource requirement. |
+| All four: repeatable changed-hot-path measurements | Task 10 measures preparation with zero/one/two lookups and account-only sync, as well as allocation/work controls; no benchmark replaces correctness or qualification. |
+
+Keep #35/#53/#77/#78 open until their actual remaining criteria are met.
+If the user chooses a cross-request cache instead, return to design/resource
+review; do not smuggle it into this implementation or substitute a no-op cache.
+
 Keep pure unit tests inline. Reuse existing core account/handler/preparation and
 allocation owners, with one capable synthetic source; do not copy real bidders
 or create a test target per record kind/provider. End-to-end tests must exercise
@@ -702,6 +855,11 @@ Required controls include:
 - Two arbitrary configured endpoint paths and hosts; verify the actual destination
   and method, no appended route, no query/redirect/credential injection, secret
   rotation across auctions but not stages, and no-lookup/no-secret-read inputs.
+  Pin all shared configured-endpoint accept/refuse rules in both feature modes,
+  including internal DNS versus private-IP literals, exact versus alternate
+  loopback spellings and the development HTTP-only-loopback exception. A missing
+  response Cache-Control header remains admissible; request cache bypass is
+  independently asserted.
 - Literal batch-shape expectations, all record kinds with identical IDs, reversed
   response order, absent/duplicate/extra rows, every status, malformed control
   objects, unsupported version, trailing JSON and duplicate keys before merge.
@@ -770,6 +928,11 @@ Required controls include:
 - Deadline boundaries before/between fetches, during merge and before dispatch;
   cancellation while a body/secret read is pending; no clock reset or post-failure
   bidder call. A slow API consumes auction time rather than granting extra time.
+  Assert every section-5 timing-table row, outer caps and lookup time independently,
+  including the bidder-visible value and recorded source. Use a turn-frozen
+  clock that moves only on real-host cooperation, with ready I/O unable to
+  move it, and prove no next lookup/bidder dispatch plus funding restoration.
+  Mutating the cooperator to a no-op must make that preparation control fail.
 - Independent byte/node/depth/key/visit axes at below/exact/above bounds, a positive
   allocation control, repeated references under maximum impressions, overlapping
   owner lifetimes and unchanged limits. Guard each consequential failure reason,
@@ -777,6 +940,12 @@ Required controls include:
 - Format-1 and inline-account rejection, format-2 CLI validate/diff/push and
   serving-reader agreement, unchanged current behavior for default-only inputs,
   and fixed/redacted errors with attacker-controlled partial-secret canaries.
+  Place canaries in template-derived typed decode, duplicate-ID, missing-media,
+  disabled-account and FPD failure paths; inspect HTTP/typed errors, Debug,
+  logs and debug output, not just the normal success response. Exercise both
+  mismatched binary/publication pairings and degraded liveness, and prove
+  no compatibility reader or unknown-named-account default-policy success
+  remains; genuinely absent optional accounts still use product defaults.
 
 The ordered plan must name existing owners, commands and actual dispatch counts,
 then run the complete prescribed CI matrix in addition to targeted controls.
@@ -796,6 +965,12 @@ authorized by this proposed contract. A later planning PR contains the spec and
 plan together. On resumption, the user authorized publishing the verified
 documents in one non-draft planning PR; that authorization includes no
 implementation, numeric reserve, deployment or merge.
+
+On 2026-11-18 the user explicitly required no backwards compatibility: use a
+hard cut and remove legacy implementations. Section 2.0 and the plan make that
+deletion and format-2-only recovery requirement explicit. This planning PR
+still contains documents only; it does not remove production readers before
+the separately reviewed implementation can replace every consumer atomically.
 
 The requested self-review corrections make header admission explicitly relative
 to SDK-normalized metadata and define typed SDK refusals before returned-status
