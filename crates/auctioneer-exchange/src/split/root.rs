@@ -30,7 +30,7 @@ pub(super) fn project(
 fn project_ext(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Value {
     let Some(members) = source.as_object() else {
         // Normal grouping always serializes a typed extension object.
-        // Preserve a corrupt non-object for the existing typed decode to reject.
+        // Preserve a corrupt non-object for the existing typed decode.
         return source.clone();
     };
     let mut ext = Map::new();
@@ -46,8 +46,12 @@ fn project_ext(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Value
 }
 
 fn project_prebid(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Value {
+    let Some(members) = source.as_object() else {
+        // Keep corrupt private values for the same decode path as root ext.
+        return source.clone();
+    };
     let mut prebid = Map::new();
-    for (key, value) in source.as_object().into_iter().flatten() {
+    for (key, value) in members {
         match key.as_str() {
             "bidderparams" => {
                 if let Some(params) = value.get(bidder.as_str()).and_then(Value::as_object)

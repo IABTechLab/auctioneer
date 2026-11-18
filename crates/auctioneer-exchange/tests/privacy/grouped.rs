@@ -127,10 +127,12 @@ fn assert_recipient_root_wire_row(has_alias_params: bool) {
         (
             "fake_selected/~",
             "fake_bb",
-            has_alias_params.then(|| json!({
-                "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
-                "nested": {"keep": "alias-root", "add": "alias-only"}
-            })),
+            has_alias_params.then(|| {
+                json!({
+                    "wrapper": {"profile": 11_i32, "version": 12_i32}, "acat": ["IAB1"],
+                    "nested": {"keep": "alias-root", "add": "alias-only"}
+                })
+            }),
             if has_alias_params {
                 json!({
                     "wrapper": {"profile": 1_i32, "version": 12_i32}, "acat": ["IAB5"],
