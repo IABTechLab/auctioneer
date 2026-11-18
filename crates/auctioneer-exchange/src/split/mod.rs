@@ -239,6 +239,13 @@ pub fn materialize_per_bidder(
             {
                 merge_supplement(&mut params, supplement);
             }
+            if let Some(supplement) = aliases.bases.get(bidder_name).and_then(|base| {
+                request_value
+                    .pointer("/ext/prebid/bidderparams")?
+                    .get(base.as_str())
+            }) {
+                merge_supplement(&mut params, supplement);
+            }
             let scoped = build_scoped_imp(imp, bidder_name, params, &inputs);
             // Participation and response correlation belong to the original
             // impression. FPD may change context, never move or delete its ID.
