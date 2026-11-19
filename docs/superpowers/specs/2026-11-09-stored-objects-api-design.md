@@ -117,6 +117,19 @@ bounded secret value as `Authorization: Bearer ...`; reject invalid header bytes
 without retaining them. Do not place credentials in URLs, diagnostics or config
 examples. No unauthenticated mode or new SDK secret-injection mechanism is added.
 
+The maintainer approved a fixed 4,096-byte limit for both the accepted bearer
+token and the guest-visible backend read on 2026-11-18. Use the existing
+`BoundSecretStore::get_bytes_bounded` with the original absolute deadline and
+both `max_backend_bytes` and `max_value_bytes` set to 4,096. Its result is
+`Result<BoundedStoreRead<Bytes>, SecretError>`, not `StoreExtractionReason`.
+After the deadline check, independently reject `backend_bytes > 4,096`, a
+missing value, a value longer than 4,096 bytes, an empty token or invalid
+authorization-header bytes. Do not trust one size check to imply the other.
+Section 7 defines these as fixed configuration failures, never overload.
+This is an accepted-value/read cap, not a provider-private allocation bound or
+an authorization to reuse another route's reserve. Section 6.2 must separately
+fund the read, retained token, `Bearer ` prefix and any header-copy overlap.
+
 `require_account` defaults to false and controls only an absent account selection.
 It applies to auctions and the existing account-selecting `/cookie_sync` and
 `/setuid` routes; it does not invent account selection for `/getuids` or `/status`.
@@ -622,6 +635,7 @@ change how its own lookup was admitted or reset the cumulative counter.
 | API calls and requested keys | At most two calls; at most I + 2 distinct pairs across both stages |
 | API encoded/decoded bodies | No decoding; one observed original entity/JSON-body total obeys BOTH T and D cumulatively under normalized-header admission |
 | API headers | H and existing header-count cap per response, enforced by transport |
+| Source credential read/value | Each <= 4,096 bytes as section 2 specifies; header prefix/copies and actual simultaneous storage still require section 6.2 funding |
 | All template documents | Cumulative serialized template bytes <= B; all response JSON nodes share an aggregate N cap |
 | Account document | Also obey existing config-model byte/node/depth admission caps and nested validators |
 | Dedup, IDs, snapshot, errors, credentials, selectors | Included in admitted config/batch/secret and aggregate retained-storage/work bounds, never unbounded side tables |
@@ -721,10 +735,10 @@ fallback renderer for an expanded request.
 | Found template structurally invalid | Source-data failure; HTTP 500, not caller-missing |
 | Source required but unconfigured, secret missing/invalid, returned HTTP 401/403, invalid protocol or visible unsupported response coding | Fixed source configuration/protocol failure; HTTP 500 |
 | Source I/O/unavailable/returned 429/5xx or snapshot expired/mismatched | Source unavailable; HTTP 503 with bounded retry diagnostic |
-| Secret read SecretBackendUnavailable, BackendUnavailable or BackendFailure | Source unavailable; HTTP 503 with the same fixed bounded retry diagnostic |
-| Secret read DeadlineExceeded | Existing typed deadline refusal; never a renewed lookup timeout |
-| Secret read ValueTooLarge or StructuralLimit | Existing typed resource refusal |
-| Secret read MissingSecret, InvalidSecretValue, InvalidKey, UnknownStore or another non-resource/non-outage extraction reason | Fixed source configuration/protocol failure; HTTP 500 |
+| Secret read `Err(SecretError::Unavailable)` | Source unavailable; HTTP 503 with the same fixed bounded retry diagnostic |
+| Secret read `Err(SecretError::DeadlineExceeded)` | Existing typed deadline refusal, even with a turn-frozen clock; never a renewed lookup timeout |
+| Secret read `Err(SecretError::Internal(_))`, `NotFound { .. }`, `Validation(_)`, `ValueTooLarge` or an unknown future variant | Fixed source configuration/protocol failure; HTTP 500, never overload; do not format the error payload |
+| Secret read `Ok` with no value, `backend_bytes > 4,096`, value length > 4,096, an empty token or invalid authorization-header bytes | Fixed source configuration/protocol failure; HTTP 500, never overload |
 | Original auction deadline spent | Existing typed auction-deadline outcome; not a refreshed API timeout |
 | Funded storage/construction exhausted | Existing typed resource refusal; never truncate, skip a required row or substitute policy |
 
@@ -768,13 +782,22 @@ final success.
 `HttpClient::send` performs header normalization, framing and declared-length
 checks before returning even a streamed/original response. The client cannot
 inspect an upstream status or coding header when that operation returns only
-an SDK error. First apply the table's typed secret-read classification under the
-original deadline, before any send. Recheck expiry after the secret await;
-never stringify the SDK/store detail or recapture a token for stage two.
-Typed secret `DeadlineExceeded` remains a deadline refusal even when a
-turn-frozen clock has not refreshed. Unknown future extraction reasons fail
-closed as a fixed source-configuration failure. Apply this order independently
-to send/collection at each lookup:
+an SDK error. Before any send, classify the bounded secret read in this order:
+
+1. Recheck the original absolute deadline after the await; expiry wins over any
+   secret result. `Err(SecretError::DeadlineExceeded)` also yields typed expiry
+   when a turn-frozen clock has not refreshed.
+2. Match the actual `SecretError`: `Unavailable` is fixed 503; `Internal`,
+   `NotFound`, `Validation`, `ValueTooLarge` and the non-exhaustive fallback are
+   fixed 500. This deliberate `Internal` choice follows the SDK's existing
+   fixed-500 conversion, without exposing its diagnostic or guessing retryability.
+3. For `Ok`, separately validate the backend-byte count, presence, value length
+   and header bytes under section 2. Any failure is fixed 500. An accepted token
+   is captured once for this preparation, not reread for stage two.
+
+Do not match config extraction's `StoreExtractionReason`, stringify any
+SDK/store detail, or classify a permanent oversized token as funded overload.
+Apply the following order independently to send/collection at each lookup:
 
 1. Recheck the original absolute deadline after the await; if spent, return the
    existing typed deadline outcome. Do not extend the deadline or reinterpret a
@@ -971,6 +994,13 @@ hard cut and remove legacy implementations. Section 2.0 and the plan make that
 deletion and format-2-only recovery requirement explicit. This planning PR
 still contains documents only; it does not remove production readers before
 the separately reviewed implementation can replace every consumer atomically.
+
+On 2026-11-18 the user approved the 4,096-byte token/backend-read cap and the
+`SecretError` mapping in sections 2 and 7: internal/missing/invalid/oversized
+results are fixed 500, unavailable is 503, and deadline expiry keeps its typed
+outcome. This corrects the earlier config-extraction error-type attribution.
+It approves this logical secret contract, not a new resource reserve, provider
+allocation proof, production implementation or merge.
 
 The requested self-review corrections make header admission explicitly relative
 to SDK-normalized metadata and define typed SDK refusals before returned-status
