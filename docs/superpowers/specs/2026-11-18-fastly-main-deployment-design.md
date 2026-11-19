@@ -2,7 +2,9 @@
 
 Issue: [#247](https://github.com/IABTechLab/auctioneer/issues/247), under epic
 [#12](https://github.com/IABTechLab/auctioneer/issues/12).
-Status: proposed specification for maintainer review; implementation has not started.
+Status: specification approved by the maintainer on November 18, 2026, at
+`9024c1c93a6de22a8e7dc7d63aba3a50fdbcd9c1`. Implementation has not started;
+planning review and merge remain separate gates.
 
 ## Outcome and accepted constraints
 
