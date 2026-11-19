@@ -2,7 +2,7 @@
 
 Date: 2026-11-18. Issue: [#46](https://github.com/IABTechLab/auctioneer/issues/46).
 
-Status: proposed written specification following the maintainer's approval of the focused design direction. No implementation, new resource bound, adapter qualification, serving activation or merge is approved by this document. The written specification needs maintainer approval before its implementation plan.
+Status: the maintainer approved this written specification at commit `ba383e2` on 2026-11-18 after advisory document review. Its implementation plan is proposed separately. No implementation, new resource bound, adapter qualification, serving activation or merge is approved by the written-spec decision.
 
 ## 1. Outcome And Boundaries
 
