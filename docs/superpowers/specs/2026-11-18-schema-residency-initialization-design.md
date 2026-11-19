@@ -2,7 +2,7 @@
 
 Date: 2026-11-18. Issue: [#46](https://github.com/IABTechLab/auctioneer/issues/46).
 
-Status: the maintainer approved this written specification at commit `ba383e2` on 2026-11-18 after advisory document review. Its implementation plan is proposed separately. No implementation, new resource bound, adapter qualification, serving activation or merge is approved by the written-spec decision.
+Status: the maintainer approved this written specification at commit `ba383e2` on 2026-11-18 after advisory document review, then approved the reproducible reference-basis and downstream owner-ticket amendments in sections 7.2 and 10.1. Its implementation plan is proposed separately. No implementation, new resource bound, adapter qualification, serving activation or merge is approved by these planning decisions.
 
 ## 1. Outcome And Boundaries
 
@@ -18,7 +18,7 @@ This is an Auctioneer package. Trusted Server engineers retain their host execut
 - Immutable regex programs, generated/non-regex schema state, required shared format owners and registry/descriptor metadata attributable to this closure.
 - Constructor storage and source-work bounds, already-live program overlap, repeat/failed initialization, and the initialization scheduling/sharing premises.
 - Common formulas, provenance, completeness checks and descriptor correspondence for target consumers.
-- Matched source-level catalog-growth observations against the original source-bound reference basis, with reconstruction/continuity stated explicitly rather than represented as historical physical measurements.
+- Matched source-level catalog-growth observations against the reproducible Auctioneer reference in section 7.2, with data-only reconstruction stated explicitly rather than represented as historical physical measurements.
 - An explicit source/owner/unit handoff to #47 and adapter qualification consumers, without installing a descriptor or changing admission.
 - Independent membership, arithmetic, source/model correspondence and constructor controls in existing test owners.
 
@@ -155,15 +155,24 @@ The existing pattern-only bundle extractor may remain a component diagnostic, bu
 
 ### 7.2. Matched Catalog-Growth Evidence
 
-Keep the original source-bound basis `e71e40aba611215bb9305f82e2449e13fb0f41ed`, the frozen [original accounting capture](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline.toml), its [patched-lock continuation](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline-patched-lock.toml), and their [continuity contract](../../testing/evidence/catalog-baseline-continuity-20261021.md). Do not replace that basis with the current head, rewrite either capture, ignore a lock/ABI mismatch or interpret an unqualified zero C/I field as a measured zero footprint.
+On 2026-11-18 the maintainer approved replacing the unavailable pre-import growth reference with public Auctioneer commit [`d26fcf7f566db6d1dce2e1847d79c9f44581edb8`](https://github.com/IABTechLab/auctioneer/commit/d26fcf7f566db6d1dce2e1847d79c9f44581edb8), tree `2d54c6f53ef3d062ca9292449a4546bb76e5ddd8`. Freeze that reference, not a moving branch or implementation head. Its availability in the official repository is the acquisition contract; verify the commit/tree in a fresh clone before measuring. Failure to acquire or verify it is unmatched growth, not an empty reference.
 
-Before measuring, freeze an original-source-bound reference seed and the candidate seed, their exact owner populations, layout/profile/feature inputs and the measurement scope. When using the current compiler/library to evaluate both seeds, label the result a same-build source reconstruction, not a rerun or physical measurement of the historical application. The source/provenance join must show which original owners the reference represents. No legacy serving implementation or compatibility reader is introduced to produce the comparison.
+Construct the reference seed as data through the same version-2 discovery/seed writer and expansion path as the candidate:
+
+1. Read the pinned Git tree into an isolated, non-serving source snapshot. Record commit, tree, and every consumed regular input's repository-relative path, Git blob ID, byte length and SHA-256. Never read an untracked local checkout or execute the reference's build scripts. Preserve existing bounded, contained-path and regular-file checks.
+2. Discover from that snapshot's bidder manifests, executable declaration/source-presence witnesses and Cargo feature declarations. Include every schema/reference/provenance input read by discovery and generation, including required non-cohort witness inventories and the transitive referenced schema closure. The snapshot's workspace manifest and lockfile are provenance inputs too. A missing input or schema owner refuses; no reference delivery-wave list, old seed or old report reader selects membership.
+3. Emit the existing version-2 seed with the independently discovered public definitions/aliases, effective schema owners, declaration-to-schema mapping, schema bytes/digests and source witnesses. Join it to the actual generated declarations and expanded owner graph by section 7.1. Do not substitute a hand-built list, the candidate's membership, or the zero catalog fields in an old capture for the reference seed.
+4. Freeze both seeds and their expected owner-set difference before observations. Run them under one measurement compiler/library/generator/options, actual ABI, features, profile and unchanged workload tuple. Record each snapshot's provenance lock separately from the measurement lock; any difference is explicit reconstruction scope, not a claim to have rebuilt that snapshot's original application. An intentional catalog-owner delta is measured; an undeclared missing, extra or substituted owner or a changed non-catalog workload/accounting input refuses the match.
+
+Label the result **same-build data-only source reconstruction relative to d26fcf7**, not original pre-catalog growth, a historical executable rerun or deployed physical measurements. This comparison does not restore a legacy serving implementation or compatibility reader. It can legitimately observe no owner growth; that does not establish zero catalog storage.
 
 Use the existing requested-allocation/constructor probes for matched metadata/registry and schema retained/initialization observations, and record source-generation size separately as an observation, not linked code residency. Measure both sides under the same actual compiler/ABI/dependency/features/profile, preserve unchanged workload inputs and identify cold/repeated/failed construction scopes. Growth and absolute component observations must remain separate from source bounds; a largest observed peak cannot set its own allowance.
 
-Reconcile the matched arithmetic and owner deltas against the preserved original basis, recording any intervening source/accounting continuity instead of hiding unrelated savings or treating missing original evidence as zero. If the required reference seed or continuity is not verifiable, report unmatched growth and keep this #46 criterion incomplete. The existing pure `catalog_resource_profile` target consumes captured descriptors as data and remains non-installing; actual constructors stay in their existing isolated measurement owners.
+Derive absolute C/I for the entire current implemented closure independently of the comparison delta, including all costs introduced before d26fcf7. Neither a zero nor negative delta discharges any absolute retained, initialization, linked or physical ownership obligation. Reconcile component deltas explicitly; unrelated savings cannot hide catalog growth. The pure `catalog_resource_profile` target consumes captured descriptors as data and remains non-installing; actual constructors stay in their existing isolated measurement owners.
 
-Actual linked code/data and physical/allocator growth measurements on the deployed adapter ABI remain mandatory #72-#75 work. Native source-reconstructed/requested observations do not satisfy those downstream rows.
+Preserve the frozen [original accounting capture](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline.toml), its [patched-lock continuation](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline-patched-lock.toml), and their [continuity contract](../../testing/evidence/catalog-baseline-continuity-20261021.md) byte-for-byte as history. Their pre-import source hashes are archival, not acquisition prerequisites for this comparison; their unqualified zero C/I fields are not measured zero footprints. Existing integrity/continuity readers keep their original scope. Do not repin them to the replacement basis or disable an old lock/ABI check to consume them as current evidence.
+
+The same approved amendment adds explicit whole-current-catalog physical/allocator bounds and actual linked code/data growth criteria to #72-#75. Those owners must obtain verifiable reference/candidate artifacts and declared comparison/continuity identities on their actual adapter ABI. This common data-only reconstruction is not a substitute for those artifacts; an unavailable or unmatched physical reference stays nonpassing. The new reference scopes growth since d26fcf7 only; each target must still account for its full current catalog, including earlier costs.
 
 ### 7.3. Coordination With #47 And Adapter Owners
 
@@ -180,7 +189,7 @@ Adapter consumers receive the complete required layout/linkage/allocator inputs 
 | Actual singleton/format/init correspondence | auctioneer-bidder `src/schema/staging.rs` and current generated hooks |
 | Captured declaration expansion, completed owner graph/C-I descriptor, independent selection/source/component composition and observations | Existing `schema_source_conformance` target and its owner modules, including `schema_selection_source` and the patched compiler dev dependency |
 | Constructor source/layout models | Existing `schema_syntax_construction`, `schema_nfa_construction`, `schema_onepass_construction` and applicable program/layout owners |
-| Matched source-level growth and pure arithmetic continuity | Existing `catalog_alloc` and constructor probes, `catalog_resource_profile`, original baseline captures and current source report |
+| Matched source-level growth and pure arithmetic continuity | Existing `catalog_alloc` and constructor probes, `catalog_resource_profile` and current source report; pinned d26fcf7 Git data supplies the reference, original captures remain historical |
 | Physical consumption and eventual activation | Existing #72-#75 and #88-#90 owners, not implemented here |
 
 Keep pure unit tests inline. Extend existing conformance modules under normal Rust module declarations; no handwritten `#[path]` or cross-crate source inclusion. Retain independent derivations/oracles: sharing production selection output with its expected result is not a membership test. Use synthetic fake bidder declarations for infrastructure controls; real schema/provenance coverage stays with its existing owner.
@@ -216,7 +225,7 @@ At this planning baseline, GitHub reports the 25 acceptance checks successful at
 
 ### 10.1. Issue Criteria Reconciliation
 
-On 2026-11-18 the maintainer explicitly approved reconciling #46's issue body to this ownership split: common C/I proofs, matched catalog-growth observations and #47 coordination stay in #46; physical/linked adapter qualification stays in #72-#75 and the qualified `native_only` retirement stays in #88-#90. Amend the contradictory issue wording and read it back before implementation. No integration requirement is waived. In particular, do not make #46 wait for downstream issues that already depend on it.
+On 2026-11-18 the maintainer explicitly approved reconciling #46's issue body to this ownership split: common C/I proofs, matched catalog-growth observations and #47 coordination stay in #46; physical/linked adapter qualification stays in #72-#75 and the qualified `native_only` retirement stays in #88-#90. The subsequent approved amendment replaces the inaccessible pre-import growth source with section 7.2's pinned public reference and explicitly adds physical/allocator and actual linked catalog-growth criteria to each of #72-#75. Read back all five issue bodies before implementation; a spec-only reassignment is not a completed handoff. No integration requirement is waived. In particular, do not make #46 wait for downstream issues that already depend on it.
 
 | Existing #46 Acceptance/Checklist Item | Required Delivery Or Downstream Owner |
 | --- | --- |
