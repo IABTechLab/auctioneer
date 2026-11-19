@@ -39,6 +39,7 @@ Existing paths unless explicitly marked new:
 | Expanded owner graph and common descriptor composition | New ordinary modules `crates/auctioneer-bidder/tests/schema_residency/{mod,expanded,initialization}.rs`, declared by the existing `schema_source_conformance` target |
 | Reused retained models/explicit layout inputs | `crates/auctioneer-bidder/tests/schema_{program_heap,metadata_heap,nfa_heap,onepass_bounds,literal_heap,pool_heap,heap_layout}/mod.rs` and `schema_resource_layout/mod.rs` |
 | Reused constructor/work models | `crates/auctioneer-bidder/tests/schema_{syntax_construction,nfa_construction,onepass_construction}/mod.rs` |
+| Matched growth and non-installing arithmetic comparison | `crates/auctioneer-bidder/tests/catalog_alloc.rs`, existing constructor probes, `crates/auctioneer-core/tests/catalog_resource_profile.rs`; frozen `crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline{,-patched-lock}.toml` and their existing continuity consumer |
 | Current evidence consumers, only if their admitted report shape changes | `crates/auctioneer-cli/src/bidders/evidence/conformance/{mod,runner}.rs`, `crates/auctioneer-cli/tests/bidders_evidence.rs` |
 | Existing hosted owners | `.github/workflows/test.yml`, `.github/workflows/scripts/test/{verify-schema-source,verify-schema-compiler-conformance,verify-schema-metadata-secure,verify-schema-metadata-development}.sh` |
 | Current source/proof documentation | `docs/testing/resource-proof-ownership.md`, `docs/bidders/schema-qualification.md` |
@@ -50,6 +51,7 @@ Paths following a crate-local `src/` or test-module name above are relative to t
 **Files:** Read the file map, both approved documents, `Cargo.toml`, `Cargo.lock`, `.tool-versions` and current test workflows. No production edit yet.
 
 - [ ] Inventory every active use of `PriorityWave`, `SupplementalWave`, `SupplementalInventory`, `planned_roots`, `published_roots_all_features` and the selector's planned-root arguments. Include the mandatory input-kind list in `schema_staging::identify`, source conformance, artifact `check_cohort` and omission controls. Do not assume the producer's first reader is the complete migration set.
+- [ ] Read back #46's body against the maintainer-approved criteria map in spec section 10.1 before implementation. Preserve the downstream physical/qualification gates and the existing dependency direction; do not close #46 against contradictory unchecked criteria or silently expand it to execute downstream issues.
 - [ ] Separate source/provenance inventory inputs from cohort membership inputs. Record how every discovered implemented definition resolves its effective schema/witness; keep independent revision evidence without selecting by a wave file.
 - [ ] Inventory native tested reservations, guest refusal branches and current accounting owners. Reuse their behavioral controls as invariants; do not add Rust snapshots of source text or workflow YAML.
 - [ ] Record hosted test listings and the exact current selections described in the validation map below. In particular, `schema_source_conformance` has `test = false` and does not execute in broad all-target runs.
@@ -165,19 +167,34 @@ These are synthetic owner units, not real engine reservations. Assert each trace
 - [ ] Require exact set equality and nonzero execution across every discovered implemented identity/alias and required owner; report full-catalog not-implemented rows separately. Reject duplicate/extra/stale rows and attempts to skip an implemented but unproved identity.
 - [ ] Add table-driven negative controls independently changing each identity/option/layout requirement/status. Include build-only seeds claiming graph completeness, wrong schema version, incomplete states claiming a numeric cost, and a source-only report claiming fit/serving qualification.
 - [ ] Keep missing ABI/layout/linkage/allocator facts distinct from a missing common model. Neither can become a default/zero cost. A complete recipe must enumerate all target facts it needs; an unnamed catch-all missing-evidence bucket cannot discharge a common owner.
+- [ ] Deliver spec section 7.3's reviewed interface handoff to #47 and #72-#75. Reconcile immutable/program/init C/I owners, per-validation caches/scratch, search-time fallback and per-call hostname cache by the same source/helper identities and explicit units/lifetimes. Test a missing or duplicate child assignment; do not install admission or wait for downstream qualification as part of this handoff.
 - [ ] Keep `CatalogResourceCosts`, production adapter profiles, native reservation constants, workload/headroom and runtime budget arithmetic unchanged. Do not introduce a new CLI resource command or make build.rs consume a passing conformance result.
 - [ ] Reconcile unchanged admitted schema outcomes and source/provenance controls. Record all source-completeness failures honestly; do not close #46 if only diagnostic rows or an inventory of remaining common proofs were delivered.
 - [ ] Record hosted GREEN and commit the complete descriptor integration.
 
-## Task 8: Preserve Once-Owned CI And Publish Honest Evidence
+## Task 8: Measure Matched Catalog Growth Without Rewriting History
+
+**Files:** Existing `catalog_alloc.rs`, constructor/source-report owners, pure `catalog_resource_profile.rs` and current proof documentation. Read, but do not rewrite, the two frozen baseline captures and `docs/testing/evidence/catalog-baseline-continuity-20261021.md`; use the existing continuity consumer at `crates/auctioneer-cli/src/bidders/resources/records/catalog_continuity.rs` where applicable.
+
+- [ ] Freeze the original source basis `e71e40aba611215bb9305f82e2449e13fb0f41ed`, its recorded continuation, the reference/candidate seeds and the comparison scope before collecting observations. Verify original source/provenance correspondence rather than assuming the old report's unqualified zero catalog fields mean no original storage.
+- [ ] Separate historical arithmetic continuity from current matched measurements. For a current-compiler reconstruction, run the original-source-bound reference and candidate through the same current compiler/library/ABI/features/profile and label both that way; never present it as a rerun of the original application or compare Linux observations directly with historical native-ABI measurements.
+- [ ] Add controls independently changing source/reference identity, features, workload, owner populations and a non-catalog term. Each mismatch refuses the purported match. Preserve the two baseline file digests; do not disable the existing lock/ABI/source comparison to make an old capture acceptable.
+- [ ] Reuse fresh constructor lifetimes and requested-allocation windows in the existing measurement owners. Capture metadata/registry requested storage and schema retained/cold/repeat/failed initialization separately; record generated-source size as source-generation observation only. Use independently derived bounds and existing positive controls, not a threshold chosen after measuring.
+- [ ] Carry intervening source/accounting changes as explicit continuity, preserving original component growth instead of offsetting it with unrelated savings. A missing reference or unverified continuity emits unmatched-growth refusal and keeps this #46 criterion incomplete.
+- [ ] Feed captured descriptors/observations as data to the pure `catalog_resource_profile` arithmetic checks; it must not install gates, initialize global programs or execute constructors. Label hypothetical/source-scoped arithmetic separately from usable target costs and reject any attempt to instantiate physical `CatalogResourceCosts` from incomplete source-only evidence. Observe constructors only in their existing isolated owners and reuse existing child builds.
+- [ ] Publish new dated evidence binding both inputs, source/model/build identities, requested-storage deltas, cold/repeat/failure scope, continuity and nonphysical limitations. Real linked-artifact and physical/allocator growth bounds/measurements remain #72-#75; do not claim those from requested/native/source-generation observations.
+- [ ] Record hosted RED/GREEN in the existing catalog/source/core owners and commit. Do not mark #46 complete without both the common descriptors and this matched-growth evidence.
+
+## Task 9: Preserve Once-Owned CI And Publish Honest Evidence
 
 **Files:** Existing workflow/scripts in the map; `docs/testing/resource-proof-ownership.md`, `docs/bidders/schema-qualification.md`; current CLI conformance readers/tests if required.
 
 - [ ] Keep the two existing CLI source-membership test names stable or update their exact dispatch list and every owning assertion together. Their producer still credits source membership only; it cannot borrow a separate deep-conformance pass to claim C/I qualification.
-- [ ] New pure `schema_residency` controls execute in the existing compiler-schema job's explicit `schema_source_conformance` invocation. Do not add them to the six heavy skip entries or assume `--all-targets` runs this target.
+- [ ] Default-feature pure `schema_residency` controls execute in the existing compiler-schema job's explicit `schema_source_conformance` invocation. Add the insecure-feature filtered invocation to the existing `verify-schema-metadata-development.sh` step; no new job/matrix is needed. Run it with `AUCTIONEER__TEST__EXPECT_SCHEMA_ARTIFACT` unset, reusing that step's already-built normal insecure test binary, and retain both existing staged metadata checks unchanged.
+- [ ] In that development step, list the intended `schema_residency` cases under the exact insecure feature arguments and require a nonempty, duplicate-free set. List all tests for the same binary/feature graph, derive the exact unselected count, and validate the run using `check-libtest-result.sh` with one report, that filtered count and the selected positive pass count; require each selected test's exact successful result once. A zero-test filter, missing result, ignore, failure, wrong feature graph or substituted selection refuses. Do not use `verify-schema-source.sh` for this prefix unchanged: it adds `--exact` to filters other than `schema_selection`.
 - [ ] Extend the four existing actual-application tests to capture/re-expand their already-built declarations; reuse the same product/snapshot lifetime rather than adding another app build. Native/guest source/layout probes retain their existing explicit owners.
 - [ ] Keep the existing `schema_selection` dispatch guard in secure/default/insecure lanes. Before changing its expected 34 count, list the exact intended old/new names under each feature graph on CI and reconcile every case. Update all three workflow call sites if the intended set changes; do not set the count to an incomplete passing run's observed value.
-- [ ] Preserve the compiler script's six intentional heavy exclusions and their separate mandatory owners, plus full strict lint. Only adapt exact selectors if a renamed case requires it; no extra matrix, workflow-body Rust gate, new target, timeout increase or cached-test result.
+- [ ] Preserve the compiler script's six intentional heavy exclusions and their separate mandatory owners, plus full strict lint. In addition to the newly required insecure-prefix invocation above, adapt existing exact selectors only where a renamed case requires it; no extra matrix, workflow-body Rust gate, new target, timeout increase or cached-test result.
 - [ ] Reuse existing hosted negative controls and independent fixtures. Any additional source-code mutation executions require an approved hosted batch; retain exact mutated/restored commits, intended test names and actual failure output. Unrun controls remain unrun, not inferred kills.
 - [ ] Run the complete hosted matrix at the final implementation head and inspect full logs/result lines, not only green badges. Record exact toolchain/dependency/features/source/artifact identities and any ignores/refusals.
 - [ ] Update current proof documentation with the delivered common source scope and remaining physical/#47/#48/guest/host boundaries. Add new dated evidence where appropriate; do not repin or rewrite historical captures, thresholds or old qualified outputs.
@@ -190,14 +207,16 @@ Commands below describe **future hosted execution**, not local commands run for 
 | Owner | Required Checks |
 | --- | --- |
 | config build support | Inline discovery/staging/codegen/identity cases, including version-2 migration and source-witness completeness. |
-| compiler conformance schema job | All new pure expanded-graph/C/I/formula/refusal cases, existing component models and strict explicit-target Clippy. |
+| compiler conformance schema job | Default-feature pure expanded-graph/C/I/formula/refusal cases, existing component models and strict explicit-target Clippy. |
+| existing development metadata step, `verify-schema-metadata-development.sh` | New insecure-feature `schema_residency` prefix run with exact positive dispatch/result-set verification; both original normal/staged metadata cases remain mandatory. This is a planned extension, not a run already present at the baseline. |
 | schema source selected-schema/private-layout jobs | Existing real source probes and constructor/layout correspondence, without promoting those observations to target fit. |
 | four application-artifact jobs | Same actual built outputs, captured declarations/snapshots, source identity and layout/artifact controls across both security feature lanes. |
 | secure/default/insecure source-selection steps | Exact intended membership/omission population and no hidden implementation skip. |
 | CLI/evidence-producer owners | Original two real source-membership dispatches and both mandatory fresh evidence producers; no new qualification credit. |
+| existing catalog/source/core owners | Task 8's matched source-level growth observations and pure non-installing arithmetic/continuity controls, with original baseline bytes preserved. |
 | full matrix | Existing workspace/secure/insecure/conformance, compiler, producer, guest, provider packaging/size and strict format/lint jobs, all required. |
 
-Focused Cargo commands for the existing hosted owners:
+Focused Cargo commands for existing hosted owners and the explicitly planned development-step extension:
 
 ```sh
 cargo test --locked -p auctioneer-config --features build-support --lib
@@ -207,6 +226,8 @@ cargo test --locked -p auctioneer-bidder --test schema_source_conformance schema
 cargo test --locked -p auctioneer-bidder --features insecure-bidders --test schema_source_conformance schema_selection -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --test schema_source_conformance schema_residency -- --test-threads=1
 cargo test --locked -p auctioneer-bidder --features insecure-bidders --test schema_source_conformance schema_residency -- --test-threads=1
+cargo test --locked -p auctioneer-bidder --test catalog_alloc
+cargo test --locked -p auctioneer-core --test catalog_resource_profile
 cargo test --locked -p auctioneer-cli --test bidders_evidence -- \
   --skip tests::selected_schema_source_producer_records_exact_real_dispatch_without_qualification \
   --skip tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
@@ -216,7 +237,7 @@ The two `schema_residency` selectors name proposed new modules, not existing pas
 
 The final acceptance invocations are the existing complete workflows:
 
-- `.github/workflows/test.yml`, including `verify-schema-compiler-conformance.sh schema`, the schema-source probe matrix, four application artifact owners, explicit source-selection checks and both evidence producers.
+- `.github/workflows/test.yml`, including `verify-schema-compiler-conformance.sh schema`, the extended existing development metadata step, schema-source probe matrix, four application artifact owners, explicit source-selection checks and both evidence producers. Source scripts remain colocated with this workflow.
 - `.github/workflows/format.yml`, with every existing strict feature/lint lane.
 - `.github/workflows/ci-fastly.yml`, `ci-cloudflare.yml` and `ci-spin.yml`, preserving their current executed checks and packaging/size gates.
 
@@ -232,6 +253,8 @@ For each current-head run, retrieve jobs and complete relevant logs using the Gi
 - [ ] Supplying host layouts for an unmatched guest/source tuple or missing a required slot refuses.
 - [ ] Source-only/incomplete evidence cannot become a numeric physical cost, fit result or serving permission.
 - [ ] Native tested reservations, original funding/refusal semantics and actual schema outcomes remain unchanged.
+- [ ] The insecure-feature controls actually execute under their owned step; zero or substituted dispatch fails.
+- [ ] A changed/missing reference, unmatched ABI/features/source or hidden non-catalog change cannot claim matched catalog growth.
 
 These controls need actual executed evidence. A self-referential constant comparison, a zero-test filter, an all-refusing scaffold or a comment asserting that a branch is unreachable does not check a box.
 

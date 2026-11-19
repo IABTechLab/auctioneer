@@ -18,6 +18,8 @@ This is an Auctioneer package. Trusted Server engineers retain their host execut
 - Immutable regex programs, generated/non-regex schema state, required shared format owners and registry/descriptor metadata attributable to this closure.
 - Constructor storage and source-work bounds, already-live program overlap, repeat/failed initialization, and the initialization scheduling/sharing premises.
 - Common formulas, provenance, completeness checks and descriptor correspondence for target consumers.
+- Matched source-level catalog-growth observations against the original source-bound reference basis, with reconstruction/continuity stated explicitly rather than represented as historical physical measurements.
+- An explicit source/owner/unit handoff to #47 and adapter qualification consumers, without installing a descriptor or changing admission.
 - Independent membership, arithmetic, source/model correspondence and constructor controls in existing test owners.
 
 ### Excluded
@@ -151,6 +153,24 @@ Any intentional source normalization for stable identities must be structural, n
 
 The existing pattern-only bundle extractor may remain a component diagnostic, but cannot supply a complete C/I descriptor without the seed/expanded-graph join above. This is a one-way evidence handoff: conformance consumes actual build outputs; a passing test is not read back by build.rs to enable serving. Later target consumers instantiate only matched, complete evidence under their own acceptance gates.
 
+### 7.2. Matched Catalog-Growth Evidence
+
+Keep the original source-bound basis `e71e40aba611215bb9305f82e2449e13fb0f41ed`, the frozen [original accounting capture](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline.toml), its [patched-lock continuation](../../../crates/auctioneer-core/tests/fixtures/resource_envelopes/catalog-baseline-patched-lock.toml), and their [continuity contract](../../testing/evidence/catalog-baseline-continuity-20261021.md). Do not replace that basis with the current head, rewrite either capture, ignore a lock/ABI mismatch or interpret an unqualified zero C/I field as a measured zero footprint.
+
+Before measuring, freeze an original-source-bound reference seed and the candidate seed, their exact owner populations, layout/profile/feature inputs and the measurement scope. When using the current compiler/library to evaluate both seeds, label the result a same-build source reconstruction, not a rerun or physical measurement of the historical application. The source/provenance join must show which original owners the reference represents. No legacy serving implementation or compatibility reader is introduced to produce the comparison.
+
+Use the existing requested-allocation/constructor probes for matched metadata/registry and schema retained/initialization observations, and record source-generation size separately as an observation, not linked code residency. Measure both sides under the same actual compiler/ABI/dependency/features/profile, preserve unchanged workload inputs and identify cold/repeated/failed construction scopes. Growth and absolute component observations must remain separate from source bounds; a largest observed peak cannot set its own allowance.
+
+Reconcile the matched arithmetic and owner deltas against the preserved original basis, recording any intervening source/accounting continuity instead of hiding unrelated savings or treating missing original evidence as zero. If the required reference seed or continuity is not verifiable, report unmatched growth and keep this #46 criterion incomplete. The existing pure `catalog_resource_profile` target consumes captured descriptors as data and remains non-installing; actual constructors stay in their existing isolated measurement owners.
+
+Actual linked code/data and physical/allocator growth measurements on the deployed adapter ABI remain mandatory #72-#75 work. Native source-reconstructed/requested observations do not satisfy those downstream rows.
+
+### 7.3. Coordination With #47 And Adapter Owners
+
+Deliver an explicit producer/consumer correspondence with #47 using the same declaration/helper/source/feature identities. Assign each immutable program and initialization owner to C/I, and each per-validation cache, mutable scratch, search-time fallback and per-call hostname cache to its actual #47 V/lifetime owner. A child charged in a component cannot be charged again through another wrapper, or disappear at the boundary.
+
+Adapter consumers receive the complete required layout/linkage/allocator inputs and schedule premises; they do not infer them from a source-complete flag. Review this interface correspondence before #46 closeout, retaining unresolved #47/target obligations on their existing issues. This requires a complete handoff, not completion of downstream validation/fit/admission or any `native_only` publication change in #46.
+
 ## 8. Implementation Ownership
 
 | Responsibility | Existing Owner To Extend |
@@ -160,6 +180,7 @@ The existing pattern-only bundle extractor may remain a component diagnostic, bu
 | Actual singleton/format/init correspondence | auctioneer-bidder `src/schema/staging.rs` and current generated hooks |
 | Captured declaration expansion, completed owner graph/C-I descriptor, independent selection/source/component composition and observations | Existing `schema_source_conformance` target and its owner modules, including `schema_selection_source` and the patched compiler dev dependency |
 | Constructor source/layout models | Existing `schema_syntax_construction`, `schema_nfa_construction`, `schema_onepass_construction` and applicable program/layout owners |
+| Matched source-level growth and pure arithmetic continuity | Existing `catalog_alloc` and constructor probes, `catalog_resource_profile`, original baseline captures and current source report |
 | Physical consumption and eventual activation | Existing #72-#75 and #88-#90 owners, not implemented here |
 
 Keep pure unit tests inline. Extend existing conformance modules under normal Rust module declarations; no handwritten `#[path]` or cross-crate source inclusion. Retain independent derivations/oracles: sharing production selection output with its expected result is not a membership test. Use synthetic fake bidder declarations for infrastructure controls; real schema/provenance coverage stays with its existing owner.
@@ -191,6 +212,24 @@ Honor the maintainer's instruction not to execute Cargo or CI locally. Read-only
 
 At this planning baseline, GitHub reports the 25 acceptance checks successful at `d26fcf7`; its additional maintenance check is separate. That is supplied baseline evidence, not verification of this proposed document or future implementation. No new tests, descriptors or qualification runs have executed.
 
-#46 completes only when discovery is the sole active membership authority, the common retained/initialization owner models and formulas are source-complete for the actual implemented closure, descriptor/source correspondence and refusal controls execute successfully, and the complete implementation matrix and review gates pass. An index of missing common proofs alone is not completion. Explicit target physical/layout/linkage inputs and #47/#48 obligations remain with their existing issues; their absence cannot be converted into a ready/fit/serving claim.
+#46 completes only when discovery is the sole active membership authority, the common retained/initialization owner models and formulas are source-complete for the actual implemented closure, descriptor/source correspondence and refusal controls execute successfully, matched source-level catalog-growth evidence and the #47/adapter handoff are delivered, and the complete implementation matrix and review gates pass. An index of missing common proofs alone is not completion. Explicit target physical/layout/linkage inputs and #47/#48 obligations remain with their existing issues; their absence cannot be converted into a ready/fit/serving claim.
+
+### 10.1. Issue Criteria Reconciliation
+
+On 2026-11-18 the maintainer explicitly approved reconciling #46's issue body to this ownership split: common C/I proofs, matched catalog-growth observations and #47 coordination stay in #46; physical/linked adapter qualification stays in #72-#75 and the qualified `native_only` retirement stays in #88-#90. Amend the contradictory issue wording and read it back before implementation. No integration requirement is waived. In particular, do not make #46 wait for downstream issues that already depend on it.
+
+| Existing #46 Acceptance/Checklist Item | Required Delivery Or Downstream Owner |
+| --- | --- |
+| Acceptance: compiler/library layout, immutable/shared owners and constructor envelopes | Sections 4-6; plan Tasks 3-6. Common formulas require explicit target layouts, not host-to-guest substitutions. |
+| Acceptance: common C/I descriptors/source proofs; unsupported owners refuse | Sections 5-7; plan Tasks 3-7. Actual target physical/ABI validation remains #72-#75. |
+| Discovery: implemented definitions and bidder-owned schema/provenance, no cohort selection | Section 3; plan Tasks 1-3. |
+| Discovery: common descriptors and exact full-catalog versus executable coverage | Sections 3 and 7; plan Tasks 2-4 and 7. |
+| Discovery: coordinate descriptor/admission ownership with #47 and adapters | Section 7.3; plan Task 7's interface handoff. Actual validation/admission and publication changes remain #47/#88-#90. |
+| Retired ledger: metadata/registry/schema sharing, aggregation and matched catalog growth | Sections 4-7.2; plan Tasks 4-8. Physical/allocator and actual linked code/data bounds/measurements are expressly #72-#75, not omitted or inferred from the common observations. |
+| Retired ledger: reuse completed components; do not qualify unreachable imports | Sections 2, 3, 5 and 6; plan Tasks 1 and 4-5. |
+| Integration contract: whole-catalog reporting and discovery | Section 3; plan Tasks 2 and 7. |
+| Integration contract: positive implemented-identity/alias qualification on all four adapters | Mandatory downstream #72-#75/#88-#90 outcome, not #46 source-completeness evidence. |
+| Integration contract: qualified common `native_only` retirement | Mandatory downstream #88-#90 common cutover; section 3 forbids isolated flag removal. |
+| Shared acceptance and review/full-suite gates | Section 9-10; plan Task 9 and its validation/falsification map. |
 
 The written-spec review is advisory document review, not a formal independent PR approval. Publication, implementation and merging require their separate user decisions. Do not close #46 on a planning merge or weaken Fastly/Trusted Server acceptance because its portable prerequisites are documented.
