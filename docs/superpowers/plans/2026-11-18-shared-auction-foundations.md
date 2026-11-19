@@ -35,6 +35,7 @@ All existing paths below were inspected at the planning baseline. `Create` means
 | Currency-control admission | Modify `crates/auctioneer-openrtb/src/ext/request_prebid.rs`, core `src/auction/prepare.rs` and the existing bounded ingress/tree builder as actually present | Inline typed/raw visitor controls, core `tests/auction_config_lifecycle.rs`, exchange `tests/source_preflight.rs`; raw lexical cases use the existing fixture gate |
 | Mode | Create `crates/auctioneer-config/src/protocol_mode.rs`; modify `src/{types,policy,source,lib}.rs`, `src/codegen/mod.rs`; core `src/config/policy_host.rs` | Inline config/core units, config `tests/root_shape.rs`, config-data `tests/{codegen,product_defaults_snapshot}.rs`, core `tests/config_reference_examples.rs` |
 | Multibid input and output | Create `crates/auctioneer-openrtb/src/ext/multibid.rs` and `crates/auctioneer-exchange/src/multibid.rs`; modify OpenRTB `src/ext/{mod,request_prebid}.rs`, exchange `src/split/{mod,root}.rs`, `src/run/{mod,resource}.rs`, `src/response.rs` | Inline parser/rank units; OpenRTB `tests/sample_requests_round_trip.rs` checked-outcome migration; exchange `tests/{source_preflight,bid_impression_correlation,response_charge,determinism}.rs`, `tests/targeting_prefix/main.rs` and its ordinary module tree |
+| Early UID-map containment | Modify existing `crates/auctioneer-exchange/src/split/root.rs` and its ordinary caller only if required; no new model or service | Inline root projection units, core `tests/privacy_outbound.rs` with capable fake recipients, existing exchange projection bounds |
 | UID wire controls and projection | Modify `crates/auctioneer-openrtb/src/ext/misc.rs`, `src/types/{user,field}.rs`; create exchange `src/identity.rs`; modify `src/split/{mod,root}.rs`, `src/scrub/{decision,fields}.rs` only as required by classification | Inline units; exchange `tests/{source_preflight,disclosure_model_coverage,disclosure_policy_diff,privacy_policy_composition,projection_scrub_bound}.rs` |
 | Cookie I/O and shared auction | Create `crates/auctioneer-core/src/usersync/keys.rs` and `src/auction/identity.rs`; modify `src/usersync/mod.rs`, `src/handlers/usersync_keys.rs`, `src/auction/{mod,prepare,operation,services,audit}.rs`, `src/handlers/auction.rs` | Inline key/identity units; core `tests/{usersync_integrity,usersync_handlers,privacy_outbound,auction_config_retention,response_retention,clock_domain}.rs` |
 | Original timing and host cooperation | Modify exchange `src/{tmax,context}.rs`, `src/run/mod.rs`, core `src/auction/{prepare,operation,services,audit}.rs` and `src/handlers/auction.rs`; reuse `src/host_primitives/{request_clock,registry}.rs` and the actual adapter factories | Existing exchange `tests/tmax.rs`, core `tests/{clock_domain,config_deadline}.rs`, Cloudflare `tests/fanout.rs`, all changed future-layout/resource owners |
@@ -51,9 +52,10 @@ At this baseline `AuctionServices` and `AuctionContext` do not expose the instal
 | Unit | Tasks | Merge/activation rule |
 | --- | --- | --- |
 | Common inventory and proof preparation | 1-2 | No serving activation or numeric change from an inventory alone. |
+| Early UID-map containment, partial #79 | 1A | First independently landed implementation unit after its relevant baseline. Strip the whole reserved map; no positive UID selection or cookie/key work. Do not wait for the broad Task 2 package, #57/#180 or other feature deliveries; validate its own projection costs and complete P/F. #79 remains open. |
 | Currency delivery, #54 | 3-5 | Schema rename, operation capture, floor callers, response conversion, builder currency and active examples land together. External import has its own prerequisite design gate in Task 5; #54 stays open until that acceptance is delivered. |
 | Multibid and mode, #55/#56 | 6-7 | One delivery PR may close both only when every criterion passes. Do not publish an inert mode, a full-list forward or a ranker behind an unreviewed flag. |
-| Trust review then UID delivery, #57/#79 | 8-9 | Record the trust/recovery decisions first. Activate shared input, conditional key read, negative-state decision, recipient projection and final privacy scrub together. |
+| Trust review then full UID delivery, #57/#79 | 8-9 | Record the trust/recovery decisions first. Activate shared input, conditional key read, negative-state decision, UID selection and final privacy scrub together. Reuse, never defer or remove, Task 1A's already-landed stripping barrier. |
 | Cross-unit acceptance and closeout | 10-11 | Each preceding unit already has its own full acceptance; this is interaction verification, not permission to defer tests. |
 
 Do not infer new native GitHub dependency links from this table. The user approved a shared contract, not automatic editing of issue criteria or project fields.
@@ -74,6 +76,20 @@ Do not infer new native GitHub dependency links from this table. The user approv
 - [ ] Record the test-first hosted sequence and obtain authorization to publish the implementation PR/checkpoints. A tests-only failing checkpoint may be pushed only with explicit approval; no local mutation or automatic batch of diagnostic PRs is authorized.
 
 **Expected checkpoint:** A complete source/caller inventory and passing or explicitly blocked hosted baseline. No new production capability is claimed.
+
+## Task 1A: Land Request-Wide UID-Map Containment First
+
+**Files:** Exchange `src/split/root.rs` inline tests and projection logic; core `tests/privacy_outbound.rs`; existing exchange projection/resource owners. No new target, public identity type, config field or secret reader.
+
+- [ ] Establish Task 1's relevant source/hosted baseline for these projection owners; do not delay this unit for the full currency or cookie inventory. Trace the flattened `UserExt.other` path and unprotected disclosure case on the implementation base.
+- [ ] First add `unprotected_recipients_never_receive_request_wide_buyeruids` to the existing core fake-transport owner. Give two participating fake public identities distinct map canaries and assert both entries exist in the input. Disable GDPR/COPPA/LMT/US/activities ID restrictions, supply no cookie and assert exactly one successful outbound request for each recipient. Neither body may carry the reserved map or either UID canary. Preserve ordinary user context and a separately valued explicit top-level `buyeruid`; assert the caller's source remains byte/value-equivalent. Exercise the raw and typed shared entrypoints without a new binary.
+- [ ] Record the intended hosted RED on the unchanged projection path: capture/inspect both unprotected bodies so an earlier refusal, absent input member or privacy scrub cannot masquerade as evidence. If the base already strips the map, investigate/withdraw the source counterexample instead of weakening the test or claiming a nonexistent failure.
+- [ ] Add inline root projection cases for exact-path removal, absent controls, preservation of `user`/`ext`/`prebid` siblings and unrelated nested names, and caller immutability. Cover object/null/scalar/array values of the reserved map without needing to interpret them. This containment unit removes the whole member; strict hint decoding and source selection remain Tasks 8-9.
+- [ ] Filter the exact map out while constructing recipient roots, before cloning it or the complete user object into a recipient. Preserve existing explicit top-level hints without deriving an own UID from the map. Reuse this one barrier for typed/flatten-backed and raw ingress; do not mutate the caller, retain a legacy pass-through, add a mode bypass or start cookie/key I/O.
+- [ ] Prove the changed selection work/storage fits the existing projection admission and preserves funding/refusal/deadline behavior using P. Review any real changed charge or layout on its own merits; do not assume another feature's reserve, alter a cap or make this wait for unrelated Task 2 types. No new resource allowance is authorized here.
+- [ ] Execute hosted GREEN, P and the full unchanged F matrix, then publish/merge this separately reviewed implementation under the usual authorization gates. Leave #79 open and record the partial delivery. Task 8 must extract admitted selection inputs before this same barrier rather than restore forwarding or introduce a second projection path.
+
+**Expected:** No unprotected recipient receives the request-wide map, independently of the later UID feature. These are future test/implementation requirements; this planning PR does not claim an executed wire reproducer or deployed fix.
 
 ## Task 2: Freeze The Changed Ownership And Resource Package
 
@@ -192,7 +208,7 @@ The read-only inventory found 53 upstream JSON files and seven committed model/c
 - [ ] Add a bounded typed UID-map visitor that rejects duplicate decoded keys and invalid values before insertion. Preserve a present empty exact map value as a terminal clear. A top-level empty `buyeruid` is different: it permits the next source. Null/non-string control values get a fixed diagnostic, not raw-value interpolation.
 - [ ] For raw top-level null handling, use an appropriate presence-aware field or existing non-null Serde pattern in the owning model; do not let `Option<String>` erase a forbidden null before validation. Typed input validates the representation actually supplied; it cannot prove what an external caller already discarded.
 - [ ] Write pure selection units with three distinct source values and exact alias/family metadata. Exercise explicit clears, base/alias non-fallback, shared-family membership and discovered UID exclusions. No central switch over real bidder names.
-- [ ] Consume/remove the complete buyer-UID map before recipient copying. Carry only selected hints and an explicit suppression disposition, not a complete cookie/map per recipient. Preserve the caller's owned input.
+- [ ] Reuse Task 1A's already-landed map-stripping barrier. Extract the admitted hint needed by selection before that barrier, then carry only selected hints and an explicit suppression disposition, not a complete cookie/map per recipient. Preserve the caller's owned input and the unprotected two-recipient containment test. This step extends identity selection; it is not the first delivery of map removal.
 - [ ] Run I, M, E and R on the staged model/projection and disclosure changes. Stop #79 activation if the trust/recovery decision or resource package is not accepted; do not introduce a bypassing public helper.
 
 ## Task 9: Share Bounded Key Reading And Activate UID Projection
@@ -238,6 +254,16 @@ The read-only inventory found 53 upstream JSON files and seven committed model/c
 
 These commands are expected hosted instructions, not executed results. Recheck target existence and required features on the implementation base. Focused checkpoints supplement, never replace, the full required workflow matrix. Do not run these locally under the current user rule.
 
+### P: Early UID-Map Containment
+
+```sh
+cargo test --locked -p auctioneer-exchange --lib split::root::tests
+cargo test --locked -p auctioneer-core --test privacy_outbound
+cargo test --locked -p auctioneer-exchange --test source_preflight --test projection_charge --test projection_scrub_bound
+```
+
+Expected: the new named unprotected wire case dispatches for both raw/typed inputs with two actual captured recipients and present input canaries; all original privacy controls remain. Exact-path/sibling/immutability and independent projection bounds execute. Complete F on the same head; do not substitute protected-only cases, a grouped-request assertion or the later cookie package for this wire control.
+
 ### C: Configuration And Arithmetic
 
 ```sh
@@ -280,10 +306,10 @@ Expected: original sync behavior stays covered, auction error classification rem
 ```sh
 cargo test --locked -p auctioneer-core --features conformance-suite --test bidder_handler_conformance --test fanout_conformance --test native_bidder_onboarding
 cargo test --locked -p auctioneer-adapter-axum --features insecure-bidders --test privacy_wire
-cargo test --locked -p auctioneer-cli --all-targets
+bash .github/workflows/scripts/test/verify-cli-socket-isolation.sh full-cli
 ```
 
-Expected: the same captured policy reaches standalone/embedded flows and real fake-bidder sockets. The CLI graph also checks its exhaustive application reference. Real-bidder protocol tests are not moved into shared code.
+Expected: the same captured policy reaches standalone/embedded flows and real fake-bidder sockets. The CLI graph also checks its exhaustive application reference through the same socket execution/report validator used by the existing hosted CLI lane. Its runner retains both producer skips; those two fresh-build tests still execute once in F's mandatory evidence-producer owner. Use the hosted lane's existing prerequisites and `RUNNER_TEMP`; this is not a local test instruction or a new runner. Real-bidder protocol tests are not moved into shared code.
 
 ### R: Accounting, Layouts And Adapter Facts
 
