@@ -1,16 +1,16 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-11-12T16:36:50.265355843Z",
+  "generated_at": "2026-11-19T16:37:08.273200992Z",
   "retention": {
     "max_age_days": 180
   },
   "oversize_bundle_ack": false,
   "gcl": {
     "path": "gcl.json",
-    "sha256": "ec1dabb9d80ee325fe387dd3fd32e1399e3c9c6dd22dc16bfcd8db7629ed1947",
-    "last_updated": "2026-11-12T16:00:22Z",
-    "fetched_at": "2026-11-12T16:36:46.737028455Z",
-    "cache_max_age_secs": 602664
+    "sha256": "f42ecfe6df85244d41bd211d04226aa5603c978d39cc59de9e837d814a9cf55f",
+    "last_updated": "2026-11-19T16:00:27Z",
+    "fetched_at": "2026-11-19T16:37:04.631887112Z",
+    "cache_max_age_secs": 602645
   },
   "entries": [
     {
@@ -23,13 +23,21 @@
     },
     {
       "spec": 3,
+      "vendor_list_version": 186,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-11-19T16:00:24Z",
+      "path": "spec3/vendor-list-v186.json",
+      "sha256": "acd3455a5397d0288047c6cc906180823ed3d7bdee4069f4033eed65faad22a1",
+      "fetched_at": "2026-11-19T16:37:04.23621949Z",
+      "cache_max_age_secs": 602634
+    },
+    {
+      "spec": 3,
       "vendor_list_version": 185,
       "tcf_policy_version": 5,
       "last_updated": "2026-11-12T16:00:19Z",
       "path": "spec3/vendor-list-v185.json",
-      "sha256": "c11e919a25ec72e00e380ab38c7396b2fa6fcc33997287dbfa863278ef79f726",
-      "fetched_at": "2026-11-12T16:36:46.386981652Z",
-      "cache_max_age_secs": 602655
+      "sha256": "c11e919a25ec72e00e380ab38c7396b2fa6fcc33997287dbfa863278ef79f726"
     },
     {
       "spec": 3,
@@ -190,14 +198,6 @@
       "last_updated": "2026-06-25T16:00:18Z",
       "path": "spec3/vendor-list-v165.json",
       "sha256": "06ddb5d70f59e9f53f545181aec833f344042c75bfffd8433255e31493ff60b2"
-    },
-    {
-      "spec": 3,
-      "vendor_list_version": 164,
-      "tcf_policy_version": 5,
-      "last_updated": "2026-06-18T16:00:19Z",
-      "path": "spec3/vendor-list-v164.json",
-      "sha256": "25ea5d5e6c224596fbf0d40d7308ff7e1a4125453e8e0e9ab347eca66b2825c6"
     }
   ]
 }
