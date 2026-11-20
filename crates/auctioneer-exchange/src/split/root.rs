@@ -312,6 +312,7 @@ mod tests {
             json!({"buyeruids": {"fake_selected": "uid-canary"}}),
             json!({"keep": "sibling-only"}),
             Value::Null,
+            json!([]),
             json!(["malformed-prebid"]),
             json!("malformed-prebid"),
             json!(7_i32),
