@@ -28,7 +28,7 @@ mod tests {
     use auctioneer_openrtb::types::bid_request::BidRequest;
     use auctioneer_privacy::{UnrestrictedHostRestrictions, gcl::Gcl, gvl::GvlStore};
     use auctioneer_runtime::{
-        AdmissionGate, AuctionBudget, CatalogResourceCosts, Clock, FakeClock, SeededRng,
+        AdmissionGate, AuctionBudget, CatalogResourceCosts, Clock as _, FakeClock, SeededRng,
         TargetPlatformConstants, bounded_json::JsonFieldShape,
     };
     use bytes::Bytes;
@@ -430,8 +430,7 @@ mod tests {
                 .unwrap();
         }
         let mut source = input();
-        source["imp"][0]["ext"]["prebid"]["bidder"] =
-            json!({"fake_first": {}, "fake_second": {}});
+        source["imp"][0]["ext"]["prebid"]["bidder"] = json!({"fake_first": {}, "fake_second": {}});
         source["regs"] = json!({"gdpr": 0_i32, "coppa": 0_i32});
         source["device"] = json!({"lmt": 0_i32});
         source["user"] = json!({
@@ -461,7 +460,7 @@ mod tests {
             );
         }
         let mut leaks = Vec::new();
-        let mut checked = 0;
+        let mut checked = 0_usize;
         for entrypoint in ["raw", "typed"] {
             let fanout = Arc::new(CapturedEndpoints::default());
             let wire = if entrypoint == "raw" {

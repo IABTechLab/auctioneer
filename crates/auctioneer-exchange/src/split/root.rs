@@ -1,4 +1,4 @@
-//! Select recipient root extensions from the canonical typed request before copying.
+//! Select recipient root fields from the canonical typed request before copying.
 
 use crate::{alias::AliasMap, error::AuctionError};
 use auctioneer_bidder::BidderName;
@@ -16,6 +16,12 @@ pub(super) fn project(
     for (key, value) in source {
         match key.as_str() {
             "imp" => {}
+            "user" => {
+                root.insert(
+                    key.clone(),
+                    project_without(value, &["ext", "prebid", "buyeruids"]),
+                );
+            }
             "ext" => {
                 root.insert(key.clone(), project_ext(value, bidder, aliases));
             }
@@ -25,6 +31,30 @@ pub(super) fn project(
         }
     }
     Ok(root)
+}
+
+// This walk follows only the three literal user-path components, never input depth.
+// Omit the terminal member before cloning its key, value or ancestor objects.
+fn project_without(source: &Value, path: &[&str]) -> Value {
+    let (Some(members), Some((next, rest))) = (source.as_object(), path.split_first()) else {
+        return source.clone();
+    };
+    Value::Object(
+        members
+            .iter()
+            .filter_map(|(key, value)| {
+                let projected = if key.as_str() == *next {
+                    if rest.is_empty() {
+                        return None;
+                    }
+                    project_without(value, rest)
+                } else {
+                    value.clone()
+                };
+                Some((key.clone(), projected))
+            })
+            .collect(),
+    )
 }
 
 fn project_ext(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Value {
@@ -250,8 +280,12 @@ mod tests {
             );
             let before = serde_json::to_vec(&source).unwrap();
             let actual = Value::Object(
-                project(&source, &BidderName::new("fake_selected"), &AliasMap::default())
-                    .unwrap(),
+                project(
+                    &source,
+                    &BidderName::new("fake_selected"),
+                    &AliasMap::default(),
+                )
+                .unwrap(),
             );
             assert_eq!(
                 actual,
@@ -286,8 +320,12 @@ mod tests {
         ] {
             let before = serde_json::to_vec(&source).unwrap();
             let actual = Value::Object(
-                project(&source, &BidderName::new("fake_selected"), &AliasMap::default())
-                    .unwrap(),
+                project(
+                    &source,
+                    &BidderName::new("fake_selected"),
+                    &AliasMap::default(),
+                )
+                .unwrap(),
             );
             assert_eq!(actual, source);
             assert_eq!(serde_json::to_vec(&source).unwrap(), before);

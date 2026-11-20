@@ -46,6 +46,19 @@ mod tests {
         json!({"id":"r", "site":{"id":"s"}, "imp":imps, "ext":{"prebid":{"aliases":aliases}}})
     }
 
+    fn dense_user_prefix(path: &str) -> Value {
+        let mut request = base(1);
+        request["user"] = json!({
+            "buyeruid": "explicit-hint", "ext": {"prebid": {}}
+        });
+        request
+            .pointer_mut(path)
+            .and_then(Value::as_object_mut)
+            .unwrap()
+            .extend((0_usize..10_000).map(|n| (n.to_string(), json!(0_i32))));
+        request
+    }
+
     fn fixtures() -> Vec<(&'static str, Value)> {
         let mut unknown = base(1);
         let fields: Map<_, _> = (0_usize..10_000)
@@ -112,7 +125,7 @@ mod tests {
             .collect();
         aliases["ext"]["prebid"]["aliases"] = json!(names);
 
-        vec![
+        let mut fixtures = vec![
             ("minimal", base(1)),
             ("100-impressions", base(100)),
             ("1000-impressions", base(1000)),
@@ -128,7 +141,32 @@ mod tests {
             ("dense-prebid-params", prebid_params),
             ("dense-legacy-params", legacy_params),
             ("dense-alias-retention", aliases),
-        ]
+        ];
+        // One dense prefix at a time adds under 100 KiB and 20,000 nodes.
+        for (path, absent_name, present_name) in [
+            (
+                "/user",
+                "dense-user-uid-map-absent",
+                "dense-user-uid-map-present",
+            ),
+            (
+                "/user/ext",
+                "dense-user-ext-uid-map-absent",
+                "dense-user-ext-uid-map-present",
+            ),
+            (
+                "/user/ext/prebid",
+                "dense-user-prebid-uid-map-absent",
+                "dense-user-prebid-uid-map-present",
+            ),
+        ] {
+            let absent = dense_user_prefix(path);
+            let mut present = absent.clone();
+            present["user"]["ext"]["prebid"]["buyeruids"] = json!({"fake_a0": "x"});
+            fixtures.push((absent_name, absent));
+            fixtures.push((present_name, present));
+        }
+        fixtures
     }
 
     #[test]
