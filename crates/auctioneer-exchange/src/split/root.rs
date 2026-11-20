@@ -228,6 +228,73 @@ mod tests {
     }
 
     #[test]
+    fn buyeruids_is_removed_at_its_exact_path_without_mutating_the_source() {
+        for reserved in [
+            json!({"fake_selected": "own-map-canary", "fake_other": "other-map-canary"}),
+            Value::Null,
+            json!("scalar-map-canary"),
+            json!(17_i32),
+            json!(true),
+            json!(["array-map-canary", {"nested": "other-map-canary"}]),
+        ] {
+            let source = json!({"id": "uid-projection", "user": {
+                "id": "ordinary-id", "buyeruid": "explicit-hint", "keywords": "context",
+                "buyeruids": "ordinary-user-sibling", "ext": {
+                    "buyeruids": "ordinary-ext-sibling", "data": {"keep": true},
+                    "prebid": {"buyeruids": reserved, "keep": {"buyeruids": "nested-context"}}
+                }
+            }});
+            assert_eq!(
+                source["user"]["ext"]["prebid"].get("buyeruids"),
+                Some(&reserved)
+            );
+            let before = serde_json::to_vec(&source).unwrap();
+            let actual = Value::Object(
+                project(&source, &BidderName::new("fake_selected"), &AliasMap::default())
+                    .unwrap(),
+            );
+            assert_eq!(
+                actual,
+                json!({"id": "uid-projection", "user": {
+                    "id": "ordinary-id", "buyeruid": "explicit-hint", "keywords": "context",
+                    "buyeruids": "ordinary-user-sibling", "ext": {
+                        "buyeruids": "ordinary-ext-sibling", "data": {"keep": true},
+                        "prebid": {"keep": {"buyeruids": "nested-context"}}
+                    }
+                }})
+            );
+            assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+        }
+    }
+
+    #[test]
+    fn absent_uid_maps_preserve_user_extension_presence_and_non_object_values() {
+        for source in [
+            json!({"id": "no-user"}),
+            json!({"user": null}),
+            json!({"user": "invalid-user"}),
+            json!({"user": {}}),
+            json!({"user": {"buyeruid": "explicit-hint"}}),
+            json!({"user": {"ext": null}}),
+            json!({"user": {"ext": []}}),
+            json!({"user": {"ext": {}}}),
+            json!({"user": {"ext": {"prebid": null}}}),
+            json!({"user": {"ext": {"prebid": []}}}),
+            json!({"user": {"ext": {"prebid": "invalid-prebid"}}}),
+            json!({"user": {"ext": {"prebid": {}}}}),
+            json!({"user": {"ext": {"prebid": {"keep": "context"}}}}),
+        ] {
+            let before = serde_json::to_vec(&source).unwrap();
+            let actual = Value::Object(
+                project(&source, &BidderName::new("fake_selected"), &AliasMap::default())
+                    .unwrap(),
+            );
+            assert_eq!(actual, source);
+            assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+        }
+    }
+
+    #[test]
     fn malformed_extensions_preserve_the_existing_typed_decode_error() {
         for malformed in [
             json!("private-extension"),
@@ -276,16 +343,54 @@ mod tests {
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn omitted_uid_map_nodes_do_not_increase_projection_allocations() {
+        for container in [false, true] {
+            let mut observations = Vec::new();
+            for count in [1_usize, 128, 2_048] {
+                let reserved = if container {
+                    json!(vec![json!({"nested": ["uid-canary", {}]}); count])
+                } else {
+                    Value::Object(
+                        (0..count)
+                            .map(|index| (format!("fake_{index}"), json!("uid-canary")))
+                            .collect(),
+                    )
+                };
+                let source = json!({"user": {"buyeruid": "explicit-hint", "ext": {
+                    "prebid": {"buyeruids": reserved, "keep": "context"}
+                }}});
+                assert!(source["user"]["ext"]["prebid"].get("buyeruids").is_some());
+                let (result, requested, peak) = measured_root(&source);
+                assert_eq!(
+                    result,
+                    json!({"user": {"buyeruid": "explicit-hint", "ext": {
+                        "prebid": {"keep": "context"}
+                    }}})
+                );
+                observations.push((requested, peak));
+            }
+            assert_eq!(observations.len(), 3);
+            assert!(observations.iter().all(|value| value == &observations[0]));
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn omitted_root_payloads_are_not_cloned() {
         #[derive(Debug)]
         enum Omitted {
             CompetitorParams,
             BidderConfig,
+            BuyerUids,
         }
 
-        for omitted in [Omitted::CompetitorParams, Omitted::BidderConfig] {
+        for omitted in [
+            Omitted::CompetitorParams,
+            Omitted::BidderConfig,
+            Omitted::BuyerUids,
+        ] {
             let mut observations = Vec::with_capacity(3);
-            let expected = json!({
+            let mut expected = json!({
                 "id": "allocation-root", "ext": {"ordinary": "keep", "prebid": {
                     "bidderparams": {"own": "selected"}
                 }}
@@ -309,6 +414,16 @@ mod tests {
                             "config": {"ortb2": {"user": {"keywords": payload}}}
                         }]);
                     }
+                    Omitted::BuyerUids => {
+                        source["user"] = json!({"buyeruid": "explicit-hint", "ext": {
+                            "prebid": {"buyeruids": {
+                                "fake_selected": payload, "fake_other": "competitor-canary"
+                            }, "keep": "context"}
+                        }});
+                        expected["user"] = json!({"buyeruid": "explicit-hint", "ext": {
+                            "prebid": {"keep": "context"}
+                        }});
+                    }
                 }
                 let (result, requested, peak) = measured_root(&source);
                 observations.push((result, requested, peak));
@@ -326,20 +441,26 @@ mod tests {
             }
         }
 
-        let mut retained = Vec::with_capacity(3);
-        for bytes in [128_usize, 1_024, 8_192] {
-            let payload = "x".repeat(bytes);
-            let source = json!({"id": "retained-root", "ext": {"ordinary": payload}});
-            let expected = source.clone();
-            let (result, requested, peak) = measured_root(&source);
-            assert_eq!(result, expected);
-            retained.push((u64::try_from(bytes).unwrap(), requested, peak));
-        }
-        assert_eq!(retained.len(), 3);
-        for (smaller, larger) in retained.iter().zip(retained.iter().skip(1)) {
-            let payload_growth = larger.0.checked_sub(smaller.0).unwrap();
-            assert!(larger.1.checked_sub(smaller.1).unwrap() >= payload_growth);
-            assert!(larger.2.checked_sub(smaller.2).unwrap() >= payload_growth);
+        for user_prefix in [false, true] {
+            let mut retained = Vec::with_capacity(3);
+            for bytes in [128_usize, 1_024, 8_192] {
+                let payload = "x".repeat(bytes);
+                let source = if user_prefix {
+                    json!({"user": {"ext": {"prebid": {"ordinary": payload}}}})
+                } else {
+                    json!({"id": "retained-root", "ext": {"ordinary": payload}})
+                };
+                let expected = source.clone();
+                let (result, requested, peak) = measured_root(&source);
+                assert_eq!(result, expected);
+                retained.push((u64::try_from(bytes).unwrap(), requested, peak));
+            }
+            assert_eq!(retained.len(), 3);
+            for (smaller, larger) in retained.iter().zip(retained.iter().skip(1)) {
+                let payload_growth = larger.0.checked_sub(smaller.0).unwrap();
+                assert!(larger.1.checked_sub(smaller.1).unwrap() >= payload_growth);
+                assert!(larger.2.checked_sub(smaller.2).unwrap() >= payload_growth);
+            }
         }
     }
 }
