@@ -434,7 +434,9 @@ mod tests {
         source["user"] = json!({
             "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
             "keywords": "ordinary-context", "ext": {
-                "ordinary": "extension-context", "prebid": {
+                "ordinary": "extension-context",
+                "Prebid": {"buyeruids": "case-control"},
+                "prebidx": {"buyeruids": "near-miss-context"}, "prebid": {
                     "ordinary": "prebid-context", "buyeruidsx": "near-miss-context", "buyeruids": {
                         "fake_first": "first-map-canary",
                         "fake_second": "second-map-canary"
@@ -445,51 +447,70 @@ mod tests {
         (registry, source)
     }
 
+    fn uid_map_case_input(
+        fixture: &Value,
+        user_key: &str,
+        extension_key: &str,
+        members: &[&str],
+    ) -> Value {
+        let mut source = fixture.clone();
+        let mut user = source.as_object_mut().unwrap().remove("user").unwrap();
+        let mut extension = user.as_object_mut().unwrap().remove("ext").unwrap();
+        let prebid = extension["prebid"].as_object_mut().unwrap();
+        assert!(prebid.remove("buyeruids").is_some());
+        for &member in members {
+            assert!(
+                prebid
+                    .insert(
+                        member.to_owned(),
+                        json!({
+                            "fake_first": "first-map-canary",
+                            "fake_second": "second-map-canary"
+                        }),
+                    )
+                    .is_none()
+            );
+        }
+        user[extension_key] = extension;
+        source[user_key] = user;
+        source
+    }
+
     #[test]
     fn unprotected_recipients_never_receive_request_wide_buyeruids() {
         const POLICY: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.ccpa]\nenforce=false\n[host.lmt]\nenforce=false\n[account_defaults.privacy.allowactivities.transmitUfpd]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitPreciseGeo]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitTid]\ndefault=true\n";
         let (registry, fixture) = uid_map_fixture();
-        let expected_user = json!({
-            "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
-            "keywords": "ordinary-context", "ext": {
-                "ordinary": "extension-context", "prebid": {
-                    "ordinary": "prebid-context", "buyeruidsx": "near-miss-context"
-                }
-            }
-        });
-        let member_sets: &[&[&str]] = &[
-            &["buyeruids"],
-            &["BuyerUIDs"],
-            &["buyerUids"],
-            &["BUYERUIDS"],
-            &["buyeruids", "BuyerUIDs", "buyerUids", "BUYERUIDS"],
+        let cases: &[(&str, &str, &[&str])] = &[
+            ("user", "ext", &["buyeruids"]),
+            ("user", "ext", &["BuyerUIDs"]),
+            ("user", "ext", &["buyerUids"]),
+            ("user", "ext", &["BUYERUIDS"]),
+            ("user", "ext", &["buyeruids", "BuyerUIDs", "buyerUids", "BUYERUIDS"]),
+            ("User", "ext", &["buyeruids"]),
+            ("USER", "ext", &["buyeruids"]),
+            ("user", "Ext", &["buyeruids"]),
+            ("user", "EXT", &["buyeruids"]),
+            ("User", "Ext", &["buyeruids"]),
         ];
         let mut leaks = Vec::new();
         let mut checked = 0_usize;
-        for &members in member_sets {
-            let mut source = fixture.clone();
-            let prebid = source["user"]["ext"]["prebid"].as_object_mut().unwrap();
-            assert!(prebid.remove("buyeruids").is_some());
-            for &member in members {
-                assert!(
-                    prebid
-                        .insert(
-                            member.to_owned(),
-                            json!({
-                                "fake_first": "first-map-canary",
-                                "fake_second": "second-map-canary"
-                            }),
-                        )
-                        .is_none()
-                );
-            }
+        for &(user_key, extension_key, members) in cases {
+            let source = uid_map_case_input(&fixture, user_key, extension_key, members);
+            let expected_user = json!({
+                "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
+                "keywords": "ordinary-context", (extension_key): {
+                    "ordinary": "extension-context",
+                    "Prebid": {"buyeruids": "case-control"},
+                    "prebidx": {"buyeruids": "near-miss-context"}
+                }
+            });
             let before = serde_json::to_vec(&source).unwrap();
             let typed: BidRequest = serde_json::from_value(source.clone()).unwrap();
             let typed_before = serde_json::to_value(&typed).unwrap();
             for value in [&source, &typed_before] {
                 for &member in members {
                     assert_eq!(
-                        value["user"]["ext"]["prebid"][member],
+                        value[user_key][extension_key]["prebid"][member],
                         json!({
                             "fake_first": "first-map-canary",
                             "fake_second": "second-map-canary"
@@ -521,7 +542,7 @@ mod tests {
                     assert_eq!(calls.len(), 1, "{entrypoint}/{name}");
                     assert_eq!(calls[0].covered_imp_ids().collect::<Vec<_>>(), ["i"]);
                     let outbound: Value = serde_json::from_slice(calls[0].body()).unwrap();
-                    let user = &outbound["user"];
+                    let user = &outbound[user_key];
                     // These survive only without ID/FPD restrictions; protected scrub cannot pass.
                     assert_eq!(user["id"], "ordinary-user", "{entrypoint}/{name}");
                     assert_eq!(user["buyeruid"], "explicit-top-level-hint");
@@ -531,7 +552,12 @@ mod tests {
                         || encoded.contains("first-map-canary")
                         || encoded.contains("second-map-canary")
                     {
-                        leaks.push((members, entrypoint, name, outbound));
+                        leaks.push((
+                            (user_key, extension_key, members),
+                            entrypoint,
+                            name,
+                            outbound,
+                        ));
                     }
                     checked += 1;
                 }
@@ -539,7 +565,7 @@ mod tests {
                 assert_eq!(serde_json::to_value(&typed).unwrap(), typed_before);
             }
         }
-        assert_eq!(checked, 20);
+        assert_eq!(checked, 40);
         assert!(leaks.is_empty(), "request-wide UID disclosure: {leaks:?}");
     }
 

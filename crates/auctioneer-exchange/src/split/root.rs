@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn buyeruids_is_removed_at_its_exact_path_without_mutating_the_source() {
+    fn user_prebid_is_removed_without_mutating_the_source() {
         for reserved in [
             json!({"fake_selected": "own-map-canary", "fake_other": "other-map-canary"}),
             Value::Null,
@@ -293,8 +293,7 @@ mod tests {
                 json!({"id": "uid-projection", "user": {
                     "id": "ordinary-id", "buyeruid": "explicit-hint", "keywords": "context",
                     "buyeruids": "ordinary-user-sibling", "ext": {
-                        "buyeruids": "ordinary-ext-sibling", "data": {"keep": true},
-                        "prebid": {"keep": {"buyeruids": "nested-context"}}
+                        "buyeruids": "ordinary-ext-sibling", "data": {"keep": true}
                     }
                 }})
             );
@@ -303,14 +302,20 @@ mod tests {
     }
 
     #[test]
-    fn removing_the_only_uid_member_preserves_its_empty_parent() {
-        for reserved in [
+    fn removing_prebid_preserves_its_extension_parent() {
+        for prebid in [
             json!({}),
-            json!({"fake_selected": "uid-canary"}),
+            json!({"buyeruids": {}}),
+            json!({"buyeruids": {"fake_selected": "uid-canary"}}),
+            json!({"keep": "sibling-only"}),
             Value::Null,
+            json!(["malformed-prebid"]),
+            json!("malformed-prebid"),
+            json!(7_i32),
+            json!(true),
         ] {
-            let source = json!({"user": {"ext": {"prebid": {"buyeruids": reserved}}}});
-            assert!(source["user"]["ext"]["prebid"].get("buyeruids").is_some());
+            let source = json!({"user": {"ext": {"prebid": prebid}}});
+            assert_eq!(source["user"]["ext"].get("prebid"), Some(&prebid));
             let before = serde_json::to_vec(&source).unwrap();
             let actual = Value::Object(
                 project(
@@ -320,13 +325,13 @@ mod tests {
                 )
                 .unwrap(),
             );
-            assert_eq!(actual, json!({"user": {"ext": {"prebid": {}}}}));
+            assert_eq!(actual, json!({"user": {"ext": {}}}));
             assert_eq!(serde_json::to_vec(&source).unwrap(), before);
         }
     }
 
     #[test]
-    fn buyer_uid_leaf_variants_are_removed_without_folding_other_paths() {
+    fn all_uid_leaf_spellings_are_contained_by_prebid_removal() {
         let member_sets: &[&[&str]] = &[
             &["BuyerUIDs"],
             &["buyerUids"],
@@ -338,7 +343,7 @@ mod tests {
             "buyeruids": "user-sibling", "ext": {
                 "BuyerUIDs": "extension-sibling",
                 "Prebid": {"buyeruids": "different-prefix"},
-                "prebid": {"buyeruidsx": "near-miss", "nested": {"BUYERUIDS": "nested-context"}}
+                "prebidx": {"buyeruids": "near-miss"}
             }
         }});
         let mut checked = 0_usize;
@@ -350,6 +355,9 @@ mod tests {
                 json!([{"nested": "array-canary"}]),
             ] {
                 let mut source = expected.clone();
+                source["user"]["ext"]["prebid"] = json!({
+                    "buyeruidsx": "contained-near-miss", "nested": {"BUYERUIDS": "contained-context"}
+                });
                 let prebid = source["user"]["ext"]["prebid"].as_object_mut().unwrap();
                 for &member in members {
                     assert!(prebid.insert(member.to_owned(), reserved.clone()).is_none());
@@ -378,7 +386,67 @@ mod tests {
     }
 
     #[test]
-    fn absent_uid_maps_preserve_user_extension_presence_and_non_object_values() {
+    fn every_user_and_extension_spelling_loses_only_exact_prebid() {
+        let paths: &[(&[&str], &[&str])] = &[
+            (&["user"], &["ext"]),
+            (&["User"], &["ext"]),
+            (&["USER"], &["ext"]),
+            (&["user"], &["Ext"]),
+            (&["user"], &["EXT"]),
+            (&["uSeR"], &["eXt"]),
+            (&["user", "User"], &["ext", "Ext"]),
+        ];
+        let mut checked = 0_usize;
+        for &(users, extensions) in paths {
+            let mut expected = json!({"userx": {"ext": {"prebid": "root-near-miss"}}});
+            for &user in users {
+                expected[user] = json!({
+                    "buyeruid": "explicit-hint", "extx": {"prebid": "extension-near-miss"}
+                });
+                for &extension in extensions {
+                    expected[user][extension] = json!({
+                        "ordinary": "context",
+                        "Prebid": {"buyeruids": "case-control"},
+                        "prebidx": {"buyeruids": "member-near-miss"}
+                    });
+                }
+            }
+            let mut source = expected.clone();
+            for &user in users {
+                for &extension in extensions {
+                    let members = source[user][extension].as_object_mut().unwrap();
+                    assert!(
+                        members
+                            .insert(
+                                "prebid".into(),
+                                json!({"buyeruids": {"fake_other": "uid-canary"}, "keep": "contained"}),
+                            )
+                            .is_none()
+                    );
+                    assert!(members.contains_key("prebid"));
+                }
+            }
+            let before = serde_json::to_vec(&source).unwrap();
+            let actual = Value::Object(
+                project(
+                    &source,
+                    &BidderName::new("fake_selected"),
+                    &AliasMap::default(),
+                )
+                .unwrap(),
+            );
+            assert_eq!(
+                actual, expected,
+                "users={users:?} extensions={extensions:?}"
+            );
+            assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+            checked += 1;
+        }
+        assert_eq!(checked, 7);
+    }
+
+    #[test]
+    fn absent_prebid_preserves_ancestor_presence_and_non_object_values() {
         for source in [
             json!({"id": "no-user"}),
             json!({"user": null}),
@@ -388,11 +456,10 @@ mod tests {
             json!({"user": {"ext": null}}),
             json!({"user": {"ext": []}}),
             json!({"user": {"ext": {}}}),
-            json!({"user": {"ext": {"prebid": null}}}),
-            json!({"user": {"ext": {"prebid": []}}}),
-            json!({"user": {"ext": {"prebid": "invalid-prebid"}}}),
-            json!({"user": {"ext": {"prebid": {}}}}),
-            json!({"user": {"ext": {"prebid": {"keep": "context"}}}}),
+            json!({"User": null}),
+            json!({"USER": "invalid-user"}),
+            json!({"user": {"Ext": null}}),
+            json!({"User": {"EXT": []}}),
         ] {
             let before = serde_json::to_vec(&source).unwrap();
             let actual = Value::Object(
@@ -457,7 +524,7 @@ mod tests {
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
-    fn omitted_uid_map_nodes_do_not_increase_projection_allocations() {
+    fn omitted_prebid_nodes_do_not_increase_projection_allocations() {
         for container in [false, true] {
             let mut observations = Vec::new();
             for count in [1_usize, 128, 2_048] {
@@ -477,15 +544,54 @@ mod tests {
                 let (result, requested, peak) = measured_root(&source);
                 assert_eq!(
                     result,
-                    json!({"user": {"buyeruid": "explicit-hint", "ext": {
-                        "prebid": {"keep": "context"}
-                    }}})
+                    json!({"user": {"buyeruid": "explicit-hint", "ext": {}}})
                 );
                 observations.push((requested, peak));
             }
             assert_eq!(observations.len(), 3);
             assert!(observations.iter().all(|value| value == &observations[0]));
         }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn omitted_user_prebid_payloads_are_not_cloned() {
+        let mut checked = 0_usize;
+        for (user, extension) in [
+            ("user", "ext"),
+            ("User", "ext"),
+            ("USER", "ext"),
+            ("user", "Ext"),
+            ("user", "EXT"),
+            ("User", "EXT"),
+        ] {
+            for sibling_only in [false, true] {
+                let mut observations = Vec::with_capacity(3);
+                let expected = json!({(user): {
+                    "buyeruid": "explicit-hint", (extension): {"ordinary": "kept"}
+                }});
+                for bytes in [128_usize, 1_024, 8_192] {
+                    let payload = "x".repeat(bytes);
+                    let prebid = if sibling_only {
+                        json!({"ordinary": payload})
+                    } else {
+                        json!({"buyeruids": {"fake_other": payload}, "keep": "contained"})
+                    };
+                    let source = json!({(user): {
+                        "buyeruid": "explicit-hint",
+                        (extension): {"prebid": prebid, "ordinary": "kept"}
+                    }});
+                    assert_eq!(source[user][extension].get("prebid"), Some(&prebid));
+                    let (result, requested, peak) = measured_root(&source);
+                    assert_eq!(result, expected);
+                    observations.push((requested, peak));
+                }
+                assert_eq!(observations.len(), 3);
+                assert!(observations.iter().all(|value| value == &observations[0]));
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 12);
     }
 
     #[test]
@@ -536,9 +642,7 @@ mod tests {
                                 "fake_selected": payload, "fake_other": "competitor-canary"
                             }, "keep": "context"}
                         }});
-                        expected["user"] = json!({"buyeruid": "explicit-hint", "ext": {
-                            "prebid": {"keep": "context"}
-                        }});
+                        expected["user"] = json!({"buyeruid": "explicit-hint", "ext": {}});
                     }
                 }
                 let (result, requested, peak) = measured_root(&source);
@@ -562,7 +666,7 @@ mod tests {
             for bytes in [128_usize, 1_024, 8_192] {
                 let payload = "x".repeat(bytes);
                 let source = if user_prefix {
-                    json!({"user": {"ext": {"prebid": {"ordinary": payload}}}})
+                    json!({"user": {"ext": {"Prebid": {"ordinary": payload}}}})
                 } else {
                     json!({"id": "retained-root", "ext": {"ordinary": payload}})
                 };
