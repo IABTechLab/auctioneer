@@ -411,9 +411,7 @@ mod tests {
         wire
     }
 
-    #[test]
-    fn unprotected_recipients_never_receive_request_wide_buyeruids() {
-        const POLICY: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.ccpa]\nenforce=false\n[host.lmt]\nenforce=false\n[account_defaults.privacy.allowactivities.transmitUfpd]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitPreciseGeo]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitTid]\ndefault=true\n";
+    fn uid_map_fixture() -> (BidderRegistry, Value) {
         let mut registry = BidderRegistry::new();
         for name in ["fake_first", "fake_second"] {
             registry
@@ -444,6 +442,13 @@ mod tests {
                 }
             }
         });
+        (registry, source)
+    }
+
+    #[test]
+    fn unprotected_recipients_never_receive_request_wide_buyeruids() {
+        const POLICY: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.ccpa]\nenforce=false\n[host.lmt]\nenforce=false\n[account_defaults.privacy.allowactivities.transmitUfpd]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitPreciseGeo]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitTid]\ndefault=true\n";
+        let (registry, fixture) = uid_map_fixture();
         let expected_user = json!({
             "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
             "keywords": "ordinary-context", "ext": {
@@ -462,7 +467,7 @@ mod tests {
         let mut leaks = Vec::new();
         let mut checked = 0_usize;
         for &members in member_sets {
-            let mut source = source.clone();
+            let mut source = fixture.clone();
             let prebid = source["user"]["ext"]["prebid"].as_object_mut().unwrap();
             assert!(prebid.remove("buyeruids").is_some());
             for &member in members {
