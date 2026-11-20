@@ -303,7 +303,11 @@ mod tests {
 
     #[test]
     fn removing_the_only_uid_member_preserves_its_empty_parent() {
-        for reserved in [json!({}), json!({"fake_selected": "uid-canary"}), Value::Null] {
+        for reserved in [
+            json!({}),
+            json!({"fake_selected": "uid-canary"}),
+            Value::Null,
+        ] {
             let source = json!({"user": {"ext": {"prebid": {"buyeruids": reserved}}}});
             assert!(source["user"]["ext"]["prebid"].get("buyeruids").is_some());
             let before = serde_json::to_vec(&source).unwrap();
