@@ -17,10 +17,7 @@ pub(super) fn project(
         match key.as_str() {
             "imp" => {}
             user if user.eq_ignore_ascii_case("user") => {
-                root.insert(
-                    key.clone(),
-                    project_without(value, &["ext", "prebid"]),
-                );
+                root.insert(key.clone(), project_without(value, &["ext", "prebid"]));
             }
             "ext" => {
                 root.insert(key.clone(), project_ext(value, bidder, aliases));
