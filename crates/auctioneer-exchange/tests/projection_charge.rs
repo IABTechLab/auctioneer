@@ -163,6 +163,7 @@ mod tests {
             let absent = dense_user_prefix(path);
             let mut present = absent.clone();
             present["user"]["ext"]["prebid"]["buyeruids"] = json!({"fake_a0": "x"});
+            present["user"]["ext"]["prebid"]["BUYERUIDS"] = json!({"fake_a1": "y"});
             fixtures.push((absent_name, absent));
             fixtures.push((present_name, present));
         }

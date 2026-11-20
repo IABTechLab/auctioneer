@@ -325,6 +325,55 @@ mod tests {
     }
 
     #[test]
+    fn buyer_uid_leaf_variants_are_removed_without_folding_other_paths() {
+        let member_sets: &[&[&str]] = &[
+            &["BuyerUIDs"],
+            &["buyerUids"],
+            &["BUYERUIDS"],
+            &["buyeruids", "BuyerUIDs", "buyerUids", "BUYERUIDS"],
+        ];
+        let expected = json!({"user": {
+            "id": "ordinary-id", "buyeruid": "explicit-hint",
+            "buyeruids": "user-sibling", "ext": {
+                "BuyerUIDs": "extension-sibling",
+                "Prebid": {"buyeruids": "different-prefix"},
+                "prebid": {"buyeruidsx": "near-miss", "nested": {"BUYERUIDS": "nested-context"}}
+            }
+        }});
+        let mut checked = 0_usize;
+        for &members in member_sets {
+            for reserved in [
+                json!({"fake_first": "first-canary", "fake_second": "second-canary"}),
+                Value::Null,
+                json!("scalar-canary"),
+                json!([{"nested": "array-canary"}]),
+            ] {
+                let mut source = expected.clone();
+                let prebid = source["user"]["ext"]["prebid"].as_object_mut().unwrap();
+                for &member in members {
+                    assert!(prebid.insert(member.to_owned(), reserved.clone()).is_none());
+                }
+                for &member in members {
+                    assert_eq!(prebid.get(member), Some(&reserved));
+                }
+                let before = serde_json::to_vec(&source).unwrap();
+                let actual = Value::Object(
+                    project(
+                        &source,
+                        &BidderName::new("fake_selected"),
+                        &AliasMap::default(),
+                    )
+                    .unwrap(),
+                );
+                assert_eq!(actual, expected, "members={members:?} reserved={reserved:?}");
+                assert_eq!(serde_json::to_vec(&source).unwrap(), before);
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 16);
+    }
+
+    #[test]
     fn absent_uid_maps_preserve_user_extension_presence_and_non_object_values() {
         for source in [
             json!({"id": "no-user"}),
@@ -442,13 +491,15 @@ mod tests {
         enum Omitted {
             CompetitorParams,
             BidderConfig,
-            BuyerUids,
+            BuyerUids(&'static str),
         }
 
         for omitted in [
             Omitted::CompetitorParams,
             Omitted::BidderConfig,
-            Omitted::BuyerUids,
+            Omitted::BuyerUids("buyeruids"),
+            Omitted::BuyerUids("BuyerUIDs"),
+            Omitted::BuyerUids("BUYERUIDS"),
         ] {
             let mut observations = Vec::with_capacity(3);
             let mut expected = json!({
@@ -475,9 +526,9 @@ mod tests {
                             "config": {"ortb2": {"user": {"keywords": payload}}}
                         }]);
                     }
-                    Omitted::BuyerUids => {
+                    Omitted::BuyerUids(member) => {
                         source["user"] = json!({"buyeruid": "explicit-hint", "ext": {
-                            "prebid": {"buyeruids": {
+                            "prebid": {(member): {
                                 "fake_selected": payload, "fake_other": "competitor-canary"
                             }, "keep": "context"}
                         }});
