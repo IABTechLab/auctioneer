@@ -34,7 +34,8 @@ pub(super) fn project(
 }
 
 // This walk follows only the three literal user-path components, never input depth.
-// Omit the terminal member before cloning its key, value or ancestor objects.
+// Prefixes match exactly; omit all ASCII-case variants of the terminal member
+// before cloning its key, value or ancestor objects.
 fn project_without(source: &Value, path: &[&str]) -> Value {
     let (Some(members), Some((next, rest))) = (source.as_object(), path.split_first()) else {
         return source.clone();
@@ -43,10 +44,10 @@ fn project_without(source: &Value, path: &[&str]) -> Value {
         members
             .iter()
             .filter_map(|(key, value)| {
+                if rest.is_empty() && key.eq_ignore_ascii_case(next) {
+                    return None;
+                }
                 let projected = if key.as_str() == *next {
-                    if rest.is_empty() {
-                        return None;
-                    }
                     project_without(value, rest)
                 } else {
                     value.clone()
@@ -365,7 +366,10 @@ mod tests {
                     )
                     .unwrap(),
                 );
-                assert_eq!(actual, expected, "members={members:?} reserved={reserved:?}");
+                assert_eq!(
+                    actual, expected,
+                    "members={members:?} reserved={reserved:?}"
+                );
                 assert_eq!(serde_json::to_vec(&source).unwrap(), before);
                 checked += 1;
             }
