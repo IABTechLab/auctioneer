@@ -16,10 +16,10 @@ pub(super) fn project(
     for (key, value) in source {
         match key.as_str() {
             "imp" => {}
-            "user" => {
+            user if user.eq_ignore_ascii_case("user") => {
                 root.insert(
                     key.clone(),
-                    project_without(value, &["ext", "prebid", "buyeruids"]),
+                    project_without(value, &["ext", "prebid"]),
                 );
             }
             "ext" => {
@@ -33,9 +33,9 @@ pub(super) fn project(
     Ok(root)
 }
 
-// This walk follows only the three literal user-path components, never input depth.
-// Prefixes match exactly; omit all ASCII-case variants of the terminal member
-// before cloning its key, value or ancestor objects.
+// Traverse only the fixed ext/prebid path, never attacker-selected input depth.
+// Match ext ASCII-case-insensitively; omit the whole exact prebid member before
+// cloning it or its ancestors. Differently cased Prebid remains ordinary context.
 fn project_without(source: &Value, path: &[&str]) -> Value {
     let (Some(members), Some((next, rest))) = (source.as_object(), path.split_first()) else {
         return source.clone();
@@ -44,10 +44,16 @@ fn project_without(source: &Value, path: &[&str]) -> Value {
         members
             .iter()
             .filter_map(|(key, value)| {
-                if rest.is_empty() && key.eq_ignore_ascii_case(next) {
+                let terminal = rest.is_empty();
+                let matches = if terminal {
+                    key.as_str() == *next
+                } else {
+                    key.eq_ignore_ascii_case(next)
+                };
+                if matches && terminal {
                     return None;
                 }
-                let projected = if key.as_str() == *next {
+                let projected = if matches {
                     project_without(value, rest)
                 } else {
                     value.clone()

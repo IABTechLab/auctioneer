@@ -485,7 +485,11 @@ mod tests {
             ("user", "ext", &["BuyerUIDs"]),
             ("user", "ext", &["buyerUids"]),
             ("user", "ext", &["BUYERUIDS"]),
-            ("user", "ext", &["buyeruids", "BuyerUIDs", "buyerUids", "BUYERUIDS"]),
+            (
+                "user",
+                "ext",
+                &["buyeruids", "BuyerUIDs", "buyerUids", "BUYERUIDS"],
+            ),
             ("User", "ext", &["buyeruids"]),
             ("USER", "ext", &["buyeruids"]),
             ("user", "Ext", &["buyeruids"]),
