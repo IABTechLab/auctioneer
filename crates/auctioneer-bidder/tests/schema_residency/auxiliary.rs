@@ -4,16 +4,26 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::{ToTokens, quote};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
-use syn::{Expr, Item, Stmt, Token, parse::{Parse, ParseStream}, visit_mut::{self, VisitMut}};
+use syn::{
+    Expr, Item, Stmt, Token,
+    parse::{Parse, ParseStream},
+    visit_mut::{self, VisitMut},
+};
 
 const REFUSAL: &str = "unsupported captured staging syntax";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Status { Absent, Complete }
+pub(super) enum Status {
+    Absent,
+    Complete,
+}
 
 impl Status {
     pub(super) fn as_str(self) -> &'static str {
-        match self { Self::Absent => "Absent", Self::Complete => "Complete" }
+        match self {
+            Self::Absent => "Absent",
+            Self::Complete => "Complete",
+        }
     }
 }
 
@@ -31,7 +41,9 @@ struct Row {
     owner: String,
 }
 
-fn error() -> String { REFUSAL.to_owned() }
+fn error() -> String {
+    REFUSAL.to_owned()
+}
 // Only parsed syn nodes may enter the spacing-insensitive comparison.
 // Macro predicates are parsed by Assertion/Required before their comparison.
 trait ParsedFragment: ToTokens {}
@@ -39,9 +51,19 @@ macro_rules! parsed_fragments {
     ($($fragment:ty),* $(,)?) => { $(impl ParsedFragment for $fragment {})* };
 }
 parsed_fragments!(
-    syn::ItemStruct, syn::ItemUse, syn::ItemConst, syn::Visibility,
-    syn::Path, syn::Type, syn::Pat, syn::Expr, syn::Stmt, syn::Signature,
-    syn::Attribute, Box<syn::Type>, Box<syn::Pat>,
+    syn::ItemStruct,
+    syn::ItemUse,
+    syn::ItemConst,
+    syn::Visibility,
+    syn::Path,
+    syn::Type,
+    syn::Pat,
+    syn::Expr,
+    syn::Stmt,
+    syn::Signature,
+    syn::Attribute,
+    Box<syn::Type>,
+    Box<syn::Pat>,
 );
 impl<T: ParsedFragment + ?Sized> ParsedFragment for &T {}
 
@@ -55,17 +77,21 @@ fn token_trees_equal(left: TokenStream, right: TokenStream) -> bool {
     loop {
         let equal = match (left.next(), right.next()) {
             (None, None) => return true,
-            (Some(TokenTree::Group(a)), Some(TokenTree::Group(b))) =>
-                a.delimiter() == b.delimiter() && token_trees_equal(a.stream(), b.stream()),
-            (Some(TokenTree::Ident(a)), Some(TokenTree::Ident(b))) =>
-                a.to_string() == b.to_string(),
-            (Some(TokenTree::Punct(a)), Some(TokenTree::Punct(b))) =>
-                a.as_char() == b.as_char(),
-            (Some(TokenTree::Literal(a)), Some(TokenTree::Literal(b))) =>
-                a.to_string() == b.to_string(),
+            (Some(TokenTree::Group(a)), Some(TokenTree::Group(b))) => {
+                a.delimiter() == b.delimiter() && token_trees_equal(a.stream(), b.stream())
+            }
+            (Some(TokenTree::Ident(a)), Some(TokenTree::Ident(b))) => {
+                a.to_string() == b.to_string()
+            }
+            (Some(TokenTree::Punct(a)), Some(TokenTree::Punct(b))) => a.as_char() == b.as_char(),
+            (Some(TokenTree::Literal(a)), Some(TokenTree::Literal(b))) => {
+                a.to_string() == b.to_string()
+            }
             _ => false,
         };
-        if !equal { return false; }
+        if !equal {
+            return false;
+        }
     }
 }
 
@@ -79,8 +105,11 @@ fn path(expr: &Expr, names: &[&str]) -> bool {
 
 fn call<'a>(expr: &'a Expr, names: &[&str], arity: usize) -> Option<&'a syn::ExprCall> {
     match expr {
-        Expr::Call(value) if value.attrs.is_empty()
-            && path(&value.func, names) && value.args.len() == arity => Some(value),
+        Expr::Call(value)
+            if value.attrs.is_empty() && path(&value.func, names) && value.args.len() == arity =>
+        {
+            Some(value)
+        }
         _ => None,
     }
 }
@@ -88,14 +117,14 @@ fn call<'a>(expr: &'a Expr, names: &[&str], arity: usize) -> Option<&'a syn::Exp
 fn string(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Lit(value) if value.attrs.is_empty() => match &value.lit {
-            syn::Lit::Str(text) => Some(text.value()), _ => None,
+            syn::Lit::Str(text) => Some(text.value()),
+            _ => None,
         },
         _ => None,
     }
 }
 
 fn bytes(expr: &Expr) -> Option<Vec<u8>> {
-    let Expr::Unary(value) = expr else { return None; };
     if !value.attrs.is_empty() || !matches!(&value.op, syn::UnOp::Deref(_)) { return None; }
     let Expr::Lit(literal) = value.expr.as_ref() else { return None; };
     if !literal.attrs.is_empty() { return None; }
@@ -159,22 +188,39 @@ fn retention_row(
         || bytes(fields["identity"]).as_deref() != Some(identity.as_bytes())
         || !path(fields["validate"], &[&marker_text, "is_valid"])
         || !path(fields["new_cache"], &[&marker_text, "new_search_cache"])
-        || !path(fields["initialize"], &[&marker_text, "initialize_regexes"]) { return Err(error()); }
-    Ok(Row { ordinal, entry: item.ident.clone(), marker, cache, owner })
+        || !path(fields["initialize"], &[&marker_text, "initialize_regexes"])
+    {
+        return Err(error());
+    }
+    Ok(Row {
+        ordinal,
+        entry: item.ident.clone(),
+        marker,
+        cache,
+        owner,
+    })
 }
 
-struct Assertion { condition: Expr, message: syn::LitStr }
+struct Assertion {
+    condition: Expr,
+    message: syn::LitStr,
+}
 impl Parse for Assertion {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let condition = input.parse()?;
         input.parse::<Token![,]>()?;
-        Ok(Self { condition, message: input.parse()? })
+        Ok(Self {
+            condition,
+            message: input.parse()?,
+        })
     }
 }
 
 fn statement_macro(statement: &Stmt) -> Option<&syn::Macro> {
     match statement {
-        Stmt::Macro(value) if value.attrs.is_empty() && value.semi_token.is_some() => Some(&value.mac),
+        Stmt::Macro(value) if value.attrs.is_empty() && value.semi_token.is_some() => {
+            Some(&value.mac)
+        }
         Stmt::Expr(Expr::Macro(value), Some(_)) if value.attrs.is_empty() => Some(&value.mac),
         _ => None,
     }
@@ -182,52 +228,123 @@ fn statement_macro(statement: &Stmt) -> Option<&syn::Macro> {
 
 fn abi(item: &syn::ItemConst, cache: &syn::Ident) -> bool {
     let initializer = &item.expr;
-    if !same(item, quote!(const _: () = #initializer;)) { return false; }
-    if !item.attrs.is_empty() || item.ident != "_" || !same(&item.vis, quote!())
-        || !same(&item.ty, quote!(())) { return false; }
-    let Expr::Block(value) = item.expr.as_ref() else { return false; };
-    if !value.attrs.is_empty() || value.label.is_some() { return false; }
+    if !same(item, quote!(const _: () = #initializer;)) {
+        return false;
+    }
+    if !item.attrs.is_empty()
+        || item.ident != "_"
+        || !same(&item.vis, quote!())
+        || !same(&item.ty, quote!(()))
+    {
+        return false;
+    }
+    let Expr::Block(value) = item.expr.as_ref() else {
+        return false;
+    };
+    if !value.attrs.is_empty() || value.label.is_some() {
+        return false;
+    }
     let predicates = [
-        (quote!(size_of::<fn(&serde_json::Value, &mut #cache) -> bool>() == word), "validation function pointer width"),
-        (quote!(size_of::<fn() -> Option<#cache>>() == word), "cache function pointer width"),
-        (quote!(size_of::<fn() -> bool>() == word), "initialization function pointer width"),
-        (quote!(align_of::<StagedValidator<#cache>>() == word), "schema inspection row alignment"),
-        (quote!(offset_of!(StagedValidator<#cache>, magic) == 0), "schema inspection magic offset"),
-        (quote!(offset_of!(StagedValidator<#cache>, identity) == 16), "schema inspection identity offset"),
-        (quote!(offset_of!(StagedValidator<#cache>, owner) == 80), "schema inspection owner offset"),
-        (quote!(offset_of!(StagedValidator<#cache>, owner_len) == 144), "schema inspection owner length offset"),
-        (quote!(offset_of!(StagedValidator<#cache>, validate) == validate), "schema inspection validation pointer offset"),
-        (quote!(offset_of!(StagedValidator<#cache>, new_cache) == new_cache), "schema inspection cache pointer offset"),
-        (quote!(offset_of!(StagedValidator<#cache>, initialize) == initialize), "schema inspection initialization pointer offset"),
-        (quote!(size_of::<StagedValidator<#cache>>() == row_bytes), "schema inspection row size"),
+        (
+            quote!(size_of::<fn(&serde_json::Value, &mut #cache) -> bool>() == word),
+            "validation function pointer width",
+        ),
+        (
+            quote!(size_of::<fn() -> Option<#cache>>() == word),
+            "cache function pointer width",
+        ),
+        (
+            quote!(size_of::<fn() -> bool>() == word),
+            "initialization function pointer width",
+        ),
+        (
+            quote!(align_of::<StagedValidator<#cache>>() == word),
+            "schema inspection row alignment",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, magic) == 0),
+            "schema inspection magic offset",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, identity) == 16),
+            "schema inspection identity offset",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, owner) == 80),
+            "schema inspection owner offset",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, owner_len) == 144),
+            "schema inspection owner length offset",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, validate) == validate),
+            "schema inspection validation pointer offset",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, new_cache) == new_cache),
+            "schema inspection cache pointer offset",
+        ),
+        (
+            quote!(offset_of!(StagedValidator<#cache>, initialize) == initialize),
+            "schema inspection initialization pointer offset",
+        ),
+        (
+            quote!(size_of::<StagedValidator<#cache>>() == row_bytes),
+            "schema inspection row size",
+        ),
     ];
     let statements = &value.block.stmts;
     if statements.len() != 3 + predicates.len()
-        || !same(&statements[0], quote!(use std::mem::{align_of, offset_of, size_of};))
+        || !same(
+            &statements[0],
+            quote!(
+                use std::mem::{align_of, offset_of, size_of};
+            ),
+        )
         || !same(&statements[1], quote!(let word = size_of::<usize>();))
-        || !same(&statements[2], quote! {
-            let (validate, new_cache, initialize, row_bytes) = match word {
-                4 => (148, 152, 156, 160),
-                8 => (152, 160, 168, 176),
-                _ => panic!("unsupported schema inspection pointer width"),
+        || !same(
+            &statements[2],
+            quote! {
+                let (validate, new_cache, initialize, row_bytes) = match word {
+                    4 => (148, 152, 156, 160),
+                    8 => (152, 160, 168, 176),
+                    _ => panic!("unsupported schema inspection pointer width"),
+                };
+            },
+        )
+    {
+        return false;
+    }
+    statements[3..]
+        .iter()
+        .zip(predicates)
+        .all(|(statement, (predicate, message))| {
+            let Some(mac) = statement_macro(statement) else {
+                return false;
             };
-        }) { return false; }
-    statements[3..].iter().zip(predicates).all(|(statement, (predicate, message))| {
-        let Some(mac) = statement_macro(statement) else { return false; };
-        if !mac.path.is_ident("assert") || !matches!(&mac.delimiter, syn::MacroDelimiter::Paren(_)) {
-            return false;
-        }
-        let Ok(assertion) = syn::parse2::<Assertion>(mac.tokens.clone()) else { return false; };
-        same(&assertion.condition, predicate) && assertion.message.value() == message
-    })
+            if !mac.path.is_ident("assert")
+                || !matches!(&mac.delimiter, syn::MacroDelimiter::Paren(_))
+            {
+                return false;
+            }
+            let Ok(assertion) = syn::parse2::<Assertion>(mac.tokens.clone()) else {
+                return false;
+            };
+            same(&assertion.condition, predicate) && assertion.message.value() == message
+        })
 }
 
 // Reject attributes and nested items even inside otherwise allowed arguments.
 fn plain_body(block: &syn::Block) -> bool {
     struct Plain(bool);
     impl VisitMut for Plain {
-        fn visit_attribute_mut(&mut self, _attribute: &mut syn::Attribute) { self.0 = false; }
-        fn visit_item_mut(&mut self, _item: &mut Item) { self.0 = false; }
+        fn visit_attribute_mut(&mut self, _attribute: &mut syn::Attribute) {
+            self.0 = false;
+        }
+        fn visit_item_mut(&mut self, _item: &mut Item) {
+            self.0 = false;
+        }
     }
     let mut block = block.clone();
     let mut plain = Plain(true);
@@ -236,38 +353,61 @@ fn plain_body(block: &syn::Block) -> bool {
 }
 
 fn tail(block: &syn::Block) -> Option<&Expr> {
-    match block.stmts.as_slice() { [Stmt::Expr(expr, None)] => Some(expr), _ => None }
+    match block.stmts.as_slice() {
+        [Stmt::Expr(expr, None)] => Some(expr),
+        _ => None,
+    }
 }
 
 fn patterns(pattern: &syn::Pat, output: &mut Vec<String>) -> bool {
     match pattern {
         syn::Pat::Lit(value) if value.attrs.is_empty() => {
-            if let syn::Lit::Str(text) = &value.lit { output.push(text.value()); true } else { false }
+            if let syn::Lit::Str(text) = &value.lit {
+                output.push(text.value());
+                true
+            } else {
+                false
+            }
         }
-        syn::Pat::Or(value) if value.attrs.is_empty() && value.leading_vert.is_none() =>
-            value.cases.iter().all(|case| patterns(case, output)),
+        syn::Pat::Or(value) if value.attrs.is_empty() && value.leading_vert.is_none() => {
+            value.cases.iter().all(|case| patterns(case, output))
+        }
         _ => false,
     }
 }
 
 fn named_match<'a>(expr: &'a Expr, selector: &str) -> Option<&'a syn::ExprMatch> {
     match expr {
-        Expr::Match(value) if value.attrs.is_empty() && path(&value.expr, &[selector])
-            && value.arms.iter().all(|arm| arm.attrs.is_empty()
-                && !matches!(&arm.pat, syn::Pat::Guard(_)))
-            && value.arms.last().is_some_and(|arm|
-                matches!(&arm.pat, syn::Pat::Wild(pattern) if pattern.attrs.is_empty())
-                && path(&arm.body, &["None"])) => Some(value),
+        Expr::Match(value)
+            if value.attrs.is_empty()
+                && path(&value.expr, &[selector])
+                && value
+                    .arms
+                    .iter()
+                    .all(|arm| arm.attrs.is_empty() && !matches!(&arm.pat, syn::Pat::Guard(_)))
+                && value.arms.last().is_some_and(|arm| {
+                    matches!(&arm.pat, syn::Pat::Wild(pattern) if pattern.attrs.is_empty())
+                        && path(&arm.body, &["None"])
+                }) =>
+        {
+            Some(value)
+        }
         _ => None,
     }
 }
 
-struct Required { selector: syn::Ident, pattern: syn::Pat }
+struct Required {
+    selector: syn::Ident,
+    pattern: syn::Pat,
+}
 impl Parse for Required {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let selector = input.parse()?;
         input.parse::<Token![,]>()?;
-        Ok(Self { selector, pattern: input.call(syn::Pat::parse_multi_with_leading_vert)? })
+        Ok(Self {
+            selector,
+            pattern: input.call(syn::Pat::parse_multi_with_leading_vert)?,
+        })
     }
 }
 
@@ -277,15 +417,28 @@ fn edge(edges: &mut Vec<Value>, function: &str, target: &str, role: &str) {
 
 fn initialization(expr: &Expr, output: &mut Vec<String>) -> bool {
     match expr {
-        Expr::Binary(value) if value.attrs.is_empty() && matches!(&value.op, syn::BinOp::And(_)) =>
-            initialization(&value.left, output) && initialization(&value.right, output),
+        Expr::Binary(value)
+            if value.attrs.is_empty() && matches!(&value.op, syn::BinOp::And(_)) =>
+        {
+            initialization(&value.left, output) && initialization(&value.right, output)
+        }
         Expr::Call(value) if value.attrs.is_empty() && value.args.is_empty() => {
-            let Expr::Path(name) = value.func.as_ref() else { return false; };
-            if !name.attrs.is_empty() || name.qself.is_some() || name.path.leading_colon.is_some()
-                || name.path.segments.len() != 2 { return false; }
+            let Expr::Path(name) = value.func.as_ref() else {
+                return false;
+            };
+            if !name.attrs.is_empty()
+                || name.qself.is_some()
+                || name.path.leading_colon.is_some()
+                || name.path.segments.len() != 2
+            {
+                return false;
+            }
             let segments = name.path.segments.iter().collect::<Vec<_>>();
             if segments.iter().any(|part| !part.arguments.is_empty())
-                || segments[1].ident != "initialize_regexes" { return false; }
+                || segments[1].ident != "initialize_regexes"
+            {
+                return false;
+            }
             output.push(segments[0].ident.to_string());
             true
         }
@@ -300,91 +453,163 @@ fn function(
     edges: &mut Vec<Value>,
 ) -> Result<(), String> {
     let name = item.sig.ident.to_string();
-    if !same(&item.vis, quote!(pub(super))) || !plain_body(&item.block) { return Err(error()); }
+    if !same(&item.vis, quote!(pub(super))) || !plain_body(&item.block) {
+        return Err(error());
+    }
     if name == "retain_for_inspection" {
         if !item.attrs.is_empty() || !same(&item.sig, quote!(fn retain_for_inspection())) {
             return Err(error());
         }
-        let [Stmt::Expr(expr, Some(_))] = item.block.stmts.as_slice() else { return Err(error()); };
+        let [Stmt::Expr(expr, Some(_))] = item.block.stmts.as_slice() else {
+            return Err(error());
+        };
         let invocation = call(expr, &["black_box"], 1).ok_or_else(error)?;
         let argument = invocation.args.first().ok_or_else(error)?;
         if rows.is_empty() {
             if !matches!(argument, Expr::Paren(value) if value.attrs.is_empty()
-                && path(&value.expr, &["STAGING_INPUT_ID"])) { return Err(error()); }
+                && path(&value.expr, &["STAGING_INPUT_ID"]))
+            {
+                return Err(error());
+            }
         } else {
-            let Expr::Tuple(tuple) = argument else { return Err(error()); };
-            if !tuple.attrs.is_empty() || tuple.elems.len() != rows.len() + 1 { return Err(error()); }
+            let Expr::Tuple(tuple) = argument else {
+                return Err(error());
+            };
+            if !tuple.attrs.is_empty() || tuple.elems.len() != rows.len() + 1 {
+                return Err(error());
+            }
             for (argument, row) in tuple.elems.iter().zip(rows) {
-                let Expr::Reference(value) = argument else { return Err(error()); };
-                if !value.attrs.is_empty() || value.mutability.is_some()
-                    || !path(&value.expr, &[&row.entry.to_string()]) { return Err(error()); }
+                let Expr::Reference(value) = argument else {
+                    return Err(error());
+                };
+                if !value.attrs.is_empty()
+                    || value.mutability.is_some()
+                    || !path(&value.expr, &[&row.entry.to_string()])
+                {
+                    return Err(error());
+                }
                 edge(edges, &name, &row.entry.to_string(), "inspection-reference");
             }
-            if !tuple.elems.last().is_some_and(|expr| path(expr, &["STAGING_INPUT_ID"])) {
+            if !tuple
+                .elems
+                .last()
+                .is_some_and(|expr| path(expr, &["STAGING_INPUT_ID"]))
+            {
                 return Err(error());
             }
         }
         return Ok(());
     }
-    if item.attrs.len() != 1
-        || !same(&item.attrs[0], quote!(#[cfg(not(target_arch = "wasm32"))])) { return Err(error()); }
+    if item.attrs.len() != 1 || !same(&item.attrs[0], quote!(#[cfg(not(target_arch = "wasm32"))])) {
+        return Err(error());
+    }
     let expr = tail(&item.block).ok_or_else(error)?;
     match name.as_str() {
         "initialize_native" => {
-            if !same(&item.sig, quote!(fn initialize_native() -> bool)) { return Err(error()); }
-            let mut calls = Vec::new();
-            if rows.is_empty() {
-                if !same(expr, quote!(true)) { return Err(error()); }
-            } else if !initialization(expr, &mut calls)
-                || calls != rows.iter().map(|row| row.marker.to_string()).collect::<Vec<_>>() {
+            if !same(&item.sig, quote!(fn initialize_native() -> bool)) {
                 return Err(error());
             }
-            for marker in calls { edge(edges, &name, &marker, "initialize-regexes"); }
+            let mut calls = Vec::new();
+            if rows.is_empty() {
+                if !same(expr, quote!(true)) {
+                    return Err(error());
+                }
+            } else if !initialization(expr, &mut calls)
+                || calls
+                    != rows
+                        .iter()
+                        .map(|row| row.marker.to_string())
+                        .collect::<Vec<_>>()
+            {
+                return Err(error());
+            }
+            for marker in calls {
+                edge(edges, &name, &marker, "initialize-regexes");
+            }
         }
         "validate_native" => {
-            if !same(&item.sig, quote!(
-                fn validate_native(owner: &str, value: &serde_json::Value) -> Option<bool>
-            )) { return Err(error()); }
+            if !same(
+                &item.sig,
+                quote!(
+                    fn validate_native(owner: &str, value: &serde_json::Value) -> Option<bool>
+                ),
+            ) {
+                return Err(error());
+            }
             let dispatch = named_match(expr, "owner").ok_or_else(error)?;
             let mut seen = BTreeSet::new();
             for arm in &dispatch.arms[..dispatch.arms.len() - 1] {
                 let mut owners = Vec::new();
-                if !patterns(&arm.pat, &mut owners) || owners.len() != 1 { return Err(error()); }
+                if !patterns(&arm.pat, &mut owners) || owners.len() != 1 {
+                    return Err(error());
+                }
                 let owner = &owners[0];
-                let row = rows.iter().find(|row| &row.owner == owner).ok_or_else(error)?;
-                if !seen.insert(owner.clone()) { return Err(error()); }
-                let Expr::Block(block) = arm.body.as_ref() else { return Err(error()); };
-                if !block.attrs.is_empty() || block.label.is_some() { return Err(error()); }
+                let row = rows
+                    .iter()
+                    .find(|row| &row.owner == owner)
+                    .ok_or_else(error)?;
+                if !seen.insert(owner.clone()) {
+                    return Err(error());
+                }
+                let Expr::Block(block) = arm.body.as_ref() else {
+                    return Err(error());
+                };
+                if !block.attrs.is_empty() || block.label.is_some() {
+                    return Err(error());
+                }
                 let [Stmt::Local(local), Stmt::Expr(result, None)] = block.block.stmts.as_slice()
-                    else { return Err(error()); };
+                else {
+                    return Err(error());
+                };
                 let marker = row.marker.to_string();
-                if !local.attrs.is_empty() || !same(&local.pat, quote!(mut cache)) { return Err(error()); }
+                if !local.attrs.is_empty() || !same(&local.pat, quote!(mut cache)) {
+                    return Err(error());
+                }
                 let initial = local.init.as_ref().ok_or_else(error)?;
-                let Expr::Try(attempt) = initial.expr.as_ref() else { return Err(error()); };
-                if initial.diverge.is_some() || !attempt.attrs.is_empty()
-                    || call(&attempt.expr, &[&marker, "new_search_cache"], 0).is_none() {
+                let Expr::Try(attempt) = initial.expr.as_ref() else {
+                    return Err(error());
+                };
+                if initial.diverge.is_some()
+                    || !attempt.attrs.is_empty()
+                    || call(&attempt.expr, &[&marker, "new_search_cache"], 0).is_none()
+                {
                     return Err(error());
                 }
                 let some = call(result, &["Some"], 1).ok_or_else(error)?;
-                let validate = call(some.args.first().ok_or_else(error)?,
-                    &[&marker, "is_valid"], 2).ok_or_else(error)?;
+                let validate = call(
+                    some.args.first().ok_or_else(error)?,
+                    &[&marker, "is_valid"],
+                    2,
+                )
+                .ok_or_else(error)?;
                 let mut arguments = validate.args.iter();
                 if !arguments.next().is_some_and(|expr| path(expr, &["value"]))
-                    || !arguments.next().is_some_and(|expr| same(expr, quote!(&mut cache))) {
+                    || !arguments
+                        .next()
+                        .is_some_and(|expr| same(expr, quote!(&mut cache)))
+                {
                     return Err(error());
                 }
                 edge(edges, &name, &marker, "validation-call-cache-factory");
                 edge(edges, &name, &marker, "is-valid-with-call-cache");
             }
-            if seen != rows.iter().map(|row| row.owner.clone()).collect() { return Err(error()); }
+            if seen != rows.iter().map(|row| row.owner.clone()).collect() {
+                return Err(error());
+            }
         }
         "native_owner" => {
             if path(expr, &["None"]) {
-                if !same(&item.sig, quote!(fn native_owner(_: &str) -> Option<&'static str>)) {
+                if !same(
+                    &item.sig,
+                    quote!(fn native_owner(_: &str) -> Option<&'static str>),
+                ) {
                     return Err(error());
                 }
             } else {
-                if !same(&item.sig, quote!(fn native_owner(name: &str) -> Option<&'static str>)) {
+                if !same(
+                    &item.sig,
+                    quote!(fn native_owner(name: &str) -> Option<&'static str>),
+                ) {
                     return Err(error());
                 }
                 let dispatch = named_match(expr, "name").ok_or_else(error)?;
@@ -393,10 +618,15 @@ fn function(
                     let some = call(&arm.body, &["Some"], 1).ok_or_else(error)?;
                     let owner = string(some.args.first().ok_or_else(error)?).ok_or_else(error)?;
                     let mut names = Vec::new();
-                    if !patterns(&arm.pat, &mut names) || names.is_empty() { return Err(error()); }
+                    if !patterns(&arm.pat, &mut names) || names.is_empty() {
+                        return Err(error());
+                    }
                     for member in names {
                         if !seen.insert(member.clone())
-                            || members.get(&member) != Some(&Some(owner.clone())) { return Err(error()); }
+                            || members.get(&member) != Some(&Some(owner.clone()))
+                        {
+                            return Err(error());
+                        }
                         edges.push(json!({"from":name,"member":member,"owner":owner,
                             "role":"native-owner-lookup","ownership":"literal-only"}));
                     }
@@ -405,19 +635,36 @@ fn function(
         }
         "native_required" => {
             if same(expr, quote!(false)) {
-                if !same(&item.sig, quote!(fn native_required(_: &str) -> bool)) { return Err(error()); }
+                if !same(&item.sig, quote!(fn native_required(_: &str) -> bool)) {
+                    return Err(error());
+                }
             } else {
-                if !same(&item.sig, quote!(fn native_required(name: &str) -> bool)) { return Err(error()); }
-                let Expr::Macro(value) = expr else { return Err(error()); };
-                if !value.attrs.is_empty() || !value.mac.path.is_ident("matches")
-                    || !matches!(&value.mac.delimiter, syn::MacroDelimiter::Paren(_)) { return Err(error()); }
-                let required = syn::parse2::<Required>(value.mac.tokens.clone()).map_err(|_error| error())?;
+                if !same(&item.sig, quote!(fn native_required(name: &str) -> bool)) {
+                    return Err(error());
+                }
+                let Expr::Macro(value) = expr else {
+                    return Err(error());
+                };
+                if !value.attrs.is_empty()
+                    || !value.mac.path.is_ident("matches")
+                    || !matches!(&value.mac.delimiter, syn::MacroDelimiter::Paren(_))
+                {
+                    return Err(error());
+                }
+                let required =
+                    syn::parse2::<Required>(value.mac.tokens.clone()).map_err(|_error| error())?;
                 let mut names = Vec::new();
-                if required.selector != "name" || !patterns(&required.pattern, &mut names)
-                    || names.is_empty() { return Err(error()); }
+                if required.selector != "name"
+                    || !patterns(&required.pattern, &mut names)
+                    || names.is_empty()
+                {
+                    return Err(error());
+                }
                 let mut seen = BTreeSet::new();
                 for member in names {
-                    if !members.contains_key(&member) || !seen.insert(member.clone()) { return Err(error()); }
+                    if !members.contains_key(&member) || !seen.insert(member.clone()) {
+                        return Err(error());
+                    }
                     edges.push(json!({"from":name,"member":member,"role":"native-required-predicate",
                         "policy_correspondence":"accepted-source-owner","ownership":"literal-only"}));
                 }
@@ -437,7 +684,11 @@ pub(super) fn classify(
     selection: &Value,
 ) -> Result<Classified, String> {
     if items.is_empty() {
-        return Ok(Classified { status: Status::Absent, roots: Vec::new(), dispatch_edges: Vec::new() });
+        return Ok(Classified {
+            status: Status::Absent,
+            roots: Vec::new(),
+            dispatch_edges: Vec::new(),
+        });
     }
     if identity.len() != 64 || !identity.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(error());
@@ -446,20 +697,29 @@ pub(super) fn classify(
     let mut markers = BTreeSet::new();
     for &(marker, owner) in bindings {
         let marker_id = syn::parse_str::<syn::Ident>(marker).map_err(|_error| error())?;
-        if owner.is_empty() || owner.len() > 64 || !owner.is_ascii()
-            || !markers.insert(marker) || by_owner.insert(owner.to_owned(), marker_id).is_some() {
+        if owner.is_empty()
+            || owner.len() > 64
+            || !owner.is_ascii()
+            || !markers.insert(marker)
+            || by_owner.insert(owner.to_owned(), marker_id).is_some()
+        {
             return Err(error());
         }
     }
     let mut members = BTreeMap::new();
     for member in selection["members"].as_array().ok_or_else(error)? {
-        let name = member["name"].as_str().filter(|name| !name.is_empty()).ok_or_else(error)?;
+        let name = member["name"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or_else(error)?;
         let owner = match member.get("schema_owner").ok_or_else(error)? {
             Value::Null => None,
             Value::String(owner) if !owner.is_empty() => Some(owner.clone()),
             _ => return Err(error()),
         };
-        if members.insert(name.to_owned(), owner).is_some() { return Err(error()); }
+        if members.insert(name.to_owned(), owner).is_some() {
+            return Err(error());
+        }
     }
     let mut has_import = false;
     let mut has_type = false;
@@ -472,11 +732,21 @@ pub(super) fn classify(
     for (ordinal, item) in items.iter().enumerate() {
         let mut details = json!({});
         let kind = match item {
-            Item::Use(value) if !has_import && same(value, quote!(use std::hint::black_box;)) => {
-                has_import = true; "inspection-import"
+            Item::Use(value)
+                if !has_import
+                    && same(
+                        value,
+                        quote!(
+                            use std::hint::black_box;
+                        ),
+                    ) =>
+            {
+                has_import = true;
+                "inspection-import"
             }
             Item::Struct(value) if !has_type && registry_type(value) => {
-                has_type = true; "inline-retention-type"
+                has_type = true;
+                "inline-retention-type"
             }
             Item::Static(value) => {
                 let row = retention_row(value, &by_owner, identity)?;
@@ -486,35 +756,74 @@ pub(super) fn classify(
                 "inline-retention-row"
             }
             Item::Const(value) if value.ident == "_" => {
-                constants.push((ordinal, value)); "const-abi-assertions"
+                constants.push((ordinal, value));
+                "const-abi-assertions"
             }
-            Item::Const(value) if !has_identity && same(value, quote!(const STAGING_INPUT_ID: &str = #id;)) => {
-                has_identity = true; "readonly-staging-identity"
+            Item::Const(value)
+                if !has_identity && same(value, quote!(const STAGING_INPUT_ID: &str = #id;)) =>
+            {
+                has_identity = true;
+                "readonly-staging-identity"
             }
-            Item::Fn(value) if functions.insert(value.sig.ident.to_string(), value).is_none() => "dispatch",
+            Item::Fn(value)
+                if functions
+                    .insert(value.sig.ident.to_string(), value)
+                    .is_none() =>
+            {
+                "dispatch"
+            }
             _ => return Err(error()),
         };
         roots.push(json!({"ordinal":ordinal,"kind":kind,"details":details,
             "source_sha256":super::expanded::digest(item.to_token_stream().to_string().as_bytes())}));
     }
-    if !has_import || !has_type || !has_identity || rows.len() != bindings.len()
-        || constants.len() != rows.len() || functions.len() != 5 { return Err(error()); }
+    if !has_import
+        || !has_type
+        || !has_identity
+        || rows.len() != bindings.len()
+        || constants.len() != rows.len()
+        || functions.len() != 5
+    {
+        return Err(error());
+    }
     rows.sort_by_key(|row| row.ordinal);
     let mut owners = BTreeSet::new();
     for (ordinal, row) in rows.iter().enumerate() {
-        if row.ordinal != ordinal || !owners.insert(row.owner.as_str()) { return Err(error()); }
+        if row.ordinal != ordinal || !owners.insert(row.owner.as_str()) {
+            return Err(error());
+        }
     }
     let mut asserted = BTreeSet::new();
     for (root, constant) in constants {
-        let row = rows.iter().find(|row| abi(constant, &row.cache)).ok_or_else(error)?;
-        if !asserted.insert(row.ordinal) { return Err(error()); }
+        let row = rows
+            .iter()
+            .find(|row| abi(constant, &row.cache))
+            .ok_or_else(error)?;
+        if !asserted.insert(row.ordinal) {
+            return Err(error());
+        }
         roots[root]["details"] = json!({"cache":row.cache.to_string(),"owner":row.owner});
     }
     let mut dispatch_edges = Vec::new();
-    for name in ["retain_for_inspection", "initialize_native", "validate_native", "native_owner", "native_required"] {
-        function(functions.get(name).ok_or_else(error)?, &rows, &members, &mut dispatch_edges)?;
+    for name in [
+        "retain_for_inspection",
+        "initialize_native",
+        "validate_native",
+        "native_owner",
+        "native_required",
+    ] {
+        function(
+            functions.get(name).ok_or_else(error)?,
+            &rows,
+            &members,
+            &mut dispatch_edges,
+        )?;
     }
-    Ok(Classified { status: Status::Complete, roots, dispatch_edges })
+    Ok(Classified {
+        status: Status::Complete,
+        roots,
+        dispatch_edges,
+    })
 }
 
 #[cfg(test)]
@@ -599,16 +908,24 @@ mod tests {
         (syntax, identity, selection)
     }
 
-    fn inspect(syntax: &syn::File, identity: &str, selection: &Value) -> Result<Classified, String> {
+    fn inspect(
+        syntax: &syn::File,
+        identity: &str,
+        selection: &Value,
+    ) -> Result<Classified, String> {
         let roots = syntax.items.iter().collect::<Vec<_>>();
         classify(&roots, &[("FakeMarker", "fake_owner")], identity, selection)
     }
 
     fn function<'a>(syntax: &'a mut syn::File, name: &str) -> &'a mut syn::ItemFn {
-        syntax.items.iter_mut().find_map(|item| match item {
-            syn::Item::Fn(item) if item.sig.ident == name => Some(item),
-            _ => None,
-        }).unwrap()
+        syntax
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Fn(item) if item.sig.ident == name => Some(item),
+                _ => None,
+            })
+            .unwrap()
     }
 
     #[test]
@@ -638,8 +955,10 @@ mod tests {
         ] {
             let (mut syntax, identity, selection) = fixture();
             syntax.items.push(syn::parse2(extra).unwrap());
-            assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-                Some("unsupported captured staging syntax"));
+            assert_eq!(
+                inspect(&syntax, &identity, &selection).err().as_deref(),
+                Some("unsupported captured staging syntax")
+            );
         }
     }
 
@@ -649,39 +968,67 @@ mod tests {
         for index in 0..original.items.len() {
             let mut missing = original.clone();
             missing.items.remove(index);
-            assert_eq!(inspect(&missing, &identity, &selection).err().as_deref(),
-                Some("unsupported captured staging syntax"), "missing {index}");
+            assert_eq!(
+                inspect(&missing, &identity, &selection).err().as_deref(),
+                Some("unsupported captured staging syntax"),
+                "missing {index}"
+            );
             let mut duplicate = original.clone();
             duplicate.items.push(original.items[index].clone());
-            assert_eq!(inspect(&duplicate, &identity, &selection).err().as_deref(),
-                Some("unsupported captured staging syntax"), "duplicate {index}");
+            assert_eq!(
+                inspect(&duplicate, &identity, &selection).err().as_deref(),
+                Some("unsupported captured staging syntax"),
+                "duplicate {index}"
+            );
         }
     }
 
     #[test]
     fn auxiliary_each_known_function_refuses_hidden_retained_storage() {
-        for name in ["retain_for_inspection", "initialize_native", "validate_native",
-            "native_owner", "native_required"] {
+        for name in [
+            "retain_for_inspection",
+            "initialize_native",
+            "validate_native",
+            "native_owner",
+            "native_required",
+        ] {
             let (mut syntax, identity, selection) = fixture();
-            function(&mut syntax, name).block.stmts.insert(0, syn::parse_quote! {
-                static HIDDEN: std::sync::LazyLock<Vec<u8>> =
-                    std::sync::LazyLock::new(|| vec![0_u8; 17]);
-            });
-            assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-                Some("unsupported captured staging syntax"), "{name}");
+            function(&mut syntax, name).block.stmts.insert(
+                0,
+                syn::parse_quote! {
+                    static HIDDEN: std::sync::LazyLock<Vec<u8>> =
+                        std::sync::LazyLock::new(|| vec![0_u8; 17]);
+                },
+            );
+            assert_eq!(
+                inspect(&syntax, &identity, &selection).err().as_deref(),
+                Some("unsupported captured staging syntax"),
+                "{name}"
+            );
         }
     }
 
     #[test]
     fn auxiliary_each_known_function_refuses_unknown_runtime_calls() {
-        for name in ["retain_for_inspection", "initialize_native", "validate_native",
-            "native_owner", "native_required"] {
+        for name in [
+            "retain_for_inspection",
+            "initialize_native",
+            "validate_native",
+            "native_owner",
+            "native_required",
+        ] {
             let (mut syntax, identity, selection) = fixture();
-            function(&mut syntax, name).block.stmts.insert(0, syn::parse_quote! {
-                std::mem::drop(Vec::<u8>::new());
-            });
-            assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-                Some("unsupported captured staging syntax"), "{name}");
+            function(&mut syntax, name).block.stmts.insert(
+                0,
+                syn::parse_quote! {
+                    std::mem::drop(Vec::<u8>::new());
+                },
+            );
+            assert_eq!(
+                inspect(&syntax, &identity, &selection).err().as_deref(),
+                Some("unsupported captured staging syntax"),
+                "{name}"
+            );
         }
     }
 
@@ -695,8 +1042,10 @@ mod tests {
                 &STAGED_VALIDATOR_0
             }, STAGING_INPUT_ID));
         }});
-        assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-            Some("unsupported captured staging syntax"));
+        assert_eq!(
+            inspect(&syntax, &identity, &selection).err().as_deref(),
+            Some("unsupported captured staging syntax")
+        );
 
         let (mut syntax, identity, selection) = fixture();
         function(&mut syntax, "native_required").block = Box::new(syn::parse_quote! {{
@@ -706,42 +1055,71 @@ mod tests {
                 !HIDDEN.is_empty()
             })
         }});
-        assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-            Some("unsupported captured staging syntax"));
+        assert_eq!(
+            inspect(&syntax, &identity, &selection).err().as_deref(),
+            Some("unsupported captured staging syntax")
+        );
     }
 
     #[test]
     fn auxiliary_wrong_retention_identity_and_abi_refuse() {
         let (mut syntax, identity, selection) = fixture();
-        let row = syntax.items.iter_mut().find_map(|item| match item {
-            syn::Item::Static(row) => Some(row),
-            _ => None,
-        }).unwrap();
-        let syn::Expr::Struct(value) = row.expr.as_mut() else { panic!("row fixture"); };
-        value.fields.iter_mut().find(|field| field.member == syn::Member::Named(
-            syn::Ident::new("owner_len", proc_macro2::Span::call_site())
-        )).unwrap().expr = syn::parse_quote!(9);
-        assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-            Some("unsupported captured staging syntax"));
+        let row = syntax
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Static(row) => Some(row),
+                _ => None,
+            })
+            .unwrap();
+        let syn::Expr::Struct(value) = row.expr.as_mut() else {
+            panic!("row fixture");
+        };
+        value
+            .fields
+            .iter_mut()
+            .find(|field| {
+                field.member
+                    == syn::Member::Named(syn::Ident::new(
+                        "owner_len",
+                        proc_macro2::Span::call_site(),
+                    ))
+            })
+            .unwrap()
+            .expr = syn::parse_quote!(9);
+        assert_eq!(
+            inspect(&syntax, &identity, &selection).err().as_deref(),
+            Some("unsupported captured staging syntax")
+        );
 
         let (mut syntax, identity, selection) = fixture();
-        let abi = syntax.items.iter_mut().find_map(|item| match item {
-            syn::Item::Const(item) if item.ident == "_" => Some(item),
-            _ => None,
-        }).unwrap();
-        let syn::Expr::Block(block) = abi.expr.as_mut() else { panic!("ABI fixture"); };
+        let abi = syntax
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Const(item) if item.ident == "_" => Some(item),
+                _ => None,
+            })
+            .unwrap();
+        let syn::Expr::Block(block) = abi.expr.as_mut() else {
+            panic!("ABI fixture");
+        };
         block.block.stmts[3] = syn::parse_quote! {
             assert!(size_of::<usize>() == word, "validation function pointer width");
         };
-        assert_eq!(inspect(&syntax, &identity, &selection).err().as_deref(),
-            Some("unsupported captured staging syntax"));
+        assert_eq!(
+            inspect(&syntax, &identity, &selection).err().as_deref(),
+            Some("unsupported captured staging syntax")
+        );
     }
 
     #[test]
     fn auxiliary_empty_catalog_header_is_complete_not_absent() {
         let (mut syntax, identity, _) = fixture();
-        syntax.items.retain(|item| !matches!(item, syn::Item::Static(_))
-            && !matches!(item, syn::Item::Const(item) if item.ident == "_"));
+        syntax.items.retain(|item| {
+            !matches!(item, syn::Item::Static(_))
+                && !matches!(item, syn::Item::Const(item) if item.ident == "_")
+        });
         function(&mut syntax, "retain_for_inspection").block = Box::new(syn::parse_quote! {{
             black_box((STAGING_INPUT_ID));
         }});
@@ -761,11 +1139,47 @@ mod tests {
         let result = classify(&roots, &[], &identity, &json!({"members":[]})).unwrap();
         assert_eq!(result.status, Status::Complete);
     }
+    // Syn visits macro tokens opaquely. Rename the fixture's identifiers and
+    // parsed literals recursively without changing groups or punctuation.
+    fn rename_fixture_tokens(
+        visitor: &mut impl syn::visit_mut::VisitMut,
+        tokens: &mut proc_macro2::TokenStream,
+    ) {
+        use proc_macro2::{Group, TokenTree};
+        use quote::ToTokens as _;
+        let mut output = proc_macro2::TokenStream::new();
+        for token in tokens.clone() {
+            match token {
+                TokenTree::Group(group) => {
+                    let mut contents = group.stream();
+                    visitor.visit_token_stream_mut(&mut contents);
+                    let mut renamed = Group::new(group.delimiter(), contents);
+                    renamed.set_span(group.span());
+                    output.extend([TokenTree::Group(renamed)]);
+                }
+                TokenTree::Ident(mut ident) => {
+                    visitor.visit_ident_mut(&mut ident);
+                    output.extend([TokenTree::Ident(ident)]);
+                }
+                TokenTree::Literal(literal) => {
+                    let mut literal: syn::Lit = syn::parse2(quote!(#literal)).unwrap();
+                    visitor.visit_lit_mut(&mut literal);
+                    literal.to_tokens(&mut output);
+                }
+                other => output.extend([other]),
+            }
+        }
+        *tokens = output;
+    }
+
     #[test]
     fn auxiliary_accepts_dynamic_marker_owner_and_alias_rows() {
         use syn::visit_mut::VisitMut;
         struct Rename;
         impl VisitMut for Rename {
+            fn visit_token_stream_mut(&mut self, tokens: &mut proc_macro2::TokenStream) {
+                rename_fixture_tokens(self, tokens);
+            }
             fn visit_ident_mut(&mut self, ident: &mut syn::Ident) {
                 if *ident == "FakeMarker" {
                     *ident = syn::Ident::new("OtherMarker", ident.span());
@@ -789,10 +1203,17 @@ mod tests {
         }
         let (mut syntax, identity, _) = fixture();
         Rename.visit_file_mut(&mut syntax);
-        let row = syntax.items.iter_mut().find_map(|item| match item {
-            syn::Item::Static(row) => Some(row), _ => None,
-        }).unwrap();
-        let syn::Expr::Struct(value) = row.expr.as_mut() else { panic!("row fixture"); };
+        let row = syntax
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Static(row) => Some(row),
+                _ => None,
+            })
+            .unwrap();
+        let syn::Expr::Struct(value) = row.expr.as_mut() else {
+            panic!("row fixture");
+        };
         for field in &mut value.fields {
             if matches!(&field.member, syn::Member::Named(name) if name == "owner_len") {
                 field.expr = syn::parse_quote!(17);
@@ -803,25 +1224,34 @@ mod tests {
             {"name":"fake_alias","schema_owner":"fake_second_owner"}
         ]});
         let roots = syntax.items.iter().collect::<Vec<_>>();
-        let classified = classify(&roots, &[("OtherMarker", "fake_second_owner")],
-            &identity, &selection).unwrap();
+        let classified = classify(
+            &roots,
+            &[("OtherMarker", "fake_second_owner")],
+            &identity,
+            &selection,
+        )
+        .unwrap();
         assert_eq!(classified.status, Status::Complete);
     }
-
 
     fn gt_spacing(
         tokens: proc_macro2::TokenStream,
         spacing: proc_macro2::Spacing,
     ) -> proc_macro2::TokenStream {
         use proc_macro2::{Group, Punct, TokenTree};
-        tokens.into_iter().map(|token| match token {
-            TokenTree::Group(group) => TokenTree::Group(Group::new(
-                group.delimiter(), gt_spacing(group.stream(), spacing),
-            )),
-            TokenTree::Punct(punct) if punct.as_char() == '>' =>
-                TokenTree::Punct(Punct::new('>', spacing)),
-            other => other,
-        }).collect()
+        tokens
+            .into_iter()
+            .map(|token| match token {
+                TokenTree::Group(group) => TokenTree::Group(Group::new(
+                    group.delimiter(),
+                    gt_spacing(group.stream(), spacing),
+                )),
+                TokenTree::Punct(punct) if punct.as_char() == '>' => {
+                    TokenTree::Punct(Punct::new('>', spacing))
+                }
+                other => other,
+            })
+            .collect()
     }
 
     #[test]
@@ -832,7 +1262,10 @@ mod tests {
         };
         // Both variants originate from a successfully parsed type, not raw input.
         for spacing in [proc_macro2::Spacing::Alone, proc_macro2::Spacing::Joint] {
-            assert!(super::same(&parsed, gt_spacing(parsed.to_token_stream(), spacing)));
+            assert!(super::same(
+                &parsed,
+                gt_spacing(parsed.to_token_stream(), spacing)
+            ));
         }
     }
 
@@ -845,5 +1278,4 @@ mod tests {
         let reference: syn::Type = syn::parse_quote!(&mut FakeMarkerSearchCache);
         assert!(!super::same(&reference, quote!(*mut FakeMarkerSearchCache)));
     }
-
 }

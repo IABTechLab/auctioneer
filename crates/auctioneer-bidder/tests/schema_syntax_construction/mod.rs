@@ -18,7 +18,7 @@ use std::path::Path;
 
 const MAX_SOURCE_BYTES: u64 = 0x0010_0000;
 
-pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
+pub(crate) const SOURCE_PINS: [(&str, &str); 11] = [
     (
         "Cargo.toml",
         "10c3f14629c0900ac452dd6d55a62aab561bbabbdf5774a802c8d223933cfa3b",
@@ -58,6 +58,10 @@ pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
     (
         "src/hir/interval.rs",
         "170949e6fd9e9641830415ec3ea813ff2431c8594d49c559cd41d4903f3d29d0",
+    ),
+    (
+        "src/hir/literal.rs",
+        "61e9f54103c671694dd017c23c5c9263e032735921ef77527940e83b29ced540",
     ),
 ];
 

@@ -6,9 +6,9 @@ use regex_automata::{
     MatchKind,
     dfa::onepass::{self, DFA},
     nfa::thompson::NFA,
-    util::primitives::StateID,
+
 };
-use std::mem::size_of;
+
 
 pub(crate) fn candidate_onepass(nfa: &NFA) -> Result<DFA, Box<onepass::BuildError>> {
     DFA::builder()
@@ -74,6 +74,28 @@ pub(crate) fn retained_tables(
     stride: usize,
     patterns: usize,
 ) -> Result<OnePassRetainedTables, OnePassTablesError> {
+    retained_tables_with_word(states, stride, patterns, NativeField::of::<usize>())
+}
+
+
+/// Structural envelope, with `stride = 1 << nfa.byte_classes().stride2()`.
+pub(crate) fn nfa_table_upper_bound(
+    nfa_states: usize,
+    stride: usize,
+    patterns: usize,
+) -> Result<OnePassRetainedTables, OnePassTablesError> {
+    nfa_table_upper_bound_with_word(nfa_states, stride, patterns, NativeField::of::<usize>())
+}
+
+
+
+
+pub(crate) fn retained_tables_with_word(
+    states: usize,
+    stride: usize,
+    patterns: usize,
+    word: NativeField,
+) -> Result<OnePassRetainedTables, OnePassTablesError> {
     if states < 2 || !stride.is_power_of_two() || !(2..=512).contains(&stride) {
         return Err(OnePassTablesError::Shape);
     }
@@ -82,15 +104,18 @@ pub(crate) fn retained_tables(
     // Rust 1.98.1 Vec::shrink_to_fit -> RawVec::shrink_unchecked -> Global
     // requests exactly len * width on success (failure diverges). This is
     // not a generic Vec promise, constructor peak, inline DFA or shared NFA.
-    let layout = HeapLayout::new(size_of::<usize>(), size_of::<usize>())?;
+    if !matches!(word.bytes, 4 | 8) || word.alignment != word.bytes {
+        return Err(OnePassTablesError::Shape);
+    }
+    let layout = HeapLayout::new(word.bytes, word.bytes)?;
     let table_entries = states
         .checked_mul(stride)
         .ok_or(OnePassTablesError::Arithmetic)?;
-    let table_bytes = layout.repeat_vector(size_of::<u64>(), table_entries)?;
+    let table_bytes = layout.repeat_vector(8_usize, table_entries)?;
     let start_entries = patterns
         .checked_add(1)
         .ok_or(OnePassTablesError::Arithmetic)?;
-    let starts_bytes = layout.repeat_vector(size_of::<StateID>(), start_entries)?;
+    let starts_bytes = layout.repeat_vector(4_usize, start_entries)?;
     let total = table_bytes
         .checked_add(starts_bytes)
         .ok_or(OnePassTablesError::Arithmetic)?;
@@ -101,32 +126,16 @@ pub(crate) fn retained_tables(
     })
 }
 
-/// Structural envelope, with `stride = 1 << nfa.byte_classes().stride2()`.
-pub(crate) fn nfa_table_upper_bound(
+pub(crate) fn nfa_table_upper_bound_with_word(
     nfa_states: usize,
     stride: usize,
     patterns: usize,
+    word: NativeField,
 ) -> Result<OnePassRetainedTables, OnePassTablesError> {
-    // onepass.rs:604,838-858 adds DEAD plus at most one DFA state per NFA ID.
-    let states = nfa_states
-        .checked_add(1)
-        .ok_or(OnePassTablesError::Arithmetic)?;
-    retained_tables(states, stride, patterns)
+    let states = nfa_states.checked_add(1).ok_or(OnePassTablesError::Arithmetic)?;
+    retained_tables_with_word(states, stride, patterns, word)
 }
 
-
-// Hosted-RED scaffolds: target word must replace the old native request limit.
-pub(crate) fn retained_tables_with_word(
-    states: usize, stride: usize, patterns: usize, _word: NativeField,
-) -> Result<OnePassRetainedTables, OnePassTablesError> {
-    retained_tables(states, stride, patterns)
-}
-
-pub(crate) fn nfa_table_upper_bound_with_word(
-    nfa_states: usize, stride: usize, patterns: usize, _word: NativeField,
-) -> Result<OnePassRetainedTables, OnePassTablesError> {
-    nfa_table_upper_bound(nfa_states, stride, patterns)
-}
 
 impl OnePassRetainedTables {
     pub(crate) fn from_dfa(dfa: &DFA) -> Result<Self, OnePassTablesError> {
@@ -168,30 +177,39 @@ pub(crate) fn retained_candidate(pattern: &str) -> Result<OnePassTables, OnePass
 mod tests {
     use super::{
         OnePassRetainedTables, OnePassTables, OnePassTablesError, candidate_onepass,
-        explicit_scratch_slots, nfa_table_upper_bound, retained_candidate, retained_tables,
-        retained_tables_with_word,
-        nfa_table_upper_bound_with_word,
+        explicit_scratch_slots, nfa_table_upper_bound, nfa_table_upper_bound_with_word,
+        retained_candidate, retained_tables, retained_tables_with_word,
     };
     use crate::schema_cache_bounds::{BoundsError, forward_nfa};
+    use crate::schema_heap_layout::NativeField;
     use regex_automata::{
         Anchored, Input, MatchError, MatchKind, meta::Regex, nfa::thompson::NFA,
         util::primitives::NonMaxUsize,
     };
     use std::mem::size_of;
-    use crate::schema_heap_layout::NativeField;
-
 
     #[test]
     fn target_word_onepass_tables_keep_source_u64_u32_widths_and_native_literals() {
         for word in [4_usize, 8_usize] {
-            let field = NativeField { bytes: word, alignment: word };
+            let field = NativeField {
+                bytes: word,
+                alignment: word,
+            };
             assert_eq!(
                 nfa_table_upper_bound_with_word(1_usize, 4_usize, 1_usize, field),
-                Ok(OnePassRetainedTables { table_bytes: 64_usize, starts_bytes: 8_usize, total: 72_usize })
+                Ok(OnePassRetainedTables {
+                    table_bytes: 64_usize,
+                    starts_bytes: 8_usize,
+                    total: 72_usize
+                })
             );
             assert_eq!(
                 retained_tables_with_word(2_usize, 4_usize, 1_usize, field),
-                Ok(OnePassRetainedTables { table_bytes: 64_usize, starts_bytes: 8_usize, total: 72_usize })
+                Ok(OnePassRetainedTables {
+                    table_bytes: 64_usize,
+                    starts_bytes: 8_usize,
+                    total: 72_usize
+                })
             );
         }
         assert_eq!(
@@ -203,9 +221,18 @@ mod tests {
     #[test]
     fn target_word_onepass_rejects_missing_unknown_abi_and_target_request_overflow() {
         for word in [
-            NativeField { bytes: 0_usize, alignment: 4_usize },
-            NativeField { bytes: 4_usize, alignment: 8_usize },
-            NativeField { bytes: 16_usize, alignment: 16_usize },
+            NativeField {
+                bytes: 0_usize,
+                alignment: 4_usize,
+            },
+            NativeField {
+                bytes: 4_usize,
+                alignment: 8_usize,
+            },
+            NativeField {
+                bytes: 16_usize,
+                alignment: 16_usize,
+            },
         ] {
             assert_eq!(
                 retained_tables_with_word(2_usize, 4_usize, 1_usize, word),
@@ -214,8 +241,13 @@ mod tests {
         }
         assert_eq!(
             retained_tables_with_word(
-                1_usize << 27_usize, 2_usize, 1_usize,
-                NativeField { bytes: 4_usize, alignment: 4_usize },
+                1_usize << 27_usize,
+                2_usize,
+                1_usize,
+                NativeField {
+                    bytes: 4_usize,
+                    alignment: 4_usize
+                },
             ),
             Err(OnePassTablesError::Arithmetic)
         );

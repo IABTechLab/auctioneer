@@ -3,8 +3,8 @@
 use crate::schema_heap_layout::{AllocationEnvelope, HeapLayout, LayoutError, NativeField};
 use std::collections::BTreeMap;
 
-const PATTERN: &str = r"\.[a-zA-Z]{2,3}$";
-const KEYS: [&str; 5] = [
+pub(super) const PATTERN: &str = r"\.[a-zA-Z]{2,3}$";
+pub(super) const KEYS: [&str; 5] = [
     "regex_syntax::hir::literal::Literal",
     "regex_syntax::hir::literal::State",
     "core::option::Option<core::num::nonzero::NonZeroUsize>",
@@ -13,16 +13,16 @@ const KEYS: [&str; 5] = [
 ];
 
 #[derive(Debug, Eq, PartialEq)]
-struct Scratch {
-    cross: usize,
-    repeat: usize,
-    union: usize,
-    trie: usize,
-    peak: usize,
+pub(super) struct Scratch {
+    pub cross: usize,
+    pub repeat: usize,
+    pub union: usize,
+    pub trie: usize,
+    pub peak: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(super) enum Refusal {
     Missing(&'static str),
     Layout,
     Arithmetic,
@@ -54,20 +54,28 @@ fn request(field: NativeField, bytes: usize, word: usize) -> Result<usize, Refus
         8 => usize::try_from(i64::MAX).map_err(|_error| Refusal::Arithmetic)?,
         _ => return Err(Refusal::Layout),
     };
-    if bytes > maximum.checked_sub(field.alignment - 1).ok_or(Refusal::Arithmetic)? {
+    if bytes
+        > maximum
+            .checked_sub(field.alignment - 1)
+            .ok_or(Refusal::Arithmetic)?
+    {
         return Err(Refusal::Arithmetic);
     }
     Ok(bytes)
 }
 
-fn append(heap: HeapLayout, field: NativeField, count: usize) -> Result<AllocationEnvelope, Refusal> {
+fn append(
+    heap: HeapLayout,
+    field: NativeField,
+    count: usize,
+) -> Result<AllocationEnvelope, Refusal> {
     let allocation = heap.append_vector(field.bytes, count)?;
     request(field, allocation.retained_bytes, heap.word_bytes())?;
     request(field, allocation.old_growth_bytes, heap.word_bytes())?;
     Ok(allocation)
 }
 
-fn suffix(pattern: &str, facts: &BTreeMap<String, NativeField>) -> Result<Scratch, Refusal> {
+pub(super) fn suffix(pattern: &str, facts: &BTreeMap<String, NativeField>) -> Result<Scratch, Refusal> {
     if pattern != PATTERN {
         return Err(Refusal::Scope);
     }
@@ -85,7 +93,11 @@ fn suffix(pattern: &str, facts: &BTreeMap<String, NativeField>) -> Result<Scratc
     }
     // Only vector operations are used; the hash-group parameter is irrelevant.
     let heap = HeapLayout::new(pointer.bytes, 16)?;
-    let exact = request(*literal, heap.repeat_vector(literal.bytes, 1)?, pointer.bytes)?;
+    let exact = request(
+        *literal,
+        heap.repeat_vector(literal.bytes, 1)?,
+        pointer.bytes,
+    )?;
     let byte = heap.repeat_vector(1, 1)?;
     let union_backing = append(heap, *literal, 1)?.retained_bytes;
     let states = append(heap, *state, 2)?;
@@ -97,11 +109,23 @@ fn suffix(pattern: &str, facts: &BTreeMap<String, NativeField>) -> Result<Scratc
     // Each Vec growth completes before the next push can start. Prefix
     // backing and all final trie buffers remain live across those calls.
     let trie = add(&[
-        union_backing, byte, states.retained_bytes, matches.retained_bytes,
+        union_backing,
+        byte,
+        states.retained_bytes,
+        matches.retained_bytes,
         transitions.retained_bytes,
-        states.old_growth_bytes.max(matches.old_growth_bytes).max(transitions.old_growth_bytes),
+        states
+            .old_growth_bytes
+            .max(matches.old_growth_bytes)
+            .max(transitions.old_growth_bytes),
     ])?;
-    Ok(Scratch { cross, repeat, union, trie, peak: cross.max(repeat).max(union).max(trie) })
+    Ok(Scratch {
+        cross,
+        repeat,
+        union,
+        trie,
+        peak: cross.max(repeat).max(union).max(trie),
+    })
 }
 
 #[cfg(test)]

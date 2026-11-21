@@ -182,15 +182,20 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
     if actual.keys().ne(expected.keys()) {
         return Err(MEMBERSHIP.into());
     }
-    let bindings = expected.iter().map(|(marker, (_, snapshot))| {
-        (marker.as_str(), snapshot.owner.as_str())
-    }).collect::<Vec<_>>();
+    let bindings = expected
+        .iter()
+        .map(|(marker, (_, snapshot))| (marker.as_str(), snapshot.owner.as_str()))
+        .collect::<Vec<_>>();
     let classified = super::auxiliary::classify(
-        &auxiliary, &bindings, &seed.identity_sha256, &manifest["selection"],
+        &auxiliary,
+        &bindings,
+        &seed.identity_sha256,
+        &manifest["selection"],
     )?;
-    let auxiliary_hashes = auxiliary.iter().map(|item| {
-        digest(item.to_token_stream().to_string().as_bytes())
-    }).collect::<Vec<_>>();
+    let auxiliary_hashes = auxiliary
+        .iter()
+        .map(|item| digest(item.to_token_stream().to_string().as_bytes()))
+        .collect::<Vec<_>>();
     let mut rows = Vec::new();
     for (marker, (row, snapshot)) in expected {
         let (item, attribute) = actual.get(&marker).ok_or(MEMBERSHIP)?;

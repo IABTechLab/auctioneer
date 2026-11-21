@@ -1,5 +1,9 @@
 //! Fixed-input, non-serving build adapter. This does not qualify or publish bidders.
 
+/// Offline catalog-growth source data shared by native test consumers.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod catalog_reference;
+
 use crate::bidder_discovery::Discovery;
 use crate::build_catalog::{self, Artifact, Catalog, Category, Manifest, Provenance, Source};
 use crate::schema_staging::{

@@ -293,7 +293,11 @@ impl syn::parse::Parse for MatchInput {
         if !input.is_empty() {
             input.parse::<syn::Token![,]>()?;
         }
-        Ok(Self { value, pattern, guard })
+        Ok(Self {
+            value,
+            pattern,
+            guard,
+        })
     }
 }
 

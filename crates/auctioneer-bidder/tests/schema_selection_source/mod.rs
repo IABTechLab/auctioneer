@@ -127,6 +127,15 @@ fn witness_bytes(bytes: &[u8], length: u64, sha256: &str) -> Result<(), String> 
 
 fn load() -> Result<Inputs, String> {
     let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (inputs, catalog) = load_source(crate_root)?;
+    check_publications(&catalog)?;
+    Ok(inputs)
+}
+
+// Data-only reconstructions have their own declarations, not this binary's
+// compiled metadata. The ordinary current-source loader retains its separate
+// compiled-publication check above.
+fn load_source(crate_root: &Path) -> Result<(Inputs, Catalog), String> {
     let root = crate_root.join("src/bidders");
     let snapshot = schema_qualification::inventory(
         &root,
@@ -134,11 +143,13 @@ fn load() -> Result<Inputs, String> {
     )
     .map_err(|error| format!("inventory: {error:?}"))?;
     let source: SourceProjection = pinned(
-        SOURCE,
+        &fs::read_to_string(crate_root.join("tests/conformance/fixtures/reference/catalog/source-inventory.toml"))
+            .map_err(|error| error.to_string())?,
         "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6",
     )?;
     let bindings: BindingsProjection = pinned(
-        BINDINGS,
+        &fs::read_to_string(crate_root.join("tests/conformance/fixtures/reference/catalog/source-bindings.toml"))
+            .map_err(|error| error.to_string())?,
         "d1a0f18d99f53cbd4f62fe74c5d1e5580f8688fce95a29b1b05ee934dbe9ff0c",
     )?;
     if bindings.revision != source.revision {
@@ -158,9 +169,8 @@ fn load() -> Result<Inputs, String> {
     let catalog = build_catalog::scan(&root, &features).map_err(|error| error.to_string())?;
     let (schemas, sources) = schema_inputs(&root, &catalog, snapshot.schemas)?;
     let mut definitions = source_definitions(&source, &bindings, &catalog, &schemas)?;
-    check_publications(&catalog)?;
     add_implemented_roots(&mut definitions, &catalog, &schemas)?;
-    Ok(Inputs {
+    let inputs = Inputs {
         root,
         definitions,
         schemas,
@@ -189,7 +199,8 @@ fn load() -> Result<Inputs, String> {
                 })
             })
             .collect(),
-    })
+    };
+    Ok((inputs, catalog))
 }
 
 fn schema_inputs(
@@ -669,6 +680,17 @@ fn independent_dispositions(inputs: &Inputs) -> Vec<Value> {
 /// Factory/definition membership comes directly from validated manifests.
 pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
     let inputs = load()?;
+    independent_membership_from_inputs(&inputs, lane)
+}
+
+/// Independent alias walk over a verified, isolated data snapshot. This does
+/// not compare another source tree against this binary's compiled metadata.
+pub(crate) fn independent_source_membership(crate_root: &Path, lane: Lane) -> Result<Value, String> {
+    let (inputs, _catalog) = load_source(crate_root)?;
+    independent_membership_from_inputs(&inputs, lane)
+}
+
+fn independent_membership_from_inputs(inputs: &Inputs, lane: Lane) -> Result<Value, String> {
     let roots: BTreeSet<_> = inputs
         .publications
         .iter()
@@ -752,7 +774,7 @@ pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
         })
         .map(|row| (row.name.as_str(), row.implementation.as_str()))
         .collect();
-    let dispositions = independent_dispositions(&inputs);
+    let dispositions = independent_dispositions(inputs);
     Ok(json!({"implemented_roots_all_features": roots,
         "inventory_dispositions": dispositions,
         "publication_predicates": inputs.publications,

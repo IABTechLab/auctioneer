@@ -677,7 +677,10 @@ mod tests {
             let declarations = graph["declarations"].as_array().unwrap();
             assert!(!declarations.is_empty());
             assert_eq!(graph["auxiliary"]["status"], "Complete");
-            assert_eq!(graph["auxiliary"]["roots"].as_array().unwrap().len(), 2 * declarations.len() + 8);
+            assert_eq!(
+                graph["auxiliary"]["roots"].as_array().unwrap().len(),
+                2 * declarations.len() + 8
+            );
             assert_eq!(
                 report["lane"],
                 if development { "development" } else { "secure" }
