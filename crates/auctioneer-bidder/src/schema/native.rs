@@ -39,30 +39,33 @@ static INITIALIZED: OnceLock<bool> = OnceLock::new();
 /// Prewarm only after installing the frozen reservation. Failure is cached.
 #[must_use]
 pub fn initialize_native_schemas(costs: CatalogResourceCosts) -> bool {
-    if !native_schema_funded(costs) || cfg!(feature = "schema-artifact-staging") {
-        return false;
-    }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        *INITIALIZED.get_or_init(super::staging::initialize_native)
+        initialize_native_schemas_with_cell(
+            costs,
+            cfg!(feature = "schema-artifact-staging"),
+            &INITIALIZED,
+            super::staging::initialize_native,
+        )
     }
     #[cfg(target_arch = "wasm32")]
     {
+        let _: CatalogResourceCosts = costs;
         false
     }
 }
 
-// Hosted-RED conformance scaffold only: intentionally bypasses gates/cache.
-// After RED, make this private seam production-used and restore the funding,
-// staging and OnceLock protocol here. The public initializer is unchanged now.
-#[cfg(all(test, not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 fn initialize_native_schemas_with_cell(
-    _costs: CatalogResourceCosts,
-    _staging_only: bool,
-    _cell: &OnceLock<bool>,
+    costs: CatalogResourceCosts,
+    staging_only: bool,
+    cell: &OnceLock<bool>,
     initialize: impl FnOnce() -> bool,
 ) -> bool {
-    initialize()
+    if !native_schema_funded(costs) || staging_only {
+        return false;
+    }
+    *cell.get_or_init(initialize)
 }
 
 #[must_use]
@@ -282,24 +285,29 @@ mod tests {
             assert!(cell.get().is_none());
             assert!(programs.iter().all(|program| program.get().is_none()));
 
-            assert!(initialize_native_schemas_with_cell(costs, false, &cell, || {
-                for (program, pattern, name) in [
-                    (&programs[0], r"^shared[0-9]+$", "shared-format"),
-                    (&programs[1], r"^owner-a[0-9]+$", "owner-a"),
-                    (&programs[2], r"^owner-b[0-9]+$", "owner-b"),
-                ] {
-                    if program
-                        .get_or_init(|| {
-                            trace.borrow_mut().push(name);
-                            Some(build_program(pattern).unwrap())
-                        })
-                        .is_none()
-                    {
-                        return false;
+            assert!(initialize_native_schemas_with_cell(
+                costs,
+                false,
+                &cell,
+                || {
+                    for (program, pattern, name) in [
+                        (&programs[0], r"^shared[0-9]+$", "shared-format"),
+                        (&programs[1], r"^owner-a[0-9]+$", "owner-a"),
+                        (&programs[2], r"^owner-b[0-9]+$", "owner-b"),
+                    ] {
+                        if program
+                            .get_or_init(|| {
+                                trace.borrow_mut().push(name);
+                                Some(build_program(pattern).unwrap())
+                            })
+                            .is_none()
+                        {
+                            return false;
+                        }
                     }
+                    true
                 }
-                true
-            }));
+            ));
             assert_eq!(cell.get(), Some(&true));
             assert_eq!(
                 trace.borrow().as_slice(),
@@ -314,9 +322,12 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             assert!(witnesses.iter().all(|witness| witness.upgrade().is_some()));
-            assert!(initialize_native_schemas_with_cell(costs, false, &cell, || {
-                panic!("successful initialization must not repeat constructors")
-            }));
+            assert!(initialize_native_schemas_with_cell(
+                costs,
+                false,
+                &cell,
+                || { panic!("successful initialization must not repeat constructors") }
+            ));
             assert_eq!(trace.borrow().len(), 3_usize);
             drop(programs);
             assert!(witnesses.iter().all(|witness| witness.upgrade().is_none()));
@@ -327,7 +338,11 @@ mod tests {
             let costs = controlled_native_costs(CatalogResourceCosts::UNCHANGED);
             let cell = OnceLock::new();
             let prefix = OnceLock::<Option<Arc<Regex>>>::new();
-            assert!(prefix.set(Some(build_program(r"^live[0-9]+$").unwrap())).is_ok());
+            assert!(
+                prefix
+                    .set(Some(build_program(r"^live[0-9]+$").unwrap()))
+                    .is_ok()
+            );
             let prefix_witness = Arc::downgrade(prefix.get().unwrap().as_ref().unwrap());
             let failing = OnceLock::<Option<Arc<Regex>>>::new();
             let attempts = Cell::new(0_usize);
@@ -336,41 +351,56 @@ mod tests {
             assert!(cell.get().is_none());
             assert!(failing.get().is_none());
 
-            assert!(!initialize_native_schemas_with_cell(costs, false, &cell, || {
-                assert!(
-                    prefix
-                        .get_or_init(|| panic!("already-live prefix must not reconstruct"))
+            assert!(!initialize_native_schemas_with_cell(
+                costs,
+                false,
+                &cell,
+                || {
+                    assert!(
+                        prefix
+                            .get_or_init(|| panic!("already-live prefix must not reconstruct"))
+                            .is_some()
+                    );
+                    failing
+                        .get_or_init(|| {
+                            attempts.set(attempts.get() + 1_usize);
+                            let temporary = build_program(r"^temporary[0-9]+$").unwrap();
+                            assert!(temporary.memory_usage() > 0_usize);
+                            *temporary_witness.borrow_mut() = Some(Arc::downgrade(&temporary));
+                            // Fixed production-sized NFA cap, supported non-syntax
+                            // failure. This is not an admitted generated pattern.
+                            let error = match build_program(r"^[ab]{65536}$") {
+                                Ok(_) => panic!("large bounded construction must fail"),
+                                Err(error) => error,
+                            };
+                            assert_eq!(error.size_limit(), Some(0x0001_0000_usize));
+                            assert!(error.syntax_error().is_none());
+                            assert!(temporary.is_match("temporary7"));
+                            None
+                        })
                         .is_some()
-                );
-                failing
-                    .get_or_init(|| {
-                        attempts.set(attempts.get() + 1_usize);
-                        let temporary = build_program(r"^temporary[0-9]+$").unwrap();
-                        assert!(temporary.memory_usage() > 0_usize);
-                        *temporary_witness.borrow_mut() = Some(Arc::downgrade(&temporary));
-                        // Fixed production-sized NFA cap, supported non-syntax
-                        // failure. This is not an admitted generated pattern.
-                        let error = match build_program(r"^[ab]{65536}$") {
-                            Ok(_) => panic!("large bounded construction must fail"),
-                            Err(error) => error,
-                        };
-                        assert_eq!(error.size_limit(), Some(0x0001_0000_usize));
-                        assert!(error.syntax_error().is_none());
-                        assert!(temporary.is_match("temporary7"));
-                        None
-                    })
-                    .is_some()
-            }));
+                }
+            ));
             assert_eq!(cell.get(), Some(&false));
             assert!(matches!(failing.get(), Some(None)));
             assert_eq!(attempts.get(), 1_usize);
             // Weak witnesses our real temporary program's release, not the
             // failed builder's internal allocation count or peak.
-            assert!(temporary_witness.borrow().as_ref().unwrap().upgrade().is_none());
+            assert!(
+                temporary_witness
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .upgrade()
+                    .is_none()
+            );
             assert!(prefix_witness.upgrade().is_some());
-            assert!(!initialize_native_schemas_with_cell(costs, false, &cell, || {
-                panic!("cached failed initialization must not retry constructors")
-            }));
+            assert!(!initialize_native_schemas_with_cell(
+                costs,
+                false,
+                &cell,
+                || { panic!("cached failed initialization must not retry constructors") }
+            ));
             assert_eq!(attempts.get(), 1_usize);
             assert!(prefix_witness.upgrade().is_some());
             drop(prefix);
@@ -462,14 +492,19 @@ mod tests {
                     assert_eq!(cached.get(), Some(&previous));
                 }
                 let program = OnceLock::<Arc<Regex>>::new();
-                assert!(initialize_native_schemas_with_cell(funded, false, &cell, || {
-                    assert!(
-                        program
-                            .set(build_program(r"^funded[0-9]+$").unwrap())
-                            .is_ok()
-                    );
-                    true
-                }));
+                assert!(initialize_native_schemas_with_cell(
+                    funded,
+                    false,
+                    &cell,
+                    || {
+                        assert!(
+                            program
+                                .set(build_program(r"^funded[0-9]+$").unwrap())
+                                .is_ok()
+                        );
+                        true
+                    }
+                ));
                 assert_eq!(cell.get(), Some(&true));
                 assert!(program.get().unwrap().memory_usage() > 0_usize);
             }

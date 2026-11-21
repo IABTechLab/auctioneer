@@ -31,7 +31,8 @@ fn manifest(seed: &CapturedSeed) -> Result<Value, String> {
     if value["emitted_rust_sha256"] != digest(&seed.rust) {
         return Err("stale captured staging Rust".into());
     }
-    seed.recheck_snapshots().map_err(|_error| "captured schema snapshot mismatch".to_owned())?;
+    seed.recheck_snapshots()
+        .map_err(|_error| "captured schema snapshot mismatch".to_owned())?;
     Ok(value)
 }
 
@@ -39,7 +40,11 @@ fn declarations<'a>(
     manifest: &'a Value,
     seed: &'a CapturedSeed,
 ) -> Result<BTreeMap<String, (&'a Value, &'a SchemaSnapshot)>, String> {
-    let snapshots: BTreeMap<_, _> = seed.snapshots.iter().map(|row| (row.owner.as_str(), row)).collect();
+    let snapshots: BTreeMap<_, _> = seed
+        .snapshots
+        .iter()
+        .map(|row| (row.owner.as_str(), row))
+        .collect();
     if snapshots.len() != seed.snapshots.len() {
         return Err(MEMBERSHIP.into());
     }
@@ -50,7 +55,9 @@ fn declarations<'a>(
         let marker = row["marker"].as_str().ok_or(MEMBERSHIP)?;
         let owner = row["owner"].as_str().ok_or(MEMBERSHIP)?;
         let snapshot = *snapshots.get(owner).ok_or(MEMBERSHIP)?;
-        if marker.is_empty() || owner.is_empty() || !owners.insert(owner)
+        if marker.is_empty()
+            || owner.is_empty()
+            || !owners.insert(owner)
             || serde_json::to_value(snapshot).map_err(|error| error.to_string())? != row["snapshot"]
             || row["source"]["name"] != owner
             || row["source"]["sha256"] != snapshot.sha256
@@ -67,10 +74,18 @@ fn declarations<'a>(
 }
 
 fn validator(item: &syn::ItemStruct) -> Result<Option<&syn::Attribute>, String> {
-    let attributes = item.attrs.iter().filter(|attribute| {
-        attribute.path().segments.iter().map(|part| part.ident.to_string())
-            .eq(["jsonschema", "validator"])
-    }).collect::<Vec<_>>();
+    let attributes = item
+        .attrs
+        .iter()
+        .filter(|attribute| {
+            attribute
+                .path()
+                .segments
+                .iter()
+                .map(|part| part.ident.to_string())
+                .eq(["jsonschema", "validator"])
+        })
+        .collect::<Vec<_>>();
     match attributes.as_slice() {
         [] => Ok(None),
         [attribute] => Ok(Some(attribute)),
@@ -88,7 +103,8 @@ fn expand_declaration(
     let syn::Meta::List(options) = &attribute.meta else {
         return Err("unqualified captured validator options".into());
     };
-    let schema: Value = serde_json::from_slice(&snapshot.bytes).map_err(|error| error.to_string())?;
+    let schema: Value =
+        serde_json::from_slice(&snapshot.bytes).map_err(|error| error.to_string())?;
     if digest(&snapshot.bytes) != snapshot.sha256 {
         return Err("captured schema snapshot mismatch".into());
     }
@@ -96,43 +112,68 @@ fn expand_declaration(
     let callbacks = super::options::check(options.tokens.clone(), &path, &schema)?;
     let mut declaration = item.clone();
     // Remove only the invoking attribute, preserving all other emitted syntax.
-    declaration.attrs = item.attrs.iter().filter(|candidate| !std::ptr::eq(*candidate, attribute)).cloned().collect();
-    let tokens = jsonschema_macros_core::expand(options.tokens.clone(), declaration.to_token_stream());
+    declaration.attrs = item
+        .attrs
+        .iter()
+        .filter(|candidate| !std::ptr::eq(*candidate, attribute))
+        .cloned()
+        .collect();
+    let tokens =
+        jsonschema_macros_core::expand(options.tokens.clone(), declaration.to_token_stream());
     let expansion_sha256 = digest(tokens.to_string().as_bytes());
     let mut syntax: syn::File = syn::parse2(tokens).map_err(|error| error.to_string())?;
     crate::reject_compiler_errors(&mut syntax)?;
-    let patterns = emitted_patterns(&syntax).map_err(|error| format!("unsupported expanded regex owner: {error:?}"))?;
+    let patterns = emitted_patterns(&syntax)
+        .map_err(|error| format!("unsupported expanded regex owner: {error:?}"))?;
     let namespace = format!("{}::{}", snapshot.owner, item.ident);
     let storage = super::storage::collect(&mut syntax, &namespace, &path, &patterns)?;
-    let programs = patterns.iter().map(|(name, pattern)| json!({
-        "identity":format!("{namespace}::{name}"),"symbol":name,
-        "pattern":pattern,"pattern_sha256":digest(pattern.as_bytes()),
-        "lifetime":"first-initialization-to-process-exit",
-        "search_cache_lifetime":"validation-call","sharing":"declaration-local"
-    })).collect::<Vec<_>>();
-    Ok(json!({"owner":snapshot.owner,"marker":item.ident.to_string(),
+    let programs = patterns
+        .iter()
+        .map(|(name, pattern)| {
+            json!({
+                "identity":format!("{namespace}::{name}"),"symbol":name,
+                "pattern":pattern,"pattern_sha256":digest(pattern.as_bytes()),
+                "lifetime":"first-initialization-to-process-exit",
+                "search_cache_lifetime":"validation-call","sharing":"declaration-local"
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok(
+        json!({"owner":snapshot.owner,"marker":item.ident.to_string(),
         "source":row["source"],"snapshot":row["snapshot"],
         "expansion_sha256":expansion_sha256,"programs":programs,
         "schema_state":storage.schema_state,"readonly":storage.readonly,
         "initialization":storage.initialization,"callbacks":callbacks,
-        "qualification":"Unqualified","resource_qualification":false}))
+        "qualification":"Unqualified","resource_qualification":false}),
+    )
 }
 
 pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
     let manifest = manifest(seed)?;
     let expected = declarations(&manifest, seed)?;
-    let syntax = syn::parse_file(std::str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
-        .map_err(|error| error.to_string())?;
+    let syntax =
+        syn::parse_file(std::str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())?;
     let mut actual = BTreeMap::new();
     let mut auxiliary = Vec::new();
     for item in &syntax.items {
         if let syn::Item::Struct(declaration) = item
             && let Some(attribute) = validator(declaration)?
         {
-            if actual.insert(declaration.ident.to_string(), (declaration, attribute)).is_some() {
+            if actual
+                .insert(declaration.ident.to_string(), (declaration, attribute))
+                .is_some()
+            {
                 return Err(MEMBERSHIP.into());
             }
-        } else if matches!(item, syn::Item::Use(_) | syn::Item::Struct(_) | syn::Item::Static(_) | syn::Item::Const(_) | syn::Item::Fn(_)) {
+        } else if matches!(
+            item,
+            syn::Item::Use(_)
+                | syn::Item::Struct(_)
+                | syn::Item::Static(_)
+                | syn::Item::Const(_)
+                | syn::Item::Fn(_)
+        ) {
             auxiliary.push(digest(item.to_token_stream().to_string().as_bytes()));
         } else {
             return Err("unsupported captured staging syntax".into());
@@ -146,12 +187,15 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
         let (item, attribute) = actual.get(&marker).ok_or(MEMBERSHIP)?;
         rows.push(expand_declaration(seed, item, attribute, row, snapshot)?);
     }
-    seed.recheck_snapshots().map_err(|_error| "captured schema snapshot mismatch".to_owned())?;
-    Ok(json!({"schema_version":2_u8,"identity_sha256":seed.identity_sha256,
+    seed.recheck_snapshots()
+        .map_err(|_error| "captured schema snapshot mismatch".to_owned())?;
+    Ok(
+        json!({"schema_version":2_u8,"identity_sha256":seed.identity_sha256,
         "captured_manifest_sha256":digest(&seed.manifest_bytes),
         "captured_rust_sha256":digest(&seed.rust),"declarations":rows,
         "auxiliary_syntax_sha256":auxiliary,"qualification":"Unqualified",
-        "resource_qualification":false,"source_completeness":"owner-graph-only"}))
+        "resource_qualification":false,"source_completeness":"owner-graph-only"}),
+    )
 }
 
 #[cfg(test)]
@@ -266,7 +310,11 @@ mod tests {
             proc_macro2::Span::call_site(),
         );
         let dfa_limit = syn::LitInt::new(
-            if field == "dfa_limit" { "65535" } else { "65536" },
+            if field == "dfa_limit" {
+                "65535"
+            } else {
+                "65536"
+            },
             proc_macro2::Span::call_site(),
         );
         let validate_formats = field != "format_validation";
@@ -427,6 +475,19 @@ mod tests {
                 _ => panic!("unknown declaration matrix case"),
             };
             assert_eq!(expand(&seed).err().as_deref(), Some(reason), "{case}");
+        }
+    }
+
+    #[test]
+    fn fake_expansion_refuses_unclassified_auxiliary_storage() {
+        for extra in [
+            quote! { static FAKE_HIDDEN: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| vec![0_u8; 17]); },
+            quote! { fn fake_hidden() { static FAKE_HIDDEN: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| vec![0_u8; 17]); } },
+            quote! { const FAKE_UNCLASSIFIED: &str = "unattributed"; },
+        ] {
+            let (_directory, mut seed) = fixture("^a[0-9]+$");
+            change_rust(&mut seed, |syntax| syntax.items.push(syn::parse2(extra).unwrap()));
+            assert_eq!(expand(&seed).err().as_deref(), Some("unsupported captured staging syntax"));
         }
     }
 

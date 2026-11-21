@@ -25,14 +25,19 @@ struct Owners<'a> {
 
 fn path_is(path: &syn::Path, names: &[&str]) -> bool {
     path.segments.len() == names.len()
-        && path.segments.iter().zip(names).all(|(part, name)| {
-            part.ident == *name && part.arguments.is_empty()
-        })
+        && path
+            .segments
+            .iter()
+            .zip(names)
+            .all(|(part, name)| part.ident == *name && part.arguments.is_empty())
 }
 
 fn json_initializer(expr: &syn::Expr) -> Result<Value, String> {
-    let syn::Expr::Call(lazy) = expr else { return Err(REFUSAL.into()); };
-    if !matches!(lazy.func.as_ref(), syn::Expr::Path(path) if path_is(&path.path, &["__Lazy", "new"])) {
+    let syn::Expr::Call(lazy) = expr else {
+        return Err(REFUSAL.into());
+    };
+    if !matches!(lazy.func.as_ref(), syn::Expr::Path(path) if path_is(&path.path, &["__Lazy", "new"]))
+    {
         return Err(REFUSAL.into());
     }
     if lazy.args.len() != 1 {
@@ -41,35 +46,74 @@ fn json_initializer(expr: &syn::Expr) -> Result<Value, String> {
     let Some(syn::Expr::Closure(closure)) = lazy.args.first() else {
         return Err(REFUSAL.into());
     };
-    let syn::Expr::Block(block) = closure.body.as_ref() else { return Err(REFUSAL.into()); };
-    let [syn::Stmt::Expr(syn::Expr::MethodCall(expect), None)] = block.block.stmts.as_slice() else {
+    let syn::Expr::Block(block) = closure.body.as_ref() else {
+        return Err(REFUSAL.into());
+    };
+    let [syn::Stmt::Expr(syn::Expr::MethodCall(expect), None)] = block.block.stmts.as_slice()
+    else {
         return Err(REFUSAL.into());
     };
     if expect.method != "expect" || expect.args.len() != 1 {
         return Err(REFUSAL.into());
     }
-    let syn::Expr::Call(parse) = expect.receiver.as_ref() else { return Err(REFUSAL.into()); };
-    let syn::Expr::Path(path) = parse.func.as_ref() else { return Err(REFUSAL.into()); };
-    if path.qself.is_some() || path.path.segments.len() != 2
-        || path.path.segments[0].ident != "__sj" || path.path.segments[1].ident != "from_str"
+    let syn::Expr::Call(parse) = expect.receiver.as_ref() else {
+        return Err(REFUSAL.into());
+    };
+    let syn::Expr::Path(path) = parse.func.as_ref() else {
+        return Err(REFUSAL.into());
+    };
+    if path.qself.is_some()
+        || path.path.segments.len() != 2
+        || path.path.segments[0].ident != "__sj"
+        || path.path.segments[1].ident != "from_str"
         || parse.args.len() != 1
     {
         return Err(REFUSAL.into());
     }
-    let Some(syn::Expr::Lit(literal)) = parse.args.first() else { return Err(REFUSAL.into()); };
-    let syn::Lit::Str(text) = &literal.lit else { return Err(REFUSAL.into()); };
+    let Some(syn::Expr::Lit(literal)) = parse.args.first() else {
+        return Err(REFUSAL.into());
+    };
+    let syn::Lit::Str(text) = &literal.lit else {
+        return Err(REFUSAL.into());
+    };
     serde_json::from_str(&text.value()).map_err(|_error| REFUSAL.into())
 }
 
+fn type_argument<'a>(ty: &'a syn::Type, name: &str) -> Option<&'a syn::Type> {
+    let syn::Type::Path(path) = ty else {
+        return None;
+    };
+    if path.qself.is_some() || path.path.leading_colon.is_some() || path.path.segments.len() != 1 {
+        return None;
+    }
+    let segment = path.path.segments.first()?;
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    if segment.ident != name || arguments.args.len() != 1 {
+        return None;
+    }
+    match arguments.args.first()? {
+        syn::GenericArgument::Type(inner) => Some(inner),
+        _ => None,
+    }
+}
+
+fn type_is(ty: &syn::Type, names: &[&str]) -> bool {
+    matches!(ty, syn::Type::Path(path) if path.qself.is_none()
+        && path.path.leading_colon.is_none() && path_is(&path.path, names))
+}
+
 fn lazy_kind(ty: &syn::Type) -> Option<&'static str> {
-    let normalized = ty.to_token_stream().to_string();
-    // These are exact parsed type spellings, not inferred private layouts.
-    if normalized == quote::quote!(__Lazy<Vec<__sj::Value>>).to_string() {
-        Some("lazy_json_array")
-    } else if normalized == quote::quote!(__Lazy<__sj::Value>).to_string() {
+    // Generic types have structural identity; joint `>>` punctuation in a
+    // token printer must not change whether a retained owner is recognized.
+    let inner = type_argument(ty, "__Lazy")?;
+    if type_is(inner, &["__sj", "Value"]) {
         Some("lazy_json_value")
-    } else if normalized == quote::quote!(__Lazy<__sj::Number>).to_string() {
+    } else if type_is(inner, &["__sj", "Number"]) {
         Some("lazy_json_number")
+    } else if type_argument(inner, "Vec").is_some_and(|value| type_is(value, &["__sj", "Value"])) {
+        Some("lazy_json_array")
     } else {
         None
     }
@@ -102,16 +146,26 @@ impl Owners<'_> {
         {
             return Err(REFUSAL.into());
         }
-        let syn::Expr::Reference(reference) = item.expr.as_ref() else { return Err(REFUSAL.into()); };
-        let syn::Expr::Array(array) = reference.expr.as_ref() else { return Err(REFUSAL.into()); };
-        let strings = array.elems.iter().map(|expr| match expr {
-            syn::Expr::Lit(value) => match &value.lit {
-                syn::Lit::Str(text) => Ok(text.value()),
+        let syn::Expr::Reference(reference) = item.expr.as_ref() else {
+            return Err(REFUSAL.into());
+        };
+        let syn::Expr::Array(array) = reference.expr.as_ref() else {
+            return Err(REFUSAL.into());
+        };
+        let strings = array
+            .elems
+            .iter()
+            .map(|expr| match expr {
+                syn::Expr::Lit(value) => match &value.lit {
+                    syn::Lit::Str(text) => Ok(text.value()),
+                    _ => Err(REFUSAL.to_owned()),
+                },
                 _ => Err(REFUSAL.to_owned()),
-            },
-            _ => Err(REFUSAL.to_owned()),
-        }).collect::<Result<Vec<_>, _>>()?;
-        self.state.readonly.push(json!({"identity":self.identity(&name),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.state
+            .readonly
+            .push(json!({"identity":self.identity(&name),
             "kind":"readonly_string_table","strings":strings}));
         Ok(())
     }
@@ -173,7 +227,9 @@ impl VisitMut for Owners<'_> {
             false
         };
         if valid {
-            self.state.readonly.push(json!({"identity":self.identity("schema_source"),
+            self.state
+                .readonly
+                .push(json!({"identity":self.identity("schema_source"),
                 "kind":"readonly_schema_source"}));
         } else {
             self.error = Some(REFUSAL.into());
@@ -183,7 +239,10 @@ impl VisitMut for Owners<'_> {
 
     fn visit_macro_mut(&mut self, item: &mut syn::Macro) {
         if item.path.segments.last().is_some_and(|part| {
-            matches!(part.ident.to_string().as_str(), "thread_local" | "compile_error")
+            matches!(
+                part.ident.to_string().as_str(),
+                "thread_local" | "compile_error"
+            )
         }) {
             self.error = Some(REFUSAL.into());
         }
@@ -197,10 +256,21 @@ pub(super) fn collect(
     snapshot: &Path,
     patterns: &[(String, String)],
 ) -> Result<Storage, String> {
-    let programs = patterns.iter().map(|(name, _)| name.as_str()).collect::<BTreeSet<_>>();
+    let programs = patterns
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<BTreeSet<_>>();
     let mut owners = Owners {
-        namespace, snapshot, programs, scopes: Vec::new(), block: 0,
-        state: Storage { schema_state: Vec::new(), readonly: Vec::new(), initialization: Vec::new() },
+        namespace,
+        snapshot,
+        programs,
+        scopes: Vec::new(),
+        block: 0,
+        state: Storage {
+            schema_state: Vec::new(),
+            readonly: Vec::new(),
+            initialization: Vec::new(),
+        },
         error: None,
     };
     owners.visit_file_mut(syntax);
@@ -208,9 +278,59 @@ pub(super) fn collect(
         return Err(error);
     }
     if owners.state.initialization.len() != owners.programs.len()
-        || owners.state.initialization.iter().map(String::as_str).collect::<BTreeSet<_>>() != owners.programs
+        || owners
+            .state
+            .initialization
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>()
+            != owners.programs
     {
         return Err("expanded initialization membership mismatch".into());
     }
     Ok(owners.state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect;
+    use std::path::Path;
+
+    fn fixture() -> syn::File {
+        syn::parse_quote! {
+            mod fake_generated {
+                static FAKE_REGEX: __Lazy<Option<__ra::meta::Regex>> = __Lazy::new(|| None);
+                fn initialize_regexes() -> bool { FAKE_REGEX.as_ref().is_some() }
+            }
+        }
+    }
+
+    #[test]
+    fn expanded_storage_rejects_shadowed_regex_names_in_function_scopes() {
+        let patterns = vec![("FAKE_REGEX".to_owned(), "^fake$".to_owned())];
+        assert!(collect(&mut fixture(), "fake_owner", Path::new("/fake/schema.json"), &patterns).is_ok());
+        let mut syntax = fixture();
+        let syn::Item::Mod(module) = &mut syntax.items[0] else { panic!("fixture module"); };
+        module.content.as_mut().unwrap().1.push(syn::parse_quote! {
+            fn fake_hidden() {
+                static FAKE_REGEX: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| vec![0_u8; 17]);
+            }
+        });
+        assert_eq!(collect(&mut syntax, "fake_owner", Path::new("/fake/schema.json"), &patterns).err().as_deref(), Some("unsupported expanded schema storage"));
+    }
+
+    #[test]
+    fn expanded_storage_rejects_unknown_and_nested_storage_macros() {
+        for extra in [
+            quote::quote! { macro_rules! fake_hidden { () => { static FAKE: Vec<u8> = Vec::new(); } } },
+            quote::quote! { fake_hidden!(); },
+            quote::quote! { fn fake_guard() -> bool { matches!({ static FAKE: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| vec![0_u8; 17]); true }, true) } },
+        ] {
+            let mut syntax = fixture();
+            let syn::Item::Mod(module) = &mut syntax.items[0] else { panic!("fixture module"); };
+            module.content.as_mut().unwrap().1.push(syn::parse2(extra).unwrap());
+            let patterns = vec![("FAKE_REGEX".to_owned(), "^fake$".to_owned())];
+            assert_eq!(collect(&mut syntax, "fake_owner", Path::new("/fake/schema.json"), &patterns).err().as_deref(), Some("unsupported expanded schema storage"));
+        }
+    }
 }

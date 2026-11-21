@@ -55,7 +55,8 @@ impl Settings {
     }
 
     fn flag(&mut self, key: &str, expected: bool) -> Result<(), String> {
-        if matches!(self.value(key)?, Expr::Lit(value) if matches!(&value.lit, Lit::Bool(flag) if flag.value == expected)) {
+        if matches!(self.value(key)?, Expr::Lit(value) if matches!(&value.lit, Lit::Bool(flag) if flag.value == expected))
+        {
             Ok(())
         } else {
             Err(REFUSAL.into())
@@ -63,7 +64,8 @@ impl Settings {
     }
 
     fn number(&mut self, key: &str, expected: usize) -> Result<(), String> {
-        if matches!(self.value(key)?, Expr::Lit(value) if matches!(&value.lit, Lit::Int(number) if number.base10_parse::<usize>().ok() == Some(expected))) {
+        if matches!(self.value(key)?, Expr::Lit(value) if matches!(&value.lit, Lit::Int(number) if number.base10_parse::<usize>().ok() == Some(expected)))
+        {
             Ok(())
         } else {
             Err(REFUSAL.into())
@@ -71,7 +73,8 @@ impl Settings {
     }
 
     fn name(&mut self, key: &str, expected: &str) -> Result<(), String> {
-        if matches!(self.value(key)?, Expr::Path(path) if path.qself.is_none() && path.path.is_ident(expected)) {
+        if matches!(self.value(key)?, Expr::Path(path) if path.qself.is_none() && path.path.is_ident(expected))
+        {
             Ok(())
         } else {
             Err(REFUSAL.into())
@@ -130,25 +133,39 @@ pub(super) fn check(
     if !matches!(literal.lit, Lit::Str(value) if Path::new(&value.value()) == path) {
         return Err(REFUSAL.into());
     }
-    settings.name("draft", match audit.draft {
-        Draft::Draft4 => "Draft4",
-        Draft::Draft202012 => "Draft202012",
-        Draft::Unspecified | Draft::Other(_) => return Err(REFUSAL.into()),
-    })?;
+    settings.name(
+        "draft",
+        match audit.draft {
+            Draft::Draft4 => "Draft4",
+            Draft::Draft202012 => "Draft202012",
+            Draft::Unspecified | Draft::Other(_) => return Err(REFUSAL.into()),
+        },
+    )?;
     settings.flag("validate_formats", true)?;
     settings.flag("ignore_unknown_formats", false)?;
     let Formats(formats) = parse(settings.group("formats")?)?;
-    let expected: std::collections::BTreeSet<_> = audit.formats.iter().map(|row| row.value.as_str()).collect();
-    if formats.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != expected {
+    let expected: std::collections::BTreeSet<_> =
+        audit.formats.iter().map(|row| row.value.as_str()).collect();
+    if formats
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>()
+        != expected
+    {
         return Err(REFUSAL.into());
     }
     for (name, callback) in &formats {
         if !matches!(name.as_str(), "hostname" | "uuid")
             || callback.leading_colon.is_some()
-            || !callback.segments.iter().map(|part| part.ident.to_string()).eq([
-                "crate", "schema", "staging", "formats", name.as_str(),
-            ])
-            || callback.segments.iter().any(|part| !part.arguments.is_empty())
+            || !callback
+                .segments
+                .iter()
+                .map(|part| part.ident.to_string())
+                .eq(["crate", "schema", "staging", "formats", name.as_str()])
+            || callback
+                .segments
+                .iter()
+                .any(|part| !part.arguments.is_empty())
         {
             return Err(REFUSAL.into());
         }

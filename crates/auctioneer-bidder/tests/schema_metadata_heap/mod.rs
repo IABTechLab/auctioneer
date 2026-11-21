@@ -26,11 +26,11 @@ impl From<LayoutError> for MetadataHeapError {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct MetadataLayout {
-    regex_fields: [NativeField; 2],
-    info_fields: [NativeField; 3],
-    props_payload: NativeField,
-    static_inline: NativeField,
+pub(crate) struct MetadataLayout {
+    pub(crate) regex_fields: [NativeField; 2],
+    pub(crate) info_fields: [NativeField; 3],
+    pub(crate) props_payload: NativeField,
+    pub(crate) static_inline: NativeField,
 }
 
 impl MetadataLayout {
@@ -137,6 +137,18 @@ pub(crate) struct MetadataPopulation {
 }
 
 impl NativeImmutableRegexMetadata {
+    // Hosted-RED scaffold only. No layout/header defaults are exposed; caller
+    // supplied facts still need implementation and matched target evidence.
+    pub(crate) fn from_pattern_with_layouts(
+        pattern: &str,
+        config: &Config,
+        pattern_count: usize,
+        _layout: MetadataLayout,
+        _header: NativeField,
+    ) -> Result<Self, MetadataHeapError> {
+        Self::from_pattern(pattern, config, pattern_count)
+    }
+
     pub(crate) fn from_pattern(
         pattern: &str,
         config: &Config,
@@ -240,6 +252,176 @@ mod tests {
             alignment: 8,
         },
     };
+
+    #[test]
+    fn explicit_metadata_facts_vary_every_field_and_alignment_without_host_substitution() {
+        let config = Regex::config();
+        let header = NativeField { bytes: 8_usize, alignment: 4_usize };
+        let expected = NativeImmutableRegexMetadata {
+            regex_arc_bytes: 32_usize,
+            info_arc_bytes: 80_usize,
+            props_capacity: 4_usize,
+            props_vec_bytes: 32_usize,
+            props_box_bytes: 80_usize,
+            props_union_box_bytes: 80_usize,
+            requested_heap_bytes: 304_usize,
+            static_inline_bytes: 64_usize,
+        };
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$", &config, 1_usize, SYNTHETIC, header,
+            ),
+            Ok(expected)
+        );
+        for index in 0_usize..2_usize {
+            let mut layout = SYNTHETIC;
+            layout.regex_fields[index].bytes += 8_usize;
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    "^synthetic+$", &config, 1_usize, layout, header,
+                ),
+                Ok(NativeImmutableRegexMetadata {
+                    regex_arc_bytes: 40_usize,
+                    requested_heap_bytes: 312_usize,
+                    ..expected
+                }),
+                "regex field {index}"
+            );
+        }
+        for index in 0_usize..3_usize {
+            let mut layout = SYNTHETIC;
+            layout.info_fields[index].bytes += 8_usize;
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    "^synthetic+$", &config, 1_usize, layout, header,
+                ),
+                Ok(NativeImmutableRegexMetadata {
+                    info_arc_bytes: 88_usize,
+                    props_vec_bytes: if index == 2_usize { 64_usize } else { 32_usize },
+                    requested_heap_bytes: if index == 2_usize { 344_usize } else { 312_usize },
+                    ..expected
+                }),
+                "info field {index}"
+            );
+        }
+        let mut payload = SYNTHETIC;
+        payload.props_payload.bytes = 88_usize;
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$", &config, 1_usize, payload, header,
+            ),
+            Ok(NativeImmutableRegexMetadata {
+                props_box_bytes: 88_usize,
+                props_union_box_bytes: 88_usize,
+                requested_heap_bytes: 320_usize,
+                ..expected
+            })
+        );
+        let mut inline = SYNTHETIC;
+        inline.static_inline.bytes = 72_usize;
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$", &config, 1_usize, inline, header,
+            ),
+            Ok(NativeImmutableRegexMetadata { static_inline_bytes: 72_usize, ..expected })
+        );
+        let mut aligned = SYNTHETIC;
+        aligned.regex_fields[0].alignment = 16_usize;
+        // The 8/4 header pads to offset 16, followed by a 32/16 payload bound.
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$", &config, 1_usize, aligned, header,
+            ),
+            Ok(NativeImmutableRegexMetadata {
+                regex_arc_bytes: 48_usize,
+                requested_heap_bytes: 320_usize,
+                ..expected
+            })
+        );
+    }
+
+    #[test]
+    fn explicit_metadata_facts_refuse_each_missing_malformed_or_overflowed_field_and_header() {
+        let config = Regex::config();
+        for (field, error) in [
+            (
+                NativeField { bytes: 0_usize, alignment: 8_usize },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField { bytes: 8_usize, alignment: 0_usize },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField { bytes: 8_usize, alignment: 3_usize },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField { bytes: 9_usize, alignment: 8_usize },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField { bytes: usize::MAX - 7_usize, alignment: 8_usize },
+                MetadataHeapError::Arithmetic,
+            ),
+        ] {
+            for index in 0_usize..8_usize {
+                let mut layout = SYNTHETIC;
+                let mut header = NativeField { bytes: 8_usize, alignment: 4_usize };
+                match index {
+                    0..=1 => layout.regex_fields[index] = field,
+                    2..=4 => layout.info_fields[index - 2_usize] = field,
+                    5 => layout.props_payload = field,
+                    6 => layout.static_inline = field,
+                    _ => header = field,
+                }
+                assert_eq!(
+                    NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                        "^synthetic+$", &config, 1_usize, layout, header,
+                    ),
+                    Err(error),
+                    "field {index}: {field:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_native_metadata_facts_preserve_adapter_and_pattern_configuration_refusals() {
+        let pattern = "^synthetic+$";
+        let config = Regex::config();
+        let hir = parse(pattern).unwrap();
+        let layout = MetadataLayout::native(hir.properties());
+        let header = NativeField::of::<[AtomicUsize; 2]>();
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                pattern, &config, 1_usize, layout, header,
+            ),
+            NativeImmutableRegexMetadata::from_pattern(pattern, &config, 1_usize)
+        );
+        for count in [0_usize, 2_usize, usize::MAX] {
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    pattern, &config, count, layout, header,
+                ),
+                Err(MetadataHeapError::PatternCount)
+            );
+        }
+        let prefilter = Prefilter::new(MatchKind::LeftmostFirst, &[b"synthetic"]).unwrap();
+        let configured = Regex::config().prefilter(Some(prefilter));
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                pattern, &configured, 1_usize, layout, header,
+            ),
+            Err(MetadataHeapError::Configuration)
+        );
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "[synthetic", &config, 1_usize, layout, header,
+            ),
+            Err(MetadataHeapError::Syntax)
+        );
+    }
 
     #[test]
     fn metadata_literal_terms_charge_two_arcs_capacity_four_and_two_property_boxes() {
