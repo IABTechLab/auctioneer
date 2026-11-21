@@ -458,11 +458,14 @@ fn check_build(
     manifest: &Value,
     expected: &ExpectedBuild<'_>,
 ) -> Result<BTreeMap<String, String>, String> {
-    if manifest["schema_version"] != 1_u32
+    if manifest["schema_version"] != 2_u32
         || manifest["kind"] != "unqualified_non_serving_schema_staging"
         || manifest["identity"]["qualification"] != "Unqualified"
         || manifest["linked_or_serving_qualification"] != false
         || manifest["artifact_inspection"] != "pending"
+        || ["planned_roots", "published_roots_all_features"]
+            .iter()
+            .any(|field| manifest.get(*field).is_some())
     {
         return Err("application staging must remain unqualified".into());
     }
@@ -540,6 +543,46 @@ fn check_build(
     Ok(environment)
 }
 
+fn callable_bindings(
+    cohort: &Value,
+    development: bool,
+    target: &str,
+) -> Result<BTreeSet<(String, String)>, String> {
+    let publications = cohort["source"]["publication_predicates"]
+        .as_array()
+        .ok_or("application publication predicates missing")?;
+    let mut identities = BTreeSet::new();
+    let mut callable = BTreeSet::new();
+    for row in publications {
+        let name = row["name"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or("application publication predicate mismatch")?;
+        let implementation = row["implementation"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or("application publication predicate mismatch")?;
+        let native = row["native_only"]
+            .as_bool()
+            .ok_or("application publication predicate mismatch")?;
+        let enabled = match row.get("required_feature") {
+            Some(Value::Null) => true,
+            Some(Value::String(feature)) if feature == "insecure-bidders" => development,
+            _ => return Err("application publication predicate mismatch".into()),
+        };
+        if !identities.insert(name) {
+            return Err("application publication predicate mismatch".into());
+        }
+        if enabled && (!native || !target.starts_with("wasm32-")) {
+            callable.insert((name.to_owned(), implementation.to_owned()));
+        }
+    }
+    if json!(identities) != cohort["source"]["implemented_roots_all_features"] {
+        return Err("application publication predicate mismatch".into());
+    }
+    Ok(callable)
+}
+
 fn check_cohort(
     manifest: &Value,
     schemas: &[SchemaInventory],
@@ -563,16 +606,30 @@ fn check_cohort(
         || owners.iter().copied().collect::<BTreeSet<_>>().len() != owners.len()
         || selected.len() != schemas.len()
         || staged.len() != schemas.len()
-        || cohort["schema_version"] != 1_u32
+        || super::selected::binding_contract(cohort).is_err()
         || cohort["lane"] != lane
         || cohort["source"]["linked_or_serving_qualification"] != false
         || cohort["source"]["lanes"][lane] != cohort["selection"]
         || manifest["selection"]["schema_owners"] != json!(owners)
-        || manifest["published_roots_all_features"]
-            != cohort["source"]["published_roots_all_features"]
-        || manifest["planned_roots"] != cohort["source"]["planned_roots"]
+        || ["planned_roots", "published_roots_all_features"]
+            .iter()
+            .any(|field| {
+                manifest.get(*field).is_some() || cohort["source"].get(*field).is_some()
+            })
+        || ["implemented_roots_all_features", "inventory_dispositions"]
+            .iter()
+            .any(|field| {
+                manifest[*field].as_array().is_none_or(Vec::is_empty)
+                    || manifest[*field] != cohort["source"][*field]
+            })
     {
         return Err("application source cohort mismatch".into());
+    }
+    let target = manifest["build"]["target"]
+        .as_str()
+        .ok_or("application staging target mismatch")?;
+    if manifest["callable_bindings"] != json!(callable_bindings(cohort, development, target)?) {
+        return Err("application callable publication mismatch".into());
     }
     let members = cohort["selection"]["members"]
         .as_array()
@@ -1779,9 +1836,16 @@ mod tests {
         } else {
             "secure"
         };
-        let mut cohort = json!({"schema_version":1_u32,"lane":lane,"selection":selection,
-            "source":{"linked_or_serving_qualification":false,"published_roots_all_features":["fake_alias"],
-                "planned_roots":["fake_alias"],"lanes":{}}});
+        let dispositions = json!([
+            {"name":"fake_alias","implementation":"fake_owner","disposition":"implemented"},
+            {"name":"fake_owner","implementation":"fake_owner","disposition":"not_implemented"}]);
+        let mut cohort = json!({"schema_version":2_u32,"lane":lane,"selection":selection,
+            "source":{"schema_version":2_u32,"linked_or_serving_qualification":false,
+                "implemented_roots_all_features":["fake_alias"],
+                "inventory_dispositions":dispositions,
+                "callable_bindings":[["fake_alias","fake_owner"]],
+                "publication_predicates":[{"name":"fake_alias","implementation":"fake_owner",
+                    "required_feature":null,"native_only":false}],"lanes":{}}});
         cohort["source"]["lanes"][lane] = selection;
         let rust = quote::quote! { const FAKE_STAGING: bool = false; }
             .to_string()
@@ -1789,7 +1853,7 @@ mod tests {
         let mut witness = serde_json::to_value(&schema.witness).unwrap();
         witness["repository"] = source["repository"].clone();
         witness["revision"] = source["revision"].clone();
-        let mut manifest = json!({"schema_version":1_u32,"kind":"unqualified_non_serving_schema_staging",
+        let mut manifest = json!({"schema_version":2_u32,"kind":"unqualified_non_serving_schema_staging",
             "identity":{"qualification":"Unqualified","sha256":digest(b"fake_identity")},
             "linked_or_serving_qualification":false,"artifact_inspection":"pending",
             "build":{"enabled_features":enabled_features(expected.development),"target":expected.target,
@@ -1801,7 +1865,8 @@ mod tests {
             "schemas":[witness],"selection":{"schema_owners":["fake_owner"],"members":[{
                 "name":"fake_alias","implementation":"fake_owner","is_root":true,
                 "ancestry":["fake_owner"],"schema_owner":"fake_owner"}]},
-            "published_roots_all_features":["fake_alias"],"planned_roots":["fake_alias"],"emitted_rust_sha256":digest(&rust)});
+            "implemented_roots_all_features":["fake_alias"],"inventory_dispositions":dispositions,
+            "callable_bindings":[["fake_alias","fake_owner"]],"emitted_rust_sha256":digest(&rust)});
         for feature in enabled_features(expected.development) {
             manifest["build_environment"][format!(
                 "CARGO_FEATURE_{}",
@@ -1833,6 +1898,53 @@ mod tests {
                     controls.iter().all(|row| row["rejected"] == true
                         && row["scope"] == "in_memory_evidence_mutation")
                 );
+                let mut native = cohort.clone();
+                native["source"]["publication_predicates"][0]["native_only"] = json!(true);
+                let mut gated = cohort.clone();
+                gated["source"]["publication_predicates"][0]["required_feature"] =
+                    json!("insecure-bidders");
+                for (changed, enabled) in [(native, !guest), (gated, development)] {
+                    let mut emitted = manifest.clone();
+                    emitted["callable_bindings"] = if enabled {
+                        json!([["fake_alias", "fake_owner"]])
+                    } else {
+                        json!([])
+                    };
+                    check_cohort(&emitted, &schemas, &changed, development)
+                        .expect("target and feature predicates vary independently");
+                    emitted["callable_bindings"] = if enabled {
+                        json!([])
+                    } else {
+                        json!([["fake_alias", "fake_owner"]])
+                    };
+                    assert_eq!(
+                        check_cohort(&emitted, &schemas, &changed, development).unwrap_err(),
+                        "application callable publication mismatch"
+                    );
+                }
+                for field in ["implemented_roots_all_features", "inventory_dispositions"] {
+                    let mut missing_manifest = manifest.clone();
+                    let mut missing_source = cohort.clone();
+                    assert!(
+                        missing_manifest
+                            .as_object_mut()
+                            .unwrap()
+                            .remove(field)
+                            .is_some()
+                    );
+                    assert!(
+                        missing_source["source"]
+                            .as_object_mut()
+                            .unwrap()
+                            .remove(field)
+                            .is_some()
+                    );
+                    assert_eq!(
+                        check_cohort(&missing_manifest, &schemas, &missing_source, development)
+                            .unwrap_err(),
+                        "application source cohort mismatch"
+                    );
+                }
             }
         }
     }
@@ -1897,6 +2009,20 @@ mod tests {
             );
         }
         let mut changed = manifest.clone();
+        changed["schema_version"] = json!(1);
+        assert_eq!(
+            check_build(&changed, &expected).unwrap_err(),
+            "application staging must remain unqualified"
+        );
+        for field in ["planned_roots", "published_roots_all_features"] {
+            let mut changed = manifest.clone();
+            changed[field] = json!([]);
+            assert_eq!(
+                check_build(&changed, &expected).unwrap_err(),
+                "application staging must remain unqualified"
+            );
+        }
+        let mut changed = manifest.clone();
         changed["identity"]["qualification"] = json!("fake_qualified");
         assert_eq!(
             check_build(&changed, &expected).unwrap_err(),
@@ -1950,6 +2076,20 @@ mod tests {
             check_cohort(&manifest, &schemas, &wrong_lane, false).unwrap_err(),
             "application source cohort mismatch"
         );
+        let mut old = cohort.clone();
+        old["schema_version"] = json!(1);
+        assert_eq!(
+            check_cohort(&manifest, &schemas, &old, false).unwrap_err(),
+            "application source cohort mismatch"
+        );
+        for field in ["planned_roots", "published_roots_all_features"] {
+            let mut old = cohort.clone();
+            old["source"][field] = json!([]);
+            assert_eq!(
+                check_cohort(&manifest, &schemas, &old, false).unwrap_err(),
+                "application source cohort mismatch"
+            );
+        }
         let mut stale_source = cohort.clone();
         stale_source["selection"]["schemas"][0]["witness"]["sha256"] = json!("fake_stale_source");
         stale_source["source"]["lanes"]["secure"] = stale_source["selection"].clone();

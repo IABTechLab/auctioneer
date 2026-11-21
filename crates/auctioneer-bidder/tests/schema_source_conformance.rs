@@ -820,7 +820,7 @@ mod tests {
         assert_eq!(expected_mode.as_deref(), Some("unqualified"));
         let manifest: serde_json::Value =
             serde_json::from_str(captured_manifest.expect("actual staged build metadata")).unwrap();
-        assert_eq!(manifest["schema_version"], 1_u8);
+        assert_eq!(manifest["schema_version"], 2_u8);
         assert_eq!(manifest["kind"], "unqualified_non_serving_schema_staging");
         assert_eq!(manifest["identity"]["qualification"], "Unqualified");
         assert_eq!(manifest["linked_or_serving_qualification"], false);
@@ -2516,57 +2516,71 @@ mod tests {
 
     use super::schema_formats::HOSTNAME_SOURCE;
     use super::schema_selection_source::produce as selected_source_manifest;
+    fn membership_expectations() -> Result<[Value; 2], &'static str> {
+        use super::schema_selection_source::{Lane, independent_membership};
+        Ok([
+            independent_membership(Lane::Secure)
+                .map_err(|_error| "independent source membership")?,
+            independent_membership(Lane::Development)
+                .map_err(|_error| "independent source membership")?,
+        ])
+    }
+
     fn check_current(manifest: &Value) -> Result<(), &'static str> {
-        // The producer independently reconciles these generated declarations
-        // and target-gated bindings against bidder-owned source manifests.
-        let declarations = auctioneer_config_data::bidder_metadata_declarations();
-        let published: BTreeSet<_> = declarations.iter().map(|row| row.bidder).collect();
-        let planned = super::schema_selection_source::planned_source_roots()
-            .map_err(|_error| "planned source/publication membership")?;
+        check_membership(manifest, &membership_expectations()?)
+    }
+
+    fn check_membership(manifest: &Value, expected: &[Value; 2]) -> Result<(), &'static str> {
+        if manifest["schema_version"] != 2_u8
+            || [
+                "planned_roots",
+                "published_roots_all_features",
+                "actual_active_published_bindings",
+            ]
+            .iter()
+            .any(|field| manifest.get(*field).is_some())
+        {
+            return Err("retired source membership contract");
+        }
+        let current = &expected[0];
+        for field in [
+            "implemented_roots_all_features",
+            "inventory_dispositions",
+            "publication_predicates",
+            "callable_bindings",
+        ] {
+            if manifest[field].as_array().is_none_or(Vec::is_empty)
+                || manifest[field] != current[field]
+            {
+                return Err("root/publication membership");
+            }
+        }
         let active: Vec<_> = auctioneer_config_data::bidder_implementation_bindings()
             .iter()
             .map(|row| (row.bidder, row.implementation))
             .collect();
-        let active_count = if cfg!(target_arch = "wasm32") { 4 } else { 18 };
-        if manifest["planned_roots"]
-            .as_array()
-            .ok_or("planned roots")?
-            .len()
-            != 14
-            || manifest["planned_roots"] != json!(planned)
-            || manifest["published_roots_all_features"]
-                .as_array()
-                .ok_or("published roots")?
-                .len()
-                != 18
-            || manifest["published_roots_all_features"] != json!(published)
-            || manifest["actual_active_published_bindings"]
-                .as_array()
-                .ok_or("active bindings")?
-                .len()
-                != active_count
-            || manifest["actual_active_published_bindings"] != json!(active)
-        {
-            return Err("root/publication membership");
+        if manifest["callable_bindings"] != json!(active) {
+            return Err("actual callable publication membership");
         }
-        for (lane_name, count, roots, members) in
-            [("secure", 16_usize, 18, 18), ("development", 16, 18, 18)]
-        {
+        for (lane_name, expected) in ["secure", "development"].into_iter().zip(expected) {
             let lane = &manifest["lanes"][lane_name];
-            // Inspection S remains published declarations plus planned roots,
-            // even on guests where native-only serving bindings are absent.
-            let mut expected_roots: BTreeSet<_> = planned.iter().map(String::as_str).collect();
-            expected_roots.extend(
-                declarations
-                    .iter()
-                    .filter(|row| row.required_feature.is_none() || lane_name == "development")
-                    .map(|row| row.bidder),
-            );
-            if lane["roots"].as_array().ok_or("roots")?.len() != roots
-                || lane["roots"] != json!(expected_roots)
-                || lane["members"].as_array().ok_or("members")?.len() != members
+            let owners = expected["effective_schema_owners"]
+                .as_array()
+                .ok_or("expected owners")?;
+            let count = owners.len();
+            if count == 0
+                || lane["roots"] != expected["roots"]
+                || lane["members"] != expected["members"]
+                || lane["effective_schema_owners"] != expected["effective_schema_owners"]
                 || lane["schema_count"] != json!(count)
                 || lane["schemas"].as_array().ok_or("schemas")?.len() != count
+                || lane["schemas"]
+                    .as_array()
+                    .ok_or("schemas")?
+                    .iter()
+                    .map(|row| &row["witness"]["name"])
+                    .collect::<Vec<_>>()
+                    != owners.iter().collect::<Vec<_>>()
             {
                 return Err("root/schema membership");
             }
@@ -2654,7 +2668,7 @@ mod tests {
             .filter(|row| row["effective_schema_owner"].is_null())
             .collect();
         assert_eq!(schema_free.len(), 1);
-        assert_eq!(schema_free[0]["published"], true);
+        assert_eq!(schema_free[0]["implemented"], true);
         assert_eq!(schema_free[0]["is_root"], true);
         let aliases: Vec<_> = members
             .iter()
@@ -2691,16 +2705,19 @@ mod tests {
 
     #[test]
     fn schema_selection_manifest_is_order_independent_and_detects_omissions() {
+        let expected = membership_expectations().expect("independent declaration expectations");
         let original = selected_source_manifest(false).expect("manifest");
         let reordered = selected_source_manifest(true).expect("reordered manifest");
+        check_membership(&original, &expected).expect("accepted before each negative control");
         assert_eq!(
             serde_json::to_vec(&original).unwrap(),
             serde_json::to_vec(&reordered).unwrap()
         );
         for field in [
-            "planned_roots",
-            "published_roots_all_features",
-            "actual_active_published_bindings",
+            "implemented_roots_all_features",
+            "inventory_dispositions",
+            "publication_predicates",
+            "callable_bindings",
         ] {
             let mut missing_publication = original.clone();
             missing_publication[field]
@@ -2708,19 +2725,50 @@ mod tests {
                 .unwrap()
                 .pop()
                 .unwrap();
-            check_current(&missing_publication).expect_err("missing publication");
+            check_membership(&missing_publication, &expected).expect_err("missing publication");
             let mut replaced_publication = original.clone();
             replaced_publication[field].as_array_mut().unwrap()[0] = json!("fake_substitute");
-            check_current(&replaced_publication).expect_err("same-count publication substitution");
+            check_membership(&replaced_publication, &expected)
+                .expect_err("same-count publication substitution");
         }
-        for field in ["roots", "schemas"] {
+        let mut old = original.clone();
+        old["schema_version"] = json!(1);
+        assert_eq!(
+            check_membership(&old, &expected),
+            Err("retired source membership contract")
+        );
+        for field in [
+            "planned_roots",
+            "published_roots_all_features",
+            "actual_active_published_bindings",
+        ] {
+            let mut old = original.clone();
+            old[field] = json!([]);
+            assert_eq!(
+                check_membership(&old, &expected),
+                Err("retired source membership contract")
+            );
+        }
+        let mut false_skip = original.clone();
+        let implemented = false_skip["inventory_dispositions"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|row| row["disposition"] == "implemented")
+            .expect("before-state implemented identity");
+        implemented["disposition"] = json!("not_implemented");
+        assert_eq!(
+            check_membership(&false_skip, &expected),
+            Err("root/publication membership")
+        );
+        for field in ["roots", "members", "effective_schema_owners", "schemas"] {
             let mut missing = original.clone();
             missing["lanes"]["secure"][field]
                 .as_array_mut()
                 .unwrap()
                 .pop()
                 .unwrap();
-            check_current(&missing).expect_err(field);
+            check_membership(&missing, &expected).expect_err(field);
         }
         let mut missing = original.clone();
         let patterned = missing["lanes"]["secure"]["schemas"]
@@ -2734,14 +2782,14 @@ mod tests {
             .unwrap()
             .pop()
             .unwrap();
-        check_current(&missing).expect_err("missing generated helper");
+        check_membership(&missing, &expected).expect_err("missing generated helper");
         let mut missing_shared = original;
         missing_shared["lanes"]["secure"]["shared_regex_helpers"]
             .as_array_mut()
             .unwrap()
             .pop()
             .unwrap();
-        check_current(&missing_shared).expect_err("missing shared helper");
+        check_membership(&missing_shared, &expected).expect_err("missing shared helper");
     }
     use super::bundle_patterns;
     use regex_automata::{meta::Regex, nfa::thompson::NFA, util::prefilter::Prefilter};
