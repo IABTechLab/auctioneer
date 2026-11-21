@@ -497,7 +497,8 @@ pub fn verify_lock(child: &str, workspace: &str) -> Result<(), String> {
 pub fn resolved_engine_features(
     source: &schema_regex_vendor::VerifiedSource,
 ) -> Result<Vec<String>, String> {
-    resolved_regex_dependencies(source).map(|dependencies| dependencies.engine_features)
+    let dependencies: ResolvedRegexDependencies = resolved_regex_dependencies(source)?;
+    Ok(dependencies.engine_features)
 }
 
 pub fn verify_compiler_metadata(bytes: &[u8], vendor: &Path) -> Result<(), String> {

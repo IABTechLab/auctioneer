@@ -205,7 +205,8 @@ fn read_pinned(
     if !prefix.status.success()
         || prefix.stdout != b"\n"
         || !top.status.success()
-        || text_line(&top.stdout).map_err(|_error| Error::Root)? != root.to_str().ok_or(Error::Root)?
+        || text_line(&top.stdout).map_err(|_error| Error::Root)?
+            != root.to_str().ok_or(Error::Root)?
     {
         return Err(Error::Root);
     }

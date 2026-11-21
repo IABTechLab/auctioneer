@@ -67,7 +67,10 @@ impl SourceRecipe {
     /// Seal source/model identities only. No layout projection or native
     /// constructor is performed until evaluate receives explicit target facts.
     pub(crate) fn from_source(
-        owner: &str, pattern: &str, config: &Config, sources: Sources<'_>,
+        owner: &str,
+        pattern: &str,
+        config: &Config,
+        sources: Sources<'_>,
     ) -> Result<Self, Refusal> {
         require_selection(pattern, config, &sources)?;
         verify_sources(&sources)?;
@@ -85,22 +88,39 @@ impl SourceRecipe {
         })
     }
 
-    pub(crate) fn owner(&self) -> &str { &self.owner }
-    pub(crate) fn pattern(&self) -> &str { &self.pattern }
-    pub(crate) fn required_facts(&self) -> &BTreeSet<String> { &self.required_facts }
-    pub(crate) fn phase_models(&self) -> &[Stage] { &self.phase_models }
-    pub(crate) fn work_models(&self) -> &[Work] { &self.work_models }
+    pub(crate) fn owner(&self) -> &str {
+        &self.owner
+    }
+    pub(crate) fn pattern(&self) -> &str {
+        &self.pattern
+    }
+    pub(crate) fn required_facts(&self) -> &BTreeSet<String> {
+        &self.required_facts
+    }
+    pub(crate) fn phase_models(&self) -> &[Stage] {
+        &self.phase_models
+    }
+    pub(crate) fn work_models(&self) -> &[Work] {
+        &self.work_models
+    }
 
     /// Numbers require all matched target facts; work may still be Unbound.
     pub(crate) fn evaluate(
-        &self, layouts: &BTreeMap<String, NativeField>, program: &ProgramRecipe<'_>,
+        &self,
+        layouts: &BTreeMap<String, NativeField>,
+        program: &ProgramRecipe<'_>,
     ) -> Result<Certificate, Refusal> {
         evaluate(&Inputs {
-            owner: &self.owner, pattern: &self.pattern, config: &self.config,
-            program, layouts,
+            owner: &self.owner,
+            pattern: &self.pattern,
+            config: &self.config,
+            program,
+            layouts,
             sources: Sources {
-                workspace: &self.workspace, syntax: &self.syntax,
-                rust_release: &self.rust_release, features: &self.features,
+                workspace: &self.workspace,
+                syntax: &self.syntax,
+                rust_release: &self.rust_release,
+                features: &self.features,
             },
         })
     }
@@ -108,29 +128,72 @@ impl SourceRecipe {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum Stage {
-    Syntax, Literal, ForwardNfa, PikeVm, Backtrack, OnePass, ReverseNfa,
-    HybridForward, HybridReverse, HybridPair, Publication, Cleanup, FailureCleanup,
+    Syntax,
+    Literal,
+    ForwardNfa,
+    PikeVm,
+    Backtrack,
+    OnePass,
+    ReverseNfa,
+    HybridForward,
+    HybridReverse,
+    HybridPair,
+    Publication,
+    Cleanup,
+    FailureCleanup,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum Work {
-    Syntax, OuterVectors, ForwardNfa, ReverseNfa, OnePass, Literal,
-    WrapperScaffolds, HybridChecks, Publication,
-    LiteralHir, LiteralRanges, LiteralSequences, LiteralCopies, LiteralTrie, LiteralSelection,
+    Syntax,
+    OuterVectors,
+    ForwardNfa,
+    ReverseNfa,
+    OnePass,
+    Literal,
+    WrapperScaffolds,
+    HybridChecks,
+    Publication,
+    LiteralHir,
+    LiteralRanges,
+    LiteralSequences,
+    LiteralCopies,
+    LiteralTrie,
+    LiteralSelection,
 }
 
 const STAGES: [Stage; 13_usize] = [
-    Stage::Syntax, Stage::Literal, Stage::ForwardNfa, Stage::PikeVm,
-    Stage::Backtrack, Stage::OnePass, Stage::ReverseNfa, Stage::HybridForward,
-    Stage::HybridReverse, Stage::HybridPair, Stage::Publication, Stage::Cleanup,
+    Stage::Syntax,
+    Stage::Literal,
+    Stage::ForwardNfa,
+    Stage::PikeVm,
+    Stage::Backtrack,
+    Stage::OnePass,
+    Stage::ReverseNfa,
+    Stage::HybridForward,
+    Stage::HybridReverse,
+    Stage::HybridPair,
+    Stage::Publication,
+    Stage::Cleanup,
     Stage::FailureCleanup,
 ];
 
 const WORK_OWNERS: [Work; 15_usize] = [
-    Work::Syntax, Work::OuterVectors, Work::ForwardNfa, Work::ReverseNfa,
-    Work::OnePass, Work::Literal, Work::WrapperScaffolds, Work::HybridChecks,
-    Work::Publication, Work::LiteralHir, Work::LiteralRanges, Work::LiteralSequences,
-    Work::LiteralCopies, Work::LiteralTrie, Work::LiteralSelection,
+    Work::Syntax,
+    Work::OuterVectors,
+    Work::ForwardNfa,
+    Work::ReverseNfa,
+    Work::OnePass,
+    Work::Literal,
+    Work::WrapperScaffolds,
+    Work::HybridChecks,
+    Work::Publication,
+    Work::LiteralHir,
+    Work::LiteralRanges,
+    Work::LiteralSequences,
+    Work::LiteralCopies,
+    Work::LiteralTrie,
+    Work::LiteralSelection,
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,15 +241,32 @@ pub(crate) struct Certificate {
 
 impl Certificate {
     pub(crate) fn complete_work(&self) -> Result<usize, Refusal> {
-        let total = self.work.values().try_fold(0_usize, |total, value| match value {
-            Visits::Bound(value) => total.checked_add(*value).ok_or(Refusal::Arithmetic),
-            Visits::Unbound(owner) => Err(Refusal::UnboundWork(owner)),
-        })?;
-        if [Work::Syntax, Work::OuterVectors, Work::ForwardNfa, Work::ReverseNfa,
-            Work::OnePass, Work::Literal, Work::WrapperScaffolds, Work::HybridChecks,
-            Work::Publication, Work::LiteralHir, Work::LiteralRanges, Work::LiteralSequences,
-            Work::LiteralCopies, Work::LiteralTrie, Work::LiteralSelection]
-            .into_iter().any(|owner| !self.work.contains_key(&owner))
+        let total = self
+            .work
+            .values()
+            .try_fold(0_usize, |total, value| match value {
+                Visits::Bound(value) => total.checked_add(*value).ok_or(Refusal::Arithmetic),
+                Visits::Unbound(owner) => Err(Refusal::UnboundWork(owner)),
+            })?;
+        if [
+            Work::Syntax,
+            Work::OuterVectors,
+            Work::ForwardNfa,
+            Work::ReverseNfa,
+            Work::OnePass,
+            Work::Literal,
+            Work::WrapperScaffolds,
+            Work::HybridChecks,
+            Work::Publication,
+            Work::LiteralHir,
+            Work::LiteralRanges,
+            Work::LiteralSequences,
+            Work::LiteralCopies,
+            Work::LiteralTrie,
+            Work::LiteralSelection,
+        ]
+        .into_iter()
+        .any(|owner| !self.work.contains_key(&owner))
         {
             return Err(Refusal::UnboundWork("missing source work owner"));
         }
@@ -195,14 +275,16 @@ impl Certificate {
 }
 
 pub(crate) fn required_fact_keys() -> BTreeSet<String> {
-    schema_syntax_construction::PRIVATE_TYPES.into_iter()
+    schema_syntax_construction::PRIVATE_TYPES
+        .into_iter()
         .chain(schema_syntax_construction::PAYLOAD_TYPES)
         .chain([schema_syntax_construction::ABI_POINTER])
         .chain(target::fact_keys())
         .chain(schema_nfa_construction::additional_layout_keys())
         .chain(schema_onepass_construction::fact_keys())
         .chain(SUFFIX_KEYS)
-        .map(str::to_owned).collect()
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Conditional C/I only, not a source-completeness or physical qualification.
@@ -218,7 +300,10 @@ pub(crate) fn evaluate(input: &Inputs<'_>) -> Result<Certificate, Refusal> {
     let models = Models::project(input)?;
     models.require_coverage(&retained)?;
     let phase_scratch = models.phases(input, &retained)?;
-    let construction_only_bytes = phase_scratch.values().copied().max()
+    let construction_only_bytes = phase_scratch
+        .values()
+        .copied()
+        .max()
         .ok_or(Refusal::RetainedCoverage)?;
     let work = models.work(input, &retained)?;
     let certificate = Certificate {
@@ -249,13 +334,17 @@ fn require_selection(pattern: &str, config: &Config, sources: &Sources<'_>) -> R
     {
         return Err(Refusal::Configuration);
     }
-    if !matches!(pattern, "^[0-9]+$" | r"^[0-9]+(\.[0-9]+)?$" | r"\.[a-zA-Z]{2,3}$")
-        && pattern != HOSTNAME_SOURCE
+    if !matches!(
+        pattern,
+        "^[0-9]+$" | r"^[0-9]+(\.[0-9]+)?$" | r"\.[a-zA-Z]{2,3}$"
+    ) && pattern != HOSTNAME_SOURCE
     {
         return Err(Refusal::PatternScope);
     }
-    let expected: BTreeSet<String> = schema_regex_vendor::FEATURES.into_iter()
-        .map(str::to_owned).collect();
+    let expected: BTreeSet<String> = schema_regex_vendor::FEATURES
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
     if sources.features != &expected {
         return Err(Refusal::Features);
     }
@@ -273,13 +362,14 @@ fn verify_sources(sources: &Sources<'_>) -> Result<(), Refusal> {
     // literal::is_poisonous calls rank; the syntax constructor's pins do not
     // cover this additional consumer dependency.
     let path = sources.syntax.join("src/rank.rs");
-    let metadata = fs::symlink_metadata(&path)
-        .map_err(|_error| Refusal::Source("regex-syntax rank"))?;
+    let metadata =
+        fs::symlink_metadata(&path).map_err(|_error| Refusal::Source("regex-syntax rank"))?;
     if !metadata.is_file() || metadata.len() > 0x0010_0000_u64 {
         return Err(Refusal::Source("regex-syntax rank"));
     }
     let mut bytes = Vec::new();
-    File::open(path).and_then(|file| file.take(0x0010_0001_u64).read_to_end(&mut bytes))
+    File::open(path)
+        .and_then(|file| file.take(0x0010_0001_u64).read_to_end(&mut bytes))
         .map_err(|_error| Refusal::Source("regex-syntax rank"))?;
     verify_rank_bytes(&bytes)
 }
@@ -295,7 +385,11 @@ fn verify_rank_bytes(bytes: &[u8]) -> Result<(), Refusal> {
 
 fn require_layouts(input: &Inputs<'_>) -> Result<(), Refusal> {
     for key in required_fact_keys() {
-        input.layouts.get(&key).ok_or(Refusal::Missing(key))?.validate()?;
+        input
+            .layouts
+            .get(&key)
+            .ok_or(Refusal::Missing(key))?
+            .validate()?;
     }
     let word = input.layouts[target::ABI_POINTER];
     require_word(word)?;
@@ -304,8 +398,13 @@ fn require_layouts(input: &Inputs<'_>) -> Result<(), Refusal> {
         || input.layouts[type_name::<AtomicUsize>()] != word
         || input.program.arc_header.bytes != mul(word.bytes, 2_usize)?
         || input.program.arc_header.alignment != word.alignment
-        || input.program.metadata.props_payload != input.layouts[schema_nfa_construction::HIR_PROPERTIES]
-        || input.program.memchr_payload != (NativeField { bytes: 1_usize, alignment: 1_usize })
+        || input.program.metadata.props_payload
+            != input.layouts[schema_nfa_construction::HIR_PROPERTIES]
+        || input.program.memchr_payload
+            != (NativeField {
+                bytes: 1_usize,
+                alignment: 1_usize,
+            })
     {
         return Err(Refusal::Layout);
     }
@@ -315,13 +414,21 @@ fn require_layouts(input: &Inputs<'_>) -> Result<(), Refusal> {
         }
     }
     // Supplied root payloads are mandatory premises, including dormant tables.
-    for field in input.program.metadata.regex_fields.into_iter()
+    for field in input
+        .program
+        .metadata
+        .regex_fields
+        .into_iter()
         .chain(input.program.metadata.info_fields)
         .chain(input.program.pool.fields)
         .chain([
-            input.program.metadata.props_payload, input.program.metadata.static_inline,
-            input.program.arc_header, input.program.strategy_payload,
-            input.program.memchr_payload, input.program.pool.shard, input.program.pool.closure,
+            input.program.metadata.props_payload,
+            input.program.metadata.static_inline,
+            input.program.arc_header,
+            input.program.strategy_payload,
+            input.program.memchr_payload,
+            input.program.pool.shard,
+            input.program.pool.closure,
         ])
     {
         field.validate()?;
@@ -340,8 +447,11 @@ struct Models {
 impl Models {
     fn project(input: &Inputs<'_>) -> Result<Self, Refusal> {
         let syntax_certificate = SyntaxConstructionCertificate::from_pattern(
-            input.pattern, input.layouts, input.sources.syntax,
-        ).map_err(syntax_error)?;
+            input.pattern,
+            input.layouts,
+            input.sources.syntax,
+        )
+        .map_err(syntax_error)?;
         let hir: Hir = syntax::parse_with(input.pattern, &syntax::Config::default().utf8(true))
             .map_err(|_error| Refusal::Source("selected HIR"))?;
         let forward = NfaConstructionCertificate::from_hir_with_layouts(&hir, false, input.layouts)
@@ -355,10 +465,17 @@ impl Models {
         } else {
             let nfa = forward_nfa(input.pattern)
                 .map_err(|_error| Refusal::Source("forward NFA topology"))?;
-            Some(OnePassConstructionCertificate::from_nfa_with_layouts(&nfa, input.layouts)
-                .map_err(onepass_error)?)
+            Some(
+                OnePassConstructionCertificate::from_nfa_with_layouts(&nfa, input.layouts)
+                    .map_err(onepass_error)?,
+            )
         };
-        Ok(Self { syntax: syntax_certificate, forward, reverse, onepass })
+        Ok(Self {
+            syntax: syntax_certificate,
+            forward,
+            reverse,
+            onepass,
+        })
     }
 
     fn require_coverage(&self, retained: &NativeProgramHeap) -> Result<(), Refusal> {
@@ -376,21 +493,30 @@ impl Models {
     }
 
     fn phases(
-        &self, input: &Inputs<'_>, retained: &NativeProgramHeap,
+        &self,
+        input: &Inputs<'_>,
+        retained: &NativeProgramHeap,
     ) -> Result<BTreeMap<Stage, usize>, Refusal> {
         let facts = input.layouts;
         let word = facts[target::ABI_POINTER];
         // Keep the full syntax reserve, including AST/HIR drop replacements,
         // live until the caller drops both outer Vecs. Never reclassify it as C.
-        let persistent = add(self.syntax.peak_requested_bytes, outer_vectors(
-            facts["regex_syntax::ast::Ast"], facts["regex_syntax::hir::Hir"], word,
-        )?)?;
+        let persistent = add(
+            self.syntax.peak_requested_bytes,
+            outer_vectors(
+                facts["regex_syntax::ast::Ast"],
+                facts["regex_syntax::hir::Hir"],
+                word,
+            )?,
+        )?;
         let trie = append(facts[schema_nfa_construction::TRIE_STATE], 2_usize, word)?;
         let wrapper = add(trie.retained_bytes, trie.old_growth_bytes)?;
         let dead = hybrid_dead(input.program.memchr_payload, input.program.arc_header, word)?;
         let hybrid = add(wrapper, dead)?;
         let literal = if input.pattern == literal_construction::PATTERN {
-            literal_construction::suffix(input.pattern, facts).map_err(literal_error)?.peak
+            literal_construction::suffix(input.pattern, facts)
+                .map_err(literal_error)?
+                .peak
         } else {
             0_usize // strategy::new skips prefix extraction when start-anchored.
         };
@@ -398,13 +524,17 @@ impl Models {
             onepass_scratch(certificate, retained.onepass_tables_bytes)
         })?;
         let extras = [
-            (Stage::Syntax, 0_usize), (Stage::Literal, literal),
+            (Stage::Syntax, 0_usize),
+            (Stage::Literal, literal),
             (Stage::ForwardNfa, self.forward.initialization_scratch_bytes),
-            (Stage::PikeVm, wrapper), (Stage::Backtrack, wrapper),
+            (Stage::PikeVm, wrapper),
+            (Stage::Backtrack, wrapper),
             (Stage::OnePass, onepass),
             (Stage::ReverseNfa, self.reverse.initialization_scratch_bytes),
-            (Stage::HybridForward, hybrid), (Stage::HybridReverse, hybrid),
-            (Stage::HybridPair, wrapper), (Stage::Publication, 0_usize),
+            (Stage::HybridForward, hybrid),
+            (Stage::HybridReverse, hybrid),
+            (Stage::HybridPair, wrapper),
+            (Stage::Publication, 0_usize),
             (Stage::Cleanup, 0_usize),
         ];
         // Every failure prefix has the same monotonic high-waters, not a
@@ -415,40 +545,61 @@ impl Models {
     }
 
     fn work(
-        &self, input: &Inputs<'_>, retained: &NativeProgramHeap,
+        &self,
+        input: &Inputs<'_>,
+        retained: &NativeProgramHeap,
     ) -> Result<BTreeMap<Work, Visits>, Refusal> {
         // Units: source collection-record/byte visits, including buffer
         // initialization, relocation and cleanup. Excludes scalar moves,
         // atomics, allocator internals, machine operations and elapsed time.
-        let mut work = WORK_OWNERS.into_iter().map(|owner| {
-            (owner, Visits::Unbound("missing constructor work owner"))
-        })
+        let mut work = WORK_OWNERS
+            .into_iter()
+            .map(|owner| (owner, Visits::Unbound("missing constructor work owner")))
             .collect::<BTreeMap<_, _>>();
         work.insert(Work::Syntax, Visits::Bound(self.syntax.work_upper_bound));
         // regex.rs:3611-3631,3741: AST push, HIR push, &Hir collect,
         // outer AST drop and outer HIR drop. Each buffer has one element;
         // no old allocation relocates. Child drops belong to syntax.
         work.insert(Work::OuterVectors, Visits::Bound(sum(&[1_usize; 5_usize])?));
-        work.insert(Work::ForwardNfa, Visits::Bound(self.forward.work_upper_bound));
-        work.insert(Work::ReverseNfa, Visits::Bound(self.reverse.work_upper_bound));
+        work.insert(
+            Work::ForwardNfa,
+            Visits::Bound(self.forward.work_upper_bound),
+        );
+        work.insert(
+            Work::ReverseNfa,
+            Visits::Bound(self.reverse.work_upper_bound),
+        );
         if let Some(certificate) = &self.onepass {
             work.insert(Work::OnePass, Visits::Bound(certificate.work_upper_bound));
         } else {
             work.insert(Work::OnePass, Visits::Bound(0_usize));
         }
-        work.insert(Work::WrapperScaffolds, Visits::Bound(wrapper_work(input.layouts)?));
+        work.insert(
+            Work::WrapperScaffolds,
+            Visits::Bound(wrapper_work(input.layouts)?),
+        );
         work.insert(Work::HybridChecks, Visits::Bound(hybrid_work()?));
-        work.insert(Work::Publication, Visits::Bound(publication_work([
-            retained.metadata_bytes, retained.strategy_arc_bytes, retained.unused_pool_bytes,
-        ])?));
+        work.insert(
+            Work::Publication,
+            Visits::Bound(publication_work([
+                retained.metadata_bytes,
+                retained.strategy_arc_bytes,
+                retained.unused_pool_bytes,
+            ])?),
+        );
         if input.pattern == literal_construction::PATTERN {
             work.extend(suffix_work(input.layouts)?);
         } else {
             // All other admitted patterns are start-anchored: strategy::new
             // skips extraction, so each literal subledger is positively absent.
-            for owner in [Work::LiteralHir, Work::LiteralRanges, Work::LiteralSequences,
-                Work::LiteralCopies, Work::LiteralTrie, Work::LiteralSelection]
-            {
+            for owner in [
+                Work::LiteralHir,
+                Work::LiteralRanges,
+                Work::LiteralSequences,
+                Work::LiteralCopies,
+                Work::LiteralTrie,
+                Work::LiteralSelection,
+            ] {
                 work.insert(owner, Visits::Bound(0_usize));
             }
         }
@@ -459,11 +610,19 @@ impl Models {
     }
 }
 
-fn onepass_scratch(certificate: &OnePassConstructionCertificate, covered_by_c: usize) -> Result<usize, Refusal> {
+fn onepass_scratch(
+    certificate: &OnePassConstructionCertificate,
+    covered_by_c: usize,
+) -> Result<usize, Refusal> {
     let scratch = sum(&[
-        certificate.scaffold_bytes, certificate.queue_peak_bytes, certificate.nfa_map_bytes,
-        certificate.stack_peak_bytes, certificate.seen_bytes, certificate.table_peak_bytes,
-        certificate.starts_peak_bytes, certificate.remapper_peak_bytes,
+        certificate.scaffold_bytes,
+        certificate.queue_peak_bytes,
+        certificate.nfa_map_bytes,
+        certificate.stack_peak_bytes,
+        certificate.seen_bytes,
+        certificate.table_peak_bytes,
+        certificate.starts_peak_bytes,
+        certificate.remapper_peak_bytes,
     ])?;
     let envelope = add(scratch, certificate.shrink_overlap_bytes)?;
     if certificate.retained_tables_upper_bytes > covered_by_c
@@ -477,9 +636,14 @@ fn onepass_scratch(certificate: &OnePassConstructionCertificate, covered_by_c: u
 }
 
 fn phase_envelopes(
-    persistent: usize, extras: [(Stage, usize); 12_usize],
+    persistent: usize,
+    extras: [(Stage, usize); 12_usize],
 ) -> Result<BTreeMap<Stage, usize>, Refusal> {
-    let maximum = extras.iter().map(|entry| entry.1).max().ok_or(Refusal::RetainedCoverage)?;
+    let maximum = extras
+        .iter()
+        .map(|entry| entry.1)
+        .max()
+        .ok_or(Refusal::RetainedCoverage)?;
     let mut phases = BTreeMap::new();
     for (stage, scratch) in extras.into_iter().chain([(Stage::FailureCleanup, maximum)]) {
         if phases.insert(stage, add(persistent, scratch)?).is_some() {
@@ -498,21 +662,40 @@ fn outer_vectors(ast: NativeField, hir: NativeField, word: NativeField) -> Resul
     // Iterator::collect over a mapped slice is trusted length: exactly one &Hir.
     let references = request(word.bytes, word.alignment, word)?;
     sum(&[
-        ast_buffer.retained_bytes, ast_buffer.old_growth_bytes,
-        hir_buffer.retained_bytes, hir_buffer.old_growth_bytes, references,
+        ast_buffer.retained_bytes,
+        ast_buffer.old_growth_bytes,
+        hir_buffer.retained_bytes,
+        hir_buffer.old_growth_bytes,
+        references,
     ])
 }
 
-fn hybrid_dead(byte: NativeField, header: NativeField, word: NativeField) -> Result<usize, Refusal> {
-    if byte != (NativeField { bytes: 1_usize, alignment: 1_usize }) {
+fn hybrid_dead(
+    byte: NativeField,
+    header: NativeField,
+    word: NativeField,
+) -> Result<usize, Refusal> {
+    if byte
+        != (NativeField {
+            bytes: 1_usize,
+            alignment: 1_usize,
+        })
+    {
         return Err(Refusal::Layout);
     }
     header.validate()?;
     let heap = require_word(word)?;
     // state.rs:130,199-201,287-288: empty Vec extends a nine-byte slice,
     // then Arc::from(&[u8]) copies it; both requests coexist until return.
-    let buffer = request(heap.fresh_resize_vector(byte.bytes, 9_usize)?, byte.alignment, word)?;
-    let payload = NativeField { bytes: 9_usize, alignment: byte.alignment };
+    let buffer = request(
+        heap.fresh_resize_vector(byte.bytes, 9_usize)?,
+        byte.alignment,
+        word,
+    )?;
+    let payload = NativeField {
+        bytes: 9_usize,
+        alignment: byte.alignment,
+    };
     let arc = arc_layout_with_header(payload, header)?;
     add(buffer, request(arc.size(), arc.align(), word)?)
 }
@@ -535,7 +718,7 @@ fn hybrid_work() -> Result<usize, Refusal> {
     let per_dfa = sum(&[
         32_usize, // quit ByteSet initialization (two u128s)
         32_usize, // ByteClassSet clone
-        2_usize, // quit is_empty compares two u128 records
+        2_usize,  // quit is_empty compares two u128 records
         256_usize, 256_usize, // class zeroing and class-building loop
         256_usize, 3_usize, // start-map zeroing and three fixed writes
         10_usize, 26_usize, 26_usize, // start-map ASCII loops
@@ -586,12 +769,21 @@ fn suffix_audit(facts: &BTreeMap<String, NativeField>) -> Result<BTreeMap<Work, 
     let word = facts[target::ABI_POINTER];
     let state_copies = relocated_records(facts[SUFFIX_KEYS[1]], 2_usize, word)?;
     let slot_copies = relocated_records(facts[SUFFIX_KEYS[2]], 2_usize, word)?;
-    let sequence = suffix_sequence_terms().into_iter()
+    let sequence = suffix_sequence_terms()
+        .into_iter()
         .try_fold(0_usize, |total, term| add(total, term.1))?;
     // Trie: retain predicate, inserted byte, two states, two match slots,
     // one transition, two state drops; at most one relocation per outer Vec.
-    let trie = sum(&[1_usize, 1_usize, 2_usize, 2_usize, 1_usize, 2_usize,
-        state_copies, slot_copies])?;
+    let trie = sum(&[
+        1_usize,
+        1_usize,
+        2_usize,
+        2_usize,
+        1_usize,
+        2_usize,
+        state_copies,
+        slot_copies,
+    ])?;
     Ok(BTreeMap::from([
         // Four dispatches (concat, dot, repetition, class) plus outer HIR.
         (Work::LiteralHir, add(4_usize, 1_usize)?),
@@ -615,9 +807,12 @@ fn suffix_work(facts: &BTreeMap<String, NativeField>) -> Result<BTreeMap<Work, V
     // In particular byte copies are two, not eight; trie visits are nine
     // plus target-layout-dependent relocations, not twelve unproved visits.
     let bounds = [
-        (Work::LiteralHir, 5_usize), (Work::LiteralRanges, 2_usize),
-        (Work::LiteralSequences, 32_usize), (Work::LiteralCopies, 8_usize),
-        (Work::LiteralTrie, 12_usize), (Work::LiteralSelection, 8_usize),
+        (Work::LiteralHir, 5_usize),
+        (Work::LiteralRanges, 2_usize),
+        (Work::LiteralSequences, 32_usize),
+        (Work::LiteralCopies, 8_usize),
+        (Work::LiteralTrie, 12_usize),
+        (Work::LiteralSelection, 8_usize),
     ];
     let mut work = BTreeMap::new();
     for (owner, bound) in bounds {
@@ -629,12 +824,23 @@ fn suffix_work(facts: &BTreeMap<String, NativeField>) -> Result<BTreeMap<Work, V
     Ok(work)
 }
 
-fn relocated_records(field: NativeField, count: usize, word: NativeField) -> Result<usize, Refusal> {
+fn relocated_records(
+    field: NativeField,
+    count: usize,
+    word: NativeField,
+) -> Result<usize, Refusal> {
     let growth = append(field, count, word)?;
-    growth.old_growth_bytes.checked_div(field.bytes).ok_or(Refusal::Arithmetic)
+    growth
+        .old_growth_bytes
+        .checked_div(field.bytes)
+        .ok_or(Refusal::Arithmetic)
 }
 
-fn append(field: NativeField, count: usize, word: NativeField) -> Result<AllocationEnvelope, Refusal> {
+fn append(
+    field: NativeField,
+    count: usize,
+    word: NativeField,
+) -> Result<AllocationEnvelope, Refusal> {
     field.validate()?;
     let heap = require_word(word)?;
     let allocation = heap.append_vector(field.bytes, count)?;
@@ -660,8 +866,11 @@ fn request(bytes: usize, alignment: usize, word: NativeField) -> Result<usize, R
         4_usize => usize::try_from(i32::MAX),
         8_usize => usize::try_from(i64::MAX),
         _ => return Err(Refusal::Layout),
-    }.map_err(|_error| Refusal::Arithmetic)?;
-    let limit = maximum.checked_sub(alignment - 1_usize).ok_or(Refusal::Arithmetic)?;
+    }
+    .map_err(|_error| Refusal::Arithmetic)?;
+    let limit = maximum
+        .checked_sub(alignment - 1_usize)
+        .ok_or(Refusal::Arithmetic)?;
     if bytes > limit {
         return Err(Refusal::Arithmetic);
     }
@@ -681,7 +890,8 @@ fn syntax_error(error: SyntaxError) -> Refusal {
     match error {
         SyntaxError::Arithmetic => Refusal::Arithmetic,
         SyntaxError::Layout => Refusal::Layout,
-        SyntaxError::Source(owner) | SyntaxError::Scope(owner)
+        SyntaxError::Source(owner)
+        | SyntaxError::Scope(owner)
         | SyntaxError::UnboundOwner(owner) => Refusal::Source(owner),
         SyntaxError::Parse => Refusal::Source("syntax parser"),
     }
@@ -693,8 +903,9 @@ fn nfa_error(error: schema_nfa_construction::ConstructionError) -> Refusal {
         ConstructionError::Arithmetic => Refusal::Arithmetic,
         ConstructionError::Layout => Refusal::Layout,
         ConstructionError::UnboundOwner(owner) => Refusal::Source(owner),
-        ConstructionError::Scope | ConstructionError::Shape
-        | ConstructionError::Compilation => Refusal::Source("NFA construction"),
+        ConstructionError::Scope | ConstructionError::Shape | ConstructionError::Compilation => {
+            Refusal::Source("NFA construction")
+        }
     }
 }
 
@@ -713,10 +924,14 @@ fn program_error(error: schema_program_heap::ProgramHeapError) -> Refusal {
     match error {
         ProgramHeapError::Arithmetic => Refusal::Arithmetic,
         ProgramHeapError::Configuration => Refusal::Configuration,
-        ProgramHeapError::Layout | ProgramHeapError::RootLayout
-        | ProgramHeapError::Shape => Refusal::Layout,
-        ProgramHeapError::Compilation | ProgramHeapError::Metadata | ProgramHeapError::Nfa
-        | ProgramHeapError::OnePass | ProgramHeapError::AutomaticPrefilter(_)
+        ProgramHeapError::Layout | ProgramHeapError::RootLayout | ProgramHeapError::Shape => {
+            Refusal::Layout
+        }
+        ProgramHeapError::Compilation
+        | ProgramHeapError::Metadata
+        | ProgramHeapError::Nfa
+        | ProgramHeapError::OnePass
+        | ProgramHeapError::AutomaticPrefilter(_)
         | ProgramHeapError::Pool => Refusal::RetainedCoverage,
     }
 }
@@ -739,20 +954,18 @@ fn mul(value: usize, count: usize) -> Result<usize, Refusal> {
 }
 
 fn sum(terms: &[usize]) -> Result<usize, Refusal> {
-    terms.iter().try_fold(0_usize, |total, term| add(total, *term))
+    terms
+        .iter()
+        .try_fold(0_usize, |total, term| add(total, *term))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        schema_formats::HOSTNAME_SOURCE,
-        schema_literal_heap::AutomaticPrefilterHeap,
-        schema_metadata_heap::MetadataLayout,
-        schema_nfa_construction,
-        schema_nfa_heap::target,
-        schema_onepass_construction,
-        schema_pool_heap::PoolLayout,
+        schema_formats::HOSTNAME_SOURCE, schema_literal_heap::AutomaticPrefilterHeap,
+        schema_metadata_heap::MetadataLayout, schema_nfa_construction, schema_nfa_heap::target,
+        schema_onepass_construction, schema_pool_heap::PoolLayout,
     };
     use regex_automata::{
         MatchKind,
@@ -762,52 +975,108 @@ mod tests {
     use regex_syntax::hir::ClassBytesRange;
     use std::{any::type_name, env, fs, path::PathBuf, sync::atomic::AtomicUsize};
 
-    fn field(bytes: usize, alignment: usize) -> NativeField { NativeField { bytes, alignment } }
+    fn field(bytes: usize, alignment: usize) -> NativeField {
+        NativeField { bytes, alignment }
+    }
 
     fn config() -> Config {
-        Config::new().match_kind(MatchKind::LeftmostFirst).utf8_empty(true)
-            .which_captures(WhichCaptures::All).byte_classes(true).line_terminator(b'\n')
-            .nfa_size_limit(Some(0x0001_0000_usize)).hybrid_cache_capacity(0x0001_0000_usize)
-            .onepass_size_limit(Some(0x0010_0000_usize)).pool_capacity(1_usize)
-            .hybrid(true).dfa(false).onepass(true).auto_prefilter(true)
+        Config::new()
+            .match_kind(MatchKind::LeftmostFirst)
+            .utf8_empty(true)
+            .which_captures(WhichCaptures::All)
+            .byte_classes(true)
+            .line_terminator(b'\n')
+            .nfa_size_limit(Some(0x0001_0000_usize))
+            .hybrid_cache_capacity(0x0001_0000_usize)
+            .onepass_size_limit(Some(0x0010_0000_usize))
+            .pool_capacity(1_usize)
+            .hybrid(true)
+            .dfa(false)
+            .onepass(true)
+            .auto_prefilter(true)
     }
 
     // Synthetic layout assumptions only; none is a compiler/guest observation.
     fn layouts() -> BTreeMap<String, NativeField> {
-        let mut facts = required_fact_keys().into_iter()
-            .map(|key| (key, field(64_usize, 8_usize))).collect::<BTreeMap<_, _>>();
+        let mut facts = required_fact_keys()
+            .into_iter()
+            .map(|key| (key, field(64_usize, 8_usize)))
+            .collect::<BTreeMap<_, _>>();
         facts.insert(target::ABI_POINTER.into(), field(8_usize, 8_usize));
         facts.insert(type_name::<AtomicUsize>().into(), field(8_usize, 8_usize));
         facts.insert(type_name::<State>().into(), field(32_usize, 8_usize));
         facts.insert(type_name::<Transition>().into(), field(8_usize, 4_usize));
         facts.insert(type_name::<StateID>().into(), field(4_usize, 4_usize));
-        facts.insert(type_name::<(SmallIndex, SmallIndex)>().into(), field(8_usize, 4_usize));
+        facts.insert(
+            type_name::<(SmallIndex, SmallIndex)>().into(),
+            field(8_usize, 4_usize),
+        );
         facts.insert(type_name::<bool>().into(), field(1_usize, 1_usize));
-        facts.insert(type_name::<ClassBytesRange>().into(), field(2_usize, 1_usize));
-        facts.insert(schema_nfa_construction::BUILDER_STATE.into(), field(32_usize, 8_usize));
-        facts.insert(schema_nfa_construction::TRIE_STATE.into(), field(24_usize, 8_usize));
-        facts.insert(schema_nfa_construction::HIR_PROPERTIES.into(), field(80_usize, 8_usize));
-        facts.insert(schema_onepass_construction::STATE_ID.into(), field(4_usize, 4_usize));
-        facts.insert(schema_onepass_construction::TRANSITION.into(), field(8_usize, 8_usize));
-        facts.insert(schema_onepass_construction::EPSILONS.into(), field(8_usize, 8_usize));
-        facts.insert(schema_onepass_construction::BYTE_CLASSES.into(), field(256_usize, 8_usize));
+        facts.insert(
+            type_name::<ClassBytesRange>().into(),
+            field(2_usize, 1_usize),
+        );
+        facts.insert(
+            schema_nfa_construction::BUILDER_STATE.into(),
+            field(32_usize, 8_usize),
+        );
+        facts.insert(
+            schema_nfa_construction::TRIE_STATE.into(),
+            field(24_usize, 8_usize),
+        );
+        facts.insert(
+            schema_nfa_construction::HIR_PROPERTIES.into(),
+            field(80_usize, 8_usize),
+        );
+        facts.insert(
+            schema_onepass_construction::STATE_ID.into(),
+            field(4_usize, 4_usize),
+        );
+        facts.insert(
+            schema_onepass_construction::TRANSITION.into(),
+            field(8_usize, 8_usize),
+        );
+        facts.insert(
+            schema_onepass_construction::EPSILONS.into(),
+            field(8_usize, 8_usize),
+        );
+        facts.insert(
+            schema_onepass_construction::BYTE_CLASSES.into(),
+            field(256_usize, 8_usize),
+        );
         facts
     }
 
-    fn program<'a>(pattern: &'a str, facts: &'a BTreeMap<String, NativeField>) -> ProgramRecipe<'a> {
+    fn program<'a>(
+        pattern: &'a str,
+        facts: &'a BTreeMap<String, NativeField>,
+    ) -> ProgramRecipe<'a> {
         ProgramRecipe {
             pattern,
             metadata: MetadataLayout {
                 regex_fields: [field(16_usize, 8_usize), field(8_usize, 8_usize)],
-                info_fields: [field(40_usize, 8_usize), field(24_usize, 8_usize), field(8_usize, 8_usize)],
-                props_payload: field(80_usize, 8_usize), static_inline: field(64_usize, 8_usize),
+                info_fields: [
+                    field(40_usize, 8_usize),
+                    field(24_usize, 8_usize),
+                    field(8_usize, 8_usize),
+                ],
+                props_payload: field(80_usize, 8_usize),
+                static_inline: field(64_usize, 8_usize),
             },
-            arc_header: field(16_usize, 8_usize), strategy_payload: field(64_usize, 8_usize),
-            nfa_facts: facts, onepass_word: field(8_usize, 8_usize), memchr_payload: field(1_usize, 1_usize),
+            arc_header: field(16_usize, 8_usize),
+            strategy_payload: field(64_usize, 8_usize),
+            nfa_facts: facts,
+            onepass_word: field(8_usize, 8_usize),
+            memchr_payload: field(1_usize, 1_usize),
             pool: PoolLayout {
-                fields: [field(16_usize, 8_usize), field(24_usize, 8_usize),
-                    field(8_usize, 8_usize), field(40_usize, 8_usize)],
-                shard: field(40_usize, 8_usize), closure: field(16_usize, 8_usize),
+                fields: [
+                    field(16_usize, 8_usize),
+                    field(24_usize, 8_usize),
+                    field(8_usize, 8_usize),
+                    field(40_usize, 8_usize),
+                ],
+                shard: field(40_usize, 8_usize),
+                closure: field(16_usize, 8_usize),
             },
         }
     }
@@ -820,14 +1089,21 @@ mod tests {
     }
 
     fn source_locations() -> (PathBuf, PathBuf) {
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
         let cargo = env::var_os("CARGO_HOME").map_or_else(
-            || PathBuf::from(env::var_os("HOME").unwrap()).join(".cargo"), PathBuf::from,
+            || PathBuf::from(env::var_os("HOME").unwrap()).join(".cargo"),
+            PathBuf::from,
         );
         let mut source = None;
         for entry in fs::read_dir(cargo.join("registry/src")).unwrap() {
             let path = entry.unwrap().path().join("regex-syntax-0.8.11");
-            if path.is_dir() { source = Some(path.canonicalize().unwrap()); break; }
+            if path.is_dir() {
+                source = Some(path.canonicalize().unwrap());
+                break;
+            }
         }
         (workspace, source.unwrap())
     }
@@ -841,22 +1117,36 @@ mod tests {
         assert_eq!(publication_work([6_usize, 7_usize, 11_usize]), Ok(60_usize));
         assert_eq!(publication_work([5_usize, 8_usize, 11_usize]), Ok(60_usize));
         assert_eq!(publication_work([5_usize, 7_usize, 12_usize]), Ok(60_usize));
-        assert_eq!(publication_work([usize::MAX, 0_usize, 0_usize]), Err(Refusal::Arithmetic));
+        assert_eq!(
+            publication_work([usize::MAX, 0_usize, 0_usize]),
+            Err(Refusal::Arithmetic)
+        );
         let mut wide_trie = facts.clone();
-        assert!(wide_trie.insert(
-            schema_nfa_construction::TRIE_STATE.to_owned(), field(2048_usize, 8_usize),
-        ).is_some());
+        assert!(
+            wide_trie
+                .insert(
+                    schema_nfa_construction::TRIE_STATE.to_owned(),
+                    field(2048_usize, 8_usize),
+                )
+                .is_some()
+        );
         assert_eq!(wrapper_work(&wide_trie), Ok(30_usize));
     }
 
     #[test]
     fn suffix_work_audits_real_calls_before_accepting_the_original_upper_bounds() {
         let facts = layouts();
-        assert_eq!(suffix_audit(&facts).unwrap(), BTreeMap::from([
-            (Work::LiteralHir, 5_usize), (Work::LiteralRanges, 2_usize),
-            (Work::LiteralSequences, 32_usize), (Work::LiteralCopies, 2_usize),
-            (Work::LiteralTrie, 9_usize), (Work::LiteralSelection, 7_usize),
-        ]));
+        assert_eq!(
+            suffix_audit(&facts).unwrap(),
+            BTreeMap::from([
+                (Work::LiteralHir, 5_usize),
+                (Work::LiteralRanges, 2_usize),
+                (Work::LiteralSequences, 32_usize),
+                (Work::LiteralCopies, 2_usize),
+                (Work::LiteralTrie, 9_usize),
+                (Work::LiteralSelection, 7_usize),
+            ])
+        );
         let terms: BTreeMap<_, _> = suffix_sequence_terms().into_iter().collect();
         assert_eq!(terms["concat iterations including stop"], 3_usize);
         assert_eq!(terms["repeat iterations including stop"], 2_usize);
@@ -867,38 +1157,64 @@ mod tests {
         assert_eq!(terms["replaced, drained and final literal drops"], 4_usize);
         assert_eq!(terms.values().sum::<usize>(), 32_usize);
         let mut relocated = facts.clone();
-        assert!(relocated.insert(SUFFIX_KEYS[1].to_owned(), field(2048_usize, 8_usize)).is_some());
-        assert!(relocated.insert(SUFFIX_KEYS[2].to_owned(), field(4096_usize, 8_usize)).is_some());
+        assert!(
+            relocated
+                .insert(SUFFIX_KEYS[1].to_owned(), field(2048_usize, 8_usize))
+                .is_some()
+        );
+        assert!(
+            relocated
+                .insert(SUFFIX_KEYS[2].to_owned(), field(4096_usize, 8_usize))
+                .is_some()
+        );
         let changed = suffix_audit(&relocated).unwrap();
         assert_eq!(changed[&Work::LiteralTrie], 11_usize);
         assert_eq!(changed[&Work::LiteralSequences], 32_usize);
         assert_eq!(changed[&Work::LiteralCopies], 2_usize);
-        assert_eq!(suffix_work(&relocated).unwrap()[&Work::LiteralTrie], Visits::Bound(12_usize));
+        assert_eq!(
+            suffix_work(&relocated).unwrap()[&Work::LiteralTrie],
+            Visits::Bound(12_usize)
+        );
     }
 
     fn serial_extras() -> [(Stage, usize); 12_usize] {
         [
-            (Stage::Syntax, 0_usize), (Stage::Literal, 13_usize),
-            (Stage::ForwardNfa, 17_usize), (Stage::PikeVm, 19_usize),
-            (Stage::Backtrack, 23_usize), (Stage::OnePass, 29_usize),
-            (Stage::ReverseNfa, 31_usize), (Stage::HybridForward, 37_usize),
-            (Stage::HybridReverse, 41_usize), (Stage::HybridPair, 43_usize),
-            (Stage::Publication, 0_usize), (Stage::Cleanup, 0_usize),
+            (Stage::Syntax, 0_usize),
+            (Stage::Literal, 13_usize),
+            (Stage::ForwardNfa, 17_usize),
+            (Stage::PikeVm, 19_usize),
+            (Stage::Backtrack, 23_usize),
+            (Stage::OnePass, 29_usize),
+            (Stage::ReverseNfa, 31_usize),
+            (Stage::HybridForward, 37_usize),
+            (Stage::HybridReverse, 41_usize),
+            (Stage::HybridPair, 43_usize),
+            (Stage::Publication, 0_usize),
+            (Stage::Cleanup, 0_usize),
         ]
     }
 
     #[test]
     fn persistent_syntax_and_outer_storage_are_added_to_each_serial_failure_prefix() {
         let phases = phase_envelopes(100_usize, serial_extras()).unwrap();
-        assert_eq!(phases, BTreeMap::from([
-            (Stage::Syntax, 100_usize), (Stage::Literal, 113_usize),
-            (Stage::ForwardNfa, 117_usize), (Stage::PikeVm, 119_usize),
-            (Stage::Backtrack, 123_usize), (Stage::OnePass, 129_usize),
-            (Stage::ReverseNfa, 131_usize), (Stage::HybridForward, 137_usize),
-            (Stage::HybridReverse, 141_usize), (Stage::HybridPair, 143_usize),
-            (Stage::Publication, 100_usize), (Stage::Cleanup, 100_usize),
-            (Stage::FailureCleanup, 143_usize),
-        ]));
+        assert_eq!(
+            phases,
+            BTreeMap::from([
+                (Stage::Syntax, 100_usize),
+                (Stage::Literal, 113_usize),
+                (Stage::ForwardNfa, 117_usize),
+                (Stage::PikeVm, 119_usize),
+                (Stage::Backtrack, 123_usize),
+                (Stage::OnePass, 129_usize),
+                (Stage::ReverseNfa, 131_usize),
+                (Stage::HybridForward, 137_usize),
+                (Stage::HybridReverse, 141_usize),
+                (Stage::HybridPair, 143_usize),
+                (Stage::Publication, 100_usize),
+                (Stage::Cleanup, 100_usize),
+                (Stage::FailureCleanup, 143_usize),
+            ])
+        );
         let mut pike_changed = serial_extras();
         pike_changed[3_usize] = (Stage::PikeVm, 47_usize);
         let raised = phase_envelopes(100_usize, pike_changed).unwrap();
@@ -907,63 +1223,149 @@ mod tests {
         let persistent_changed = phase_envelopes(101_usize, serial_extras()).unwrap();
         assert_eq!(persistent_changed[&Stage::FailureCleanup], 144_usize);
         assert_eq!(persistent_changed[&Stage::Syntax], 101_usize);
-        assert_eq!(phase_envelopes(usize::MAX, serial_extras()), Err(Refusal::Arithmetic));
+        assert_eq!(
+            phase_envelopes(usize::MAX, serial_extras()),
+            Err(Refusal::Arithmetic)
+        );
         let mut duplicate = serial_extras();
         duplicate[1_usize].0 = Stage::Syntax;
-        assert_eq!(phase_envelopes(100_usize, duplicate), Err(Refusal::RetainedCoverage));
+        assert_eq!(
+            phase_envelopes(100_usize, duplicate),
+            Err(Refusal::RetainedCoverage)
+        );
     }
 
     #[test]
     fn every_named_onepass_scratch_term_is_independently_additive() {
         let original = onepass();
         for changed in [
-            OnePassConstructionCertificate { scaffold_bytes: 4_usize, ..original },
-            OnePassConstructionCertificate { queue_peak_bytes: 6_usize, ..original },
-            OnePassConstructionCertificate { nfa_map_bytes: 8_usize, ..original },
-            OnePassConstructionCertificate { stack_peak_bytes: 12_usize, ..original },
-            OnePassConstructionCertificate { seen_bytes: 14_usize, ..original },
-            OnePassConstructionCertificate { table_peak_bytes: 18_usize, ..original },
-            OnePassConstructionCertificate { starts_peak_bytes: 20_usize, ..original },
-            OnePassConstructionCertificate { remapper_peak_bytes: 24_usize, ..original },
+            OnePassConstructionCertificate {
+                scaffold_bytes: 4_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                queue_peak_bytes: 6_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                nfa_map_bytes: 8_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                stack_peak_bytes: 12_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                seen_bytes: 14_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                table_peak_bytes: 18_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                starts_peak_bytes: 20_usize,
+                ..original
+            },
+            OnePassConstructionCertificate {
+                remapper_peak_bytes: 24_usize,
+                ..original
+            },
         ] {
             assert_eq!(onepass_scratch(&changed, 29_usize), Ok(99_usize));
         }
-        let overflow = OnePassConstructionCertificate { queue_peak_bytes: usize::MAX, ..original };
-        assert_eq!(onepass_scratch(&overflow, 29_usize), Err(Refusal::Arithmetic));
+        let overflow = OnePassConstructionCertificate {
+            queue_peak_bytes: usize::MAX,
+            ..original
+        };
+        assert_eq!(
+            onepass_scratch(&overflow, 29_usize),
+            Err(Refusal::Arithmetic)
+        );
     }
 
     #[test]
     fn all_regex_features_are_required_and_no_instrumentation_feature_is_admitted() {
         let enabled = features();
-        assert_eq!(enabled, BTreeSet::from([
-            "alloc", "dfa-onepass", "dfa-search", "hybrid", "meta", "nfa",
-            "nfa-backtrack", "nfa-pikevm", "nfa-thompson", "perf", "perf-inline",
-            "perf-literal", "perf-literal-multisubstring", "perf-literal-substring",
-            "std", "syntax", "unicode", "unicode-age", "unicode-bool", "unicode-case",
-            "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment",
-            "unicode-word-boundary",
-        ].map(str::to_owned)));
+        assert_eq!(
+            enabled,
+            BTreeSet::from(
+                [
+                    "alloc",
+                    "dfa-onepass",
+                    "dfa-search",
+                    "hybrid",
+                    "meta",
+                    "nfa",
+                    "nfa-backtrack",
+                    "nfa-pikevm",
+                    "nfa-thompson",
+                    "perf",
+                    "perf-inline",
+                    "perf-literal",
+                    "perf-literal-multisubstring",
+                    "perf-literal-substring",
+                    "std",
+                    "syntax",
+                    "unicode",
+                    "unicode-age",
+                    "unicode-bool",
+                    "unicode-case",
+                    "unicode-gencat",
+                    "unicode-perl",
+                    "unicode-script",
+                    "unicode-segment",
+                    "unicode-word-boundary",
+                ]
+                .map(str::to_owned)
+            )
+        );
         let configuration = config();
         let unread = Path::new("/fake-unread-source");
         for key in &enabled {
             let mut missing = enabled.clone();
             assert!(missing.remove(key));
             let sources = Sources {
-                workspace: unread, syntax: unread, rust_release: "1.98.1", features: &missing,
+                workspace: unread,
+                syntax: unread,
+                rust_release: "1.98.1",
+                features: &missing,
             };
-            assert_eq!(SourceRecipe::from_source(
-                "fake_feature_owner", "^[0-9]+$", &configuration, sources,
-            ).err(), Some(Refusal::Features));
+            assert_eq!(
+                SourceRecipe::from_source(
+                    "fake_feature_owner",
+                    "^[0-9]+$",
+                    &configuration,
+                    sources,
+                )
+                .err(),
+                Some(Refusal::Features)
+            );
         }
-        for extra in ["logging", "instrumentation", "perf-literal-inner", "fake_unknown"] {
+        for extra in [
+            "logging",
+            "instrumentation",
+            "perf-literal-inner",
+            "fake_unknown",
+        ] {
             let mut changed = enabled.clone();
             assert!(changed.insert(extra.to_owned()));
             let sources = Sources {
-                workspace: unread, syntax: unread, rust_release: "1.98.1", features: &changed,
+                workspace: unread,
+                syntax: unread,
+                rust_release: "1.98.1",
+                features: &changed,
             };
-            assert_eq!(SourceRecipe::from_source(
-                "fake_feature_owner", "^[0-9]+$", &configuration, sources,
-            ).err(), Some(Refusal::Features));
+            assert_eq!(
+                SourceRecipe::from_source(
+                    "fake_feature_owner",
+                    "^[0-9]+$",
+                    &configuration,
+                    sources,
+                )
+                .err(),
+                Some(Refusal::Features)
+            );
         }
     }
 
@@ -974,8 +1376,14 @@ mod tests {
         assert_eq!(verify_rank_bytes(&original), Ok(()));
         let mut changed = original.clone();
         changed.push(0_u8);
-        assert_eq!(verify_rank_bytes(&changed), Err(Refusal::Source("regex-syntax rank")));
-        assert_eq!(verify_rank_bytes(b""), Err(Refusal::Source("regex-syntax rank")));
+        assert_eq!(
+            verify_rank_bytes(&changed),
+            Err(Refusal::Source("regex-syntax rank"))
+        );
+        assert_eq!(
+            verify_rank_bytes(b""),
+            Err(Refusal::Source("regex-syntax rank"))
+        );
     }
 
     #[test]
@@ -985,34 +1393,61 @@ mod tests {
         let enabled = features();
         let unread = Path::new("/fake-unread-source");
         let sources = || Sources {
-            workspace: unread, syntax: unread, rust_release: "1.98.1", features: &enabled,
+            workspace: unread,
+            syntax: unread,
+            rust_release: "1.98.1",
+            features: &enabled,
         };
         for changed in [
             configuration.clone().backtrack(false),
             configuration.clone().dfa_size_limit(Some(123_usize)),
             configuration.clone().dfa_state_limit(Some(123_usize)),
         ] {
-            assert_eq!(SourceRecipe::from_source(
-                "fake_config_owner", "^[0-9]+$", &changed, sources(),
-            ).err(), Some(Refusal::Configuration));
+            assert_eq!(
+                SourceRecipe::from_source("fake_config_owner", "^[0-9]+$", &changed, sources(),)
+                    .err(),
+                Some(Refusal::Configuration)
+            );
         }
         for key in required_fact_keys() {
             let mut invalid = original.clone();
             assert!(invalid.insert(key, field(64_usize, 3_usize)).is_some());
             let root = program("^[0-9]+$", &invalid);
-            assert_eq!(evaluate(&Inputs {
-                owner: "fake_layout_owner", pattern: "^[0-9]+$", config: &configuration,
-                program: &root, layouts: &invalid, sources: sources(),
-            }).err(), Some(Refusal::Layout));
+            assert_eq!(
+                evaluate(&Inputs {
+                    owner: "fake_layout_owner",
+                    pattern: "^[0-9]+$",
+                    config: &configuration,
+                    program: &root,
+                    layouts: &invalid,
+                    sources: sources(),
+                })
+                .err(),
+                Some(Refusal::Layout)
+            );
         }
         let mut atomic_mismatch = original.clone();
-        assert!(atomic_mismatch.insert(type_name::<AtomicUsize>().to_owned(),
-            field(16_usize, 8_usize)).is_some());
+        assert!(
+            atomic_mismatch
+                .insert(
+                    type_name::<AtomicUsize>().to_owned(),
+                    field(16_usize, 8_usize)
+                )
+                .is_some()
+        );
         let root = program("^[0-9]+$", &atomic_mismatch);
-        assert_eq!(evaluate(&Inputs {
-            owner: "fake_layout_owner", pattern: "^[0-9]+$", config: &configuration,
-            program: &root, layouts: &atomic_mismatch, sources: sources(),
-        }).err(), Some(Refusal::Layout));
+        assert_eq!(
+            evaluate(&Inputs {
+                owner: "fake_layout_owner",
+                pattern: "^[0-9]+$",
+                config: &configuration,
+                program: &root,
+                layouts: &atomic_mismatch,
+                sources: sources(),
+            })
+            .err(),
+            Some(Refusal::Layout)
+        );
     }
 
     #[test]
@@ -1023,41 +1458,117 @@ mod tests {
         let unread = Path::new("/fake-unread-source");
         let mut root = program("^[0-9]+$", &original);
         let sources = || Sources {
-            workspace: unread, syntax: unread, rust_release: "1.98.1", features: &enabled,
+            workspace: unread,
+            syntax: unread,
+            rust_release: "1.98.1",
+            features: &enabled,
         };
         let mut changed = original.clone();
-        assert!(changed.insert(type_name::<State>().to_owned(), field(40_usize, 8_usize)).is_some());
-        assert_eq!(evaluate(&Inputs {
-            owner: "fake_root_owner", pattern: "^[0-9]+$", config: &configuration,
-            program: &root, layouts: &changed, sources: sources(),
-        }).err(), Some(Refusal::Layout));
+        assert!(
+            changed
+                .insert(type_name::<State>().to_owned(), field(40_usize, 8_usize))
+                .is_some()
+        );
+        assert_eq!(
+            evaluate(&Inputs {
+                owner: "fake_root_owner",
+                pattern: "^[0-9]+$",
+                config: &configuration,
+                program: &root,
+                layouts: &changed,
+                sources: sources(),
+            })
+            .err(),
+            Some(Refusal::Layout)
+        );
         root.metadata.props_payload = field(88_usize, 8_usize);
-        assert_eq!(evaluate(&Inputs {
-            owner: "fake_root_owner", pattern: "^[0-9]+$", config: &configuration,
-            program: &root, layouts: &original, sources: sources(),
-        }).err(), Some(Refusal::Layout));
+        assert_eq!(
+            evaluate(&Inputs {
+                owner: "fake_root_owner",
+                pattern: "^[0-9]+$",
+                config: &configuration,
+                program: &root,
+                layouts: &original,
+                sources: sources(),
+            })
+            .err(),
+            Some(Refusal::Layout)
+        );
     }
 
     #[test]
     fn outer_vectors_and_dead_state_have_independent_literal_layout_axes() {
-        assert_eq!(outer_vectors(field(32_usize, 8_usize), field(16_usize, 8_usize), field(8_usize, 8_usize)), Ok(200_usize));
-        assert_eq!(outer_vectors(field(40_usize, 8_usize), field(16_usize, 8_usize), field(8_usize, 8_usize)), Ok(232_usize));
-        assert_eq!(outer_vectors(field(32_usize, 8_usize), field(24_usize, 8_usize), field(8_usize, 8_usize)), Ok(232_usize));
-        assert_eq!(hybrid_dead(field(1_usize, 1_usize), field(8_usize, 4_usize), field(4_usize, 4_usize)), Ok(29_usize));
-        assert_eq!(hybrid_dead(field(1_usize, 1_usize), field(16_usize, 8_usize), field(8_usize, 8_usize)), Ok(41_usize));
-        assert_eq!(hybrid_dead(field(1_usize, 1_usize), field(8_usize, 4_usize), field(8_usize, 8_usize)), Ok(29_usize));
+        assert_eq!(
+            outer_vectors(
+                field(32_usize, 8_usize),
+                field(16_usize, 8_usize),
+                field(8_usize, 8_usize)
+            ),
+            Ok(200_usize)
+        );
+        assert_eq!(
+            outer_vectors(
+                field(40_usize, 8_usize),
+                field(16_usize, 8_usize),
+                field(8_usize, 8_usize)
+            ),
+            Ok(232_usize)
+        );
+        assert_eq!(
+            outer_vectors(
+                field(32_usize, 8_usize),
+                field(24_usize, 8_usize),
+                field(8_usize, 8_usize)
+            ),
+            Ok(232_usize)
+        );
+        assert_eq!(
+            hybrid_dead(
+                field(1_usize, 1_usize),
+                field(8_usize, 4_usize),
+                field(4_usize, 4_usize)
+            ),
+            Ok(29_usize)
+        );
+        assert_eq!(
+            hybrid_dead(
+                field(1_usize, 1_usize),
+                field(16_usize, 8_usize),
+                field(8_usize, 8_usize)
+            ),
+            Ok(41_usize)
+        );
+        assert_eq!(
+            hybrid_dead(
+                field(1_usize, 1_usize),
+                field(8_usize, 4_usize),
+                field(8_usize, 8_usize)
+            ),
+            Ok(29_usize)
+        );
     }
 
     fn onepass() -> OnePassConstructionCertificate {
         OnePassConstructionCertificate {
-            nfa_states: 2_usize, rows_upper_bound: 3_usize, stride: 4_usize,
-            scaffold_bytes: 3_usize, queue_peak_bytes: 5_usize, nfa_map_bytes: 7_usize,
-            stack_peak_bytes: 11_usize, seen_bytes: 13_usize, table_peak_bytes: 17_usize,
-            starts_peak_bytes: 19_usize, remapper_peak_bytes: 23_usize,
-            shrink_overlap_bytes: 29_usize, retained_tables_upper_bytes: 29_usize,
-            peak_requested_bytes: 127_usize, failure_prefix_peak_bytes: 127_usize,
-            closure_visits_upper_bound: 31_usize, byte_visits_upper_bound: 37_usize,
-            remap_visits_upper_bound: 41_usize, work_upper_bound: 139_usize,
+            nfa_states: 2_usize,
+            rows_upper_bound: 3_usize,
+            stride: 4_usize,
+            scaffold_bytes: 3_usize,
+            queue_peak_bytes: 5_usize,
+            nfa_map_bytes: 7_usize,
+            stack_peak_bytes: 11_usize,
+            seen_bytes: 13_usize,
+            table_peak_bytes: 17_usize,
+            starts_peak_bytes: 19_usize,
+            remapper_peak_bytes: 23_usize,
+            shrink_overlap_bytes: 29_usize,
+            retained_tables_upper_bytes: 29_usize,
+            peak_requested_bytes: 127_usize,
+            failure_prefix_peak_bytes: 127_usize,
+            closure_visits_upper_bound: 31_usize,
+            byte_visits_upper_bound: 37_usize,
+            remap_visits_upper_bound: 41_usize,
+            work_upper_bound: 139_usize,
         }
     }
 
@@ -1065,18 +1576,30 @@ mod tests {
     fn onepass_i_is_named_scratch_not_peak_minus_c_or_a_second_shrink_charge() {
         let certificate = onepass();
         assert_eq!(onepass_scratch(&certificate, 29_usize), Ok(98_usize));
-        assert_eq!(onepass_scratch(&certificate, 28_usize), Err(Refusal::RetainedCoverage));
+        assert_eq!(
+            onepass_scratch(&certificate, 28_usize),
+            Err(Refusal::RetainedCoverage)
+        );
         let changed = OnePassConstructionCertificate {
-            shrink_overlap_bytes: 37_usize, retained_tables_upper_bytes: 37_usize,
-            peak_requested_bytes: 135_usize, ..certificate
+            shrink_overlap_bytes: 37_usize,
+            retained_tables_upper_bytes: 37_usize,
+            peak_requested_bytes: 135_usize,
+            ..certificate
         };
         assert_eq!(onepass_scratch(&changed, 37_usize), Ok(98_usize));
-        let changed = OnePassConstructionCertificate { table_peak_bytes: 18_usize, ..certificate };
+        let changed = OnePassConstructionCertificate {
+            table_peak_bytes: 18_usize,
+            ..certificate
+        };
         assert_eq!(onepass_scratch(&changed, 29_usize), Ok(99_usize));
         let changed = OnePassConstructionCertificate {
-            failure_prefix_peak_bytes: 128_usize, ..certificate
+            failure_prefix_peak_bytes: 128_usize,
+            ..certificate
         };
-        assert_eq!(onepass_scratch(&changed, 29_usize), Err(Refusal::RetainedCoverage));
+        assert_eq!(
+            onepass_scratch(&changed, 29_usize),
+            Err(Refusal::RetainedCoverage)
+        );
     }
 
     #[test]
@@ -1087,41 +1610,82 @@ mod tests {
         let enabled = features();
         let mut attempts = 0_usize;
         for (owner, pattern) in [
-            ("fake_digits_a", "^[0-9]+$"), ("fake_digits_b", "^[0-9]+$"),
+            ("fake_digits_a", "^[0-9]+$"),
+            ("fake_digits_b", "^[0-9]+$"),
             ("fake_decimal", r"^[0-9]+(\.[0-9]+)?$"),
-            ("fake_suffix", r"\.[a-zA-Z]{2,3}$"), ("fake_hostname", HOSTNAME_SOURCE),
+            ("fake_suffix", r"\.[a-zA-Z]{2,3}$"),
+            ("fake_hostname", HOSTNAME_SOURCE),
         ] {
             let program = program(pattern, &facts);
             let certificate = evaluate(&Inputs {
-                owner, pattern, config: &config, program: &program, layouts: &facts,
-                sources: Sources { workspace: &workspace, syntax: &syntax,
-                    rust_release: "1.98.1", features: &enabled },
-            }).unwrap();
+                owner,
+                pattern,
+                config: &config,
+                program: &program,
+                layouts: &facts,
+                sources: Sources {
+                    workspace: &workspace,
+                    syntax: &syntax,
+                    rust_release: "1.98.1",
+                    features: &enabled,
+                },
+            })
+            .unwrap();
             assert_eq!(certificate.owner, owner);
             assert!(certificate.construction_only_bytes > 0_usize);
             assert!(certificate.retained.total > 0_usize);
             assert_eq!(certificate.phase_scratch.len(), 13_usize);
-            for stage in [Stage::Syntax, Stage::Literal, Stage::ForwardNfa, Stage::PikeVm,
-                Stage::Backtrack, Stage::OnePass, Stage::ReverseNfa, Stage::HybridForward,
-                Stage::HybridReverse, Stage::HybridPair, Stage::Publication, Stage::Cleanup,
-                Stage::FailureCleanup]
-            {
+            for stage in [
+                Stage::Syntax,
+                Stage::Literal,
+                Stage::ForwardNfa,
+                Stage::PikeVm,
+                Stage::Backtrack,
+                Stage::OnePass,
+                Stage::ReverseNfa,
+                Stage::HybridForward,
+                Stage::HybridReverse,
+                Stage::HybridPair,
+                Stage::Publication,
+                Stage::Cleanup,
+                Stage::FailureCleanup,
+            ] {
                 assert!(certificate.phase_scratch.contains_key(&stage));
                 assert!(certificate.phase_scratch[&stage] <= certificate.construction_only_bytes);
             }
-            assert_eq!(certificate.failure_prefixes, [
-                FailurePrefix::SyntaxReplacementAndCleanup, FailurePrefix::NfaMutationAndCleanup,
-                FailurePrefix::OnePassRefusalAndCleanup, FailurePrefix::HybridCapacityAndCleanup,
-            ]);
+            assert_eq!(
+                certificate.failure_prefixes,
+                [
+                    FailurePrefix::SyntaxReplacementAndCleanup,
+                    FailurePrefix::NfaMutationAndCleanup,
+                    FailurePrefix::OnePassRefusalAndCleanup,
+                    FailurePrefix::HybridCapacityAndCleanup,
+                ]
+            );
             attempts += usize::from(certificate.onepass_attempted);
             assert!(certificate.complete_work().unwrap() > 0_usize);
             if pattern == r"\.[a-zA-Z]{2,3}$" {
                 assert_eq!(certificate.work[&Work::LiteralHir], Visits::Bound(5_usize));
-                assert_eq!(certificate.work[&Work::LiteralRanges], Visits::Bound(2_usize));
-                assert_eq!(certificate.work[&Work::LiteralSequences], Visits::Bound(32_usize));
-                assert_eq!(certificate.work[&Work::LiteralCopies], Visits::Bound(8_usize));
-                assert_eq!(certificate.work[&Work::LiteralTrie], Visits::Bound(12_usize));
-                assert_eq!(certificate.work[&Work::LiteralSelection], Visits::Bound(8_usize));
+                assert_eq!(
+                    certificate.work[&Work::LiteralRanges],
+                    Visits::Bound(2_usize)
+                );
+                assert_eq!(
+                    certificate.work[&Work::LiteralSequences],
+                    Visits::Bound(32_usize)
+                );
+                assert_eq!(
+                    certificate.work[&Work::LiteralCopies],
+                    Visits::Bound(8_usize)
+                );
+                assert_eq!(
+                    certificate.work[&Work::LiteralTrie],
+                    Visits::Bound(12_usize)
+                );
+                assert_eq!(
+                    certificate.work[&Work::LiteralSelection],
+                    Visits::Bound(8_usize)
+                );
             }
         }
         assert_eq!(attempts, 2_usize);
@@ -1139,20 +1703,38 @@ mod tests {
             let program = program("^[0-9]+$", &missing);
             assert_eq!(
                 evaluate(&Inputs {
-                    owner: "fake_owner", pattern: "^[0-9]+$", config: &config,
-                    program: &program, layouts: &missing,
-                    sources: Sources { workspace: path, syntax: path, rust_release: "1.98.1", features: &enabled },
-                }).err(),
+                    owner: "fake_owner",
+                    pattern: "^[0-9]+$",
+                    config: &config,
+                    program: &program,
+                    layouts: &missing,
+                    sources: Sources {
+                        workspace: path,
+                        syntax: path,
+                        rust_release: "1.98.1",
+                        features: &enabled
+                    },
+                })
+                .err(),
                 Some(Refusal::Missing(key))
             );
         }
         let program = program("^unknown$", &original);
         assert_eq!(
             evaluate(&Inputs {
-                owner: "fake_owner", pattern: "^unknown$", config: &config,
-                program: &program, layouts: &original,
-                sources: Sources { workspace: path, syntax: path, rust_release: "1.98.1", features: &enabled },
-            }).err(),
+                owner: "fake_owner",
+                pattern: "^unknown$",
+                config: &config,
+                program: &program,
+                layouts: &original,
+                sources: Sources {
+                    workspace: path,
+                    syntax: path,
+                    rust_release: "1.98.1",
+                    features: &enabled
+                },
+            })
+            .err(),
             Some(Refusal::PatternScope)
         );
     }
@@ -1162,25 +1744,41 @@ mod tests {
         let mut certificate = Certificate {
             owner: "fake_work".to_owned(),
             retained: NativeProgramHeap {
-                metadata_bytes: 0_usize, strategy_arc_bytes: 0_usize, nfa_bytes: 0_usize,
-                onepass_tables_bytes: 0_usize, automatic_prefilter_bytes: 0_usize,
-                unused_pool_bytes: 0_usize, total: 0_usize, static_inline_bytes: 0_usize,
+                metadata_bytes: 0_usize,
+                strategy_arc_bytes: 0_usize,
+                nfa_bytes: 0_usize,
+                onepass_tables_bytes: 0_usize,
+                automatic_prefilter_bytes: 0_usize,
+                unused_pool_bytes: 0_usize,
+                total: 0_usize,
+                static_inline_bytes: 0_usize,
                 automatic_prefilter: AutomaticPrefilterHeap::ExcludedStartAnchored,
             },
-            phase_scratch: BTreeMap::new(), construction_only_bytes: 0_usize,
+            phase_scratch: BTreeMap::new(),
+            construction_only_bytes: 0_usize,
             onepass_attempted: false,
             work: BTreeMap::from([(Work::Literal, Visits::Unbound("unqualified literal"))]),
-            failure_prefixes: [FailurePrefix::SyntaxReplacementAndCleanup,
-                FailurePrefix::NfaMutationAndCleanup, FailurePrefix::OnePassRefusalAndCleanup,
-                FailurePrefix::HybridCapacityAndCleanup],
+            failure_prefixes: [
+                FailurePrefix::SyntaxReplacementAndCleanup,
+                FailurePrefix::NfaMutationAndCleanup,
+                FailurePrefix::OnePassRefusalAndCleanup,
+                FailurePrefix::HybridCapacityAndCleanup,
+            ],
         };
-        assert_eq!(certificate.complete_work(), Err(Refusal::UnboundWork("unqualified literal")));
+        assert_eq!(
+            certificate.complete_work(),
+            Err(Refusal::UnboundWork("unqualified literal"))
+        );
         certificate.work = BTreeMap::from([
-            (Work::Syntax, Visits::Bound(usize::MAX)), (Work::OuterVectors, Visits::Bound(1_usize)),
+            (Work::Syntax, Visits::Bound(usize::MAX)),
+            (Work::OuterVectors, Visits::Bound(1_usize)),
         ]);
         assert_eq!(certificate.complete_work(), Err(Refusal::Arithmetic));
         certificate.work.clear();
-        assert_eq!(certificate.complete_work(), Err(Refusal::UnboundWork("missing source work owner")));
+        assert_eq!(
+            certificate.complete_work(),
+            Err(Refusal::UnboundWork("missing source work owner"))
+        );
     }
 
     #[test]
@@ -1192,28 +1790,55 @@ mod tests {
         let mut root = program("^[0-9]+$", &facts);
         root.arc_header = field(8_usize, 4_usize);
         let inputs = Inputs {
-            owner: "fake_owner", pattern: "^[0-9]+$", config: &config,
-            program: &root, layouts: &facts,
-            sources: Sources { workspace: path, syntax: path, rust_release: "1.98.1", features: &enabled },
+            owner: "fake_owner",
+            pattern: "^[0-9]+$",
+            config: &config,
+            program: &root,
+            layouts: &facts,
+            sources: Sources {
+                workspace: path,
+                syntax: path,
+                rust_release: "1.98.1",
+                features: &enabled,
+            },
         };
         assert_eq!(evaluate(&inputs).err(), Some(Refusal::Layout));
         let changed = config.clone().hybrid(false);
-        let inputs = Inputs { config: &changed, ..inputs };
+        let inputs = Inputs {
+            config: &changed,
+            ..inputs
+        };
         assert_eq!(evaluate(&inputs).err(), Some(Refusal::Configuration));
         let root = program("^[0-9]+$", &facts);
         let mut missing_feature = enabled.clone();
         assert!(missing_feature.remove("syntax"));
         let inputs = Inputs {
-            owner: "fake_owner", pattern: "^[0-9]+$", config: &config,
-            program: &root, layouts: &facts,
-            sources: Sources { workspace: path, syntax: path, rust_release: "1.98.1", features: &missing_feature },
+            owner: "fake_owner",
+            pattern: "^[0-9]+$",
+            config: &config,
+            program: &root,
+            layouts: &facts,
+            sources: Sources {
+                workspace: path,
+                syntax: path,
+                rust_release: "1.98.1",
+                features: &missing_feature,
+            },
         };
         assert_eq!(evaluate(&inputs).err(), Some(Refusal::Features));
         let inputs = Inputs {
-            sources: Sources { workspace: path, syntax: path, rust_release: "unqualified", features: &enabled },
+            sources: Sources {
+                workspace: path,
+                syntax: path,
+                rust_release: "unqualified",
+                features: &enabled,
+            },
             ..inputs
         };
-        assert_eq!(evaluate(&inputs).err(), Some(Refusal::Source("Rust collection paths")));
+        assert_eq!(
+            evaluate(&inputs).err(),
+            Some(Refusal::Source("Rust collection paths"))
+        );
     }
 
     #[test]
@@ -1222,9 +1847,18 @@ mod tests {
         let config = config();
         let enabled = features();
         // No layout map, private payload facts or physical certificate exists yet.
-        let recipe = SourceRecipe::from_source("fake_source_only", "^[0-9]+$", &config, Sources {
-            workspace: &workspace, syntax: &syntax, rust_release: "1.98.1", features: &enabled,
-        }).unwrap();
+        let recipe = SourceRecipe::from_source(
+            "fake_source_only",
+            "^[0-9]+$",
+            &config,
+            Sources {
+                workspace: &workspace,
+                syntax: &syntax,
+                rust_release: "1.98.1",
+                features: &enabled,
+            },
+        )
+        .unwrap();
         assert_eq!(recipe.owner(), "fake_source_only");
         assert_eq!(recipe.pattern(), "^[0-9]+$");
         assert_eq!(recipe.required_facts(), &required_fact_keys());
@@ -1242,43 +1876,79 @@ mod tests {
         let enabled = features();
         let path = Path::new("/fake-unread-source");
         let sources = || Sources {
-            workspace: path, syntax: path, rust_release: "1.98.1", features: &enabled,
+            workspace: path,
+            syntax: path,
+            rust_release: "1.98.1",
+            features: &enabled,
         };
-        assert_eq!(SourceRecipe::from_source("fake_owner", "^unknown$", &config, sources()).err(),
-            Some(Refusal::PatternScope));
+        assert_eq!(
+            SourceRecipe::from_source("fake_owner", "^unknown$", &config, sources()).err(),
+            Some(Refusal::PatternScope)
+        );
         let mut unknown = enabled.clone();
         assert!(unknown.insert("perf-literal-inner".to_owned()));
-        let sources = Sources { features: &unknown, ..sources() };
-        assert_eq!(SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
-            Some(Refusal::Features));
         let sources = Sources {
-            workspace: path, syntax: path, rust_release: "unqualified", features: &enabled,
+            features: &unknown,
+            ..sources()
         };
-        assert_eq!(SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
-            Some(Refusal::Source("Rust collection paths")));
+        assert_eq!(
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
+            Some(Refusal::Features)
+        );
         let sources = Sources {
-            workspace: path, syntax: path, rust_release: "1.98.1", features: &enabled,
+            workspace: path,
+            syntax: path,
+            rust_release: "unqualified",
+            features: &enabled,
         };
-        assert_eq!(SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
-            Some(Refusal::Source("regex-automata source")));
+        assert_eq!(
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
+            Some(Refusal::Source("Rust collection paths"))
+        );
+        let sources = Sources {
+            workspace: path,
+            syntax: path,
+            rust_release: "1.98.1",
+            features: &enabled,
+        };
+        assert_eq!(
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
+            Some(Refusal::Source("regex-automata source"))
+        );
     }
 
     #[test]
     fn explicit_request_overflow_refuses_instead_of_host_sized_or_zero_scratch() {
         assert_eq!(
-            outer_vectors(field(0x4000_0000_usize, 8_usize), field(16_usize, 8_usize), field(4_usize, 4_usize)),
+            outer_vectors(
+                field(0x4000_0000_usize, 8_usize),
+                field(16_usize, 8_usize),
+                field(4_usize, 4_usize)
+            ),
             Err(Refusal::Arithmetic)
         );
         assert_eq!(
-            hybrid_dead(field(2_usize, 1_usize), field(16_usize, 8_usize), field(8_usize, 8_usize)),
+            hybrid_dead(
+                field(2_usize, 1_usize),
+                field(16_usize, 8_usize),
+                field(8_usize, 8_usize)
+            ),
             Err(Refusal::Layout)
         );
         assert_eq!(
-            hybrid_dead(field(1_usize, 1_usize), field(0_usize, 8_usize), field(8_usize, 8_usize)),
+            hybrid_dead(
+                field(1_usize, 1_usize),
+                field(0_usize, 8_usize),
+                field(8_usize, 8_usize)
+            ),
             Err(Refusal::Layout)
         );
         assert_eq!(
-            hybrid_dead(field(1_usize, 1_usize), field(0x8000_0000_usize, 8_usize), field(4_usize, 4_usize)),
+            hybrid_dead(
+                field(1_usize, 1_usize),
+                field(0x8000_0000_usize, 8_usize),
+                field(4_usize, 4_usize)
+            ),
             Err(Refusal::Arithmetic)
         );
     }

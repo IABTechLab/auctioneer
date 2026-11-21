@@ -662,7 +662,11 @@ mod tests {
         let source = schema_regex_vendor::verify(&workspace).unwrap();
         let dependencies: ResolvedRegexDependencies =
             schema_build::resolved_regex_dependencies(&source).unwrap();
-        let features = dependencies.engine_features.iter().cloned().collect::<BTreeSet<_>>();
+        let features = dependencies
+            .engine_features
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
         let release_line = repository_rust_release();
         let release = release_line.strip_prefix("release: ").unwrap();
 
@@ -682,8 +686,11 @@ mod tests {
                     let compiler = manifest["build"]["compiler_verbose"]
                         .as_str()
                         .ok_or("missing captured compiler")?;
-                    if compiler.lines().filter(|line| line.starts_with("release: "))
-                        .collect::<Vec<_>>() != [release_line.as_str()]
+                    if compiler
+                        .lines()
+                        .filter(|line| line.starts_with("release: "))
+                        .collect::<Vec<_>>()
+                        != [release_line.as_str()]
                     {
                         return Err("captured compiler differs from repository pin".into());
                     }
@@ -716,8 +723,10 @@ mod tests {
                         .map(|row| {
                             Ok(descriptor::ValidationAssignment {
                                 child: row["child"].as_str().ok_or("missing child")?.to_owned(),
-                                source_owner: row["source_owner"].as_str()
-                                    .ok_or("missing source owner")?.to_owned(),
+                                source_owner: row["source_owner"]
+                                    .as_str()
+                                    .ok_or("missing source owner")?
+                                    .to_owned(),
                                 role: row["role"].as_str().ok_or("missing role")?.to_owned(),
                             })
                         })
@@ -727,17 +736,23 @@ mod tests {
                     for index in 0..assignments.len() {
                         let mut missing = assignments.clone();
                         missing.remove(index);
-                        assert_eq!(recipe.check_validation_handoff(&missing),
-                            Err(descriptor::Refusal::Coverage));
+                        assert_eq!(
+                            recipe.check_validation_handoff(&missing),
+                            Err(descriptor::Refusal::Coverage)
+                        );
                         let mut duplicate = assignments.clone();
                         duplicate.push(assignments[index].clone());
-                        assert_eq!(recipe.check_validation_handoff(&duplicate),
-                            Err(descriptor::Refusal::Coverage));
+                        assert_eq!(
+                            recipe.check_validation_handoff(&duplicate),
+                            Err(descriptor::Refusal::Coverage)
+                        );
                     }
                     let mut substituted = graph.clone();
                     substituted["declarations"][0]["owner"] = json!("fake_substituted_owner");
-                    assert!(matches!(descriptor::describe(seed, &substituted, sources()),
-                        Err(descriptor::Refusal::GraphMismatch)));
+                    assert!(matches!(
+                        descriptor::describe(seed, &substituted, sources()),
+                        Err(descriptor::Refusal::GraphMismatch)
+                    ));
                     graph["source_descriptor"] = report;
                     Ok(graph)
                 },
@@ -767,8 +782,18 @@ mod tests {
             assert_eq!(projection["authenticated_qualification_receipt"], false);
             assert_eq!(projection["physical_fit"], false);
             assert_eq!(projection["serving_permission"], false);
-            let programs = descriptor["programs_in_initialization_order"].as_array().unwrap();
-            assert_eq!(programs[0]["identity"], "schema::staging::formats::HOSTNAME_PATTERN");
+            eprintln!(
+                "schema-source-recipe-projection/{package}/{}: {}",
+                report["lane"].as_str().unwrap(),
+                serde_json::to_string(projection).unwrap()
+            );
+            let programs = descriptor["programs_in_initialization_order"]
+                .as_array()
+                .unwrap();
+            assert_eq!(
+                programs[0]["identity"],
+                "schema::staging::formats::HOSTNAME_PATTERN"
+            );
             let declarations = graph["declarations"].as_array().unwrap();
             assert!(!declarations.is_empty());
             assert_eq!(graph["auxiliary"]["status"], "Complete");

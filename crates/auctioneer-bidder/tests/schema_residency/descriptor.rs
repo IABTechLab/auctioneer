@@ -4,7 +4,10 @@
 use super::{expanded, initialization, program_construction, retained, runtime_sources};
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_heap_layout::NativeField;
-use crate::schema_program_heap::{NativeProgramHeap, ProgramHeapError, ProgramRecipe, SourceRecipe};
+use crate::schema_nfa_heap::target;
+use crate::schema_program_heap::{
+    NativeProgramHeap, ProgramHeapError, ProgramRecipe, SourceRecipe,
+};
 use auctioneer_bidder::catalog::CatalogOwner;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -93,16 +96,70 @@ pub(crate) struct RequestedStorage {
     pub constructor_source_visits: u64,
 }
 
+pub(super) fn model_sources() -> Value {
+    macro_rules! source {
+        ($relative:literal) => {
+            ($relative, include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"), "/../../", $relative
+            )).as_slice())
+        };
+    }
+    // These are data witnesses, not source imports. Bind the component helpers
+    // as well as the join: a changed child model must invalidate its recipe.
+    let sources: &[(&str, &[u8])] = &[
+        source!("crates/auctioneer-bidder/tests/schema_residency/descriptor.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/runtime_sources.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/expanded.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/auxiliary.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/options.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/storage.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/retained.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/initialization.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/program_construction.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_residency/literal_construction.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_program_heap/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_metadata_heap/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_nfa_heap/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_nfa_heap/target.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_onepass_bounds/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_literal_heap/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_pool_heap/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_heap_layout/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_cache_model/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_hybrid_prefix/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_syntax_construction/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_nfa_construction/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_onepass_construction/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_build/application.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_build/regex_dependencies.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_build/schema_regex_vendor/mod.rs"),
+        source!("crates/auctioneer-bidder/tests/schema_vendor/mod.rs"),
+    ];
+    json!(sources.iter().map(|(path, bytes)| {
+        (*path, json!({"bytes":bytes.len(),"sha256":expanded::digest(bytes)}))
+    }).collect::<BTreeMap<_, _>>())
+}
+
 fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, Refusal> {
-    value[key].as_str().filter(|value| !value.is_empty()).ok_or(Refusal::Coverage)
+    value[key]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or(Refusal::Coverage)
 }
 
 fn array<'a>(value: &'a Value, key: &str) -> Result<&'a [Value], Refusal> {
-    value[key].as_array().map(Vec::as_slice).ok_or(Refusal::Coverage)
+    value[key]
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or(Refusal::Coverage)
 }
 
 fn source_group(row: &Value) -> Result<String, Refusal> {
-    Ok(format!("linked::declaration::{}::{}", text(row, "owner")?, text(row, "marker")?))
+    Ok(format!(
+        "linked::declaration::{}::{}",
+        text(row, "owner")?,
+        text(row, "marker")?
+    ))
 }
 
 fn row_programs(row: &Value) -> Result<Vec<(&Value, &str)>, Refusal> {
@@ -131,37 +188,129 @@ fn row_programs(row: &Value) -> Result<Vec<(&Value, &str)>, Refusal> {
 
 /// Auxiliary row ordinals are numeric, not declaration or lexical iteration order.
 fn ordered_declarations(graph: &Value) -> Result<Vec<&Value>, Refusal> {
-    let _ = graph;
-    Err(Refusal::Coverage)
+    let auxiliary = &graph["auxiliary"];
+    if auxiliary["status"] != "Complete" {
+        return Err(Refusal::Coverage);
+    }
+    let mut declarations = BTreeMap::new();
+    let mut owners = BTreeSet::new();
+    for row in array(graph, "declarations")? {
+        if !owners.insert(text(row, "owner")?)
+            || declarations.insert(text(row, "marker")?, row).is_some()
+        {
+            return Err(Refusal::Coverage);
+        }
+        row_programs(row)?;
+    }
+    let mut rows = BTreeMap::new();
+    for root in array(auxiliary, "roots")? {
+        if root["kind"] != "inline-retention-row" {
+            continue;
+        }
+        let details = &root["details"];
+        let entry = text(details, "entry")?;
+        let ordinal = entry
+            .strip_prefix("STAGED_VALIDATOR_")
+            .ok_or(Refusal::Coverage)?
+            .parse::<usize>()
+            .map_err(|_error| Refusal::Coverage)?;
+        let marker = text(details, "marker")?;
+        let row = *declarations.get(marker).ok_or(Refusal::Coverage)?;
+        if entry != format!("STAGED_VALIDATOR_{ordinal}")
+            || details["owner"] != row["owner"]
+            || rows.insert(ordinal, row).is_some()
+        {
+            return Err(Refusal::Coverage);
+        }
+    }
+    let ordered = rows
+        .into_iter()
+        .enumerate()
+        .map(|(expected, (ordinal, row))| {
+            if ordinal == expected {
+                Ok(row)
+            } else {
+                Err(Refusal::Coverage)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let markers = ordered
+        .iter()
+        .map(|row| text(row, "marker"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let calls = array(auxiliary, "dispatch_edges")?
+        .iter()
+        .filter(|edge| edge["from"] == "initialize_native")
+        .map(|edge| {
+            if edge["role"] != "initialize-regexes" || edge["ownership"] != "callee-owned" {
+                return Err(Refusal::Coverage);
+            }
+            text(edge, "to")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if ordered.len() != declarations.len() || calls != markers {
+        return Err(Refusal::Coverage);
+    }
+    Ok(ordered)
 }
 
 fn program(
-    id: &str, pattern: &str, group: &str,
-    config: &regex_automata::meta::Config, sources: &Sources<'_>,
+    id: &str,
+    pattern: &str,
+    group: &str,
+    config: &regex_automata::meta::Config,
+    sources: &Sources<'_>,
 ) -> Result<Program, Refusal> {
     let retained = SourceRecipe::from_pattern(pattern, config)
         .map_err(|error| Refusal::Program(id.to_owned(), error))?;
-    let constructor = program_construction::SourceRecipe::from_source(id, pattern, config, Sources {
-        workspace: sources.workspace, syntax: sources.syntax,
-        rust_release: sources.rust_release, features: sources.features,
-    }).map_err(|error| Refusal::Construction(id.to_owned(), error))?;
-    if constructor.owner() != id || constructor.pattern() != pattern
+    let constructor = program_construction::SourceRecipe::from_source(
+        id,
+        pattern,
+        config,
+        Sources {
+            workspace: sources.workspace,
+            syntax: sources.syntax,
+            rust_release: sources.rust_release,
+            features: sources.features,
+        },
+    )
+    .map_err(|error| Refusal::Construction(id.to_owned(), error))?;
+    if constructor.owner() != id
+        || constructor.pattern() != pattern
         || constructor.required_facts().is_empty()
-        || constructor.phase_models().iter().collect::<BTreeSet<_>>().len() != 13_usize
-        || constructor.work_models().iter().collect::<BTreeSet<_>>().len() != 15_usize
+        || constructor
+            .phase_models()
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != 13_usize
+        || constructor
+            .work_models()
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != 15_usize
     {
         return Err(Refusal::Coverage);
     }
-    Ok(Program { id: id.to_owned(), pattern: pattern.to_owned(), group: group.to_owned(),
-        retained, constructor })
+    Ok(Program {
+        id: id.to_owned(),
+        pattern: pattern.to_owned(),
+        group: group.to_owned(),
+        retained,
+        constructor,
+    })
 }
 
 fn declaration_group(row: &Value) -> Result<LinkedGroup, Refusal> {
     let id = source_group(row)?;
     // This root denotes the ENTIRE authenticated expansion, including all
     // functions, types, literals and non-regex code, not just the pattern list.
-    let mut roots = BTreeSet::from([format!("expanded::{}::{}",
-        text(row, "owner")?, text(row, "marker")?)]);
+    let mut roots = BTreeSet::from([format!(
+        "expanded::{}::{}",
+        text(row, "owner")?,
+        text(row, "marker")?
+    )]);
     let mut inline = BTreeSet::new();
     for program in array(row, "programs")? {
         let program = text(program, "identity")?.to_owned();
@@ -174,11 +323,18 @@ fn declaration_group(row: &Value) -> Result<LinkedGroup, Refusal> {
             return Err(Refusal::Coverage);
         }
     }
-    Ok(LinkedGroup { id, roots, inline,
-        source_sha256: text(row, "expansion_sha256")?.to_owned() })
+    Ok(LinkedGroup {
+        id,
+        roots,
+        inline,
+        source_sha256: text(row, "expansion_sha256")?.to_owned(),
+    })
 }
 
-fn linked_groups(graph: &Value, runtime: &runtime_sources::Witness) -> Result<Vec<LinkedGroup>, Refusal> {
+fn linked_groups(
+    graph: &Value,
+    runtime: &runtime_sources::Witness,
+) -> Result<Vec<LinkedGroup>, Refusal> {
     let auxiliary = &graph["auxiliary"];
     let mut roots = BTreeSet::new();
     for root in array(auxiliary, "roots")? {
@@ -191,17 +347,26 @@ fn linked_groups(graph: &Value, runtime: &runtime_sources::Witness) -> Result<Ve
         return Err(Refusal::Coverage);
     }
     let mut groups = vec![
-        LinkedGroup { id: "linked::captured-header".into(), roots, inline: BTreeSet::new(),
-            source_sha256: expanded::digest(&serde_json::to_vec(auxiliary)
-                .map_err(|_error| Refusal::Coverage)?) },
-        LinkedGroup { id: "linked::runtime-staging".into(),
+        LinkedGroup {
+            id: "linked::captured-header".into(),
+            roots,
+            inline: BTreeSet::new(),
+            source_sha256: expanded::digest(
+                &serde_json::to_vec(auxiliary).map_err(|_error| Refusal::Coverage)?,
+            ),
+        },
+        LinkedGroup {
+            id: "linked::runtime-staging".into(),
             source_sha256: runtime.staging_sha256.clone(),
             roots: BTreeSet::from(["schema::staging::entire-owner".into()]),
-            inline: BTreeSet::from([runtime_sources::HOSTNAME.into()]) },
-        LinkedGroup { id: "linked::runtime-native".into(),
+            inline: BTreeSet::from([runtime_sources::HOSTNAME.into()]),
+        },
+        LinkedGroup {
+            id: "linked::runtime-native".into(),
             source_sha256: runtime.native_sha256.clone(),
             roots: BTreeSet::from(["schema::native::entire-owner".into()]),
-            inline: BTreeSet::from([runtime_sources::COORDINATOR.into()]) },
+            inline: BTreeSet::from([runtime_sources::COORDINATOR.into()]),
+        },
     ];
     for row in array(graph, "declarations")? {
         groups.push(declaration_group(row)?);
@@ -216,7 +381,10 @@ fn linked_groups(graph: &Value, runtime: &runtime_sources::Witness) -> Result<Ve
     Ok(groups)
 }
 
-fn validation_assignments(programs: &[&str], graph: &Value) -> Result<Vec<ValidationAssignment>, Refusal> {
+fn validation_assignments(
+    programs: &[&str],
+    graph: &Value,
+) -> Result<Vec<ValidationAssignment>, Refusal> {
     let mut rows = Vec::new();
     for id in programs {
         for role in ["cache", "mutable-scratch", "search-fallback"] {
@@ -225,36 +393,58 @@ fn validation_assignments(programs: &[&str], graph: &Value) -> Result<Vec<Valida
             } else {
                 format!("{id}::validation::{role}")
             };
-            rows.push(ValidationAssignment { child, source_owner: (*id).to_owned(), role: role.into() });
+            rows.push(ValidationAssignment {
+                child,
+                source_owner: (*id).to_owned(),
+                role: role.into(),
+            });
         }
     }
     let mut formats = BTreeSet::new();
     for row in array(graph, "declarations")? {
         let owner = format!("{}::{}", text(row, "owner")?, text(row, "marker")?);
         for role in ["declaration-stack", "declaration-work"] {
-            rows.push(ValidationAssignment { child: format!("{owner}::{role}"),
-                source_owner: owner.clone(), role: role.into() });
+            rows.push(ValidationAssignment {
+                child: format!("{owner}::{role}"),
+                source_owner: owner.clone(),
+                role: role.into(),
+            });
         }
         for callback in array(row, "callbacks")? {
             formats.insert(callback.as_str().ok_or(Refusal::Coverage)?);
         }
     }
     for format in formats {
-        if !matches!(format, "uuid" | "hostname") { return Err(Refusal::Coverage); }
+        if !matches!(format, "uuid" | "hostname") {
+            return Err(Refusal::Coverage);
+        }
         let owner = format!("schema::staging::formats::{format}");
         for role in ["callback-stack", "callback-work"] {
-            rows.push(ValidationAssignment { child: format!("{owner}::{role}"),
-                source_owner: owner.clone(), role: role.into() });
+            rows.push(ValidationAssignment {
+                child: format!("{owner}::{role}"),
+                source_owner: owner.clone(),
+                role: role.into(),
+            });
         }
     }
     exact_assignments(&rows, &rows)?;
     Ok(rows)
 }
 
-fn exact_assignments(expected: &[ValidationAssignment], actual: &[ValidationAssignment]) -> Result<(), Refusal> {
-    let unique = |rows: &[ValidationAssignment]| rows.iter().map(|row| row.child.as_str())
-        .collect::<BTreeSet<_>>().len() == rows.len();
-    if expected.is_empty() || !unique(expected) || !unique(actual)
+fn exact_assignments(
+    expected: &[ValidationAssignment],
+    actual: &[ValidationAssignment],
+) -> Result<(), Refusal> {
+    let unique = |rows: &[ValidationAssignment]| {
+        rows.iter()
+            .map(|row| row.child.as_str())
+            .collect::<BTreeSet<_>>()
+            .len()
+            == rows.len()
+    };
+    if expected.is_empty()
+        || !unique(expected)
+        || !unique(actual)
         || expected.iter().collect::<BTreeSet<_>>() != actual.iter().collect::<BTreeSet<_>>()
     {
         return Err(Refusal::Coverage);
@@ -263,32 +453,51 @@ fn exact_assignments(expected: &[ValidationAssignment], actual: &[ValidationAssi
 }
 
 pub(crate) fn describe(
-    seed: &CapturedSeed, accepted_graph: &Value, sources: Sources<'_>,
+    seed: &CapturedSeed,
+    accepted_graph: &Value,
+    sources: Sources<'_>,
 ) -> Result<ActualSourceDescriptor, Refusal> {
     let graph = expanded::expand(seed).map_err(Refusal::Graph)?;
     if graph != *accepted_graph {
         return Err(Refusal::GraphMismatch);
     }
-    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
-        .map_err(|_error| Refusal::Coverage)?;
+    let manifest: Value =
+        serde_json::from_slice(&seed.manifest_bytes).map_err(|_error| Refusal::Coverage)?;
     let runtime = runtime_sources::capture(sources.workspace, &manifest)?;
     let ordered = ordered_declarations(&graph)?;
     let groups = linked_groups(&graph, &runtime)?;
-    let mut programs = vec![program(runtime_sources::HOSTNAME, &runtime.hostname,
-        "linked::runtime-staging", &runtime.config, &sources)?];
+    let mut programs = vec![program(
+        runtime_sources::HOSTNAME,
+        &runtime.hostname,
+        "linked::runtime-staging",
+        &runtime.config,
+        &sources,
+    )?];
     for row in ordered {
         let group = source_group(row)?;
         for (child, pattern) in row_programs(row)? {
-            programs.push(program(text(child, "identity")?, pattern, &group, &runtime.config, &sources)?);
+            programs.push(program(
+                text(child, "identity")?,
+                pattern,
+                &group,
+                &runtime.config,
+                &sources,
+            )?);
         }
     }
     let mut ids = BTreeSet::new();
     if programs.iter().any(|row| !ids.insert(row.id.as_str())) {
         return Err(Refusal::Coverage);
     }
-    let program_ids = programs.iter().map(|program| program.id.as_str()).collect::<Vec<_>>();
+    let program_ids = programs
+        .iter()
+        .map(|program| program.id.as_str())
+        .collect::<Vec<_>>();
     let validation = validation_assignments(&program_ids, &graph)?;
-    let syntax_source = sources.syntax.to_str().ok_or(Refusal::RuntimeSource("syntax source UTF-8"))?;
+    let syntax_source = sources
+        .syntax
+        .to_str()
+        .ok_or(Refusal::RuntimeSource("syntax source UTF-8"))?;
     let binding = json!({"identity":seed.identity_sha256,
         "manifest_sha256":expanded::digest(&seed.manifest_bytes),
         "expanded_graph_sha256":expanded::digest(&serde_json::to_vec(&graph)
@@ -298,13 +507,7 @@ pub(crate) fn describe(
         "syntax_rank_source":{"path":"src/rank.rs",
             "sha256":"ff3d58b0cc5ffa69e2e8c56fc7d9ef41dd399d59a639a253a51551b858cb5bbd",
             "verified_by":"program_construction::SourceRecipe::from_source"},
-        "model_sources":{
-            "retained_program":expanded::digest(include_bytes!("../schema_program_heap/mod.rs")),
-            "constructor":expanded::digest(include_bytes!("program_construction.rs")),
-            "retained_composition":expanded::digest(include_bytes!("retained.rs")),
-            "initialization_composition":expanded::digest(include_bytes!("initialization.rs")),
-            "descriptor":expanded::digest(include_bytes!("descriptor.rs")),
-            "runtime_join":expanded::digest(include_bytes!("runtime_sources.rs"))}});
+        "model_sources":model_sources()});
     let recipe_identity = expanded::digest(&serde_json::to_vec(&binding)
         .map_err(|_error| Refusal::Coverage)?);
     runtime.recheck()?;
@@ -315,12 +518,18 @@ pub(crate) fn describe(
 impl ActualSourceDescriptor {
     /// Stable data projection for the existing pure consumer; not a receipt.
     pub(crate) fn projection(&self) -> Value {
-        let programs = self.programs.iter().map(|program| json!({
+        let programs = self
+            .programs
+            .iter()
+            .map(|program| {
+                json!({
             "identity":program.id,"retained_layout_fields":["metadata","arc_header",
                 "strategy_payload","nfa_facts","onepass_word","memchr_payload","pool"],
             "nfa_fact_keys":crate::schema_nfa_heap::target::fact_keys(),
             "constructor_layout_keys":program.constructor.required_facts(),
-            "inline_in_group":program.group})).collect::<Vec<_>>();
+            "inline_in_group":program.group})
+            })
+            .collect::<Vec<_>>();
         json!({"schema_version":1_u8,"kind":"schema_source_recipe_projection",
             "source_recipe_identity":self.recipe_identity,
             "common_status":"SourceComplete","target_status":"TargetIncomplete",
@@ -336,7 +545,11 @@ impl ActualSourceDescriptor {
     }
 
     pub(crate) fn report(&self) -> Value {
-        let programs = self.programs.iter().map(|program| json!({
+        let programs = self
+            .programs
+            .iter()
+            .map(|program| {
+                json!({
             "identity":program.id,"pattern":program.pattern,"linked_inline_group":program.group,
             "retained_formula":"schema_program_heap::SourceRecipe::evaluate",
             "constructor_formula":"program_construction::SourceRecipe::evaluate",
@@ -349,7 +562,9 @@ impl ActualSourceDescriptor {
             "constructor_phases":program.constructor.phase_models().iter()
                 .map(|stage| format!("{stage:?}")).collect::<Vec<_>>(),
             "source_work":program.constructor.work_models().iter()
-                .map(|work| format!("{work:?}")).collect::<Vec<_>>() })).collect::<Vec<_>>();
+                .map(|work| format!("{work:?}")).collect::<Vec<_>>() })
+            })
+            .collect::<Vec<_>>();
         let groups = self.groups.iter().map(|group| json!({
             "identity":group.id,"source_sha256":group.source_sha256,"roots":group.roots,
             "inline_children":group.inline,"budget_owner":"CatalogOwner::Validators",
@@ -380,7 +595,10 @@ impl ActualSourceDescriptor {
                 "source_owner":row.source_owner,"role":row.role})).collect::<Vec<_>>()})
     }
 
-    pub(crate) fn check_validation_handoff(&self, rows: &[ValidationAssignment]) -> Result<(), Refusal> {
+    pub(crate) fn check_validation_handoff(
+        &self,
+        rows: &[ValidationAssignment],
+    ) -> Result<(), Refusal> {
         exact_assignments(&self.validation, rows)
     }
 
@@ -391,20 +609,31 @@ impl ActualSourceDescriptor {
         let mut constructors = Vec::new();
         for program in &self.programs {
             let root = facts.programs.get(&program.id).ok_or(Refusal::Coverage)?;
-            let heap = program.retained.evaluate(root)
+            let heap = program
+                .retained
+                .evaluate(root)
                 .map_err(|error| match error {
                     ProgramHeapError::Arithmetic => Refusal::Arithmetic,
                     _ => Refusal::TargetLayout(program.id.clone()),
                 })?;
-            let layouts = facts.constructor_layouts.get(&program.id).ok_or(Refusal::Coverage)?;
-            let constructor = program.constructor.evaluate(layouts, root)
-                .map_err(|error| match error {
-                    program_construction::Refusal::Missing(key) =>
-                        Refusal::TargetIncomplete(vec![format!("constructor::{}::{key}", program.id)]),
-                    program_construction::Refusal::Layout => Refusal::TargetLayout(program.id.clone()),
-                    program_construction::Refusal::Arithmetic => Refusal::Arithmetic,
-                    error => Refusal::Construction(program.id.clone(), error),
-                })?;
+            let layouts = facts
+                .constructor_layouts
+                .get(&program.id)
+                .ok_or(Refusal::Coverage)?;
+            let constructor =
+                program
+                    .constructor
+                    .evaluate(layouts, root)
+                    .map_err(|error| match error {
+                        program_construction::Refusal::Missing(key) => Refusal::TargetIncomplete(
+                            vec![format!("constructor::{}::{key}", program.id)],
+                        ),
+                        program_construction::Refusal::Layout => {
+                            Refusal::TargetLayout(program.id.clone())
+                        }
+                        program_construction::Refusal::Arithmetic => Refusal::Arithmetic,
+                        error => Refusal::Construction(program.id.clone(), error),
+                    })?;
             if constructor.owner != program.id || constructor.retained != heap {
                 return Err(Refusal::Coverage);
             }
@@ -414,72 +643,124 @@ impl ActualSourceDescriptor {
         let linked_inline_attributed_bytes = self.reconcile_groups(facts, &heaps)?;
         let totals = compose(&self.programs, &heaps, &constructors)?;
         let constructor_source_visits = constructors.iter().try_fold(0_u64, |sum, row| {
-            let visits = row.complete_work().map_err(|error|
-                Refusal::Construction(row.owner.clone(), error))?;
+            let visits = row
+                .complete_work()
+                .map_err(|error| Refusal::Construction(row.owner.clone(), error))?;
             sum.checked_add(as_u64(visits)?).ok_or(Refusal::Arithmetic)
         })?;
         self.runtime.recheck()?;
-        Ok(RequestedStorage { abi: facts.abi.to_owned(),
+        Ok(RequestedStorage {
+            abi: facts.abi.to_owned(),
             retained_requested_bytes: totals.retained,
             construction_only_requested_bytes: totals.construction_only,
             additive_requested_envelope: totals.additive_envelope,
-            linked_inline_attributed_bytes, trace_peaks: totals.trace_peaks,
-            constructor_source_visits })
+            linked_inline_attributed_bytes,
+            trace_peaks: totals.trace_peaks,
+            constructor_source_visits,
+        })
     }
 
     fn check_facts(&self, facts: &RequestedFacts<'_>) -> Result<(), Refusal> {
         if facts.binding != &self.binding || facts.abi.trim().is_empty() {
             return Err(Refusal::TargetBinding);
         }
-        let expected = self.programs.iter().map(|row| row.id.as_str()).collect::<BTreeSet<_>>();
+        let expected = self
+            .programs
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<BTreeSet<_>>();
         let mut missing = Vec::new();
-        exact_keys(&expected, facts.programs.keys().map(String::as_str), "program", &mut missing)?;
-        exact_keys(&expected, facts.constructor_layouts.keys().map(String::as_str), "constructor", &mut missing)?;
-        let groups = self.groups.iter().map(|row| row.id.as_str()).collect::<BTreeSet<_>>();
-        exact_keys(&groups, facts.linked_inline.keys().map(String::as_str), "linked-inline", &mut missing)?;
+        exact_keys(
+            &expected,
+            facts.programs.keys().map(String::as_str),
+            "program",
+            &mut missing,
+        )?;
+        exact_keys(
+            &expected,
+            facts.constructor_layouts.keys().map(String::as_str),
+            "constructor",
+            &mut missing,
+        )?;
+        let groups = self
+            .groups
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<BTreeSet<_>>();
+        exact_keys(
+            &groups,
+            facts.linked_inline.keys().map(String::as_str),
+            "linked-inline",
+            &mut missing,
+        )?;
         for program in &self.programs {
-            if let Some(root) = facts.programs.get(&program.id) {
-                for key in crate::schema_nfa_heap::target::fact_keys() {
-                    if !root.nfa_facts.contains_key(key) {
-                        missing.push(format!("program::{}::nfa::{key}", program.id));
-                    }
-                }
-            }
-            if let Some(layouts) = facts.constructor_layouts.get(&program.id) {
-                for key in program.constructor.required_facts() {
-                    if !layouts.contains_key(key) {
-                        missing.push(format!("constructor::{}::{key}", program.id));
-                    }
-                }
-            }
+            program_fact_keys(
+                &program.id,
+                program.constructor.required_facts(),
+                facts
+                    .programs
+                    .get(&program.id)
+                    .map(|root| root.nfa_facts.keys().map(String::as_str)),
+                facts
+                    .constructor_layouts
+                    .get(&program.id)
+                    .map(|layouts| layouts.keys().map(String::as_str)),
+                &mut missing,
+            )?;
         }
         for group in &self.groups {
             if let Some(fact) = facts.linked_inline.get(&group.id) {
-                let expected = group.inline.iter().map(String::as_str).collect::<BTreeSet<_>>();
-                exact_keys(&expected, fact.inline_layouts.keys().map(String::as_str),
-                    &format!("inline::{}", group.id), &mut missing)?;
+                let expected = group
+                    .inline
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<BTreeSet<_>>();
+                exact_keys(
+                    &expected,
+                    fact.inline_layouts.keys().map(String::as_str),
+                    &format!("inline::{}", group.id),
+                    &mut missing,
+                )?;
             }
         }
-        if !missing.is_empty() { return Err(Refusal::TargetIncomplete(missing)); }
+        if !missing.is_empty() {
+            return Err(Refusal::TargetIncomplete(missing));
+        }
         Ok(())
     }
 
-    fn reconcile_groups(&self, facts: &RequestedFacts<'_>, heaps: &[NativeProgramHeap]) -> Result<u64, Refusal> {
+    fn reconcile_groups(
+        &self,
+        facts: &RequestedFacts<'_>,
+        heaps: &[NativeProgramHeap],
+    ) -> Result<u64, Refusal> {
         let mut total = 0_u64;
         for group in &self.groups {
-            let fact = facts.linked_inline.get(&group.id).ok_or(Refusal::Coverage)?;
-            if fact.source_sha256 != group.source_sha256 || fact.budget_owner != CatalogOwner::Validators {
+            let fact = facts
+                .linked_inline
+                .get(&group.id)
+                .ok_or(Refusal::Coverage)?;
+            if fact.source_sha256 != group.source_sha256
+                || fact.budget_owner != CatalogOwner::Validators
+            {
                 return Err(Refusal::TargetBinding);
             }
             let inline = fact.inline_layouts.keys().cloned().collect::<BTreeSet<_>>();
-            if inline != group.inline { return Err(Refusal::TargetLayout(group.id.clone())); }
+            if inline != group.inline {
+                return Err(Refusal::TargetLayout(group.id.clone()));
+            }
             let mut contained = 0_u64;
             for (id, field) in &fact.inline_layouts {
-                field.validate().map_err(|_error| Refusal::TargetLayout(id.clone()))?;
-                contained = contained.checked_add(as_u64(field.bytes)?).ok_or(Refusal::Arithmetic)?;
+                field
+                    .validate()
+                    .map_err(|_error| Refusal::TargetLayout(id.clone()))?;
+                contained = contained
+                    .checked_add(as_u64(field.bytes)?)
+                    .ok_or(Refusal::Arithmetic)?;
                 if let Some(index) = self.programs.iter().position(|program| &program.id == id) {
                     let root = facts.programs.get(id).ok_or(Refusal::Coverage)?;
-                    if self.programs[index].group != group.id || heaps[index].static_inline_bytes != field.bytes
+                    if self.programs[index].group != group.id
+                        || heaps[index].static_inline_bytes != field.bytes
                         || root.metadata.static_inline != *field
                     {
                         return Err(Refusal::TargetLayout(id.clone()));
@@ -488,20 +769,53 @@ impl ActualSourceDescriptor {
                     return Err(Refusal::TargetLayout(id.clone()));
                 }
             }
-            if contained > fact.attributed_bytes { return Err(Refusal::TargetLayout(group.id.clone())); }
-            total = total.checked_add(fact.attributed_bytes).ok_or(Refusal::Arithmetic)?;
+            if contained > fact.attributed_bytes {
+                return Err(Refusal::TargetLayout(group.id.clone()));
+            }
+            total = total
+                .checked_add(fact.attributed_bytes)
+                .ok_or(Refusal::Arithmetic)?;
         }
         Ok(total)
     }
 }
 
+fn program_fact_keys<'a>(
+    owner: &str,
+    required_constructor: &BTreeSet<String>,
+    nfa: Option<impl Iterator<Item = &'a str>>,
+    constructor: Option<impl Iterator<Item = &'a str>>,
+    missing: &mut Vec<String>,
+) -> Result<(), Refusal> {
+    if let Some(keys) = nfa {
+        let required = target::fact_keys().into_iter().collect::<BTreeSet<_>>();
+        exact_keys(&required, keys, &format!("program::{owner}::nfa"), missing)?;
+    }
+    if let Some(keys) = constructor {
+        let required = required_constructor
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        exact_keys(&required, keys, &format!("constructor::{owner}"), missing)?;
+    }
+    Ok(())
+}
+
 fn exact_keys<'a>(
-    expected: &BTreeSet<&str>, actual: impl Iterator<Item = &'a str>,
-    role: &str, missing: &mut Vec<String>,
+    expected: &BTreeSet<&str>,
+    actual: impl Iterator<Item = &'a str>,
+    role: &str,
+    missing: &mut Vec<String>,
 ) -> Result<(), Refusal> {
     let actual = actual.collect::<BTreeSet<_>>();
-    if !actual.is_subset(expected) { return Err(Refusal::TargetBinding); }
-    missing.extend(expected.difference(&actual).map(|id| format!("{role}::{id}")));
+    if !actual.is_subset(expected) {
+        return Err(Refusal::TargetBinding);
+    }
+    missing.extend(
+        expected
+            .difference(&actual)
+            .map(|id| format!("{role}::{id}")),
+    );
     Ok(())
 }
 
@@ -510,27 +824,57 @@ fn as_u64(value: usize) -> Result<u64, Refusal> {
 }
 
 fn compose(
-    programs: &[Program], heaps: &[NativeProgramHeap], constructors: &[program_construction::Certificate],
+    programs: &[Program],
+    heaps: &[NativeProgramHeap],
+    constructors: &[program_construction::Certificate],
 ) -> Result<initialization::Totals, Refusal> {
-    if programs.is_empty() || programs.len() != heaps.len() || programs.len() != constructors.len() {
+    if programs.is_empty() || programs.len() != heaps.len() || programs.len() != constructors.len()
+    {
         return Err(Refusal::Coverage);
     }
-    let ids = programs.iter().map(|row| row.id.as_str()).collect::<Vec<_>>();
+    let ids = programs
+        .iter()
+        .map(|row| row.id.as_str())
+        .collect::<Vec<_>>();
     let expected = ids.iter().map(|id| (*id, *id)).collect::<Vec<_>>();
-    let final_owners = ids.iter().zip(heaps).map(|(id, heap)| {
-        Ok(initialization::Allocation { owner: *id, bytes: as_u64(heap.total)? })
-    }).collect::<Result<Vec<_>, Refusal>>()?;
-    let charges = final_owners.iter().enumerate().map(|(index, row)| retained::Charge {
-        owner: row.owner, covered: &ids[index..index + 1_usize], bytes: row.bytes,
-    }).collect::<Vec<_>>();
+    let final_owners = ids
+        .iter()
+        .zip(heaps)
+        .map(|(id, heap)| {
+            Ok(initialization::Allocation {
+                owner: *id,
+                bytes: as_u64(heap.total)?,
+            })
+        })
+        .collect::<Result<Vec<_>, Refusal>>()?;
+    let charges = final_owners
+        .iter()
+        .enumerate()
+        .map(|(index, row)| retained::Charge {
+            owner: row.owner,
+            covered: &ids[index..index + 1_usize],
+            bytes: row.bytes,
+        })
+        .collect::<Vec<_>>();
     let c = retained::compose(&expected, &charges, &[]).map_err(|_error| Refusal::Coverage)?;
     let mut labels = Vec::new();
     let mut scratch_ids = Vec::new();
     let mut trace_rows = Vec::new();
     for (index, (program, constructor)) in programs.iter().zip(constructors).enumerate() {
-        let expected = program.constructor.phase_models().iter().copied().collect::<BTreeSet<_>>();
-        if constructor.phase_scratch.keys().copied().collect::<BTreeSet<_>>() != expected
-            || constructor.phase_scratch.values().copied().max() != Some(constructor.construction_only_bytes)
+        let expected = program
+            .constructor
+            .phase_models()
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        if constructor
+            .phase_scratch
+            .keys()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            != expected
+            || constructor.phase_scratch.values().copied().max()
+                != Some(constructor.construction_only_bytes)
         {
             return Err(Refusal::Coverage);
         }
@@ -540,26 +884,90 @@ fn compose(
             trace_rows.push((index, as_u64(*scratch)?));
         }
     }
-    let scratch = scratch_ids.iter().zip(&trace_rows).map(|(id, (_, bytes))| {
-        if *bytes == 0_u64 { Vec::new() } else {
-            vec![initialization::Allocation { owner: id, bytes: *bytes }]
-        }
-    }).collect::<Vec<_>>();
+    let scratch = scratch_ids
+        .iter()
+        .zip(&trace_rows)
+        .map(|(id, (_, bytes))| {
+            if *bytes == 0_u64 {
+                Vec::new()
+            } else {
+                vec![initialization::Allocation {
+                    owner: id,
+                    bytes: *bytes,
+                }]
+            }
+        })
+        .collect::<Vec<_>>();
     // Every phase, including failure cleanup, is bounded by this retained
     // prefix's final capacity. Scratch is disjoint, never observed_peak - C.
-    let traces = trace_rows.iter().enumerate().map(|(trace, (program, _))| initialization::Trace {
-        label: &labels[trace], retained: &final_owners[..*program + 1_usize], scratch: &scratch[trace],
-    }).collect::<Vec<_>>();
+    let traces = trace_rows
+        .iter()
+        .enumerate()
+        .map(|(trace, (program, _))| initialization::Trace {
+            label: &labels[trace],
+            retained: &final_owners[..*program + 1_usize],
+            scratch: &scratch[trace],
+        })
+        .collect::<Vec<_>>();
     let required = labels.iter().map(String::as_str).collect::<Vec<_>>();
     let totals = initialization::compose(&final_owners, &required, &traces)
         .map_err(|_error| Refusal::Coverage)?;
-    if totals.retained != c { return Err(Refusal::Coverage); }
+    if totals.retained != c {
+        return Err(Refusal::Coverage);
+    }
     Ok(totals)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recipe_binds_each_consumed_component_and_source_join() {
+        let expected = [
+            "schema_residency/descriptor.rs",
+            "schema_residency/runtime_sources.rs",
+            "schema_residency/expanded.rs",
+            "schema_residency/auxiliary.rs",
+            "schema_residency/options.rs",
+            "schema_residency/storage.rs",
+            "schema_residency/retained.rs",
+            "schema_residency/initialization.rs",
+            "schema_residency/program_construction.rs",
+            "schema_residency/literal_construction.rs",
+            "schema_program_heap/mod.rs",
+            "schema_metadata_heap/mod.rs",
+            "schema_nfa_heap/mod.rs",
+            "schema_nfa_heap/target.rs",
+            "schema_onepass_bounds/mod.rs",
+            "schema_literal_heap/mod.rs",
+            "schema_pool_heap/mod.rs",
+            "schema_heap_layout/mod.rs",
+            "schema_cache_model/mod.rs",
+            "schema_hybrid_prefix/mod.rs",
+            "schema_syntax_construction/mod.rs",
+            "schema_nfa_construction/mod.rs",
+            "schema_onepass_construction/mod.rs",
+            "schema_build/application.rs",
+            "schema_build/regex_dependencies.rs",
+            "schema_build/schema_regex_vendor/mod.rs",
+            "schema_vendor/mod.rs",
+        ]
+        .map(|path| format!("crates/auctioneer-bidder/tests/{path}"))
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+        let witnesses = model_sources();
+        let witnesses = witnesses.as_object().unwrap();
+        assert_eq!(witnesses.keys().cloned().collect::<BTreeSet<_>>(), expected);
+        for witness in witnesses.values() {
+            assert_eq!(witness.as_object().unwrap().keys().map(String::as_str)
+                .collect::<BTreeSet<_>>(), BTreeSet::from(["bytes", "sha256"]));
+            assert!(witness["bytes"].as_u64().unwrap() > 0);
+            let digest = witness["sha256"].as_str().unwrap();
+            assert_eq!(digest.len(), 64);
+            assert!(digest.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        }
+    }
 
     fn graph() -> Value {
         json!({"declarations":[
@@ -582,16 +990,28 @@ mod tests {
     fn auxiliary_numeric_schedule_and_per_row_order_keep_equal_patterns_distinct() {
         let graph = graph();
         let rows = ordered_declarations(&graph).unwrap();
-        let ids = rows.into_iter().flat_map(|row| row_programs(row).unwrap())
-            .map(|(row, _)| text(row, "identity").unwrap()).collect::<Vec<_>>();
-        assert_eq!(ids, ["fake_a::MarkerA::SECOND_REGEX", "fake_a::MarkerA::FIRST_REGEX", "fake_b::MarkerB::FIRST_REGEX"]);
+        let ids = rows
+            .into_iter()
+            .flat_map(|row| row_programs(row).unwrap())
+            .map(|(row, _)| text(row, "identity").unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            [
+                "fake_a::MarkerA::SECOND_REGEX",
+                "fake_a::MarkerA::FIRST_REGEX",
+                "fake_b::MarkerB::FIRST_REGEX"
+            ]
+        );
     }
 
     #[test]
     fn every_missing_duplicate_or_extra_program_and_initializer_refuses() {
-        for initialization in [json!([]), json!(["FIRST_REGEX","FIRST_REGEX"]),
-            json!(["FIRST_REGEX","UNKNOWN_REGEX"])]
-        {
+        for initialization in [
+            json!([]),
+            json!(["FIRST_REGEX", "FIRST_REGEX"]),
+            json!(["FIRST_REGEX", "UNKNOWN_REGEX"]),
+        ] {
             let mut graph = graph();
             graph["declarations"][0]["initialization"] = initialization;
             assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::Coverage));
@@ -600,7 +1020,11 @@ mod tests {
             let mut graph = graph();
             let programs = graph["declarations"][0]["programs"].as_array_mut().unwrap();
             assert_eq!(programs.len(), 1_usize);
-            if duplicate { programs.push(programs[0].clone()); } else { programs.clear(); }
+            if duplicate {
+                programs.push(programs[0].clone());
+            } else {
+                programs.clear();
+            }
             assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::Coverage));
         }
     }
@@ -612,30 +1036,55 @@ mod tests {
                 let mut graph = graph();
                 let rows = graph.pointer_mut(pointer).unwrap().as_array_mut().unwrap();
                 assert_eq!(rows.len(), 2_usize);
-                if duplicate { rows.push(rows[0].clone()); } else { rows.pop().unwrap(); }
+                if duplicate {
+                    rows.push(rows[0].clone());
+                } else {
+                    rows.pop().unwrap();
+                }
                 assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::Coverage));
             }
         }
         let mut graph = graph();
         graph["declarations"][0]["schema_state"] = json!([{"kind":"lazy_json_array"}]);
-        assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::UnsupportedState("fake_b".into())));
+        assert_eq!(
+            ordered_declarations(&graph).err(),
+            Some(Refusal::UnsupportedState("fake_b".into()))
+        );
     }
 
     #[test]
     fn validation_handoff_rejects_each_missing_duplicate_and_misowned_child() {
         let expected = [
-            ValidationAssignment { child: "fake::cache".into(), source_owner: "fake".into(), role: "cache".into() },
-            ValidationAssignment { child: "hostname::per-call-cache".into(), source_owner: "hostname".into(), role: "cache".into() },
-            ValidationAssignment { child: "fake::scratch".into(), source_owner: "fake".into(), role: "mutable-scratch".into() },
+            ValidationAssignment {
+                child: "fake::cache".into(),
+                source_owner: "fake".into(),
+                role: "cache".into(),
+            },
+            ValidationAssignment {
+                child: "hostname::per-call-cache".into(),
+                source_owner: "hostname".into(),
+                role: "cache".into(),
+            },
+            ValidationAssignment {
+                child: "fake::scratch".into(),
+                source_owner: "fake".into(),
+                role: "mutable-scratch".into(),
+            },
         ];
         assert_eq!(exact_assignments(&expected, &expected), Ok(()));
         for index in 0_usize..expected.len() {
             let mut missing = expected.to_vec();
             missing.remove(index);
-            assert_eq!(exact_assignments(&expected, &missing), Err(Refusal::Coverage));
+            assert_eq!(
+                exact_assignments(&expected, &missing),
+                Err(Refusal::Coverage)
+            );
             let mut duplicate = expected.to_vec();
             duplicate.push(expected[index].clone());
-            assert_eq!(exact_assignments(&expected, &duplicate), Err(Refusal::Coverage));
+            assert_eq!(
+                exact_assignments(&expected, &duplicate),
+                Err(Refusal::Coverage)
+            );
             let mut wrong = expected.to_vec();
             wrong[index].source_owner = "other".into();
             assert_eq!(exact_assignments(&expected, &wrong), Err(Refusal::Coverage));
@@ -654,21 +1103,35 @@ mod tests {
             "fake_a::MarkerA::FIRST_REGEX::validation::cache",
             "fake_a::MarkerA::FIRST_REGEX::validation::mutable-scratch",
             "fake_a::MarkerA::FIRST_REGEX::validation::search-fallback",
-            "fake_b::MarkerB::declaration-stack", "fake_b::MarkerB::declaration-work",
-            "fake_a::MarkerA::declaration-stack", "fake_a::MarkerA::declaration-work",
+            "fake_b::MarkerB::declaration-stack",
+            "fake_b::MarkerB::declaration-work",
+            "fake_a::MarkerA::declaration-stack",
+            "fake_a::MarkerA::declaration-work",
             "schema::staging::formats::hostname::callback-stack",
             "schema::staging::formats::hostname::callback-work",
             "schema::staging::formats::uuid::callback-stack",
             "schema::staging::formats::uuid::callback-work",
         ];
-        assert_eq!(assignments.iter().map(|row| row.child.as_str()).collect::<Vec<_>>(), expected);
+        assert_eq!(
+            assignments
+                .iter()
+                .map(|row| row.child.as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
         for index in 0_usize..assignments.len() {
             let mut missing = assignments.clone();
             missing.remove(index);
-            assert_eq!(exact_assignments(&assignments, &missing), Err(Refusal::Coverage));
+            assert_eq!(
+                exact_assignments(&assignments, &missing),
+                Err(Refusal::Coverage)
+            );
             let mut duplicate = assignments.clone();
             duplicate.push(assignments[index].clone());
-            assert_eq!(exact_assignments(&assignments, &duplicate), Err(Refusal::Coverage));
+            assert_eq!(
+                exact_assignments(&assignments, &duplicate),
+                Err(Refusal::Coverage)
+            );
         }
     }
 
@@ -678,7 +1141,130 @@ mod tests {
         let mut missing = Vec::new();
         exact_keys(&expected, ["fake_b"].into_iter(), "program", &mut missing).unwrap();
         assert_eq!(missing, ["program::fake_a"]);
-        assert_eq!(exact_keys(&expected, ["fake_b","other"].into_iter(), "program", &mut missing),
-            Err(Refusal::TargetBinding));
+        assert_eq!(
+            exact_keys(
+                &expected,
+                ["fake_b", "other"].into_iter(),
+                "program",
+                &mut missing
+            ),
+            Err(Refusal::TargetBinding)
+        );
+    }
+
+    fn constructor_fact_names() -> BTreeSet<String> {
+        BTreeSet::from([
+            "fake_ctor::Frame".to_owned(),
+            "fake_ctor::Queue".to_owned(),
+        ])
+    }
+
+    fn nfa_fact_names() -> BTreeSet<String> {
+        target::fact_keys()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn inspect_fact_names(
+        nfa: &BTreeSet<String>,
+        constructor: &BTreeSet<String>,
+    ) -> Result<Vec<String>, Refusal> {
+        let mut missing = Vec::new();
+        program_fact_keys(
+            "fake_owner",
+            &constructor_fact_names(),
+            Some(nfa.iter().map(String::as_str)),
+            Some(constructor.iter().map(String::as_str)),
+            &mut missing,
+        )?;
+        Ok(missing)
+    }
+
+    #[test]
+    fn every_inner_nfa_key_is_required_and_any_extra_refuses() {
+        let nfa = nfa_fact_names();
+        let constructor = constructor_fact_names();
+        assert_eq!(nfa.len(), 11_usize);
+        assert_eq!(inspect_fact_names(&nfa, &constructor), Ok(Vec::new()));
+        for key in &nfa {
+            let mut missing = nfa.clone();
+            assert!(missing.remove(key));
+            assert_eq!(
+                inspect_fact_names(&missing, &constructor),
+                Ok(vec![format!("program::fake_owner::nfa::{key}")])
+            );
+        }
+        let mut extra = nfa.clone();
+        assert!(extra.insert("unexpected::NfaFact".to_owned()));
+        assert_eq!(
+            inspect_fact_names(&extra, &constructor),
+            Err(Refusal::TargetBinding)
+        );
+    }
+
+    #[test]
+    fn every_inner_constructor_key_is_required_and_any_extra_refuses() {
+        let nfa = nfa_fact_names();
+        let constructor = constructor_fact_names();
+        assert_eq!(constructor.len(), 2_usize);
+        assert_eq!(inspect_fact_names(&nfa, &constructor), Ok(Vec::new()));
+        for key in &constructor {
+            let mut missing = constructor.clone();
+            assert!(missing.remove(key));
+            assert_eq!(
+                inspect_fact_names(&nfa, &missing),
+                Ok(vec![format!("constructor::fake_owner::{key}")])
+            );
+        }
+        let mut extra = constructor.clone();
+        assert!(extra.insert("unexpected::ConstructorFact".to_owned()));
+        assert_eq!(
+            inspect_fact_names(&nfa, &extra),
+            Err(Refusal::TargetBinding)
+        );
+    }
+
+    #[test]
+    fn equal_cardinality_substitutions_and_cross_family_holes_cannot_hide_extras() {
+        let nfa = nfa_fact_names();
+        let constructor = constructor_fact_names();
+        for key in &nfa {
+            let mut substituted = nfa.clone();
+            assert!(substituted.remove(key));
+            assert!(substituted.insert("unexpected::NfaFact".to_owned()));
+            assert_eq!(substituted.len(), 11_usize);
+            assert_eq!(
+                inspect_fact_names(&substituted, &constructor),
+                Err(Refusal::TargetBinding)
+            );
+        }
+        for key in &constructor {
+            let mut substituted = constructor.clone();
+            assert!(substituted.remove(key));
+            assert!(substituted.insert("unexpected::ConstructorFact".to_owned()));
+            assert_eq!(substituted.len(), 2_usize);
+            assert_eq!(
+                inspect_fact_names(&nfa, &substituted),
+                Err(Refusal::TargetBinding)
+            );
+        }
+        let mut nfa_extra = nfa.clone();
+        assert!(nfa_extra.insert("unexpected::NfaFact".to_owned()));
+        let mut constructor_hole = constructor.clone();
+        assert!(constructor_hole.remove("fake_ctor::Frame"));
+        assert_eq!(
+            inspect_fact_names(&nfa_extra, &constructor_hole),
+            Err(Refusal::TargetBinding)
+        );
+
+        let mut nfa_hole = nfa.clone();
+        assert!(nfa_hole.remove("compiler_abi::Pointer"));
+        let mut constructor_extra = constructor;
+        assert!(constructor_extra.insert("unexpected::ConstructorFact".to_owned()));
+        assert_eq!(
+            inspect_fact_names(&nfa_hole, &constructor_extra),
+            Err(Refusal::TargetBinding)
+        );
     }
 }

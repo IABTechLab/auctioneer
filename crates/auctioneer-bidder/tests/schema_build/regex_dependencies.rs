@@ -33,17 +33,24 @@ fn parse(bytes: &[u8], vendor: &Path) -> Result<ResolvedRegexDependencies, Strin
     let refused = "metadata does not resolve the engine's locked regex-syntax";
     let document: Value = serde_json::from_slice(bytes).map_err(|_error| refused)?;
     let packages = document["packages"].as_array().ok_or(refused)?;
-    let candidates = packages.iter().filter(|package| package["name"] == "regex-syntax")
+    let candidates = packages
+        .iter()
+        .filter(|package| package["name"] == "regex-syntax")
         .collect::<Vec<_>>();
-    let [syntax] = candidates.as_slice() else { return Err(refused.into()); };
+    let [syntax] = candidates.as_slice() else {
+        return Err(refused.into());
+    };
     if syntax["version"] != "0.8.11"
         || syntax["source"] != "registry+https://github.com/rust-lang/crates.io-index"
     {
         return Err(refused.into());
     }
     let manifest = Path::new(syntax["manifest_path"].as_str().ok_or(refused)?);
-    if !manifest.is_absolute() || manifest.file_name().is_none_or(|name| name != "Cargo.toml")
-        || manifest.components().any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
+    if !manifest.is_absolute()
+        || manifest.file_name().is_none_or(|name| name != "Cargo.toml")
+        || manifest
+            .components()
+            .any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
     {
         return Err(refused.into());
     }
@@ -51,25 +58,46 @@ fn parse(bytes: &[u8], vendor: &Path) -> Result<ResolvedRegexDependencies, Strin
     if syntax_root.join("Cargo.toml").as_os_str() != manifest.as_os_str() {
         return Err(refused.into());
     }
-    let syntax_id = syntax["id"].as_str().filter(|id| !id.is_empty()).ok_or(refused)?;
-    let engine = packages.iter().find(|package| package["name"] == "regex-automata").ok_or(refused)?;
+    let syntax_id = syntax["id"]
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .ok_or(refused)?;
+    let engine = packages
+        .iter()
+        .find(|package| package["name"] == "regex-automata")
+        .ok_or(refused)?;
     let nodes = document["resolve"]["nodes"].as_array().ok_or(refused)?;
     if nodes.iter().filter(|node| node["id"] == syntax_id).count() != 1_usize {
         return Err(refused.into());
     }
-    let node = nodes.iter().find(|node| node["id"] == engine["id"]).ok_or(refused)?;
-    let edges = node["deps"].as_array().ok_or(refused)?.iter()
+    let node = nodes
+        .iter()
+        .find(|node| node["id"] == engine["id"])
+        .ok_or(refused)?;
+    let edges = node["deps"]
+        .as_array()
+        .ok_or(refused)?
+        .iter()
         .filter(|edge| edge["name"] == "regex_syntax" || edge["pkg"] == syntax_id)
         .collect::<Vec<_>>();
-    let [edge] = edges.as_slice() else { return Err(refused.into()); };
-    if edge["name"] != "regex_syntax" || edge["pkg"] != syntax_id
-        || !edge["dep_kinds"].as_array().is_some_and(|kinds| kinds.iter()
-            .any(|kind| kind.get("kind").is_some_and(Value::is_null)
-                && kind.get("target").is_some_and(Value::is_null)))
+    let [edge] = edges.as_slice() else {
+        return Err(refused.into());
+    };
+    if edge["name"] != "regex_syntax"
+        || edge["pkg"] != syntax_id
+        || !edge["dep_kinds"].as_array().is_some_and(|kinds| {
+            kinds.iter().any(|kind| {
+                kind.get("kind").is_some_and(Value::is_null)
+                    && kind.get("target").is_some_and(Value::is_null)
+            })
+        })
     {
         return Err(refused.into());
     }
-    Ok(ResolvedRegexDependencies { engine_features, syntax_root })
+    Ok(ResolvedRegexDependencies {
+        engine_features,
+        syntax_root,
+    })
 }
 
 #[cfg(test)]
@@ -91,13 +119,19 @@ mod tests {
     }
 
     fn inspect(value: &Value) -> Result<ResolvedRegexDependencies, String> {
-        parse(&serde_json::to_vec(value).unwrap(), Path::new("/fake/vendor/regex-automata"))
+        parse(
+            &serde_json::to_vec(value).unwrap(),
+            Path::new("/fake/vendor/regex-automata"),
+        )
     }
 
     #[test]
     fn actual_metadata_selects_features_and_manifest_parent_together() {
         let dependencies = inspect(&fixture()).unwrap();
-        assert_eq!(dependencies.syntax_root, Path::new("/fake/registry/regex-syntax-0.8.11"));
+        assert_eq!(
+            dependencies.syntax_root,
+            Path::new("/fake/registry/regex-syntax-0.8.11")
+        );
         assert_eq!(dependencies.engine_features.len(), 25_usize);
         assert!(dependencies.engine_features.contains(&"syntax".to_owned()));
     }
@@ -107,18 +141,27 @@ mod tests {
         for index in 0_usize..7_usize {
             let mut value = fixture();
             match index {
-                0_usize => { value["packages"].as_array_mut().unwrap().pop().unwrap(); }
+                0_usize => {
+                    value["packages"].as_array_mut().unwrap().pop().unwrap();
+                }
                 1_usize => {
                     let duplicate = value["packages"][1_usize].clone();
                     value["packages"].as_array_mut().unwrap().push(duplicate);
                 }
                 2_usize => value["packages"][1_usize]["version"] = json!("0.8.10"),
                 3_usize => value["packages"][1_usize]["source"] = Value::Null,
-                4_usize => value["packages"][1_usize]["manifest_path"] = json!("relative/Cargo.toml"),
-                5_usize => value["packages"][1_usize]["manifest_path"] = json!("/fake/../other/Cargo.toml"),
+                4_usize => {
+                    value["packages"][1_usize]["manifest_path"] = json!("relative/Cargo.toml")
+                }
+                5_usize => {
+                    value["packages"][1_usize]["manifest_path"] = json!("/fake/../other/Cargo.toml")
+                }
                 _ => value["packages"][1_usize]["manifest_path"] = json!("/fake/not-a-manifest"),
             }
-            assert_eq!(inspect(&value).unwrap_err(), "metadata does not resolve the engine's locked regex-syntax");
+            assert_eq!(
+                inspect(&value).unwrap_err(),
+                "metadata does not resolve the engine's locked regex-syntax"
+            );
         }
     }
 
@@ -130,13 +173,30 @@ mod tests {
                 0_usize => value["resolve"]["nodes"][0_usize]["deps"] = json!([]),
                 1_usize => {
                     let edge = value["resolve"]["nodes"][0_usize]["deps"][0_usize].clone();
-                    value["resolve"]["nodes"][0_usize]["deps"].as_array_mut().unwrap().push(edge);
+                    value["resolve"]["nodes"][0_usize]["deps"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(edge);
                 }
-                2_usize => value["resolve"]["nodes"][0_usize]["deps"][0_usize]["pkg"] = json!("other"),
-                3_usize => value["resolve"]["nodes"][0_usize]["deps"][0_usize]["dep_kinds"][0_usize]["kind"] = json!("build"),
-                _ => { value["resolve"]["nodes"].as_array_mut().unwrap().pop().unwrap(); }
+                2_usize => {
+                    value["resolve"]["nodes"][0_usize]["deps"][0_usize]["pkg"] = json!("other")
+                }
+                3_usize => {
+                    value["resolve"]["nodes"][0_usize]["deps"][0_usize]["dep_kinds"][0_usize]["kind"] =
+                        json!("build")
+                }
+                _ => {
+                    value["resolve"]["nodes"]
+                        .as_array_mut()
+                        .unwrap()
+                        .pop()
+                        .unwrap();
+                }
             }
-            assert_eq!(inspect(&value).unwrap_err(), "metadata does not resolve the engine's locked regex-syntax");
+            assert_eq!(
+                inspect(&value).unwrap_err(),
+                "metadata does not resolve the engine's locked regex-syntax"
+            );
         }
     }
 }

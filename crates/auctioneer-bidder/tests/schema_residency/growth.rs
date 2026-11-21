@@ -3,7 +3,7 @@
 
 #![cfg(all(test, not(target_arch = "wasm32")))]
 
-use super::{expanded, observations, runtime_sources};
+use super::{descriptor, expanded, observations, runtime_sources};
 use crate::schema_build::{self, application::CapturedSeed, schema_regex_vendor};
 use crate::schema_formats::HOSTNAME_SOURCE;
 use crate::schema_selection_source::{Lane, independent_source_membership};
@@ -34,11 +34,9 @@ const SCHEMAS: &str = "independent schema/provenance mismatch";
 // Same existing per-input staging cap; this is only a test-fixture interning fence.
 const INPUT_BYTES: usize = 1 << 20;
 const NATIVE_STAGING: &[u8] = include_bytes!("../../src/schema/staging.rs");
-const CURRENT_MANIFEST: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/schema-staging.json"));
+const CURRENT_MANIFEST: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/schema-staging.json"));
 const CURRENT_RUST: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/schema-staging.rs"));
-const CURRENT_LAYOUT: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/schema-layout-build.toml"));
+const CURRENT_LAYOUT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/schema-layout-build.toml"));
 
 // Source is data here, never a handwritten import of another owner's code.
 macro_rules! measurement_sources {
@@ -120,12 +118,19 @@ fn reference_path(value: Option<OsString>) -> Result<PathBuf, String> {
     Ok(PathBuf::from(path))
 }
 
-fn intern_rows(rows: &[(&str, &str, Option<&str>)]) -> Result<Vec<BidderMetadataDeclaration>, String> {
+fn intern_rows(
+    rows: &[(&str, &str, Option<&str>)],
+) -> Result<Vec<BidderMetadataDeclaration>, String> {
     let mut bytes = 0_usize;
     let mut names = BTreeSet::new();
     for &(bidder, implementation, feature) in rows {
-        for field in [Some(bidder), Some(implementation), feature].into_iter().flatten() {
-            bytes = bytes.checked_add(field.len()).ok_or("metadata interning bound")?;
+        for field in [Some(bidder), Some(implementation), feature]
+            .into_iter()
+            .flatten()
+        {
+            bytes = bytes
+                .checked_add(field.len())
+                .ok_or("metadata interning bound")?;
             if bytes > INPUT_BYTES {
                 return Err("metadata interning bound".into());
             }
@@ -136,31 +141,49 @@ fn intern_rows(rows: &[(&str, &str, Option<&str>)]) -> Result<Vec<BidderMetadata
     }
     // The API uses static declarations. Bound and validate the entire arena
     // before interning; this fixture allocation is outside observation windows.
-    Ok(rows.iter().map(|&(bidder, implementation, required_feature)| {
-        BidderMetadataDeclaration {
-            bidder: Box::leak(bidder.to_owned().into_boxed_str()),
-            implementation: Box::leak(implementation.to_owned().into_boxed_str()),
-            required_feature: required_feature.map(|feature| {
-                let interned: &'static str = Box::leak(feature.to_owned().into_boxed_str());
-                interned
-            }),
-        }
-    }).collect())
+    Ok(rows
+        .iter()
+        .map(
+            |&(bidder, implementation, required_feature)| BidderMetadataDeclaration {
+                bidder: Box::leak(bidder.to_owned().into_boxed_str()),
+                implementation: Box::leak(implementation.to_owned().into_boxed_str()),
+                required_feature: required_feature.map(|feature| {
+                    let interned: &'static str = Box::leak(feature.to_owned().into_boxed_str());
+                    interned
+                }),
+            },
+        )
+        .collect())
 }
 
-fn owner_delta(reference: &BTreeMap<String, String>, candidate: &BTreeMap<String, String>) -> Delta {
+fn owner_delta(
+    reference: &BTreeMap<String, String>,
+    candidate: &BTreeMap<String, String>,
+) -> Delta {
     Delta {
-        added: candidate.keys().filter(|owner| !reference.contains_key(*owner)).cloned().collect(),
-        removed: reference.keys().filter(|owner| !candidate.contains_key(*owner)).cloned().collect(),
-        changed: reference.iter().filter(|(owner, schema)| {
-            candidate.get(*owner).is_some_and(|other| other != *schema)
-        }).map(|(owner, _schema)| owner.clone()).collect(),
+        added: candidate
+            .keys()
+            .filter(|owner| !reference.contains_key(*owner))
+            .cloned()
+            .collect(),
+        removed: reference
+            .keys()
+            .filter(|owner| !candidate.contains_key(*owner))
+            .cloned()
+            .collect(),
+        changed: reference
+            .iter()
+            .filter(|(owner, schema)| candidate.get(*owner).is_some_and(|other| other != *schema))
+            .map(|(owner, _schema)| owner.clone())
+            .collect(),
     }
 }
 
 fn ordinal(marker: &str) -> Result<usize, String> {
     let suffix = marker.strip_prefix("StagedSchema").ok_or(SCHEDULE)?;
-    let number = suffix.parse::<usize>().map_err(|error| format!("{SCHEDULE}: {error}"))?;
+    let number = suffix
+        .parse::<usize>()
+        .map_err(|error| format!("{SCHEDULE}: {error}"))?;
     if suffix != number.to_string() {
         return Err(SCHEDULE.into());
     }
@@ -172,8 +195,11 @@ fn owner_programs(view: &View) -> Result<BTreeMap<String, Vec<(String, String)>>
     if view.programs.first() != Some(&("shared::hostname".into(), HOSTNAME_SOURCE.into())) {
         return Err(refusal.into());
     }
-    let mut result: BTreeMap<_, Vec<_>> =
-        view.owners.keys().map(|owner| (owner.clone(), Vec::new())).collect();
+    let mut result: BTreeMap<_, Vec<_>> = view
+        .owners
+        .keys()
+        .map(|owner| (owner.clone(), Vec::new()))
+        .collect();
     let mut symbols = BTreeSet::new();
     let mut markers = BTreeMap::new();
     let mut owner_markers = BTreeMap::new();
@@ -182,14 +208,23 @@ fn owner_programs(view: &View) -> Result<BTreeMap<String, Vec<(String, String)>>
         let [owner, marker, symbol] = parts.as_slice() else {
             return Err(refusal.into());
         };
-        if owner.is_empty() || symbol.is_empty() || ordinal(marker).is_err()
+        if owner.is_empty()
+            || symbol.is_empty()
+            || ordinal(marker).is_err()
             || !symbols.insert((*owner, *symbol))
-            || markers.insert(*marker, *owner).is_some_and(|prior| prior != *owner)
-            || owner_markers.insert(*owner, *marker).is_some_and(|prior| prior != *marker)
+            || markers
+                .insert(*marker, *owner)
+                .is_some_and(|prior| prior != *owner)
+            || owner_markers
+                .insert(*owner, *marker)
+                .is_some_and(|prior| prior != *marker)
         {
             return Err(refusal.into());
         }
-        result.get_mut(*owner).ok_or(refusal)?.push(((*symbol).into(), pattern.clone()));
+        result
+            .get_mut(*owner)
+            .ok_or(refusal)?
+            .push(((*symbol).into(), pattern.clone()));
     }
     Ok(result)
 }
@@ -209,9 +244,11 @@ fn match_views(reference: &View, candidate: &View, declared: &Delta) -> Result<V
     }
     let reference_programs = owner_programs(reference)?;
     let candidate_programs = owner_programs(candidate)?;
-    for owner in reference.owners.keys().filter(|owner| {
-        candidate.owners.contains_key(*owner) && !declared.changed.contains(*owner)
-    }) {
+    for owner in reference
+        .owners
+        .keys()
+        .filter(|owner| candidate.owners.contains_key(*owner) && !declared.changed.contains(*owner))
+    {
         if reference_programs.get(owner) != candidate_programs.get(owner) {
             return Err("undeclared program substitution".into());
         }
@@ -221,7 +258,8 @@ fn match_views(reference: &View, candidate: &View, declared: &Delta) -> Result<V
 
 fn verify_frozen(token: &Value, reference: &View, candidate: &View) -> Result<(), String> {
     if token["reference"] != serde_json::to_value(reference).map_err(|error| error.to_string())?
-        || token["candidate"] != serde_json::to_value(candidate).map_err(|error| error.to_string())?
+        || token["candidate"]
+            != serde_json::to_value(candidate).map_err(|error| error.to_string())?
     {
         return Err("frozen inputs changed".into());
     }
@@ -233,7 +271,10 @@ fn declaration_schedule(row: &Value) -> Result<Vec<(String, String)>, String> {
     let marker = row["marker"].as_str().ok_or(SCHEDULE)?;
     let mut programs = BTreeMap::new();
     for program in row["programs"].as_array().ok_or(SCHEDULE)? {
-        let symbol = program["symbol"].as_str().filter(|name| !name.is_empty()).ok_or(SCHEDULE)?;
+        let symbol = program["symbol"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or(SCHEDULE)?;
         let pattern = program["pattern"].as_str().ok_or(SCHEDULE)?;
         if program["identity"] != format!("{owner}::{marker}::{symbol}")
             || programs.insert(symbol, pattern).is_some()
@@ -253,15 +294,20 @@ fn declaration_schedule(row: &Value) -> Result<Vec<(String, String)>, String> {
     Ok(result)
 }
 
-fn schedule(graph: &Value, owners: &BTreeMap<String, String>) -> Result<Vec<(String, String)>, String> {
+fn schedule(
+    graph: &Value,
+    owners: &BTreeMap<String, String>,
+) -> Result<Vec<(String, String)>, String> {
     let mut declarations = BTreeMap::new();
     let mut seen_owners = BTreeSet::new();
     for row in graph["declarations"].as_array().ok_or(SCHEDULE)? {
         let owner = row["owner"].as_str().ok_or(SCHEDULE)?;
         let marker = row["marker"].as_str().ok_or(SCHEDULE)?;
         let number = ordinal(marker)?;
-        if !owners.contains_key(owner) || !seen_owners.insert(owner)
-            || number >= owners.len() || declarations.insert(marker, row).is_some()
+        if !owners.contains_key(owner)
+            || !seen_owners.insert(owner)
+            || number >= owners.len()
+            || declarations.insert(marker, row).is_some()
         {
             return Err(SCHEDULE.into());
         }
@@ -273,7 +319,10 @@ fn schedule(graph: &Value, owners: &BTreeMap<String, String>) -> Result<Vec<(Str
     let mut initialized = BTreeSet::new();
     let mut edges = BTreeSet::new();
     let mut auxiliary_edges = 0_usize;
-    for edge in graph["auxiliary"]["dispatch_edges"].as_array().ok_or(SCHEDULE)? {
+    for edge in graph["auxiliary"]["dispatch_edges"]
+        .as_array()
+        .ok_or(SCHEDULE)?
+    {
         let from = edge["from"].as_str().ok_or(SCHEDULE)?;
         let to = edge["to"].as_str().ok_or(SCHEDULE)?;
         let role = edge["role"].as_str().ok_or(SCHEDULE)?;
@@ -306,7 +355,8 @@ fn schedule(graph: &Value, owners: &BTreeMap<String, String>) -> Result<Vec<(Str
         }
     }
     if initialized.len() != declarations.len()
-        || (auxiliary_edges != 0 && auxiliary_edges != owners.len().checked_mul(3).ok_or(SCHEDULE)?)
+        || (auxiliary_edges != 0
+            && auxiliary_edges != owners.len().checked_mul(3).ok_or(SCHEDULE)?)
     {
         return Err(SCHEDULE.into());
     }
@@ -317,7 +367,13 @@ fn string_set(value: &Value, refusal: &str) -> Result<BTreeSet<String>, String> 
     let entries = value.as_array().ok_or(refusal)?;
     let mut result = BTreeSet::new();
     for entry in entries {
-        if !result.insert(entry.as_str().filter(|text| !text.is_empty()).ok_or(refusal)?.to_owned()) {
+        if !result.insert(
+            entry
+                .as_str()
+                .filter(|text| !text.is_empty())
+                .ok_or(refusal)?
+                .to_owned(),
+        ) {
             return Err(refusal.into());
         }
     }
@@ -326,8 +382,13 @@ fn string_set(value: &Value, refusal: &str) -> Result<BTreeSet<String>, String> 
 
 fn membership(seed: &Value, independent: &Value) -> Result<(), String> {
     let refusal = "independent membership mismatch";
-    for key in ["implemented_roots_all_features", "inventory_dispositions", "callable_bindings"] {
-        if seed.get(key).is_none() || seed[key].as_array().is_none()
+    for key in [
+        "implemented_roots_all_features",
+        "inventory_dispositions",
+        "callable_bindings",
+    ] {
+        if seed.get(key).is_none()
+            || seed[key].as_array().is_none()
             || seed[key] != independent[key]
         {
             return Err(refusal.into());
@@ -340,7 +401,8 @@ fn membership(seed: &Value, independent: &Value) -> Result<(), String> {
     let mut names = BTreeSet::new();
     for member in independent["members"].as_array().ok_or(refusal)? {
         let name = member["name"].as_str().ok_or(refusal)?;
-        if !names.insert(name) || member["implemented"].as_bool() != Some(all_roots.contains(name))
+        if !names.insert(name)
+            || member["implemented"].as_bool() != Some(all_roots.contains(name))
             || member["is_root"].as_bool() != Some(roots.contains(name))
         {
             return Err(refusal.into());
@@ -348,12 +410,15 @@ fn membership(seed: &Value, independent: &Value) -> Result<(), String> {
         if roots.contains(name) {
             selected_roots.insert(name.to_owned());
         }
-        members.push(json!({"name":member["name"],"implementation":member["implementation"],
+        members.push(
+            json!({"name":member["name"],"implementation":member["implementation"],
             "is_root":member["is_root"],"ancestry":member["ancestry"],
-            "schema_owner":member["effective_schema_owner"]}));
+            "schema_owner":member["effective_schema_owner"]}),
+        );
     }
     string_set(&independent["effective_schema_owners"], refusal)?;
-    if selected_roots != roots || seed["selection"]["members"] != json!(members)
+    if selected_roots != roots
+        || seed["selection"]["members"] != json!(members)
         || seed["selection"]["schema_owners"] != independent["effective_schema_owners"]
     {
         return Err(refusal.into());
@@ -379,20 +444,39 @@ fn view_report(view: &View, observation: Value) -> Value {
 
 fn observation_delta(reference: &Value, candidate: &Value) -> Result<Value, String> {
     let mut result = Map::new();
-    for phase in ["cold", "repeat", "cleanup", "late_size_limit_failure", "prefix_plus_failure"] {
+    for phase in [
+        "cold",
+        "repeat",
+        "cleanup",
+        "late_size_limit_failure",
+        "prefix_plus_failure",
+    ] {
         let mut metrics = Map::new();
-        for field in ["allocated_bytes", "peak_live_bytes", "retained_bytes", "allocation_calls"] {
+        for field in [
+            "allocated_bytes",
+            "peak_live_bytes",
+            "retained_bytes",
+            "allocation_calls",
+        ] {
             let left = reference[phase].get(field);
             let right = candidate[phase].get(field);
             let difference = match (left, right) {
                 (None, None) => Value::Null,
                 (Some(before), Some(after)) => {
-                    let before_number = before.as_i64().map(i128::from)
-                        .or_else(|| before.as_u64().map(i128::from)).ok_or("invalid observation")?;
-                    let after_number = after.as_i64().map(i128::from)
-                        .or_else(|| after.as_u64().map(i128::from)).ok_or("invalid observation")?;
-                    json!(i64::try_from(after_number - before_number)
-                        .map_err(|error| error.to_string())?)
+                    let before_number = before
+                        .as_i64()
+                        .map(i128::from)
+                        .or_else(|| before.as_u64().map(i128::from))
+                        .ok_or("invalid observation")?;
+                    let after_number = after
+                        .as_i64()
+                        .map(i128::from)
+                        .or_else(|| after.as_u64().map(i128::from))
+                        .ok_or("invalid observation")?;
+                    json!(
+                        i64::try_from(after_number - before_number)
+                            .map_err(|error| error.to_string())?
+                    )
                 }
                 _ => return Err("unmatched observation components".into()),
             };
@@ -437,7 +521,9 @@ fn native_format_first(source: &[u8]) -> Result<(), String> {
 
 fn regular_metadata(path: &Path) -> Result<fs::Metadata, String> {
     if !path.is_absolute()
-        || path.components().any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
+        || path
+            .components()
+            .any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
         || path.components().collect::<PathBuf>().as_os_str() != path.as_os_str()
     {
         return Err("non-normal growth source path".into());
@@ -460,8 +546,11 @@ fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     }
     let cap = u64::try_from(INPUT_BYTES).map_err(|error| error.to_string())?;
     let mut bytes = Vec::new();
-    fs::File::open(path).map_err(|error| error.to_string())?.take(cap + 1)
-        .read_to_end(&mut bytes).map_err(|error| error.to_string())?;
+    fs::File::open(path)
+        .map_err(|error| error.to_string())?
+        .take(cap + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
     let length = u64::try_from(bytes.len()).map_err(|error| error.to_string())?;
     if length > cap || length != metadata.len() {
         return Err("growth source input bound or length mismatch".into());
@@ -491,14 +580,21 @@ fn source_files(
         let Ok(relative) = path.strip_prefix(workspace) else {
             return Err("unexpected source path outside workspace".into());
         };
-        let name = relative.to_str().ok_or("non UTF-8 growth source path")?.to_owned();
+        let name = relative
+            .to_str()
+            .ok_or("non UTF-8 growth source path")?
+            .to_owned();
         let metadata = regular_metadata(path)?;
         let record = if metadata.is_dir() {
             let mut entries = BTreeSet::new();
             for child in fs::read_dir(path).map_err(|error| error.to_string())? {
                 let child_entry = child.map_err(|error| error.to_string())?;
-                entries.insert(child_entry.file_name().into_string()
-                    .map_err(|name| format!("non UTF-8 growth directory entry: {name:?}"))?);
+                entries.insert(
+                    child_entry
+                        .file_name()
+                        .into_string()
+                        .map_err(|name| format!("non UTF-8 growth directory entry: {name:?}"))?,
+                );
             }
             json!({"kind":"directory","entries":entries})
         } else {
@@ -515,10 +611,27 @@ fn compiled_sources(workspace: &Path) -> Result<Value, String> {
     let mut sources = Map::new();
     for &(relative, compiled) in MEASUREMENT_SOURCES {
         if read_regular(&workspace.join(relative))? != compiled {
-            return Err(format!("measurement source differs from compiled bytes: {relative}"));
+            return Err(format!(
+                "measurement source differs from compiled bytes: {relative}"
+            ));
         }
-        if sources.insert(relative.into(), file_witness(compiled)).is_some() {
+        if sources
+            .insert(relative.into(), file_witness(compiled))
+            .is_some()
+        {
             return Err("duplicate measurement source witness".into());
+        }
+    }
+    for (relative, witness) in descriptor::model_sources().as_object()
+        .ok_or("missing component model witnesses")?
+    {
+        if file_witness(&read_regular(&workspace.join(relative))?) != *witness {
+            return Err(format!("component model differs from compiled bytes: {relative}"));
+        }
+        if let Some(prior) = sources.insert(relative.clone(), witness.clone())
+            && prior != *witness
+        {
+            return Err("conflicting component model witness".into());
         }
     }
     Ok(Value::Object(sources))
@@ -532,7 +645,9 @@ fn recheck_build_outputs() -> Result<(), String> {
         ("schema-layout-build.toml", CURRENT_LAYOUT),
     ] {
         if read_regular(&out_dir.join(name))? != compiled {
-            return Err(format!("current build output differs from compiled bytes: {name}"));
+            return Err(format!(
+                "current build output differs from compiled bytes: {name}"
+            ));
         }
     }
     Ok(())
@@ -557,19 +672,41 @@ struct Measurement {
 fn check_features(build: &Build, environment: &BTreeMap<String, String>) -> Result<(), String> {
     let compiled = [
         ("insecure-bidders", cfg!(feature = "insecure-bidders")),
-        ("schema-artifact-staging", cfg!(feature = "schema-artifact-staging")),
+        (
+            "schema-artifact-staging",
+            cfg!(feature = "schema-artifact-staging"),
+        ),
         ("test-support", cfg!(feature = "test-support")),
-    ].into_iter().filter_map(|(feature, enabled)| enabled.then_some(feature)).collect::<Vec<_>>();
-    let enabled = build.enabled_features.iter().map(String::as_str).collect::<Vec<_>>();
-    let expected_environment = compiled.iter().map(|feature| (
-        format!("CARGO_FEATURE_{}", feature.replace('-', "_").to_ascii_uppercase()),
-        "1".to_owned(),
-    )).collect::<BTreeMap<_, _>>();
-    let actual_environment = environment.iter().filter(|(name, _value)| {
-        name.starts_with("CARGO_FEATURE_")
-    }).map(|(name, value)| (name.clone(), value.clone())).collect::<BTreeMap<_, _>>();
-    if enabled != compiled || actual_environment != expected_environment
-        || environment.get("CARGO_CFG_FEATURE").map(String::as_str) != Some(compiled.join(",").as_str())
+    ]
+    .into_iter()
+    .filter_map(|(feature, enabled)| enabled.then_some(feature))
+    .collect::<Vec<_>>();
+    let enabled = build
+        .enabled_features
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let expected_environment = compiled
+        .iter()
+        .map(|feature| {
+            (
+                format!(
+                    "CARGO_FEATURE_{}",
+                    feature.replace('-', "_").to_ascii_uppercase()
+                ),
+                "1".to_owned(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let actual_environment = environment
+        .iter()
+        .filter(|(name, _value)| name.starts_with("CARGO_FEATURE_"))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    if enabled != compiled
+        || actual_environment != expected_environment
+        || environment.get("CARGO_CFG_FEATURE").map(String::as_str)
+            != Some(compiled.join(",").as_str())
     {
         return Err("current build feature mismatch".into());
     }
@@ -584,11 +721,19 @@ fn check_build(
     let layout: BTreeMap<String, String> =
         toml::from_str(str::from_utf8(CURRENT_LAYOUT).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())?;
-    let endian = if cfg!(target_endian = "little") { "little" } else { "big" };
+    let endian = if cfg!(target_endian = "little") {
+        "little"
+    } else {
+        "big"
+    };
     let width = usize::BITS.to_string();
     for (field, key, expected) in [
         ("arch", "CARGO_CFG_TARGET_ARCH", consts::ARCH),
-        ("pointer_width", "CARGO_CFG_TARGET_POINTER_WIDTH", width.as_str()),
+        (
+            "pointer_width",
+            "CARGO_CFG_TARGET_POINTER_WIDTH",
+            width.as_str(),
+        ),
         ("endian", "CARGO_CFG_TARGET_ENDIAN", endian),
     ] {
         if layout.get(field).map(String::as_str) != Some(expected)
@@ -598,18 +743,26 @@ fn check_build(
         }
     }
     let out_dir = Path::new(env!("OUT_DIR"));
-    let profile = out_dir.parent().and_then(Path::parent).and_then(Path::parent)
-        .and_then(Path::file_name).and_then(|name| name.to_str()).ok_or("missing build profile")?;
+    let profile = out_dir
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .ok_or("missing build profile")?;
     if manifest["schema_version"] != 2_u8
         || manifest["kind"] != "unqualified_non_serving_schema_staging"
         || manifest["identity"]["qualification"] != "Unqualified"
         || manifest["linked_or_serving_qualification"] != false
-        || manifest["options"] != CANDIDATE_OPTIONS || build.profile != profile
+        || manifest["options"] != CANDIDATE_OPTIONS
+        || build.profile != profile
         || layout.get("target") != Some(&build.target)
         || layout.get("compiler") != Some(&build.compiler_verbose)
         || environment.get("TARGET") != Some(&build.target)
         || environment.get("OUT_DIR").map(Path::new) != Some(out_dir)
-        || environment.get("CARGO_ENCODED_RUSTFLAGS").map_or("", String::as_str)
+        || environment
+            .get("CARGO_ENCODED_RUSTFLAGS")
+            .map_or("", String::as_str)
             != build.encoded_rustflags
         || build.compiler_verbose.trim().is_empty()
     {
@@ -621,8 +774,10 @@ fn check_build(
         }
     }
     check_features(build, environment)?;
-    Ok(json!({"arch":consts::ARCH,"pointer_width":width,"endian":endian,
-        "os":consts::OS,"debug_assertions":cfg!(debug_assertions)}))
+    Ok(
+        json!({"arch":consts::ARCH,"pointer_width":width,"endian":endian,
+        "os":consts::OS,"debug_assertions":cfg!(debug_assertions)}),
+    )
 }
 
 fn measurement_identity(
@@ -637,10 +792,16 @@ fn measurement_identity(
     let compiler = schema_vendor::verify(workspace)?;
     let regex = schema_regex_vendor::verify(workspace).map_err(|error| error.to_string())?;
     let features = schema_build::resolved_engine_features(&regex)?;
-    let compiler_inputs = manifest["identity"]["inputs"].as_array().ok_or("missing compiler inputs")?
-        .iter().filter(|input| input["id"].as_str().is_some_and(|id| {
-            id.starts_with("vendor/jsonschema-macros-core/")
-        })).collect::<Vec<_>>();
+    let compiler_inputs = manifest["identity"]["inputs"]
+        .as_array()
+        .ok_or("missing compiler inputs")?
+        .iter()
+        .filter(|input| {
+            input["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("vendor/jsonschema-macros-core/"))
+        })
+        .collect::<Vec<_>>();
     if compiler_inputs.is_empty() {
         return Err("missing current compiler source identity".into());
     }
@@ -657,21 +818,35 @@ fn measurement_identity(
 }
 
 fn current_measurement(workspace: &Path) -> Result<Measurement, String> {
-    let manifest: Value = serde_json::from_slice(CURRENT_MANIFEST).map_err(|error| error.to_string())?;
-    let build: Build = serde_json::from_value(manifest["build"].clone())
-        .map_err(|error| error.to_string())?;
+    let manifest: Value =
+        serde_json::from_slice(CURRENT_MANIFEST).map_err(|error| error.to_string())?;
+    let build: Build =
+        serde_json::from_value(manifest["build"].clone()).map_err(|error| error.to_string())?;
     let environment = serde_json::from_value(manifest["build_environment"].clone())
         .map_err(|error| error.to_string())?;
     let identity = measurement_identity(workspace, &manifest, &build, &environment)?;
-    Ok(Measurement { manifest, build, environment, identity })
+    Ok(Measurement {
+        manifest,
+        build,
+        environment,
+        identity,
+    })
 }
 
 fn declarations(discovery: &Discovery) -> Result<Vec<BidderMetadataDeclaration>, String> {
-    let rows = discovery.manifests().values().flat_map(|manifest| {
-        manifest.definitions.keys().map(move |name| {
-            (name.as_str(), manifest.key.as_str(), manifest.required_feature.as_deref())
+    let rows = discovery
+        .manifests()
+        .values()
+        .flat_map(|manifest| {
+            manifest.definitions.keys().map(move |name| {
+                (
+                    name.as_str(),
+                    manifest.key.as_str(),
+                    manifest.required_feature.as_deref(),
+                )
+            })
         })
-    }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
     intern_rows(&rows)
 }
 
@@ -683,13 +858,26 @@ fn generate_current(
     measurement: &Measurement,
 ) -> Result<GeneratedStaging, String> {
     let mut environment = measurement.environment.clone();
-    environment.insert("OUT_DIR".into(), out_dir.to_str().ok_or("non UTF-8 output path")?.into());
-    let features = measurement.build.enabled_features.iter().map(String::as_str).collect::<Vec<_>>();
+    environment.insert(
+        "OUT_DIR".into(),
+        out_dir.to_str().ok_or("non UTF-8 output path")?.into(),
+    );
+    let features = measurement
+        .build
+        .enabled_features
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     generate(BuildRequest {
-        crate_dir: crate_root, out_dir, discovery, metadata,
+        crate_dir: crate_root,
+        out_dir,
+        discovery,
+        metadata,
         context: BuildContext {
-            target: &measurement.build.target, profile: &measurement.build.profile,
-            enabled_features: &features, compiler_verbose: &measurement.build.compiler_verbose,
+            target: &measurement.build.target,
+            profile: &measurement.build.profile,
+            enabled_features: &features,
+            compiler_verbose: &measurement.build.compiler_verbose,
             encoded_rustflags: &measurement.build.encoded_rustflags,
         },
         build_environment: &environment,
@@ -700,13 +888,16 @@ fn check_current_artifact(crate_root: &Path, measurement: &Measurement) -> Resul
     let discovery = bidder_discovery::scan(crate_root)?;
     let metadata = declarations(&discovery)?;
     let published = auctioneer_config_data::bidder_metadata_declarations();
-    let declared_set = metadata.iter().map(|row| {
-        (row.bidder, row.implementation, row.required_feature)
-    }).collect::<BTreeSet<_>>();
-    let published_set = published.iter().map(|row| {
-        (row.bidder, row.implementation, row.required_feature)
-    }).collect::<BTreeSet<_>>();
-    if declared_set != published_set || declared_set.len() != metadata.len()
+    let declared_set = metadata
+        .iter()
+        .map(|row| (row.bidder, row.implementation, row.required_feature))
+        .collect::<BTreeSet<_>>();
+    let published_set = published
+        .iter()
+        .map(|row| (row.bidder, row.implementation, row.required_feature))
+        .collect::<BTreeSet<_>>();
+    if declared_set != published_set
+        || declared_set.len() != metadata.len()
         || published_set.len() != published.len()
     {
         return Err("current compiled metadata declarations mismatch".into());
@@ -732,7 +923,10 @@ fn check_current_artifact(crate_root: &Path, measurement: &Measurement) -> Resul
 fn rows_by(value: &Value, key: &str) -> Result<BTreeMap<String, Value>, String> {
     let mut rows = BTreeMap::new();
     for row in value.as_array().ok_or(SCHEMAS)? {
-        let name = row[key].as_str().filter(|text| !text.is_empty()).ok_or(SCHEMAS)?;
+        let name = row[key]
+            .as_str()
+            .filter(|text| !text.is_empty())
+            .ok_or(SCHEMAS)?;
         if rows.insert(name.to_owned(), row.clone()).is_some() {
             return Err(SCHEMAS.into());
         }
@@ -747,12 +941,20 @@ fn raw_schema_witnesses(
 ) -> Result<BTreeMap<String, Value>, String> {
     let mut witnesses = BTreeMap::new();
     for manifest in discovery.manifests().values() {
-        let Provenance::Reference { sources, artifacts, .. } = &manifest.provenance else {
+        let Provenance::Reference {
+            sources, artifacts, ..
+        } = &manifest.provenance
+        else {
             continue;
         };
-        for artifact in artifacts.iter().filter(|row| row.category == Category::Schema) {
-            let owner = Path::new(&artifact.source_path).file_stem()
-                .and_then(|name| name.to_str()).ok_or(SCHEMAS)?;
+        for artifact in artifacts
+            .iter()
+            .filter(|row| row.category == Category::Schema)
+        {
+            let owner = Path::new(&artifact.source_path)
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .ok_or(SCHEMAS)?;
             if !selected.contains(owner) {
                 continue;
             }
@@ -793,10 +995,16 @@ fn schema_owners(
     let source_rows = rows_by(&manifest["schemas"], "name")?;
     let declaration_rows = rows_by(&manifest["declarations"], "owner")?;
     let expanded_rows = rows_by(&graph["declarations"], "owner")?;
-    let snapshot_value = serde_json::to_value(&seed.snapshots).map_err(|error| error.to_string())?;
+    let snapshot_value =
+        serde_json::to_value(&seed.snapshots).map_err(|error| error.to_string())?;
     let snapshot_rows = rows_by(&snapshot_value, "owner")?;
     let manifest_snapshots = rows_by(&manifest["compiled_schema_snapshots"], "owner")?;
-    for rows in [&source_rows, &declaration_rows, &expanded_rows, &snapshot_rows] {
+    for rows in [
+        &source_rows,
+        &declaration_rows,
+        &expanded_rows,
+        &snapshot_rows,
+    ] {
         if rows.keys().cloned().collect::<BTreeSet<_>>() != selected {
             return Err(SCHEMAS.into());
         }
@@ -809,7 +1017,10 @@ fn schema_owners(
         if input["kind"] == "Schema" {
             let name = input["id"].as_str().ok_or(SCHEMAS)?;
             let sha256 = input["sha256"].as_str().ok_or(SCHEMAS)?;
-            if schema_inputs.insert(name.to_owned(), sha256.to_owned()).is_some() {
+            if schema_inputs
+                .insert(name.to_owned(), sha256.to_owned())
+                .is_some()
+            {
                 return Err(SCHEMAS.into());
             }
         }
@@ -819,14 +1030,19 @@ fn schema_owners(
         let declaration = declaration_rows.get(owner).ok_or(SCHEMAS)?;
         let expanded = expanded_rows.get(owner).ok_or(SCHEMAS)?;
         let snapshot = snapshot_rows.get(owner).ok_or(SCHEMAS)?;
-        if declaration["source"] != *witness || expanded["source"] != *witness
+        if declaration["source"] != *witness
+            || expanded["source"] != *witness
             || declaration["marker"] != expanded["marker"]
-            || declaration["snapshot"] != *snapshot || expanded["snapshot"] != *snapshot
+            || declaration["snapshot"] != *snapshot
+            || expanded["snapshot"] != *snapshot
             || snapshot["sha256"] != witness["sha256"]
         {
             return Err(SCHEMAS.into());
         }
-        result.insert(owner.clone(), witness["sha256"].as_str().ok_or(SCHEMAS)?.to_owned());
+        result.insert(
+            owner.clone(),
+            witness["sha256"].as_str().ok_or(SCHEMAS)?.to_owned(),
+        );
     }
     if result != schema_inputs {
         return Err(SCHEMAS.into());
@@ -845,7 +1061,10 @@ struct Capture {
 
 fn private_directory(parent: &Path, name: &str) -> Result<PathBuf, String> {
     let path = parent.join(name);
-    fs::DirBuilder::new().mode(0o700).create(&path).map_err(|error| error.to_string())?;
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&path)
+        .map_err(|error| error.to_string())?;
     Ok(path)
 }
 
@@ -860,8 +1079,12 @@ fn capture_seed(
         .map_err(|error| error.to_string())?;
     fs::write(out_dir.join("schema-staging.rs"), &rust).map_err(|error| error.to_string())?;
     let seed = CapturedSeed {
-        identity_sha256: generated.identity.sha256, manifest_bytes, rust,
-        build_root: out_dir.to_owned(), out_dir: out_dir.to_owned(), snapshots: generated.snapshots,
+        identity_sha256: generated.identity.sha256,
+        manifest_bytes,
+        rust,
+        build_root: out_dir.to_owned(),
+        out_dir: out_dir.to_owned(),
+        snapshots: generated.snapshots,
     };
     seed.recheck_snapshots()?;
     Ok((seed, generated.rerun_paths))
@@ -880,33 +1103,62 @@ fn reconstruct(
     let generated = generate_current(&crate_root, out_dir, &discovery, &metadata, measurement)?;
     let (seed, mut paths) = capture_seed(out_dir, generated)?;
     paths.extend(extra_paths.iter().cloned());
-    let snapshot_paths = seed.snapshots.iter().map(|snapshot| {
-        out_dir.join(&snapshot.relative_path)
-    }).collect::<BTreeSet<_>>();
-    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
-        .map_err(|error| error.to_string())?;
-    let lane = if cfg!(feature = "insecure-bidders") { Lane::Development } else { Lane::Secure };
+    let snapshot_paths = seed
+        .snapshots
+        .iter()
+        .map(|snapshot| out_dir.join(&snapshot.relative_path))
+        .collect::<BTreeSet<_>>();
+    let manifest: Value =
+        serde_json::from_slice(&seed.manifest_bytes).map_err(|error| error.to_string())?;
+    let lane = if cfg!(feature = "insecure-bidders") {
+        Lane::Development
+    } else {
+        Lane::Secure
+    };
     let independent = independent_source_membership(&crate_root, lane)?;
     membership(&manifest, &independent)?;
     let graph = expanded::expand(&seed)?;
-    let owners = schema_owners(&crate_root, &discovery, &independent, &manifest, &seed, &graph)?;
+    let owners = schema_owners(
+        &crate_root,
+        &discovery,
+        &independent,
+        &manifest,
+        &seed,
+        &graph,
+    )?;
     let programs = schedule(&graph, &owners)?;
     source["files"] = source_files(workspace, &paths, &snapshot_paths)?;
-    source["lock_sha256"] = json!(expanded::digest(&read_regular(&workspace.join("Cargo.lock"))?));
+    source["lock_sha256"] = json!(expanded::digest(&read_regular(
+        &workspace.join("Cargo.lock")
+    )?));
     let view = View {
-        source, measurement: measurement.identity.clone(), membership: independent, owners, programs,
+        source,
+        measurement: measurement.identity.clone(),
+        membership: independent,
+        owners,
+        programs,
         seed_sha256: expanded::digest(&seed.manifest_bytes),
         expanded_sha256: expanded::digest(
-            &serde_json::to_vec(&graph).map_err(|error| error.to_string())?),
-        generated_source_bytes: u64::try_from(seed.rust.len()).map_err(|error| error.to_string())?,
+            &serde_json::to_vec(&graph).map_err(|error| error.to_string())?,
+        ),
+        generated_source_bytes: u64::try_from(seed.rust.len())
+            .map_err(|error| error.to_string())?,
     };
-    Ok(Capture { workspace: workspace.to_owned(), paths, snapshot_paths, seed, graph, view })
+    Ok(Capture {
+        workspace: workspace.to_owned(),
+        paths,
+        snapshot_paths,
+        seed,
+        graph,
+        view,
+    })
 }
 
 fn reference_identity(snapshot: &catalog_reference::SourceSnapshot) -> Value {
-    let witnesses = snapshot.witnesses().map(|witness| {
-        (&witness.path, witness)
-    }).collect::<BTreeMap<_, _>>();
+    let witnesses = snapshot
+        .witnesses()
+        .map(|witness| (&witness.path, witness))
+        .collect::<BTreeMap<_, _>>();
     json!({"kind":"pinned-git-object-data","commit":snapshot.commit(),
         "tree":snapshot.tree(),"git_files":witnesses})
 }
@@ -917,7 +1169,8 @@ fn check_materialized_reference(
 ) -> Result<(), String> {
     for file in snapshot.files() {
         let record = &capture.view.source["files"][&file.witness.path];
-        if record["bytes"] != file.witness.bytes || record["sha256"] != file.witness.sha256
+        if record["bytes"] != file.witness.bytes
+            || record["sha256"] != file.witness.sha256
             || file_witness(&file.contents) != *record
         {
             return Err("materialized reference differs from pinned Git data".into());
@@ -928,15 +1181,18 @@ fn check_materialized_reference(
 
 fn rechecked_view(capture: &Capture, measurement: &Value) -> Result<View, String> {
     capture.seed.recheck_snapshots()?;
-    if read_regular(&capture.seed.out_dir.join("schema-staging.json"))? != capture.seed.manifest_bytes
+    if read_regular(&capture.seed.out_dir.join("schema-staging.json"))?
+        != capture.seed.manifest_bytes
         || read_regular(&capture.seed.out_dir.join("schema-staging.rs"))? != capture.seed.rust
     {
         return Err("frozen inputs changed".into());
     }
     let mut view = capture.view.clone();
-    view.source["files"] = source_files(&capture.workspace, &capture.paths, &capture.snapshot_paths)?;
-    view.source["lock_sha256"] =
-        json!(expanded::digest(&read_regular(&capture.workspace.join("Cargo.lock"))?));
+    view.source["files"] =
+        source_files(&capture.workspace, &capture.paths, &capture.snapshot_paths)?;
+    view.source["lock_sha256"] = json!(expanded::digest(&read_regular(
+        &capture.workspace.join("Cargo.lock")
+    )?));
     view.measurement = measurement.clone();
     Ok(view)
 }
@@ -945,37 +1201,64 @@ fn run_real() -> Result<Value, String> {
     let reference_root = reference_path(env::var_os("AUCTIONEER__TEST__CATALOG_REFERENCE_DIR"))?;
     let reference_data = catalog_reference::read(&reference_root)
         .map_err(|error| format!("catalog reference refused: {error:?}"))?;
-    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize()
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
         .map_err(|error| error.to_string())?;
-    let workspace = crate_root.parent().and_then(Path::parent).ok_or("missing growth workspace")?;
+    let workspace = crate_root
+        .parent()
+        .and_then(Path::parent)
+        .ok_or("missing growth workspace")?;
     native_format_first(NATIVE_STAGING)?;
     let measurement = current_measurement(workspace)?;
     check_current_artifact(&crate_root, &measurement)?;
     let temporary = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let private_root = temporary.path().canonicalize().map_err(|error| error.to_string())?;
+    let private_root = temporary
+        .path()
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
     if regular_metadata(&private_root)?.permissions().mode() & 0o777 != 0o700 {
         return Err("catalog reconstruction requires private tempfile0700".into());
     }
     let reference_source = private_root.join("source");
-    reference_data.materialize(&reference_source)
+    reference_data
+        .materialize(&reference_source)
         .map_err(|error| format!("catalog reference materialization refused: {error:?}"))?;
     let reference_output = private_directory(&private_root, "reference-out")?;
     let candidate_output = private_directory(&private_root, "candidate-out")?;
-    let reference_paths = reference_data.witnesses().map(|witness| {
-        reference_source.join(&witness.path)
-    }).collect::<BTreeSet<_>>();
-    let reference = reconstruct(&reference_source, &reference_output, &measurement,
-        reference_identity(&reference_data), &reference_paths)?;
+    let reference_paths = reference_data
+        .witnesses()
+        .map(|witness| reference_source.join(&witness.path))
+        .collect::<BTreeSet<_>>();
+    let reference = reconstruct(
+        &reference_source,
+        &reference_output,
+        &measurement,
+        reference_identity(&reference_data),
+        &reference_paths,
+    )?;
     check_materialized_reference(&reference_data, &reference)?;
-    let candidate = reconstruct(workspace, &candidate_output, &measurement,
-        json!({"kind":"current-source-content-snapshot"}), &BTreeSet::new())?;
+    let candidate = reconstruct(
+        workspace,
+        &candidate_output,
+        &measurement,
+        json!({"kind":"current-source-content-snapshot"}),
+        &BTreeSet::new(),
+    )?;
     // Independently reviewed declaration, never inferred from the measured pair.
     let reviewed_delta = Delta::default();
     let token = match_views(&reference.view, &candidate.view, &reviewed_delta)?;
-    let mut report = observe_matched(&reference.view, &candidate.view, &reviewed_delta,
-        observations::observe)?;
-    let after = measurement_identity(workspace, &measurement.manifest,
-        &measurement.build, &measurement.environment)?;
+    let mut report = observe_matched(
+        &reference.view,
+        &candidate.view,
+        &reviewed_delta,
+        observations::observe,
+    )?;
+    let after = measurement_identity(
+        workspace,
+        &measurement.manifest,
+        &measurement.build,
+        &measurement.environment,
+    )?;
     check_current_artifact(&crate_root, &measurement)?;
     let reference_after = rechecked_view(&reference, &after)?;
     let candidate_after = rechecked_view(&candidate, &after)?;
@@ -991,11 +1274,13 @@ fn run_real() -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auctioneer_config::schema_staging_build::catalog_reference::{REFERENCE_COMMIT, REFERENCE_TREE};
+    use auctioneer_config::schema_staging_build::catalog_reference::{
+        REFERENCE_COMMIT, REFERENCE_TREE,
+    };
+    use quote::ToTokens as _;
     use serde_json::json;
     use std::cell::Cell;
     use std::{fs, str};
-    use quote::ToTokens as _;
 
     fn view(reference: bool) -> View {
         View {
@@ -1020,10 +1305,22 @@ mod tests {
             }),
             membership: json!({"roots":["fake_a"],"effective_schema_owners":["fake_a"]}),
             owners: BTreeMap::from([("fake_a".into(), "schema-a".into())]),
-            programs: vec![("shared::hostname".into(), HOSTNAME_SOURCE.into()),
-                ("fake_a::StagedSchema0::Regex0".into(), "^x$".into())],
-            seed_sha256: if reference { "reference-seed" } else { "candidate-seed" }.into(),
-            expanded_sha256: if reference { "reference-expanded" } else { "candidate-expanded" }.into(),
+            programs: vec![
+                ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
+                ("fake_a::StagedSchema0::Regex0".into(), "^x$".into()),
+            ],
+            seed_sha256: if reference {
+                "reference-seed"
+            } else {
+                "candidate-seed"
+            }
+            .into(),
+            expanded_sha256: if reference {
+                "reference-expanded"
+            } else {
+                "candidate-expanded"
+            }
+            .into(),
             generated_source_bytes: 19,
         }
     }
@@ -1075,29 +1372,46 @@ mod tests {
 
     #[test]
     fn runtime_reference_input_is_required_without_global_environment_mutation() {
-        assert_eq!(reference_path(None).unwrap_err(), "catalog reference directory is required");
-        assert_eq!(reference_path(Some(OsString::new())).unwrap_err(),
-            "catalog reference directory is empty");
-        assert_eq!(reference_path(Some("/fixture/reference".into())).unwrap(),
-            PathBuf::from("/fixture/reference"));
+        assert_eq!(
+            reference_path(None).unwrap_err(),
+            "catalog reference directory is required"
+        );
+        assert_eq!(
+            reference_path(Some(OsString::new())).unwrap_err(),
+            "catalog reference directory is empty"
+        );
+        assert_eq!(
+            reference_path(Some("/fixture/reference".into())).unwrap(),
+            PathBuf::from("/fixture/reference")
+        );
     }
 
     #[test]
     fn raw_metadata_rows_preserve_alias_implementation_and_disabled_feature_declarations() {
         let rows = intern_rows(&[
-            ("fake_a", "fake_impl", None), ("fake_alias", "fake_impl", None),
+            ("fake_a", "fake_impl", None),
+            ("fake_alias", "fake_impl", None),
             ("fake_dev", "fake_dev", Some("insecure-bidders")),
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].bidder, "fake_a");
         assert_eq!(rows[1].bidder, "fake_alias");
         assert_eq!(rows[1].implementation, "fake_impl");
         assert_eq!(rows[2].required_feature, Some("insecure-bidders"));
         let oversized = "x".repeat(INPUT_BYTES + 1);
-        assert_eq!(intern_rows(&[(&oversized, "fake_impl", None)]).unwrap_err(),
-            "metadata interning bound");
-        assert_eq!(intern_rows(&[("fake_a","fake_impl",None),("fake_a","fake_other",None)]).unwrap_err(),
-            "duplicate metadata declaration");
+        assert_eq!(
+            intern_rows(&[(&oversized, "fake_impl", None)]).unwrap_err(),
+            "metadata interning bound"
+        );
+        assert_eq!(
+            intern_rows(&[
+                ("fake_a", "fake_impl", None),
+                ("fake_a", "fake_other", None)
+            ])
+            .unwrap_err(),
+            "duplicate metadata declaration"
+        );
     }
 
     #[test]
@@ -1105,22 +1419,31 @@ mod tests {
         let (seed, independent) = seed_membership();
         membership(&seed, &independent).unwrap();
         for pointer in [
-            "/implemented_roots_all_features", "/inventory_dispositions",
-            "/callable_bindings", "/selection/schema_owners", "/selection/members",
+            "/implemented_roots_all_features",
+            "/inventory_dispositions",
+            "/callable_bindings",
+            "/selection/schema_owners",
+            "/selection/members",
         ] {
             let mut changed = seed.clone();
             *changed.pointer_mut(pointer).unwrap() = json!([]);
-            assert_eq!(membership(&changed, &independent).unwrap_err(),
-                "independent membership mismatch", "{pointer}");
+            assert_eq!(
+                membership(&changed, &independent).unwrap_err(),
+                "independent membership mismatch",
+                "{pointer}"
+            );
         }
         let mut changed = seed;
         changed["selection"]["members"][1]["ancestry"] = json!([]);
-        assert_eq!(membership(&changed, &independent).unwrap_err(), "independent membership mismatch");
+        assert_eq!(
+            membership(&changed, &independent).unwrap_err(),
+            "independent membership mismatch"
+        );
     }
 
     #[test]
     fn actual_initialization_edges_keep_hostname_first_and_preserve_helper_order() {
-        let owners = BTreeMap::from([("fake_a".into(),"a".into()),("fake_b".into(),"b".into())]);
+        let owners = BTreeMap::from([("fake_a".into(), "a".into()), ("fake_b".into(), "b".into())]);
         let expected = vec![
             ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
             ("fake_a::StagedSchema0::SECOND_REGEX".into(), "^y$".into()),
@@ -1133,22 +1456,37 @@ mod tests {
         assert_eq!(schedule(&reordered, &owners).unwrap(), expected);
         let mut changed = graph();
         changed["declarations"][1]["owner"] = json!("fake_a");
-        assert_eq!(schedule(&changed,&owners).unwrap_err(),"expanded schedule mismatch");
+        assert_eq!(
+            schedule(&changed, &owners).unwrap_err(),
+            "expanded schedule mismatch"
+        );
         let mut changed = graph();
         changed["declarations"][0]["marker"] = json!("StagedSchema99");
-        assert_eq!(schedule(&changed,&owners).unwrap_err(),"expanded schedule mismatch");
+        assert_eq!(
+            schedule(&changed, &owners).unwrap_err(),
+            "expanded schedule mismatch"
+        );
         let mut changed = graph();
-        let duplicate=changed["declarations"][0]["programs"][0].clone();
-        changed["declarations"][0]["programs"].as_array_mut().unwrap().push(duplicate);
-        assert_eq!(schedule(&changed,&owners).unwrap_err(),"expanded schedule mismatch");
+        let duplicate = changed["declarations"][0]["programs"][0].clone();
+        changed["declarations"][0]["programs"]
+            .as_array_mut()
+            .unwrap()
+            .push(duplicate);
+        assert_eq!(
+            schedule(&changed, &owners).unwrap_err(),
+            "expanded schedule mismatch"
+        );
         for initialization in [
             json!(["FIRST_REGEX"]),
-            json!(["SECOND_REGEX","FIRST_REGEX","FIRST_REGEX"]),
-            json!(["SECOND_REGEX","FIRST_REGEX","UNKNOWN_REGEX"]),
+            json!(["SECOND_REGEX", "FIRST_REGEX", "FIRST_REGEX"]),
+            json!(["SECOND_REGEX", "FIRST_REGEX", "UNKNOWN_REGEX"]),
         ] {
-            let mut changed=graph();
-            changed["declarations"][0]["initialization"]=initialization;
-            assert_eq!(schedule(&changed,&owners).unwrap_err(),"expanded schedule mismatch");
+            let mut changed = graph();
+            changed["declarations"][0]["initialization"] = initialization;
+            assert_eq!(
+                schedule(&changed, &owners).unwrap_err(),
+                "expanded schedule mismatch"
+            );
         }
         for edges in [
             json!([]),
@@ -1161,45 +1499,64 @@ mod tests {
                 {"from":"initialize_native","to":"StagedSchema99","role":"initialize-regexes","ownership":"callee-owned"}
             ]),
         ] {
-            let mut changed=graph();
-            changed["auxiliary"]["dispatch_edges"]=edges;
-            assert_eq!(schedule(&changed,&owners).unwrap_err(),"expanded schedule mismatch");
+            let mut changed = graph();
+            changed["auxiliary"]["dispatch_edges"] = edges;
+            assert_eq!(
+                schedule(&changed, &owners).unwrap_err(),
+                "expanded schedule mismatch"
+            );
         }
     }
 
     #[test]
     fn native_formats_initialize_unconditionally_before_generated_initializers() {
         native_format_first(NATIVE_STAGING).unwrap();
-        let mut syntax: syn::File = syn::parse_file(str::from_utf8(NATIVE_STAGING).unwrap()).unwrap();
-        let function=syntax.items.iter_mut().find_map(|item| match item {
-            syn::Item::Fn(function) if function.sig.ident=="initialize_native" => Some(function),
-            _ => None,
-        }).unwrap();
-        function.block=Box::new(syn::parse_quote!({
+        let mut syntax: syn::File =
+            syn::parse_file(str::from_utf8(NATIVE_STAGING).unwrap()).unwrap();
+        let function = syntax
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Fn(function) if function.sig.ident == "initialize_native" => {
+                    Some(function)
+                }
+                _ => None,
+            })
+            .unwrap();
+        function.block = Box::new(syn::parse_quote!({
             generated::retain_for_inspection();
             generated::initialize_native() && formats::initialize()
         }));
-        assert_eq!(native_format_first(syntax.to_token_stream().to_string().as_bytes()).unwrap_err(),
-            "native format initialization order mismatch");
+        assert_eq!(
+            native_format_first(syntax.to_token_stream().to_string().as_bytes()).unwrap_err(),
+            "native format initialization order mismatch"
+        );
     }
 
     #[test]
     fn source_capture_only_excludes_explicit_generated_snapshot_paths() {
-        let directory=tempfile::tempdir().unwrap();
-        let root=directory.path().canonicalize().unwrap();
-        let workspace=root.join("workspace");
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().canonicalize().unwrap();
+        let workspace = root.join("workspace");
         fs::create_dir(&workspace).unwrap();
-        let source=workspace.join("source.rs");
-        fs::write(&source,b"source data").unwrap();
-        let snapshot=root.join("known-generated-schema.json");
-        let paths=BTreeSet::from([source.clone(),snapshot.clone()]);
-        let captured=source_files(&workspace,&paths,&BTreeSet::from([snapshot])).unwrap();
-        assert_eq!(captured.as_object().unwrap().len(),1);
-        assert_eq!(captured["source.rs"]["bytes"],11);
-        let unexpected=root.join("unexpected.rs");
-        fs::write(&unexpected,b"unaccounted source").unwrap();
-        assert_eq!(source_files(&workspace,&BTreeSet::from([source,unexpected]),&BTreeSet::new())
-            .unwrap_err(),"unexpected source path outside workspace");
+        let source = workspace.join("source.rs");
+        fs::write(&source, b"source data").unwrap();
+        let snapshot = root.join("known-generated-schema.json");
+        let paths = BTreeSet::from([source.clone(), snapshot.clone()]);
+        let captured = source_files(&workspace, &paths, &BTreeSet::from([snapshot])).unwrap();
+        assert_eq!(captured.as_object().unwrap().len(), 1);
+        assert_eq!(captured["source.rs"]["bytes"], 11);
+        let unexpected = root.join("unexpected.rs");
+        fs::write(&unexpected, b"unaccounted source").unwrap();
+        assert_eq!(
+            source_files(
+                &workspace,
+                &BTreeSet::from([source, unexpected]),
+                &BTreeSet::new()
+            )
+            .unwrap_err(),
+            "unexpected source path outside workspace"
+        );
     }
 
     #[test]
@@ -1209,8 +1566,13 @@ mod tests {
         let calls = Cell::new(0);
         let report = observe_matched(&reference, &candidate, &Delta::default(), |programs| {
             calls.set(calls.get() + 1);
-            assert_eq!(programs, &[("shared::hostname".into(),HOSTNAME_SOURCE.into()),
-                ("fake_a::StagedSchema0::Regex0".into(),"^x$".into())]);
+            assert_eq!(
+                programs,
+                &[
+                    ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
+                    ("fake_a::StagedSchema0::Regex0".into(), "^x$".into())
+                ]
+            );
             Ok(json!({"programs":[{"identity":"shared::hostname",
                 "cold":{"retained_bytes":2,"peak_live_bytes":3}},
                 {"identity":"fake_a::StagedSchema0::Regex0",
@@ -1218,12 +1580,22 @@ mod tests {
                 "repeat":{"allocated_bytes":0},
                 "late_size_limit_failure":{"retained_bytes":0},
                 "physical_or_generated_singleton_qualification":false}))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(calls.get(), 2);
         assert_eq!(report["label"], LABEL);
-        assert_eq!(report["owner_delta"], json!({"added":[],"removed":[],"changed":[]}));
-        assert_eq!(report["reference"]["constructor_observation"]["programs"][1]["cold"]["retained_bytes"], 13);
-        assert_eq!(report["candidate"]["constructor_observation"]["programs"][1]["cold"]["peak_live_bytes"], 17);
+        assert_eq!(
+            report["owner_delta"],
+            json!({"added":[],"removed":[],"changed":[]})
+        );
+        assert_eq!(
+            report["reference"]["constructor_observation"]["programs"][1]["cold"]["retained_bytes"],
+            13
+        );
+        assert_eq!(
+            report["candidate"]["constructor_observation"]["programs"][1]["cold"]["peak_live_bytes"],
+            17
+        );
         assert_eq!(report["component_deltas"]["generated_source_bytes"], 0);
         assert_eq!(report["common_C_I_qualified"], false);
         assert_eq!(report["task8_complete"], false);
@@ -1233,98 +1605,151 @@ mod tests {
     fn declared_added_owner_is_exact_and_ordinal_changes_do_not_hide_substitution() {
         let reference = view(true);
         let mut candidate = view(false);
-        candidate.owners.insert("fake_0".into(), "schema-new".into());
+        candidate
+            .owners
+            .insert("fake_0".into(), "schema-new".into());
         candidate.programs = vec![
             ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
             ("fake_0::StagedSchema0::Regex0".into(), "^new$".into()),
             ("fake_a::StagedSchema1::Regex0".into(), "^x$".into()),
         ];
-        let declared = Delta { added:BTreeSet::from(["fake_0".into()]), ..Delta::default() };
+        let declared = Delta {
+            added: BTreeSet::from(["fake_0".into()]),
+            ..Delta::default()
+        };
         assert_eq!(owner_delta(&reference.owners, &candidate.owners), declared);
         match_views(&reference, &candidate, &declared).unwrap();
-        assert_eq!(match_views(&reference, &candidate, &Delta::default()).unwrap_err(),
-            "undeclared owner delta");
-        candidate.programs[2].1="^substituted$".into();
-        assert_eq!(match_views(&reference, &candidate, &declared).unwrap_err(),
-            "undeclared program substitution");
+        assert_eq!(
+            match_views(&reference, &candidate, &Delta::default()).unwrap_err(),
+            "undeclared owner delta"
+        );
+        candidate.programs[2].1 = "^substituted$".into();
+        assert_eq!(
+            match_views(&reference, &candidate, &declared).unwrap_err(),
+            "undeclared program substitution"
+        );
     }
 
     #[test]
     fn changed_and_removed_schema_owners_cannot_be_hidden_by_an_added_owner() {
         let reference = view(true);
         let mut candidate = view(false);
-        candidate.owners.insert("fake_a".into(), "changed-schema".into());
-        assert_eq!(owner_delta(&reference.owners,&candidate.owners),
-            Delta { changed:BTreeSet::from(["fake_a".into()]), ..Delta::default() });
-        assert_eq!(match_views(&reference,&candidate,&Delta::default()).unwrap_err(),
-            "undeclared owner delta");
-        candidate.owners = BTreeMap::from([("fake_b".into(),"schema-b".into())]);
-        candidate.programs = vec![("shared::hostname".into(),HOSTNAME_SOURCE.into()),
-            ("fake_b::StagedSchema0::Regex0".into(),"^x$".into())];
-        assert_eq!(owner_delta(&reference.owners,&candidate.owners),
-            Delta { added:BTreeSet::from(["fake_b".into()]),
-                removed:BTreeSet::from(["fake_a".into()]), ..Delta::default() });
+        candidate
+            .owners
+            .insert("fake_a".into(), "changed-schema".into());
+        assert_eq!(
+            owner_delta(&reference.owners, &candidate.owners),
+            Delta {
+                changed: BTreeSet::from(["fake_a".into()]),
+                ..Delta::default()
+            }
+        );
+        assert_eq!(
+            match_views(&reference, &candidate, &Delta::default()).unwrap_err(),
+            "undeclared owner delta"
+        );
+        candidate.owners = BTreeMap::from([("fake_b".into(), "schema-b".into())]);
+        candidate.programs = vec![
+            ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
+            ("fake_b::StagedSchema0::Regex0".into(), "^x$".into()),
+        ];
+        assert_eq!(
+            owner_delta(&reference.owners, &candidate.owners),
+            Delta {
+                added: BTreeSet::from(["fake_b".into()]),
+                removed: BTreeSet::from(["fake_a".into()]),
+                ..Delta::default()
+            }
+        );
     }
 
     #[test]
     fn reviewed_real_catalog_delta_is_frozen_zero_before_any_observation() {
-        let reference=view(true);
-        let mut candidate=view(false);
-        candidate.owners.insert("fake_b".into(),"unexpected schema".into());
-        candidate.programs.push(("fake_b::StagedSchema1::Regex0".into(),"^new$".into()));
-        let calls=Cell::new(0);
-        let reviewed_delta=Delta::default();
-        assert_eq!(observe_matched(&reference,&candidate,&reviewed_delta, |_| {
-            calls.set(calls.get()+1);
-            Ok(json!({}))
-        }).unwrap_err(),"undeclared owner delta");
-        assert_eq!(calls.get(),0);
+        let reference = view(true);
+        let mut candidate = view(false);
+        candidate
+            .owners
+            .insert("fake_b".into(), "unexpected schema".into());
+        candidate
+            .programs
+            .push(("fake_b::StagedSchema1::Regex0".into(), "^new$".into()));
+        let calls = Cell::new(0);
+        let reviewed_delta = Delta::default();
+        assert_eq!(
+            observe_matched(&reference, &candidate, &reviewed_delta, |_| {
+                calls.set(calls.get() + 1);
+                Ok(json!({}))
+            })
+            .unwrap_err(),
+            "undeclared owner delta"
+        );
+        assert_eq!(calls.get(), 0);
     }
 
     #[test]
     fn each_measurement_context_change_refuses_before_observing() {
         let reference = view(true);
         for pointer in [
-            "/build/target", "/build/profile", "/build/compiler_verbose", "/build/encoded_rustflags",
-            "/build/enabled_features", "/environment/OPT_LEVEL", "/abi/pointer_width",
-            "/measurement_lock_sha256", "/measurement_sources/fake~1current-generator.rs",
-            "/regex_source", "/regex_features", "/generator_options", "/workload", "/non_catalog",
+            "/build/target",
+            "/build/profile",
+            "/build/compiler_verbose",
+            "/build/encoded_rustflags",
+            "/build/enabled_features",
+            "/environment/OPT_LEVEL",
+            "/abi/pointer_width",
+            "/measurement_lock_sha256",
+            "/measurement_sources/fake~1current-generator.rs",
+            "/regex_source",
+            "/regex_features",
+            "/generator_options",
+            "/workload",
+            "/non_catalog",
         ] {
             let mut candidate = view(false);
             *candidate.measurement.pointer_mut(pointer).unwrap() = json!("independent change");
             let calls = Cell::new(0);
-            assert_eq!(observe_matched(&reference,&candidate,&Delta::default(), |_| {
-                calls.set(calls.get()+1);
-                Ok(json!({}))
-            }).unwrap_err(), "measurement context mismatch", "{pointer}");
-            assert_eq!(calls.get(),0);
+            assert_eq!(
+                observe_matched(&reference, &candidate, &Delta::default(), |_| {
+                    calls.set(calls.get() + 1);
+                    Ok(json!({}))
+                })
+                .unwrap_err(),
+                "measurement context mismatch",
+                "{pointer}"
+            );
+            assert_eq!(calls.get(), 0);
         }
     }
 
     #[test]
     fn reference_pin_and_post_freeze_source_substitution_refuse() {
-        for key in ["commit","tree"] {
+        for key in ["commit", "tree"] {
             let mut reference = view(true);
             reference.source[key] = json!("wrong");
-            assert_eq!(match_views(&reference,&view(false),&Delta::default()).unwrap_err(),
-                "reference identity mismatch");
+            assert_eq!(
+                match_views(&reference, &view(false), &Delta::default()).unwrap_err(),
+                "reference identity mismatch"
+            );
         }
         let reference = view(true);
         let candidate = view(false);
-        let token = match_views(&reference,&candidate,&Delta::default()).unwrap();
+        let token = match_views(&reference, &candidate, &Delta::default()).unwrap();
         let mut changed = reference.clone();
         changed.source["files"]["Cargo.lock"] = json!("substituted bytes");
-        assert_eq!(verify_frozen(&token,&changed,&candidate).unwrap_err(), "frozen inputs changed");
-        verify_frozen(&token,&reference,&candidate).unwrap();
+        assert_eq!(
+            verify_frozen(&token, &changed, &candidate).unwrap_err(),
+            "frozen inputs changed"
+        );
+        verify_frozen(&token, &reference, &candidate).unwrap();
     }
 
     #[test]
     #[cfg(not(feature = "insecure-bidders"))]
     fn matched_catalog_growth_reconstructs_actual_reference_and_candidate() {
         let report = run_real().unwrap();
-        assert_eq!(report["reference"]["schema_owner_count"],16);
-        assert_eq!(report["reference"]["public_definition_count"],18);
-        assert_eq!(report["physical_or_serving_qualification"],false);
+        assert_eq!(report["reference"]["schema_owner_count"], 16);
+        assert_eq!(report["reference"]["public_definition_count"], 18);
+        assert_eq!(report["physical_or_serving_qualification"], false);
         eprintln!("{}", serde_json::to_string(&report).unwrap());
     }
 
@@ -1332,9 +1757,9 @@ mod tests {
     #[cfg(feature = "insecure-bidders")]
     fn development_metadata_matched_catalog_growth_reconstructs_actual_reference_and_candidate() {
         let report = run_real().unwrap();
-        assert_eq!(report["reference"]["schema_owner_count"],16);
-        assert_eq!(report["reference"]["public_definition_count"],18);
-        assert_eq!(report["common_C_I_qualified"],false);
+        assert_eq!(report["reference"]["schema_owner_count"], 16);
+        assert_eq!(report["reference"]["public_definition_count"], 18);
+        assert_eq!(report["common_C_I_qualified"], false);
         eprintln!("{}", serde_json::to_string(&report).unwrap());
     }
 }

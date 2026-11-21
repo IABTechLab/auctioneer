@@ -37,9 +37,7 @@ fn read_regular(path: &Path) -> Result<Vec<u8>, Refusal> {
         current.push(component);
         let metadata = fs::symlink_metadata(&current)
             .map_err(|_error| Refusal::RuntimeSource("source metadata"))?;
-        if (current == path && !metadata.is_file())
-            || (current != path && !metadata.is_dir())
-        {
+        if (current == path && !metadata.is_file()) || (current != path && !metadata.is_dir()) {
             return Err(Refusal::RuntimeSource("nonregular source or ancestor"));
         }
     }
@@ -47,12 +45,15 @@ fn read_regular(path: &Path) -> Result<Vec<u8>, Refusal> {
         return Err(Refusal::RuntimeSource("nonnormal source"));
     }
     let file = File::open(path).map_err(|_error| Refusal::RuntimeSource("source open"))?;
-    let metadata = file.metadata().map_err(|_error| Refusal::RuntimeSource("source metadata"))?;
+    let metadata = file
+        .metadata()
+        .map_err(|_error| Refusal::RuntimeSource("source metadata"))?;
     if !metadata.is_file() || metadata.len() > MAX_BYTES {
         return Err(Refusal::RuntimeSource("source byte cap"));
     }
     let mut bytes = Vec::new();
-    file.take(MAX_BYTES + 1_u64).read_to_end(&mut bytes)
+    file.take(MAX_BYTES + 1_u64)
+        .read_to_end(&mut bytes)
         .map_err(|_error| Refusal::RuntimeSource("source read"))?;
     if u64::try_from(bytes.len()).map_err(|_error| Refusal::Arithmetic)? > MAX_BYTES {
         return Err(Refusal::RuntimeSource("source byte cap"));
@@ -66,15 +67,18 @@ fn syntax(bytes: &[u8], expected: &str) -> Result<syn::File, Refusal> {
     if digest(bytes) != expected {
         return Err(Refusal::RuntimeSource("unreviewed runtime source"));
     }
-    let text = std::str::from_utf8(bytes)
-        .map_err(|_error| Refusal::RuntimeSource("runtime UTF-8"))?;
+    let text =
+        std::str::from_utf8(bytes).map_err(|_error| Refusal::RuntimeSource("runtime UTF-8"))?;
     syn::parse_file(text).map_err(|_error| Refusal::RuntimeSource("runtime AST"))
 }
 
 fn bind_format_input(manifest: &Value, sha256: &str) -> Result<(), Refusal> {
-    let rows = manifest["identity"]["inputs"].as_array()
+    let rows = manifest["identity"]["inputs"]
+        .as_array()
         .ok_or(Refusal::RuntimeSource("missing format source input"))?;
-    let matching = rows.iter().filter(|row| row["kind"] == "FormatHelperSource")
+    let matching = rows
+        .iter()
+        .filter(|row| row["kind"] == "FormatHelperSource")
         .collect::<Vec<_>>();
     let [row] = matching.as_slice() else {
         return Err(Refusal::RuntimeSource("format source input coverage"));
@@ -86,19 +90,28 @@ fn bind_format_input(manifest: &Value, sha256: &str) -> Result<(), Refusal> {
 }
 
 fn hostname_literal(file: &syn::File) -> Result<String, Refusal> {
-    let modules = file.items.iter().filter_map(|item| match item {
-        syn::Item::Mod(module) if module.ident == "formats" => Some(module),
-        _ => None,
-    }).collect::<Vec<_>>();
+    let modules = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Mod(module) if module.ident == "formats" => Some(module),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let [module] = modules.as_slice() else {
         return Err(Refusal::RuntimeSource("formats module coverage"));
     };
-    let (_, items) = module.content.as_ref()
+    let (_, items) = module
+        .content
+        .as_ref()
         .ok_or(Refusal::RuntimeSource("formats module body"))?;
-    let literals = items.iter().filter_map(|item| match item {
-        syn::Item::Const(item) if item.ident == "HOSTNAME_SOURCE" => Some(item.expr.as_ref()),
-        _ => None,
-    }).collect::<Vec<_>>();
+    let literals = items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Const(item) if item.ident == "HOSTNAME_SOURCE" => Some(item.expr.as_ref()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let [syn::Expr::Lit(literal)] = literals.as_slice() else {
         return Err(Refusal::RuntimeSource("hostname literal coverage"));
     };
@@ -119,25 +132,38 @@ fn argument(call: &syn::ExprMethodCall) -> Result<&syn::Expr, Refusal> {
     if call.args.len() != 1_usize {
         return Err(Refusal::RuntimeSource("hostname constructor arity"));
     }
-    call.args.first().ok_or(Refusal::RuntimeSource("hostname constructor argument"))
+    call.args
+        .first()
+        .ok_or(Refusal::RuntimeSource("hostname constructor argument"))
 }
 
 fn integer(expr: &syn::Expr) -> Result<usize, Refusal> {
-    if let syn::Expr::Lit(literal) = expr && let syn::Lit::Int(value) = &literal.lit {
-        return value.base10_parse().map_err(|_error| Refusal::RuntimeSource("hostname integer"));
+    if let syn::Expr::Lit(literal) = expr
+        && let syn::Lit::Int(value) = &literal.lit
+    {
+        return value
+            .base10_parse()
+            .map_err(|_error| Refusal::RuntimeSource("hostname integer"));
     }
     Err(Refusal::RuntimeSource("hostname integer"))
 }
 
 fn hostname_config(file: &syn::File) -> Result<Config, Refusal> {
-    let storage = file.items.iter().find_map(|item| match item {
-        syn::Item::Mod(module) if module.ident == "formats" => module.content.as_ref()
-            .and_then(|(_, items)| items.iter().find_map(|item| match item {
-                syn::Item::Static(item) if item.ident == "HOSTNAME_PATTERN" => Some(item),
-                _ => None,
-            })),
-        _ => None,
-    }).ok_or(Refusal::RuntimeSource("hostname cell"))?;
+    let storage = file
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Mod(module) if module.ident == "formats" => {
+                module.content.as_ref().and_then(|(_, items)| {
+                    items.iter().find_map(|item| match item {
+                        syn::Item::Static(item) if item.ident == "HOSTNAME_PATTERN" => Some(item),
+                        _ => None,
+                    })
+                })
+            }
+            _ => None,
+        })
+        .ok_or(Refusal::RuntimeSource("hostname cell"))?;
     let syn::Expr::Call(new) = storage.expr.as_ref() else {
         return Err(Refusal::RuntimeSource("hostname lazy constructor"));
     };
@@ -160,7 +186,11 @@ fn hostname_config(file: &syn::File) -> Result<Config, Refusal> {
     let syn::Expr::Call(some) = argument(nfa)? else {
         return Err(Refusal::RuntimeSource("hostname NFA limit"));
     };
-    let limit = integer(some.args.first().ok_or(Refusal::RuntimeSource("hostname NFA limit"))?)?;
+    let limit = integer(
+        some.args
+            .first()
+            .ok_or(Refusal::RuntimeSource("hostname NFA limit"))?,
+    )?;
     let utf8 = method(&nfa.receiver, "utf8_empty")?;
     let syn::Expr::Lit(literal) = argument(utf8)? else {
         return Err(Refusal::RuntimeSource("hostname UTF-8"));
@@ -170,8 +200,11 @@ fn hostname_config(file: &syn::File) -> Result<Config, Refusal> {
     };
     // Complete source authentication also binds Regex::config defaults, the
     // match kind, syntax configuration, builder target and callback bodies.
-    Ok(Config::new().match_kind(MatchKind::LeftmostFirst).utf8_empty(enabled.value)
-        .nfa_size_limit(Some(limit)).hybrid_cache_capacity(integer(argument(hybrid)?)?)
+    Ok(Config::new()
+        .match_kind(MatchKind::LeftmostFirst)
+        .utf8_empty(enabled.value)
+        .nfa_size_limit(Some(limit))
+        .hybrid_cache_capacity(integer(argument(hybrid)?)?)
         .pool_capacity(integer(argument(pool)?)?))
 }
 
@@ -180,10 +213,14 @@ pub(super) fn initialization_order(source: &[u8]) -> Result<(), String> {
     let refused = "native format initialization order mismatch";
     let text = std::str::from_utf8(source).map_err(|_error| refused)?;
     let file = syn::parse_file(text).map_err(|_error| refused)?;
-    let functions = file.items.iter().filter_map(|item| match item {
-        syn::Item::Fn(function) if function.sig.ident == "initialize_native" => Some(function),
-        _ => None,
-    }).collect::<Vec<_>>();
+    let functions = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Fn(function) if function.sig.ident == "initialize_native" => Some(function),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let [function] = functions.as_slice() else {
         return Err(refused.into());
     };
@@ -212,7 +249,10 @@ pub(super) fn capture(workspace: &Path, manifest: &Value) -> Result<Witness, Ref
     let hostname = hostname_literal(&staging_ast)?;
     let config = hostname_config(&staging_ast)?;
     Ok(Witness {
-        workspace: workspace.to_owned(), hostname, config, staging_sha256,
+        workspace: workspace.to_owned(),
+        hostname,
+        config,
+        staging_sha256,
         native_sha256: digest(&native),
     })
 }
@@ -254,27 +294,67 @@ mod tests {
         for bytes in [STAGING_BYTES, NATIVE_BYTES] {
             let mut extra = bytes.to_vec();
             extra.extend_from_slice(b"\nstatic UNKNOWN_NATIVE_STATIC: bool = false;\n");
-            assert_eq!(syntax(&extra, &digest(bytes)).err(),
-                Some(Refusal::RuntimeSource("unreviewed runtime source")));
+            assert_eq!(
+                syntax(&extra, &digest(bytes)).err(),
+                Some(Refusal::RuntimeSource("unreviewed runtime source"))
+            );
         }
     }
 
     #[test]
     fn callbacks_builder_order_guards_and_cell_changes_refuse_even_with_updated_input_hash() {
+        let temporary = tempfile::tempdir().unwrap();
+        let workspace = temporary.path().canonicalize().unwrap();
+        fs::create_dir_all(workspace.join(STAGING).parent().unwrap()).unwrap();
+        fs::write(workspace.join(STAGING), STAGING_BYTES).unwrap();
+        fs::write(workspace.join(NATIVE), NATIVE_BYTES).unwrap();
+        let original_manifest = json!({"identity":{"inputs":[{
+            "kind":"FormatHelperSource","id":STAGING,"sha256":STAGING_PIN
+        }]}});
+        assert!(capture(&workspace, &original_manifest).is_ok());
         for (bytes, before, after) in [
             (STAGING_BYTES, "value.len() < 256", "value.len() < 257"),
             (STAGING_BYTES, ".pool_capacity(1)", ".pool_capacity(2)"),
-            (STAGING_BYTES, "formats::initialize() && generated::initialize_native()",
-                "generated::initialize_native() && formats::initialize()"),
-            (STAGING_BYTES, "pub(super) fn uuid", "pub(super) fn changed_uuid"),
-            (NATIVE_BYTES, "!native_schema_funded(costs) || staging_only", "staging_only"),
-            (NATIVE_BYTES, "*cell.get_or_init(initialize)", "initialize()"),
+            (
+                STAGING_BYTES,
+                "formats::initialize() && generated::initialize_native()",
+                "generated::initialize_native() && formats::initialize()",
+            ),
+            (
+                STAGING_BYTES,
+                "pub(super) fn uuid",
+                "pub(super) fn changed_uuid",
+            ),
+            (
+                NATIVE_BYTES,
+                "!native_schema_funded(costs) || staging_only",
+                "staging_only",
+            ),
+            (
+                NATIVE_BYTES,
+                "*cell.get_or_init(initialize)",
+                "initialize()",
+            ),
         ] {
             let text = std::str::from_utf8(bytes).unwrap();
             assert!(text.contains(before));
             let changed = text.replacen(before, after, 1_usize);
             assert_eq!(syntax(changed.as_bytes(), &digest(bytes)).err(),
                 Some(Refusal::RuntimeSource("unreviewed runtime source")));
+            let path = if bytes == STAGING_BYTES { STAGING } else { NATIVE };
+            fs::write(workspace.join(path), &changed).unwrap();
+            let mut rebound = original_manifest.clone();
+            if path == STAGING {
+                rebound["identity"]["inputs"][0]["sha256"] = json!(digest(changed.as_bytes()));
+            }
+            let reason = if before == "formats::initialize() && generated::initialize_native()" {
+                "native format initialization order"
+            } else {
+                "unreviewed runtime source"
+            };
+            assert_eq!(capture(&workspace, &rebound).err(),
+                Some(Refusal::RuntimeSource(reason)), "{before}");
+            fs::write(workspace.join(path), bytes).unwrap();
         }
     }
 
@@ -283,10 +363,14 @@ mod tests {
         let row = json!({"kind":"FormatHelperSource","id":STAGING,"sha256":STAGING_PIN});
         let manifest = json!({"identity":{"inputs":[row.clone()]}});
         assert_eq!(bind_format_input(&manifest, STAGING_PIN), Ok(()));
-        for inputs in [json!([]), json!([row.clone(), row]),
-            json!([{"kind":"FormatHelperSource","id":STAGING,"sha256":"stale"}])]
-        {
-            assert!(bind_format_input(&json!({"identity":{"inputs":inputs}}), STAGING_PIN).is_err());
+        for inputs in [
+            json!([]),
+            json!([row.clone(), row]),
+            json!([{"kind":"FormatHelperSource","id":STAGING,"sha256":"stale"}]),
+        ] {
+            assert!(
+                bind_format_input(&json!({"identity":{"inputs":inputs}}), STAGING_PIN).is_err()
+            );
         }
     }
 
@@ -296,7 +380,10 @@ mod tests {
         let root = temp.path().canonicalize().unwrap();
         fs::create_dir(root.join("real")).unwrap();
         fs::write(root.join("real/source.rs"), b"fn actual() {}\n").unwrap();
-        assert_eq!(read_regular(&root.join("real/source.rs")).unwrap(), b"fn actual() {}\n");
+        assert_eq!(
+            read_regular(&root.join("real/source.rs")).unwrap(),
+            b"fn actual() {}\n"
+        );
         symlink(root.join("real"), root.join("alias")).unwrap();
         assert!(read_regular(&root.join("alias/source.rs")).is_err());
         assert!(read_regular(&root.join("real/../real/source.rs")).is_err());
