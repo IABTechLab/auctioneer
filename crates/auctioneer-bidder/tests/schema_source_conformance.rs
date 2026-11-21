@@ -44,6 +44,7 @@ mod schema_program_heap;
 mod schema_qualification;
 mod schema_reference;
 mod schema_replay;
+mod schema_residency;
 mod schema_resource_layout;
 mod schema_selected_half_search;
 mod schema_selected_semantics;
@@ -655,7 +656,7 @@ mod tests {
 
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
-            let report = inspect(
+            let mut inspection = inspect(
                 adapter,
                 &cohort.root,
                 &cohort.schemas,
@@ -663,6 +664,19 @@ mod tests {
                 development,
             )
             .expect("actual linked application schema membership");
+            inspection.seed.recheck_snapshots().unwrap();
+            inspection.report["expanded_schema_graph"] =
+                super::schema_residency::expanded::expand(&inspection.seed)
+                    .expect("expand the actual verified application build seed");
+            let report = &inspection.report;
+            assert_eq!(
+                report["applications"][0]["identity_sha256"],
+                inspection.seed.identity_sha256
+            );
+            assert_eq!(
+                hex::encode(Sha256::digest(&inspection.seed.rust)),
+                report["applications"][0]["manifest"]["emitted_rust_sha256"]
+            );
             assert_eq!(
                 report["lane"],
                 if development { "development" } else { "secure" }
@@ -694,7 +708,7 @@ mod tests {
             write_schema_diagnostics(
                 var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
                 &mut stderr().lock(),
-                &report,
+                report,
             )
             .unwrap();
         }

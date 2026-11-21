@@ -826,6 +826,40 @@ struct PreparedInspection {
     development: bool,
 }
 
+/// Accepted build-local inputs retained for conformance-owned expansion.
+#[derive(Debug)]
+pub struct CapturedSeed {
+    pub identity_sha256: String,
+    pub manifest_bytes: Vec<u8>,
+    pub rust: Vec<u8>,
+    pub build_root: PathBuf,
+    pub out_dir: PathBuf,
+    pub snapshots: Vec<SchemaSnapshot>,
+}
+
+impl CapturedSeed {
+    /// Recheck the same private build-local files before/after compiler reads.
+    ///
+    /// # Errors
+    /// Refuses missing, changed, escaped or nonregular captured snapshots.
+    pub fn recheck_snapshots(&self) -> Result<(), String> {
+        contained(&self.build_root, &self.build_root, true)?;
+        contained(&self.build_root, &self.out_dir, true)?;
+        for snapshot in &self.snapshots {
+            verified_snapshot(&self.build_root, &self.out_dir, snapshot)?;
+        }
+        Ok(())
+    }
+}
+
+/// Keeps the existing build lease alive while captured inputs are inspected.
+#[derive(Debug)]
+pub struct CapturedInspection {
+    pub report: Value,
+    pub seed: CapturedSeed,
+    _lease: File,
+}
+
 fn feature_packages(
     prepared: &PreparedInspection,
     application: Application,
@@ -1107,26 +1141,42 @@ fn check_product_paths(
     Ok(())
 }
 
+fn verified_snapshot(
+    target_dir: &Path,
+    out_dir: &Path,
+    snapshot: &SchemaSnapshot,
+) -> Result<Vec<u8>, String> {
+    if snapshot.relative_path.components().count() != 1
+        || !matches!(
+            snapshot.relative_path.components().next(),
+            Some(Component::Normal(_))
+        )
+    {
+        return Err("application snapshot escapes OUT_DIR".into());
+    }
+    let captured = read_bounded(target_dir, &out_dir.join(&snapshot.relative_path), 1 << 20)?;
+    if captured != snapshot.bytes || digest(&captured) != snapshot.sha256 {
+        return Err("stale application schema snapshot".into());
+    }
+    Ok(captured)
+}
+
 fn check_snapshots(
     target_dir: &Path,
     out_dir: &Path,
     snapshots: &[SchemaSnapshot],
-) -> Result<(), String> {
-    for snapshot in snapshots {
-        if snapshot.relative_path.components().count() != 1
-            || !matches!(
-                snapshot.relative_path.components().next(),
-                Some(Component::Normal(_))
-            )
-        {
-            return Err("application snapshot escapes OUT_DIR".into());
-        }
-        let captured = read_bounded(target_dir, &out_dir.join(&snapshot.relative_path), 1 << 20)?;
-        if captured != snapshot.bytes || digest(&captured) != snapshot.sha256 {
-            return Err("stale application schema snapshot".into());
-        }
-    }
-    Ok(())
+) -> Result<Vec<SchemaSnapshot>, String> {
+    snapshots
+        .iter()
+        .map(|snapshot| {
+            Ok(SchemaSnapshot {
+                owner: snapshot.owner.clone(),
+                relative_path: snapshot.relative_path.clone(),
+                sha256: snapshot.sha256.clone(),
+                bytes: verified_snapshot(target_dir, out_dir, snapshot)?,
+            })
+        })
+        .collect()
 }
 
 fn verify_staging(
@@ -1135,7 +1185,8 @@ fn verify_staging(
     manifest: &Value,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
-) -> Result<(String, Vec<u8>), String> {
+    manifest_bytes: Vec<u8>,
+) -> Result<CapturedSeed, String> {
     let environment = check_build(manifest, expected)?;
     check_cohort(manifest, schemas, cohort_manifest, prepared.development)?;
     let features = enabled_features(prepared.development);
@@ -1166,8 +1217,15 @@ fn verify_staging(
         &rust,
         generated.rust.to_string().as_bytes(),
     )?;
-    check_snapshots(&prepared.target_dir, expected.out_dir, &generated.snapshots)?;
-    Ok((generated.identity.sha256, rust))
+    let snapshots = check_snapshots(&prepared.target_dir, expected.out_dir, &generated.snapshots)?;
+    Ok(CapturedSeed {
+        identity_sha256: generated.identity.sha256,
+        manifest_bytes,
+        rust,
+        build_root: prepared.target_dir.clone(),
+        out_dir: expected.out_dir.to_owned(),
+        snapshots,
+    })
 }
 
 fn linked_observations(
@@ -1209,7 +1267,7 @@ fn verify_one(
     products: &BuildProducts,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
-) -> Result<Value, String> {
+) -> Result<(Value, CapturedSeed), String> {
     check_product_paths(prepared, application, products)?;
     let guest = application.target.is_some();
     let target = application.target.unwrap_or(&prepared.host);
@@ -1230,25 +1288,32 @@ fn verify_one(
         out_dir: &products.bidder_output,
         development: prepared.development,
     };
-    let (identity, rust) =
-        verify_staging(prepared, &expected, &manifest, schemas, cohort_manifest)?;
+    let seed = verify_staging(
+        prepared,
+        &expected,
+        &manifest,
+        schemas,
+        cohort_manifest,
+        manifest_bytes,
+    )?;
+    let identity = &seed.identity_sha256;
     let owners: Vec<_> = schemas
         .iter()
         .map(|row| row.witness.name.as_str())
         .collect();
-    let (records, observations) = linked_observations(&bytes, guest, &identity, &owners)?;
-    let controls = refusal_controls(&manifest, schemas, cohort_manifest, &expected, &rust)?;
+    let (records, observations) = linked_observations(&bytes, guest, identity, &owners)?;
+    let controls = refusal_controls(&manifest, schemas, cohort_manifest, &expected, &seed.rust)?;
     let app = package(&prepared.metadata, application.package, &prepared.workspace)?;
-    Ok(
+    let report =
         json!({"package":application.package,"package_id":app["id"],"target_name":application.target_name,
             "target_kind":application.kind,"target":target,"profile":application.profile,"filename":products.artifact,
             "artifact_bytes":bytes.len(),"artifact_sha256":digest(&bytes),"bidder_out_dir":products.bidder_output,
-            "manifest_sha256":digest(&manifest_bytes),"identity_sha256":identity,"manifest":manifest,
+            "manifest_sha256":digest(&seed.manifest_bytes),"identity_sha256":identity,"manifest":manifest,
             "qualification":"Unqualified","resource_qualification":false,"final_admitted_artifact":false,
             "linked_records":records,
             "observations":observations,"actual_imports":imports(&bytes, guest)?,"refusal_controls":controls,
-            "observation_scope":"linked code/data and declared imports only; not memory, heap, work or serving bounds"}),
-    )
+            "observation_scope":"linked code/data and declared imports only; not memory, heap, work or serving bounds"});
+    Ok((report, seed))
 }
 
 /// Inspect one actual linked adapter in one requested feature lane.
@@ -1259,29 +1324,31 @@ pub fn inspect(
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
     development: bool,
-) -> Result<Value, String> {
+) -> Result<CapturedInspection, String> {
     let prepared = prepare(root, cohort_manifest, development)?;
-    let _lease = super::acquire_lease(&prepared.target_dir)?;
+    let lease = super::acquire_lease(&prepared.target_dir)?;
     let application = adapter.application();
     let products = build_one(&prepared, application)?;
-    let report = verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(
-        |error| {
+    let (application_report, seed) =
+        verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(|error| {
             format!(
                 "{} ({}, {}): {error}",
                 application.package,
                 application.target.unwrap_or(&prepared.host),
                 application.profile
             )
-        },
-    )?;
-    Ok(
-        json!({"schema_version":1_u32,"kind":"actual_application_schema_staging_inspection",
+        })?;
+    let report = json!({"schema_version":1_u32,"kind":"actual_application_schema_staging_inspection",
         "qualification":"Unqualified","linked_or_serving_qualification":false,"resource_qualification":false,
         "final_admitted_artifact":false,"final_admitted_artifact_recheck_required":true,
         "lane":if development {"development"} else {"secure"},"binding":cohort_manifest,
-        "applications":[report],"child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
-        "pending_gaps":["resource_bounds","serving_integration","final_admitted_artifact_recheck","hosted_execution"]}),
-    )
+        "applications":[application_report],"child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
+        "pending_gaps":["resource_bounds","serving_integration","final_admitted_artifact_recheck","hosted_execution"]});
+    Ok(CapturedInspection {
+        report,
+        seed,
+        _lease: lease,
+    })
 }
 
 #[cfg(test)]
@@ -1653,11 +1720,61 @@ mod tests {
         assert_eq!(snapshots.len(), 2);
         let captured = check_snapshots(&root, &out_dir, &snapshots).unwrap();
         assert_eq!(
-            serde_json::to_value(captured).unwrap(),
+            serde_json::to_value(&captured).unwrap(),
             json!([
                 {"owner":"fake_a","relative_path":"fake-a.json","sha256":snapshots[0].sha256},
                 {"owner":"fake_b","relative_path":"fake-b.json","sha256":snapshots[1].sha256}
             ])
+        );
+        for (actual, expected) in captured.iter().zip(&snapshots) {
+            assert_eq!(actual.bytes, expected.bytes);
+        }
+        fs::write(out_dir.join("fake-a.json"), b"false").unwrap();
+        assert_eq!(captured[0].bytes, snapshots[0].bytes);
+        assert_eq!(
+            check_snapshots(&root, &out_dir, &snapshots).err().as_deref(),
+            Some("stale application schema snapshot")
+        );
+    }
+
+    #[test]
+    fn fake_snapshot_recheck_rejects_a_changed_ancestor_even_with_identical_bytes() {
+        use super::{CapturedSeed, SchemaSnapshot};
+        use std::{fs, os::unix::fs::symlink};
+
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let build_root = root.join("target");
+        let parent = build_root.join("fake-parent");
+        let out_dir = parent.join("out");
+        fs::create_dir_all(&out_dir).unwrap();
+        let bytes = serde_json::to_vec(&json!({"type":"string"})).unwrap();
+        fs::write(out_dir.join("fake.json"), &bytes).unwrap();
+        let snapshot = SchemaSnapshot {
+            owner: "fake_owner".into(),
+            relative_path: "fake.json".into(),
+            sha256: digest(&bytes),
+            bytes,
+        };
+        let seed = CapturedSeed {
+            identity_sha256: digest(b"fake identity"),
+            manifest_bytes: serde_json::to_vec(&json!({"kind":"fake"})).unwrap(),
+            rust: Vec::new(),
+            build_root,
+            out_dir,
+            snapshots: vec![snapshot],
+        };
+        seed.recheck_snapshots().unwrap();
+        let relocated = root.join("fake-relocated");
+        fs::rename(&parent, &relocated).unwrap();
+        symlink(&relocated, &parent).unwrap();
+        assert_eq!(
+            fs::read(seed.out_dir.join("fake.json")).unwrap(),
+            seed.snapshots[0].bytes
+        );
+        assert_eq!(
+            seed.recheck_snapshots().err().as_deref(),
+            Some("symlink in application build path")
         );
     }
 
