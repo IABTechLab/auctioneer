@@ -503,11 +503,7 @@ fn initialization(expr: &Expr, output: &mut Vec<String>) -> bool {
     }
 }
 
-fn retain_dispatch(
-    item: &syn::ItemFn,
-    rows: &[Row],
-    edges: &mut Vec<Value>,
-) -> Result<(), String> {
+fn retain_dispatch(item: &syn::ItemFn, rows: &[Row], edges: &mut Vec<Value>) -> Result<(), String> {
     if !item.attrs.is_empty() || !same(&item.sig, quote!(fn retain_for_inspection())) {
         return Err(error());
     }
@@ -539,7 +535,12 @@ fn retain_dispatch(
             {
                 return Err(error());
             }
-            edge(edges, "retain_for_inspection", &row.entry.to_string(), "inspection-reference");
+            edge(
+                edges,
+                "retain_for_inspection",
+                &row.entry.to_string(),
+                "inspection-reference",
+            );
         }
         if !tuple
             .elems
@@ -648,8 +649,18 @@ fn validate_dispatch(
         {
             return Err(error());
         }
-        edge(edges, "validate_native", &marker, "validation-call-cache-factory");
-        edge(edges, "validate_native", &marker, "is-valid-with-call-cache");
+        edge(
+            edges,
+            "validate_native",
+            &marker,
+            "validation-call-cache-factory",
+        );
+        edge(
+            edges,
+            "validate_native",
+            &marker,
+            "is-valid-with-call-cache",
+        );
     }
     if seen != rows.iter().map(|row| row.owner.clone()).collect() {
         return Err(error());
@@ -724,10 +735,7 @@ fn required_dispatch(
     }
     let required = syn::parse2::<Required>(value.mac.tokens.clone()).map_err(|_error| error())?;
     let mut names = Vec::new();
-    if required.selector != "name"
-        || !patterns(&required.pattern, &mut names)
-        || names.is_empty()
-    {
+    if required.selector != "name" || !patterns(&required.pattern, &mut names) || names.is_empty() {
         return Err(error());
     }
     let mut seen = BTreeSet::new();
@@ -735,8 +743,10 @@ fn required_dispatch(
         if !members.contains_key(&member) || !seen.insert(member.clone()) {
             return Err(error());
         }
-        edges.push(json!({"from":"native_required","member":member,"role":"native-required-predicate",
-            "policy_correspondence":"accepted-source-owner","ownership":"literal-only"}));
+        edges.push(
+            json!({"from":"native_required","member":member,"role":"native-required-predicate",
+            "policy_correspondence":"accepted-source-owner","ownership":"literal-only"}),
+        );
     }
     Ok(())
 }

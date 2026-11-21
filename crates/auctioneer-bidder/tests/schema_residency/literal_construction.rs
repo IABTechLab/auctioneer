@@ -75,7 +75,10 @@ fn append(
     Ok(allocation)
 }
 
-pub(super) fn suffix(pattern: &str, facts: &BTreeMap<String, NativeField>) -> Result<Scratch, Refusal> {
+pub(super) fn suffix(
+    pattern: &str,
+    facts: &BTreeMap<String, NativeField>,
+) -> Result<Scratch, Refusal> {
     if pattern != PATTERN {
         return Err(Refusal::Scope);
     }

@@ -4,12 +4,20 @@
 //! Native reconstruction does not establish serving-release layout correspondence.
 
 use crate::schema_cache_bounds::{forward_nfa, reverse_nfa};
-use crate::schema_heap_layout::{LayoutError, NativeField, arc_layout_with_header, native_arc_value_layout};
-use std::{any::type_name, collections::BTreeMap, sync::atomic::AtomicUsize};
-use crate::schema_literal_heap::{AutomaticPrefilterError, AutomaticPrefilterHeap, AutomaticPrefilterSource};
-use crate::schema_metadata_heap::{MetadataHeapError, MetadataLayout, NativeImmutableRegexMetadata};
+use crate::schema_heap_layout::{
+    LayoutError, NativeField, arc_layout_with_header, native_arc_value_layout,
+};
+use crate::schema_literal_heap::{
+    AutomaticPrefilterError, AutomaticPrefilterHeap, AutomaticPrefilterSource,
+};
+use crate::schema_metadata_heap::{
+    MetadataHeapError, MetadataLayout, NativeImmutableRegexMetadata,
+};
 use crate::schema_nfa_heap::{NfaHeapError, NfaRetainedHeap, target};
-use crate::schema_onepass_bounds::{OnePassRetainedTables, OnePassTablesError, nfa_table_upper_bound, nfa_table_upper_bound_with_word};
+use crate::schema_onepass_bounds::{
+    OnePassRetainedTables, OnePassTablesError, nfa_table_upper_bound,
+    nfa_table_upper_bound_with_word,
+};
 use crate::schema_pool_heap::{PoolHeapError, PoolLayout, UnusedPoolHeap};
 use regex_automata::{
     MatchKind,
@@ -17,6 +25,7 @@ use regex_automata::{
     nfa::thompson::{NFA, WhichCaptures},
     util::syntax,
 };
+use std::{any::type_name, collections::BTreeMap, sync::atomic::AtomicUsize};
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum ProgramHeapError {
@@ -45,8 +54,6 @@ pub(crate) struct NativeProgramHeap {
     pub static_inline_bytes: usize,
     pub automatic_prefilter: AutomaticPrefilterHeap,
 }
-
-
 
 /// Mandatory matched layout premises for one source-selected program.
 /// The caller binds these fields to the actual source/features/target tuple.
@@ -93,12 +100,19 @@ impl SourceRecipe {
         let forward = forward_nfa(pattern).map_err(|_error| ProgramHeapError::Nfa)?;
         let reverse = reverse_nfa(pattern).map_err(|_error| ProgramHeapError::Nfa)?;
         Ok(Self {
-            pattern: pattern.to_owned(), config: config.clone(),
-            native_roots: candidate.resource_layout(), forward, reverse, prefilter,
+            pattern: pattern.to_owned(),
+            config: config.clone(),
+            native_roots: candidate.resource_layout(),
+            forward,
+            reverse,
+            prefilter,
         })
     }
 
-    pub(crate) fn evaluate(&self, facts: &ProgramRecipe<'_>) -> Result<NativeProgramHeap, ProgramHeapError> {
+    pub(crate) fn evaluate(
+        &self,
+        facts: &ProgramRecipe<'_>,
+    ) -> Result<NativeProgramHeap, ProgramHeapError> {
         if facts.pattern != self.pattern {
             return Err(ProgramHeapError::Shape);
         }
@@ -106,13 +120,22 @@ impl SourceRecipe {
         if !matches!(word.bytes, 4 | 8) || word.alignment != word.bytes {
             return Err(ProgramHeapError::OnePass);
         }
-        let pointer = facts.nfa_facts.get(target::ABI_POINTER).ok_or(ProgramHeapError::Nfa)?;
-        let atomic = facts.nfa_facts.get(type_name::<AtomicUsize>())
+        let pointer = facts
+            .nfa_facts
+            .get(target::ABI_POINTER)
+            .ok_or(ProgramHeapError::Nfa)?;
+        let atomic = facts
+            .nfa_facts
+            .get(type_name::<AtomicUsize>())
             .ok_or(ProgramHeapError::Nfa)?;
         if *pointer != word || *atomic != word {
             return Err(ProgramHeapError::Nfa);
         }
-        if facts.arc_header.bytes != word.bytes.checked_mul(2).ok_or(ProgramHeapError::Arithmetic)?
+        if facts.arc_header.bytes
+            != word
+                .bytes
+                .checked_mul(2)
+                .ok_or(ProgramHeapError::Arithmetic)?
             || facts.arc_header.alignment != word.alignment
         {
             return Err(ProgramHeapError::Shape);
@@ -124,62 +147,96 @@ impl SourceRecipe {
     // Only explicit Native mode may obtain build-host layout values.
     fn project(&self, projection: Projection<'_>) -> Result<NativeProgramHeap, ProgramHeapError> {
         let metadata = match projection {
-            Projection::Native => NativeImmutableRegexMetadata::from_pattern(
-                &self.pattern, &self.config, 1,
-            ),
+            Projection::Native => {
+                NativeImmutableRegexMetadata::from_pattern(&self.pattern, &self.config, 1)
+            }
             Projection::Supplied(facts) => NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                &self.pattern, &self.config, 1, facts.metadata, facts.arc_header,
+                &self.pattern,
+                &self.config,
+                1,
+                facts.metadata,
+                facts.arc_header,
             ),
-        }.map_err(metadata_error)?;
+        }
+        .map_err(metadata_error)?;
         if matches!(projection, Projection::Native) {
             require_metadata_roots(&metadata, self.native_roots)?;
         }
-        let metadata_bytes = metadata.population(1, false).map_err(metadata_error)?.requested_heap_bytes;
+        let metadata_bytes = metadata
+            .population(1, false)
+            .map_err(metadata_error)?
+            .requested_heap_bytes;
         let strategy_arc_bytes = match projection {
             Projection::Native => native_arc_value_layout(self.native_roots.strategy_payload()),
-            Projection::Supplied(facts) => arc_layout_with_header(facts.strategy_payload, facts.arc_header),
-        }.map_err(layout_error)?.size();
+            Projection::Supplied(facts) => {
+                arc_layout_with_header(facts.strategy_payload, facts.arc_header)
+            }
+        }
+        .map_err(layout_error)?
+        .size();
         let mut nfa_bytes = 0_usize;
         for nfa in [&self.forward, &self.reverse] {
             let tree = match projection {
-                Projection::Native => NfaRetainedHeap::from_nfa(nfa).map_err(|error| match error {
-                    NfaHeapError::Arithmetic | NfaHeapError::Layout(LayoutError::Arithmetic) => ProgramHeapError::Arithmetic,
-                    NfaHeapError::Layout(LayoutError::Shape)
-                    | NfaHeapError::NamesUnqualified | NfaHeapError::Shape
-                    | NfaHeapError::Compilation | NfaHeapError::Prefix(_) => ProgramHeapError::Nfa,
-                })?,
-                Projection::Supplied(facts) => target::project_nfa(nfa, facts.nfa_facts)
-                    .map_err(|error| match error {
+                Projection::Native => {
+                    NfaRetainedHeap::from_nfa(nfa).map_err(|error| match error {
+                        NfaHeapError::Arithmetic
+                        | NfaHeapError::Layout(LayoutError::Arithmetic) => {
+                            ProgramHeapError::Arithmetic
+                        }
+                        NfaHeapError::Layout(LayoutError::Shape)
+                        | NfaHeapError::NamesUnqualified
+                        | NfaHeapError::Shape
+                        | NfaHeapError::Compilation
+                        | NfaHeapError::Prefix(_) => ProgramHeapError::Nfa,
+                    })?
+                }
+                Projection::Supplied(facts) => {
+                    target::project_nfa(nfa, facts.nfa_facts).map_err(|error| match error {
                         target::TargetHeapError::Arithmetic => ProgramHeapError::Arithmetic,
                         target::TargetHeapError::MissingType(_)
                         | target::TargetHeapError::InvalidLayout(_)
                         | target::TargetHeapError::UnsupportedAbi
                         | target::TargetHeapError::NamesUnqualified
                         | target::TargetHeapError::UnboundShape => ProgramHeapError::Nfa,
-                    })?,
+                    })?
+                }
             };
             if tree.requested_heap_bytes == 0 {
                 return Err(ProgramHeapError::Shape);
             }
-            nfa_bytes = nfa_bytes.checked_add(tree.requested_heap_bytes).ok_or(ProgramHeapError::Arithmetic)?;
+            nfa_bytes = nfa_bytes
+                .checked_add(tree.requested_heap_bytes)
+                .ok_or(ProgramHeapError::Arithmetic)?;
         }
         let shift = u32::try_from(self.forward.byte_classes().stride2())
             .map_err(|_error| ProgramHeapError::Arithmetic)?;
-        let stride = 1_usize.checked_shl(shift).ok_or(ProgramHeapError::Arithmetic)?;
+        let stride = 1_usize
+            .checked_shl(shift)
+            .ok_or(ProgramHeapError::Arithmetic)?;
         let onepass = match projection {
-            Projection::Native => nfa_table_upper_bound(self.forward.states().len(), stride, self.forward.pattern_len()),
-            Projection::Supplied(facts) => nfa_table_upper_bound_with_word(
-                self.forward.states().len(), stride, self.forward.pattern_len(), facts.onepass_word,
+            Projection::Native => nfa_table_upper_bound(
+                self.forward.states().len(),
+                stride,
+                self.forward.pattern_len(),
             ),
-        }.map_err(|error| match error {
+            Projection::Supplied(facts) => nfa_table_upper_bound_with_word(
+                self.forward.states().len(),
+                stride,
+                self.forward.pattern_len(),
+                facts.onepass_word,
+            ),
+        }
+        .map_err(|error| match error {
             OnePassTablesError::Arithmetic => ProgramHeapError::Arithmetic,
-            OnePassTablesError::Configuration | OnePassTablesError::Compilation
+            OnePassTablesError::Configuration
+            | OnePassTablesError::Compilation
             | OnePassTablesError::Shape => ProgramHeapError::OnePass,
         })?;
         let pool = match projection {
             Projection::Native => UnusedPoolHeap::native(&self.config),
             Projection::Supplied(facts) => UnusedPoolHeap::with_layout(&self.config, facts.pool),
-        }.map_err(|error| match error {
+        }
+        .map_err(|error| match error {
             PoolHeapError::Arithmetic => ProgramHeapError::Arithmetic,
             PoolHeapError::Shape | PoolHeapError::Configuration => ProgramHeapError::Pool,
         })?;
@@ -193,12 +250,26 @@ impl SourceRecipe {
         let prefilter = AutomaticPrefilterHeap::from_source(self.prefilter, memchr, header)
             .map_err(ProgramHeapError::AutomaticPrefilter)?;
         if let Projection::Supplied(facts) = projection {
-            check_target_requests(facts, &metadata, &pool, strategy_arc_bytes, &onepass, prefilter)?;
+            check_target_requests(
+                facts,
+                &metadata,
+                &pool,
+                strategy_arc_bytes,
+                &onepass,
+                prefilter,
+            )?;
         }
         NativeProgramHeap::compose(
-            [metadata_bytes, strategy_arc_bytes, nfa_bytes, onepass.total,
-                prefilter.requested_bytes(), pool.requested_bytes],
-            metadata.static_inline_bytes, prefilter,
+            [
+                metadata_bytes,
+                strategy_arc_bytes,
+                nfa_bytes,
+                onepass.total,
+                prefilter.requested_bytes(),
+                pool.requested_bytes,
+            ],
+            metadata.static_inline_bytes,
+            prefilter,
         )
     }
 }
@@ -206,12 +277,18 @@ impl SourceRecipe {
 fn metadata_error(error: MetadataHeapError) -> ProgramHeapError {
     match error {
         MetadataHeapError::Arithmetic => ProgramHeapError::Arithmetic,
-        MetadataHeapError::Shape | MetadataHeapError::PatternCount
-        | MetadataHeapError::Configuration | MetadataHeapError::Syntax => ProgramHeapError::Metadata,
+        MetadataHeapError::Shape
+        | MetadataHeapError::PatternCount
+        | MetadataHeapError::Configuration
+        | MetadataHeapError::Syntax => ProgramHeapError::Metadata,
     }
 }
 
-fn target_request(word: NativeField, bytes: usize, alignment: usize) -> Result<(), ProgramHeapError> {
+fn target_request(
+    word: NativeField,
+    bytes: usize,
+    alignment: usize,
+) -> Result<(), ProgramHeapError> {
     if !alignment.is_power_of_two() {
         return Err(ProgramHeapError::Layout);
     }
@@ -219,9 +296,14 @@ fn target_request(word: NativeField, bytes: usize, alignment: usize) -> Result<(
         usize::try_from(i32::MAX)
     } else {
         usize::try_from(i64::MAX)
-    }.map_err(|_error| ProgramHeapError::Arithmetic)?;
-    let maximum = maximum.checked_sub(alignment - 1).ok_or(ProgramHeapError::Arithmetic)?;
-    if bytes > maximum { return Err(ProgramHeapError::Arithmetic); }
+    }
+    .map_err(|_error| ProgramHeapError::Arithmetic)?;
+    let maximum = maximum
+        .checked_sub(alignment - 1)
+        .ok_or(ProgramHeapError::Arithmetic)?;
+    if bytes > maximum {
+        return Err(ProgramHeapError::Arithmetic);
+    }
     Ok(())
 }
 
@@ -235,14 +317,41 @@ fn check_target_requests(
 ) -> Result<(), ProgramHeapError> {
     let word = facts.onepass_word;
     let header = facts.arc_header.alignment;
-    let regex_alignment = facts.metadata.regex_fields.iter().map(|field| field.alignment).max().ok_or(ProgramHeapError::Shape)?;
-    let info_alignment = facts.metadata.info_fields.iter().map(|field| field.alignment).max().ok_or(ProgramHeapError::Shape)?;
-    let pool_alignment = facts.pool.fields.iter().map(|field| field.alignment).max().ok_or(ProgramHeapError::Shape)?;
-    for field in facts.metadata.regex_fields.into_iter()
+    let regex_alignment = facts
+        .metadata
+        .regex_fields
+        .iter()
+        .map(|field| field.alignment)
+        .max()
+        .ok_or(ProgramHeapError::Shape)?;
+    let info_alignment = facts
+        .metadata
+        .info_fields
+        .iter()
+        .map(|field| field.alignment)
+        .max()
+        .ok_or(ProgramHeapError::Shape)?;
+    let pool_alignment = facts
+        .pool
+        .fields
+        .iter()
+        .map(|field| field.alignment)
+        .max()
+        .ok_or(ProgramHeapError::Shape)?;
+    for field in facts
+        .metadata
+        .regex_fields
+        .into_iter()
         .chain(facts.metadata.info_fields)
-        .chain([facts.metadata.props_payload, facts.metadata.static_inline,
-            facts.arc_header, facts.strategy_payload, facts.memchr_payload,
-            facts.pool.shard, facts.pool.closure])
+        .chain([
+            facts.metadata.props_payload,
+            facts.metadata.static_inline,
+            facts.arc_header,
+            facts.strategy_payload,
+            facts.memchr_payload,
+            facts.pool.shard,
+            facts.pool.closure,
+        ])
         .chain(facts.pool.fields)
     {
         target_request(word, field.bytes, field.alignment)?;
@@ -251,28 +360,38 @@ fn check_target_requests(
     for (bytes, alignment) in [
         (metadata.regex_arc_bytes, regex_alignment.max(header)),
         (metadata.info_arc_bytes, info_alignment.max(header)),
-        (metadata.props_vec_bytes, facts.metadata.info_fields[2].alignment),
-        (metadata.props_box_bytes, facts.metadata.props_payload.alignment),
-        (metadata.props_union_box_bytes, facts.metadata.props_payload.alignment),
+        (
+            metadata.props_vec_bytes,
+            facts.metadata.info_fields[2].alignment,
+        ),
+        (
+            metadata.props_box_bytes,
+            facts.metadata.props_payload.alignment,
+        ),
+        (
+            metadata.props_union_box_bytes,
+            facts.metadata.props_payload.alignment,
+        ),
         (strategy, facts.strategy_payload.alignment.max(header)),
         (pool.boxed_pool_bytes, pool_alignment),
         (pool.shard_bytes, facts.pool.shard.alignment.max(64)),
         (pool.closure_bytes, facts.pool.closure.alignment),
         (onepass.table_bytes, 8),
         (onepass.starts_bytes, 4),
-        (prefilter.requested_bytes(), facts.memchr_payload.alignment.max(header)),
+        (
+            prefilter.requested_bytes(),
+            facts.memchr_payload.alignment.max(header),
+        ),
     ] {
         target_request(word, bytes, alignment)?;
     }
     Ok(())
 }
 
-
 impl NativeProgramHeap {
     pub(crate) fn from_pattern(pattern: &str, config: &Config) -> Result<Self, ProgramHeapError> {
         SourceRecipe::from_pattern(pattern, config)?.project(Projection::Native)
     }
-
 
     fn compose(
         charges: [usize; 6],

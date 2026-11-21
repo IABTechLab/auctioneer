@@ -6,9 +6,7 @@ use regex_automata::{
     MatchKind,
     dfa::onepass::{self, DFA},
     nfa::thompson::NFA,
-
 };
-
 
 pub(crate) fn candidate_onepass(nfa: &NFA) -> Result<DFA, Box<onepass::BuildError>> {
     DFA::builder()
@@ -77,7 +75,6 @@ pub(crate) fn retained_tables(
     retained_tables_with_word(states, stride, patterns, NativeField::of::<usize>())
 }
 
-
 /// Structural envelope, with `stride = 1 << nfa.byte_classes().stride2()`.
 pub(crate) fn nfa_table_upper_bound(
     nfa_states: usize,
@@ -86,9 +83,6 @@ pub(crate) fn nfa_table_upper_bound(
 ) -> Result<OnePassRetainedTables, OnePassTablesError> {
     nfa_table_upper_bound_with_word(nfa_states, stride, patterns, NativeField::of::<usize>())
 }
-
-
-
 
 pub(crate) fn retained_tables_with_word(
     states: usize,
@@ -132,10 +126,11 @@ pub(crate) fn nfa_table_upper_bound_with_word(
     patterns: usize,
     word: NativeField,
 ) -> Result<OnePassRetainedTables, OnePassTablesError> {
-    let states = nfa_states.checked_add(1).ok_or(OnePassTablesError::Arithmetic)?;
+    let states = nfa_states
+        .checked_add(1)
+        .ok_or(OnePassTablesError::Arithmetic)?;
     retained_tables_with_word(states, stride, patterns, word)
 }
-
 
 impl OnePassRetainedTables {
     pub(crate) fn from_dfa(dfa: &DFA) -> Result<Self, OnePassTablesError> {

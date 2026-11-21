@@ -1,6 +1,6 @@
-//! Offline Git data for the Task 8 catalog-growth reference.
+//! Offline Git data for the reviewed catalog-growth reference.
 //!
-//! Only source provenance is described here. Historical GeneratorSource bytes
+//! Only source provenance is described here. Historical `GeneratorSource` bytes
 //! are not the generator executed by a measurement. Consumers must separately
 //! freeze current measurement sources, dependencies, lock, options and ABI.
 //! This module never builds, expands, materializes or activates a catalog.

@@ -143,13 +143,17 @@ fn load_source(crate_root: &Path) -> Result<(Inputs, Catalog), String> {
     )
     .map_err(|error| format!("inventory: {error:?}"))?;
     let source: SourceProjection = pinned(
-        &fs::read_to_string(crate_root.join("tests/conformance/fixtures/reference/catalog/source-inventory.toml"))
-            .map_err(|error| error.to_string())?,
+        &fs::read_to_string(
+            crate_root.join("tests/conformance/fixtures/reference/catalog/source-inventory.toml"),
+        )
+        .map_err(|error| error.to_string())?,
         "b22f74407fd081cd7d073b8724ba8f74e1385163b9bc30c2277342adc38bb6c6",
     )?;
     let bindings: BindingsProjection = pinned(
-        &fs::read_to_string(crate_root.join("tests/conformance/fixtures/reference/catalog/source-bindings.toml"))
-            .map_err(|error| error.to_string())?,
+        &fs::read_to_string(
+            crate_root.join("tests/conformance/fixtures/reference/catalog/source-bindings.toml"),
+        )
+        .map_err(|error| error.to_string())?,
         "d1a0f18d99f53cbd4f62fe74c5d1e5580f8688fce95a29b1b05ee934dbe9ff0c",
     )?;
     if bindings.revision != source.revision {
@@ -685,7 +689,10 @@ pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
 
 /// Independent alias walk over a verified, isolated data snapshot. This does
 /// not compare another source tree against this binary's compiled metadata.
-pub(crate) fn independent_source_membership(crate_root: &Path, lane: Lane) -> Result<Value, String> {
+pub(crate) fn independent_source_membership(
+    crate_root: &Path,
+    lane: Lane,
+) -> Result<Value, String> {
     let (inputs, _catalog) = load_source(crate_root)?;
     independent_membership_from_inputs(&inputs, lane)
 }

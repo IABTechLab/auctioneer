@@ -27,7 +27,10 @@ pub(crate) enum AutomaticPrefilterError {
 }
 
 impl AutomaticPrefilterHeap {
-    pub(crate) fn from_pattern(pattern: &str, config: &Config) -> Result<Self, AutomaticPrefilterError> {
+    pub(crate) fn from_pattern(
+        pattern: &str,
+        config: &Config,
+    ) -> Result<Self, AutomaticPrefilterError> {
         Self::from_source(
             Self::source(pattern, config)?,
             NativeField::of::<u8>(),
@@ -83,8 +86,6 @@ impl AutomaticPrefilterHeap {
         Ok(AutomaticPrefilterSource::SingleByte(*byte))
     }
 
-
-
     pub(crate) fn requested_bytes(self) -> usize {
         match self {
             Self::ExcludedStartAnchored => 0,
@@ -94,8 +95,6 @@ impl AutomaticPrefilterHeap {
         }
     }
 }
-
-
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum AutomaticPrefilterSource {
@@ -111,22 +110,34 @@ impl AutomaticPrefilterHeap {
     ) -> Result<Self, AutomaticPrefilterError> {
         // The selected Memchr payload is the source's single u8, not an
         // arbitrary same-sized hidden matcher or a target-layout fallback.
-        if payload != (NativeField { bytes: 1, alignment: 1 }) {
+        if payload
+            != (NativeField {
+                bytes: 1,
+                alignment: 1,
+            })
+        {
             return Err(AutomaticPrefilterError::Layout);
         }
-        payload.validate().map_err(|_error| AutomaticPrefilterError::Layout)?;
-        header.validate().map_err(|_error| AutomaticPrefilterError::Layout)?;
+        payload
+            .validate()
+            .map_err(|_error| AutomaticPrefilterError::Layout)?;
+        header
+            .validate()
+            .map_err(|_error| AutomaticPrefilterError::Layout)?;
         match source {
             AutomaticPrefilterSource::ExcludedStartAnchored => Ok(Self::ExcludedStartAnchored),
             AutomaticPrefilterSource::SingleByte(byte) => {
                 let requested_bytes = arc_layout_with_header(payload, header)
-                    .map_err(|_error| AutomaticPrefilterError::Layout)?.size();
-                Ok(Self::SingleByte { byte, requested_bytes })
+                    .map_err(|_error| AutomaticPrefilterError::Layout)?
+                    .size();
+                Ok(Self::SingleByte {
+                    byte,
+                    requested_bytes,
+                })
             }
         }
     }
 }
-
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LiteralStart {
