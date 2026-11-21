@@ -1,0 +1,684 @@
+//! Sealed actual-source C/I join, separate from conditional target evaluation.
+//! No conversion to installed catalog costs, physical fit or serving permission.
+
+use super::{expanded, initialization, program_construction, retained, runtime_sources};
+use crate::schema_build::application::CapturedSeed;
+use crate::schema_heap_layout::NativeField;
+use crate::schema_program_heap::{NativeProgramHeap, ProgramHeapError, ProgramRecipe, SourceRecipe};
+use auctioneer_bidder::catalog::CatalogOwner;
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
+
+pub(crate) use super::program_construction::Sources;
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Refusal {
+    Graph(String),
+    GraphMismatch,
+    Coverage,
+    UnsupportedState(String),
+    RuntimeSource(&'static str),
+    Program(String, ProgramHeapError),
+    Construction(String, program_construction::Refusal),
+    TargetIncomplete(Vec<String>),
+    TargetBinding,
+    TargetLayout(String),
+    Arithmetic,
+}
+
+#[derive(Debug)]
+struct Program {
+    id: String,
+    pattern: String,
+    group: String,
+    retained: SourceRecipe,
+    constructor: program_construction::SourceRecipe,
+}
+
+#[derive(Debug)]
+struct LinkedGroup {
+    id: String,
+    source_sha256: String,
+    roots: BTreeSet<String>,
+    inline: BTreeSet<String>,
+}
+
+/// Fields are private. Only describe can join an authenticated capture to models.
+#[derive(Debug)]
+pub(crate) struct ActualSourceDescriptor {
+    binding: Value,
+    recipe_identity: String,
+    graph: Value,
+    selection: Value,
+    runtime: runtime_sources::Witness,
+    programs: Vec<Program>,
+    groups: Vec<LinkedGroup>,
+    validation: Vec<ValidationAssignment>,
+}
+
+/// Conditional premises, supplied by the target evidence owner, never defaults.
+pub(crate) struct RequestedFacts<'a> {
+    pub binding: &'a Value,
+    pub abi: &'a str,
+    pub programs: &'a BTreeMap<String, ProgramRecipe<'a>>,
+    pub constructor_layouts: &'a BTreeMap<String, BTreeMap<String, NativeField>>,
+    pub linked_inline: &'a BTreeMap<String, LinkedInlineFact>,
+}
+
+/// One disjoint linked/inline group, including its statics, not a second cell bill.
+pub(crate) struct LinkedInlineFact {
+    pub source_sha256: String,
+    pub budget_owner: CatalogOwner,
+    pub attributed_bytes: u64,
+    pub inline_layouts: BTreeMap<String, NativeField>,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct ValidationAssignment {
+    pub child: String,
+    pub source_owner: String,
+    pub role: String,
+}
+
+/// Requested heap and supplied linked/inline attribution remain separate units.
+/// This data has no physical qualification or production-cost conversion API.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct RequestedStorage {
+    pub abi: String,
+    pub retained_requested_bytes: u64,
+    pub construction_only_requested_bytes: u64,
+    pub additive_requested_envelope: u64,
+    pub linked_inline_attributed_bytes: u64,
+    pub trace_peaks: Vec<u64>,
+    pub constructor_source_visits: u64,
+}
+
+fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, Refusal> {
+    value[key].as_str().filter(|value| !value.is_empty()).ok_or(Refusal::Coverage)
+}
+
+fn array<'a>(value: &'a Value, key: &str) -> Result<&'a [Value], Refusal> {
+    value[key].as_array().map(Vec::as_slice).ok_or(Refusal::Coverage)
+}
+
+fn source_group(row: &Value) -> Result<String, Refusal> {
+    Ok(format!("linked::declaration::{}::{}", text(row, "owner")?, text(row, "marker")?))
+}
+
+fn row_programs(row: &Value) -> Result<Vec<(&Value, &str)>, Refusal> {
+    let state = array(row, "schema_state")?;
+    if !state.is_empty() {
+        return Err(Refusal::UnsupportedState(text(row, "owner")?.to_owned()));
+    }
+    let mut programs = BTreeMap::new();
+    for program in array(row, "programs")? {
+        let symbol = text(program, "symbol")?;
+        if programs.insert(symbol, program).is_some() {
+            return Err(Refusal::Coverage);
+        }
+    }
+    let mut result = Vec::new();
+    for symbol in array(row, "initialization")? {
+        let symbol = symbol.as_str().ok_or(Refusal::Coverage)?;
+        let program = programs.remove(symbol).ok_or(Refusal::Coverage)?;
+        result.push((program, text(program, "pattern")?));
+    }
+    if !programs.is_empty() {
+        return Err(Refusal::Coverage);
+    }
+    Ok(result)
+}
+
+/// Auxiliary row ordinals are numeric, not declaration or lexical iteration order.
+fn ordered_declarations(graph: &Value) -> Result<Vec<&Value>, Refusal> {
+    let _ = graph;
+    Err(Refusal::Coverage)
+}
+
+fn program(
+    id: &str, pattern: &str, group: &str,
+    config: &regex_automata::meta::Config, sources: &Sources<'_>,
+) -> Result<Program, Refusal> {
+    let retained = SourceRecipe::from_pattern(pattern, config)
+        .map_err(|error| Refusal::Program(id.to_owned(), error))?;
+    let constructor = program_construction::SourceRecipe::from_source(id, pattern, config, Sources {
+        workspace: sources.workspace, syntax: sources.syntax,
+        rust_release: sources.rust_release, features: sources.features,
+    }).map_err(|error| Refusal::Construction(id.to_owned(), error))?;
+    if constructor.owner() != id || constructor.pattern() != pattern
+        || constructor.required_facts().is_empty()
+        || constructor.phase_models().iter().collect::<BTreeSet<_>>().len() != 13_usize
+        || constructor.work_models().iter().collect::<BTreeSet<_>>().len() != 15_usize
+    {
+        return Err(Refusal::Coverage);
+    }
+    Ok(Program { id: id.to_owned(), pattern: pattern.to_owned(), group: group.to_owned(),
+        retained, constructor })
+}
+
+fn declaration_group(row: &Value) -> Result<LinkedGroup, Refusal> {
+    let id = source_group(row)?;
+    // This root denotes the ENTIRE authenticated expansion, including all
+    // functions, types, literals and non-regex code, not just the pattern list.
+    let mut roots = BTreeSet::from([format!("expanded::{}::{}",
+        text(row, "owner")?, text(row, "marker")?)]);
+    let mut inline = BTreeSet::new();
+    for program in array(row, "programs")? {
+        let program = text(program, "identity")?.to_owned();
+        if !roots.insert(format!("static::{program}")) || !inline.insert(program) {
+            return Err(Refusal::Coverage);
+        }
+    }
+    for readonly in array(row, "readonly")? {
+        if !roots.insert(text(readonly, "identity")?.to_owned()) {
+            return Err(Refusal::Coverage);
+        }
+    }
+    Ok(LinkedGroup { id, roots, inline,
+        source_sha256: text(row, "expansion_sha256")?.to_owned() })
+}
+
+fn linked_groups(graph: &Value, runtime: &runtime_sources::Witness) -> Result<Vec<LinkedGroup>, Refusal> {
+    let auxiliary = &graph["auxiliary"];
+    let mut roots = BTreeSet::new();
+    for root in array(auxiliary, "roots")? {
+        let ordinal = root["ordinal"].as_u64().ok_or(Refusal::Coverage)?;
+        if !roots.insert(format!("auxiliary::{ordinal}")) {
+            return Err(Refusal::Coverage);
+        }
+    }
+    if roots.is_empty() {
+        return Err(Refusal::Coverage);
+    }
+    let mut groups = vec![
+        LinkedGroup { id: "linked::captured-header".into(), roots, inline: BTreeSet::new(),
+            source_sha256: expanded::digest(&serde_json::to_vec(auxiliary)
+                .map_err(|_error| Refusal::Coverage)?) },
+        LinkedGroup { id: "linked::runtime-staging".into(),
+            source_sha256: runtime.staging_sha256.clone(),
+            roots: BTreeSet::from(["schema::staging::entire-owner".into()]),
+            inline: BTreeSet::from([runtime_sources::HOSTNAME.into()]) },
+        LinkedGroup { id: "linked::runtime-native".into(),
+            source_sha256: runtime.native_sha256.clone(),
+            roots: BTreeSet::from(["schema::native::entire-owner".into()]),
+            inline: BTreeSet::from([runtime_sources::COORDINATOR.into()]) },
+    ];
+    for row in array(graph, "declarations")? {
+        groups.push(declaration_group(row)?);
+    }
+    let mut assigned = BTreeSet::new();
+    let mut group_ids = BTreeSet::new();
+    for group in &groups {
+        if !group_ids.insert(&group.id) || group.roots.iter().any(|root| !assigned.insert(root)) {
+            return Err(Refusal::Coverage);
+        }
+    }
+    Ok(groups)
+}
+
+fn validation_assignments(programs: &[&str], graph: &Value) -> Result<Vec<ValidationAssignment>, Refusal> {
+    let mut rows = Vec::new();
+    for id in programs {
+        for role in ["cache", "mutable-scratch", "search-fallback"] {
+            let child = if *id == runtime_sources::HOSTNAME && role == "cache" {
+                format!("{id}::per-call-cache")
+            } else {
+                format!("{id}::validation::{role}")
+            };
+            rows.push(ValidationAssignment { child, source_owner: (*id).to_owned(), role: role.into() });
+        }
+    }
+    let mut formats = BTreeSet::new();
+    for row in array(graph, "declarations")? {
+        let owner = format!("{}::{}", text(row, "owner")?, text(row, "marker")?);
+        for role in ["declaration-stack", "declaration-work"] {
+            rows.push(ValidationAssignment { child: format!("{owner}::{role}"),
+                source_owner: owner.clone(), role: role.into() });
+        }
+        for callback in array(row, "callbacks")? {
+            formats.insert(callback.as_str().ok_or(Refusal::Coverage)?);
+        }
+    }
+    for format in formats {
+        if !matches!(format, "uuid" | "hostname") { return Err(Refusal::Coverage); }
+        let owner = format!("schema::staging::formats::{format}");
+        for role in ["callback-stack", "callback-work"] {
+            rows.push(ValidationAssignment { child: format!("{owner}::{role}"),
+                source_owner: owner.clone(), role: role.into() });
+        }
+    }
+    exact_assignments(&rows, &rows)?;
+    Ok(rows)
+}
+
+fn exact_assignments(expected: &[ValidationAssignment], actual: &[ValidationAssignment]) -> Result<(), Refusal> {
+    let unique = |rows: &[ValidationAssignment]| rows.iter().map(|row| row.child.as_str())
+        .collect::<BTreeSet<_>>().len() == rows.len();
+    if expected.is_empty() || !unique(expected) || !unique(actual)
+        || expected.iter().collect::<BTreeSet<_>>() != actual.iter().collect::<BTreeSet<_>>()
+    {
+        return Err(Refusal::Coverage);
+    }
+    Ok(())
+}
+
+pub(crate) fn describe(
+    seed: &CapturedSeed, accepted_graph: &Value, sources: Sources<'_>,
+) -> Result<ActualSourceDescriptor, Refusal> {
+    let graph = expanded::expand(seed).map_err(Refusal::Graph)?;
+    if graph != *accepted_graph {
+        return Err(Refusal::GraphMismatch);
+    }
+    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
+        .map_err(|_error| Refusal::Coverage)?;
+    let runtime = runtime_sources::capture(sources.workspace, &manifest)?;
+    let ordered = ordered_declarations(&graph)?;
+    let groups = linked_groups(&graph, &runtime)?;
+    let mut programs = vec![program(runtime_sources::HOSTNAME, &runtime.hostname,
+        "linked::runtime-staging", &runtime.config, &sources)?];
+    for row in ordered {
+        let group = source_group(row)?;
+        for (child, pattern) in row_programs(row)? {
+            programs.push(program(text(child, "identity")?, pattern, &group, &runtime.config, &sources)?);
+        }
+    }
+    let mut ids = BTreeSet::new();
+    if programs.iter().any(|row| !ids.insert(row.id.as_str())) {
+        return Err(Refusal::Coverage);
+    }
+    let program_ids = programs.iter().map(|program| program.id.as_str()).collect::<Vec<_>>();
+    let validation = validation_assignments(&program_ids, &graph)?;
+    let syntax_source = sources.syntax.to_str().ok_or(Refusal::RuntimeSource("syntax source UTF-8"))?;
+    let binding = json!({"identity":seed.identity_sha256,
+        "manifest_sha256":expanded::digest(&seed.manifest_bytes),
+        "expanded_graph_sha256":expanded::digest(&serde_json::to_vec(&graph)
+            .map_err(|_error| Refusal::Coverage)?),
+        "runtime":runtime.report(),"regex_features":sources.features,
+        "rust_release":sources.rust_release,"syntax_source":syntax_source,
+        "syntax_rank_source":{"path":"src/rank.rs",
+            "sha256":"ff3d58b0cc5ffa69e2e8c56fc7d9ef41dd399d59a639a253a51551b858cb5bbd",
+            "verified_by":"program_construction::SourceRecipe::from_source"},
+        "model_sources":{
+            "retained_program":expanded::digest(include_bytes!("../schema_program_heap/mod.rs")),
+            "constructor":expanded::digest(include_bytes!("program_construction.rs")),
+            "retained_composition":expanded::digest(include_bytes!("retained.rs")),
+            "initialization_composition":expanded::digest(include_bytes!("initialization.rs")),
+            "descriptor":expanded::digest(include_bytes!("descriptor.rs")),
+            "runtime_join":expanded::digest(include_bytes!("runtime_sources.rs"))}});
+    let recipe_identity = expanded::digest(&serde_json::to_vec(&binding)
+        .map_err(|_error| Refusal::Coverage)?);
+    runtime.recheck()?;
+    Ok(ActualSourceDescriptor { binding, recipe_identity, graph, selection: manifest["selection"].clone(),
+        runtime, programs, groups, validation })
+}
+
+impl ActualSourceDescriptor {
+    /// Stable data projection for the existing pure consumer; not a receipt.
+    pub(crate) fn projection(&self) -> Value {
+        let programs = self.programs.iter().map(|program| json!({
+            "identity":program.id,"retained_layout_fields":["metadata","arc_header",
+                "strategy_payload","nfa_facts","onepass_word","memchr_payload","pool"],
+            "nfa_fact_keys":crate::schema_nfa_heap::target::fact_keys(),
+            "constructor_layout_keys":program.constructor.required_facts(),
+            "inline_in_group":program.group})).collect::<Vec<_>>();
+        json!({"schema_version":1_u8,"kind":"schema_source_recipe_projection",
+            "source_recipe_identity":self.recipe_identity,
+            "common_status":"SourceComplete","target_status":"TargetIncomplete",
+            "required_slots":{"programs":programs,"linked_inline_groups":
+                self.groups.iter().map(|group| json!({"identity":group.id,
+                    "source_sha256":group.source_sha256,"inline_children":group.inline,
+                    "budget_owner":"CatalogOwner::Validators"})).collect::<Vec<_>>()},
+            "formulas":{"C":"retained::compose","I":"initialization::compose",
+                "linked_inline":"separate attribution, contains lazy cells; not added twice"},
+            "numeric_costs":Value::Null,"authenticated_qualification_receipt":false,
+            "physical_cost_conversion":"refused; requires existing #72-#75 acceptance",
+            "physical_fit":false,"serving_permission":false})
+    }
+
+    pub(crate) fn report(&self) -> Value {
+        let programs = self.programs.iter().map(|program| json!({
+            "identity":program.id,"pattern":program.pattern,"linked_inline_group":program.group,
+            "retained_formula":"schema_program_heap::SourceRecipe::evaluate",
+            "constructor_formula":"program_construction::SourceRecipe::evaluate",
+            "constructor_layout_keys":program.constructor.required_facts(),
+            "retained_layouts":["metadata","arc_header","strategy_payload","nfa_facts",
+                "onepass_word","memchr_payload","pool"],
+            "retained_children":["metadata","strategy_arc","directional_nfas",
+                "onepass_tables","automatic_prefilter","unused_pool"],
+            "static_inline":"already included in linked_inline_group; reconcile, never add twice",
+            "constructor_phases":program.constructor.phase_models().iter()
+                .map(|stage| format!("{stage:?}")).collect::<Vec<_>>(),
+            "source_work":program.constructor.work_models().iter()
+                .map(|work| format!("{work:?}")).collect::<Vec<_>>() })).collect::<Vec<_>>();
+        let groups = self.groups.iter().map(|group| json!({
+            "identity":group.id,"source_sha256":group.source_sha256,"roots":group.roots,
+            "inline_children":group.inline,"budget_owner":"CatalogOwner::Validators",
+            "units":"target-supplied disjoint linked/inline attribution bytes",
+            "scope":"entire attributed source roots, including code, functions, literals, readonly data and schema registry metadata"
+        })).collect::<Vec<_>>();
+        json!({"schema_version":1_u8,"status":"SourceComplete",
+            "kind":"actual_source_requested_storage_recipe","binding":self.binding,
+            "projection":self.projection(),
+            "membership":self.selection,"expanded_graph":self.graph,
+            "programs_in_initialization_order":programs,"linked_inline_groups":groups,
+            "validation_handoff":self.validation_handoff(),
+            "retained_formula":"retained::compose; exact disjoint program heaps",
+            "initialization_formula":"initialization::compose; serial phase scratch maxima with final C covering each live retained prefix",
+            "linked_inline_formula":"separate supplied group attribution; includes lazy cells and native coordinator",
+            "target_status":"TargetIncomplete","requested_storage":Value::Null,
+            "target_owner":"#72-#75: matched ABI, layouts, linked artifact and allocator reconciliation",
+            "catalog_boundary":"schema-specific registry metadata is in captured-header; generic catalog Metadata/Registry heaps retain their existing owners, not a new BTree proof",
+            "qualification":"Unqualified","resource_qualification":false,
+            "physical_fit":false,"serving_permission":false})
+    }
+
+    pub(crate) fn validation_handoff(&self) -> Value {
+        json!({"consumer":"#47","binding":self.binding,
+            "units":"source-identified obligations, not numeric V/work/stack bounds",
+            "lifetime":"validation-call; never C/I",
+            "children":self.validation.iter().map(|row| json!({"child":row.child,
+                "source_owner":row.source_owner,"role":row.role})).collect::<Vec<_>>()})
+    }
+
+    pub(crate) fn check_validation_handoff(&self, rows: &[ValidationAssignment]) -> Result<(), Refusal> {
+        exact_assignments(&self.validation, rows)
+    }
+
+    pub(crate) fn evaluate(&self, facts: &RequestedFacts<'_>) -> Result<RequestedStorage, Refusal> {
+        self.check_facts(facts)?;
+        self.runtime.recheck()?;
+        let mut heaps = Vec::new();
+        let mut constructors = Vec::new();
+        for program in &self.programs {
+            let root = facts.programs.get(&program.id).ok_or(Refusal::Coverage)?;
+            let heap = program.retained.evaluate(root)
+                .map_err(|error| match error {
+                    ProgramHeapError::Arithmetic => Refusal::Arithmetic,
+                    _ => Refusal::TargetLayout(program.id.clone()),
+                })?;
+            let layouts = facts.constructor_layouts.get(&program.id).ok_or(Refusal::Coverage)?;
+            let constructor = program.constructor.evaluate(layouts, root)
+                .map_err(|error| match error {
+                    program_construction::Refusal::Missing(key) =>
+                        Refusal::TargetIncomplete(vec![format!("constructor::{}::{key}", program.id)]),
+                    program_construction::Refusal::Layout => Refusal::TargetLayout(program.id.clone()),
+                    program_construction::Refusal::Arithmetic => Refusal::Arithmetic,
+                    error => Refusal::Construction(program.id.clone(), error),
+                })?;
+            if constructor.owner != program.id || constructor.retained != heap {
+                return Err(Refusal::Coverage);
+            }
+            heaps.push(heap);
+            constructors.push(constructor);
+        }
+        let linked_inline_attributed_bytes = self.reconcile_groups(facts, &heaps)?;
+        let totals = compose(&self.programs, &heaps, &constructors)?;
+        let constructor_source_visits = constructors.iter().try_fold(0_u64, |sum, row| {
+            let visits = row.complete_work().map_err(|error|
+                Refusal::Construction(row.owner.clone(), error))?;
+            sum.checked_add(as_u64(visits)?).ok_or(Refusal::Arithmetic)
+        })?;
+        self.runtime.recheck()?;
+        Ok(RequestedStorage { abi: facts.abi.to_owned(),
+            retained_requested_bytes: totals.retained,
+            construction_only_requested_bytes: totals.construction_only,
+            additive_requested_envelope: totals.additive_envelope,
+            linked_inline_attributed_bytes, trace_peaks: totals.trace_peaks,
+            constructor_source_visits })
+    }
+
+    fn check_facts(&self, facts: &RequestedFacts<'_>) -> Result<(), Refusal> {
+        if facts.binding != &self.binding || facts.abi.trim().is_empty() {
+            return Err(Refusal::TargetBinding);
+        }
+        let expected = self.programs.iter().map(|row| row.id.as_str()).collect::<BTreeSet<_>>();
+        let mut missing = Vec::new();
+        exact_keys(&expected, facts.programs.keys().map(String::as_str), "program", &mut missing)?;
+        exact_keys(&expected, facts.constructor_layouts.keys().map(String::as_str), "constructor", &mut missing)?;
+        let groups = self.groups.iter().map(|row| row.id.as_str()).collect::<BTreeSet<_>>();
+        exact_keys(&groups, facts.linked_inline.keys().map(String::as_str), "linked-inline", &mut missing)?;
+        for program in &self.programs {
+            if let Some(root) = facts.programs.get(&program.id) {
+                for key in crate::schema_nfa_heap::target::fact_keys() {
+                    if !root.nfa_facts.contains_key(key) {
+                        missing.push(format!("program::{}::nfa::{key}", program.id));
+                    }
+                }
+            }
+            if let Some(layouts) = facts.constructor_layouts.get(&program.id) {
+                for key in program.constructor.required_facts() {
+                    if !layouts.contains_key(key) {
+                        missing.push(format!("constructor::{}::{key}", program.id));
+                    }
+                }
+            }
+        }
+        for group in &self.groups {
+            if let Some(fact) = facts.linked_inline.get(&group.id) {
+                let expected = group.inline.iter().map(String::as_str).collect::<BTreeSet<_>>();
+                exact_keys(&expected, fact.inline_layouts.keys().map(String::as_str),
+                    &format!("inline::{}", group.id), &mut missing)?;
+            }
+        }
+        if !missing.is_empty() { return Err(Refusal::TargetIncomplete(missing)); }
+        Ok(())
+    }
+
+    fn reconcile_groups(&self, facts: &RequestedFacts<'_>, heaps: &[NativeProgramHeap]) -> Result<u64, Refusal> {
+        let mut total = 0_u64;
+        for group in &self.groups {
+            let fact = facts.linked_inline.get(&group.id).ok_or(Refusal::Coverage)?;
+            if fact.source_sha256 != group.source_sha256 || fact.budget_owner != CatalogOwner::Validators {
+                return Err(Refusal::TargetBinding);
+            }
+            let inline = fact.inline_layouts.keys().cloned().collect::<BTreeSet<_>>();
+            if inline != group.inline { return Err(Refusal::TargetLayout(group.id.clone())); }
+            let mut contained = 0_u64;
+            for (id, field) in &fact.inline_layouts {
+                field.validate().map_err(|_error| Refusal::TargetLayout(id.clone()))?;
+                contained = contained.checked_add(as_u64(field.bytes)?).ok_or(Refusal::Arithmetic)?;
+                if let Some(index) = self.programs.iter().position(|program| &program.id == id) {
+                    let root = facts.programs.get(id).ok_or(Refusal::Coverage)?;
+                    if self.programs[index].group != group.id || heaps[index].static_inline_bytes != field.bytes
+                        || root.metadata.static_inline != *field
+                    {
+                        return Err(Refusal::TargetLayout(id.clone()));
+                    }
+                } else if id != runtime_sources::COORDINATOR {
+                    return Err(Refusal::TargetLayout(id.clone()));
+                }
+            }
+            if contained > fact.attributed_bytes { return Err(Refusal::TargetLayout(group.id.clone())); }
+            total = total.checked_add(fact.attributed_bytes).ok_or(Refusal::Arithmetic)?;
+        }
+        Ok(total)
+    }
+}
+
+fn exact_keys<'a>(
+    expected: &BTreeSet<&str>, actual: impl Iterator<Item = &'a str>,
+    role: &str, missing: &mut Vec<String>,
+) -> Result<(), Refusal> {
+    let actual = actual.collect::<BTreeSet<_>>();
+    if !actual.is_subset(expected) { return Err(Refusal::TargetBinding); }
+    missing.extend(expected.difference(&actual).map(|id| format!("{role}::{id}")));
+    Ok(())
+}
+
+fn as_u64(value: usize) -> Result<u64, Refusal> {
+    u64::try_from(value).map_err(|_error| Refusal::Arithmetic)
+}
+
+fn compose(
+    programs: &[Program], heaps: &[NativeProgramHeap], constructors: &[program_construction::Certificate],
+) -> Result<initialization::Totals, Refusal> {
+    if programs.is_empty() || programs.len() != heaps.len() || programs.len() != constructors.len() {
+        return Err(Refusal::Coverage);
+    }
+    let ids = programs.iter().map(|row| row.id.as_str()).collect::<Vec<_>>();
+    let expected = ids.iter().map(|id| (*id, *id)).collect::<Vec<_>>();
+    let final_owners = ids.iter().zip(heaps).map(|(id, heap)| {
+        Ok(initialization::Allocation { owner: *id, bytes: as_u64(heap.total)? })
+    }).collect::<Result<Vec<_>, Refusal>>()?;
+    let charges = final_owners.iter().enumerate().map(|(index, row)| retained::Charge {
+        owner: row.owner, covered: &ids[index..index + 1_usize], bytes: row.bytes,
+    }).collect::<Vec<_>>();
+    let c = retained::compose(&expected, &charges, &[]).map_err(|_error| Refusal::Coverage)?;
+    let mut labels = Vec::new();
+    let mut scratch_ids = Vec::new();
+    let mut trace_rows = Vec::new();
+    for (index, (program, constructor)) in programs.iter().zip(constructors).enumerate() {
+        let expected = program.constructor.phase_models().iter().copied().collect::<BTreeSet<_>>();
+        if constructor.phase_scratch.keys().copied().collect::<BTreeSet<_>>() != expected
+            || constructor.phase_scratch.values().copied().max() != Some(constructor.construction_only_bytes)
+        {
+            return Err(Refusal::Coverage);
+        }
+        for (phase, scratch) in &constructor.phase_scratch {
+            labels.push(format!("{}::{phase:?}", program.id));
+            scratch_ids.push(format!("construction-only::{}::{phase:?}", program.id));
+            trace_rows.push((index, as_u64(*scratch)?));
+        }
+    }
+    let scratch = scratch_ids.iter().zip(&trace_rows).map(|(id, (_, bytes))| {
+        if *bytes == 0_u64 { Vec::new() } else {
+            vec![initialization::Allocation { owner: id, bytes: *bytes }]
+        }
+    }).collect::<Vec<_>>();
+    // Every phase, including failure cleanup, is bounded by this retained
+    // prefix's final capacity. Scratch is disjoint, never observed_peak - C.
+    let traces = trace_rows.iter().enumerate().map(|(trace, (program, _))| initialization::Trace {
+        label: &labels[trace], retained: &final_owners[..*program + 1_usize], scratch: &scratch[trace],
+    }).collect::<Vec<_>>();
+    let required = labels.iter().map(String::as_str).collect::<Vec<_>>();
+    let totals = initialization::compose(&final_owners, &required, &traces)
+        .map_err(|_error| Refusal::Coverage)?;
+    if totals.retained != c { return Err(Refusal::Coverage); }
+    Ok(totals)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn graph() -> Value {
+        json!({"declarations":[
+            {"owner":"fake_b","marker":"MarkerB","schema_state":[],"callbacks":[],"programs":[
+                {"identity":"fake_b::MarkerB::FIRST_REGEX","symbol":"FIRST_REGEX","pattern":"^[0-9]+$"}],
+                "initialization":["FIRST_REGEX"]},
+            {"owner":"fake_a","marker":"MarkerA","schema_state":[],"callbacks":["hostname","uuid"],"programs":[
+                {"identity":"fake_a::MarkerA::FIRST_REGEX","symbol":"FIRST_REGEX","pattern":"^[0-9]+$"},
+                {"identity":"fake_a::MarkerA::SECOND_REGEX","symbol":"SECOND_REGEX","pattern":"^y$"}],
+                "initialization":["SECOND_REGEX","FIRST_REGEX"]}],
+            "auxiliary":{"status":"Complete","roots":[
+                {"kind":"inline-retention-row","details":{"entry":"STAGED_VALIDATOR_1","marker":"MarkerB","owner":"fake_b"}},
+                {"kind":"inline-retention-row","details":{"entry":"STAGED_VALIDATOR_0","marker":"MarkerA","owner":"fake_a"}}],
+                "dispatch_edges":[
+                    {"from":"initialize_native","to":"MarkerA","role":"initialize-regexes","ownership":"callee-owned"},
+                    {"from":"initialize_native","to":"MarkerB","role":"initialize-regexes","ownership":"callee-owned"}]}})
+    }
+
+    #[test]
+    fn auxiliary_numeric_schedule_and_per_row_order_keep_equal_patterns_distinct() {
+        let graph = graph();
+        let rows = ordered_declarations(&graph).unwrap();
+        let ids = rows.into_iter().flat_map(|row| row_programs(row).unwrap())
+            .map(|(row, _)| text(row, "identity").unwrap()).collect::<Vec<_>>();
+        assert_eq!(ids, ["fake_a::MarkerA::SECOND_REGEX", "fake_a::MarkerA::FIRST_REGEX", "fake_b::MarkerB::FIRST_REGEX"]);
+    }
+
+    #[test]
+    fn every_missing_duplicate_or_extra_program_and_initializer_refuses() {
+        for initialization in [json!([]), json!(["FIRST_REGEX","FIRST_REGEX"]),
+            json!(["FIRST_REGEX","UNKNOWN_REGEX"])]
+        {
+            let mut graph = graph();
+            graph["declarations"][0]["initialization"] = initialization;
+            assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::Coverage));
+        }
+        for duplicate in [false, true] {
+            let mut graph = graph();
+            let programs = graph["declarations"][0]["programs"].as_array_mut().unwrap();
+            assert_eq!(programs.len(), 1_usize);
+            if duplicate { programs.push(programs[0].clone()); } else { programs.clear(); }
+            assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::Coverage));
+        }
+    }
+
+    #[test]
+    fn schedule_requires_exact_header_and_refuses_nonempty_state_instead_of_zero() {
+        for pointer in ["/auxiliary/roots", "/auxiliary/dispatch_edges"] {
+            for duplicate in [false, true] {
+                let mut graph = graph();
+                let rows = graph.pointer_mut(pointer).unwrap().as_array_mut().unwrap();
+                assert_eq!(rows.len(), 2_usize);
+                if duplicate { rows.push(rows[0].clone()); } else { rows.pop().unwrap(); }
+                assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::Coverage));
+            }
+        }
+        let mut graph = graph();
+        graph["declarations"][0]["schema_state"] = json!([{"kind":"lazy_json_array"}]);
+        assert_eq!(ordered_declarations(&graph).err(), Some(Refusal::UnsupportedState("fake_b".into())));
+    }
+
+    #[test]
+    fn validation_handoff_rejects_each_missing_duplicate_and_misowned_child() {
+        let expected = [
+            ValidationAssignment { child: "fake::cache".into(), source_owner: "fake".into(), role: "cache".into() },
+            ValidationAssignment { child: "hostname::per-call-cache".into(), source_owner: "hostname".into(), role: "cache".into() },
+            ValidationAssignment { child: "fake::scratch".into(), source_owner: "fake".into(), role: "mutable-scratch".into() },
+        ];
+        assert_eq!(exact_assignments(&expected, &expected), Ok(()));
+        for index in 0_usize..expected.len() {
+            let mut missing = expected.to_vec();
+            missing.remove(index);
+            assert_eq!(exact_assignments(&expected, &missing), Err(Refusal::Coverage));
+            let mut duplicate = expected.to_vec();
+            duplicate.push(expected[index].clone());
+            assert_eq!(exact_assignments(&expected, &duplicate), Err(Refusal::Coverage));
+            let mut wrong = expected.to_vec();
+            wrong[index].source_owner = "other".into();
+            assert_eq!(exact_assignments(&expected, &wrong), Err(Refusal::Coverage));
+        }
+    }
+
+    #[test]
+    fn validation_handoff_assigns_actual_program_declaration_and_format_children_once() {
+        let graph = graph();
+        let ids = [runtime_sources::HOSTNAME, "fake_a::MarkerA::FIRST_REGEX"];
+        let assignments = validation_assignments(&ids, &graph).unwrap();
+        let expected = [
+            "schema::staging::formats::HOSTNAME_PATTERN::per-call-cache",
+            "schema::staging::formats::HOSTNAME_PATTERN::validation::mutable-scratch",
+            "schema::staging::formats::HOSTNAME_PATTERN::validation::search-fallback",
+            "fake_a::MarkerA::FIRST_REGEX::validation::cache",
+            "fake_a::MarkerA::FIRST_REGEX::validation::mutable-scratch",
+            "fake_a::MarkerA::FIRST_REGEX::validation::search-fallback",
+            "fake_b::MarkerB::declaration-stack", "fake_b::MarkerB::declaration-work",
+            "fake_a::MarkerA::declaration-stack", "fake_a::MarkerA::declaration-work",
+            "schema::staging::formats::hostname::callback-stack",
+            "schema::staging::formats::hostname::callback-work",
+            "schema::staging::formats::uuid::callback-stack",
+            "schema::staging::formats::uuid::callback-work",
+        ];
+        assert_eq!(assignments.iter().map(|row| row.child.as_str()).collect::<Vec<_>>(), expected);
+        for index in 0_usize..assignments.len() {
+            let mut missing = assignments.clone();
+            missing.remove(index);
+            assert_eq!(exact_assignments(&assignments, &missing), Err(Refusal::Coverage));
+            let mut duplicate = assignments.clone();
+            duplicate.push(assignments[index].clone());
+            assert_eq!(exact_assignments(&assignments, &duplicate), Err(Refusal::Coverage));
+        }
+    }
+
+    #[test]
+    fn missing_target_rows_are_target_incomplete_and_extras_cannot_substitute() {
+        let expected = BTreeSet::from(["fake_a", "fake_b"]);
+        let mut missing = Vec::new();
+        exact_keys(&expected, ["fake_b"].into_iter(), "program", &mut missing).unwrap();
+        assert_eq!(missing, ["program::fake_a"]);
+        assert_eq!(exact_keys(&expected, ["fake_b","other"].into_iter(), "program", &mut missing),
+            Err(Refusal::TargetBinding));
+    }
+}

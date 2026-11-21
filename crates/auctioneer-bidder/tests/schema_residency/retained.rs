@@ -2,20 +2,20 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-struct Charge<'a> {
-    owner: &'a str,
-    covered: &'a [&'a str],
-    bytes: u64,
+pub(super) struct Charge<'a> {
+    pub(super) owner: &'a str,
+    pub(super) covered: &'a [&'a str],
+    pub(super) bytes: u64,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(super) enum Refusal {
     Coverage,
     Sharing,
     Arithmetic,
 }
 
-fn compose(
+pub(super) fn compose(
     expected: &[(&str, &str)],
     charges: &[Charge<'_>],
     aliases: &[(&str, &str)],

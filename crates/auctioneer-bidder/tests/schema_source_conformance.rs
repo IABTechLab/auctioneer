@@ -652,7 +652,19 @@ mod tests {
 
     fn assert_actual_application_artifacts(adapter: Adapter, package: &str) {
         use super::schema_build::application::inspect;
+        use super::schema_build::{self, ResolvedRegexDependencies, schema_regex_vendor};
         use super::schema_selection_source::{Lane, selected_cohort};
+
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        let source = schema_regex_vendor::verify(&workspace).unwrap();
+        let dependencies: ResolvedRegexDependencies =
+            schema_build::resolved_regex_dependencies(&source).unwrap();
+        let features = dependencies.engine_features.iter().cloned().collect::<BTreeSet<_>>();
+        let release_line = repository_rust_release();
+        let release = release_line.strip_prefix("release: ").unwrap();
 
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
@@ -662,7 +674,73 @@ mod tests {
                 &cohort.schemas,
                 &cohort.manifest,
                 development,
-                super::schema_residency::expanded::expand,
+                |seed| {
+                    use super::schema_residency::{descriptor, expanded};
+
+                    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
+                        .map_err(|error| error.to_string())?;
+                    let compiler = manifest["build"]["compiler_verbose"]
+                        .as_str()
+                        .ok_or("missing captured compiler")?;
+                    if compiler.lines().filter(|line| line.starts_with("release: "))
+                        .collect::<Vec<_>>() != [release_line.as_str()]
+                    {
+                        return Err("captured compiler differs from repository pin".into());
+                    }
+                    let mut graph = expanded::expand(seed)?;
+                    let sources = || descriptor::Sources {
+                        workspace: &workspace,
+                        syntax: &dependencies.syntax_root,
+                        rust_release: release,
+                        features: &features,
+                    };
+                    let recipe = descriptor::describe(seed, &graph, sources())
+                        .map_err(|error| format!("actual source descriptor refused: {error:?}"))?;
+                    let report = recipe.report();
+                    let empty_programs = BTreeMap::new();
+                    let empty_layouts = BTreeMap::new();
+                    let empty_groups = BTreeMap::new();
+                    let missing = recipe.evaluate(&descriptor::RequestedFacts {
+                        binding: &report["binding"],
+                        abi: "uninstantiated-actual-application",
+                        programs: &empty_programs,
+                        constructor_layouts: &empty_layouts,
+                        linked_inline: &empty_groups,
+                    });
+                    assert!(matches!(missing,
+                        Err(descriptor::Refusal::TargetIncomplete(ref rows)) if !rows.is_empty()));
+                    let assignments = report["validation_handoff"]["children"]
+                        .as_array()
+                        .ok_or("missing actual validation handoff")?
+                        .iter()
+                        .map(|row| {
+                            Ok(descriptor::ValidationAssignment {
+                                child: row["child"].as_str().ok_or("missing child")?.to_owned(),
+                                source_owner: row["source_owner"].as_str()
+                                    .ok_or("missing source owner")?.to_owned(),
+                                role: row["role"].as_str().ok_or("missing role")?.to_owned(),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    assert!(!assignments.is_empty());
+                    assert_eq!(recipe.check_validation_handoff(&assignments), Ok(()));
+                    for index in 0..assignments.len() {
+                        let mut missing = assignments.clone();
+                        missing.remove(index);
+                        assert_eq!(recipe.check_validation_handoff(&missing),
+                            Err(descriptor::Refusal::Coverage));
+                        let mut duplicate = assignments.clone();
+                        duplicate.push(assignments[index].clone());
+                        assert_eq!(recipe.check_validation_handoff(&duplicate),
+                            Err(descriptor::Refusal::Coverage));
+                    }
+                    let mut substituted = graph.clone();
+                    substituted["declarations"][0]["owner"] = json!("fake_substituted_owner");
+                    assert!(matches!(descriptor::describe(seed, &substituted, sources()),
+                        Err(descriptor::Refusal::GraphMismatch)));
+                    graph["source_descriptor"] = report;
+                    Ok(graph)
+                },
             )
             .expect("actual linked application schema membership");
             assert_eq!(
@@ -674,6 +752,23 @@ mod tests {
                 report["applications"][0]["manifest"]["emitted_rust_sha256"]
             );
             let graph = &report["expanded_schema_graph"];
+            let descriptor = &graph["source_descriptor"];
+            assert_eq!(descriptor["status"], "SourceComplete");
+            assert_eq!(descriptor["target_status"], "TargetIncomplete");
+            assert_eq!(descriptor["requested_storage"], Value::Null);
+            assert_eq!(descriptor["resource_qualification"], false);
+            assert_eq!(descriptor["physical_fit"], false);
+            assert_eq!(descriptor["serving_permission"], false);
+            let projection = &descriptor["projection"];
+            assert_eq!(projection["schema_version"], 1);
+            assert_eq!(projection["common_status"], "SourceComplete");
+            assert_eq!(projection["target_status"], "TargetIncomplete");
+            assert_eq!(projection["numeric_costs"], Value::Null);
+            assert_eq!(projection["authenticated_qualification_receipt"], false);
+            assert_eq!(projection["physical_fit"], false);
+            assert_eq!(projection["serving_permission"], false);
+            let programs = descriptor["programs_in_initialization_order"].as_array().unwrap();
+            assert_eq!(programs[0]["identity"], "schema::staging::formats::HOSTNAME_PATTERN");
             let declarations = graph["declarations"].as_array().unwrap();
             assert!(!declarations.is_empty());
             assert_eq!(graph["auxiliary"]["status"], "Complete");

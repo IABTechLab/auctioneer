@@ -171,7 +171,7 @@ impl SyntaxConstructionCertificate {
     }
 }
 
-fn verify_source(source: &Path) -> Result<(), ConstructionError> {
+pub(crate) fn verify_source(source: &Path) -> Result<(), ConstructionError> {
     let canonical = fs::canonicalize(source)
         .map_err(|_error| ConstructionError::Source("missing regex-syntax source"))?;
     if canonical != source

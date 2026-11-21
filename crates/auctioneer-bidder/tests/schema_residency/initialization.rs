@@ -3,34 +3,34 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy)]
-struct Allocation<'a> {
-    owner: &'a str,
-    bytes: u64,
+pub(super) struct Allocation<'a> {
+    pub(super) owner: &'a str,
+    pub(super) bytes: u64,
 }
 
-struct Trace<'a> {
-    label: &'a str,
-    retained: &'a [Allocation<'a>],
-    scratch: &'a [Allocation<'a>],
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct Totals {
-    retained: u64,
-    construction_only: u64,
-    additive_envelope: u64,
-    trace_peaks: Vec<u64>,
+pub(super) struct Trace<'a> {
+    pub(super) label: &'a str,
+    pub(super) retained: &'a [Allocation<'a>],
+    pub(super) scratch: &'a [Allocation<'a>],
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(super) struct Totals {
+    pub(super) retained: u64,
+    pub(super) construction_only: u64,
+    pub(super) additive_envelope: u64,
+    pub(super) trace_peaks: Vec<u64>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(super) enum Refusal {
     Owners,
     Traces,
     RetainedCoverage,
     Arithmetic,
 }
 
-fn compose(
+pub(super) fn compose(
     final_owners: &[Allocation<'_>],
     required_traces: &[&str],
     traces: &[Trace<'_>],
