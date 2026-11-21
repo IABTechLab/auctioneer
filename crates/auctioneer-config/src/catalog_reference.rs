@@ -5,8 +5,8 @@
 //! freeze current measurement sources, dependencies, lock, options and ABI.
 //! This module never builds, expands, executes or activates source code.
 
-use serde::Serialize;
 use crate::schema_staging_build::MAX_INPUT_BYTES;
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Command;
@@ -197,13 +197,15 @@ fn read_pinned(
     if files == 0 || bytes == 0 {
         return Err(Error::Witness);
     }
-    let deadline = Instant::now().checked_add(OPERATION_TIMEOUT).ok_or(Error::Limit)?;
+    let deadline = Instant::now()
+        .checked_add(OPERATION_TIMEOUT)
+        .ok_or(Error::Limit)?;
     let prefix = run(root, &["rev-parse", "--show-prefix"], None, deadline)?;
     let top = run(root, &["rev-parse", "--show-toplevel"], None, deadline)?;
-    if !prefix.status.success() || prefix.stdout != b"\n"
+    if !prefix.status.success()
+        || prefix.stdout != b"\n"
         || !top.status.success()
-        || text_line(&top.stdout).map_err(|_| Error::Root)?
-            != root.to_str().ok_or(Error::Root)?
+        || text_line(&top.stdout).map_err(|_error| Error::Root)? != root.to_str().ok_or(Error::Root)?
     {
         return Err(Error::Root);
     }
@@ -223,7 +225,9 @@ fn read_pinned(
     }
     let listing = parse_listing(&output.stdout)?;
     if listing.files.len() != files
-        || FIXED_INPUTS.iter().any(|path| !listing.files.contains_key(*path))
+        || FIXED_INPUTS
+            .iter()
+            .any(|path| !listing.files.contains_key(*path))
         || listing.files.values().try_fold(0_u64, |sum, entry| {
             sum.checked_add(entry.bytes).ok_or(Error::Witness)
         })? != bytes
@@ -239,7 +243,7 @@ fn read_pinned(
     let mut captured = BTreeMap::new();
     for (path, entry) in listing.files {
         let contents = object(root, "blob", &entry.blob, deadline)?;
-        if u64::try_from(contents.len()).map_err(|_| Error::Limit)? != entry.bytes {
+        if u64::try_from(contents.len()).map_err(|_error| Error::Limit)? != entry.bytes {
             return Err(Error::Witness);
         }
         let witness = Witness {
@@ -253,26 +257,40 @@ fn read_pinned(
     }
     reject_partial(root, deadline)?;
     check_head(root, commit, deadline)?;
-    Ok(SourceSnapshot { commit: commit.to_owned(), tree: tree.to_owned(), files: captured })
+    Ok(SourceSnapshot {
+        commit: commit.to_owned(),
+        tree: tree.to_owned(),
+        files: captured,
+    })
 }
 
 fn valid_oid(value: &str) -> bool {
     value.len() == 40
-        && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn normal_relative(value: &str) -> bool {
     !value.is_empty()
         && !value.contains('\\')
         && !value.chars().any(char::is_control)
-        && value.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
-        && Path::new(value).components().all(|part| matches!(part, Component::Normal(_)))
+        && value
+            .split('/')
+            .all(|part| !part.is_empty() && part != "." && part != "..")
+        && Path::new(value)
+            .components()
+            .all(|part| matches!(part, Component::Normal(_)))
 }
 
 fn normal_absolute(path: &Path) -> bool {
     path.is_absolute()
-        && path.to_str().is_some_and(|text| !text.chars().any(char::is_control))
-        && path.components().all(|part| matches!(part, Component::RootDir | Component::Normal(_)))
+        && path
+            .to_str()
+            .is_some_and(|text| !text.chars().any(char::is_control))
+        && path
+            .components()
+            .all(|part| matches!(part, Component::RootDir | Component::Normal(_)))
         && path.components().collect::<PathBuf>().as_os_str() == path.as_os_str()
 }
 
@@ -283,7 +301,7 @@ fn regular_directory(path: &Path) -> Result<(), Error> {
     let mut prefix = PathBuf::new();
     for part in path.components() {
         prefix.push(part);
-        let metadata = fs::symlink_metadata(&prefix).map_err(|_| Error::Root)?;
+        let metadata = fs::symlink_metadata(&prefix).map_err(|_error| Error::Root)?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(Error::Root);
         }
@@ -292,7 +310,7 @@ fn regular_directory(path: &Path) -> Result<(), Error> {
 }
 
 fn text_line(bytes: &[u8]) -> Result<&str, Error> {
-    let text = from_utf8(bytes).map_err(|_| Error::Witness)?;
+    let text = from_utf8(bytes).map_err(|_error| Error::Witness)?;
     let line = text.strip_suffix('\n').ok_or(Error::Witness)?;
     if line.is_empty() || line.chars().any(char::is_control) {
         return Err(Error::Witness);
@@ -309,9 +327,14 @@ fn oid_line(bytes: &[u8]) -> Result<&str, Error> {
 }
 
 fn check_head(root: &Path, expected: &str, deadline: Instant) -> Result<(), Error> {
-    let output = run(root, &["rev-parse", "--verify", "HEAD^{commit}"], None, deadline)?;
+    let output = run(
+        root,
+        &["rev-parse", "--verify", "HEAD^{commit}"],
+        None,
+        deadline,
+    )?;
     if !output.status.success()
-        || oid_line(&output.stdout).map_err(|_| Error::Identity)? != expected
+        || oid_line(&output.stdout).map_err(|_error| Error::Identity)? != expected
     {
         return Err(Error::Identity);
     }
@@ -319,22 +342,36 @@ fn check_head(root: &Path, expected: &str, deadline: Instant) -> Result<(), Erro
 }
 
 fn reject_partial(root: &Path, deadline: Instant) -> Result<(), Error> {
-    let config = run(root, &[
-        "config", "--get-regexp",
-        "^(extensions\\.partialclone|remote\\..*\\.(promisor|partialclonefilter))$",
-    ], None, deadline)?;
+    let config = run(
+        root,
+        &[
+            "config",
+            "--get-regexp",
+            "^(extensions\\.partialclone|remote\\..*\\.(promisor|partialclonefilter))$",
+        ],
+        None,
+        deadline,
+    )?;
     match config.status.code() {
-        Some(0) => return Err(Error::Partial),
-        Some(1) if config.stdout.is_empty() => {}
+        Some(0_i32) => return Err(Error::Partial),
+        Some(1_i32) if config.stdout.is_empty() => {}
         _ => return Err(Error::Git),
     }
-    let output = run(root, &[
-        "rev-parse", "--path-format=absolute", "--git-path", "objects",
-    ], None, deadline)?;
+    let output = run(
+        root,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "objects",
+        ],
+        None,
+        deadline,
+    )?;
     if !output.status.success() {
         return Err(Error::Root);
     }
-    let objects = PathBuf::from(text_line(&output.stdout).map_err(|_| Error::Root)?);
+    let objects = PathBuf::from(text_line(&output.stdout).map_err(|_error| Error::Root)?);
     regular_directory(&objects)?;
     for name in ["info", "pack"] {
         let directory = objects.join(name);
@@ -356,8 +393,11 @@ fn reject_partial(root: &Path, deadline: Instant) -> Result<(), Error> {
                 Err(_) => return Err(Error::Root),
             }
         } else {
-            for entry in fs::read_dir(directory).map_err(|_| Error::Root)? {
-                if entry.map_err(|_| Error::Root)?.path().extension()
+            for entry in fs::read_dir(directory).map_err(|_error| Error::Root)? {
+                if entry
+                    .map_err(|_error| Error::Root)?
+                    .path()
+                    .extension()
                     .is_some_and(|suffix| suffix == "promisor")
                 {
                     return Err(Error::Partial);
@@ -372,26 +412,35 @@ fn included(path: &str) -> bool {
     if FIXED_INPUTS.contains(&path) || path.starts_with("crates/auctioneer-bidder/src/bidders/") {
         return true;
     }
-    ["vendor/jsonschema-macros-core/", "vendor/regex-automata/"].iter().any(|prefix| {
-        path.strip_prefix(prefix).is_some_and(|relative| {
-            relative.ends_with(".rs") || Path::new(relative).file_name()
-                .is_some_and(|name| name == "Cargo.toml")
+    ["vendor/jsonschema-macros-core/", "vendor/regex-automata/"]
+        .iter()
+        .any(|prefix| {
+            path.strip_prefix(prefix).is_some_and(|relative| {
+                Path::new(relative)
+                    .extension()
+                    .is_some_and(|suffix| suffix == "rs")
+                    || Path::new(relative)
+                        .file_name()
+                        .is_some_and(|name| name == "Cargo.toml")
+            })
         })
-    })
 }
 
 fn parse_listing(bytes: &[u8]) -> Result<Listing, Error> {
     if bytes.is_empty() || !bytes.ends_with(&[0]) {
         return Err(Error::Witness);
     }
-    let mut listing = Listing { files: BTreeMap::new(), trees: BTreeSet::new() };
+    let mut listing = Listing {
+        files: BTreeMap::new(),
+        trees: BTreeSet::new(),
+    };
     let mut paths = BTreeSet::new();
     let body = bytes.strip_suffix(&[0]).ok_or(Error::Witness)?;
-    for record in body.split(|byte| *byte == 0) {
-        if record.is_empty() {
+    for encoded in body.split(|byte| *byte == 0) {
+        if encoded.is_empty() {
             return Err(Error::Witness);
         }
-        let record = from_utf8(record).map_err(|_| Error::Path)?;
+        let record = from_utf8(encoded).map_err(|_error| Error::Path)?;
         let (header, path) = record.split_once('\t').ok_or(Error::Witness)?;
         if !normal_relative(path) {
             return Err(Error::Path);
@@ -417,13 +466,19 @@ fn parse_listing(bytes: &[u8]) -> Result<Listing, Error> {
         if !included(path) {
             continue;
         }
-        let length = size.parse::<u64>().map_err(|_| Error::MissingObject)?;
+        let length = size.parse::<u64>().map_err(|_error| Error::MissingObject)?;
         if length > MAX_INPUT_BYTES {
             return Err(Error::Limit);
         }
-        listing.files.insert(path.to_owned(), Entry {
-            path: path.to_owned(), mode: mode.to_owned(), blob: oid.to_owned(), bytes: length,
-        });
+        listing.files.insert(
+            path.to_owned(),
+            Entry {
+                path: path.to_owned(),
+                mode: mode.to_owned(),
+                blob: oid.to_owned(),
+                bytes: length,
+            },
+        );
     }
     if listing.files.is_empty() {
         return Err(Error::Witness);
@@ -438,8 +493,12 @@ fn object(root: &Path, kind: &str, oid: &str, deadline: Instant) -> Result<Vec<u
     }
     // Without -w, hash-object only hashes supplied bytes. No working-tree
     // filters, path-based conversion, object writes or historical code run.
-    let hash = run(root, &["hash-object", "-t", kind, "--stdin", "--no-filters"],
-        Some(&output.stdout), deadline)?;
+    let hash = run(
+        root,
+        &["hash-object", "-t", kind, "--stdin", "--no-filters"],
+        Some(&output.stdout),
+        deadline,
+    )?;
     if !hash.status.success() {
         return Err(Error::Git);
     }
@@ -453,21 +512,35 @@ fn git_command(root: &Path) -> Command {
     // Native CI has the system Git here. A fixed executable avoids consulting
     // PATH or any other caller environment as an executable/configuration input.
     let mut command = Command::new("/usr/bin/git");
-    command.env_clear().current_dir(root).args([
-        "--no-replace-objects", "--no-optional-locks", "--literal-pathspecs", "--no-pager",
-        "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
-        "-c", "protocol.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false",
-    ])
-    .env("GIT_CONFIG_NOSYSTEM", "1")
-    .env("GIT_CONFIG_GLOBAL", "/dev/null")
-    .env("GIT_CONFIG_SYSTEM", "/dev/null")
-    .env("GIT_NO_LAZY_FETCH", "1")
-    .env("GIT_ALLOW_PROTOCOL", "")
-    .env("GIT_TERMINAL_PROMPT", "0")
-    .env("LC_ALL", "C")
-    .stdin(Stdio::null())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::null());
+    command
+        .env_clear()
+        .current_dir(root)
+        .args([
+            "--no-replace-objects",
+            "--no-optional-locks",
+            "--literal-pathspecs",
+            "--no-pager",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "protocol.allow=never",
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
+        ])
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        .env("GIT_NO_LAZY_FETCH", "1")
+        .env("GIT_ALLOW_PROTOCOL", "")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
     command
 }
 
@@ -479,9 +552,11 @@ struct GitOutput {
 fn bounded(mut pipe: impl io::Read) -> Result<Vec<u8>, Error> {
     let cap = MAX_INPUT_BYTES;
     let mut bytes = Vec::new();
-    pipe.by_ref().take(cap.checked_add(1).ok_or(Error::Limit)?)
-        .read_to_end(&mut bytes).map_err(|_| Error::Git)?;
-    if u64::try_from(bytes.len()).map_err(|_| Error::Limit)? > cap {
+    pipe.by_ref()
+        .take(cap.checked_add(1).ok_or(Error::Limit)?)
+        .read_to_end(&mut bytes)
+        .map_err(|_error| Error::Git)?;
+    if u64::try_from(bytes.len()).map_err(|_error| Error::Limit)? > cap {
         return Err(Error::Limit);
     }
     Ok(bytes)
@@ -497,14 +572,16 @@ fn run(
     if now >= operation_deadline {
         return Err(Error::Limit);
     }
-    let deadline = now.checked_add(COMMAND_TIMEOUT).ok_or(Error::Limit)?
+    let deadline = now
+        .checked_add(COMMAND_TIMEOUT)
+        .ok_or(Error::Limit)?
         .min(operation_deadline);
     let mut command = git_command(root);
     command.args(arguments);
     if input.is_some() {
         command.stdin(Stdio::piped());
     }
-    let mut child = command.spawn().map_err(|_| Error::Git)?;
+    let mut child = command.spawn().map_err(|_error| Error::Git)?;
     let Some(stdout) = child.stdout.take() else {
         let _killed = child.kill();
         let _reaped = child.wait();
@@ -517,7 +594,7 @@ fn run(
             let _sent = send.send(bounded(stdout));
         });
         let writer = scope.spawn(move || match (input, stdin) {
-            (Some(bytes), Some(mut pipe)) => pipe.write_all(bytes).map_err(|_| Error::Git),
+            (Some(bytes), Some(mut pipe)) => pipe.write_all(bytes).map_err(|_error| Error::Git),
             (None, None) => Ok(()),
             _ => Err(Error::Git),
         });
@@ -534,7 +611,8 @@ fn run(
             match child.try_wait() {
                 Ok(Some(status)) if captured.is_some() => {
                     break Ok(GitOutput {
-                        status, stdout: captured.take().ok_or(Error::Git)?,
+                        status,
+                        stdout: captured.take().ok_or(Error::Git)?,
                     });
                 }
                 Ok(_) => {}
@@ -549,8 +627,8 @@ fn run(
             let _killed = child.kill();
             let _reaped = child.wait();
         }
-        let written = writer.join().map_err(|_| Error::Git)?;
-        reader.join().map_err(|_| Error::Git)?;
+        let written = writer.join().map_err(|_error| Error::Git)?;
+        reader.join().map_err(|_error| Error::Git)?;
         match result {
             Ok(output) => {
                 if output.status.success() {
@@ -576,9 +654,10 @@ fn materialize(snapshot: &SourceSnapshot, destination: &Path) -> Result<(), Erro
         if !matches!(witness.mode.as_str(), "100644" | "100755") {
             return Err(Error::Mode);
         }
-        if witness.path != *path || !valid_oid(&witness.blob)
+        if witness.path != *path
+            || !valid_oid(&witness.blob)
             || witness.bytes > MAX_INPUT_BYTES
-            || u64::try_from(file.contents.len()).map_err(|_| Error::Limit)? != witness.bytes
+            || u64::try_from(file.contents.len()).map_err(|_error| Error::Limit)? != witness.bytes
             || hex::encode(Sha256::digest(&file.contents)) != witness.sha256
         {
             return Err(Error::Witness);
@@ -588,20 +667,20 @@ fn materialize(snapshot: &SourceSnapshot, destination: &Path) -> Result<(), Erro
         return Err(Error::Destination);
     }
     let parent = destination.parent().ok_or(Error::Destination)?;
-    regular_directory(parent).map_err(|_| Error::Destination)?;
-    private_directory(destination).map_err(|_| Error::Destination)?;
+    regular_directory(parent).map_err(|_error| Error::Destination)?;
+    private_directory(destination).map_err(|_error| Error::Destination)?;
     for (path, file) in &snapshot.files {
         let relative = Path::new(path);
         let mut directory = destination.to_path_buf();
-        if let Some(parent) = relative.parent() {
-            for part in parent.components() {
+        if let Some(relative_parent) = relative.parent() {
+            for part in relative_parent.components() {
                 directory.push(part);
                 match private_directory(&directory) {
                     Ok(()) => {}
-                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
                     Err(_) => return Err(Error::Destination),
                 }
-                regular_directory(&directory).map_err(|_| Error::Destination)?;
+                regular_directory(&directory).map_err(|_error| Error::Destination)?;
             }
         }
         let target = destination.join(relative);
@@ -610,12 +689,15 @@ fn materialize(snapshot: &SourceSnapshot, destination: &Path) -> Result<(), Erro
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt as _;
-            options.mode(0o600);
-        }
-        let mut output = options.open(&target).map_err(|_| Error::Destination)?;
-        output.write_all(&file.contents).map_err(|_| Error::Destination)?;
-        let metadata = fs::symlink_metadata(&target).map_err(|_| Error::Destination)?;
-        if metadata.file_type().is_symlink() || !metadata.is_file()
+            options.mode(0o600)
+        };
+        let mut output = options.open(&target).map_err(|_error| Error::Destination)?;
+        output
+            .write_all(&file.contents)
+            .map_err(|_error| Error::Destination)?;
+        let metadata = fs::symlink_metadata(&target).map_err(|_error| Error::Destination)?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
             || metadata.len() != file.witness.bytes
         {
             return Err(Error::Destination);
@@ -629,8 +711,8 @@ fn private_directory(path: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt as _;
-        builder.mode(0o700);
-    }
+        builder.mode(0o700)
+    };
     builder.create(path)
 }
 
@@ -676,10 +758,20 @@ mod tests {
             .env_clear()
             .current_dir(root)
             .args([
-                "--no-replace-objects", "--no-optional-locks", "--literal-pathspecs",
-                "--no-pager", "-c", "core.fsmonitor=false", "-c",
-                "core.hooksPath=/dev/null", "-c", "protocol.allow=never",
-                "-c", "gc.auto=0", "-c", "maintenance.auto=false",
+                "--no-replace-objects",
+                "--no-optional-locks",
+                "--literal-pathspecs",
+                "--no-pager",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "protocol.allow=never",
+                "-c",
+                "gc.auto=0",
+                "-c",
+                "maintenance.auto=false",
             ])
             .args(args)
             .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -695,24 +787,41 @@ mod tests {
             .env("GIT_AUTHOR_DATE", "2000-01-01T00:00:00Z")
             .env("GIT_COMMITTER_DATE", "2000-01-01T00:00:00Z")
             .env("LC_ALL", "C")
-            .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = command.spawn().expect("fixture Git is installed in CI");
         if let Some(bytes) = input {
-            child.stdin.take().expect("fixture stdin")
-                .write_all(bytes).expect("fixture input");
+            child
+                .stdin
+                .take()
+                .expect("fixture stdin")
+                .write_all(bytes)
+                .expect("fixture input");
         }
         let output = child.wait_with_output().expect("fixture command completes");
-        assert!(output.status.success(), "fixture Git failed: {}",
-            String::from_utf8_lossy(&output.stderr));
-        assert!(output.stdout.len() <= 4096, "fixture output is bounded metadata");
+        assert!(
+            output.status.success(),
+            "fixture Git failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.stdout.len() <= 4096,
+            "fixture output is bounded metadata"
+        );
         output.stdout
     }
 
     fn line(bytes: Vec<u8>) -> String {
-        String::from_utf8(bytes).expect("fixture metadata UTF-8")
-            .strip_suffix('\n').expect("fixture metadata newline").to_owned()
+        String::from_utf8(bytes)
+            .expect("fixture metadata UTF-8")
+            .strip_suffix('\n')
+            .expect("fixture metadata newline")
+            .to_owned()
     }
 
     struct Fixture {
@@ -729,8 +838,11 @@ mod tests {
             let root = directory.path().canonicalize().expect("real fixture root");
             git(&root, &["init", "--quiet", "--object-format=sha1"], None);
             let mut fixture = Self {
-                _directory: directory, root, files: BTreeMap::new(),
-                commit: String::new(), tree: String::new(),
+                _directory: directory,
+                root,
+                files: BTreeMap::new(),
+                commit: String::new(),
+                tree: String::new(),
             };
             for path in FILES {
                 let bytes = if path == "Cargo.lock" {
@@ -754,13 +866,19 @@ mod tests {
         }
 
         fn commit_index(&mut self) {
-            git(&self.root, &["commit", "--quiet", "--no-gpg-sign", "-m", "fixture"], None);
+            git(
+                &self.root,
+                &["commit", "--quiet", "--no-gpg-sign", "-m", "fixture"],
+                None,
+            );
             self.commit = line(git(&self.root, &["rev-parse", "HEAD"], None));
             self.tree = line(git(&self.root, &["rev-parse", "HEAD^{tree}"], None));
         }
 
         fn bytes(&self) -> u64 {
-            self.files.values().map(|bytes| u64::try_from(bytes.len()).expect("fixture length"))
+            self.files
+                .values()
+                .map(|bytes| u64::try_from(bytes.len()).expect("fixture length"))
                 .sum()
         }
 
@@ -769,18 +887,28 @@ mod tests {
         }
 
         fn blob(&self, path: &str) -> String {
-            line(git(&self.root, &["rev-parse", &format!("HEAD:{path}")], None))
+            line(git(
+                &self.root,
+                &["rev-parse", &format!("HEAD:{path}")],
+                None,
+            ))
         }
 
         fn object(&self, oid: &str) -> PathBuf {
             let (directory, filename) = oid.split_at(2);
-            self.root.join(".git/objects").join(directory).join(filename)
+            self.root
+                .join(".git/objects")
+                .join(directory)
+                .join(filename)
         }
 
         fn corrupt_blob(&self, replacement: &[u8]) {
             let original = self.blob("Cargo.lock");
-            let replacement = line(git(&self.root, &["hash-object", "-w", "--stdin"],
-                Some(replacement)));
+            let replacement = line(git(
+                &self.root,
+                &["hash-object", "-w", "--stdin"],
+                Some(replacement),
+            ));
             assert_ne!(original, replacement);
             // Git loose objects are read-only on Linux. Replace only this
             // disposable fixture's file rather than overwriting its mode.
@@ -793,12 +921,16 @@ mod tests {
     #[test]
     fn complete_pinned_data_has_exact_files_and_per_blob_witnesses() {
         let fixture = Fixture::new();
-        let snapshot = fixture.read().expect("complete pinned source must be accepted");
+        let snapshot = fixture
+            .read()
+            .expect("complete pinned source must be accepted");
         assert_eq!(snapshot.commit, fixture.commit);
         assert_eq!(snapshot.tree, fixture.tree);
         assert_eq!(snapshot.files.len(), 20);
-        assert_eq!(snapshot.files.keys().collect::<Vec<_>>(),
-            fixture.files.keys().collect::<Vec<_>>());
+        assert_eq!(
+            snapshot.files.keys().collect::<Vec<_>>(),
+            fixture.files.keys().collect::<Vec<_>>()
+        );
         for (path, expected) in &fixture.files {
             let file = &snapshot.files[path];
             assert_eq!(file.contents, *expected);
@@ -808,12 +940,19 @@ mod tests {
             assert_eq!(file.witness.bytes, u64::try_from(expected.len()).unwrap());
             assert_eq!(file.witness.sha256.len(), 64);
         }
-        let schema = &snapshot.files[
-            "crates/auctioneer-bidder/src/bidders/fake_fixture/parameters.json"];
-        assert_eq!(schema.contents, serde_json::to_vec(&serde_json::json!({"type":"string"})).unwrap());
-        assert_eq!(snapshot.files["Cargo.lock"].witness.sha256,
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-        let reread = fixture.read().expect("reader must leave repository unchanged");
+        let schema =
+            &snapshot.files["crates/auctioneer-bidder/src/bidders/fake_fixture/parameters.json"];
+        assert_eq!(
+            schema.contents,
+            serde_json::to_vec(&serde_json::json!({"type":"string"})).unwrap()
+        );
+        assert_eq!(
+            snapshot.files["Cargo.lock"].witness.sha256,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let reread = fixture
+            .read()
+            .expect("reader must leave repository unchanged");
         assert_eq!(snapshot, reread);
     }
 
@@ -824,9 +963,20 @@ mod tests {
         fs::write(fixture.root.join("outside-closure"), b"second tip").unwrap();
         git(&fixture.root, &["add", "outside-closure"], None);
         fixture.commit_index();
-        fs::write(fixture.root.join(".git/shallow"), format!("{}\n", fixture.commit)).unwrap();
+        fs::write(
+            fixture.root.join(".git/shallow"),
+            format!("{}\n", fixture.commit),
+        )
+        .unwrap();
         fs::remove_file(fixture.object(&parent)).unwrap();
-        assert_eq!(git(&fixture.root, &["rev-parse", "--is-shallow-repository"], None), b"true\n");
+        assert_eq!(
+            git(
+                &fixture.root,
+                &["rev-parse", "--is-shallow-repository"],
+                None
+            ),
+            b"true\n"
+        );
         let snapshot = fixture.read().expect("complete shallow object closure");
         assert_eq!(snapshot.files.len(), 20);
     }
@@ -836,42 +986,90 @@ mod tests {
         let fixture = Fixture::new();
         let before = fixture.read().expect("initial source");
         fs::write(fixture.root.join("Cargo.lock"), b"uncommitted substitution").unwrap();
-        fs::write(fixture.root.join(
-            "crates/auctioneer-bidder/src/bidders/untracked.rs"), b"untracked").unwrap();
-        assert_eq!(fixture.read().expect("Git objects remain unchanged"), before);
+        fs::write(
+            fixture
+                .root
+                .join("crates/auctioneer-bidder/src/bidders/untracked.rs"),
+            b"untracked",
+        )
+        .unwrap();
+        assert_eq!(
+            fixture.read().expect("Git objects remain unchanged"),
+            before
+        );
     }
 
     #[test]
     fn a_replacement_commit_cannot_redirect_pinned_source() {
         let fixture = Fixture::new();
         let other = Fixture::new();
-        let replacement = line(git(&fixture.root, &["commit-tree", &fixture.tree, "-m",
-            "different commit"], None));
-        git(&fixture.root, &["update-ref", &format!("refs/replace/{}", fixture.commit),
-            &replacement], None);
+        let replacement = line(git(
+            &fixture.root,
+            &["commit-tree", &fixture.tree, "-m", "different commit"],
+            None,
+        ));
+        git(
+            &fixture.root,
+            &[
+                "update-ref",
+                &format!("refs/replace/{}", fixture.commit),
+                &replacement,
+            ],
+            None,
+        );
         assert_ne!(replacement, fixture.commit);
-        assert_eq!(fixture.read().expect("replacement objects must be disabled"),
-            other.read().expect("independent identical fixture source"));
+        assert_eq!(
+            fixture
+                .read()
+                .expect("replacement objects must be disabled"),
+            other.read().expect("independent identical fixture source")
+        );
     }
 
     #[test]
     fn absent_directory_refuses_instead_of_discovering_a_parent_repository() {
         let fixture = Fixture::new();
-        assert_eq!(read_pinned(&fixture.root.join("absent"), &fixture.commit, &fixture.tree,
-            20, fixture.bytes()), Err(Error::Root));
+        assert_eq!(
+            read_pinned(
+                &fixture.root.join("absent"),
+                &fixture.commit,
+                &fixture.tree,
+                20,
+                fixture.bytes()
+            ),
+            Err(Error::Root)
+        );
         let child = fixture.root.join("child");
         fs::create_dir(&child).unwrap();
-        assert_eq!(read_pinned(&child, &fixture.commit, &fixture.tree,
-            20, fixture.bytes()), Err(Error::Root));
+        assert_eq!(
+            read_pinned(&child, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
+            Err(Error::Root)
+        );
     }
 
     #[test]
     fn head_and_tree_are_both_mandatory_pins() {
         let fixture = Fixture::new();
-        assert_eq!(read_pinned(&fixture.root, &"0".repeat(40), &fixture.tree,
-            20, fixture.bytes()), Err(Error::Identity));
-        assert_eq!(read_pinned(&fixture.root, &fixture.commit, &"f".repeat(40),
-            20, fixture.bytes()), Err(Error::Identity));
+        assert_eq!(
+            read_pinned(
+                &fixture.root,
+                &"0".repeat(40),
+                &fixture.tree,
+                20,
+                fixture.bytes()
+            ),
+            Err(Error::Identity)
+        );
+        assert_eq!(
+            read_pinned(
+                &fixture.root,
+                &fixture.commit,
+                &"f".repeat(40),
+                20,
+                fixture.bytes()
+            ),
+            Err(Error::Identity)
+        );
     }
 
     #[test]
@@ -882,7 +1080,11 @@ mod tests {
             ("remote.fixture.partialclonefilter", "blob:none"),
         ] {
             let fixture = Fixture::new();
-            git(&fixture.root, &["config", "core.repositoryformatversion", "1"], None);
+            git(
+                &fixture.root,
+                &["config", "core.repositoryformatversion", "1"],
+                None,
+            );
             git(&fixture.root, &["config", key, value], None);
             assert_eq!(fixture.read(), Err(Error::Partial), "{key}");
         }
@@ -928,10 +1130,26 @@ mod tests {
     #[test]
     fn independently_wrong_closure_census_refuses() {
         let fixture = Fixture::new();
-        assert_eq!(read_pinned(&fixture.root, &fixture.commit, &fixture.tree,
-            21, fixture.bytes()), Err(Error::Witness));
-        assert_eq!(read_pinned(&fixture.root, &fixture.commit, &fixture.tree,
-            20, fixture.bytes() + 1), Err(Error::Witness));
+        assert_eq!(
+            read_pinned(
+                &fixture.root,
+                &fixture.commit,
+                &fixture.tree,
+                21,
+                fixture.bytes()
+            ),
+            Err(Error::Witness)
+        );
+        assert_eq!(
+            read_pinned(
+                &fixture.root,
+                &fixture.commit,
+                &fixture.tree,
+                20,
+                fixture.bytes() + 1
+            ),
+            Err(Error::Witness)
+        );
     }
 
     #[test]
@@ -955,7 +1173,11 @@ mod tests {
             } else {
                 fixture.blob("Cargo.lock")
             };
-            git(&fixture.root, &["update-index", "--cacheinfo", mode, &oid, "Cargo.lock"], None);
+            git(
+                &fixture.root,
+                &["update-index", "--cacheinfo", mode, &oid, "Cargo.lock"],
+                None,
+            );
             fixture.commit_index();
             assert_eq!(fixture.read(), Err(Error::Mode), "{mode}");
         }
@@ -975,8 +1197,8 @@ mod tests {
         for path in [
             "Cargo.lock",
             "crates/auctioneer-bidder/src/bidders/fake_fixture/tests/raw-capture.bin",
-            "crates/auctioneer-bidder/src/bidders/aps/tests/schema/inventory-exclusion.toml",
-            "crates/auctioneer-bidder/src/bidders/mocktioneer/tests/schema/inventory-exclusion.toml",
+            "crates/auctioneer-bidder/src/bidders/fake_first/tests/schema/inventory-exclusion.toml",
+            "crates/auctioneer-bidder/src/bidders/fake_second/tests/schema/inventory-exclusion.toml",
             "vendor/jsonschema-macros-core/Cargo.toml",
             "vendor/jsonschema-macros-core/benches/generate.rs",
             "vendor/regex-automata/src/lib.rs",
@@ -991,6 +1213,7 @@ mod tests {
             "vendor/jsonschema-macros-core/Cargo.lock",
             "vendor/jsonschema-macros-core/src/example.snap",
             "vendor/regex-automata-extra/src/lib.rs",
+            "vendor/regex-automata/src/ignored.RS",
             "vendor/unknown-reference/source.rs",
         ] {
             assert!(!included(path), "{path}");
@@ -1008,8 +1231,11 @@ mod tests {
     fn a_nonempty_alternate_store_is_not_a_reference_fallback() {
         let fixture = Fixture::new();
         let other = Fixture::new();
-        fs::write(fixture.root.join(".git/objects/info/alternates"),
-            format!("{}\n", other.root.join(".git/objects").display())).unwrap();
+        fs::write(
+            fixture.root.join(".git/objects/info/alternates"),
+            format!("{}\n", other.root.join(".git/objects").display()),
+        )
+        .unwrap();
         assert_eq!(fixture.read(), Err(Error::Partial));
     }
 
@@ -1018,8 +1244,10 @@ mod tests {
         let fixture = Fixture::new();
         let file = fixture.root.join("Cargo.lock");
         for root in [Path::new("."), file.as_path()] {
-            assert_eq!(read_pinned(root, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
-                Err(Error::Root));
+            assert_eq!(
+                read_pinned(root, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
+                Err(Error::Root)
+            );
         }
     }
 
@@ -1030,8 +1258,10 @@ mod tests {
         let aliases = tempfile::tempdir().unwrap();
         let alias = aliases.path().join("reference");
         std::os::unix::fs::symlink(&fixture.root, &alias).unwrap();
-        assert_eq!(read_pinned(&alias, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
-            Err(Error::Root));
+        assert_eq!(
+            read_pinned(&alias, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
+            Err(Error::Root)
+        );
     }
 
     #[test]
@@ -1043,7 +1273,10 @@ mod tests {
         assert_eq!(listing.files["Cargo.lock"].bytes, 3);
         let duplicate = format!("{record}{record}");
         assert_eq!(parse_listing(duplicate.as_bytes()), Err(Error::Witness));
-        assert_eq!(parse_listing(format!("{record}\0").as_bytes()), Err(Error::Witness));
+        assert_eq!(
+            parse_listing(format!("{record}\0").as_bytes()),
+            Err(Error::Witness)
+        );
     }
 
     #[test]
@@ -1052,11 +1285,19 @@ mod tests {
 
         let command = super::git_command(Path::new("/"));
         assert_eq!(command.get_program(), "/usr/bin/git");
-        let arguments = command.get_args().map(|arg| arg.to_str().unwrap()).collect::<Vec<_>>();
+        let arguments = command
+            .get_args()
+            .map(|arg| arg.to_str().unwrap())
+            .collect::<Vec<_>>();
         for required in [
-            "--no-replace-objects", "--no-optional-locks", "--literal-pathspecs",
-            "core.fsmonitor=false", "core.hooksPath=/dev/null", "protocol.allow=never",
-            "gc.auto=0", "maintenance.auto=false",
+            "--no-replace-objects",
+            "--no-optional-locks",
+            "--literal-pathspecs",
+            "core.fsmonitor=false",
+            "core.hooksPath=/dev/null",
+            "protocol.allow=never",
+            "gc.auto=0",
+            "maintenance.auto=false",
         ] {
             assert!(arguments.contains(&required), "{required}");
         }
@@ -1069,7 +1310,10 @@ mod tests {
             ("GIT_ALLOW_PROTOCOL", ""),
             ("GIT_TERMINAL_PROMPT", "0"),
         ] {
-            assert_eq!(environment.get(OsStr::new(key)), Some(&Some(OsStr::new(value))));
+            assert_eq!(
+                environment.get(OsStr::new(key)),
+                Some(&Some(OsStr::new(value)))
+            );
         }
     }
 
@@ -1083,13 +1327,20 @@ mod tests {
         drop(fixture);
         let output = tempfile::tempdir().unwrap();
         let destination = output.path().canonicalize().unwrap().join("source");
-        snapshot.materialize(&destination).expect("captured bytes need no repository");
+        snapshot
+            .materialize(&destination)
+            .expect("captured bytes need no repository");
         assert_eq!(snapshot.commit(), commit);
         assert_eq!(snapshot.tree(), tree);
         assert_eq!(snapshot.files().len(), 20);
         assert_eq!(snapshot.witnesses().len(), 20);
-        assert_eq!(snapshot.witnesses().map(|witness| &witness.path).collect::<Vec<_>>(),
-            expected.keys().collect::<Vec<_>>());
+        assert_eq!(
+            snapshot
+                .witnesses()
+                .map(|witness| &witness.path)
+                .collect::<Vec<_>>(),
+            expected.keys().collect::<Vec<_>>()
+        );
         for (path, bytes) in expected {
             let target = destination.join(path);
             assert_eq!(fs::read(&target).unwrap(), bytes);
@@ -1097,7 +1348,10 @@ mod tests {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt as _;
-                assert_eq!(fs::metadata(target).unwrap().permissions().mode() & 0o777, 0o600);
+                assert_eq!(
+                    fs::metadata(target).unwrap().permissions().mode() & 0o777,
+                    0o600
+                );
             }
         }
     }
@@ -1119,7 +1373,12 @@ mod tests {
     fn materialization_preflights_changed_bytes_before_creating_output() {
         let fixture = Fixture::new();
         let mut snapshot = fixture.read().unwrap();
-        snapshot.files.get_mut("Cargo.lock").unwrap().contents.push(b'x');
+        snapshot
+            .files
+            .get_mut("Cargo.lock")
+            .unwrap()
+            .contents
+            .push(b'x');
         let output = tempfile::tempdir().unwrap();
         let destination = output.path().canonicalize().unwrap().join("source");
         assert_eq!(snapshot.materialize(&destination), Err(Error::Witness));
@@ -1148,8 +1407,10 @@ mod tests {
         fs::create_dir(&actual).unwrap();
         let alias = root.join("alias");
         std::os::unix::fs::symlink(&actual, &alias).unwrap();
-        assert_eq!(snapshot.materialize(&alias.join("source")), Err(Error::Destination));
+        assert_eq!(
+            snapshot.materialize(&alias.join("source")),
+            Err(Error::Destination)
+        );
         assert!(!actual.join("source").exists());
     }
-
 }

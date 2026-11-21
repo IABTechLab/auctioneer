@@ -84,8 +84,7 @@ fn token_trees_equal(left: TokenStream, right: TokenStream) -> bool {
                 a.to_string() == b.to_string()
             }
             (Some(TokenTree::Punct(a)), Some(TokenTree::Punct(b))) => {
-                a.as_char() == b.as_char()
-                    && (a.as_char() == '>' || a.spacing() == b.spacing())
+                a.as_char() == b.as_char() && (a.as_char() == '>' || a.spacing() == b.spacing())
             }
             (Some(TokenTree::Literal(a)), Some(TokenTree::Literal(b))) => {
                 a.to_string() == b.to_string()
