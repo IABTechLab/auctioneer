@@ -673,6 +673,11 @@ mod tests {
                 report["expanded_schema_graph"]["captured_rust_sha256"],
                 report["applications"][0]["manifest"]["emitted_rust_sha256"]
             );
+            let graph = &report["expanded_schema_graph"];
+            let declarations = graph["declarations"].as_array().unwrap();
+            assert!(!declarations.is_empty());
+            assert_eq!(graph["auxiliary"]["status"], "Complete");
+            assert_eq!(graph["auxiliary"]["roots"].as_array().unwrap().len(), 2 * declarations.len() + 8);
             assert_eq!(
                 report["lane"],
                 if development { "development" } else { "secure" }

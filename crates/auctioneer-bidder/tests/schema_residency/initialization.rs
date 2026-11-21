@@ -47,8 +47,13 @@ fn compose(
         retained = retained.checked_add(row.bytes).ok_or(Refusal::Arithmetic)?;
     }
     let labels = required_traces.iter().copied().collect::<BTreeSet<_>>();
-    if labels.is_empty() || labels.len() != required_traces.len() || labels.contains("")
-        || !traces.iter().map(|trace| trace.label).eq(required_traces.iter().copied())
+    if labels.is_empty()
+        || labels.len() != required_traces.len()
+        || labels.contains("")
+        || !traces
+            .iter()
+            .map(|trace| trace.label)
+            .eq(required_traces.iter().copied())
     {
         return Err(Refusal::Traces);
     }
@@ -68,7 +73,9 @@ fn compose(
         }
         let mut scratch = 0_u64;
         for row in trace.scratch {
-            if row.owner.is_empty() || row.bytes == 0 || !seen.insert(row.owner)
+            if row.owner.is_empty()
+                || row.bytes == 0
+                || !seen.insert(row.owner)
                 || limits.contains_key(row.owner)
             {
                 return Err(Refusal::Owners);
@@ -81,7 +88,9 @@ fn compose(
     Ok(Totals {
         retained,
         construction_only,
-        additive_envelope: retained.checked_add(construction_only).ok_or(Refusal::Arithmetic)?,
+        additive_envelope: retained
+            .checked_add(construction_only)
+            .ok_or(Refusal::Arithmetic)?,
         trace_peaks,
     })
 }

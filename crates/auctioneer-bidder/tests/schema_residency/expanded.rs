@@ -174,7 +174,7 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
                 | syn::Item::Const(_)
                 | syn::Item::Fn(_)
         ) {
-            auxiliary.push(digest(item.to_token_stream().to_string().as_bytes()));
+            auxiliary.push(item);
         } else {
             return Err("unsupported captured staging syntax".into());
         }
@@ -182,6 +182,15 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
     if actual.keys().ne(expected.keys()) {
         return Err(MEMBERSHIP.into());
     }
+    let bindings = expected.iter().map(|(marker, (_, snapshot))| {
+        (marker.as_str(), snapshot.owner.as_str())
+    }).collect::<Vec<_>>();
+    let classified = super::auxiliary::classify(
+        &auxiliary, &bindings, &seed.identity_sha256, &manifest["selection"],
+    )?;
+    let auxiliary_hashes = auxiliary.iter().map(|item| {
+        digest(item.to_token_stream().to_string().as_bytes())
+    }).collect::<Vec<_>>();
     let mut rows = Vec::new();
     for (marker, (row, snapshot)) in expected {
         let (item, attribute) = actual.get(&marker).ok_or(MEMBERSHIP)?;
@@ -193,7 +202,9 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
         json!({"schema_version":2_u8,"identity_sha256":seed.identity_sha256,
         "captured_manifest_sha256":digest(&seed.manifest_bytes),
         "captured_rust_sha256":digest(&seed.rust),"declarations":rows,
-        "auxiliary_syntax_sha256":auxiliary,"qualification":"Unqualified",
+        "auxiliary_syntax_sha256":auxiliary_hashes,
+        "auxiliary":{"status":classified.status.as_str(),"roots":classified.roots,
+            "dispatch_edges":classified.dispatch_edges},"qualification":"Unqualified",
         "resource_qualification":false,"source_completeness":"owner-graph-only"}),
     )
 }
@@ -355,6 +366,7 @@ mod tests {
         let (_directory, seed) = fixture("^a[0-9]+$");
         let graph = expand(&seed).expect("expand actual captured validator attributes");
         assert_eq!(graph["identity_sha256"], seed.identity_sha256);
+        assert_eq!(graph["auxiliary"]["status"], "Absent");
         assert_eq!(graph["qualification"], "Unqualified");
         assert_eq!(graph["resource_qualification"], false);
         let rows = graph["declarations"].as_array().unwrap();
@@ -486,8 +498,13 @@ mod tests {
             quote! { const FAKE_UNCLASSIFIED: &str = "unattributed"; },
         ] {
             let (_directory, mut seed) = fixture("^a[0-9]+$");
-            change_rust(&mut seed, |syntax| syntax.items.push(syn::parse2(extra).unwrap()));
-            assert_eq!(expand(&seed).err().as_deref(), Some("unsupported captured staging syntax"));
+            change_rust(&mut seed, |syntax| {
+                syntax.items.push(syn::parse2(extra).unwrap())
+            });
+            assert_eq!(
+                expand(&seed).err().as_deref(),
+                Some("unsupported captured staging syntax")
+            );
         }
     }
 

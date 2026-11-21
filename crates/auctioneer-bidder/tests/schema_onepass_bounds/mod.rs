@@ -1,7 +1,7 @@
 //! Conditional one-pass scratch lengths and retained table heap, not whole-meta qualification.
 
 use crate::schema_cache_bounds::{BoundsError, forward_nfa};
-use crate::schema_heap_layout::{HeapLayout, LayoutError};
+use crate::schema_heap_layout::{HeapLayout, LayoutError, NativeField};
 use regex_automata::{
     MatchKind,
     dfa::onepass::{self, DFA},
@@ -114,6 +114,20 @@ pub(crate) fn nfa_table_upper_bound(
     retained_tables(states, stride, patterns)
 }
 
+
+// Hosted-RED scaffolds: target word must replace the old native request limit.
+pub(crate) fn retained_tables_with_word(
+    states: usize, stride: usize, patterns: usize, _word: NativeField,
+) -> Result<OnePassRetainedTables, OnePassTablesError> {
+    retained_tables(states, stride, patterns)
+}
+
+pub(crate) fn nfa_table_upper_bound_with_word(
+    nfa_states: usize, stride: usize, patterns: usize, _word: NativeField,
+) -> Result<OnePassRetainedTables, OnePassTablesError> {
+    nfa_table_upper_bound(nfa_states, stride, patterns)
+}
+
 impl OnePassRetainedTables {
     pub(crate) fn from_dfa(dfa: &DFA) -> Result<Self, OnePassTablesError> {
         let config = dfa.get_config();
@@ -155,6 +169,8 @@ mod tests {
     use super::{
         OnePassRetainedTables, OnePassTables, OnePassTablesError, candidate_onepass,
         explicit_scratch_slots, nfa_table_upper_bound, retained_candidate, retained_tables,
+        retained_tables_with_word,
+        nfa_table_upper_bound_with_word,
     };
     use crate::schema_cache_bounds::{BoundsError, forward_nfa};
     use regex_automata::{
@@ -162,6 +178,48 @@ mod tests {
         util::primitives::NonMaxUsize,
     };
     use std::mem::size_of;
+    use crate::schema_heap_layout::NativeField;
+
+
+    #[test]
+    fn target_word_onepass_tables_keep_source_u64_u32_widths_and_native_literals() {
+        for word in [4_usize, 8_usize] {
+            let field = NativeField { bytes: word, alignment: word };
+            assert_eq!(
+                nfa_table_upper_bound_with_word(1_usize, 4_usize, 1_usize, field),
+                Ok(OnePassRetainedTables { table_bytes: 64_usize, starts_bytes: 8_usize, total: 72_usize })
+            );
+            assert_eq!(
+                retained_tables_with_word(2_usize, 4_usize, 1_usize, field),
+                Ok(OnePassRetainedTables { table_bytes: 64_usize, starts_bytes: 8_usize, total: 72_usize })
+            );
+        }
+        assert_eq!(
+            retained_tables_with_word(2_usize, 4_usize, 1_usize, NativeField::of::<usize>()),
+            retained_tables(2_usize, 4_usize, 1_usize)
+        );
+    }
+
+    #[test]
+    fn target_word_onepass_rejects_missing_unknown_abi_and_target_request_overflow() {
+        for word in [
+            NativeField { bytes: 0_usize, alignment: 4_usize },
+            NativeField { bytes: 4_usize, alignment: 8_usize },
+            NativeField { bytes: 16_usize, alignment: 16_usize },
+        ] {
+            assert_eq!(
+                retained_tables_with_word(2_usize, 4_usize, 1_usize, word),
+                Err(OnePassTablesError::Shape)
+            );
+        }
+        assert_eq!(
+            retained_tables_with_word(
+                1_usize << 27_usize, 2_usize, 1_usize,
+                NativeField { bytes: 4_usize, alignment: 4_usize },
+            ),
+            Err(OnePassTablesError::Arithmetic)
+        );
+    }
 
     #[test]
     fn onepass_retained_literals_vary_each_owner_dimension() {

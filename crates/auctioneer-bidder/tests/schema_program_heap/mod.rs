@@ -4,12 +4,13 @@
 //! Native reconstruction does not establish serving-release layout correspondence.
 
 use crate::schema_cache_bounds::{forward_nfa, reverse_nfa};
-use crate::schema_heap_layout::{LayoutError, native_arc_value_layout};
+use crate::schema_heap_layout::{LayoutError, NativeField, native_arc_value_layout};
+use std::collections::BTreeMap;
 use crate::schema_literal_heap::{AutomaticPrefilterError, AutomaticPrefilterHeap};
-use crate::schema_metadata_heap::{MetadataHeapError, NativeImmutableRegexMetadata};
-use crate::schema_nfa_heap::{NfaHeapError, NfaRetainedHeap};
+use crate::schema_metadata_heap::{MetadataHeapError, MetadataLayout, NativeImmutableRegexMetadata};
+use crate::schema_nfa_heap::{NfaHeapError, NfaRetainedHeap, target};
 use crate::schema_onepass_bounds::{OnePassTablesError, nfa_table_upper_bound};
-use crate::schema_pool_heap::{PoolHeapError, UnusedPoolHeap};
+use crate::schema_pool_heap::{PoolHeapError, PoolLayout, UnusedPoolHeap};
 use regex_automata::{
     MatchKind,
     meta::{Config, Regex, RegexResourceLayout},
@@ -43,6 +44,42 @@ pub(crate) struct NativeProgramHeap {
     pub total: usize,
     pub static_inline_bytes: usize,
     pub automatic_prefilter: AutomaticPrefilterHeap,
+}
+
+
+/// Mandatory matched layout premises for one source-selected program.
+/// Synthetic values are test inputs, never target ABI observations.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ProgramRecipe<'a> {
+    pub pattern: &'a str,
+    pub metadata: MetadataLayout,
+    pub arc_header: NativeField,
+    pub strategy_payload: NativeField,
+    pub nfa_facts: &'a BTreeMap<String, NativeField>,
+    pub onepass_word: NativeField,
+    pub memchr_payload: NativeField,
+    pub pool: PoolLayout,
+}
+
+/// Nonphysical source reconstruction; it has no target cost without a recipe.
+#[derive(Debug)]
+pub(crate) struct SourceRecipe {
+    pattern: String,
+    config: Config,
+}
+
+impl SourceRecipe {
+    pub(crate) fn from_pattern(pattern: &str, config: &Config) -> Result<Self, ProgramHeapError> {
+        NativeProgramHeap::from_pattern(pattern, config)?;
+        Ok(Self { pattern: pattern.to_owned(), config: config.clone() })
+    }
+
+    // Hosted-RED scaffold: supplied facts are intentionally not consumed yet.
+    pub(crate) fn evaluate(&self, facts: &ProgramRecipe<'_>) -> Result<NativeProgramHeap, ProgramHeapError> {
+        let _ = (facts.pattern, facts.metadata, facts.arc_header, facts.strategy_payload,
+            facts.nfa_facts, facts.onepass_word, facts.memchr_payload, facts.pool);
+        NativeProgramHeap::from_pattern(&self.pattern, &self.config)
+    }
 }
 
 impl NativeProgramHeap {
@@ -195,7 +232,7 @@ impl NativeProgramHeap {
     }
 }
 
-fn require_configuration(config: &Config) -> Result<(), ProgramHeapError> {
+pub(crate) fn require_configuration(config: &Config) -> Result<(), ProgramHeapError> {
     require_engine_flags(config.get_hybrid(), config.get_dfa(), config.get_onepass())?;
     if config.get_match_kind() != MatchKind::LeftmostFirst
         || !config.get_utf8_empty()
@@ -279,6 +316,171 @@ mod tests {
             .dfa(false)
             .onepass(true)
             .auto_prefilter(true)
+    }
+
+
+    // Deliberately synthetic fields, not measurements of any native/guest ABI.
+    fn recipe_nfa_facts() -> BTreeMap<String, NativeField> {
+        use regex_automata::{
+            nfa::thompson::{State, Transition},
+            util::primitives::{SmallIndex, StateID},
+        };
+        use std::{any::type_name, collections::HashMap, sync::{Arc, atomic::AtomicUsize}};
+        [
+            (target::NFA_INNER, 512_usize, 16_usize),
+            (target::GROUP_INFO_INNER, 48_usize, 8_usize),
+            (type_name::<State>(), 16_usize, 4_usize),
+            (type_name::<Transition>(), 8_usize, 4_usize),
+            (type_name::<StateID>(), 4_usize, 4_usize),
+            (type_name::<(SmallIndex, SmallIndex)>(), 8_usize, 4_usize),
+            (type_name::<HashMap<Arc<str>, SmallIndex>>(), 24_usize, 4_usize),
+            (type_name::<Vec<Option<Arc<str>>>>(), 12_usize, 4_usize),
+            (type_name::<Option<Arc<str>>>(), 8_usize, 4_usize),
+            (type_name::<AtomicUsize>(), 4_usize, 4_usize),
+            (target::ABI_POINTER, 4_usize, 4_usize),
+        ].into_iter().map(|(name, bytes, alignment)| {
+            (name.to_owned(), NativeField { bytes, alignment })
+        }).collect()
+    }
+
+    fn recipe_facts(nfa_facts: &BTreeMap<String, NativeField>) -> ProgramRecipe<'_> {
+        let field = |bytes, alignment| NativeField { bytes, alignment };
+        ProgramRecipe {
+            pattern: "q[a-z]{2,3}$",
+            metadata: MetadataLayout {
+                regex_fields: [field(16_usize, 8_usize), field(8_usize, 8_usize)],
+                info_fields: [field(40_usize, 8_usize), field(24_usize, 8_usize), field(8_usize, 8_usize)],
+                props_payload: field(80_usize, 8_usize),
+                static_inline: field(64_usize, 8_usize),
+            },
+            arc_header: field(8_usize, 4_usize),
+            strategy_payload: field(64_usize, 8_usize),
+            nfa_facts,
+            onepass_word: field(4_usize, 4_usize),
+            memchr_payload: field(1_usize, 1_usize),
+            pool: PoolLayout {
+                fields: [field(16_usize, 8_usize), field(24_usize, 8_usize),
+                    field(8_usize, 8_usize), field(40_usize, 8_usize)],
+                shard: field(40_usize, 8_usize),
+                closure: field(16_usize, 8_usize),
+            },
+        }
+    }
+
+    #[test]
+    fn target_recipe_literal_leaf_charges_are_not_native_defaults() {
+        let map = recipe_nfa_facts();
+        let facts = recipe_facts(&map);
+        let source = SourceRecipe::from_pattern(facts.pattern, &fake_config()).unwrap();
+        let heap = source.evaluate(&facts).unwrap();
+        assert_eq!(heap.metadata_bytes, 304_usize);
+        assert_eq!(heap.strategy_arc_bytes, 72_usize);
+        assert_eq!(heap.automatic_prefilter_bytes, 12_usize);
+        assert_eq!(heap.unused_pool_bytes, 168_usize);
+        assert_eq!(heap.static_inline_bytes, 64_usize);
+        assert!(heap.nfa_bytes > 0_usize);
+        assert!(heap.onepass_tables_bytes > 0_usize);
+        // Four independently literal leaves; NFA/one-pass remain their own owners.
+        assert_eq!(
+            heap.total.checked_sub(heap.nfa_bytes).unwrap()
+                .checked_sub(heap.onepass_tables_bytes).unwrap(),
+            556_usize
+        );
+    }
+
+    #[test]
+    fn target_recipe_independent_layout_axes_change_only_their_own_charge() {
+        let map = recipe_nfa_facts();
+        let facts = recipe_facts(&map);
+        let source = SourceRecipe::from_pattern(facts.pattern, &fake_config()).unwrap();
+        let base = source.evaluate(&facts).unwrap();
+        for axis in 0_usize..4_usize {
+            let mut changed = facts;
+            let mut changed_map = map.clone();
+            match axis {
+                0 => changed.metadata.props_payload.bytes = 88_usize,
+                1 => changed.strategy_payload.bytes = 72_usize,
+                2 => changed.pool.closure.bytes = 24_usize,
+                _ => {
+                    changed_map.get_mut(target::NFA_INNER).unwrap().bytes += 16_usize;
+                    changed.nfa_facts = &changed_map;
+                }
+            }
+            let projected = source.evaluate(&changed).unwrap();
+            let expected = match axis {
+                0 => NativeProgramHeap { metadata_bytes: base.metadata_bytes + 16_usize,
+                    total: base.total + 16_usize, ..base },
+                1 => NativeProgramHeap { strategy_arc_bytes: base.strategy_arc_bytes + 8_usize,
+                    total: base.total + 8_usize, ..base },
+                2 => NativeProgramHeap { unused_pool_bytes: base.unused_pool_bytes + 8_usize,
+                    total: base.total + 8_usize, ..base },
+                _ => NativeProgramHeap { nfa_bytes: base.nfa_bytes + 32_usize,
+                    total: base.total + 32_usize, ..base },
+            };
+            assert_eq!(projected, expected, "layout axis {axis}");
+        }
+        let mut inline = facts;
+        inline.metadata.static_inline.bytes = 72_usize;
+        assert_eq!(
+            source.evaluate(&inline),
+            Ok(NativeProgramHeap { static_inline_bytes: 72_usize, ..base })
+        );
+    }
+
+    #[test]
+    fn target_recipe_missing_fields_unknown_shapes_and_unmatched_pattern_refuse() {
+        let map = recipe_nfa_facts();
+        let facts = recipe_facts(&map);
+        let source = SourceRecipe::from_pattern(facts.pattern, &fake_config()).unwrap();
+        for name in target::fact_keys() {
+            let mut missing = map.clone();
+            assert!(missing.remove(name).is_some());
+            assert_eq!(
+                source.evaluate(&ProgramRecipe { nfa_facts: &missing, ..facts }),
+                Err(ProgramHeapError::Nfa), "{name}"
+            );
+        }
+        let mut changed = facts;
+        changed.pattern = "^different$";
+        assert_eq!(source.evaluate(&changed), Err(ProgramHeapError::Shape));
+        for axis in 0_usize..5_usize {
+            let mut changed = facts;
+            let error = match axis {
+                0 => { changed.metadata.static_inline.bytes = 0_usize; ProgramHeapError::Metadata }
+                1 => { changed.strategy_payload.bytes = 0_usize; ProgramHeapError::Layout }
+                2 => { changed.pool.closure.bytes = 0_usize; ProgramHeapError::Pool }
+                3 => { changed.onepass_word.bytes = 0_usize; ProgramHeapError::OnePass }
+                _ => { changed.memchr_payload.bytes = 2_usize;
+                    ProgramHeapError::AutomaticPrefilter(AutomaticPrefilterError::Layout) }
+            };
+            assert_eq!(source.evaluate(&changed), Err(error), "shape axis {axis}");
+        }
+        assert_eq!(
+            SourceRecipe::from_pattern("qr[a-z]+$", &fake_config()).err(),
+            Some(ProgramHeapError::AutomaticPrefilter(AutomaticPrefilterError::Scope))
+        );
+    }
+
+    #[test]
+    fn target_recipe_each_explicit_allocation_overflow_refuses() {
+        let map = recipe_nfa_facts();
+        let facts = recipe_facts(&map);
+        let source = SourceRecipe::from_pattern(facts.pattern, &fake_config()).unwrap();
+        for axis in 0_usize..4_usize {
+            let mut changed = facts;
+            let mut changed_map = map.clone();
+            let huge = NativeField { bytes: usize::MAX - 7_usize, alignment: 8_usize };
+            match axis {
+                0 => changed.metadata.props_payload = huge,
+                1 => changed.strategy_payload = huge,
+                2 => changed.pool.closure = huge,
+                _ => {
+                    changed_map.insert(target::NFA_INNER.to_owned(), huge);
+                    changed.nfa_facts = &changed_map;
+                }
+            }
+            assert_eq!(source.evaluate(&changed), Err(ProgramHeapError::Arithmetic), "axis {axis}");
+        }
     }
 
     #[test]

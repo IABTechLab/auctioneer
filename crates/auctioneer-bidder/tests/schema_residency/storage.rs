@@ -19,6 +19,7 @@ struct Owners<'a> {
     programs: BTreeSet<&'a str>,
     scopes: Vec<String>,
     block: usize,
+    block_depth: usize,
     state: Storage,
     error: Option<String>,
 }
@@ -127,6 +128,13 @@ impl Owners<'_> {
     fn storage(&mut self, item: &syn::ItemStatic) -> Result<(), String> {
         let name = item.ident.to_string();
         if self.programs.contains(name.as_str()) {
+            if self.block_depth != 0
+                || !type_argument(&item.ty, "__Lazy")
+                    .and_then(|inner| type_argument(inner, "Option"))
+                    .is_some_and(|inner| type_is(inner, &["__ra", "meta", "Regex"]))
+            {
+                return Err(REFUSAL.into());
+            }
             return Ok(()); // Constructor/cache bijection is checked separately.
         }
         if let Some(kind) = lazy_kind(&item.ty) {
@@ -205,9 +213,11 @@ impl VisitMut for Owners<'_> {
 
     fn visit_block_mut(&mut self, block: &mut syn::Block) {
         self.block += 1;
+        self.block_depth += 1;
         self.scopes.push(format!("block{}", self.block));
         visit_mut::visit_block_mut(self, block);
         self.scopes.pop();
+        self.block_depth -= 1;
     }
 
     fn visit_item_static_mut(&mut self, item: &mut syn::ItemStatic) {
@@ -238,15 +248,52 @@ impl VisitMut for Owners<'_> {
     }
 
     fn visit_macro_mut(&mut self, item: &mut syn::Macro) {
-        if item.path.segments.last().is_some_and(|part| {
-            matches!(
-                part.ident.to_string().as_str(),
-                "thread_local" | "compile_error"
-            )
-        }) {
-            self.error = Some(REFUSAL.into());
+        if item.path.is_ident("include_str") {
+            if !syn::parse2::<syn::LitStr>(item.tokens.clone())
+                .is_ok_and(|literal| Path::new(&literal.value()) == self.snapshot)
+            {
+                self.error = Some(REFUSAL.into());
+            }
+            return;
         }
-        visit_mut::visit_macro_mut(self, item);
+        if !item.path.is_ident("matches") {
+            self.error = Some(REFUSAL.into());
+            return;
+        }
+        match syn::parse2::<MatchInput>(item.tokens.clone()) {
+            Ok(mut input) => {
+                self.visit_expr_mut(&mut input.value);
+                self.visit_pat_mut(&mut input.pattern);
+                if let Some(guard) = &mut input.guard {
+                    self.visit_expr_mut(guard);
+                }
+            }
+            Err(_error) => self.error = Some(REFUSAL.into()),
+        }
+    }
+}
+
+struct MatchInput {
+    value: syn::Expr,
+    pattern: syn::Pat,
+    guard: Option<syn::Expr>,
+}
+
+impl syn::parse::Parse for MatchInput {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let value = input.parse()?;
+        input.parse::<syn::Token![,]>()?;
+        let pattern = syn::Pat::parse_multi_with_leading_vert(input)?;
+        let guard = if input.peek(syn::Token![if]) {
+            input.parse::<syn::Token![if]>()?;
+            Some(input.parse()?)
+        } else {
+            None
+        };
+        if !input.is_empty() {
+            input.parse::<syn::Token![,]>()?;
+        }
+        Ok(Self { value, pattern, guard })
     }
 }
 
@@ -266,6 +313,7 @@ pub(super) fn collect(
         programs,
         scopes: Vec::new(),
         block: 0,
+        block_depth: 0,
         state: Storage {
             schema_state: Vec::new(),
             readonly: Vec::new(),
@@ -308,15 +356,35 @@ mod tests {
     #[test]
     fn expanded_storage_rejects_shadowed_regex_names_in_function_scopes() {
         let patterns = vec![("FAKE_REGEX".to_owned(), "^fake$".to_owned())];
-        assert!(collect(&mut fixture(), "fake_owner", Path::new("/fake/schema.json"), &patterns).is_ok());
+        assert!(
+            collect(
+                &mut fixture(),
+                "fake_owner",
+                Path::new("/fake/schema.json"),
+                &patterns
+            )
+            .is_ok()
+        );
         let mut syntax = fixture();
-        let syn::Item::Mod(module) = &mut syntax.items[0] else { panic!("fixture module"); };
+        let syn::Item::Mod(module) = &mut syntax.items[0] else {
+            panic!("fixture module");
+        };
         module.content.as_mut().unwrap().1.push(syn::parse_quote! {
             fn fake_hidden() {
                 static FAKE_REGEX: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| vec![0_u8; 17]);
             }
         });
-        assert_eq!(collect(&mut syntax, "fake_owner", Path::new("/fake/schema.json"), &patterns).err().as_deref(), Some("unsupported expanded schema storage"));
+        assert_eq!(
+            collect(
+                &mut syntax,
+                "fake_owner",
+                Path::new("/fake/schema.json"),
+                &patterns
+            )
+            .err()
+            .as_deref(),
+            Some("unsupported expanded schema storage")
+        );
     }
 
     #[test]
@@ -327,10 +395,27 @@ mod tests {
             quote::quote! { fn fake_guard() -> bool { matches!({ static FAKE: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| vec![0_u8; 17]); true }, true) } },
         ] {
             let mut syntax = fixture();
-            let syn::Item::Mod(module) = &mut syntax.items[0] else { panic!("fixture module"); };
-            module.content.as_mut().unwrap().1.push(syn::parse2(extra).unwrap());
+            let syn::Item::Mod(module) = &mut syntax.items[0] else {
+                panic!("fixture module");
+            };
+            module
+                .content
+                .as_mut()
+                .unwrap()
+                .1
+                .push(syn::parse2(extra).unwrap());
             let patterns = vec![("FAKE_REGEX".to_owned(), "^fake$".to_owned())];
-            assert_eq!(collect(&mut syntax, "fake_owner", Path::new("/fake/schema.json"), &patterns).err().as_deref(), Some("unsupported expanded schema storage"));
+            assert_eq!(
+                collect(
+                    &mut syntax,
+                    "fake_owner",
+                    Path::new("/fake/schema.json"),
+                    &patterns
+                )
+                .err()
+                .as_deref(),
+                Some("unsupported expanded schema storage")
+            );
         }
     }
 }

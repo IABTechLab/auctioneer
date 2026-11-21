@@ -1,5 +1,7 @@
 //! Exact disjoint coverage of retained owners. Aliases never allocate programs.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 struct Charge<'a> {
     owner: &'a str,
     covered: &'a [&'a str],
@@ -8,7 +10,6 @@ struct Charge<'a> {
 
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
-    Incomplete,
     Coverage,
     Sharing,
     Arithmetic,
@@ -19,13 +20,40 @@ fn compose(
     charges: &[Charge<'_>],
     aliases: &[(&str, &str)],
 ) -> Result<u64, Refusal> {
-    if expected.iter().any(|(leaf, owner)| leaf.is_empty() || owner.is_empty())
-        || charges.iter().any(|row| row.owner.is_empty() || row.covered.is_empty() || row.bytes == 0)
-        || aliases.iter().any(|(alias, owner)| alias.is_empty() || owner.is_empty())
-    {
+    let mut required = BTreeMap::new();
+    for (leaf, owner) in expected {
+        if leaf.is_empty() || owner.is_empty() || required.insert(*leaf, *owner).is_some() {
+            return Err(Refusal::Coverage);
+        }
+    }
+    let roots = required.values().copied().collect::<BTreeSet<_>>();
+    let mut alias_names = BTreeSet::new();
+    for (alias, owner) in aliases {
+        if alias.is_empty()
+            || roots.contains(alias)
+            || !roots.contains(owner)
+            || !alias_names.insert(*alias)
+        {
+            return Err(Refusal::Sharing);
+        }
+    }
+    let mut covered = BTreeSet::new();
+    let mut total = 0_u64;
+    for row in charges {
+        if row.owner.is_empty() || row.covered.is_empty() || row.bytes == 0 {
+            return Err(Refusal::Coverage);
+        }
+        for leaf in row.covered {
+            if required.get(leaf).copied() != Some(row.owner) || !covered.insert(*leaf) {
+                return Err(Refusal::Coverage);
+            }
+        }
+        total = total.checked_add(row.bytes).ok_or(Refusal::Arithmetic)?;
+    }
+    if covered != required.keys().copied().collect() {
         return Err(Refusal::Coverage);
     }
-    Err(Refusal::Incomplete)
+    Ok(total)
 }
 
 #[cfg(test)]
@@ -40,9 +68,21 @@ mod tests {
 
     fn charges() -> [Charge<'static>; 3] {
         [
-            Charge { owner: "fake_a", covered: &["fake_a_regex"], bytes: 3 },
-            Charge { owner: "fake_b", covered: &["fake_b_regex"], bytes: 3 },
-            Charge { owner: "fake_shared", covered: &["fake_shared_hostname"], bytes: 5 },
+            Charge {
+                owner: "fake_a",
+                covered: &["fake_a_regex"],
+                bytes: 3,
+            },
+            Charge {
+                owner: "fake_b",
+                covered: &["fake_b_regex"],
+                bytes: 3,
+            },
+            Charge {
+                owner: "fake_shared",
+                covered: &["fake_shared_hostname"],
+                bytes: 5,
+            },
         ]
     }
 
@@ -70,7 +110,11 @@ mod tests {
             assert_eq!(compose(LEAVES, &rows, &[]), Err(Refusal::Coverage));
         }
         let mut rows = charges().into_iter().collect::<Vec<_>>();
-        rows.push(Charge { owner: "fake_a", covered: &["fake_a_regex"], bytes: 1 });
+        rows.push(Charge {
+            owner: "fake_a",
+            covered: &["fake_a_regex"],
+            bytes: 1,
+        });
         assert_eq!(compose(LEAVES, &rows, &[]), Err(Refusal::Coverage));
         let mut rows = charges();
         rows[0].covered = &["fake_unknown"];

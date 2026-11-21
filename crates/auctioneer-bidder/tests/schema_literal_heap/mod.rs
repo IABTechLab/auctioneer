@@ -1,6 +1,6 @@
 //! Source-derived retained literal owners, not constructor or whole-program peaks.
 
-use crate::schema_heap_layout::{HeapLayout, LayoutError, native_arc_value_layout};
+use crate::schema_heap_layout::{HeapLayout, LayoutError, NativeField, native_arc_value_layout};
 use regex_automata::{
     MatchKind as RegexMatchKind,
     meta::Config,
@@ -87,6 +87,34 @@ impl AutomaticPrefilterHeap {
             Self::SingleByte {
                 requested_bytes, ..
             } => requested_bytes,
+        }
+    }
+}
+
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AutomaticPrefilterSource {
+    ExcludedStartAnchored,
+    SingleByte(u8),
+}
+
+impl AutomaticPrefilterHeap {
+    pub(crate) fn source(pattern: &str, config: &Config) -> Result<AutomaticPrefilterSource, AutomaticPrefilterError> {
+        Self::from_pattern(pattern, config).map(|selected| match selected {
+            Self::ExcludedStartAnchored => AutomaticPrefilterSource::ExcludedStartAnchored,
+            Self::SingleByte { byte, .. } => AutomaticPrefilterSource::SingleByte(byte),
+        })
+    }
+
+    // Hosted-RED scaffold: uses the old native Arc instead of supplied facts.
+    pub(crate) fn from_source(source: AutomaticPrefilterSource, _payload: NativeField, _header: NativeField) -> Result<Self, AutomaticPrefilterError> {
+        match source {
+            AutomaticPrefilterSource::ExcludedStartAnchored => Ok(Self::ExcludedStartAnchored),
+            AutomaticPrefilterSource::SingleByte(byte) => {
+                let requested_bytes = native_arc_value_layout(Layout::new::<u8>())
+                    .map_err(|_error| AutomaticPrefilterError::Layout)?.size();
+                Ok(Self::SingleByte { byte, requested_bytes })
+            }
         }
     }
 }
@@ -194,7 +222,69 @@ mod tests {
     use super::*;
     use crate::schema_meter::measure;
     use aho_corasick::{MatchKind, PatternID, StartKind, dfa::DFA};
-    use std::{hint, mem::size_of};
+    use std::{hint, mem::size_of, sync::atomic::AtomicUsize};
+
+
+    #[test]
+    fn scalar_prefilter_explicit_header_axes_keep_source_selected_byte() {
+        let payload = NativeField { bytes: 1_usize, alignment: 1_usize };
+        let source = AutomaticPrefilterSource::SingleByte(b'q');
+        for (bytes, alignment, expected) in [
+            (8_usize, 4_usize, 12_usize),
+            (16_usize, 4_usize, 20_usize),
+            (8_usize, 8_usize, 16_usize),
+            (16_usize, 8_usize, 24_usize),
+        ] {
+            assert_eq!(
+                AutomaticPrefilterHeap::from_source(source, payload, NativeField { bytes, alignment }),
+                Ok(AutomaticPrefilterHeap::SingleByte { byte: b'q', requested_bytes: expected })
+            );
+        }
+        assert_eq!(
+            AutomaticPrefilterHeap::from_source(
+                AutomaticPrefilterSource::ExcludedStartAnchored, payload,
+                NativeField { bytes: 8_usize, alignment: 4_usize },
+            ),
+            Ok(AutomaticPrefilterHeap::ExcludedStartAnchored)
+        );
+    }
+
+    #[test]
+    fn scalar_prefilter_facts_refuse_non_memchr_and_malformed_header() {
+        for (payload, header) in [
+            (NativeField { bytes: 2_usize, alignment: 1_usize },
+                NativeField { bytes: 8_usize, alignment: 4_usize }),
+            (NativeField { bytes: 1_usize, alignment: 1_usize },
+                NativeField { bytes: 0_usize, alignment: 4_usize }),
+            (NativeField { bytes: 1_usize, alignment: 1_usize },
+                NativeField { bytes: usize::MAX - 7_usize, alignment: 8_usize }),
+        ] {
+            assert_eq!(
+                AutomaticPrefilterHeap::from_source(
+                    AutomaticPrefilterSource::SingleByte(b'q'), payload, header,
+                ),
+                Err(AutomaticPrefilterError::Layout)
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_prefilter_native_adapter_matches_literal_source_projection() {
+        let config = Config::new();
+        let source = AutomaticPrefilterHeap::source("q[a-z]{2,3}$", &config).unwrap();
+        assert_eq!(source, AutomaticPrefilterSource::SingleByte(b'q'));
+        let explicit = AutomaticPrefilterHeap::from_source(
+            source, NativeField::of::<u8>(),
+            NativeField::of::<[AtomicUsize; 2]>(),
+        ).unwrap();
+        assert_eq!(
+            explicit,
+            AutomaticPrefilterHeap::SingleByte {
+                byte: b'q', requested_bytes: if usize::BITS == 64 { 24_usize } else { 12_usize },
+            }
+        );
+        assert_eq!(AutomaticPrefilterHeap::from_pattern("q[a-z]{2,3}$", &config), Ok(explicit));
+    }
 
     #[test]
     fn fake_automatic_prefilter_excludes_anchored_and_funds_one_scalar_matcher() {

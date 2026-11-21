@@ -96,17 +96,15 @@ impl PoolLayout {
 }
 
 impl UnusedPoolHeap {
-    // Hosted-RED scaffold only. Callers must supply all matched ABI facts;
-    // these are not target evidence until the explicit-layout controls pass.
-    pub(crate) fn with_layout(config: &Config, _layout: PoolLayout) -> Result<Self, PoolHeapError> {
-        Self::native(config)
-    }
-
-    pub(crate) fn native(config: &Config) -> Result<Self, PoolHeapError> {
+    pub(crate) fn with_layout(config: &Config, layout: PoolLayout) -> Result<Self, PoolHeapError> {
         if config.get_pool_capacity() != 1 {
             return Err(PoolHeapError::Configuration);
         }
-        PoolLayout::native().unused(config.get_pool_capacity())
+        layout.unused(config.get_pool_capacity())
+    }
+
+    pub(crate) fn native(config: &Config) -> Result<Self, PoolHeapError> {
+        Self::with_layout(config, PoolLayout::native())
     }
 
     pub(crate) fn population(self, helpers: usize, hostname: bool) -> Result<usize, PoolHeapError> {
@@ -177,7 +175,10 @@ mod tests {
             closure_bytes: 16_usize,
             requested_bytes: 168_usize,
         };
-        assert_eq!(UnusedPoolHeap::with_layout(&config, SYNTHETIC), Ok(expected));
+        assert_eq!(
+            UnusedPoolHeap::with_layout(&config, SYNTHETIC),
+            Ok(expected)
+        );
         for index in 0_usize..4_usize {
             let mut layout = SYNTHETIC;
             layout.fields[index].bytes += 8_usize;
@@ -229,12 +230,39 @@ mod tests {
     fn explicit_pool_facts_refuse_each_missing_malformed_or_overflowed_field() {
         let config = Regex::config().pool_capacity(1_usize);
         for (field, error) in [
-            (Field { bytes: 0_usize, alignment: 8_usize }, PoolHeapError::Shape),
-            (Field { bytes: 8_usize, alignment: 0_usize }, PoolHeapError::Shape),
-            (Field { bytes: 8_usize, alignment: 3_usize }, PoolHeapError::Shape),
-            (Field { bytes: 9_usize, alignment: 8_usize }, PoolHeapError::Shape),
             (
-                Field { bytes: usize::MAX - 7_usize, alignment: 8_usize },
+                Field {
+                    bytes: 0_usize,
+                    alignment: 8_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: 8_usize,
+                    alignment: 0_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: 8_usize,
+                    alignment: 3_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: 9_usize,
+                    alignment: 8_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: usize::MAX - 7_usize,
+                    alignment: 8_usize,
+                },
                 PoolHeapError::Arithmetic,
             ),
         ] {
@@ -263,10 +291,7 @@ mod tests {
         );
         for capacity in [0_usize, 2_usize, usize::MAX] {
             assert_eq!(
-                UnusedPoolHeap::with_layout(
-                    &Regex::config().pool_capacity(capacity),
-                    SYNTHETIC,
-                ),
+                UnusedPoolHeap::with_layout(&Regex::config().pool_capacity(capacity), SYNTHETIC,),
                 Err(PoolHeapError::Configuration)
             );
         }

@@ -137,22 +137,33 @@ pub(crate) struct MetadataPopulation {
 }
 
 impl NativeImmutableRegexMetadata {
-    // Hosted-RED scaffold only. No layout/header defaults are exposed; caller
-    // supplied facts still need implementation and matched target evidence.
     pub(crate) fn from_pattern_with_layouts(
         pattern: &str,
         config: &Config,
         pattern_count: usize,
-        _layout: MetadataLayout,
-        _header: NativeField,
+        layout: MetadataLayout,
+        header: NativeField,
     ) -> Result<Self, MetadataHeapError> {
-        Self::from_pattern(pattern, config, pattern_count)
+        Self::with_checked_pattern(pattern, config, pattern_count, |_properties| {
+            layout.metadata_with_header(header)
+        })
     }
 
     pub(crate) fn from_pattern(
         pattern: &str,
         config: &Config,
         pattern_count: usize,
+    ) -> Result<Self, MetadataHeapError> {
+        Self::with_checked_pattern(pattern, config, pattern_count, |properties| {
+            MetadataLayout::native(properties).metadata()
+        })
+    }
+
+    fn with_checked_pattern(
+        pattern: &str,
+        config: &Config,
+        pattern_count: usize,
+        project: impl FnOnce(&Properties) -> Result<Self, MetadataHeapError>,
     ) -> Result<Self, MetadataHeapError> {
         // Config's only possible heap-owning field is an explicitly configured
         // prefilter. Automatic strategy prefilters remain outside this model.
@@ -166,7 +177,7 @@ impl NativeImmutableRegexMetadata {
         let hir = parser
             .parse(pattern)
             .map_err(|_error| MetadataHeapError::Syntax)?;
-        MetadataLayout::native(hir.properties()).metadata()
+        project(hir.properties())
     }
 
     pub(crate) fn population(
@@ -256,7 +267,10 @@ mod tests {
     #[test]
     fn explicit_metadata_facts_vary_every_field_and_alignment_without_host_substitution() {
         let config = Regex::config();
-        let header = NativeField { bytes: 8_usize, alignment: 4_usize };
+        let header = NativeField {
+            bytes: 8_usize,
+            alignment: 4_usize,
+        };
         let expected = NativeImmutableRegexMetadata {
             regex_arc_bytes: 32_usize,
             info_arc_bytes: 80_usize,
@@ -269,7 +283,11 @@ mod tests {
         };
         assert_eq!(
             NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                "^synthetic+$", &config, 1_usize, SYNTHETIC, header,
+                "^synthetic+$",
+                &config,
+                1_usize,
+                SYNTHETIC,
+                header,
             ),
             Ok(expected)
         );
@@ -278,7 +296,11 @@ mod tests {
             layout.regex_fields[index].bytes += 8_usize;
             assert_eq!(
                 NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                    "^synthetic+$", &config, 1_usize, layout, header,
+                    "^synthetic+$",
+                    &config,
+                    1_usize,
+                    layout,
+                    header,
                 ),
                 Ok(NativeImmutableRegexMetadata {
                     regex_arc_bytes: 40_usize,
@@ -293,12 +315,20 @@ mod tests {
             layout.info_fields[index].bytes += 8_usize;
             assert_eq!(
                 NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                    "^synthetic+$", &config, 1_usize, layout, header,
+                    "^synthetic+$",
+                    &config,
+                    1_usize,
+                    layout,
+                    header,
                 ),
                 Ok(NativeImmutableRegexMetadata {
                     info_arc_bytes: 88_usize,
                     props_vec_bytes: if index == 2_usize { 64_usize } else { 32_usize },
-                    requested_heap_bytes: if index == 2_usize { 344_usize } else { 312_usize },
+                    requested_heap_bytes: if index == 2_usize {
+                        344_usize
+                    } else {
+                        312_usize
+                    },
                     ..expected
                 }),
                 "info field {index}"
@@ -308,7 +338,11 @@ mod tests {
         payload.props_payload.bytes = 88_usize;
         assert_eq!(
             NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                "^synthetic+$", &config, 1_usize, payload, header,
+                "^synthetic+$",
+                &config,
+                1_usize,
+                payload,
+                header,
             ),
             Ok(NativeImmutableRegexMetadata {
                 props_box_bytes: 88_usize,
@@ -321,16 +355,27 @@ mod tests {
         inline.static_inline.bytes = 72_usize;
         assert_eq!(
             NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                "^synthetic+$", &config, 1_usize, inline, header,
+                "^synthetic+$",
+                &config,
+                1_usize,
+                inline,
+                header,
             ),
-            Ok(NativeImmutableRegexMetadata { static_inline_bytes: 72_usize, ..expected })
+            Ok(NativeImmutableRegexMetadata {
+                static_inline_bytes: 72_usize,
+                ..expected
+            })
         );
         let mut aligned = SYNTHETIC;
         aligned.regex_fields[0].alignment = 16_usize;
         // The 8/4 header pads to offset 16, followed by a 32/16 payload bound.
         assert_eq!(
             NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                "^synthetic+$", &config, 1_usize, aligned, header,
+                "^synthetic+$",
+                &config,
+                1_usize,
+                aligned,
+                header,
             ),
             Ok(NativeImmutableRegexMetadata {
                 regex_arc_bytes: 48_usize,
@@ -345,29 +390,47 @@ mod tests {
         let config = Regex::config();
         for (field, error) in [
             (
-                NativeField { bytes: 0_usize, alignment: 8_usize },
+                NativeField {
+                    bytes: 0_usize,
+                    alignment: 8_usize,
+                },
                 MetadataHeapError::Shape,
             ),
             (
-                NativeField { bytes: 8_usize, alignment: 0_usize },
+                NativeField {
+                    bytes: 8_usize,
+                    alignment: 0_usize,
+                },
                 MetadataHeapError::Shape,
             ),
             (
-                NativeField { bytes: 8_usize, alignment: 3_usize },
+                NativeField {
+                    bytes: 8_usize,
+                    alignment: 3_usize,
+                },
                 MetadataHeapError::Shape,
             ),
             (
-                NativeField { bytes: 9_usize, alignment: 8_usize },
+                NativeField {
+                    bytes: 9_usize,
+                    alignment: 8_usize,
+                },
                 MetadataHeapError::Shape,
             ),
             (
-                NativeField { bytes: usize::MAX - 7_usize, alignment: 8_usize },
+                NativeField {
+                    bytes: usize::MAX - 7_usize,
+                    alignment: 8_usize,
+                },
                 MetadataHeapError::Arithmetic,
             ),
         ] {
             for index in 0_usize..8_usize {
                 let mut layout = SYNTHETIC;
-                let mut header = NativeField { bytes: 8_usize, alignment: 4_usize };
+                let mut header = NativeField {
+                    bytes: 8_usize,
+                    alignment: 4_usize,
+                };
                 match index {
                     0..=1 => layout.regex_fields[index] = field,
                     2..=4 => layout.info_fields[index - 2_usize] = field,
@@ -377,7 +440,11 @@ mod tests {
                 }
                 assert_eq!(
                     NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                        "^synthetic+$", &config, 1_usize, layout, header,
+                        "^synthetic+$",
+                        &config,
+                        1_usize,
+                        layout,
+                        header,
                     ),
                     Err(error),
                     "field {index}: {field:?}"
@@ -411,13 +478,21 @@ mod tests {
         let configured = Regex::config().prefilter(Some(prefilter));
         assert_eq!(
             NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                pattern, &configured, 1_usize, layout, header,
+                pattern,
+                &configured,
+                1_usize,
+                layout,
+                header,
             ),
             Err(MetadataHeapError::Configuration)
         );
         assert_eq!(
             NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                "[synthetic", &config, 1_usize, layout, header,
+                "[synthetic",
+                &config,
+                1_usize,
+                layout,
+                header,
             ),
             Err(MetadataHeapError::Syntax)
         );
