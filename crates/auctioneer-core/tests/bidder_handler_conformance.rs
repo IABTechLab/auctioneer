@@ -562,7 +562,8 @@ mod tests {
                     );
                 }
             }
-            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry) {
+            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry)
+            {
                 let user = &outbound[user_key];
                 // These survive only without ID/FPD restrictions; protected scrub cannot pass.
                 assert_eq!(user["id"], "ordinary-user", "{entrypoint}/{name}");
@@ -622,10 +623,16 @@ mod tests {
                     assert_eq!(uids["fake_first"], "first-map-canary");
                     assert_eq!(uids["fake_second"], "second-map-canary");
                 } else {
-                    assert!(value[user_key][extension_key].as_object().unwrap().is_empty());
+                    assert!(
+                        value[user_key][extension_key]
+                            .as_object()
+                            .unwrap()
+                            .is_empty()
+                    );
                 }
             }
-            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry) {
+            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry)
+            {
                 let user = &outbound[user_key];
                 let encoded = serde_json::to_string(&outbound).unwrap();
                 if user != &expected_user

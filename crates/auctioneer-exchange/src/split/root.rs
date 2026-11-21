@@ -17,7 +17,7 @@ pub(super) fn project(
         match key.as_str() {
             "imp" => {}
             user if user.eq_ignore_ascii_case("user") => {
-                root.insert(key.clone(), project_without(value, &["ext", "prebid"]));
+                root.insert(key.clone(), project_user(value));
             }
             "ext" => {
                 root.insert(key.clone(), project_ext(value, bidder, aliases));
@@ -30,28 +30,18 @@ pub(super) fn project(
     Ok(root)
 }
 
-// Traverse only the fixed ext/prebid path, never attacker-selected input depth.
-// Match ext ASCII-case-insensitively; omit the whole exact prebid member before
-// cloning it or its ancestors. Differently cased Prebid remains ordinary context.
-fn project_without(source: &Value, path: &[&str]) -> Value {
-    let (Some(members), Some((next, rest))) = (source.as_object(), path.split_first()) else {
+// Visit only the fixed user/ext topology, never attacker-selected input depth.
+// Match ext ASCII-case-insensitively, preserving each spelling independently.
+fn project_user(source: &Value) -> Value {
+    let Some(members) = source.as_object() else {
         return source.clone();
     };
     Value::Object(
         members
             .iter()
             .filter_map(|(key, value)| {
-                let terminal = rest.is_empty();
-                let matches = if terminal {
-                    key.as_str() == *next
-                } else {
-                    key.eq_ignore_ascii_case(next)
-                };
-                if matches && terminal {
-                    return None;
-                }
-                let projected = if matches {
-                    project_without(value, rest)
+                let projected = if key.eq_ignore_ascii_case("ext") {
+                    project_user_ext(value)?
                 } else {
                     value.clone()
                 };
@@ -59,6 +49,24 @@ fn project_without(source: &Value, path: &[&str]) -> Value {
             })
             .collect(),
     )
+}
+
+// Skip exact prebid and any extension it empties before copying either. A caller's
+// empty extension and any nonempty remainder (including Prebid) remain unchanged.
+fn project_user_ext(source: &Value) -> Option<Value> {
+    let Some(members) = source.as_object() else {
+        return Some(source.clone());
+    };
+    if members.len() == 1 && members.contains_key("prebid") {
+        return None;
+    }
+    Some(Value::Object(
+        members
+            .iter()
+            .filter(|(key, _)| key.as_str() != "prebid")
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect(),
+    ))
 }
 
 fn project_ext(source: &Value, bidder: &BidderName, aliases: &AliasMap) -> Value {
