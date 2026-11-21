@@ -1626,6 +1626,42 @@ mod tests {
     }
 
     #[test]
+    fn fake_application_snapshot_capture_returns_every_verified_output() {
+        use super::{SchemaSnapshot, check_snapshots};
+        use std::fs;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let out_dir = root.join("out");
+        fs::create_dir(&out_dir).unwrap();
+        let snapshots: Vec<_> = [
+            ("fake_a", "fake-a.json", json!({"type":"string"})),
+            ("fake_b", "fake-b.json", json!({"type":"number"})),
+        ]
+        .into_iter()
+        .map(|(owner, path, value)| {
+            let bytes = serde_json::to_vec(&value).unwrap();
+            fs::write(out_dir.join(path), &bytes).unwrap();
+            SchemaSnapshot {
+                owner: owner.into(),
+                relative_path: path.into(),
+                sha256: digest(&bytes),
+                bytes,
+            }
+        })
+        .collect();
+        assert_eq!(snapshots.len(), 2);
+        let captured = check_snapshots(&root, &out_dir, &snapshots).unwrap();
+        assert_eq!(
+            serde_json::to_value(captured).unwrap(),
+            json!([
+                {"owner":"fake_a","relative_path":"fake-a.json","sha256":snapshots[0].sha256},
+                {"owner":"fake_b","relative_path":"fake-b.json","sha256":snapshots[1].sha256}
+            ])
+        );
+    }
+
+    #[test]
     fn fake_compiled_feature_closure_requires_declared_empty_default() {
         for development in [false, true] {
             let (mut packages, mut rows) = fake_feature_packages(development);
