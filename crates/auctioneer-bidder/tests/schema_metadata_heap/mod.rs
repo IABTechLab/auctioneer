@@ -59,6 +59,13 @@ impl MetadataLayout {
         }
     }
 
+    fn metadata_with_header(
+        self,
+        _header: NativeField,
+    ) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
+        self.metadata()
+    }
+
     fn metadata(self) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
         for field in self
             .regex_fields
@@ -247,6 +254,102 @@ mod tests {
                 requested_heap_bytes: 320,
                 static_inline_bytes: 64,
             })
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_16_byte_header_preserves_literal_terms() {
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(NativeField {
+                bytes: 16_usize,
+                alignment: 8_usize,
+            }),
+            Ok(NativeImmutableRegexMetadata {
+                regex_arc_bytes: 40_usize,
+                info_arc_bytes: 88_usize,
+                props_capacity: 4_usize,
+                props_vec_bytes: 32_usize,
+                props_box_bytes: 80_usize,
+                props_union_box_bytes: 80_usize,
+                requested_heap_bytes: 320_usize,
+                static_inline_bytes: 64_usize,
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_8_byte_header_changes_only_arc_terms() {
+        // Synthetic payload bounds stay 24/8 and 72/8; extending an 8/4
+        // header and padding to alignment 8 gives Arc requests of 32 and 80.
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(NativeField {
+                bytes: 8_usize,
+                alignment: 4_usize,
+            }),
+            Ok(NativeImmutableRegexMetadata {
+                regex_arc_bytes: 32_usize,
+                info_arc_bytes: 80_usize,
+                props_capacity: 4_usize,
+                props_vec_bytes: 32_usize,
+                props_box_bytes: 80_usize,
+                props_union_box_bytes: 80_usize,
+                requested_heap_bytes: 304_usize,
+                static_inline_bytes: 64_usize,
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_header_rejects_malformed_shapes() {
+        for header in [
+            NativeField {
+                bytes: 0_usize,
+                alignment: 8_usize,
+            },
+            NativeField {
+                bytes: 8_usize,
+                alignment: 0_usize,
+            },
+            NativeField {
+                bytes: 8_usize,
+                alignment: 3_usize,
+            },
+            NativeField {
+                bytes: 9_usize,
+                alignment: 8_usize,
+            },
+        ] {
+            assert_eq!(
+                SYNTHETIC.metadata_with_header(header),
+                Err(MetadataHeapError::Shape)
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_explicit_header_rejects_allocation_limit_overflow() {
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(NativeField {
+                bytes: usize::MAX - 7_usize,
+                alignment: 8_usize,
+            }),
+            Err(MetadataHeapError::Arithmetic)
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_header_rejects_arc_extension_overflow() {
+        let maximum = usize::try_from(isize::MAX).unwrap();
+        let header = NativeField {
+            bytes: maximum - 7_usize,
+            alignment: 8_usize,
+        };
+        // The header is legal by itself; appending either payload exceeds
+        // Layout's allocation limit without overflowing usize.
+        assert_eq!(header.validate(), Ok(()));
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(header),
+            Err(MetadataHeapError::Arithmetic)
         );
     }
 
