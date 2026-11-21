@@ -2,6 +2,7 @@
 
 mod auxiliary;
 pub(crate) mod expanded;
+mod growth;
 mod initialization;
 mod literal_construction;
 mod observations;

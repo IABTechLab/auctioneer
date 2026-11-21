@@ -3,7 +3,7 @@
 //! Only source provenance is described here. Historical `GeneratorSource` bytes
 //! are not the generator executed by a measurement. Consumers must separately
 //! freeze current measurement sources, dependencies, lock, options and ABI.
-//! This module never builds, expands, materializes or activates a catalog.
+//! This module never builds, expands, executes or activates source code.
 
 use serde::Serialize;
 use crate::schema_staging_build::MAX_INPUT_BYTES;
@@ -46,8 +46,6 @@ const TREE_ROOTS: [&str; 3] = [
 /// A refusal never represents a matched or empty reference.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
-    /// Deliberately unimplemented red-phase reader.
-    Incomplete,
     /// Missing, nonregular, indirect, or non-repository root.
     Root,
     /// HEAD, commit, or root-tree identity differs from the required pin.
@@ -151,8 +149,8 @@ impl SourceSnapshot {
     /// # Errors
     /// Refuses changed captured data, unsafe paths, existing destinations,
     /// symlinked ancestors, nonregular outputs and filesystem write failures.
-    pub fn materialize(&self, _destination: &Path) -> Result<(), Error> {
-        Err(Error::Incomplete)
+    pub fn materialize(&self, destination: &Path) -> Result<(), Error> {
+        materialize(self, destination)
     }
 }
 
@@ -170,29 +168,470 @@ struct Listing {
     trees: BTreeSet<String>,
 }
 
+use sha2::{Digest as _, Sha256};
+use std::fs;
+use std::io::{self, ErrorKind, Read as _, Write as _};
+use std::path::{Component, PathBuf};
+use std::process::{ExitStatus, Stdio};
+use std::str::from_utf8;
+use std::sync::mpsc::{self, TryRecvError};
+use std::thread;
+use std::time::{Duration, Instant};
+
+// Same tooling deadlines as CLI's existing offline source reader. These are
+// subprocess fences, not serving/configuration limits or resource allowances.
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
+const OPERATION_TIMEOUT: Duration = Duration::from_secs(120);
+
 fn read_pinned(
-    _root: &Path,
-    _commit: &str,
-    _tree: &str,
-    _files: usize,
-    _bytes: u64,
+    root: &Path,
+    commit: &str,
+    tree: &str,
+    files: usize,
+    bytes: u64,
 ) -> Result<SourceSnapshot, Error> {
-    let _ = (MAX_INPUT_BYTES, FIXED_INPUTS, TREE_ROOTS, parse_listing, included, git_command);
-    Err(Error::Incomplete)
+    regular_directory(root)?;
+    if !valid_oid(commit) || !valid_oid(tree) {
+        return Err(Error::Identity);
+    }
+    if files == 0 || bytes == 0 {
+        return Err(Error::Witness);
+    }
+    let deadline = Instant::now().checked_add(OPERATION_TIMEOUT).ok_or(Error::Limit)?;
+    let prefix = run(root, &["rev-parse", "--show-prefix"], None, deadline)?;
+    let top = run(root, &["rev-parse", "--show-toplevel"], None, deadline)?;
+    if !prefix.status.success() || prefix.stdout != b"\n"
+        || !top.status.success()
+        || text_line(&top.stdout).map_err(|_| Error::Root)?
+            != root.to_str().ok_or(Error::Root)?
+    {
+        return Err(Error::Root);
+    }
+    reject_partial(root, deadline)?;
+    check_head(root, commit, deadline)?;
+    let commit_data = object(root, "commit", commit, deadline)?;
+    if !commit_data.starts_with(format!("tree {tree}\n").as_bytes()) {
+        return Err(Error::Identity);
+    }
+    drop(object(root, "tree", tree, deadline)?);
+    let mut arguments = vec!["ls-tree", "-r", "-t", "-l", "-z", "--full-tree", tree, "--"];
+    arguments.extend(FIXED_INPUTS);
+    arguments.extend(TREE_ROOTS);
+    let output = run(root, &arguments, None, deadline)?;
+    if !output.status.success() {
+        return Err(Error::MissingObject);
+    }
+    let listing = parse_listing(&output.stdout)?;
+    if listing.files.len() != files
+        || FIXED_INPUTS.iter().any(|path| !listing.files.contains_key(*path))
+        || listing.files.values().try_fold(0_u64, |sum, entry| {
+            sum.checked_add(entry.bytes).ok_or(Error::Witness)
+        })? != bytes
+    {
+        return Err(Error::Witness);
+    }
+    // -t retains traversed ancestors as well as descendant tree objects.
+    // Rehash them, too: merely trusting a corrupt loose object's filename
+    // would not establish that the listed child blobs belong to the pin.
+    for oid in listing.trees {
+        drop(object(root, "tree", &oid, deadline)?);
+    }
+    let mut captured = BTreeMap::new();
+    for (path, entry) in listing.files {
+        let contents = object(root, "blob", &entry.blob, deadline)?;
+        if u64::try_from(contents.len()).map_err(|_| Error::Limit)? != entry.bytes {
+            return Err(Error::Witness);
+        }
+        let witness = Witness {
+            path: entry.path,
+            mode: entry.mode,
+            blob: entry.blob,
+            bytes: entry.bytes,
+            sha256: hex::encode(Sha256::digest(&contents)),
+        };
+        captured.insert(path, SourceFile { witness, contents });
+    }
+    reject_partial(root, deadline)?;
+    check_head(root, commit, deadline)?;
+    Ok(SourceSnapshot { commit: commit.to_owned(), tree: tree.to_owned(), files: captured })
 }
 
-fn parse_listing(_bytes: &[u8]) -> Result<Listing, Error> {
-    let empty = Listing { files: BTreeMap::new(), trees: BTreeSet::new() };
-    drop((empty.files, empty.trees));
-    Err(Error::Incomplete)
+fn valid_oid(value: &str) -> bool {
+    value.len() == 40
+        && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn included(_path: &str) -> bool {
-    false
+fn normal_relative(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains('\\')
+        && !value.chars().any(char::is_control)
+        && value.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
+        && Path::new(value).components().all(|part| matches!(part, Component::Normal(_)))
 }
 
-fn git_command(_root: &Path) -> Command {
-    Command::new("/usr/bin/git")
+fn normal_absolute(path: &Path) -> bool {
+    path.is_absolute()
+        && path.to_str().is_some_and(|text| !text.chars().any(char::is_control))
+        && path.components().all(|part| matches!(part, Component::RootDir | Component::Normal(_)))
+        && path.components().collect::<PathBuf>().as_os_str() == path.as_os_str()
+}
+
+fn regular_directory(path: &Path) -> Result<(), Error> {
+    if !normal_absolute(path) {
+        return Err(Error::Root);
+    }
+    let mut prefix = PathBuf::new();
+    for part in path.components() {
+        prefix.push(part);
+        let metadata = fs::symlink_metadata(&prefix).map_err(|_| Error::Root)?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(Error::Root);
+        }
+    }
+    Ok(())
+}
+
+fn text_line(bytes: &[u8]) -> Result<&str, Error> {
+    let text = from_utf8(bytes).map_err(|_| Error::Witness)?;
+    let line = text.strip_suffix('\n').ok_or(Error::Witness)?;
+    if line.is_empty() || line.chars().any(char::is_control) {
+        return Err(Error::Witness);
+    }
+    Ok(line)
+}
+
+fn oid_line(bytes: &[u8]) -> Result<&str, Error> {
+    let oid = text_line(bytes)?;
+    if !valid_oid(oid) {
+        return Err(Error::Witness);
+    }
+    Ok(oid)
+}
+
+fn check_head(root: &Path, expected: &str, deadline: Instant) -> Result<(), Error> {
+    let output = run(root, &["rev-parse", "--verify", "HEAD^{commit}"], None, deadline)?;
+    if !output.status.success()
+        || oid_line(&output.stdout).map_err(|_| Error::Identity)? != expected
+    {
+        return Err(Error::Identity);
+    }
+    Ok(())
+}
+
+fn reject_partial(root: &Path, deadline: Instant) -> Result<(), Error> {
+    let config = run(root, &[
+        "config", "--get-regexp",
+        "^(extensions\\.partialclone|remote\\..*\\.(promisor|partialclonefilter))$",
+    ], None, deadline)?;
+    match config.status.code() {
+        Some(0) => return Err(Error::Partial),
+        Some(1) if config.stdout.is_empty() => {}
+        _ => return Err(Error::Git),
+    }
+    let output = run(root, &[
+        "rev-parse", "--path-format=absolute", "--git-path", "objects",
+    ], None, deadline)?;
+    if !output.status.success() {
+        return Err(Error::Root);
+    }
+    let objects = PathBuf::from(text_line(&output.stdout).map_err(|_| Error::Root)?);
+    regular_directory(&objects)?;
+    for name in ["info", "pack"] {
+        let directory = objects.join(name);
+        match fs::symlink_metadata(&directory) {
+            Ok(_) => regular_directory(&directory)?,
+            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(_) => return Err(Error::Root),
+        }
+        if name == "info" {
+            match fs::symlink_metadata(directory.join("alternates")) {
+                Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                    return Err(Error::Root);
+                }
+                // A self-contained reference must not obtain missing data
+                // from another repository's uninspected object store.
+                Ok(metadata) if metadata.len() != 0 => return Err(Error::Partial),
+                Ok(_) => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => {}
+                Err(_) => return Err(Error::Root),
+            }
+        } else {
+            for entry in fs::read_dir(directory).map_err(|_| Error::Root)? {
+                if entry.map_err(|_| Error::Root)?.path().extension()
+                    .is_some_and(|suffix| suffix == "promisor")
+                {
+                    return Err(Error::Partial);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn included(path: &str) -> bool {
+    if FIXED_INPUTS.contains(&path) || path.starts_with("crates/auctioneer-bidder/src/bidders/") {
+        return true;
+    }
+    ["vendor/jsonschema-macros-core/", "vendor/regex-automata/"].iter().any(|prefix| {
+        path.strip_prefix(prefix).is_some_and(|relative| {
+            relative.ends_with(".rs") || Path::new(relative).file_name()
+                .is_some_and(|name| name == "Cargo.toml")
+        })
+    })
+}
+
+fn parse_listing(bytes: &[u8]) -> Result<Listing, Error> {
+    if bytes.is_empty() || !bytes.ends_with(&[0]) {
+        return Err(Error::Witness);
+    }
+    let mut listing = Listing { files: BTreeMap::new(), trees: BTreeSet::new() };
+    let mut paths = BTreeSet::new();
+    let body = bytes.strip_suffix(&[0]).ok_or(Error::Witness)?;
+    for record in body.split(|byte| *byte == 0) {
+        if record.is_empty() {
+            return Err(Error::Witness);
+        }
+        let record = from_utf8(record).map_err(|_| Error::Path)?;
+        let (header, path) = record.split_once('\t').ok_or(Error::Witness)?;
+        if !normal_relative(path) {
+            return Err(Error::Path);
+        }
+        if !paths.insert(path.to_owned()) {
+            return Err(Error::Witness);
+        }
+        let mut fields = header.split_ascii_whitespace();
+        let mode = fields.next().ok_or(Error::Witness)?;
+        let kind = fields.next().ok_or(Error::Witness)?;
+        let oid = fields.next().ok_or(Error::Witness)?;
+        let size = fields.next().ok_or(Error::Witness)?;
+        if fields.next().is_some() || !valid_oid(oid) {
+            return Err(Error::Witness);
+        }
+        if mode == "040000" && kind == "tree" && size == "-" {
+            listing.trees.insert(oid.to_owned());
+            continue;
+        }
+        if !matches!(mode, "100644" | "100755") || kind != "blob" {
+            return Err(Error::Mode);
+        }
+        if !included(path) {
+            continue;
+        }
+        let length = size.parse::<u64>().map_err(|_| Error::MissingObject)?;
+        if length > MAX_INPUT_BYTES {
+            return Err(Error::Limit);
+        }
+        listing.files.insert(path.to_owned(), Entry {
+            path: path.to_owned(), mode: mode.to_owned(), blob: oid.to_owned(), bytes: length,
+        });
+    }
+    if listing.files.is_empty() {
+        return Err(Error::Witness);
+    }
+    Ok(listing)
+}
+
+fn object(root: &Path, kind: &str, oid: &str, deadline: Instant) -> Result<Vec<u8>, Error> {
+    let output = run(root, &["cat-file", kind, oid], None, deadline)?;
+    if !output.status.success() {
+        return Err(Error::MissingObject);
+    }
+    // Without -w, hash-object only hashes supplied bytes. No working-tree
+    // filters, path-based conversion, object writes or historical code run.
+    let hash = run(root, &["hash-object", "-t", kind, "--stdin", "--no-filters"],
+        Some(&output.stdout), deadline)?;
+    if !hash.status.success() {
+        return Err(Error::Git);
+    }
+    if oid_line(&hash.stdout)? != oid {
+        return Err(Error::Witness);
+    }
+    Ok(output.stdout)
+}
+
+fn git_command(root: &Path) -> Command {
+    // Native CI has the system Git here. A fixed executable avoids consulting
+    // PATH or any other caller environment as an executable/configuration input.
+    let mut command = Command::new("/usr/bin/git");
+    command.env_clear().current_dir(root).args([
+        "--no-replace-objects", "--no-optional-locks", "--literal-pathspecs", "--no-pager",
+        "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+        "-c", "protocol.allow=never", "-c", "gc.auto=0", "-c", "maintenance.auto=false",
+    ])
+    .env("GIT_CONFIG_NOSYSTEM", "1")
+    .env("GIT_CONFIG_GLOBAL", "/dev/null")
+    .env("GIT_CONFIG_SYSTEM", "/dev/null")
+    .env("GIT_NO_LAZY_FETCH", "1")
+    .env("GIT_ALLOW_PROTOCOL", "")
+    .env("GIT_TERMINAL_PROMPT", "0")
+    .env("LC_ALL", "C")
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::null());
+    command
+}
+
+struct GitOutput {
+    status: ExitStatus,
+    stdout: Vec<u8>,
+}
+
+fn bounded(mut pipe: impl io::Read) -> Result<Vec<u8>, Error> {
+    let cap = MAX_INPUT_BYTES;
+    let mut bytes = Vec::new();
+    pipe.by_ref().take(cap.checked_add(1).ok_or(Error::Limit)?)
+        .read_to_end(&mut bytes).map_err(|_| Error::Git)?;
+    if u64::try_from(bytes.len()).map_err(|_| Error::Limit)? > cap {
+        return Err(Error::Limit);
+    }
+    Ok(bytes)
+}
+
+fn run(
+    root: &Path,
+    arguments: &[&str],
+    input: Option<&[u8]>,
+    operation_deadline: Instant,
+) -> Result<GitOutput, Error> {
+    let now = Instant::now();
+    if now >= operation_deadline {
+        return Err(Error::Limit);
+    }
+    let deadline = now.checked_add(COMMAND_TIMEOUT).ok_or(Error::Limit)?
+        .min(operation_deadline);
+    let mut command = git_command(root);
+    command.args(arguments);
+    if input.is_some() {
+        command.stdin(Stdio::piped());
+    }
+    let mut child = command.spawn().map_err(|_| Error::Git)?;
+    let Some(stdout) = child.stdout.take() else {
+        let _killed = child.kill();
+        let _reaped = child.wait();
+        return Err(Error::Git);
+    };
+    let stdin = child.stdin.take();
+    thread::scope(|scope| {
+        let (send, receive) = mpsc::channel();
+        let reader = scope.spawn(move || {
+            let _sent = send.send(bounded(stdout));
+        });
+        let writer = scope.spawn(move || match (input, stdin) {
+            (Some(bytes), Some(mut pipe)) => pipe.write_all(bytes).map_err(|_| Error::Git),
+            (None, None) => Ok(()),
+            _ => Err(Error::Git),
+        });
+        let mut captured = None;
+        let result = loop {
+            if captured.is_none() {
+                match receive.try_recv() {
+                    Ok(Ok(bytes)) => captured = Some(bytes),
+                    Ok(Err(error)) => break Err(error),
+                    Err(TryRecvError::Disconnected) => break Err(Error::Git),
+                    Err(TryRecvError::Empty) => {}
+                }
+            }
+            match child.try_wait() {
+                Ok(Some(status)) if captured.is_some() => {
+                    break Ok(GitOutput {
+                        status, stdout: captured.take().ok_or(Error::Git)?,
+                    });
+                }
+                Ok(_) => {}
+                Err(_) => break Err(Error::Git),
+            }
+            if Instant::now() >= deadline {
+                break Err(Error::Limit);
+            }
+            thread::sleep(Duration::from_millis(2));
+        };
+        if result.is_err() {
+            let _killed = child.kill();
+            let _reaped = child.wait();
+        }
+        let written = writer.join().map_err(|_| Error::Git)?;
+        reader.join().map_err(|_| Error::Git)?;
+        match result {
+            Ok(output) => {
+                if output.status.success() {
+                    written?;
+                }
+                Ok(output)
+            }
+            Err(error) => Err(error),
+        }
+    })
+}
+
+fn materialize(snapshot: &SourceSnapshot, destination: &Path) -> Result<(), Error> {
+    // Preflight the whole captured set before creating any output.
+    if snapshot.files.is_empty() {
+        return Err(Error::Witness);
+    }
+    for (path, file) in &snapshot.files {
+        let witness = &file.witness;
+        if !normal_relative(path) || !normal_relative(&witness.path) {
+            return Err(Error::Path);
+        }
+        if !matches!(witness.mode.as_str(), "100644" | "100755") {
+            return Err(Error::Mode);
+        }
+        if witness.path != *path || !valid_oid(&witness.blob)
+            || witness.bytes > MAX_INPUT_BYTES
+            || u64::try_from(file.contents.len()).map_err(|_| Error::Limit)? != witness.bytes
+            || hex::encode(Sha256::digest(&file.contents)) != witness.sha256
+        {
+            return Err(Error::Witness);
+        }
+    }
+    if !normal_absolute(destination) {
+        return Err(Error::Destination);
+    }
+    let parent = destination.parent().ok_or(Error::Destination)?;
+    regular_directory(parent).map_err(|_| Error::Destination)?;
+    private_directory(destination).map_err(|_| Error::Destination)?;
+    for (path, file) in &snapshot.files {
+        let relative = Path::new(path);
+        let mut directory = destination.to_path_buf();
+        if let Some(parent) = relative.parent() {
+            for part in parent.components() {
+                directory.push(part);
+                match private_directory(&directory) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(_) => return Err(Error::Destination),
+                }
+                regular_directory(&directory).map_err(|_| Error::Destination)?;
+            }
+        }
+        let target = destination.join(relative);
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            options.mode(0o600);
+        }
+        let mut output = options.open(&target).map_err(|_| Error::Destination)?;
+        output.write_all(&file.contents).map_err(|_| Error::Destination)?;
+        let metadata = fs::symlink_metadata(&target).map_err(|_| Error::Destination)?;
+        if metadata.file_type().is_symlink() || !metadata.is_file()
+            || metadata.len() != file.witness.bytes
+        {
+            return Err(Error::Destination);
+        }
+    }
+    Ok(())
+}
+
+fn private_directory(path: &Path) -> io::Result<()> {
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt as _;
+        builder.mode(0o700);
+    }
+    builder.create(path)
 }
 
 #[cfg(test)]
@@ -343,6 +782,9 @@ mod tests {
             let replacement = line(git(&self.root, &["hash-object", "-w", "--stdin"],
                 Some(replacement)));
             assert_ne!(original, replacement);
+            // Git loose objects are read-only on Linux. Replace only this
+            // disposable fixture's file rather than overwriting its mode.
+            fs::remove_file(self.object(&original)).expect("remove disposable original object");
             fs::copy(self.object(&replacement), self.object(&original))
                 .expect("corrupt only disposable loose object");
         }
