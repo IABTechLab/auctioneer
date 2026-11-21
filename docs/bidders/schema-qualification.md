@@ -2,6 +2,10 @@
 
 For the current source-bound closure, implemented components and remaining proof owners, see [resource proof ownership](../testing/resource-proof-ownership.md). Historical checkpoint prose below retains its original scope; it is not current target certification.
 
+**2026-11-21 discovery checkpoint:** The active build seed and selected-source report use version 2. Executable factory definitions and their public aliases determine implemented roots before target publication filtering; priority and supplemental waves no longer select schemas or form mandatory identity inputs. Provenance inventories still witness every source/schema, including additional revisions. Reports separate implemented roots, full inventory dispositions, effective owners and currently callable bindings. Version-1 active inputs and hybrid retired root fields are rejected rather than read through a compatibility branch.
+
+This is the selection/consumer checkpoint for [#46](https://github.com/IABTechLab/auctioneer/issues/46), not its completed C/I certificate. Source inspection at this checkpoint still finds 18 implemented public identities and 16 effective schemas. Hosted verification of the changed head is pending. Actual expanded-owner capture, common retained/constructor composition, lifecycle and matched-growth evidence remain required. Native reservations, guest publication restrictions and the source-only qualification boundary are unchanged.
+
 **2026-11-13 dependency amendment:** The selected runtime/compiler family is
 now `jsonschema = "=0.61.2"`, with the three compiler patches replayed against
 that release. Current source/archive/patch identities are recorded in

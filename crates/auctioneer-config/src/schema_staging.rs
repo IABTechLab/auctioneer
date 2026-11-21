@@ -1,7 +1,7 @@
 //! Build-only plans for unqualified, non-serving schema artifacts.
 //!
 //! The build adapter supplies discovery-validated declarations and the pinned
-//! published/planning-data projection. Runtime activation is not an input.
+//! executable-definition and source-witness projection. Runtime activation is not an input.
 //! These interfaces deliberately contain neither callable validators nor costs.
 
 use crate::schema_staging_codegen::CANDIDATE_OPTIONS;
@@ -102,7 +102,7 @@ fn declaration_index<'a, 'd>(
     Ok(index)
 }
 
-/// Derive S from publication/planning roots, after validating ALL declarations.
+/// Derive S from implemented roots, after validating ALL declarations.
 /// Public names are ASCII case-insensitive; all owner identities are exact.
 ///
 /// # Errors
@@ -110,8 +110,7 @@ fn declaration_index<'a, 'd>(
 /// absent/ambiguous schemas, or mismatched factory/alias feature predicates.
 pub fn select<'a>(
     declarations: &[Declaration<'a>],
-    published: &[&str],
-    planned: &[&str],
+    implemented_roots: &[&str],
     enabled_features: &[&str],
 ) -> Result<Selection<'a>, String> {
     let index = declaration_index(declarations)?;
@@ -153,9 +152,8 @@ pub fn select<'a>(
             },
         );
     }
-    let roots: BTreeSet<_> = published
+    let roots: BTreeSet<_> = implemented_roots
         .iter()
-        .chain(planned)
         .map(|name| name.to_ascii_lowercase())
         .collect();
     let mut active = BTreeSet::new();
@@ -204,9 +202,6 @@ pub enum Qualification {
 pub enum InputKind {
     SourceInventory,
     SourceBindings,
-    PriorityWave,
-    SupplementalWave,
-    SupplementalInventory,
     WorkspaceManifest,
     Lockfile,
     GeneratorSource,
@@ -295,9 +290,6 @@ pub fn identify(
     for kind in [
         InputKind::SourceInventory,
         InputKind::SourceBindings,
-        InputKind::PriorityWave,
-        InputKind::SupplementalWave,
-        InputKind::SupplementalInventory,
         InputKind::WorkspaceManifest,
         InputKind::Lockfile,
         InputKind::GeneratorSource,
@@ -319,7 +311,7 @@ pub fn identify(
     let features: BTreeSet<_> = context.enabled_features.iter().copied().collect();
     let mut hash = Sha256::new();
     for field in [
-        "auctioneer/non-serving-schema-staging/v1",
+        "auctioneer/non-serving-schema-staging/v2",
         CANDIDATE_OPTIONS,
         context.target,
         context.profile,
@@ -356,7 +348,7 @@ pub(crate) fn digest(bytes: &[u8]) -> String {
 
 fn hash_field(hash: &mut Sha256, field: &str) -> Result<(), String> {
     let length = u64::try_from(field.len()).map_err(|error| error.to_string())?;
-    // Preserve the v1 eight-byte little-endian length prefix.
+    // The identity domain changes independently of the eight-byte length prefix.
     for shift in (0_u32..u64::BITS).step_by(8) {
         hash.update([u8::try_from((length >> shift) & 0xff).map_err(|error| error.to_string())?]);
     }
@@ -391,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn fake_s_is_published_union_planned_with_nearest_override_and_ancestry() {
+    fn fake_s_uses_implemented_roots_with_nearest_override_and_ancestry() {
         let declarations = [
             base("fake_base", &["fake_original"]),
             Declaration {
@@ -402,8 +394,8 @@ mod tests {
             base("fake_published", &["fake_published_schema"]),
             base("fake_source_only", &["fake_not_shipped"]),
         ];
-        let selected = select(&declarations, &["fake_published"], &["fake_leaf"], &[])
-            .expect("published plus frozen planned roots");
+        let selected = select(&declarations, &["fake_published", "fake_leaf"], &[])
+            .expect("implemented roots");
         assert_eq!(
             selected.schema_owners,
             ["fake_override", "fake_published_schema"]
@@ -425,8 +417,7 @@ mod tests {
         assert_eq!(
             select(
                 &declarations.iter().rev().copied().collect::<Vec<_>>(),
-                &["FAKE_PUBLISHED", "fake_published"],
-                &["fake_leaf"],
+                &["FAKE_PUBLISHED", "fake_published", "fake_leaf"],
                 &[]
             )
             .expect("stable order"),
@@ -441,7 +432,7 @@ mod tests {
             base("fake_b", &["fake_shared"]),
             base("fake_c", &["FAKE_shared"]),
         ];
-        let selected = select(&declarations, &["fake_a", "fake_b", "fake_c"], &[], &[])
+        let selected = select(&declarations, &["fake_a", "fake_b", "fake_c"], &[])
             .expect("distinct public names sharing one factory");
         assert_eq!(selected.schema_owners, ["FAKE_shared", "fake_shared"]);
         assert_eq!(selected.members.len(), 3);
@@ -463,17 +454,17 @@ mod tests {
                 ..base("fake_optional", &["fake_optional_schema"])
             },
         ];
-        let published = ["fake_secure", "fake_local", "fake_optional"];
-        let off = select(&declarations, &published, &[], &[]).expect("secure");
+        let implemented = ["fake_secure", "fake_local", "fake_optional"];
+        let off = select(&declarations, &implemented, &[]).expect("secure");
         assert_eq!(off.schema_owners, ["fake_secure_schema"]);
-        let on = select(&declarations, &published, &[], &["fake_optional"]).expect("development");
+        let on = select(&declarations, &implemented, &["fake_optional"]).expect("development");
         assert_eq!(
             on.schema_owners,
             ["fake_optional_schema", "fake_secure_schema"]
         );
         assert_eq!(on.members[0].schema_owner, None);
         assert_eq!(
-            select(&declarations, &published, &[], &[]).expect("off again"),
+            select(&declarations, &implemented, &[]).expect("off again"),
             off
         );
     }
@@ -530,7 +521,7 @@ mod tests {
             let declarations = [base("fake_secure", &["fake_schema"]), bad];
             for features in [&[][..], &["fake_optional"][..]] {
                 assert_eq!(
-                    select(&declarations, &["fake_secure"], &[], features)
+                    select(&declarations, &["fake_secure"], features)
                         .expect_err("invalid unselected declaration"),
                     reason,
                     "{bad:?}"
@@ -573,18 +564,17 @@ mod tests {
         ];
         for (declarations, reason) in cases.into_iter().zip(reasons) {
             assert_eq!(
-                select(&declarations, &[], &[], &[]).expect_err("invalid declarations"),
+                select(&declarations, &[], &[]).expect_err("invalid declarations"),
                 reason
             );
         }
         assert_eq!(
             select(
                 &[base("fake_a", &["fake_schema"])],
-                &[],
                 &["fake_unknown"],
                 &[]
             )
-            .expect_err("unknown planned root"),
+            .expect_err("unknown implemented root"),
             "unknown root: fake_unknown"
         );
     }
@@ -614,15 +604,12 @@ mod tests {
 
     fn inputs(sha256: &str) -> Vec<Input<'_>> {
         use InputKind::{
-            FormatHelperSource, GeneratorSource, Lockfile, PriorityWave, Schema, SourceBindings,
-            SourceInventory, SupplementalInventory, SupplementalWave, WorkspaceManifest,
+            FormatHelperSource, GeneratorSource, Lockfile, Schema, SourceBindings, SourceInventory,
+            WorkspaceManifest,
         };
         [
             SourceInventory,
             SourceBindings,
-            PriorityWave,
-            SupplementalWave,
-            SupplementalInventory,
             WorkspaceManifest,
             Lockfile,
             GeneratorSource,
@@ -677,7 +664,11 @@ mod tests {
         assert_eq!(actual.inputs.len(), 7);
         for kind in expected_kinds {
             assert_eq!(
-                actual.inputs.iter().filter(|input| input.kind == kind).count(),
+                actual
+                    .inputs
+                    .iter()
+                    .filter(|input| input.kind == kind)
+                    .count(),
                 1
             );
         }
@@ -737,7 +728,7 @@ mod tests {
     }
 
     #[test]
-    fn fake_identity_requires_all_planning_code_lock_and_schema_inputs() {
+    fn fake_identity_requires_all_source_code_lock_and_schema_inputs() {
         let hash = hex::encode(Sha256::digest(b"fake bytes"));
         let inputs = inputs(&hash);
         for index in 0..inputs.len() {
