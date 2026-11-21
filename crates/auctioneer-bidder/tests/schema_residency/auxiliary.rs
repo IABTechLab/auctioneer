@@ -253,7 +253,8 @@ fn patterns(pattern: &syn::Pat, output: &mut Vec<String>) -> bool {
 fn named_match<'a>(expr: &'a Expr, selector: &str) -> Option<&'a syn::ExprMatch> {
     match expr {
         Expr::Match(value) if value.attrs.is_empty() && path(&value.expr, &[selector])
-            && value.arms.iter().all(|arm| arm.attrs.is_empty() && arm.guard.is_none())
+            && value.arms.iter().all(|arm| arm.attrs.is_empty()
+                && !matches!(&arm.pat, syn::Pat::Guard(_)))
             && value.arms.last().is_some_and(|arm|
                 matches!(&arm.pat, syn::Pat::Wild(pattern) if pattern.attrs.is_empty())
                 && path(&arm.body, &["None"])) => Some(value),
