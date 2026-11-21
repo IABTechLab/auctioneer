@@ -10,15 +10,17 @@ use super::super::{
     compile_schema,
     draft::DraftExt,
     helpers::{
-        dynamic_ref_anchor_name, get_or_create_is_valid_fn_with, get_or_create_item_eval_fn,
-        get_or_create_key_eval_fn,
+        collect_dynamic_anchor_bindings, dynamic_ref_anchor_name, get_or_create_is_valid_fn_with,
+        get_or_create_item_eval_fn, get_or_create_key_eval_fn,
     },
+    object_schema::resource_base_uri,
     refs::{resolve_ref, ResolvedRef},
+    stack_emit::{StackFamily, ITEM_EVAL_FAMILY, KEY_EVAL_FAMILY},
     CompiledExpr,
 };
 
 /// Break a self-referential eval-tracking cycle under an unevaluated keyword: a re-entry on
-/// the same (helper fn pointer, instance pointer) evaluates nothing, mirroring the engine's marking.
+/// the same (helper fn pointer, instance pointer) evaluates nothing, as the runtime's marking does.
 fn cycle_guarded_dispatch(node_address: &TokenStream, call: &TokenStream) -> TokenStream {
     quote! {
         {
@@ -49,17 +51,20 @@ fn compile_branch_guard<E: ValueEmitter>(
     if obj.len() <= 1 && !has_composable_applicators(ctx, obj) {
         return compile_schema(ctx, subschema);
     }
+    let base_uri = resource_base_uri(ctx, obj);
     let location = format!(
         "json-schema-guard:{}|{:?}|{}",
-        ctx.current_base_uri,
+        base_uri,
         ctx.draft,
         serde_json::to_string(subschema).expect("schema is valid JSON"),
     );
     let func_name = get_or_create_is_valid_fn_with(
         ctx,
         &location,
+        0,
         subschema,
-        ctx.current_base_uri.clone(),
+        base_uri,
+        ctx.dialect_of(subschema),
         compile_guard_validity,
     );
     let func_ident = format_ident!("{}", func_name);
@@ -77,7 +82,7 @@ fn has_composable_applicators<E: ValueEmitter>(
         || (ctx.draft.supports_if_then_else_keyword() && obj.contains_key("if"))
 }
 
-/// Validity-only compilation that spells applicator branches as guard-helper
+/// Validity-only compilation that emits applicator branches as guard-helper
 /// calls instead of inlined subtrees.
 fn compile_guard_validity<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
@@ -217,6 +222,61 @@ impl GuardHoist {
     }
 }
 
+/// What the schema with an `unevaluated*` keyword reports as evaluated: a subschema it applies in
+/// place that fails evaluates nothing. Deeper in-place subschemas pass whenever these pass, so only
+/// the schema's own are checked, each at most once per instance and only for a member it evaluates.
+#[derive(Default)]
+pub(crate) struct ReportGuards {
+    cells: Vec<TokenStream>,
+}
+
+impl ReportGuards {
+    /// Declarations to emit ahead of the loop over the instance's members.
+    pub(crate) fn cells(&self) -> &[TokenStream] {
+        &self.cells
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.cells.is_empty()
+    }
+
+    fn guard(&mut self, valid: &CompiledExpr, eval: TokenStream) -> TokenStream {
+        if valid.is_trivially_true() {
+            return eval;
+        }
+        let cell = format_ident!("__report_guard_{}", self.cells.len());
+        let valid = valid.is_valid_token_stream();
+        self.cells
+            .push(quote! { let mut #cell: Option<bool> = None; });
+        quote! {
+            (#eval) && match #cell {
+                Some(valid) => valid,
+                None => {
+                    let valid = #valid;
+                    #cell = Some(valid);
+                    valid
+                }
+            }
+        }
+    }
+}
+
+/// `eval`, counted only where `check` validates when reporting.
+fn report_guarded<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    report: &mut Option<&mut ReportGuards>,
+    eval: TokenStream,
+    check: impl FnOnce(&mut CompileContext<'_, E>) -> CompiledExpr,
+) -> TokenStream {
+    match report {
+        Some(report) => {
+            let valid = check(ctx);
+            report.guard(&valid, eval)
+        }
+        None => eval,
+    }
+}
+
 fn compile_guarded_eval(
     node: &TokenStream,
     valid_expr: &CompiledExpr,
@@ -340,6 +400,13 @@ impl EvalKind {
         }
     }
 
+    fn family(self) -> &'static StackFamily {
+        match self {
+            EvalKind::Key => &KEY_EVAL_FAMILY,
+            EvalKind::Item => &ITEM_EVAL_FAMILY,
+        }
+    }
+
     fn is_compiling<E: ValueEmitter>(self, ctx: &CompileContext<'_, E>, location: &str) -> bool {
         match self {
             EvalKind::Key => ctx.key_eval_fns.is_compiling(location),
@@ -356,17 +423,47 @@ impl EvalKind {
             EvalKind::Key => get_or_create_key_eval_fn(
                 ctx,
                 &resolved.location,
-                &resolved.schema,
+                resolved.schema,
                 resolved.base_uri.clone(),
+                resolved.dialect.clone(),
             ),
             EvalKind::Item => get_or_create_item_eval_fn(
                 ctx,
                 &resolved.location,
-                &resolved.schema,
+                resolved.schema,
                 resolved.base_uri.clone(),
+                resolved.dialect.clone(),
             ),
         };
         format_ident!("{}", name)
+    }
+}
+
+/// The code `f` gives in the resource `schema` is in. A subschema with an `$id` is a resource of
+/// its own, which that code enters into the dynamic scope of the `kind` stacks.
+fn in_resource_of<'cfg, E: ValueEmitter>(
+    ctx: &mut CompileContext<'cfg, E>,
+    schema: &Map<String, Value>,
+    kind: EvalKind,
+    f: impl FnOnce(&mut CompileContext<'cfg, E>) -> TokenStream,
+) -> TokenStream {
+    let base_uri = resource_base_uri(ctx, schema);
+    let enters = base_uri.as_str() != ctx.current_base_uri.as_str();
+    let evaluated = ctx.with_base_uri_scope(base_uri.clone(), f);
+    if !enters || !ctx.uses_dynamic_ref {
+        return evaluated;
+    }
+    let bindings = collect_dynamic_anchor_bindings(ctx, base_uri);
+    let family = kind.family();
+    let pushes = family.dynamic_pushes(&bindings);
+    let pop = (family.pop_dynamic_n)(bindings.len());
+    quote! {
+        {
+            #(#pushes)*
+            let __evaluated = #evaluated;
+            #pop
+            __evaluated
+        }
     }
 }
 
@@ -377,10 +474,10 @@ fn recurse_eval<E: ValueEmitter>(
     kind: EvalKind,
     hoist: &mut GuardHoist,
 ) -> TokenStream {
-    match kind {
-        EvalKind::Key => compile_key_evaluated_expr(ctx, schema, true, false),
-        EvalKind::Item => compile_index_evaluated_expr(ctx, schema, hoist),
-    }
+    in_resource_of(ctx, schema, kind, |ctx| match kind {
+        EvalKind::Key => compile_key_evaluated_expr(ctx, schema, true, false, None),
+        EvalKind::Item => compile_index_evaluated_expr(ctx, schema, hoist, None),
+    })
 }
 
 /// Push the eval expressions contributed by the `allOf`/`anyOf`/`oneOf`/
@@ -393,11 +490,15 @@ fn push_applicator_eval<E: ValueEmitter>(
     node: &TokenStream,
     kind: EvalKind,
     hoist: &mut GuardHoist,
+    report: &mut Option<&mut ReportGuards>,
 ) {
     if let Some(all_of) = schema.get("allOf").and_then(Value::as_array) {
         for subschema in all_of {
             if let Value::Object(subschema_obj) = subschema {
-                parts.push(recurse_eval(ctx, subschema_obj, kind, hoist));
+                let sub_eval = recurse_eval(ctx, subschema_obj, kind, hoist);
+                parts.push(report_guarded(ctx, report, sub_eval, |ctx| {
+                    compile_branch_guard(ctx, subschema)
+                }));
             }
         }
     }
@@ -433,14 +534,15 @@ fn push_applicator_eval<E: ValueEmitter>(
         } else {
             quote! { false }
         };
-        let then_eval = schema.get("then").and_then(Value::as_object).map_or_else(
-            || quote! { false },
-            |then_obj| recurse_eval(ctx, then_obj, kind, hoist),
-        );
-        let else_eval = schema.get("else").and_then(Value::as_object).map_or_else(
-            || quote! { false },
-            |else_obj| recurse_eval(ctx, else_obj, kind, hoist),
-        );
+        let mut branch_eval = |ctx: &mut CompileContext<'_, E>, keyword: &str| {
+            let Some(branch @ Value::Object(branch_obj)) = schema.get(keyword) else {
+                return quote! { false };
+            };
+            let eval = recurse_eval(ctx, branch_obj, kind, hoist);
+            report_guarded(ctx, report, eval, |ctx| compile_branch_guard(ctx, branch))
+        };
+        let then_eval = branch_eval(ctx, "then");
+        let else_eval = branch_eval(ctx, "else");
         parts.push(compile_if_then_else_evaluated(
             node, &if_valid, &if_eval, &then_eval, &else_eval, hoist,
         ));
@@ -454,18 +556,24 @@ fn push_ref_dispatch<E: ValueEmitter>(
     schema: &Map<String, Value>,
     parts: &mut Vec<TokenStream>,
     kind: EvalKind,
+    report: &mut Option<&mut ReportGuards>,
 ) {
     let call_args = kind.call_args();
-    if let Some(reference) = schema.get("$ref").and_then(Value::as_str) {
+    if let Some(value @ Value::String(reference)) = schema.get("$ref") {
         if let Ok(resolved) = resolve_ref(ctx, reference) {
             if !kind.is_compiling(ctx, &resolved.location) {
                 let func_ident = kind.create_eval_fn(ctx, &resolved);
-                parts.push(quote! { #func_ident(#call_args) });
+                parts.push(report_guarded(
+                    ctx,
+                    report,
+                    quote! { #func_ident(#call_args) },
+                    |ctx| super::ref_::compile(ctx, value),
+                ));
             }
         }
     }
     if ctx.draft.supports_recursive_ref_keyword() {
-        if let Some(reference) = schema.get("$recursiveRef").and_then(Value::as_str) {
+        if let Some(value @ Value::String(reference)) = schema.get("$recursiveRef") {
             if let Ok(resolved) = resolve_ref(ctx, reference) {
                 let target_has_recursive_anchor = resolved
                     .schema
@@ -484,11 +592,12 @@ fn push_ref_dispatch<E: ValueEmitter>(
                     // `$recursiveRef` in the same schema hasn't been compiled yet.
                     ctx.uses_recursive_ref = true;
                     let stack = kind.recursive_stack();
+                    ctx.looked_up_stacks.insert(stack.to_string());
                     let guarded = cycle_guarded_dispatch(
                         &E::node_address(format_ident!("instance")),
                         &quote! { target(#call_args) },
                     );
-                    parts.push(quote! {
+                    let eval = quote! {
                         {
                             let __recursive_target = #stack.with(|stack| {
                                 let stack = stack.borrow();
@@ -507,15 +616,20 @@ fn push_ref_dispatch<E: ValueEmitter>(
                                 #fallback
                             }
                         }
-                    });
+                    };
+                    parts.push(report_guarded(ctx, report, eval, |ctx| {
+                        super::ref_::compile_recursive(ctx, value)
+                    }));
                 } else {
-                    parts.push(fallback);
+                    parts.push(report_guarded(ctx, report, fallback, |ctx| {
+                        super::ref_::compile_recursive(ctx, value)
+                    }));
                 }
             }
         }
     }
     if ctx.draft.supports_dynamic_ref_keyword() {
-        if let Some(reference) = schema.get("$dynamicRef").and_then(Value::as_str) {
+        if let Some(value @ Value::String(reference)) = schema.get("$dynamicRef") {
             if let Ok(resolved) = resolve_ref(ctx, reference) {
                 let fallback = if kind.is_compiling(ctx, &resolved.location) {
                     quote! { false }
@@ -523,14 +637,15 @@ fn push_ref_dispatch<E: ValueEmitter>(
                     let func_ident = kind.create_eval_fn(ctx, &resolved);
                     quote! { #func_ident(#call_args) }
                 };
-                if let Some(anchor_name) = dynamic_ref_anchor_name(reference, &resolved.schema) {
+                if let Some(anchor_name) = dynamic_ref_anchor_name(reference, resolved.schema) {
                     ctx.uses_dynamic_ref = true;
                     let stack = kind.dynamic_stack();
+                    ctx.looked_up_stacks.insert(stack.to_string());
                     let guarded = cycle_guarded_dispatch(
                         &E::node_address(format_ident!("instance")),
                         &quote! { target(#call_args) },
                     );
-                    parts.push(quote! {
+                    let eval = quote! {
                         {
                             let __dynamic_target = #stack.with(|stack| {
                                 let stack = stack.borrow();
@@ -548,21 +663,28 @@ fn push_ref_dispatch<E: ValueEmitter>(
                                 #fallback
                             }
                         }
-                    });
+                    };
+                    parts.push(report_guarded(ctx, report, eval, |ctx| {
+                        super::ref_::compile_dynamic(ctx, value)
+                    }));
                 } else {
-                    parts.push(fallback);
+                    parts.push(report_guarded(ctx, report, fallback, |ctx| {
+                        super::ref_::compile_dynamic(ctx, value)
+                    }));
                 }
             }
         }
     }
 }
 
-/// `located` emits the expression into `validate` code, where `__path` is the object's location.
+/// `located` emits the expression into `validate` code, where `__path` is the object's location;
+/// `report` guards what it reports as evaluated, for the schema with the keyword.
 pub(crate) fn compile_key_evaluated_expr<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     schema: &Map<String, Value>,
     include_own_unevaluated: bool,
     located: bool,
+    mut report: Option<&mut ReportGuards>,
 ) -> TokenStream {
     let mut parts = Vec::new();
     let applicator_vocab_enabled = ctx.supports_applicator_vocabulary();
@@ -602,7 +724,12 @@ pub(crate) fn compile_key_evaluated_expr<E: ValueEmitter>(
         if let Some(dependent_schemas) = schema.get("dependentSchemas").and_then(Value::as_object) {
             for (property, subschema) in dependent_schemas {
                 if let Value::Object(subschema_obj) = subschema {
-                    let sub_eval = compile_key_evaluated_expr(ctx, subschema_obj, true, located);
+                    let sub_eval = in_resource_of(ctx, subschema_obj, EvalKind::Key, |ctx| {
+                        compile_key_evaluated_expr(ctx, subschema_obj, true, located, None)
+                    });
+                    let sub_eval = report_guarded(ctx, &mut report, sub_eval, |ctx| {
+                        compile_branch_guard(ctx, subschema)
+                    });
                     let contains_key = E::object_contains_key(format_ident!("obj"), property);
                     parts.push(quote! { #contains_key && (#sub_eval) });
                 }
@@ -612,10 +739,18 @@ pub(crate) fn compile_key_evaluated_expr<E: ValueEmitter>(
 
     if applicator_vocab_enabled {
         let mut hoist = GuardHoist::inline();
-        push_applicator_eval(ctx, schema, &mut parts, &node, EvalKind::Key, &mut hoist);
+        push_applicator_eval(
+            ctx,
+            schema,
+            &mut parts,
+            &node,
+            EvalKind::Key,
+            &mut hoist,
+            &mut report,
+        );
     }
 
-    push_ref_dispatch(ctx, schema, &mut parts, EvalKind::Key);
+    push_ref_dispatch(ctx, schema, &mut parts, EvalKind::Key, &mut report);
 
     let evaluated_without_unevaluated = super::combine_or(parts);
 
@@ -625,7 +760,7 @@ pub(crate) fn compile_key_evaluated_expr<E: ValueEmitter>(
                 return quote! { true };
             }
             if unevaluated.as_bool() != Some(false) {
-                let schema_check = ctx.with_instance_scope(|ctx| compile_schema(ctx, unevaluated));
+                let schema_check = compile_schema(ctx, unevaluated);
                 let get_by_key = E::object_get_dynamic(format_ident!("obj"), quote! { key_str });
                 return quote! {
                     (#evaluated_without_unevaluated) || {
@@ -641,10 +776,12 @@ pub(crate) fn compile_key_evaluated_expr<E: ValueEmitter>(
     evaluated_without_unevaluated
 }
 
+/// `report` guards what it reports as evaluated, for the schema with the keyword.
 pub(crate) fn compile_index_evaluated_expr<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     schema: &Map<String, Value>,
     hoist: &mut GuardHoist,
+    mut report: Option<&mut ReportGuards>,
 ) -> TokenStream {
     let mut parts = Vec::new();
     let applicator_vocab_enabled = ctx.supports_applicator_vocabulary();
@@ -677,17 +814,29 @@ pub(crate) fn compile_index_evaluated_expr<E: ValueEmitter>(
             }
         }
 
-        if let Some(contains_schema) = schema.get("contains") {
+        // `contains` annotates the items it matches from 2020-12 on; earlier drafts evaluate none.
+        if let Some(contains_schema) = schema
+            .get("contains")
+            .filter(|_| matches!(ctx.draft, Draft::Draft202012 | Draft::Unknown))
+        {
             let contains_check = compile_branch_guard(ctx, contains_schema);
             parts.push(quote! {
                 (|instance: #node| #contains_check)(item)
             });
         }
 
-        push_applicator_eval(ctx, schema, &mut parts, &node, EvalKind::Item, hoist);
+        push_applicator_eval(
+            ctx,
+            schema,
+            &mut parts,
+            &node,
+            EvalKind::Item,
+            hoist,
+            &mut report,
+        );
     }
 
-    push_ref_dispatch(ctx, schema, &mut parts, EvalKind::Item);
+    push_ref_dispatch(ctx, schema, &mut parts, EvalKind::Item, &mut report);
 
     let evaluated_without_unevaluated = super::combine_or(parts);
 
@@ -697,7 +846,7 @@ pub(crate) fn compile_index_evaluated_expr<E: ValueEmitter>(
                 return quote! { true };
             }
             if unevaluated.as_bool() != Some(false) {
-                let schema_check = ctx.with_instance_scope(|ctx| compile_schema(ctx, unevaluated));
+                let schema_check = compile_schema(ctx, unevaluated);
                 let node = E::node_param(None);
                 return quote! {
                     (#evaluated_without_unevaluated)

@@ -33,7 +33,7 @@ mod tests {
             .token()
             .to_string();
         let options = format!(
-            "path = {path_literal}, draft = {draft_name}, validate_formats = true, ignore_unknown_formats = false, formats = {{ \"uuid\" => crate::reference_uuid_format, \"hostname\" => crate::reference_hostname_format }}, pattern_options = {{ engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 }}, methods = {{ is_valid = true, validate = false, iter_errors = false }}"
+            "path = {path_literal}, draft = {draft_name}, validate_formats = true, ignore_unknown_formats = false, formats = {{ \"uuid\" => crate::reference_uuid_format, \"hostname\" => crate::reference_hostname_format }}, pattern_options = {{ engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 }}, methods = {{ is_valid = true, validate = false, iter_errors = false, evaluate = false }}"
         );
         syn::parse2(jsonschema_macros_core::expand(
             options.parse().unwrap(),

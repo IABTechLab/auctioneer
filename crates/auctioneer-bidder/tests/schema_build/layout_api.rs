@@ -69,7 +69,7 @@ fn assert_source_and_features(directory: &Path, vendor: &Path, expected: &[&str]
         .collect();
     assert_eq!(engines.len(), 1);
     let engine = engines[0];
-    assert_eq!(engine["version"], "0.4.18");
+    assert_eq!(engine["version"], "0.4.19");
     assert_eq!(engine["source"], Json::Null);
     assert_eq!(
         engine["manifest_path"],
@@ -109,7 +109,7 @@ fn assert_source_and_features(directory: &Path, vendor: &Path, expected: &[&str]
         if identity.0 == "regex-automata" {
             assert_eq!(
                 identity,
-                ("regex-automata".into(), "0.4.18".into(), None, None)
+                ("regex-automata".into(), "0.4.19".into(), None, None)
             );
         } else {
             assert_eq!(

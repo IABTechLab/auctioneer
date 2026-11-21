@@ -11,11 +11,11 @@ use std::process::Command;
 use std::str::from_utf8;
 use std::time::Duration;
 
-const ARCHIVE_PATH: &str = "vendor/regex-automata-0.4.18.crate";
+const ARCHIVE_PATH: &str = "vendor/regex-automata-0.4.19.crate";
 const VENDOR_PATH: &str = "vendor/regex-automata";
 const PATCH_PATH: &str = "vendor/patches/regex-automata-resource-layout.patch";
 const PATCH_SHA256: &str = "5d853f05430eda9b9e80fb1f359cddce730dcf86a61be32efa2605a46702e020";
-const ARCHIVE_SHA256: &str = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2";
+const ARCHIVE_SHA256: &str = "41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158";
 const MAX_ARCHIVE_BYTES: u64 = 4 << 20;
 const MAX_EXPANDED_BYTES: u64 = 16 << 20;
 const MAX_MEMBER_BYTES: u64 = 2 << 20;
@@ -137,7 +137,7 @@ fn published_files(raw: &[u8]) -> Result<SourceFiles, VerifyError> {
         let encoded = entry.path_bytes();
         let name = from_utf8(&encoded).map_err(|_error| VerifyError::Archive)?;
         let relative = name
-            .strip_prefix("regex-automata-0.4.18/")
+            .strip_prefix("regex-automata-0.4.19/")
             .ok_or(VerifyError::Archive)?;
         if relative
             .split('/')
@@ -163,7 +163,7 @@ fn published_files(raw: &[u8]) -> Result<SourceFiles, VerifyError> {
             .ok_or(VerifyError::Archive)?,
     )
     .map_err(|_error| VerifyError::Archive)?;
-    if vcs["git"]["sha1"] != "e6ad938198e68339a593f85d228f2d44cb54718f"
+    if vcs["git"]["sha1"] != "4226f214c56e584304520adb9080bcc4c792390e"
         || vcs["path_in_vcs"] != "regex-automata"
     {
         return Err(VerifyError::Archive);
@@ -324,7 +324,7 @@ pub fn verify_metadata(bytes: &[u8], vendor: &Path) -> Result<Vec<String>, Strin
         .filter(|package| package["name"].as_str() == Some("regex-automata"));
     let package = matching.next().ok_or(refused)?;
     if matching.next().is_some()
-        || package["version"].as_str() != Some("0.4.18")
+        || package["version"].as_str() != Some("0.4.19")
         || !package.get("source").is_some_and(Value::is_null)
         || package["manifest_path"].as_str() != vendor.join("Cargo.toml").to_str()
     {
@@ -403,7 +403,7 @@ mod tests {
         );
         assert_eq!(
             verified.archive_sha256,
-            "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+            "41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158"
         );
         assert_eq!(verified.patch_sha256, PATCH_SHA256);
         assert_eq!(verified.tree_sha256.len(), 64);
@@ -438,7 +438,7 @@ mod tests {
             serde_json::from_slice(&original[Path::new(".cargo_vcs_info.json")]).unwrap();
         assert_eq!(
             vcs["git"]["sha1"],
-            "e6ad938198e68339a593f85d228f2d44cb54718f"
+            "4226f214c56e584304520adb9080bcc4c792390e"
         );
         assert_eq!(vcs["path_in_vcs"], "regex-automata");
     }
@@ -552,9 +552,9 @@ mod tests {
 
     fn metadata() -> serde_json::Value {
         json!({"packages": [
-            {"name": "jsonschema-macros-core", "version": "0.61.2", "source": null, "manifest_path": "/reviewed/compiler/Cargo.toml"},
-            {"name": "regex-automata", "version": "0.4.18", "source": null, "manifest_path": "/reviewed/engine/Cargo.toml", "id": "path+file:///reviewed/engine#regex-automata@0.4.18"}
-        ], "resolve": {"nodes": [{"id": "path+file:///reviewed/engine#regex-automata@0.4.18", "features": FEATURES}]}})
+            {"name": "jsonschema-macros-core", "version": "0.62.0", "source": null, "manifest_path": "/reviewed/compiler/Cargo.toml"},
+            {"name": "regex-automata", "version": "0.4.19", "source": null, "manifest_path": "/reviewed/engine/Cargo.toml", "id": "path+file:///reviewed/engine#regex-automata@0.4.19"}
+        ], "resolve": {"nodes": [{"id": "path+file:///reviewed/engine#regex-automata@0.4.19", "features": FEATURES}]}})
     }
 
     fn check_metadata(document: &serde_json::Value) -> Result<Vec<String>, String> {
@@ -628,8 +628,8 @@ mod tests {
     fn engine_features_join_the_exact_package_id_and_preserve_the_literal_closure() {
         let original = metadata();
         for id in [
-            "unrelated#regex-automata@0.4.18",
-            "registry+https://github.com/rust-lang/crates.io-index#regex-automata@0.4.18",
+            "unrelated#regex-automata@0.4.19",
+            "registry+https://github.com/rust-lang/crates.io-index#regex-automata@0.4.19",
         ] {
             let mut changed = original.clone();
             changed["resolve"]["nodes"][0]["id"] = json!(id);

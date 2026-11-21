@@ -1,4 +1,4 @@
-use super::super::{compile_schema, CompileContext, CompiledExpr};
+use super::super::{compile_schema, expr::item_predicate, CompileContext, CompiledExpr};
 use crate::codegen::emit::ValueEmitter;
 use quote::{format_ident, quote};
 use serde_json::Value;
@@ -12,8 +12,9 @@ pub(crate) fn compile<E: ValueEmitter>(
     if min_contains == Some(0) && max_contains.is_none() {
         return CompiledExpr::always_true();
     }
-    let schema_check = ctx.with_instance_scope(|ctx| compile_schema(ctx, value));
+    let schema_check = compile_schema(ctx, value);
     let schema_is_valid = schema_check.is_valid_token_stream();
+    let predicate = item_predicate(&schema_is_valid);
     let min = proc_macro2::Literal::u64_unsuffixed(min_contains.unwrap_or(1));
 
     let contains_path = ctx.schema_path_for_keyword("contains");
@@ -38,7 +39,7 @@ pub(crate) fn compile<E: ValueEmitter>(
     let contains_iter = E::array_iter(format_ident!("arr"));
     let arr_iter_ref = E::array_iter_ref(format_ident!("arr"));
     let is_valid = match (min_contains.unwrap_or(1), max_contains) {
-        (1, None) => quote! { #contains_iter.any(|instance| #schema_is_valid) },
+        (1, None) => quote! { #contains_iter.any(#predicate) },
         (_, None) => quote! {
             {
                 let mut __contains_count = 0usize;
@@ -68,6 +69,12 @@ pub(crate) fn compile<E: ValueEmitter>(
 
     let min_path_str = min_path.as_str();
     let err_instance = E::err_instance(format_ident!("instance"));
+    // Without `minContains` no item matching is the plain `contains` failure.
+    let too_few = if min_contains.is_some() {
+        quote! { __err::min_contains(#min_path_str, __path.into(), #err_instance, #min) }
+    } else {
+        quote! { __err::contains(#min_path_str, __path.into(), #err_instance) }
+    };
 
     // Combined min+max: check maxContains before minContains (matching the runtime) so at
     // most one error is emitted.
@@ -83,22 +90,18 @@ pub(crate) fn compile<E: ValueEmitter>(
                     }
                 }
                 if (__contains_count as u64) > #max {
-                    return Some(__err::contains(
-                        #max_path, __path.into(), #err_instance,
+                    break '__first_error Some(__err::max_contains(
+                        #max_path, __path.into(), #err_instance, #max,
                     ));
                 } else if (__contains_count as u64) < #min {
-                    return Some(__err::contains(
-                        #min_path_str, __path.into(), #err_instance,
-                    ));
+                    break '__first_error Some(#too_few);
                 }
             }
         }
     } else if min_contains.unwrap_or(1) == 1 {
         quote! {
-            if !(#contains_iter.any(|instance| #schema_is_valid)) {
-                return Some(__err::contains(
-                    #min_path_str, __path.into(), #err_instance,
-                ));
+            if !(#contains_iter.any(#predicate)) {
+                break '__first_error Some(#too_few);
             }
         }
     } else {
@@ -115,13 +118,11 @@ pub(crate) fn compile<E: ValueEmitter>(
                     }
                 }
                 if (__contains_count as u64) < #min {
-                    return Some(__err::contains(
-                        #min_path_str, __path.into(), #err_instance,
-                    ));
+                    break '__first_error Some(#too_few);
                 }
             }
         }
     };
 
-    CompiledExpr::with_validate_blocks(is_valid, validate_block)
+    CompiledExpr::from_first_error(is_valid, validate_block)
 }

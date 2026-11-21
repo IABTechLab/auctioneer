@@ -13,7 +13,7 @@
 edition = "2021"
 rust-version = "1.85.0"
 name = "jsonschema-macros-core"
-version = "0.61.2"
+version = "0.62.0"
 authors = ["Dmitry Dygalo <dmitry@dygalo.dev>"]
 build = false
 autolib = false
@@ -49,7 +49,7 @@ version = "0.20.2"
 version = "2"
 
 [dependencies.jsonschema-regex]
-version = "0.61.2"
+version = "0.62.0"
 
 [dependencies.percent-encoding]
 version = "2.3"
@@ -64,7 +64,7 @@ version = "1"
 version = "1"
 
 [dependencies.referencing]
-version = "0.61.2"
+version = "0.62.0"
 
 [dependencies.regex]
 version = "1"
@@ -73,7 +73,7 @@ version = "1"
 version = "1"
 
 [dependencies.syn]
-version = "2"
+version = "3"
 features = ["full", "visit-mut"]
 
 [dev-dependencies.codspeed-criterion-compat]
@@ -88,7 +88,7 @@ default-features = false
 version = "1"
 
 [dev-dependencies.prettyplease]
-version = "0.2"
+version = "0.3"
 
 [dev-dependencies.test-case]
 version = "3"

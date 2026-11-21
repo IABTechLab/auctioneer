@@ -1,33 +1,35 @@
 ---
 source: crates/jsonschema-macros-core/src/tests.rs
-description: "{\"additionalProperties\":false,\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"type\":\"integer\"}},\"required\":[\"a\",\"b\"],\"type\":\"object\"}"
-expression: collect_body(schema)
+assertion_line: 856
+description: "{\"properties\":{\"a\":{\"type\":\"string\"},\"b\":{\"type\":\"integer\"}},\"required\":[\"a\",\"z\"],\"type\":\"object\"}"
+expression: errors_body(schema)
 ---
 match instance {
             __Value::Object(obj) => {
-                __errors
-                    .extend(
-                        (|| -> Option<__VE<'_>> {
-                            if !(obj.contains_key("a")) {
-                                return Some(
-                                    __err::required("/required", __path.into(), instance, "a"),
-                                );
-                            }
-                            None
-                        })(),
-                    );
-                __errors
-                    .extend(
-                        (|| -> Option<__VE<'_>> {
-                            if !(obj.contains_key("b")) {
-                                return Some(
-                                    __err::required("/required", __path.into(), instance, "b"),
-                                );
-                            }
-                            None
-                        })(),
-                    );
-                let mut __unexpected: Vec<String> = Vec::new();
+                if let Some(__e) = '__first_error: {
+                    if !(obj.contains_key("a")) {
+                        break '__first_error Some(
+                            __err::required("/required", __path.into(), instance, "a"),
+                        );
+                    }
+                    None
+                } {
+                    if __errors.push(__e) {
+                        return true;
+                    }
+                }
+                if let Some(__e) = '__first_error: {
+                    if !(obj.contains_key("z")) {
+                        break '__first_error Some(
+                            __err::required("/required", __path.into(), instance, "z"),
+                        );
+                    }
+                    None
+                } {
+                    if __errors.push(__e) {
+                        return true;
+                    }
+                }
                 for (key, value) in obj.iter() {
                     let key_str = key.as_str();
                     match key_str {
@@ -36,7 +38,7 @@ match instance {
                             if !(instance.is_string()) {
                                 let __path = &__path.push("a");
                                 if !(instance.is_string()) {
-                                    __errors
+                                    if __errors
                                         .push(
                                             __err::single_type(
                                                 "/properties/a/type",
@@ -44,7 +46,10 @@ match instance {
                                                 instance,
                                                 __JT::String,
                                             ),
-                                        );
+                                        )
+                                    {
+                                        return true;
+                                    }
                                 }
                             }
                         }
@@ -59,7 +64,7 @@ match instance {
                                     __Value::Number(n) => __types::is_integer(n),
                                     _ => false,
                                 }) {
-                                    __errors
+                                    if __errors
                                         .push(
                                             __err::single_type(
                                                 "/properties/b/type",
@@ -67,29 +72,19 @@ match instance {
                                                 instance,
                                                 __JT::Integer,
                                             ),
-                                        );
+                                        )
+                                    {
+                                        return true;
+                                    }
                                 }
                             }
                         }
-                        _ => {
-                            __unexpected.push(key.clone());
-                        }
+                        _ => {}
                     }
-                }
-                if !__unexpected.is_empty() {
-                    __errors
-                        .push(
-                            __err::additional_properties(
-                                "/additionalProperties",
-                                __path.into(),
-                                instance,
-                                __unexpected,
-                            ),
-                        );
                 }
             }
             _ => {
-                __errors
+                if __errors
                     .push(
                         __err::single_type(
                             "/type",
@@ -97,6 +92,10 @@ match instance {
                             instance,
                             __JT::Object,
                         ),
-                    );
+                    )
+                {
+                    return true;
+                }
             }
         }
+        false

@@ -52,20 +52,20 @@ hmac = { version = "=0.13.0", default-features = false }
 hyper = { version = "1", default-features = false }
 hyper-util = { version = "0.1", default-features = false }
 # Qualification-only candidate; do not add to deployed dependencies before its gate passes.
-jsonschema = { version = "=0.61.2", default-features = false, features = ["macros"] }
-jsonschema-macros-core = "=0.61.2"
+jsonschema = { version = "=0.62.0", default-features = false, features = ["macros"] }
+jsonschema-macros-core = "=0.62.0"
 # Dev-only log-capture helper used by regression tests that inspect
 # `log::warn!` output. Idempotent global setup — no cross-test
 # serialisation lock.
 testing_logger = "0.1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
-edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
-edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
-edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
-edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
-edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "e9ffaa8f8057144155ffe164280994445fa0f6d8", default-features = false }
+edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
+edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
+edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
+edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
+edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
+edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
 fastly = "=0.13.1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
@@ -120,16 +120,16 @@ quote = "1"
 psl = "2"
 # Native maintenance fetches retain the archive tool's existing HTTP policy.
 reqwest = { version = "0.12", features = ["blocking", "json", "gzip"] }
-regex = "=1.13.1"
+regex = "=1.13.2"
 # Qualification-only direct API; this is the existing regex feature closure.
-regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "meta", "nfa", "dfa-onepass", "dfa-search", "hybrid", "perf", "unicode"] }
+regex-automata = { version = "=0.4.19", default-features = false, features = ["std", "meta", "nfa", "dfa-onepass", "dfa-search", "hybrid", "perf", "unicode"] }
 # Structured HIR inspection in native schema qualification only.
-regex-syntax = { version = "=0.8.11", default-features = false, features = ["std", "unicode"] }
+regex-syntax = { version = "=0.8.12", default-features = false, features = ["std", "unicode"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["std", "raw_value"] }
 # Native-only reference inventory/import; not a guest configuration loader.
 serde_yaml_ng = "=0.10.0"
-yaml-rust2 = { version = "=0.13.0", default-features = false }
+yaml-rust2 = { version = "=0.13.2", default-features = false }
 # Dotted-field-path retention for GVL/GCL schema errors
 # (`MalformedEntry { path }` diagnostics in auctioneer-gvl-schema).
 serde_path_to_error = "0.1"
@@ -151,7 +151,7 @@ thiserror = "2"
 time = { version = "0.3", default-features = false, features = ["std", "macros", "parsing", "formatting"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 toml = "1.2"
-trybuild = "=1.0.122"
+trybuild = "=1.0.125"
 tracing = "0.1"
 # Unicode 16 C/S folding, qualified over every scalar with the frozen Go delta.
 unicode-case-mapping = "=1.0.0"

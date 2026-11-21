@@ -1,27 +1,54 @@
 ---
 source: crates/jsonschema-macros-core/src/tests.rs
+assertion_line: 856
 description: "{\"prefixItems\":[{}],\"type\":\"array\",\"unevaluatedItems\":{\"type\":\"integer\"}}"
-expression: is_valid_body(schema)
+expression: errors_body(schema)
 ---
 match instance {
             __Value::Array(arr) => {
-                arr.iter()
-                    .enumerate()
-                    .all(|(idx, item)| {
-                        if (idx < 1usize)
-                            || (|instance: &__Value| match instance {
-                                __Value::Number(n) => __types::is_integer(n),
-                                _ => false,
-                            })(item)
-                        {
-                            true
-                        } else {
-                            (|instance: &__Value| match instance {
-                                __Value::Number(n) => __types::is_integer(n),
-                                _ => false,
-                            })(item)
+                if let Some(__e) = '__first_error: {
+                    if let __Value::Array(arr) = instance {
+                        let mut __unexpected: Vec<String> = Vec::new();
+                        for (idx, item) in arr.iter().enumerate() {
+                            if !((idx < 1usize)
+                                || (|instance: &__Value| match instance {
+                                    __Value::Number(n) => __types::is_integer(n),
+                                    _ => false,
+                                })(item))
+                                && !((|instance: &__Value| match instance {
+                                    __Value::Number(n) => __types::is_integer(n),
+                                    _ => false,
+                                })(item))
+                            {
+                                __unexpected.push(item.to_string());
+                            }
                         }
-                    })
+                        if !__unexpected.is_empty() {
+                            break '__first_error Some(
+                                __err::unevaluated_items(
+                                    "/unevaluatedItems",
+                                    __path.into(),
+                                    instance,
+                                    __unexpected,
+                                ),
+                            );
+                        }
+                    }
+                    None
+                } {
+                    if __errors.push(__e) {
+                        return true;
+                    }
+                }
             }
-            _ => false,
+            _ => {
+                if __errors
+                    .push(
+                        __err::single_type("/type", __path.into(), instance, __JT::Array),
+                    )
+                {
+                    return true;
+                }
+            }
         }
+        false

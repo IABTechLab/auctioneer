@@ -19,7 +19,7 @@ mod tests;
 use referencing::{uri, Draft, Registry};
 
 /// Expand `#[jsonschema::validator(...)]`. `attr` is the attribute arguments, `item` the annotated
-/// struct; returns the generated impl (or a `compile_error!`).
+/// struct; returns the struct with its generated impl (or a `compile_error!`).
 #[must_use]
 pub fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
     let config = match syn::parse2::<Config>(attr) {
@@ -78,10 +78,14 @@ pub mod bench {
             email_options: None,
             pattern_options: PatternEngineConfig::default(),
             explicit_cache: None,
+            pattern_syntax: crate::context::PatternSyntaxConfig::default(),
             methods: MethodGates::default(),
         })
     }
 
+    /// # Panics
+    ///
+    /// When a benchmark schema generates no validator.
     #[must_use]
     pub fn generate(input: &Input) -> proc_macro2::TokenStream {
         crate::codegen::generate_from_config::<crate::codegen::emit_serde::SerdeEmitter>(
@@ -90,7 +94,7 @@ pub mod bench {
             &format_ident!("Validator"),
             &format_ident!("__validator_impl"),
         )
-        .unwrap_or_else(|error| error.to_compile_error())
+        .expect("benchmark schemas generate a validator")
     }
 }
 
@@ -151,6 +155,7 @@ enum PatternEngine {
 struct PatternOptionsConfig {
     engine: PatternEngine,
     explicit_cache: bool,
+    syntax: context::PatternSyntaxConfig,
     backtrack_limit: Option<usize>,
     size_limit: Option<usize>,
     dfa_size_limit: Option<usize>,
@@ -161,6 +166,7 @@ impl Default for PatternOptionsConfig {
         Self {
             engine: PatternEngine::FancyRegex,
             explicit_cache: false,
+            syntax: context::PatternSyntaxConfig::Ecma262,
             backtrack_limit: None,
             size_limit: None,
             dfa_size_limit: None,
@@ -380,6 +386,19 @@ fn parse_pattern_options(input: ParseStream) -> syn::Result<PatternOptionsConfig
                     }
                 };
             }
+            "syntax" => {
+                let syntax: Ident = content.parse()?;
+                options.syntax = match syntax.to_string().as_str() {
+                    "ecma262" => context::PatternSyntaxConfig::Ecma262,
+                    "engine" => context::PatternSyntaxConfig::Engine,
+                    _ => {
+                        return Err(syn::Error::new_spanned(
+                            syntax,
+                            "Unknown pattern syntax. Expected `ecma262` or `engine`",
+                        ));
+                    }
+                };
+            }
             "backtrack_limit" => {
                 let value: LitInt = content.parse()?;
                 options.backtrack_limit = Some(parse_pattern_limit(value, "backtrack_limit")?);
@@ -406,7 +425,7 @@ fn parse_pattern_options(input: ParseStream) -> syn::Result<PatternOptionsConfig
             _ => {
                 return Err(syn::Error::new_spanned(
                     key,
-                    "Unknown pattern_options key. Expected `engine`, `cache`, `backtrack_limit`, `size_limit`, or `dfa_size_limit`",
+                    "Unknown pattern_options key. Expected `engine`, `syntax`, `cache`, `backtrack_limit`, `size_limit`, or `dfa_size_limit`",
                 ));
             }
         }
@@ -515,10 +534,11 @@ fn parse_methods(input: ParseStream) -> syn::Result<context::MethodGates> {
             "is_valid" => methods.is_valid = value.value,
             "validate" => methods.validate = value.value,
             "iter_errors" => methods.iter_errors = value.value,
+            "evaluate" => methods.evaluate = value.value,
             _ => {
                 return Err(syn::Error::new_spanned(
                     key,
-                    "Unknown methods key. Expected `is_valid`, `validate`, or `iter_errors`",
+                    "Unknown methods key. Expected `is_valid`, `validate`, `iter_errors`, or `evaluate`",
                 ));
             }
         }
@@ -528,10 +548,10 @@ fn parse_methods(input: ParseStream) -> syn::Result<context::MethodGates> {
         }
     }
 
-    if !(methods.is_valid || methods.validate || methods.iter_errors) {
+    if !(methods.is_valid || methods.validate || methods.iter_errors || methods.evaluate) {
         return Err(syn::Error::new(
             proc_macro2::Span::call_site(),
-            "At least one of `is_valid`, `validate`, or `iter_errors` must be enabled",
+            "At least one of `is_valid`, `validate`, `iter_errors`, or `evaluate` must be enabled",
         ));
     }
 
@@ -764,8 +784,8 @@ impl Parse for Config {
                     "`cache = explicit` requires `backend = SerdeJson`",
                 ));
             }
-            if !methods.is_valid || methods.validate || methods.iter_errors {
-                return Err(syn::Error::new(input.span(), "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false`"));
+            if !methods.is_valid || methods.validate || methods.iter_errors || methods.evaluate {
+                return Err(syn::Error::new(input.span(), "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`"));
             }
         }
 
@@ -877,7 +897,12 @@ so the generated methods cannot depend on type parameters",
                     })?
             }
         };
-        resource_pairs.push((entry.uri.clone(), draft.create_resource(schema_value)));
+        // Like a retrieved document, a resource is in the draft its own `$schema` names.
+        let resource_draft = draft.detect(&schema_value);
+        resource_pairs.push((
+            entry.uri.clone(),
+            resource_draft.create_resource(schema_value),
+        ));
     }
 
     // Validate the base URI first so a malformed one gives a clear error, not an opaque registry one.
@@ -971,6 +996,7 @@ so the generated methods cannot depend on type parameters",
         } else {
             None
         },
+        pattern_syntax: attr.pattern_options.syntax,
         methods: attr.methods,
     };
     let impl_mod_name = format_ident!("__{}_impl", name.to_string().to_lowercase());
@@ -1015,7 +1041,7 @@ so the generated methods cannot depend on type parameters",
 }
 
 // Without `arbitrary-precision`, a number past `f64` parses only when another crate in the build
-// enables `serde_json/arbitrary_precision`; it is refused as the parse without that feature does.
+// enables `serde_json/arbitrary_precision`; reject it as a parse without that feature would.
 fn reject_number_past_f64(document: Value) -> Result<Value, String> {
     if cfg!(feature = "arbitrary-precision") {
         return Ok(document);
@@ -1055,7 +1081,6 @@ fn detect_draft(schema: &Value, draft: Option<&syn::Expr>) -> syn::Result<Draft>
             .last()
             .expect("a parsed path expression always has at least one segment");
 
-        // Can't match on ident, but comparisons are faster than allocating a string + match
         let detected = if item.ident == "Draft4" {
             Draft::Draft4
         } else if item.ident == "Draft6" {
@@ -1100,8 +1125,7 @@ fn resolve_schema_path(lit: &LitStr) -> syn::Result<PathBuf> {
     if path.is_absolute() {
         return Ok(path);
     }
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
-        .map_err(|_| syn::Error::new_spanned(lit, "CARGO_MANIFEST_DIR is not set"))?;
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR");
     let full = PathBuf::from(manifest_dir).join(&path);
     if full.exists() {
         return Ok(full);

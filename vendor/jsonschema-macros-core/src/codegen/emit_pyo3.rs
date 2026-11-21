@@ -167,19 +167,6 @@ impl ValueEmitter for Pyo3Emitter {
         quote! { __ObjectExt::get(&#object_expr, #key).is_some() }
     }
 
-    fn object_iter_all(object_expr: impl ToTokens, body: impl ToTokens) -> TokenStream {
-        quote! {
-            __ObjectExt::members(&#object_expr).all(|(key, instance)| {
-                #body
-            })
-        }
-    }
-
-    fn object_get(object_expr: impl ToTokens, key: &str) -> TokenStream {
-        let key = Self::declare_key(key);
-        quote! { __ObjectExt::get(&#object_expr, #key) }
-    }
-
     fn object_iter_entries(object_expr: impl ToTokens) -> TokenStream {
         quote! { __ObjectExt::members(&#object_expr) }
     }
@@ -352,10 +339,22 @@ impl ValueEmitter for Pyo3Emitter {
                 }
             }
         });
+        let evaluate = methods.evaluate.then(|| {
+            quote! {
+                pub(super) fn entry_evaluate(
+                    instance: &__Bound<'_>,
+                ) -> __py3::PyResult<jsonschema::Evaluation> {
+                    __json::inspect(instance.as_borrowed(), false, || {
+                        evaluate(instance.as_borrowed())
+                    })
+                }
+            }
+        });
         quote! {
             #is_valid
             #validate
             #iter_errors
+            #evaluate
         }
     }
 
@@ -395,10 +394,20 @@ impl ValueEmitter for Pyo3Emitter {
                 }
             }
         });
+        let evaluate = methods.evaluate.then(|| {
+            quote! {
+                pub fn evaluate(
+                    instance: &#anonymous,
+                ) -> #runtime_crate::__private::pyo3::PyResult<#runtime_crate::Evaluation> {
+                    #impl_mod_name::entry_evaluate(instance)
+                }
+            }
+        });
         quote! {
             #is_valid
             #validate
             #iter_errors
+            #evaluate
         }
     }
 

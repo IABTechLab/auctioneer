@@ -1,13 +1,29 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::quote;
 
-/// A compiled check in three shapes: `is_valid` (bool), `validate` (first error), `collect` (all errors).
+/// A compiled check in two shapes: `is_valid` (bool) and `errors`, which reports into the
+/// `__errors` sink for both `validate` (first error) and `iter_errors` (every error).
 #[derive(Clone)]
 pub(crate) struct CompiledExpr {
     pub(crate) is_valid: IsValidExpr,
-    pub(crate) validate: ValidateBlock,
-    pub(crate) collect: CollectBlock,
+    pub(crate) errors: ErrorsBlock,
     pub(crate) compile_error: bool,
+    /// The errors block skips accepted instances on its own, through error functions that run
+    /// `is_valid` first, so a caller needs no `is_valid` guard before it.
+    pub(crate) skips_valid: bool,
+    /// The referenced schema whose error function alone reports this check's errors; equal values
+    /// emit equal errors blocks wherever they appear.
+    pub(crate) ref_errors: Option<RefErrors>,
+}
+
+/// A referenced schema's error function, named by its `is_valid` function, and the reference
+/// keyword that reaches it.
+#[derive(Clone)]
+pub(crate) enum RefErrors {
+    /// Run on the instance.
+    Call(String, &'static str),
+    /// Run on every array item.
+    EachItem(String, &'static str),
 }
 
 #[derive(Clone)]
@@ -18,17 +34,33 @@ pub(crate) enum IsValidExpr {
     Expr(TokenStream),
 }
 
-/// A statement-sequence code shape for `validate()` mode.
+impl IsValidExpr {
+    pub(crate) fn into_token_stream(self) -> TokenStream {
+        match self {
+            Self::AlwaysTrue => quote! { true },
+            Self::Expr(ts) => ts,
+        }
+    }
+
+    pub(crate) fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::AlwaysTrue, b) => b,
+            (a, Self::AlwaysTrue) => a,
+            (Self::Expr(a), Self::Expr(b)) => Self::Expr(quote! { (#a) && (#b) }),
+        }
+    }
+}
+
+/// Statement block reporting errors into the `__errors` sink; returns `true` from the enclosing
+/// function once the sink wants no more errors.
 #[derive(Clone)]
-pub(crate) enum ValidateBlock {
+pub(crate) enum ErrorsBlock {
     /// The keyword imposes no constraint: emit no statements.
     AlwaysValid,
-    /// A statement sequence that may return an error.
     Expr(TokenStream),
 }
 
-impl ValidateBlock {
-    /// Convert to a `TokenStream`: empty for `AlwaysValid`, the inner stream for `Expr`.
+impl ErrorsBlock {
     pub(crate) fn as_token_stream(&self) -> TokenStream {
         match self {
             Self::AlwaysValid => quote! {},
@@ -50,84 +82,99 @@ impl ValidateBlock {
     }
 }
 
-/// Statement block for `collect`/`iter_errors` mode: pushes errors into `__errors`, never returns early.
-#[derive(Clone)]
-pub(crate) enum CollectBlock {
-    AlwaysValid,
-    Expr(TokenStream),
-}
-
-impl CollectBlock {
-    pub(crate) fn as_token_stream(&self) -> TokenStream {
-        match self {
-            Self::AlwaysValid => quote! {},
-            Self::Expr(ts) => ts.clone(),
-        }
-    }
-
-    pub(crate) fn and(self, other: Self) -> Self {
-        match (self, other) {
-            (Self::AlwaysValid, b) => b,
-            (a, Self::AlwaysValid) => a,
-            (Self::Expr(mut a), Self::Expr(b)) => {
-                a.extend(b);
-                Self::Expr(a)
-            }
+/// Reports `error` into the `__errors` sink, returning once the sink wants no more errors.
+pub(crate) fn push_error(error: &TokenStream) -> TokenStream {
+    quote! {
+        if __errors.push(#error) {
+            return true;
         }
     }
 }
 
-/// Derive `collect` from a `validate` block: run it in a closure and push the single error, if any.
-/// Only sound for single-error leaves; multi-error loops/branches supply an explicit collect block.
-fn derive_collect(validate: &TokenStream) -> CollectBlock {
-    CollectBlock::Expr(quote! {
-        __errors.extend((|| -> Option<__VE<'_>> { #validate None })());
+/// Runs a generated error function, returning once it reports that the sink wants no more errors.
+pub(crate) fn call_errors(call: &TokenStream) -> TokenStream {
+    quote! {
+        if #call {
+            return true;
+        }
+    }
+}
+
+/// Run a first-error block in a labelled block and report its error, if any. First-error blocks
+/// never nest outside a closure, so the label is never shadowed.
+fn report_first_error(first_error: &TokenStream) -> ErrorsBlock {
+    let push = push_error(&quote! { __e });
+    ErrorsBlock::Expr(quote! {
+        if let Some(__e) = '__first_error: { #first_error None } {
+            #push
+        }
     })
+}
+
+/// The predicate `.all`/`.any` takes for `is_valid` over each `instance`: a call `f(instance)` is
+/// passed as `f`, which spares a closure per call site.
+pub(crate) fn item_predicate(is_valid: &TokenStream) -> TokenStream {
+    let mut tokens = is_valid.clone().into_iter();
+    if let (Some(TokenTree::Ident(function)), Some(TokenTree::Group(args)), None) =
+        (tokens.next(), tokens.next(), tokens.next())
+    {
+        let mut args_iter = args.stream().into_iter();
+        if args.delimiter() == Delimiter::Parenthesis
+            && matches!(
+                (args_iter.next(), args_iter.next()),
+                (Some(TokenTree::Ident(arg)), None) if arg == "instance"
+            )
+        {
+            return quote! { #function };
+        }
+    }
+    quote! { |instance| #is_valid }
 }
 
 impl CompiledExpr {
     pub(crate) fn always_true() -> Self {
         Self {
             is_valid: IsValidExpr::AlwaysTrue,
-            validate: ValidateBlock::AlwaysValid,
-            collect: CollectBlock::AlwaysValid,
+            errors: ErrorsBlock::AlwaysValid,
             compile_error: false,
+            skips_valid: true,
+            ref_errors: None,
         }
     }
 
-    /// Convert a raw is-valid expression into a `CompiledExpr` that also carries a lazy
-    /// `validate` block. The block re-evaluates the check and emits a `false_schema` error
-    /// when the check fails. The `schema_path` string is embedded in the generated error.
+    /// A check reporting a `false_schema` error at `schema_path` when `is_valid` fails.
     #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn from_bool_expr(
         is_valid: TokenStream,
         schema_path: &str,
         err_instance: &TokenStream,
     ) -> Self {
-        let validate = quote! {
-            if !(#is_valid) {
-                return Some(__err::false_schema(
-                    #schema_path, __path.into(), #err_instance,
-                ));
-            }
-        };
-        Self {
-            is_valid: IsValidExpr::Expr(is_valid.clone()),
-            collect: derive_collect(&validate),
-            validate: ValidateBlock::Expr(validate),
-            compile_error: false,
-        }
+        Self::from_first_error(
+            is_valid.clone(),
+            quote! {
+                if !(#is_valid) {
+                    break '__first_error Some(__err::false_schema(
+                        #schema_path, __path.into(), #err_instance,
+                    ));
+                }
+            },
+        )
     }
 
     pub(crate) fn is_compile_error(&self) -> bool {
         self.compile_error
     }
 
+    /// A check that cannot compile: `is_valid` carries the compile error, and the generated code
+    /// reports nothing.
     pub(crate) fn from_error(is_valid: TokenStream) -> Self {
-        let mut expr = Self::from_bool_expr(is_valid, "", &quote! { instance });
-        expr.collect = CollectBlock::AlwaysValid;
-        expr.compile_error = true;
-        expr
+        Self {
+            is_valid: IsValidExpr::Expr(is_valid),
+            errors: ErrorsBlock::Expr(TokenStream::new()),
+            compile_error: true,
+            skips_valid: true,
+            ref_errors: None,
+        }
     }
 
     pub(crate) fn is_trivially_true(&self) -> bool {
@@ -150,70 +197,109 @@ impl CompiledExpr {
         }
     }
 
-    /// Single-error leaf from a check and its error: `validate` returns the error, `collect` pushes
-    /// it. Emits no closure, unlike [`Self::with_validate_blocks`] deriving `collect` from an opaque
-    /// `validate`.
+    /// Single-error leaf from a check and its error.
     #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn from_check_and_error(is_valid: TokenStream, error: TokenStream) -> Self {
+        let push = push_error(&error);
         Self {
-            collect: CollectBlock::Expr(quote! {
+            errors: ErrorsBlock::Expr(quote! {
                 if !(#is_valid) {
-                    __errors.push(#error);
-                }
-            }),
-            validate: ValidateBlock::Expr(quote! {
-                if !(#is_valid) {
-                    return Some(#error);
+                    #push
                 }
             }),
             is_valid: IsValidExpr::Expr(is_valid),
             compile_error: false,
+            skips_valid: false,
+            ref_errors: None,
         }
     }
 
-    /// Explicit `is_valid`/`validate`, deriving `collect` from `validate` (single-error leaves only;
-    /// child-splicing loops/branches use [`Self::with_validate_and_collect_blocks`]).
-    pub(crate) fn with_validate_blocks(is_valid: TokenStream, validate: TokenStream) -> Self {
+    /// Single-error leaf from a block breaking `'__first_error` with `Some(error)` for its first
+    /// error; any later error the block could yield is never reported.
+    #[allow(clippy::needless_pass_by_value)]
+    pub(crate) fn from_first_error(is_valid: TokenStream, first_error: TokenStream) -> Self {
         Self {
             is_valid: IsValidExpr::Expr(is_valid),
-            collect: derive_collect(&validate),
-            validate: ValidateBlock::Expr(validate),
+            errors: report_first_error(&first_error),
             compile_error: false,
+            skips_valid: false,
+            ref_errors: None,
         }
     }
 
-    /// Explicit code for all three modes; for multi-error `validate` blocks whose `collect` must
-    /// accumulate every error, not just the first.
-    pub(crate) fn with_validate_and_collect_blocks(
-        is_valid: TokenStream,
-        validate: TokenStream,
-        collect: TokenStream,
-    ) -> Self {
+    /// Explicit `is_valid` and errors block, for checks that may report several errors.
+    pub(crate) fn with_errors(is_valid: TokenStream, errors: TokenStream) -> Self {
         Self {
             is_valid: IsValidExpr::Expr(is_valid),
-            validate: ValidateBlock::Expr(validate),
-            collect: CollectBlock::Expr(collect),
+            errors: ErrorsBlock::Expr(errors),
             compile_error: false,
+            skips_valid: false,
+            ref_errors: None,
+        }
+    }
+
+    /// The check without its errors, and its errors under an always-true `is_valid`, for errors
+    /// reported away from where the check runs.
+    pub(crate) fn split_errors(self) -> (Self, Self) {
+        let check = Self {
+            is_valid: self.is_valid,
+            errors: ErrorsBlock::AlwaysValid,
+            compile_error: self.compile_error,
+            skips_valid: true,
+            ref_errors: None,
+        };
+        let errors = Self {
+            is_valid: IsValidExpr::AlwaysTrue,
+            errors: self.errors,
+            compile_error: self.compile_error,
+            skips_valid: self.skips_valid,
+            ref_errors: self.ref_errors,
+        };
+        (check, errors)
+    }
+
+    pub(crate) fn with_skips_valid(mut self, skips_valid: bool) -> Self {
+        self.skips_valid = skips_valid;
+        self
+    }
+
+    pub(crate) fn with_ref_errors(mut self, ref_errors: RefErrors) -> Self {
+        self.ref_errors = Some(ref_errors);
+        self
+    }
+
+    /// `errors`, the code reporting this check's errors, behind an `is_valid` guard unless the
+    /// errors block skips accepted instances on its own.
+    pub(crate) fn guard_errors(&self, errors: &TokenStream) -> TokenStream {
+        if self.skips_valid {
+            errors.clone()
+        } else {
+            let is_valid = self.is_valid_token_stream();
+            quote! {
+                if !(#is_valid) {
+                    #errors
+                }
+            }
         }
     }
 
     /// Logical AND: simplifies trivially-true arms.
     pub(crate) fn and(self, other: Self) -> Self {
         let compile_error = self.compile_error || other.compile_error;
-        let validate = self.validate.and(other.validate);
-        let collect = self.collect.and(other.collect);
-        let is_valid = match (self.is_valid, other.is_valid) {
-            (IsValidExpr::AlwaysTrue, b) => b,
-            (a, IsValidExpr::AlwaysTrue) => a,
-            (IsValidExpr::Expr(a), IsValidExpr::Expr(b)) => {
-                IsValidExpr::Expr(quote! { (#a) && (#b) })
-            }
+        let skips_valid = self.skips_valid && other.skips_valid;
+        let ref_errors = match (&self.errors, &other.errors) {
+            (ErrorsBlock::AlwaysValid, _) => other.ref_errors,
+            (_, ErrorsBlock::AlwaysValid) => self.ref_errors,
+            _ => None,
         };
+        let errors = self.errors.and(other.errors);
+        let is_valid = self.is_valid.and(other.is_valid);
         Self {
             is_valid,
-            validate,
-            collect,
+            errors,
             compile_error,
+            skips_valid,
+            ref_errors,
         }
     }
 

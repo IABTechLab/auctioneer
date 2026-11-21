@@ -21,7 +21,7 @@ const MAX_SOURCE_BYTES: u64 = 0x0010_0000;
 pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
     (
         "Cargo.toml",
-        "10c3f14629c0900ac452dd6d55a62aab561bbabbdf5774a802c8d223933cfa3b",
+        "13e274638a506db1eccab53538947e1af159acf182831f26b6dd215d4692e5ac",
     ),
     (
         "src/lib.rs",
@@ -37,11 +37,11 @@ pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
     ),
     (
         "src/ast/mod.rs",
-        "38df06574a3816eae2796c757d9d268b7b42ce3fb1feee86750e7d04de7649c7",
+        "e3390ade7e503213659cf5ae238a5d496d6e170290328852bc49f60fa2e3fc8f",
     ),
     (
         "src/ast/parse.rs",
-        "af6d82e62e97379a91840e99c10be1279c0ae1298a0d8e5da429e9e7bc3ec339",
+        "91e9fbcdd3e3049884e1eb3fe60fe81a6514e11d55cfedff3bdffcab6ac07171",
     ),
     (
         "src/ast/visitor.rs",
@@ -49,15 +49,15 @@ pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
     ),
     (
         "src/hir/mod.rs",
-        "13ee5b65fac1f2c9780ce48a500b1e9d198cb0bc07c0d7f4a4391aab87424563",
+        "988182d8c577481d4a5a76139a86be84001db6c596ca1b55197097aaa19c6d11",
     ),
     (
         "src/hir/translate.rs",
-        "8c01783e74261a8562c2694394d94ccb8cb173274932731fa77118041fab4507",
+        "d0abd23332bef4f1f24a84b9dfebf5397a2bd07ef0cd42f22b4f98b1d7b99e4a",
     ),
     (
         "src/hir/interval.rs",
-        "170949e6fd9e9641830415ec3ea813ff2431c8594d49c559cd41d4903f3d29d0",
+        "63cd8403a96ea2be1260b77a869a05c136ed14e9fd631c53e51d89663b360897",
     ),
 ];
 
@@ -173,10 +173,10 @@ fn verify_source(source: &Path) -> Result<(), ConstructionError> {
     if canonical != source
         || source
             .file_name()
-            .is_none_or(|name| name != "regex-syntax-0.8.11")
+            .is_none_or(|name| name != "regex-syntax-0.8.12")
     {
         return Err(ConstructionError::Source(
-            "noncanonical regex-syntax-0.8.11 source",
+            "noncanonical regex-syntax-0.8.12 source",
         ));
     }
     for (relative, expected) in SOURCE_PINS {

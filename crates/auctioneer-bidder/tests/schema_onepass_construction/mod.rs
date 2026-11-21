@@ -2,7 +2,7 @@
 //! one-pass constructor attempt, including refusal cleanup. Excludes caller-live
 //! HIR, shared NFA heap, other retained programs, machine stack, allocator
 //! overhead and search caches. No work, frame or serving qualification is implied.
-//! Premises: pinned regex-automata 0.4.18/Rust 1.98.1 collection paths,
+//! Premises: pinned regex-automata 0.4.19/Rust 1.98.1 collection paths,
 //! syntax enabled and logging disabled. The native API uses reviewed natural-
 //! layout envelopes. Target projection requires compiler-owned payload/ABI facts;
 //! native NFA topology is structural input, never target ABI evidence. The stack

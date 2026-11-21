@@ -494,7 +494,7 @@ fn collect_catalog() -> Catalog {
             ignore_unknown_formats = false,
             formats = { "uuid" => crate::reference_uuid_format, "hostname" => crate::reference_hostname_format },
             pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-            methods = { is_valid = true, validate = false, iter_errors = false }
+            methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
         };
         let generated = syn::parse2(jsonschema_macros_core::expand(
             options,
@@ -645,7 +645,7 @@ fn metadata() -> Value {
         .iter()
         .find(|row| row["name"].as_str() == Some("regex-automata"))
         .unwrap();
-    assert_eq!(engine["version"].as_str(), Some("0.4.18"));
+    assert_eq!(engine["version"].as_str(), Some("0.4.19"));
     assert!(engine.get("source").is_none());
     assert!(engine.get("checksum").is_none());
     let source = schema_regex_vendor::verify(&root).unwrap();
@@ -677,7 +677,7 @@ fn metadata() -> Value {
         "rustc":String::from_utf8(rustc.stdout).unwrap(),"profile":"release","debug_assertions":cfg!(debug_assertions),
         "engine_version":engine["version"].as_str(),"engine_checksum":engine.get("checksum").and_then(toml::Value::as_str),
         "engine_source_identity":engine_identity,
-        "compiler_version":"0.61.2 with existing pinned patches","os":env::consts::OS,
+        "compiler_version":"0.62.0 with existing pinned patches","os":env::consts::OS,
         "arch":env::consts::ARCH,"word_bytes":size_of::<usize>(),
         "test_binary_sha256":digest(&binary),"test_binary_bytes":binary.len(),"host_exclusive":false,
         "method_revision":2_u32,"samples":7_u32,"iterations_rule":"clamp(65536 / max(input_bytes, 64), 64, 1024)",
@@ -796,12 +796,12 @@ mod tests {
     #[test]
     fn matcher_metadata_preserves_the_local_engine_checksum_absence() {
         let context = super::metadata();
-        assert_eq!(context["engine_version"], "0.4.18");
+        assert_eq!(context["engine_version"], "0.4.19");
         assert!(context.as_object().unwrap().contains_key("engine_checksum"));
         assert!(context["engine_checksum"].is_null());
         assert_eq!(
             context["engine_source_identity"]["archive_sha256"],
-            "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+            "41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158"
         );
         for field in ["patch_sha256", "tree_sha256"] {
             assert_eq!(

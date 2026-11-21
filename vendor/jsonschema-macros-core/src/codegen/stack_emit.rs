@@ -1,5 +1,6 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
+use std::collections::BTreeSet;
 
 use super::helpers::DynamicAnchorBinding;
 
@@ -77,28 +78,16 @@ define_dynamic_ops!(
     pop_dynamic_item_eval_n
 );
 
-// Parallel stacks holding validate() function pointers.
+// Parallel stacks holding error function pointers.
 define_recursive_ops!(
-    __JSONSCHEMA_RECURSIVE_VALIDATE_STACK,
-    push_recursive_validate,
-    pop_recursive_validate
+    __JSONSCHEMA_RECURSIVE_ERRORS_STACK,
+    push_recursive_errors,
+    pop_recursive_errors
 );
 define_dynamic_ops!(
-    __JSONSCHEMA_DYNAMIC_VALIDATE_STACK,
-    push_dynamic_validate,
-    pop_dynamic_validate_n
-);
-
-// Parallel stacks holding collect_errors() function pointers.
-define_recursive_ops!(
-    __JSONSCHEMA_RECURSIVE_COLLECT_STACK,
-    push_recursive_collect,
-    pop_recursive_collect
-);
-define_dynamic_ops!(
-    __JSONSCHEMA_DYNAMIC_COLLECT_STACK,
-    push_dynamic_collect,
-    pop_dynamic_collect_n
+    __JSONSCHEMA_DYNAMIC_ERRORS_STACK,
+    push_dynamic_errors,
+    pop_dynamic_errors_n
 );
 
 /// Push/pop emitters for one thread-local stack family, plus the accessor
@@ -187,6 +176,73 @@ pub(crate) fn stack_scoped_body(
             #dynamic_pop
             #recursive_pop
             __result
+        }
+    }
+}
+
+/// The function giving the identity of the dynamic scope a `$ref` target runs in: the code each
+/// of the `looked_up` stacks binds first, under each of `names` or as the `$recursiveRef` anchor.
+pub(crate) fn dynamic_scope_fn(names: &[&str], looked_up: &BTreeSet<String>) -> TokenStream {
+    let mut scans = Vec::new();
+    let mut slots = 0usize;
+    for stack in [
+        "__JSONSCHEMA_DYNAMIC_STACK",
+        "__JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK",
+        "__JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK",
+    ] {
+        if names.is_empty() || !looked_up.contains(stack) {
+            continue;
+        }
+        let stack = format_ident!("{stack}");
+        let count = names.len();
+        let positions = (slots..slots + count).map(proc_macro2::Literal::usize_unsuffixed);
+        scans.push(quote! {
+            #stack.with_borrow(|stack| {
+                let mut unbound = #count;
+                for (anchor, target) in stack.iter() {
+                    let slot = match *anchor {
+                        #(#names => #positions,)*
+                        _ => continue,
+                    };
+                    if __bindings[slot] == 0 {
+                        __bindings[slot] = *target as usize;
+                        unbound -= 1;
+                        if unbound == 0 {
+                            break;
+                        }
+                    }
+                }
+            });
+        });
+        slots += count;
+    }
+    for stack in [
+        "__JSONSCHEMA_RECURSIVE_STACK",
+        "__JSONSCHEMA_RECURSIVE_KEY_EVAL_STACK",
+        "__JSONSCHEMA_RECURSIVE_ITEM_EVAL_STACK",
+    ] {
+        if !looked_up.contains(stack) {
+            continue;
+        }
+        let stack = format_ident!("{stack}");
+        let slot = proc_macro2::Literal::usize_unsuffixed(slots);
+        scans.push(quote! {
+            #stack.with_borrow(|stack| {
+                for (target, anchored) in stack.iter() {
+                    if *anchored {
+                        __bindings[#slot] = *target as usize;
+                        break;
+                    }
+                }
+            });
+        });
+        slots += 1;
+    }
+    quote! {
+        fn __dynamic_scope() -> usize {
+            let mut __bindings = [0usize; #slots];
+            #(#scans)*
+            __ref_memo::scope(&__bindings)
         }
     }
 }
