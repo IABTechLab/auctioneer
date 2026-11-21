@@ -560,7 +560,7 @@ fn callable_bindings(
             .ok_or("application publication predicate mismatch")?;
         let implementation = row["implementation"]
             .as_str()
-            .filter(|name| !name.is_empty())
+            .filter(|value| !value.is_empty())
             .ok_or("application publication predicate mismatch")?;
         let native = row["native_only"]
             .as_bool()
@@ -2006,17 +2006,17 @@ mod tests {
                 "{field}"
             );
         }
-        let mut changed = manifest.clone();
-        changed["schema_version"] = json!(1);
+        let mut old_version = manifest.clone();
+        old_version["schema_version"] = json!(1_u32);
         assert_eq!(
-            check_build(&changed, &expected).unwrap_err(),
+            check_build(&old_version, &expected).unwrap_err(),
             "application staging must remain unqualified"
         );
         for field in ["planned_roots", "published_roots_all_features"] {
-            let mut changed = manifest.clone();
-            changed[field] = json!([]);
+            let mut hybrid = manifest.clone();
+            hybrid[field] = json!([]);
             assert_eq!(
-                check_build(&changed, &expected).unwrap_err(),
+                check_build(&hybrid, &expected).unwrap_err(),
                 "application staging must remain unqualified"
             );
         }
@@ -2075,16 +2075,16 @@ mod tests {
             "application source cohort mismatch"
         );
         let mut old = cohort.clone();
-        old["schema_version"] = json!(1);
+        old["schema_version"] = json!(1_u32);
         assert_eq!(
             check_cohort(&manifest, &schemas, &old, false).unwrap_err(),
             "application source cohort mismatch"
         );
         for field in ["planned_roots", "published_roots_all_features"] {
-            let mut old = cohort.clone();
-            old["source"][field] = json!([]);
+            let mut hybrid = cohort.clone();
+            hybrid["source"][field] = json!([]);
             assert_eq!(
-                check_cohort(&manifest, &schemas, &old, false).unwrap_err(),
+                check_cohort(&manifest, &schemas, &hybrid, false).unwrap_err(),
                 "application source cohort mismatch"
             );
         }

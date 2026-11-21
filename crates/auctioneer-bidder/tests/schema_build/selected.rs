@@ -61,7 +61,7 @@ pub(crate) fn binding_contract(binding: &Value) -> Result<(), &'static str> {
             .ok_or("invalid binding inventory identity")?;
         let implementation = row["implementation"]
             .as_str()
-            .filter(|name| !name.is_empty())
+            .filter(|value| !value.is_empty())
             .ok_or("invalid binding inventory identity")?;
         if identities.insert(name, implementation).is_some() {
             return Err("invalid binding inventory identity");
@@ -947,13 +947,13 @@ mod tests {
         let selected = &snapshot.schemas[..1];
         let record = binding(selected);
         let mut old = record.clone();
-        old["schema_version"] = json!(1);
+        old["schema_version"] = json!(1_u8);
         assert_eq!(
             super::membership(selected, &old).unwrap_err(),
             "selected schema membership mismatch"
         );
         old = record.clone();
-        old["source"]["schema_version"] = json!(1);
+        old["source"]["schema_version"] = json!(1_u8);
         assert_eq!(
             super::membership(selected, &old).unwrap_err(),
             "selected schema membership mismatch"

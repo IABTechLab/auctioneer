@@ -753,6 +753,195 @@ mod tests {
         }
     }
 
+    fn staged_markers(syntax: &syn::File) -> Result<BTreeMap<String, &syn::Attribute>, &'static str> {
+        let mut markers = BTreeMap::new();
+        for item in &syntax.items {
+            let syn::Item::Struct(marker) = item else {
+                continue;
+            };
+            let mut attributes = marker.attrs.iter().filter(|attribute| {
+                attribute
+                    .path()
+                    .segments
+                    .last()
+                    .is_some_and(|part| part.ident == "validator")
+            });
+            let Some(attribute) = attributes.next() else {
+                continue;
+            };
+            if attributes.next().is_some()
+                || attribute.path().leading_colon.is_some()
+                || !attribute
+                    .path()
+                    .segments
+                    .iter()
+                    .map(|part| part.ident.to_string())
+                    .eq(["jsonschema", "validator"])
+            {
+                return Err("ambiguous staged validator attribute");
+            }
+            if markers.insert(marker.ident.to_string(), attribute).is_some() {
+                return Err("duplicate staged declaration marker");
+            }
+        }
+        Ok(markers)
+    }
+
+    fn assert_staged_marker_controls(syntax: &syn::File) {
+        let markers = staged_markers(syntax).expect("unique qualified validator declarations");
+        let mut duplicate = syntax.clone();
+        let marker = syntax
+            .items
+            .iter()
+            .find(|item| {
+                matches!(item, syn::Item::Struct(row) if markers.contains_key(&row.ident.to_string()))
+            })
+            .unwrap()
+            .clone();
+        duplicate.items.push(marker);
+        assert_eq!(
+            staged_markers(&duplicate).err(),
+            Some("duplicate staged declaration marker")
+        );
+        for invalid in [
+            syn::parse_quote! {
+                #[jsonschema::validator(path = "fake")]
+                #[jsonschema::validator(path = "fake")]
+                struct FakeRepeated;
+            },
+            syn::parse_quote! {
+                #[fake::validator(path = "fake")]
+                struct FakeUnqualified;
+            },
+        ] {
+            let mut changed = syntax.clone();
+            changed.items.push(invalid);
+            assert_eq!(
+                staged_markers(&changed).err(),
+                Some("ambiguous staged validator attribute")
+            );
+        }
+    }
+
+    fn staged_attribute_paths(attribute: &syn::Attribute) -> Vec<String> {
+        use proc_macro2::TokenTree;
+
+        let tokens: Vec<_> = attribute
+            .meta
+            .require_list()
+            .unwrap()
+            .tokens
+            .clone()
+            .into_iter()
+            .collect();
+        tokens
+            .windows(3)
+            .filter_map(|window| {
+                let [TokenTree::Ident(key), TokenTree::Punct(assign), TokenTree::Literal(literal)] =
+                    window
+                else {
+                    return None;
+                };
+                if key != "path" || assign.as_char() != '=' {
+                    return None;
+                }
+                Some(
+                    syn::parse2::<syn::LitStr>(quote::quote!(#literal))
+                        .unwrap()
+                        .value(),
+                )
+            })
+            .collect()
+    }
+
+    fn staged_source_witnesses() -> BTreeMap<String, Value> {
+        use super::schema_selection_source::{Lane, selected_cohort};
+
+        let expected = selected_cohort(Lane::Secure).unwrap();
+        expected.manifest["selection"]["schemas"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                let mut witness = row["witness"].clone();
+                witness["repository"] = row["source"]["repository"].clone();
+                witness["revision"] = row["source"]["revision"].clone();
+                (row["witness"]["name"].as_str().unwrap().to_owned(), witness)
+            })
+            .collect()
+    }
+
+    fn assert_staged_declaration_bindings(
+        generated: &auctioneer_config::schema_staging_build::GeneratedStaging,
+        out_dir: &Path,
+    ) {
+        let seed: serde_json::Value = serde_json::from_str(&generated.manifest_json).unwrap();
+        let syntax = syn::parse2::<syn::File>(generated.rust.clone()).unwrap();
+        assert_staged_marker_controls(&syntax);
+        let markers = staged_markers(&syntax).expect("unique qualified validator declarations");
+        let expected_witnesses = staged_source_witnesses();
+        let bindings = seed["declarations"]
+            .as_array()
+            .expect("build seed must bind actual declarations to captured schemas");
+        assert_eq!(bindings.len(), generated.snapshots.len());
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|row| row["marker"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            markers.keys().map(String::as_str).collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|row| row["owner"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            expected_witnesses
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|row| row["owner"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            generated
+                .snapshots
+                .iter()
+                .map(|row| row.owner.as_str())
+                .collect::<BTreeSet<_>>()
+        );
+        for binding in bindings {
+            let snapshot = generated
+                .snapshots
+                .iter()
+                .find(|row| Some(row.owner.as_str()) == binding["owner"].as_str())
+                .expect("exact captured schema owner");
+            assert_eq!(binding["snapshot"], serde_json::to_value(snapshot).unwrap());
+            let witness = expected_witnesses
+                .get(binding["owner"].as_str().unwrap())
+                .unwrap();
+            assert_eq!(
+                &binding["source"], witness,
+                "independently parsed source provenance"
+            );
+            assert_eq!(binding["source"]["sha256"], snapshot.sha256);
+            let attribute = markers.get(binding["marker"].as_str().unwrap()).unwrap();
+            assert_eq!(
+                staged_attribute_paths(attribute),
+                vec![
+                    out_dir
+                        .join(&snapshot.relative_path)
+                        .to_str()
+                        .unwrap()
+                        .to_owned()
+                ]
+            );
+        }
+        assert_eq!(seed["owner_graph_status"], "unexpanded");
+    }
+
     #[test]
     fn staged_snapshot_compiler_inputs_are_watched_and_changed_bytes_refuse() {
         use auctioneer_config::bidder_discovery::scan;
@@ -781,6 +970,7 @@ mod tests {
         })
         .unwrap();
         assert!(!generated.snapshots.is_empty());
+        assert_staged_declaration_bindings(&generated, &out_dir);
         write_snapshots(&out_dir, &generated.snapshots).unwrap();
         for snapshot in &generated.snapshots {
             let path = out_dir.join(&snapshot.relative_path);
@@ -2562,16 +2752,16 @@ mod tests {
         if manifest["callable_bindings"] != json!(active) {
             return Err("actual callable publication membership");
         }
-        for (lane_name, expected) in ["secure", "development"].into_iter().zip(expected) {
+        for (lane_name, expected_lane) in ["secure", "development"].into_iter().zip(expected) {
             let lane = &manifest["lanes"][lane_name];
-            let owners = expected["effective_schema_owners"]
+            let owners = expected_lane["effective_schema_owners"]
                 .as_array()
                 .ok_or("expected owners")?;
             let count = owners.len();
             if count == 0
-                || lane["roots"] != expected["roots"]
-                || lane["members"] != expected["members"]
-                || lane["effective_schema_owners"] != expected["effective_schema_owners"]
+                || lane["roots"] != expected_lane["roots"]
+                || lane["members"] != expected_lane["members"]
+                || lane["effective_schema_owners"] != expected_lane["effective_schema_owners"]
                 || lane["schema_count"] != json!(count)
                 || lane["schemas"].as_array().ok_or("schemas")?.len() != count
                 || lane["schemas"]
@@ -2732,7 +2922,7 @@ mod tests {
                 .expect_err("same-count publication substitution");
         }
         let mut old = original.clone();
-        old["schema_version"] = json!(1);
+        old["schema_version"] = json!(1_u8);
         assert_eq!(
             check_membership(&old, &expected),
             Err("retired source membership contract")
@@ -2742,10 +2932,10 @@ mod tests {
             "published_roots_all_features",
             "actual_active_published_bindings",
         ] {
-            let mut old = original.clone();
-            old[field] = json!([]);
+            let mut hybrid = original.clone();
+            hybrid[field] = json!([]);
             assert_eq!(
-                check_membership(&old, &expected),
+                check_membership(&hybrid, &expected),
                 Err("retired source membership contract")
             );
         }

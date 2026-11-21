@@ -1353,11 +1353,11 @@ fn record_source_inputs(
 mod tests {
     use super::{
         AdditionalSourceInventory, BindingProjection, Draft, SourceProjection, audit,
-        native_dispatch, native_publication_bindings, pinned, project, retention,
+        callable_bindings, native_dispatch, native_publication_bindings, pinned, project, retention,
     };
     use super::{SchemaSnapshot, plan_snapshot, write_snapshots};
     use crate::build_catalog::{Catalog, Manifest};
-    use crate::schema_staging::{Declaration, Member, Schema, Selection, digest, select};
+    use crate::schema_staging::{BuildContext, Declaration, Member, Schema, Selection, digest, select};
     use crate::types::BidderMetadataDeclaration;
     use serde_json::json;
     use std::{
@@ -1692,6 +1692,291 @@ mod tests {
                 .as_deref(),
             Some("stale staging source witness: fake_base")
         );
+    }
+
+    struct FakeProjection {
+        catalog: Catalog,
+        source: SourceProjection,
+        bindings: BindingProjection,
+        extra: AdditionalSourceInventory,
+        metadata: Vec<BidderMetadataDeclaration>,
+    }
+
+    impl FakeProjection {
+        fn new() -> Self {
+            let revision = "a".repeat(40);
+            let blob = "b".repeat(40);
+            let hash = digest(b"{}");
+            let mut catalog = Catalog {
+                manifests: BTreeMap::new(),
+                input_paths: BTreeSet::new(),
+            };
+            let (mut identities, mut implementations, mut schemas) = (vec![], vec![], vec![]);
+            let (mut bindings, mut metadata) = (BTreeMap::new(), vec![]);
+            for (key, name, native, feature) in [
+                ("fake_factory", "fake_base", false, None),
+                ("fake_native", "fake_native", true, None),
+                ("fake_optional", "fake_optional", false, Some("insecure-bidders")),
+            ] {
+                let mut artifacts = vec![];
+                for owner in [name]
+                    .into_iter()
+                    .chain((name == "fake_base").then_some("fake_override"))
+                {
+                    let path = format!("static/bidder-params/{owner}.json");
+                    schemas.push(json!({
+                        "name":owner,"path":path,"blob":blob,"bytes":2_u64,"sha256":hash
+                    }));
+                    artifacts.push(json!({"category":"schema","source":"fake","source_path":path,
+                        "source_blob":blob,"source_bytes":2_u64,"source_sha256":hash,
+                        "retained":{"source_path":format!("{owner}.json"),"source_bytes":2_u64,"source_sha256":hash}}));
+                }
+                let manifest = serde_json::from_value(json!({
+                    "key":key,"factory":true,"native_only":native,"required_feature":feature,
+                    "definitions":{(name):{"defaultEnabled":false}},
+                    "provenance":{"origin":"reference","sources":{"fake":{
+                        "repository":"https://fake.invalid/repo","revision":revision}},"artifacts":artifacts}
+                })).expect("fake reference manifest");
+                catalog.manifests.insert(key.into(), manifest);
+                identities.push(json!({"name":name,"blob":blob}));
+                implementations.push(json!({"source_directory":key,"internal_key":key}));
+                bindings.insert(name.into(), key.into());
+                metadata.push(BidderMetadataDeclaration {
+                    bidder: name,
+                    implementation: key,
+                    required_feature: feature,
+                });
+            }
+            for (name, parent) in [
+                ("fake_alias", "fake_base"),
+                ("fake_override", "fake_alias"),
+                ("fake_leaf", "fake_override"),
+            ] {
+                let factory = catalog.manifests.get_mut("fake_factory").unwrap();
+                factory.definitions.insert(
+                    name.into(),
+                    toml::Table::from_iter([("aliasOf".into(), parent.into())]),
+                );
+                metadata.push(BidderMetadataDeclaration {
+                    bidder: name,
+                    implementation: "fake_factory",
+                    required_feature: None,
+                });
+            }
+            let local = serde_json::from_value(json!({
+                "key":"fake_local","factory":true,"definitions":{"fake_local":{}},
+                "provenance":{"origin":"local"}
+            }))
+            .expect("schema-free local base");
+            catalog.manifests.insert("fake_local".into(), local);
+            metadata.push(BidderMetadataDeclaration {
+                bidder: "fake_local",
+                implementation: "fake_local",
+                required_feature: None,
+            });
+            identities.push(json!({"name":"fake_source_only","alias_of":"fake_base","blob":blob}));
+            Self {
+                catalog,
+                metadata,
+                source: serde_json::from_value(json!({"schema_version":2_u32,"kind":"reference_inventory_only",
+                    "revision":revision,"identity":identities,"implementations":implementations,"schema":schemas}))
+                    .expect("fake source witnesses"),
+                bindings: BindingProjection {
+                    schema_version: 1,
+                    revision,
+                    bindings,
+                },
+                extra: AdditionalSourceInventory {
+                    schema_version: 1,
+                    kind: "supplemental_schema_reference_only".into(),
+                    require_all: true,
+                    schema: vec![],
+                },
+            }
+        }
+
+        fn report(&self, target: &str, features: &[&str]) -> Result<serde_json::Value, String> {
+            let projected = project(
+                &self.catalog,
+                &self.metadata,
+                &self.source,
+                &self.bindings,
+                &self.extra,
+            )?;
+            let slots: Vec<_> = projected
+                .definitions
+                .iter()
+                .map(|row| [row.owner.as_deref().unwrap_or("")])
+                .collect();
+            let declarations: Vec<_> = projected
+                .definitions
+                .iter()
+                .zip(&slots)
+                .map(|(row, owner)| Declaration {
+                    name: &row.name,
+                    parent: row.parent.as_deref(),
+                    implementation: &row.implementation,
+                    required_feature: row.feature.as_deref(),
+                    schema: if row.local_free {
+                        Schema::LocalSchemaFree
+                    } else if row.owner.is_some() {
+                        Schema::Owners(owner)
+                    } else {
+                        Schema::Inherit
+                    },
+                })
+                .collect();
+            let roots: Vec<_> = projected.implemented.iter().map(String::as_str).collect();
+            let selected = select(&declarations, &roots, features)?;
+            let context = BuildContext {
+                target,
+                profile: "fake",
+                enabled_features: features,
+                compiler_verbose: "fake compiler",
+                encoded_rustflags: "",
+            };
+            Ok(json!({"all_roots":projected.implemented,
+                "roots":selected.members.iter().filter(|row| row.is_root).map(|row| row.name).collect::<Vec<_>>(),
+                "owners":selected.schema_owners,"members":selected.members,
+                "inventory":projected.inventory_dispositions,"callables":callable_bindings(&self.catalog, context)}))
+        }
+    }
+
+    #[test]
+    fn fake_projection_membership_and_callable_axes_are_independent() {
+        let fixture = FakeProjection::new();
+        let all_roots = json!(["fake_alias","fake_base","fake_leaf","fake_local",
+            "fake_native","fake_optional","fake_override"]);
+        let all_owners = json!(["fake_base","fake_native","fake_optional","fake_override"]);
+        let all_callables = json!([["fake_alias","fake_factory"],["fake_base","fake_factory"],
+            ["fake_leaf","fake_factory"],["fake_local","fake_local"],["fake_native","fake_native"],
+            ["fake_optional","fake_optional"],["fake_override","fake_factory"]]);
+        let inventory = json!([
+            {"name":"fake_alias","implementation":"fake_factory","disposition":"implemented"},
+            {"name":"fake_base","implementation":"fake_factory","disposition":"implemented"},
+            {"name":"fake_leaf","implementation":"fake_factory","disposition":"implemented"},
+            {"name":"fake_local","implementation":"fake_local","disposition":"implemented"},
+            {"name":"fake_native","implementation":"fake_native","disposition":"implemented"},
+            {"name":"fake_optional","implementation":"fake_optional","disposition":"implemented"},
+            {"name":"fake_override","implementation":"fake_factory","disposition":"implemented"},
+            {"name":"fake_source_only","implementation":"fake_factory","disposition":"not_implemented"}
+        ]);
+        for (target, guest) in [
+            ("x86_64-unknown-linux-gnu", false),
+            ("wasm32-unknown-unknown", true),
+        ] {
+            for (features, enabled) in [
+                (&[][..], false),
+                (&["insecure-bidders"][..], true),
+                (&[][..], false),
+            ] {
+                let report = fixture.report(target, features).expect("current producer paths");
+                let (mut roots, mut owners, mut callables) =
+                    (all_roots.clone(), all_owners.clone(), all_callables.clone());
+                if !enabled {
+                    roots.as_array_mut().unwrap().remove(5);
+                    owners.as_array_mut().unwrap().remove(2);
+                    callables.as_array_mut().unwrap().remove(5);
+                }
+                if guest {
+                    callables.as_array_mut().unwrap().remove(4);
+                }
+                assert_eq!(report["all_roots"], all_roots);
+                assert_eq!(report["roots"], roots);
+                assert_eq!(report["owners"], owners);
+                assert_eq!(report["inventory"], inventory);
+                assert_eq!(report["callables"], callables);
+                let members = report["members"].as_array().unwrap();
+                for (name, owner) in [
+                    ("fake_alias", json!("fake_base")),
+                    ("fake_leaf", json!("fake_override")),
+                    ("fake_local", json!(null)),
+                ] {
+                    let member = members.iter().find(|row| row["name"] == name).unwrap();
+                    assert_eq!(member["schema_owner"], owner);
+                }
+                assert!(!members.iter().any(|row| row["name"] == "fake_source_only"));
+            }
+        }
+    }
+
+    #[test]
+    fn fake_projection_refuses_missing_wiring_and_invalid_source_owners() {
+        let cases = [
+            "missing executable factory: fake_native",
+            "staging publication declarations mismatch",
+            "missing schema owner: fake_native",
+            "alias cycle: fake_alias",
+            "duplicate staging source identity",
+            "staging publication declarations mismatch",
+            "missing staging inventory schema witness",
+            "staging publication declarations mismatch",
+            "missing implementation mapping",
+        ];
+        for (case, reason) in cases.into_iter().enumerate() {
+            let mut fixture = FakeProjection::new();
+            let before = fixture
+                .report("x86_64-unknown-linux-gnu", &["insecure-bidders"])
+                .unwrap();
+            assert_eq!(before["all_roots"].as_array().unwrap().len(), 7);
+            assert_eq!(
+                before["owners"],
+                json!(["fake_base","fake_native","fake_optional","fake_override"])
+            );
+            match case {
+                0 => {
+                    let native = fixture.catalog.manifests.get_mut("fake_native").unwrap();
+                    native.factory = false;
+                }
+                1 => {
+                    assert_eq!(fixture.metadata.remove(2).bidder, "fake_optional");
+                }
+                2 => {
+                    fixture.source.schema.retain(|row| row.name != "fake_native");
+                    let native = fixture.catalog.manifests.get_mut("fake_native").unwrap();
+                    let super::Provenance::Reference { artifacts, .. } = &mut native.provenance
+                    else {
+                        panic!("reference fixture");
+                    };
+                    assert_eq!(artifacts.len(), 1);
+                    artifacts.clear();
+                }
+                3 => {
+                    let factory = fixture.catalog.manifests.get_mut("fake_factory").unwrap();
+                    factory
+                        .definitions
+                        .get_mut("fake_base")
+                        .unwrap()
+                        .insert("aliasOf".into(), "fake_leaf".into());
+                }
+                4 => fixture.source.identity.push(
+                    serde_json::from_value(json!({"name":"fake_base","blob":"b".repeat(40)}))
+                        .unwrap(),
+                ),
+                5 => fixture.metadata.push(fixture.metadata[0]),
+                6 => fixture.source.schema.push(serde_json::from_value(json!({
+                    "name":"fake_extra","path":"static/bidder-params/fake_extra.json",
+                    "blob":"b".repeat(40),"bytes":2_u64,"sha256":digest(b"{}")
+                })).unwrap()),
+                7 => {
+                    let manifest = fixture.catalog.manifests.get_mut("fake_native").unwrap();
+                    assert!(manifest.definitions.remove("fake_native").is_some());
+                    manifest.factory = false;
+                }
+                8 => {
+                    let old = fixture
+                        .bindings
+                        .bindings
+                        .insert("fake_base".into(), "fake_missing".into());
+                    assert_eq!(old.as_deref(), Some("fake_factory"));
+                }
+                _ => unreachable!("fixed refusal matrix"),
+            }
+            assert_eq!(
+                fixture.report("wasm32-unknown-unknown", &[]).unwrap_err(),
+                reason
+            );
+        }
     }
 
     #[test]

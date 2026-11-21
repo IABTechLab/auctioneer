@@ -414,8 +414,8 @@ fn add_implemented_roots(
                 if row.implementation != manifest.key {
                     return Err("publication/source implementation mismatch".to_owned());
                 }
-                if let Some(parent) = parent {
-                    row.parent = Some(parent.to_owned());
+                if let Some(override_parent) = parent {
+                    row.parent = Some(override_parent.to_owned());
                 }
                 continue;
             }
@@ -485,7 +485,7 @@ impl Inputs {
         Ok(SelectedCohort {
             root: self.root.clone(),
             schemas: selected.schemas,
-            manifest: json!({"schema_version": 2, "source": source,
+            manifest: json!({"schema_version": 2_u8, "source": source,
                 "selection": selected.manifest, "lane": name}),
         })
     }
@@ -648,6 +648,23 @@ pub(crate) fn produce(reverse_definitions: bool) -> Result<Value, String> {
     inputs.manifest(Lane::Secure).map(|(manifest, _)| manifest)
 }
 
+// Keep the expected classifier independent of the reported dispositions.
+fn independent_dispositions(inputs: &Inputs) -> Vec<Value> {
+    let mut inventory_rows: Vec<_> = inputs.definitions.iter().collect();
+    inventory_rows.sort_by(|left, right| left.name.cmp(&right.name));
+    inventory_rows
+        .iter()
+        .map(|row| {
+            let implemented = inputs
+                .publications
+                .iter()
+                .any(|publication| publication.name == row.name);
+            json!({"name": row.name, "implementation": row.implementation,
+                "disposition": if implemented { "implemented" } else { "not_implemented" }})
+        })
+        .collect()
+}
+
 /// A separate alias walk over raw declarations, never production-selected roots.
 /// Factory/definition membership comes directly from validated manifests.
 pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
@@ -699,11 +716,13 @@ pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
             let row = declarations
                 .get(&name.to_ascii_lowercase())
                 .ok_or("independent member missing")?;
-            let owner = path[index..].iter().find_map(|ancestor| {
+            let lineage = path.iter().skip(index);
+            let owner = lineage.clone().find_map(|ancestor| {
                 declarations
                     .get(&ancestor.to_ascii_lowercase())
-                    .and_then(|row| row.owner.as_deref())
+                    .and_then(|declaration| declaration.owner.as_deref())
             });
+            let ancestry: Vec<_> = lineage.skip(1).copied().collect();
             if owner.is_none() && !row.local_free {
                 return Err("independent schema owner missing".into());
             }
@@ -715,7 +734,7 @@ pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
                 json!({"name": row.name, "implementation": row.implementation,
                     "is_root": roots.contains(row.name.as_str()),
                     "implemented": roots.contains(row.name.as_str()),
-                    "ancestry": &path[index + 1..], "effective_schema_owner": owner}),
+                    "ancestry": ancestry, "effective_schema_owner": owner}),
             );
         }
     }
@@ -733,19 +752,7 @@ pub(crate) fn independent_membership(lane: Lane) -> Result<Value, String> {
         })
         .map(|row| (row.name.as_str(), row.implementation.as_str()))
         .collect();
-    let mut inventory_rows: Vec<_> = inputs.definitions.iter().collect();
-    inventory_rows.sort_by(|left, right| left.name.cmp(&right.name));
-    let dispositions: Vec<_> = inventory_rows
-        .iter()
-        .map(|row| {
-            let implemented = inputs
-                .publications
-                .iter()
-                .any(|publication| publication.name == row.name);
-            json!({"name": row.name, "implementation": row.implementation,
-                "disposition": if implemented { "implemented" } else { "not_implemented" }})
-        })
-        .collect();
+    let dispositions = independent_dispositions(&inputs);
     Ok(json!({"implemented_roots_all_features": roots,
         "inventory_dispositions": dispositions,
         "publication_predicates": inputs.publications,
