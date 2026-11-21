@@ -753,7 +753,9 @@ mod tests {
         }
     }
 
-    fn staged_markers(syntax: &syn::File) -> Result<BTreeMap<String, &syn::Attribute>, &'static str> {
+    fn staged_markers(
+        syntax: &syn::File,
+    ) -> Result<BTreeMap<String, &syn::Attribute>, &'static str> {
         let mut markers = BTreeMap::new();
         for item in &syntax.items {
             let syn::Item::Struct(marker) = item else {
@@ -780,7 +782,10 @@ mod tests {
             {
                 return Err("ambiguous staged validator attribute");
             }
-            if markers.insert(marker.ident.to_string(), attribute).is_some() {
+            if markers
+                .insert(marker.ident.to_string(), attribute)
+                .is_some()
+            {
                 return Err("duplicate staged declaration marker");
             }
         }
@@ -837,8 +842,11 @@ mod tests {
         tokens
             .windows(3)
             .filter_map(|window| {
-                let [TokenTree::Ident(key), TokenTree::Punct(assign), TokenTree::Literal(literal)] =
-                    window
+                let [
+                    TokenTree::Ident(key),
+                    TokenTree::Punct(assign),
+                    TokenTree::Literal(literal),
+                ] = window
                 else {
                     return None;
                 };

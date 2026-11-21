@@ -5,7 +5,9 @@ use crate::build_catalog::{self, Artifact, Catalog, Category, Manifest, Provenan
 use crate::schema_staging::{
     self, ArtifactIdentity, BuildContext, Declaration, Input, InputKind, Schema, Selection, digest,
 };
-use crate::schema_staging_codegen::{self, Draft, HelperAvailability, SchemaDeclaration};
+use crate::schema_staging_codegen::{
+    self, DeclarationBinding, Draft, HelperAvailability, SchemaDeclaration,
+};
 use crate::types::BidderMetadataDeclaration;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -1111,6 +1113,76 @@ struct CapturedSchema<'a> {
     snapshot: SchemaSnapshot,
 }
 
+#[derive(Serialize)]
+struct BoundDeclaration<'a> {
+    marker: &'a str,
+    owner: &'a str,
+    source: &'a Witness,
+    snapshot: &'a SchemaSnapshot,
+}
+
+fn declaration_bindings<'a>(
+    declarations: &'a [DeclarationBinding],
+    schemas: &'a [CapturedSchema<'_>],
+) -> Result<Vec<BoundDeclaration<'a>>, String> {
+    let mut by_owner = BTreeMap::new();
+    for schema in schemas {
+        if by_owner
+            .insert(schema.witness.name.as_str(), schema)
+            .is_some()
+        {
+            return Err("duplicate captured declaration schema".into());
+        }
+    }
+    if declarations.len() != by_owner.len() {
+        return Err("staged declaration population differs from captured schemas".into());
+    }
+    let mut markers = BTreeSet::new();
+    let mut owners = BTreeSet::new();
+    let mut rows = Vec::new();
+    for declaration in declarations {
+        if !markers.insert(declaration.marker.as_str())
+            || !owners.insert(declaration.owner.as_str())
+        {
+            return Err("duplicate staged declaration binding".into());
+        }
+        let schema = by_owner
+            .get(declaration.owner.as_str())
+            .ok_or("staged declaration has no captured schema")?;
+        rows.push(BoundDeclaration {
+            marker: &declaration.marker,
+            owner: &declaration.owner,
+            source: schema.witness,
+            snapshot: &schema.snapshot,
+        });
+    }
+    Ok(rows)
+}
+
+fn record_generated_inputs(
+    inputs: &mut Vec<OwnedInput>,
+    rust: &TokenStream,
+    declarations: &[BoundDeclaration<'_>],
+    environment: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    inputs.push(input(
+        InputKind::GeneratorSource,
+        "generated-declarations.rs".into(),
+        rust.to_string().into_bytes(),
+    ));
+    inputs.push(input(
+        InputKind::GeneratorSource,
+        "declaration-bindings.json".into(),
+        serde_json::to_vec(declarations).map_err(|error| error.to_string())?,
+    ));
+    inputs.push(input(
+        InputKind::GeneratorSource,
+        "cargo-build-environment.json".into(),
+        serde_json::to_vec(environment).map_err(|error| error.to_string())?,
+    ));
+    Ok(())
+}
+
 fn capture_schemas<'a>(
     projection: &'a Projection,
     selection: &Selection<'_>,
@@ -1198,16 +1270,8 @@ fn emit_selection(
             hostname: true,
         },
     )?;
-    inputs.push(input(
-        InputKind::GeneratorSource,
-        "generated-declarations.rs".into(),
-        generated.items.to_string().into_bytes(),
-    ));
-    inputs.push(input(
-        InputKind::GeneratorSource,
-        "cargo-build-environment.json".into(),
-        serde_json::to_vec(build_environment).map_err(|error| error.to_string())?,
-    ));
+    let declarations = declaration_bindings(&generated.declarations, &selected)?;
+    record_generated_inputs(inputs, &generated.items, &declarations, build_environment)?;
     record_source_inputs(crate_dir, workspace, catalog, inputs, &mut rerun)?;
     let borrowed: Vec<_> = inputs
         .iter()
@@ -1233,6 +1297,7 @@ fn emit_selection(
         "inventory_dispositions": projection.inventory_dispositions,
         "selection": selection, "schemas": selected.iter().map(|schema| schema.witness).collect::<Vec<_>>(),
         "compiled_schema_snapshots": selected.iter().map(|schema| &schema.snapshot).collect::<Vec<_>>(),
+        "declarations": declarations, "owner_graph_status": "unexpanded",
         "required_formats": generated.required_formats, "emitted_rust_sha256": digest(rust.to_string().as_bytes()),
         "runtime_dependency_note": "jsonschema runtime retained; actual guest imports require artifact inspection"
     })).map_err(|error| error.to_string())?;
@@ -1353,11 +1418,14 @@ fn record_source_inputs(
 mod tests {
     use super::{
         AdditionalSourceInventory, BindingProjection, Draft, SourceProjection, audit,
-        callable_bindings, native_dispatch, native_publication_bindings, pinned, project, retention,
+        callable_bindings, native_dispatch, native_publication_bindings, pinned, project,
+        retention,
     };
     use super::{SchemaSnapshot, plan_snapshot, write_snapshots};
     use crate::build_catalog::{Catalog, Manifest};
-    use crate::schema_staging::{BuildContext, Declaration, Member, Schema, Selection, digest, select};
+    use crate::schema_staging::{
+        BuildContext, Declaration, Member, Schema, Selection, digest, select,
+    };
     use crate::types::BidderMetadataDeclaration;
     use serde_json::json;
     use std::{
@@ -1378,6 +1446,86 @@ mod tests {
             sha256: digest(&bytes),
             bytes,
         }
+    }
+
+    #[test]
+    fn fake_declaration_map_joins_exact_owners_and_refuses_non_bijective_inputs() {
+        use super::{CapturedSchema, DeclarationBinding, Witness, declaration_bindings};
+
+        let bytes = |name: &str| {
+            serde_json::to_vec(&json!({"title":name,"type":"string"})).unwrap()
+        };
+        let sources = ["fake_a", "fake_b"].map(|name| Witness {
+            name: name.into(),
+            path: format!("{name}/parameters.json"),
+            source_path: format!("static/bidder-params/{name}.json"),
+            source_blob: "a".repeat(40),
+            bytes: u64::try_from(bytes(name).len()).unwrap(),
+            sha256: digest(&bytes(name)),
+            repository: "https://fake.invalid/source".into(),
+            revision: "b".repeat(40),
+        });
+        let mut schemas: Vec<_> = sources
+            .iter()
+            .enumerate()
+            .map(|(index, source)| CapturedSchema {
+                witness: source,
+                path: format!("/fake/{index}.json").into(),
+                audit: audit(&json!({"type":"string"})).unwrap(),
+                snapshot: plan_snapshot(&source.name, index, bytes(&source.name)).unwrap(),
+            })
+            .collect();
+        let declarations = || {
+            [("fake_b", "FakeSecond"), ("fake_a", "FakeFirst")].map(|(owner, marker)| {
+                DeclarationBinding {
+                    owner: owner.into(),
+                    marker: marker.into(),
+                }
+            })
+        };
+        let original = declarations();
+        let bound = declaration_bindings(&original, &schemas).unwrap();
+        assert_eq!(bound.len(), 2);
+        for (row, (owner, marker)) in bound
+            .iter()
+            .zip([("fake_b", "FakeSecond"), ("fake_a", "FakeFirst")])
+        {
+            assert_eq!((row.owner, row.marker), (owner, marker));
+            assert_eq!(row.source.name, owner);
+            assert_eq!(
+                row.source.source_path,
+                format!("static/bidder-params/{owner}.json")
+            );
+            assert_eq!(row.snapshot.owner, owner);
+            assert_eq!(row.snapshot.bytes, bytes(owner));
+            assert_eq!(row.snapshot.sha256, row.source.sha256);
+        }
+        assert_eq!(
+            declaration_bindings(&original[..1], &schemas).err().as_deref(),
+            Some("staged declaration population differs from captured schemas")
+        );
+        for (case, reason) in [
+            (0_u8, "duplicate staged declaration binding"),
+            (1_u8, "duplicate staged declaration binding"),
+            (2_u8, "staged declaration has no captured schema"),
+        ] {
+            let mut changed = declarations();
+            match case {
+                0 => changed[0].marker.clone_from(&original[1].marker),
+                1 => changed[0].owner.clone_from(&original[1].owner),
+                2 => changed[0].owner = "fake_unknown".into(),
+                _ => unreachable!("fixed declaration matrix"),
+            }
+            assert_eq!(
+                declaration_bindings(&changed, &schemas).err().as_deref(),
+                Some(reason)
+            );
+        }
+        schemas[1].witness = &sources[0];
+        assert_eq!(
+            declaration_bindings(&original, &schemas).err().as_deref(),
+            Some("duplicate captured declaration schema")
+        );
     }
 
     #[test]
@@ -1716,7 +1864,12 @@ mod tests {
             for (key, name, native, feature) in [
                 ("fake_factory", "fake_base", false, None),
                 ("fake_native", "fake_native", true, None),
-                ("fake_optional", "fake_optional", false, Some("insecure-bidders")),
+                (
+                    "fake_optional",
+                    "fake_optional",
+                    false,
+                    Some("insecure-bidders"),
+                ),
             ] {
                 let mut artifacts = vec![];
                 for owner in [name]
@@ -1845,12 +1998,25 @@ mod tests {
     #[test]
     fn fake_projection_membership_and_callable_axes_are_independent() {
         let fixture = FakeProjection::new();
-        let all_roots = json!(["fake_alias","fake_base","fake_leaf","fake_local",
-            "fake_native","fake_optional","fake_override"]);
-        let all_owners = json!(["fake_base","fake_native","fake_optional","fake_override"]);
-        let all_callables = json!([["fake_alias","fake_factory"],["fake_base","fake_factory"],
-            ["fake_leaf","fake_factory"],["fake_local","fake_local"],["fake_native","fake_native"],
-            ["fake_optional","fake_optional"],["fake_override","fake_factory"]]);
+        let all_roots = json!([
+            "fake_alias",
+            "fake_base",
+            "fake_leaf",
+            "fake_local",
+            "fake_native",
+            "fake_optional",
+            "fake_override"
+        ]);
+        let all_owners = json!(["fake_base", "fake_native", "fake_optional", "fake_override"]);
+        let all_callables = json!([
+            ["fake_alias", "fake_factory"],
+            ["fake_base", "fake_factory"],
+            ["fake_leaf", "fake_factory"],
+            ["fake_local", "fake_local"],
+            ["fake_native", "fake_native"],
+            ["fake_optional", "fake_optional"],
+            ["fake_override", "fake_factory"]
+        ]);
         let inventory = json!([
             {"name":"fake_alias","implementation":"fake_factory","disposition":"implemented"},
             {"name":"fake_base","implementation":"fake_factory","disposition":"implemented"},
@@ -1870,7 +2036,9 @@ mod tests {
                 (&["insecure-bidders"][..], true),
                 (&[][..], false),
             ] {
-                let report = fixture.report(target, features).expect("current producer paths");
+                let report = fixture
+                    .report(target, features)
+                    .expect("current producer paths");
                 let (mut roots, mut owners, mut callables) =
                     (all_roots.clone(), all_owners.clone(), all_callables.clone());
                 if !enabled {
@@ -1921,7 +2089,7 @@ mod tests {
             assert_eq!(before["all_roots"].as_array().unwrap().len(), 7);
             assert_eq!(
                 before["owners"],
-                json!(["fake_base","fake_native","fake_optional","fake_override"])
+                json!(["fake_base", "fake_native", "fake_optional", "fake_override"])
             );
             match case {
                 0 => {
@@ -1932,7 +2100,10 @@ mod tests {
                     assert_eq!(fixture.metadata.remove(2).bidder, "fake_optional");
                 }
                 2 => {
-                    fixture.source.schema.retain(|row| row.name != "fake_native");
+                    fixture
+                        .source
+                        .schema
+                        .retain(|row| row.name != "fake_native");
                     let native = fixture.catalog.manifests.get_mut("fake_native").unwrap();
                     let super::Provenance::Reference { artifacts, .. } = &mut native.provenance
                     else {
@@ -1954,10 +2125,13 @@ mod tests {
                         .unwrap(),
                 ),
                 5 => fixture.metadata.push(fixture.metadata[0]),
-                6 => fixture.source.schema.push(serde_json::from_value(json!({
-                    "name":"fake_extra","path":"static/bidder-params/fake_extra.json",
-                    "blob":"b".repeat(40),"bytes":2_u64,"sha256":digest(b"{}")
-                })).unwrap()),
+                6 => fixture.source.schema.push(
+                    serde_json::from_value(json!({
+                        "name":"fake_extra","path":"static/bidder-params/fake_extra.json",
+                        "blob":"b".repeat(40),"bytes":2_u64,"sha256":digest(b"{}")
+                    }))
+                    .unwrap(),
+                ),
                 7 => {
                     let manifest = fixture.catalog.manifests.get_mut("fake_native").unwrap();
                     assert!(manifest.definitions.remove("fake_native").is_some());
