@@ -827,7 +827,6 @@ struct PreparedInspection {
 }
 
 /// Accepted build-local inputs retained for conformance-owned expansion.
-#[derive(Debug)]
 pub struct CapturedSeed {
     pub identity_sha256: String,
     pub manifest_bytes: Vec<u8>,
@@ -850,14 +849,6 @@ impl CapturedSeed {
         }
         Ok(())
     }
-}
-
-/// Keeps the existing build lease alive while captured inputs are inspected.
-#[derive(Debug)]
-pub struct CapturedInspection {
-    pub report: Value,
-    pub seed: CapturedSeed,
-    _lease: File,
 }
 
 fn feature_packages(
@@ -1304,8 +1295,7 @@ fn verify_one(
     let (records, observations) = linked_observations(&bytes, guest, identity, &owners)?;
     let controls = refusal_controls(&manifest, schemas, cohort_manifest, &expected, &seed.rust)?;
     let app = package(&prepared.metadata, application.package, &prepared.workspace)?;
-    let report =
-        json!({"package":application.package,"package_id":app["id"],"target_name":application.target_name,
+    let report = json!({"package":application.package,"package_id":app["id"],"target_name":application.target_name,
             "target_kind":application.kind,"target":target,"profile":application.profile,"filename":products.artifact,
             "artifact_bytes":bytes.len(),"artifact_sha256":digest(&bytes),"bidder_out_dir":products.bidder_output,
             "manifest_sha256":digest(&seed.manifest_bytes),"identity_sha256":identity,"manifest":manifest,
@@ -1318,37 +1308,41 @@ fn verify_one(
 
 /// Inspect one actual linked adapter in one requested feature lane.
 /// `root` may be the workspace or the source cohort's `src/bidders` directory.
+/// Completion consumes verified inputs while the existing build lease is held.
 pub fn inspect(
     adapter: Adapter,
     root: &Path,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
     development: bool,
-) -> Result<CapturedInspection, String> {
+    complete: impl FnOnce(&CapturedSeed) -> Result<Value, String>,
+) -> Result<Value, String> {
     let prepared = prepare(root, cohort_manifest, development)?;
-    let lease = super::acquire_lease(&prepared.target_dir)?;
+    let _lease = super::acquire_lease(&prepared.target_dir)?;
     let application = adapter.application();
     let products = build_one(&prepared, application)?;
     let (application_report, seed) =
-        verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(|error| {
-            format!(
-                "{} ({}, {}): {error}",
-                application.package,
-                application.target.unwrap_or(&prepared.host),
-                application.profile
-            )
-        })?;
+        verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(
+            |error| {
+                format!(
+                    "{} ({}, {}): {error}",
+                    application.package,
+                    application.target.unwrap_or(&prepared.host),
+                    application.profile
+                )
+            },
+        )?;
+    seed.recheck_snapshots()?;
+    let expanded_graph = complete(&seed)?;
+    seed.recheck_snapshots()?;
     let report = json!({"schema_version":1_u32,"kind":"actual_application_schema_staging_inspection",
         "qualification":"Unqualified","linked_or_serving_qualification":false,"resource_qualification":false,
         "final_admitted_artifact":false,"final_admitted_artifact_recheck_required":true,
         "lane":if development {"development"} else {"secure"},"binding":cohort_manifest,
-        "applications":[application_report],"child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
+        "applications":[application_report],"expanded_schema_graph":expanded_graph,
+        "child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
         "pending_gaps":["resource_bounds","serving_integration","final_admitted_artifact_recheck","hosted_execution"]});
-    Ok(CapturedInspection {
-        report,
-        seed,
-        _lease: lease,
-    })
+    Ok(report)
 }
 
 #[cfg(test)]
@@ -1732,7 +1726,9 @@ mod tests {
         fs::write(out_dir.join("fake-a.json"), b"false").unwrap();
         assert_eq!(captured[0].bytes, snapshots[0].bytes);
         assert_eq!(
-            check_snapshots(&root, &out_dir, &snapshots).err().as_deref(),
+            check_snapshots(&root, &out_dir, &snapshots)
+                .err()
+                .as_deref(),
             Some("stale application schema snapshot")
         );
     }
@@ -2274,7 +2270,10 @@ mod tests {
             Adapter::Spin,
         ] {
             assert_eq!(
-                super::inspect(adapter, &workspace, &[], &json!({}), false).unwrap_err(),
+                super::inspect(adapter, &workspace, &[], &json!({}), false, |_| {
+                    panic!("invalid source must refuse before captured-seed completion")
+                })
+                .unwrap_err(),
                 "stale application source cohort"
             );
         }

@@ -27,10 +27,9 @@ mod tests {
         let mut snapshots = Vec::new();
         let mut declarations = Vec::new();
         let mut rust = proc_macro2::TokenStream::new();
-        for (index, (owner, marker)) in
-            [("fake_a", quote!(FakeA)), ("fake_b", quote!(FakeB))]
-                .into_iter()
-                .enumerate()
+        for (index, (owner, marker)) in [("fake_a", quote!(FakeA)), ("fake_b", quote!(FakeB))]
+            .into_iter()
+            .enumerate()
         {
             let bytes = serde_json::to_vec(&json!({
                 "$schema":"http://json-schema.org/draft-04/schema#",
@@ -206,7 +205,11 @@ mod tests {
                 "identity" => seed.identity_sha256 = digest(b"different artifact"),
                 "rust" => seed.rust.push(b' '),
                 "snapshot" => {
-                    fs::write(seed.out_dir.join(&seed.snapshots[0].relative_path), b"false").unwrap();
+                    fs::write(
+                        seed.out_dir.join(&seed.snapshots[0].relative_path),
+                        b"false",
+                    )
+                    .unwrap();
                 }
                 "mapping" => change_manifest(&mut seed, |value| {
                     value["declarations"].as_array_mut().unwrap().pop().unwrap();
@@ -220,7 +223,14 @@ mod tests {
     #[test]
     fn fake_expansion_checks_semantic_options_independently_of_consistent_hashes() {
         for field in [
-            "draft", "engine", "cache", "limit", "format_validation", "methods", "callback", "unknown",
+            "draft",
+            "engine",
+            "cache",
+            "limit",
+            "format_validation",
+            "methods",
+            "callback",
+            "unknown",
         ] {
             let (_directory, mut seed) = fixture("^a[0-9]+$");
             change_options(&mut seed, field);
@@ -247,7 +257,9 @@ mod tests {
                     };
                     marker.attrs.push(marker.attrs[0].clone());
                 }
-                3 => syntax.items.push(syn::parse_quote!(mod fake_external;)),
+                3 => syntax.items.push(syn::parse_quote!(
+                    mod fake_external;
+                )),
                 _ => unreachable!("fixed declaration matrix"),
             });
             let reason = match case {

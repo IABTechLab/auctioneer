@@ -656,25 +656,21 @@ mod tests {
 
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
-            let mut inspection = inspect(
+            let report = inspect(
                 adapter,
                 &cohort.root,
                 &cohort.schemas,
                 &cohort.manifest,
                 development,
+                super::schema_residency::expanded::expand,
             )
             .expect("actual linked application schema membership");
-            inspection.seed.recheck_snapshots().unwrap();
-            inspection.report["expanded_schema_graph"] =
-                super::schema_residency::expanded::expand(&inspection.seed)
-                    .expect("expand the actual verified application build seed");
-            let report = &inspection.report;
             assert_eq!(
                 report["applications"][0]["identity_sha256"],
-                inspection.seed.identity_sha256
+                report["expanded_schema_graph"]["identity_sha256"]
             );
             assert_eq!(
-                hex::encode(Sha256::digest(&inspection.seed.rust)),
+                report["expanded_schema_graph"]["captured_rust_sha256"],
                 report["applications"][0]["manifest"]["emitted_rust_sha256"]
             );
             assert_eq!(
@@ -708,7 +704,7 @@ mod tests {
             write_schema_diagnostics(
                 var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
                 &mut stderr().lock(),
-                report,
+                &report,
             )
             .unwrap();
         }

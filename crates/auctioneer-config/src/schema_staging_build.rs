@@ -1452,11 +1452,13 @@ mod tests {
     fn fake_declaration_map_joins_exact_owners_and_refuses_non_bijective_inputs() {
         use super::{CapturedSchema, DeclarationBinding, Witness, declaration_bindings};
 
-        let bytes =
-            |name: &str| serde_json::to_vec(&json!({
+        let bytes = |name: &str| {
+            serde_json::to_vec(&json!({
                 "$schema":"http://json-schema.org/draft-04/schema#",
                 "title":name,"type":"string"
-            })).unwrap();
+            }))
+            .unwrap()
+        };
         let sources = ["fake_a", "fake_b"].map(|name| Witness {
             name: name.into(),
             path: format!("{name}/parameters.json"),
