@@ -510,26 +510,26 @@ fn source_definitions(
         }
         let mut current = row;
         let mut visited = BTreeSet::new();
-        let mut implementation = None;
+        let mut resolved_implementation = None;
         loop {
             if !visited.insert(&current.name) {
                 return Err("source alias cycle".into());
             }
-            if implementation.is_none()
+            if resolved_implementation.is_none()
                 && let Some(directory) = bindings.bindings.get(&current.name)
             {
-                implementation = Some(*implementations
-                    .get(directory.as_str())
-                    .ok_or("missing implementation mapping")?);
+                resolved_implementation = Some(
+                    *implementations
+                        .get(directory.as_str())
+                        .ok_or("missing implementation mapping")?,
+                );
             }
             let Some(parent) = current.alias_of.as_deref() else {
                 break;
             };
-            current = identities
-                .get(parent)
-                .ok_or("missing source parent")?;
+            current = identities.get(parent).ok_or("missing source parent")?;
         }
-        let implementation = implementation.ok_or("missing source binding")?;
+        let implementation = resolved_implementation.ok_or("missing source binding")?;
         let manifest = catalog
             .manifests
             .get(implementation)
@@ -572,11 +572,16 @@ fn extend_definitions(
             local_free: false,
         });
     }
-    for manifest in catalog.manifests.values().filter(|manifest| manifest.factory) {
+    for manifest in catalog
+        .manifests
+        .values()
+        .filter(|manifest| manifest.factory)
+    {
         for (name, metadata) in &manifest.definitions {
-            let existing = definitions.iter().position(|row| row.name == *name);
-            if let Some(index) = existing
-                && definitions[index].implementation != manifest.key
+            let existing = definitions.iter_mut().find(|row| row.name == *name);
+            if existing
+                .as_ref()
+                .is_some_and(|row| row.implementation != manifest.key)
             {
                 return Err("publication/source implementation mismatch".into());
             }
@@ -589,9 +594,9 @@ fn extend_definitions(
                         .ok_or("invalid executable aliasOf")
                 })
                 .transpose()?
-                .or_else(|| existing.and_then(|index| definitions[index].parent.clone()));
+                .or_else(|| existing.as_ref()?.parent.clone());
             let owner = schemas.contains_key(name).then(|| name.clone());
-            let row = Definition {
+            let definition = Definition {
                 name: name.clone(),
                 local_free: parent.is_none()
                     && owner.is_none()
@@ -601,17 +606,20 @@ fn extend_definitions(
                 feature: manifest.required_feature.clone(),
                 owner,
             };
-            if let Some(index) = existing {
-                definitions[index] = row;
+            if let Some(slot) = existing {
+                *slot = definition;
             } else {
-                definitions.push(row);
+                definitions.push(definition);
             }
         }
     }
     Ok(())
 }
 
-fn callable_bindings<'a>(catalog: &'a Catalog, context: BuildContext<'_>) -> Vec<(&'a str, &'a str)> {
+fn callable_bindings<'a>(
+    catalog: &'a Catalog,
+    context: BuildContext<'_>,
+) -> Vec<(&'a str, &'a str)> {
     let wasm = context.target.split('-').next() == Some("wasm32");
     let mut bindings: Vec<_> = catalog
         .manifests
@@ -1030,8 +1038,7 @@ pub fn generate(request: BuildRequest<'_>) -> Result<GeneratedStaging, String> {
     let source_input = |index: usize| inputs.get(index).ok_or("missing staging source data");
     let source: SourceProjection = pinned(&source_input(0)?.bytes, SOURCE_INPUTS[0].2)?;
     let bindings: BindingProjection = pinned(&source_input(1)?.bytes, SOURCE_INPUTS[1].2)?;
-    let extra: AdditionalSourceInventory =
-        pinned(&source_input(2)?.bytes, SOURCE_INPUTS[2].2)?;
+    let extra: AdditionalSourceInventory = pinned(&source_input(2)?.bytes, SOURCE_INPUTS[2].2)?;
     let projection = project(&catalog, metadata, &source, &bindings, &extra)?;
     generate_projection(
         request,
@@ -1345,8 +1352,8 @@ fn record_source_inputs(
 #[cfg(test)]
 mod tests {
     use super::{
-        AdditionalSourceInventory, BindingProjection, Draft, SourceProjection,
-        audit, native_dispatch, native_publication_bindings, pinned, project, retention,
+        AdditionalSourceInventory, BindingProjection, Draft, SourceProjection, audit,
+        native_dispatch, native_publication_bindings, pinned, project, retention,
     };
     use super::{SchemaSnapshot, plan_snapshot, write_snapshots};
     use crate::build_catalog::{Catalog, Manifest};
@@ -1644,8 +1651,8 @@ mod tests {
             implementation: "fake_factory",
             required_feature: None,
         }];
-        let projection = project(&catalog, &metadata, &source, &bindings, &extra)
-            .expect("source projection");
+        let projection =
+            project(&catalog, &metadata, &source, &bindings, &extra).expect("source projection");
         let slots: Vec<_> = projection
             .definitions
             .iter()

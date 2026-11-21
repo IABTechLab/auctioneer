@@ -613,9 +613,7 @@ fn check_cohort(
         || manifest["selection"]["schema_owners"] != json!(owners)
         || ["planned_roots", "published_roots_all_features"]
             .iter()
-            .any(|field| {
-                manifest.get(*field).is_some() || cohort["source"].get(*field).is_some()
-            })
+            .any(|field| manifest.get(*field).is_some() || cohort["source"].get(*field).is_some())
         || ["implemented_roots_all_features", "inventory_dispositions"]
             .iter()
             .any(|field| {

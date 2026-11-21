@@ -569,12 +569,8 @@ mod tests {
             );
         }
         assert_eq!(
-            select(
-                &[base("fake_a", &["fake_schema"])],
-                &["fake_unknown"],
-                &[]
-            )
-            .expect_err("unknown implemented root"),
+            select(&[base("fake_a", &["fake_schema"])], &["fake_unknown"], &[])
+                .expect_err("unknown implemented root"),
             "unknown root: fake_unknown"
         );
     }

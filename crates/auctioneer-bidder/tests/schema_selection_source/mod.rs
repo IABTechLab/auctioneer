@@ -400,7 +400,11 @@ fn add_implemented_roots(
             local_free: false,
         });
     }
-    for manifest in catalog.manifests.values().filter(|manifest| manifest.factory) {
+    for manifest in catalog
+        .manifests
+        .values()
+        .filter(|manifest| manifest.factory)
+    {
         for (name, declaration) in &manifest.definitions {
             let parent = declaration
                 .get("aliasOf")
@@ -557,11 +561,17 @@ impl Inputs {
                 "patterns": schema.audit.patterns, "references": schema.audit.local_references}));
             selected_schemas.push(schema.clone());
         }
-        let members: Vec<_> = selection.members.iter().map(|row| json!({
-            "name": row.name, "implementation": row.implementation, "is_root": row.is_root,
-            "implemented": self.implemented.contains(row.name),
-            "ancestry": row.ancestry, "effective_schema_owner": row.schema_owner,
-        })).collect();
+        let members: Vec<_> = selection
+            .members
+            .iter()
+            .map(|row| {
+                json!({
+                    "name": row.name, "implementation": row.implementation, "is_root": row.is_root,
+                    "implemented": self.implemented.contains(row.name),
+                    "ancestry": row.ancestry, "effective_schema_owner": row.schema_owner,
+                })
+            })
+            .collect();
         let active_roots: Vec<_> = selection
             .members
             .iter()
@@ -865,7 +875,10 @@ mod tests {
             json!(["fake_primary", "fake_supplemental"])
         );
         let expected_callables = if cfg!(feature = "insecure-bidders") {
-            json!([["fake_primary", "fake_primary"], ["fake_supplemental", "fake_supplemental"]])
+            json!([
+                ["fake_primary", "fake_primary"],
+                ["fake_supplemental", "fake_supplemental"]
+            ])
         } else {
             json!([["fake_primary", "fake_primary"]])
         };
