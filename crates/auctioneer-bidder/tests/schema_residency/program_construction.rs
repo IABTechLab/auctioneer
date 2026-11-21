@@ -31,6 +31,9 @@ use std::{
 
 use super::literal_construction::{self, KEYS as SUFFIX_KEYS};
 
+#[cfg(test)]
+pub(super) use tests::{layouts as hypothetical_layouts, program as hypothetical_program};
+
 pub(crate) struct Sources<'a> {
     pub workspace: &'a Path,
     pub syntax: &'a Path,
@@ -997,7 +1000,7 @@ mod tests {
     }
 
     // Synthetic layout assumptions only; none is a compiler/guest observation.
-    fn layouts() -> BTreeMap<String, NativeField> {
+    pub(crate) fn layouts() -> BTreeMap<String, NativeField> {
         let mut facts = required_fact_keys()
             .into_iter()
             .map(|key| (key, field(64_usize, 8_usize)))
@@ -1047,7 +1050,7 @@ mod tests {
         facts
     }
 
-    fn program<'a>(
+    pub(crate) fn program<'a>(
         pattern: &'a str,
         facts: &'a BTreeMap<String, NativeField>,
     ) -> ProgramRecipe<'a> {

@@ -6,6 +6,7 @@ pub(crate) mod expanded;
 mod growth;
 mod initialization;
 mod literal_construction;
+mod metadata_registry;
 mod observations;
 mod options;
 mod program_construction;

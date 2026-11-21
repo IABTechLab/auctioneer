@@ -43,7 +43,7 @@ const MAX_STREAM_LOG_BYTES: u64 = 4 << 20;
 const MAX_DEADLINE_DIAGNOSTIC_BYTES: usize = 4096;
 const MAX_ARTIFACT_BYTES: u64 = 64 << 20;
 const MAX_SOURCE_BYTES: usize = 512 << 10;
-const BUILD_TIMEOUT: Duration = Duration::from_secs(300);
+pub(crate) const BUILD_TIMEOUT: Duration = Duration::from_secs(300);
 const TARGETS: [&str; 4] = [
     "native",
     "wasm32-unknown-unknown",
