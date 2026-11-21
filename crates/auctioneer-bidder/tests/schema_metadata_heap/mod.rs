@@ -1,11 +1,11 @@
 //! Native immutable metadata only, excluding engines, caches and constructor scratch.
 
 use super::schema_heap_layout::{
-    LayoutError, NativeField, native_arc_layout, private_struct_slot_bound,
+    LayoutError, NativeField, arc_layout_with_header, private_struct_slot_bound,
 };
 use regex_automata::meta::{Config, Regex};
 use regex_syntax::{ParserBuilder, hir::Properties};
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, atomic::AtomicUsize};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MetadataHeapError {
@@ -59,14 +59,15 @@ impl MetadataLayout {
         }
     }
 
-    fn metadata_with_header(
-        self,
-        _header: NativeField,
-    ) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
-        self.metadata()
+    fn metadata(self) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
+        self.metadata_with_header(NativeField::of::<[AtomicUsize; 2]>())
     }
 
-    fn metadata(self) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
+    fn metadata_with_header(
+        self,
+        header: NativeField,
+    ) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
+        header.validate()?;
         for field in self
             .regex_fields
             .into_iter()
@@ -90,10 +91,10 @@ impl MetadataLayout {
         }
         .validate()?;
         let regex_arc_bytes =
-            native_arc_layout(private_struct_slot_bound(&self.regex_fields)?)?.size();
+            arc_layout_with_header(private_struct_slot_bound(&self.regex_fields)?, header)?.size();
         // Any strategy RegexInfo references share this allocation.
         let info_arc_bytes =
-            native_arc_layout(private_struct_slot_bound(&self.info_fields)?)?.size();
+            arc_layout_with_header(private_struct_slot_bound(&self.info_fields)?, header)?.size();
         let props_box_bytes = self.props_payload.bytes;
         let props_union_box_bytes = self.props_payload.bytes;
         let requested_heap_bytes = checked_sum(&[

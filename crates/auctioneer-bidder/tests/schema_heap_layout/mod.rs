@@ -56,16 +56,33 @@ pub(crate) fn private_struct_slot_bound(
 }
 
 pub(crate) fn native_arc_layout(payload: NativeField) -> Result<Layout, LayoutError> {
+    arc_layout_with_header(payload, NativeField::of::<[AtomicUsize; 2]>())
+}
+
+pub(crate) fn arc_layout_with_header(
+    payload: NativeField,
+    header: NativeField,
+) -> Result<Layout, LayoutError> {
     payload.validate()?;
     let payload_layout = Layout::from_size_align(payload.bytes, payload.alignment)
         .map_err(|_error| LayoutError::Arithmetic)?;
-    native_arc_value_layout(payload_layout)
+    arc_value_layout_with_header(payload_layout, header)
 }
 
 pub(crate) fn native_arc_value_layout(payload: Layout) -> Result<Layout, LayoutError> {
     // Rust 1.98.1 alloc/sync.rs:388-413: repr(C) strong/weak atomics, then
     // data; arcinner_layout_for_value_layout extends and pads that header.
-    Layout::new::<[AtomicUsize; 2]>()
+    arc_value_layout_with_header(payload, NativeField::of::<[AtomicUsize; 2]>())
+}
+
+fn arc_value_layout_with_header(
+    payload: Layout,
+    header: NativeField,
+) -> Result<Layout, LayoutError> {
+    header.validate()?;
+    let header_layout = Layout::from_size_align(header.bytes, header.alignment)
+        .map_err(|_error| LayoutError::Arithmetic)?;
+    header_layout
         .extend(payload)
         .map(|(layout, _offset)| layout.pad_to_align())
         .map_err(|_error| LayoutError::Arithmetic)

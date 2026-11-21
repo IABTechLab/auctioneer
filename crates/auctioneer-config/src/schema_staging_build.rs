@@ -1520,7 +1520,7 @@ mod tests {
                 0 => changed[0].marker.clone_from(&original[1].marker),
                 1 => changed[0].owner.clone_from(&original[1].owner),
                 2 => changed[0].owner = "fake_unknown".into(),
-                _ => unreachable!("fixed declaration matrix"),
+                _ => panic!("unknown declaration matrix case"),
             }
             assert_eq!(
                 declaration_bindings(&changed, &schemas).err().as_deref(),
@@ -2150,7 +2150,7 @@ mod tests {
                         .insert("fake_base".into(), "fake_missing".into());
                     assert_eq!(old.as_deref(), Some("fake_factory"));
                 }
-                _ => unreachable!("fixed refusal matrix"),
+                _ => panic!("unknown refusal matrix case"),
             }
             assert_eq!(
                 fixture.report("wasm32-unknown-unknown", &[]).unwrap_err(),
