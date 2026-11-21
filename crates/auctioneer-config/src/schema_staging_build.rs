@@ -1452,9 +1452,11 @@ mod tests {
     fn fake_declaration_map_joins_exact_owners_and_refuses_non_bijective_inputs() {
         use super::{CapturedSchema, DeclarationBinding, Witness, declaration_bindings};
 
-        let bytes = |name: &str| {
-            serde_json::to_vec(&json!({"title":name,"type":"string"})).unwrap()
-        };
+        let bytes =
+            |name: &str| serde_json::to_vec(&json!({
+                "$schema":"http://json-schema.org/draft-04/schema#",
+                "title":name,"type":"string"
+            })).unwrap();
         let sources = ["fake_a", "fake_b"].map(|name| Witness {
             name: name.into(),
             path: format!("{name}/parameters.json"),
@@ -1471,7 +1473,7 @@ mod tests {
             .map(|(index, source)| CapturedSchema {
                 witness: source,
                 path: format!("/fake/{index}.json").into(),
-                audit: audit(&json!({"type":"string"})).unwrap(),
+                audit: audit(&serde_json::from_slice(&bytes(&source.name)).unwrap()).unwrap(),
                 snapshot: plan_snapshot(&source.name, index, bytes(&source.name)).unwrap(),
             })
             .collect();
@@ -1501,7 +1503,9 @@ mod tests {
             assert_eq!(row.snapshot.sha256, row.source.sha256);
         }
         assert_eq!(
-            declaration_bindings(&original[..1], &schemas).err().as_deref(),
+            declaration_bindings(&original[..1], &schemas)
+                .err()
+                .as_deref(),
             Some("staged declaration population differs from captured schemas")
         );
         for (case, reason) in [
