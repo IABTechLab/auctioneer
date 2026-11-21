@@ -447,6 +447,7 @@ mod tests {
         (registry, source)
     }
 
+    const UID_MAP_POLICY: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.ccpa]\nenforce=false\n[host.lmt]\nenforce=false\n[account_defaults.privacy.allowactivities.transmitUfpd]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitPreciseGeo]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitTid]\ndefault=true\n";
     fn uid_map_case_input(
         fixture: &Value,
         user_key: &str,
@@ -476,9 +477,49 @@ mod tests {
         source
     }
 
+    fn captured_uid_map_bodies(
+        source: &Value,
+        typed: &BidRequest,
+        registry: &BidderRegistry,
+    ) -> Vec<(&'static str, &'static str, Value)> {
+        let before = serde_json::to_vec(source).unwrap();
+        let typed_before = serde_json::to_value(typed).unwrap();
+        let mut bodies = Vec::new();
+        for entrypoint in ["raw", "typed"] {
+            let fanout = Arc::new(CapturedEndpoints::default());
+            let wire = if entrypoint == "raw" {
+                let (status, wire) = send(source, UID_MAP_POLICY, registry, Arc::clone(&fanout));
+                assert_eq!(status, StatusCode::OK);
+                wire
+            } else {
+                send_typed(typed, UID_MAP_POLICY, registry, &fanout)
+            };
+            let seats = wire["seatbid"].as_array().unwrap();
+            assert_eq!(seats.len(), 2, "{entrypoint}");
+            assert!(
+                seats
+                    .iter()
+                    .all(|seat| seat["bid"].as_array().unwrap().len() == 1)
+            );
+            let sent = fanout.0.lock().unwrap();
+            assert_eq!(sent.len(), 2, "{entrypoint}");
+            for name in ["fake_first", "fake_second"] {
+                let url = format!("https://{HOST}/{name}");
+                let calls: Vec<_> = sent.iter().filter(|call| call.url() == url).collect();
+                assert_eq!(calls.len(), 1, "{entrypoint}/{name}");
+                assert_eq!(calls[0].covered_imp_ids().collect::<Vec<_>>(), ["i"]);
+                let outbound: Value = serde_json::from_slice(calls[0].body()).unwrap();
+                bodies.push((entrypoint, name, outbound));
+            }
+            assert_eq!(serde_json::to_vec(source).unwrap(), before);
+            assert_eq!(serde_json::to_value(typed).unwrap(), typed_before);
+        }
+        assert_eq!(bodies.len(), 4);
+        bodies
+    }
+
     #[test]
     fn unprotected_recipients_never_receive_request_wide_buyeruids() {
-        const POLICY: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.ccpa]\nenforce=false\n[host.lmt]\nenforce=false\n[account_defaults.privacy.allowactivities.transmitUfpd]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitPreciseGeo]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitTid]\ndefault=true\n";
         let (registry, fixture) = uid_map_fixture();
         let cases: &[(&str, &str, &[&str])] = &[
             ("user", "ext", &["buyeruids"]),
@@ -508,7 +549,6 @@ mod tests {
                     "prebidx": {"buyeruids": "near-miss-context"}
                 }
             });
-            let before = serde_json::to_vec(&source).unwrap();
             let typed: BidRequest = serde_json::from_value(source.clone()).unwrap();
             let typed_before = serde_json::to_value(&typed).unwrap();
             for value in [&source, &typed_before] {
@@ -522,55 +562,94 @@ mod tests {
                     );
                 }
             }
-            for entrypoint in ["raw", "typed"] {
-                let fanout = Arc::new(CapturedEndpoints::default());
-                let wire = if entrypoint == "raw" {
-                    let (status, wire) = send(&source, POLICY, &registry, Arc::clone(&fanout));
-                    assert_eq!(status, StatusCode::OK);
-                    wire
-                } else {
-                    send_typed(&typed, POLICY, &registry, &fanout)
-                };
-                let seats = wire["seatbid"].as_array().unwrap();
-                assert_eq!(seats.len(), 2, "{entrypoint}");
-                assert!(
-                    seats
-                        .iter()
-                        .all(|seat| seat["bid"].as_array().unwrap().len() == 1)
-                );
-                let sent = fanout.0.lock().unwrap();
-                assert_eq!(sent.len(), 2, "{entrypoint}");
-                for name in ["fake_first", "fake_second"] {
-                    let url = format!("https://{HOST}/{name}");
-                    let calls: Vec<_> = sent.iter().filter(|call| call.url() == url).collect();
-                    assert_eq!(calls.len(), 1, "{entrypoint}/{name}");
-                    assert_eq!(calls[0].covered_imp_ids().collect::<Vec<_>>(), ["i"]);
-                    let outbound: Value = serde_json::from_slice(calls[0].body()).unwrap();
-                    let user = &outbound[user_key];
-                    // These survive only without ID/FPD restrictions; protected scrub cannot pass.
-                    assert_eq!(user["id"], "ordinary-user", "{entrypoint}/{name}");
-                    assert_eq!(user["buyeruid"], "explicit-top-level-hint");
-                    assert_eq!(user["keywords"], "ordinary-context");
-                    let encoded = serde_json::to_string(&outbound).unwrap();
-                    if user != &expected_user
-                        || encoded.contains("first-map-canary")
-                        || encoded.contains("second-map-canary")
-                    {
-                        leaks.push((
-                            (user_key, extension_key, members),
-                            entrypoint,
-                            name,
-                            outbound,
-                        ));
-                    }
-                    checked += 1;
+            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry) {
+                let user = &outbound[user_key];
+                // These survive only without ID/FPD restrictions; protected scrub cannot pass.
+                assert_eq!(user["id"], "ordinary-user", "{entrypoint}/{name}");
+                assert_eq!(user["buyeruid"], "explicit-top-level-hint");
+                assert_eq!(user["keywords"], "ordinary-context");
+                let encoded = serde_json::to_string(&outbound).unwrap();
+                if user != &expected_user
+                    || encoded.contains("first-map-canary")
+                    || encoded.contains("second-map-canary")
+                {
+                    leaks.push((
+                        (user_key, extension_key, members),
+                        entrypoint,
+                        name,
+                        outbound,
+                    ));
                 }
-                assert_eq!(serde_json::to_vec(&source).unwrap(), before);
-                assert_eq!(serde_json::to_value(&typed).unwrap(), typed_before);
+                checked += 1;
             }
         }
         assert_eq!(checked, 40);
         assert!(leaks.is_empty(), "request-wide UID disclosure: {leaks:?}");
+    }
+
+    #[test]
+    fn prebid_cleanup_omits_only_user_extensions_it_empties_on_the_wire() {
+        let (registry, fixture) = uid_map_fixture();
+        let mut leaks = Vec::new();
+        let mut checked = 0_usize;
+        for (user_key, extension_key, had_prebid) in [
+            ("user", "ext", true),
+            ("user", "Ext", true),
+            ("User", "EXT", true),
+            ("user", "ext", false),
+        ] {
+            let mut source = uid_map_case_input(&fixture, user_key, extension_key, &["buyeruids"]);
+            let prebid = source[user_key][extension_key]["prebid"].clone();
+            let extension = if had_prebid {
+                json!({"prebid": prebid})
+            } else {
+                json!({})
+            };
+            source[user_key][extension_key] = extension.clone();
+            let mut expected_user = json!({
+                "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
+                "keywords": "ordinary-context"
+            });
+            if !had_prebid {
+                expected_user[extension_key] = json!({});
+            }
+            let typed: BidRequest = serde_json::from_value(source.clone()).unwrap();
+            let typed_before = serde_json::to_value(&typed).unwrap();
+            for value in [&source, &typed_before] {
+                assert_eq!(value[user_key].get(extension_key), Some(&extension));
+                if had_prebid {
+                    let uids = &value[user_key][extension_key]["prebid"]["buyeruids"];
+                    assert_eq!(uids["fake_first"], "first-map-canary");
+                    assert_eq!(uids["fake_second"], "second-map-canary");
+                } else {
+                    assert!(value[user_key][extension_key].as_object().unwrap().is_empty());
+                }
+            }
+            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry) {
+                let user = &outbound[user_key];
+                let encoded = serde_json::to_string(&outbound).unwrap();
+                if user != &expected_user
+                    || user.get(extension_key) != expected_user.get(extension_key)
+                    || encoded.contains("first-map-canary")
+                    || encoded.contains("second-map-canary")
+                {
+                    leaks.push((
+                        user_key,
+                        extension_key,
+                        had_prebid,
+                        entrypoint,
+                        name,
+                        outbound,
+                    ));
+                }
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 16);
+        assert!(
+            leaks.is_empty(),
+            "user extension presence after cleanup: {leaks:?}"
+        );
     }
 
     fn credential_binding(store: &Arc<FakeSecretStore>) -> SecretRegistry {
