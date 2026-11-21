@@ -70,7 +70,7 @@ fastly = "=0.13.1"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
 # auctioneer-config-data's build.rs (pin matches the bounded fanout budget work).
-brotli = "=8.0.4"
+brotli = "=9.1.3"
 # Advisory flock on the committed gvl_archive.lock / refresh.lock
 # sentinels — shared by auctioneer-config-data's build.rs (reader) and
 # auctioneer-cli's maintenance refresh (writer). NOT a auctioneer-gvl-schema dep;
