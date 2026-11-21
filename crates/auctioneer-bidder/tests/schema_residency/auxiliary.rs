@@ -125,15 +125,31 @@ fn string(expr: &Expr) -> Option<String> {
 }
 
 fn bytes(expr: &Expr) -> Option<Vec<u8>> {
-    if !value.attrs.is_empty() || !matches!(&value.op, syn::UnOp::Deref(_)) { return None; }
-    let Expr::Lit(literal) = value.expr.as_ref() else { return None; };
-    if !literal.attrs.is_empty() { return None; }
-    match &literal.lit { syn::Lit::ByteStr(text) => Some(text.value()), _ => None }
+    let Expr::Unary(value) = expr else {
+        return None;
+    };
+    if !value.attrs.is_empty() || !matches!(&value.op, syn::UnOp::Deref(_)) {
+        return None;
+    }
+    let Expr::Lit(literal) = value.expr.as_ref() else {
+        return None;
+    };
+    if !literal.attrs.is_empty() {
+        return None;
+    }
+    match &literal.lit {
+        syn::Lit::ByteStr(text) => Some(text.value()),
+        _ => None,
+    }
 }
 
 fn number(expr: &Expr) -> Option<usize> {
-    let Expr::Lit(value) = expr else { return None; };
-    if !value.attrs.is_empty() { return None; }
+    let Expr::Lit(value) = expr else {
+        return None;
+    };
+    if !value.attrs.is_empty() {
+        return None;
+    }
     match &value.lit {
         syn::Lit::Int(value) if value.suffix().is_empty() => value.base10_parse().ok(),
         _ => None,
@@ -141,14 +157,17 @@ fn number(expr: &Expr) -> Option<usize> {
 }
 
 fn registry_type(item: &syn::ItemStruct) -> bool {
-    same(item, quote! {
-        #[repr(C)]
-        struct StagedValidator<C> {
-            magic: [u8; 16], identity: [u8; 64], owner: [u8; 64], owner_len: u32,
-            validate: fn(&serde_json::Value, &mut C) -> bool,
-            new_cache: fn() -> Option<C>, initialize: fn() -> bool,
-        }
-    })
+    same(
+        item,
+        quote! {
+            #[repr(C)]
+            struct StagedValidator<C> {
+                magic: [u8; 16], identity: [u8; 64], owner: [u8; 64], owner_len: u32,
+                validate: fn(&serde_json::Value, &mut C) -> bool,
+                new_cache: fn() -> Option<C>, initialize: fn() -> bool,
+            }
+        },
+    )
 }
 
 fn retention_row(
@@ -156,29 +175,67 @@ fn retention_row(
     bindings: &BTreeMap<String, syn::Ident>,
     identity: &str,
 ) -> Result<Row, String> {
-    if !item.attrs.is_empty() || !same(&item.vis, quote!())
-        || !item.mutability.to_token_stream().is_empty() { return Err(error()); }
+    if !item.attrs.is_empty()
+        || !same(&item.vis, quote!())
+        || !item.mutability.to_token_stream().is_empty()
+    {
+        return Err(error());
+    }
     let name = item.ident.to_string();
-    let ordinal = name.strip_prefix("STAGED_VALIDATOR_").ok_or_else(error)?
-        .parse::<usize>().map_err(|_error| error())?;
-    if name != format!("STAGED_VALIDATOR_{ordinal}") { return Err(error()); }
-    let Expr::Struct(value) = item.expr.as_ref() else { return Err(error()); };
-    if !value.attrs.is_empty() || value.qself.is_some() || value.rest.is_some()
-        || !same(&value.path, quote!(StagedValidator)) { return Err(error()); }
+    let ordinal = name
+        .strip_prefix("STAGED_VALIDATOR_")
+        .ok_or_else(error)?
+        .parse::<usize>()
+        .map_err(|_error| error())?;
+    if name != format!("STAGED_VALIDATOR_{ordinal}") {
+        return Err(error());
+    }
+    let Expr::Struct(value) = item.expr.as_ref() else {
+        return Err(error());
+    };
+    if !value.attrs.is_empty()
+        || value.qself.is_some()
+        || value.rest.is_some()
+        || !same(&value.path, quote!(StagedValidator))
+    {
+        return Err(error());
+    }
     let mut fields = BTreeMap::new();
     for field in &value.fields {
-        let syn::Member::Named(name) = &field.member else { return Err(error()); };
-        if !field.attrs.is_empty() || field.colon_token.is_none()
-            || fields.insert(name.to_string(), &field.expr).is_some() { return Err(error()); }
+        let syn::Member::Named(name) = &field.member else {
+            return Err(error());
+        };
+        if !field.attrs.is_empty()
+            || field.colon_token.is_none()
+            || fields.insert(name.to_string(), &field.expr).is_some()
+        {
+            return Err(error());
+        }
     }
-    if fields.keys().map(String::as_str).collect::<BTreeSet<_>>() != BTreeSet::from([
-        "magic", "identity", "owner", "owner_len", "validate", "new_cache", "initialize",
-    ]) { return Err(error()); }
+    if fields.keys().map(String::as_str).collect::<BTreeSet<_>>()
+        != BTreeSet::from([
+            "magic",
+            "identity",
+            "owner",
+            "owner_len",
+            "validate",
+            "new_cache",
+            "initialize",
+        ])
+    {
+        return Err(error());
+    }
     let owner_bytes = bytes(fields["owner"]).ok_or_else(error)?;
     let length = number(fields["owner_len"]).ok_or_else(error)?;
-    if !(1..=64).contains(&length) || owner_bytes.len() != 64
-        || owner_bytes[length..].iter().any(|byte| *byte != 0) { return Err(error()); }
-    let owner = std::str::from_utf8(&owner_bytes[..length]).map_err(|_error| error())?.to_owned();
+    if !(1..=64).contains(&length)
+        || owner_bytes.len() != 64
+        || owner_bytes[length..].iter().any(|byte| *byte != 0)
+    {
+        return Err(error());
+    }
+    let owner = std::str::from_utf8(&owner_bytes[..length])
+        .map_err(|_error| error())?
+        .to_owned();
     let marker = bindings.get(&owner).ok_or_else(error)?.clone();
     let marker_text = marker.to_string();
     let cache = syn::parse_str::<syn::Ident>(&format!("{marker_text}SearchCache"))
@@ -446,6 +503,244 @@ fn initialization(expr: &Expr, output: &mut Vec<String>) -> bool {
     }
 }
 
+fn retain_dispatch(
+    item: &syn::ItemFn,
+    rows: &[Row],
+    edges: &mut Vec<Value>,
+) -> Result<(), String> {
+    if !item.attrs.is_empty() || !same(&item.sig, quote!(fn retain_for_inspection())) {
+        return Err(error());
+    }
+    let [Stmt::Expr(expr, Some(_))] = item.block.stmts.as_slice() else {
+        return Err(error());
+    };
+    let invocation = call(expr, &["black_box"], 1).ok_or_else(error)?;
+    let argument = invocation.args.first().ok_or_else(error)?;
+    if rows.is_empty() {
+        if !matches!(argument, Expr::Paren(value) if value.attrs.is_empty()
+            && path(&value.expr, &["STAGING_INPUT_ID"]))
+        {
+            return Err(error());
+        }
+    } else {
+        let Expr::Tuple(tuple) = argument else {
+            return Err(error());
+        };
+        if !tuple.attrs.is_empty() || tuple.elems.len() != rows.len() + 1 {
+            return Err(error());
+        }
+        for (argument, row) in tuple.elems.iter().zip(rows) {
+            let Expr::Reference(value) = argument else {
+                return Err(error());
+            };
+            if !value.attrs.is_empty()
+                || value.mutability.is_some()
+                || !path(&value.expr, &[&row.entry.to_string()])
+            {
+                return Err(error());
+            }
+            edge(edges, "retain_for_inspection", &row.entry.to_string(), "inspection-reference");
+        }
+        if !tuple
+            .elems
+            .last()
+            .is_some_and(|expr| path(expr, &["STAGING_INPUT_ID"]))
+        {
+            return Err(error());
+        }
+    }
+    Ok(())
+}
+
+fn initialize_dispatch(
+    item: &syn::ItemFn,
+    expr: &Expr,
+    rows: &[Row],
+    edges: &mut Vec<Value>,
+) -> Result<(), String> {
+    if !same(&item.sig, quote!(fn initialize_native() -> bool)) {
+        return Err(error());
+    }
+    let mut calls = Vec::new();
+    if rows.is_empty() {
+        if !same(expr, quote!(true)) {
+            return Err(error());
+        }
+    } else if !initialization(expr, &mut calls)
+        || calls
+            != rows
+                .iter()
+                .map(|row| row.marker.to_string())
+                .collect::<Vec<_>>()
+    {
+        return Err(error());
+    }
+    for marker in calls {
+        edge(edges, "initialize_native", &marker, "initialize-regexes");
+    }
+    Ok(())
+}
+
+fn validate_dispatch(
+    item: &syn::ItemFn,
+    expr: &Expr,
+    rows: &[Row],
+    edges: &mut Vec<Value>,
+) -> Result<(), String> {
+    if !same(
+        &item.sig,
+        quote!(
+            fn validate_native(owner: &str, value: &serde_json::Value) -> Option<bool>
+        ),
+    ) {
+        return Err(error());
+    }
+    let dispatch = named_match(expr, "owner").ok_or_else(error)?;
+    let mut seen = BTreeSet::new();
+    for arm in &dispatch.arms[..dispatch.arms.len() - 1] {
+        let mut owners = Vec::new();
+        if !patterns(&arm.pat, &mut owners) || owners.len() != 1 {
+            return Err(error());
+        }
+        let owner = &owners[0];
+        let row = rows
+            .iter()
+            .find(|row| &row.owner == owner)
+            .ok_or_else(error)?;
+        if !seen.insert(owner.clone()) {
+            return Err(error());
+        }
+        let Expr::Block(block) = arm.body.as_ref() else {
+            return Err(error());
+        };
+        if !block.attrs.is_empty() || block.label.is_some() {
+            return Err(error());
+        }
+        let [Stmt::Local(local), Stmt::Expr(result, None)] = block.block.stmts.as_slice() else {
+            return Err(error());
+        };
+        let marker = row.marker.to_string();
+        if !local.attrs.is_empty() || !same(&local.pat, quote!(mut cache)) {
+            return Err(error());
+        }
+        let initial = local.init.as_ref().ok_or_else(error)?;
+        let Expr::Try(attempt) = initial.expr.as_ref() else {
+            return Err(error());
+        };
+        if initial.diverge.is_some()
+            || !attempt.attrs.is_empty()
+            || call(&attempt.expr, &[&marker, "new_search_cache"], 0).is_none()
+        {
+            return Err(error());
+        }
+        let some = call(result, &["Some"], 1).ok_or_else(error)?;
+        let validate = call(
+            some.args.first().ok_or_else(error)?,
+            &[&marker, "is_valid"],
+            2,
+        )
+        .ok_or_else(error)?;
+        let mut arguments = validate.args.iter();
+        if !arguments.next().is_some_and(|expr| path(expr, &["value"]))
+            || !arguments
+                .next()
+                .is_some_and(|expr| same(expr, quote!(&mut cache)))
+        {
+            return Err(error());
+        }
+        edge(edges, "validate_native", &marker, "validation-call-cache-factory");
+        edge(edges, "validate_native", &marker, "is-valid-with-call-cache");
+    }
+    if seen != rows.iter().map(|row| row.owner.clone()).collect() {
+        return Err(error());
+    }
+    Ok(())
+}
+
+fn owner_dispatch(
+    item: &syn::ItemFn,
+    expr: &Expr,
+    members: &BTreeMap<String, Option<String>>,
+    edges: &mut Vec<Value>,
+) -> Result<(), String> {
+    if path(expr, &["None"]) {
+        if !same(
+            &item.sig,
+            quote!(fn native_owner(_: &str) -> Option<&'static str>),
+        ) {
+            return Err(error());
+        }
+        return Ok(());
+    }
+    if !same(
+        &item.sig,
+        quote!(fn native_owner(name: &str) -> Option<&'static str>),
+    ) {
+        return Err(error());
+    }
+    let dispatch = named_match(expr, "name").ok_or_else(error)?;
+    let mut seen = BTreeSet::new();
+    for arm in &dispatch.arms[..dispatch.arms.len() - 1] {
+        let some = call(&arm.body, &["Some"], 1).ok_or_else(error)?;
+        let owner = string(some.args.first().ok_or_else(error)?).ok_or_else(error)?;
+        let mut names = Vec::new();
+        if !patterns(&arm.pat, &mut names) || names.is_empty() {
+            return Err(error());
+        }
+        for member in names {
+            if !seen.insert(member.clone()) || members.get(&member) != Some(&Some(owner.clone())) {
+                return Err(error());
+            }
+            edges.push(json!({"from":"native_owner","member":member,"owner":owner,
+                "role":"native-owner-lookup","ownership":"literal-only"}));
+        }
+    }
+    Ok(())
+}
+
+fn required_dispatch(
+    item: &syn::ItemFn,
+    expr: &Expr,
+    members: &BTreeMap<String, Option<String>>,
+    edges: &mut Vec<Value>,
+) -> Result<(), String> {
+    if same(expr, quote!(false)) {
+        if !same(&item.sig, quote!(fn native_required(_: &str) -> bool)) {
+            return Err(error());
+        }
+        return Ok(());
+    }
+    if !same(&item.sig, quote!(fn native_required(name: &str) -> bool)) {
+        return Err(error());
+    }
+    let Expr::Macro(value) = expr else {
+        return Err(error());
+    };
+    if !value.attrs.is_empty()
+        || !value.mac.path.is_ident("matches")
+        || !matches!(&value.mac.delimiter, syn::MacroDelimiter::Paren(_))
+    {
+        return Err(error());
+    }
+    let required = syn::parse2::<Required>(value.mac.tokens.clone()).map_err(|_error| error())?;
+    let mut names = Vec::new();
+    if required.selector != "name"
+        || !patterns(&required.pattern, &mut names)
+        || names.is_empty()
+    {
+        return Err(error());
+    }
+    let mut seen = BTreeSet::new();
+    for member in names {
+        if !members.contains_key(&member) || !seen.insert(member.clone()) {
+            return Err(error());
+        }
+        edges.push(json!({"from":"native_required","member":member,"role":"native-required-predicate",
+            "policy_correspondence":"accepted-source-owner","ownership":"literal-only"}));
+    }
+    Ok(())
+}
+
 fn function(
     item: &syn::ItemFn,
     rows: &[Row],
@@ -457,222 +752,98 @@ fn function(
         return Err(error());
     }
     if name == "retain_for_inspection" {
-        if !item.attrs.is_empty() || !same(&item.sig, quote!(fn retain_for_inspection())) {
-            return Err(error());
-        }
-        let [Stmt::Expr(expr, Some(_))] = item.block.stmts.as_slice() else {
-            return Err(error());
-        };
-        let invocation = call(expr, &["black_box"], 1).ok_or_else(error)?;
-        let argument = invocation.args.first().ok_or_else(error)?;
-        if rows.is_empty() {
-            if !matches!(argument, Expr::Paren(value) if value.attrs.is_empty()
-                && path(&value.expr, &["STAGING_INPUT_ID"]))
-            {
-                return Err(error());
-            }
-        } else {
-            let Expr::Tuple(tuple) = argument else {
-                return Err(error());
-            };
-            if !tuple.attrs.is_empty() || tuple.elems.len() != rows.len() + 1 {
-                return Err(error());
-            }
-            for (argument, row) in tuple.elems.iter().zip(rows) {
-                let Expr::Reference(value) = argument else {
-                    return Err(error());
-                };
-                if !value.attrs.is_empty()
-                    || value.mutability.is_some()
-                    || !path(&value.expr, &[&row.entry.to_string()])
-                {
-                    return Err(error());
-                }
-                edge(edges, &name, &row.entry.to_string(), "inspection-reference");
-            }
-            if !tuple
-                .elems
-                .last()
-                .is_some_and(|expr| path(expr, &["STAGING_INPUT_ID"]))
-            {
-                return Err(error());
-            }
-        }
-        return Ok(());
+        return retain_dispatch(item, rows, edges);
     }
     if item.attrs.len() != 1 || !same(&item.attrs[0], quote!(#[cfg(not(target_arch = "wasm32"))])) {
         return Err(error());
     }
     let expr = tail(&item.block).ok_or_else(error)?;
     match name.as_str() {
-        "initialize_native" => {
-            if !same(&item.sig, quote!(fn initialize_native() -> bool)) {
-                return Err(error());
-            }
-            let mut calls = Vec::new();
-            if rows.is_empty() {
-                if !same(expr, quote!(true)) {
-                    return Err(error());
-                }
-            } else if !initialization(expr, &mut calls)
-                || calls
-                    != rows
-                        .iter()
-                        .map(|row| row.marker.to_string())
-                        .collect::<Vec<_>>()
-            {
-                return Err(error());
-            }
-            for marker in calls {
-                edge(edges, &name, &marker, "initialize-regexes");
-            }
-        }
-        "validate_native" => {
-            if !same(
-                &item.sig,
-                quote!(
-                    fn validate_native(owner: &str, value: &serde_json::Value) -> Option<bool>
-                ),
-            ) {
-                return Err(error());
-            }
-            let dispatch = named_match(expr, "owner").ok_or_else(error)?;
-            let mut seen = BTreeSet::new();
-            for arm in &dispatch.arms[..dispatch.arms.len() - 1] {
-                let mut owners = Vec::new();
-                if !patterns(&arm.pat, &mut owners) || owners.len() != 1 {
-                    return Err(error());
-                }
-                let owner = &owners[0];
-                let row = rows
-                    .iter()
-                    .find(|row| &row.owner == owner)
-                    .ok_or_else(error)?;
-                if !seen.insert(owner.clone()) {
-                    return Err(error());
-                }
-                let Expr::Block(block) = arm.body.as_ref() else {
-                    return Err(error());
-                };
-                if !block.attrs.is_empty() || block.label.is_some() {
-                    return Err(error());
-                }
-                let [Stmt::Local(local), Stmt::Expr(result, None)] = block.block.stmts.as_slice()
-                else {
-                    return Err(error());
-                };
-                let marker = row.marker.to_string();
-                if !local.attrs.is_empty() || !same(&local.pat, quote!(mut cache)) {
-                    return Err(error());
-                }
-                let initial = local.init.as_ref().ok_or_else(error)?;
-                let Expr::Try(attempt) = initial.expr.as_ref() else {
-                    return Err(error());
-                };
-                if initial.diverge.is_some()
-                    || !attempt.attrs.is_empty()
-                    || call(&attempt.expr, &[&marker, "new_search_cache"], 0).is_none()
-                {
-                    return Err(error());
-                }
-                let some = call(result, &["Some"], 1).ok_or_else(error)?;
-                let validate = call(
-                    some.args.first().ok_or_else(error)?,
-                    &[&marker, "is_valid"],
-                    2,
-                )
-                .ok_or_else(error)?;
-                let mut arguments = validate.args.iter();
-                if !arguments.next().is_some_and(|expr| path(expr, &["value"]))
-                    || !arguments
-                        .next()
-                        .is_some_and(|expr| same(expr, quote!(&mut cache)))
-                {
-                    return Err(error());
-                }
-                edge(edges, &name, &marker, "validation-call-cache-factory");
-                edge(edges, &name, &marker, "is-valid-with-call-cache");
-            }
-            if seen != rows.iter().map(|row| row.owner.clone()).collect() {
-                return Err(error());
-            }
-        }
-        "native_owner" => {
-            if path(expr, &["None"]) {
-                if !same(
-                    &item.sig,
-                    quote!(fn native_owner(_: &str) -> Option<&'static str>),
-                ) {
-                    return Err(error());
-                }
-            } else {
-                if !same(
-                    &item.sig,
-                    quote!(fn native_owner(name: &str) -> Option<&'static str>),
-                ) {
-                    return Err(error());
-                }
-                let dispatch = named_match(expr, "name").ok_or_else(error)?;
-                let mut seen = BTreeSet::new();
-                for arm in &dispatch.arms[..dispatch.arms.len() - 1] {
-                    let some = call(&arm.body, &["Some"], 1).ok_or_else(error)?;
-                    let owner = string(some.args.first().ok_or_else(error)?).ok_or_else(error)?;
-                    let mut names = Vec::new();
-                    if !patterns(&arm.pat, &mut names) || names.is_empty() {
-                        return Err(error());
-                    }
-                    for member in names {
-                        if !seen.insert(member.clone())
-                            || members.get(&member) != Some(&Some(owner.clone()))
-                        {
-                            return Err(error());
-                        }
-                        edges.push(json!({"from":name,"member":member,"owner":owner,
-                            "role":"native-owner-lookup","ownership":"literal-only"}));
-                    }
-                }
-            }
-        }
-        "native_required" => {
-            if same(expr, quote!(false)) {
-                if !same(&item.sig, quote!(fn native_required(_: &str) -> bool)) {
-                    return Err(error());
-                }
-            } else {
-                if !same(&item.sig, quote!(fn native_required(name: &str) -> bool)) {
-                    return Err(error());
-                }
-                let Expr::Macro(value) = expr else {
-                    return Err(error());
-                };
-                if !value.attrs.is_empty()
-                    || !value.mac.path.is_ident("matches")
-                    || !matches!(&value.mac.delimiter, syn::MacroDelimiter::Paren(_))
-                {
-                    return Err(error());
-                }
-                let required =
-                    syn::parse2::<Required>(value.mac.tokens.clone()).map_err(|_error| error())?;
-                let mut names = Vec::new();
-                if required.selector != "name"
-                    || !patterns(&required.pattern, &mut names)
-                    || names.is_empty()
-                {
-                    return Err(error());
-                }
-                let mut seen = BTreeSet::new();
-                for member in names {
-                    if !members.contains_key(&member) || !seen.insert(member.clone()) {
-                        return Err(error());
-                    }
-                    edges.push(json!({"from":name,"member":member,"role":"native-required-predicate",
-                        "policy_correspondence":"accepted-source-owner","ownership":"literal-only"}));
-                }
-            }
-        }
-        _ => return Err(error()),
+        "initialize_native" => initialize_dispatch(item, expr, rows, edges),
+        "validate_native" => validate_dispatch(item, expr, rows, edges),
+        "native_owner" => owner_dispatch(item, expr, members, edges),
+        "native_required" => required_dispatch(item, expr, members, edges),
+        _ => Err(error()),
     }
-    Ok(())
+}
+
+fn bound_owners(bindings: &[(&str, &str)]) -> Result<BTreeMap<String, syn::Ident>, String> {
+    let mut by_owner = BTreeMap::new();
+    let mut markers = BTreeSet::new();
+    for &(marker, owner) in bindings {
+        let marker_id = syn::parse_str::<syn::Ident>(marker).map_err(|_error| error())?;
+        if owner.is_empty()
+            || owner.len() > 64
+            || !owner.is_ascii()
+            || !markers.insert(marker)
+            || by_owner.insert(owner.to_owned(), marker_id).is_some()
+        {
+            return Err(error());
+        }
+    }
+    Ok(by_owner)
+}
+
+fn selected_members(selection: &Value) -> Result<BTreeMap<String, Option<String>>, String> {
+    let mut members = BTreeMap::new();
+    for member in selection["members"].as_array().ok_or_else(error)? {
+        let name = member["name"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or_else(error)?;
+        let owner = match member.get("schema_owner").ok_or_else(error)? {
+            Value::Null => None,
+            Value::String(owner) if !owner.is_empty() => Some(owner.clone()),
+            _ => return Err(error()),
+        };
+        if members.insert(name.to_owned(), owner).is_some() {
+            return Err(error());
+        }
+    }
+    Ok(members)
+}
+
+fn complete_header(
+    rows: &mut [Row],
+    constants: Vec<(usize, &syn::ItemConst)>,
+    functions: &BTreeMap<String, &syn::ItemFn>,
+    members: &BTreeMap<String, Option<String>>,
+    roots: &mut [Value],
+) -> Result<Vec<Value>, String> {
+    rows.sort_by_key(|row| row.ordinal);
+    let mut owners = BTreeSet::new();
+    for (ordinal, row) in rows.iter().enumerate() {
+        if row.ordinal != ordinal || !owners.insert(row.owner.as_str()) {
+            return Err(error());
+        }
+    }
+    let mut asserted = BTreeSet::new();
+    for (root, constant) in constants {
+        let row = rows
+            .iter()
+            .find(|row| abi(constant, &row.cache))
+            .ok_or_else(error)?;
+        if !asserted.insert(row.ordinal) {
+            return Err(error());
+        }
+        roots[root]["details"] = json!({"cache":row.cache.to_string(),"owner":row.owner});
+    }
+    let mut dispatch_edges = Vec::new();
+    for name in [
+        "retain_for_inspection",
+        "initialize_native",
+        "validate_native",
+        "native_owner",
+        "native_required",
+    ] {
+        function(
+            functions.get(name).ok_or_else(error)?,
+            rows,
+            members,
+            &mut dispatch_edges,
+        )?;
+    }
+    Ok(dispatch_edges)
 }
 
 /// Bind marker/owner pairs from accepted declarations, not a central bidder list.
@@ -693,34 +864,8 @@ pub(super) fn classify(
     if identity.len() != 64 || !identity.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(error());
     }
-    let mut by_owner = BTreeMap::new();
-    let mut markers = BTreeSet::new();
-    for &(marker, owner) in bindings {
-        let marker_id = syn::parse_str::<syn::Ident>(marker).map_err(|_error| error())?;
-        if owner.is_empty()
-            || owner.len() > 64
-            || !owner.is_ascii()
-            || !markers.insert(marker)
-            || by_owner.insert(owner.to_owned(), marker_id).is_some()
-        {
-            return Err(error());
-        }
-    }
-    let mut members = BTreeMap::new();
-    for member in selection["members"].as_array().ok_or_else(error)? {
-        let name = member["name"]
-            .as_str()
-            .filter(|name| !name.is_empty())
-            .ok_or_else(error)?;
-        let owner = match member.get("schema_owner").ok_or_else(error)? {
-            Value::Null => None,
-            Value::String(owner) if !owner.is_empty() => Some(owner.clone()),
-            _ => return Err(error()),
-        };
-        if members.insert(name.to_owned(), owner).is_some() {
-            return Err(error());
-        }
-    }
+    let by_owner = bound_owners(bindings)?;
+    let members = selected_members(selection)?;
     let mut has_import = false;
     let mut has_type = false;
     let mut has_identity = false;
@@ -786,39 +931,7 @@ pub(super) fn classify(
     {
         return Err(error());
     }
-    rows.sort_by_key(|row| row.ordinal);
-    let mut owners = BTreeSet::new();
-    for (ordinal, row) in rows.iter().enumerate() {
-        if row.ordinal != ordinal || !owners.insert(row.owner.as_str()) {
-            return Err(error());
-        }
-    }
-    let mut asserted = BTreeSet::new();
-    for (root, constant) in constants {
-        let row = rows
-            .iter()
-            .find(|row| abi(constant, &row.cache))
-            .ok_or_else(error)?;
-        if !asserted.insert(row.ordinal) {
-            return Err(error());
-        }
-        roots[root]["details"] = json!({"cache":row.cache.to_string(),"owner":row.owner});
-    }
-    let mut dispatch_edges = Vec::new();
-    for name in [
-        "retain_for_inspection",
-        "initialize_native",
-        "validate_native",
-        "native_owner",
-        "native_required",
-    ] {
-        function(
-            functions.get(name).ok_or_else(error)?,
-            &rows,
-            &members,
-            &mut dispatch_edges,
-        )?;
-    }
+    let dispatch_edges = complete_header(&mut rows, constants, &functions, &members, &mut roots)?;
     Ok(Classified {
         status: Status::Complete,
         roots,
@@ -1267,6 +1380,17 @@ mod tests {
                 gt_spacing(parsed.to_token_stream(), spacing)
             ));
         }
+    }
+
+    #[test]
+    fn auxiliary_comparison_distinguishes_joint_operators_from_borrow_tokens() {
+        use quote::ToTokens as _;
+        let conjunction: syn::Expr = syn::parse_quote!(a && b);
+        let bitand_borrow: syn::Expr = syn::parse_quote!(a & &b);
+        assert!(super::same(&conjunction, quote!(a && b)));
+        assert!(super::same(&bitand_borrow, quote!(a & &b)));
+        assert!(!super::same(&conjunction, bitand_borrow.to_token_stream()));
+        assert!(!super::same(&bitand_borrow, conjunction.to_token_stream()));
     }
 
     #[test]

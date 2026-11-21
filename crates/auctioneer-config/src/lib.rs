@@ -32,6 +32,8 @@ pub mod source;
 pub use source::*;
 #[cfg(feature = "build-support")]
 pub mod bidder_discovery;
+#[cfg(all(feature = "build-support", not(target_arch = "wasm32")))]
+pub mod catalog_reference;
 #[cfg(feature = "build-support")]
 pub mod bidder_endpoint_codegen;
 #[cfg(feature = "build-support")]

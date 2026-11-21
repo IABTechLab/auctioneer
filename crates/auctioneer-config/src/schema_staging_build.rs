@@ -2,7 +2,7 @@
 
 /// Offline catalog-growth source data shared by native test consumers.
 #[cfg(not(target_arch = "wasm32"))]
-pub mod catalog_reference;
+pub use crate::catalog_reference;
 
 use crate::bidder_discovery::Discovery;
 use crate::build_catalog::{self, Artifact, Catalog, Category, Manifest, Provenance, Source};
@@ -23,7 +23,7 @@ use std::io::{ErrorKind, Read as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 use std::str::from_utf8;
 
-const MAX_INPUT_BYTES: u64 = 1 << 20;
+pub(super) const MAX_INPUT_BYTES: u64 = 1 << 20;
 // Source witnesses are provenance data, never executable membership authority.
 const SOURCE_INPUTS: [(InputKind, &str, &str); 3] = [
     (

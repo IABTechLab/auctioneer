@@ -6,8 +6,10 @@
 //! This module never builds, expands, materializes or activates a catalog.
 
 use serde::Serialize;
+use crate::schema_staging_build::MAX_INPUT_BYTES;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::process::Command;
 
 /// Maintainer-approved official source commit, never a moving reference.
 pub const REFERENCE_COMMIT: &str = "d26fcf7f566db6d1dce2e1847d79c9f44581edb8";
@@ -127,11 +129,13 @@ impl SourceSnapshot {
     }
 
     /// Every consumed regular-file witness, in repository-relative path order.
+    #[must_use]
     pub fn witnesses(&self) -> impl ExactSizeIterator<Item = &Witness> {
         self.files.values().map(|file| &file.witness)
     }
 
     /// Borrow the verified object bytes without exposing mutable snapshot state.
+    #[must_use]
     pub fn files(&self) -> impl ExactSizeIterator<Item = &SourceFile> {
         self.files.values()
     }
@@ -173,12 +177,13 @@ fn read_pinned(
     _files: usize,
     _bytes: u64,
 ) -> Result<SourceSnapshot, Error> {
-    let _ = (FIXED_INPUTS, TREE_ROOTS, parse_listing, included, git_command);
-    let _shape = |listing: Listing| (listing.files, listing.trees);
+    let _ = (MAX_INPUT_BYTES, FIXED_INPUTS, TREE_ROOTS, parse_listing, included, git_command);
     Err(Error::Incomplete)
 }
 
 fn parse_listing(_bytes: &[u8]) -> Result<Listing, Error> {
+    let empty = Listing { files: BTreeMap::new(), trees: BTreeSet::new() };
+    drop((empty.files, empty.trees));
     Err(Error::Incomplete)
 }
 
@@ -186,8 +191,8 @@ fn included(_path: &str) -> bool {
     false
 }
 
-fn git_command(_root: &Path) -> std::process::Command {
-    std::process::Command::new("/usr/bin/git")
+fn git_command(_root: &Path) -> Command {
+    Command::new("/usr/bin/git")
 }
 
 #[cfg(test)]
@@ -363,7 +368,7 @@ mod tests {
         }
         let schema = &snapshot.files[
             "crates/auctioneer-bidder/src/bidders/fake_fixture/parameters.json"];
-        assert_eq!(schema.contents.as_slice(), br#"{"type":"string"}"#);
+        assert_eq!(schema.contents, serde_json::to_vec(&serde_json::json!({"type":"string"})).unwrap());
         assert_eq!(snapshot.files["Cargo.lock"].witness.sha256,
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
         let reread = fixture.read().expect("reader must leave repository unchanged");
@@ -490,7 +495,7 @@ mod tests {
     #[test]
     fn existing_staging_per_blob_cap_is_not_relaxed() {
         let mut fixture = Fixture::new();
-        let cap = usize::try_from(super::super::MAX_INPUT_BYTES).unwrap();
+        let cap = usize::try_from(super::MAX_INPUT_BYTES).unwrap();
         let bytes = vec![b'x'; cap + 1];
         fs::write(fixture.root.join("Cargo.lock"), &bytes).unwrap();
         fixture.files.insert("Cargo.lock".into(), bytes);
