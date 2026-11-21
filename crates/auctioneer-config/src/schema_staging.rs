@@ -651,6 +651,39 @@ mod tests {
     }
 
     #[test]
+    fn fake_identity_has_no_delivery_cohort_prerequisite() {
+        use InputKind::{
+            FormatHelperSource, GeneratorSource, Lockfile, Schema, SourceBindings, SourceInventory,
+            WorkspaceManifest,
+        };
+        let expected_kinds = [
+            SourceInventory,
+            SourceBindings,
+            WorkspaceManifest,
+            Lockfile,
+            GeneratorSource,
+            FormatHelperSource,
+            Schema,
+        ];
+        let hash = hex::encode(Sha256::digest(b"fake bytes"));
+        let source_inputs: Vec<_> = inputs(&hash)
+            .into_iter()
+            .filter(|input| expected_kinds.contains(&input.kind))
+            .collect();
+        assert_eq!(source_inputs.len(), 7);
+        let actual = identify(&fake_selection(), context(), &source_inputs)
+            .expect("source identity does not require a delivery cohort");
+        assert_eq!(actual.qualification, Qualification::Unqualified);
+        assert_eq!(actual.inputs.len(), 7);
+        for kind in expected_kinds {
+            assert_eq!(
+                actual.inputs.iter().filter(|input| input.kind == kind).count(),
+                1
+            );
+        }
+    }
+
+    #[test]
     fn fake_identity_is_explicitly_unqualified_and_input_order_independent() {
         let hash = hex::encode(Sha256::digest(b"fake bytes"));
         let mut inputs = inputs(&hash);

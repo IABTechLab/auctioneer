@@ -1639,12 +1639,12 @@ mod tests {
     }
 
     #[test]
-    fn fake_projection_uses_discovered_publication_and_wave_union_not_factory_roster() {
+    fn fake_projection_selects_only_discovered_implemented_roots() {
         let revision = "a".repeat(40);
         let blob = "b".repeat(40);
         let hash = "c".repeat(64);
         let catalog = fake_catalog(&revision, &blob, &hash);
-        let source: SourceProjection = serde_json::from_value(json!({
+        let mut source: SourceProjection = serde_json::from_value(json!({
             "schema_version": 2_u32, "kind": "reference_inventory_only", "revision": revision,
             "identity": [{"name": "fake_base", "blob": blob}, {"name": "fake_pub", "alias_of": "fake_base", "blob": blob},
                 {"name": "fake_plan", "alias_of": "fake_base", "blob": blob}, {"name": "fake_unselected", "alias_of": "fake_base", "blob": blob}],
@@ -1656,7 +1656,7 @@ mod tests {
             revision: revision.clone(),
             bindings: BTreeMap::from([("fake_base".into(), "adapters/fake".into())]),
         };
-        let mut wave: Wave = serde_json::from_value(json!({"schema_version": 1_u32, "revision": revision,
+        let wave: Wave = serde_json::from_value(json!({"schema_version": 1_u32, "revision": revision,
             "bidders": [{"name": "fake_plan", "base": "fake_base", "implementation": "fake_factory", "metadata_blob": blob, "schema_blob": blob}]})).expect("fake wave");
         let supplemental = SupplementalWave {
             schema_version: 1,
@@ -1717,9 +1717,9 @@ mod tests {
                 .iter()
                 .map(|row| row.name)
                 .collect::<Vec<_>>(),
-            ["fake_base", "fake_plan", "fake_pub"]
+            ["fake_base", "fake_pub"]
         );
-        wave.bidders[0].schema_blob = "fake_stale_blob".into();
+        source.schema[0].blob = "fake_stale_blob".into();
         assert_eq!(
             project(
                 &catalog,
@@ -1732,7 +1732,7 @@ mod tests {
             )
             .err()
             .as_deref(),
-            Some("planned source witness mismatch")
+            Some("stale staging source witness: fake_base")
         );
     }
 
