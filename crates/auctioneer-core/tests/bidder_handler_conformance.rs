@@ -14,10 +14,11 @@ mod tests {
     use auctioneer_bidder::{
         BidderHttpRequest, BidderHttpResponse, BidderRegistry, BidderRequestInfo,
     };
-    use auctioneer_config_data::types::{BidderInfo, Compression};
+    use auctioneer_config_data::types::{BidderImplementationBinding, BidderInfo, Compression};
     use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::auction::{
-        AuctionFunding, AuctionResourceInputs, AuctionResourceProfile, SchemaAllowance,
+        AuctionFunding, AuctionInput, AuctionResourceInputs, AuctionResourceProfile,
+        AuctionServices, SchemaAllowance, prepare_auction,
     };
     use auctioneer_core::handlers::{TestFanoutHandle, auction::auction_for_conformance};
     use auctioneer_core::host_primitives::{RequestClock, resolve_budget_inputs};
@@ -25,8 +26,9 @@ mod tests {
         AuctionDeadline, BidderCall, BidderCallResult, BidderFanout, FanoutInternalError,
     };
     use auctioneer_openrtb::types::bid_request::BidRequest;
+    use auctioneer_privacy::{UnrestrictedHostRestrictions, gcl::Gcl, gvl::GvlStore};
     use auctioneer_runtime::{
-        AdmissionGate, AuctionBudget, CatalogResourceCosts, FakeClock, SeededRng,
+        AdmissionGate, AuctionBudget, CatalogResourceCosts, Clock as _, FakeClock, SeededRng,
         TargetPlatformConstants, bounded_json::JsonFieldShape,
     };
     use bytes::Bytes;
@@ -337,6 +339,324 @@ mod tests {
             SchemaAllowance::Disabled,
         )
         .unwrap()
+    }
+
+    fn send_typed(
+        input: &BidRequest,
+        config: &str,
+        registry: &BidderRegistry,
+        fanout: &CapturedEndpoints,
+    ) -> Value {
+        let resources = resource_profile();
+        let budget = Arc::new(AuctionBudget::new(resources.derived().per_auction_peak));
+        let gate = AdmissionGate::new(resources.inputs().limits.max_concurrent_auctions);
+        let funding =
+            AuctionFunding::prepay(&resources, &budget, gate.try_acquire().unwrap()).unwrap();
+        assert_eq!(budget.in_use(), budget.limit());
+        assert_eq!(gate.in_use(), 1);
+        let bindings = registry
+            .infos()
+            .map(|info| BidderImplementationBinding {
+                bidder: info.name.as_str(),
+                implementation: registry.implementation(&info.name).unwrap(),
+            })
+            .collect::<Vec<_>>();
+        let clock = FakeClock::new(OffsetDateTime::UNIX_EPOCH);
+        let rng = SeededRng::new(42);
+        let services = AuctionServices {
+            resources: &resources,
+            product_host: auctioneer_config_data::product_host_default(),
+            product_account: auctioneer_config_data::product_account_default(),
+            bidders: registry,
+            bidder_bindings: &bindings,
+            fanout,
+            clock: &clock,
+            rng: &rng,
+            gvl_store: GvlStore::baked(),
+            gcl: Gcl::baked(),
+            restrictions: &UnrestrictedHostRestrictions,
+            credentials: None,
+            request_start: clock.now_monotonic(),
+            outer_deadline: None,
+            now: clock.now(),
+            debug_requested: false,
+            entry_point: auctioneer_bidder::EntryPoint::Auction,
+        };
+        let prepared = prepare_auction(
+            &toml::from_str(config).unwrap(),
+            AuctionInput::Typed {
+                request: input,
+                headers: auctioneer_openrtb::RequestHeaders::default(),
+            },
+            services,
+            funding,
+        )
+        .unwrap();
+        let completed = block_on(prepared.run()).unwrap();
+        assert_eq!(completed.outcome().bidders().len(), 2);
+        assert!(
+            completed
+                .outcome()
+                .bidders()
+                .values()
+                .all(|bundle| bundle.bids.len() == 1)
+        );
+        let response = completed.into_wire_response().unwrap();
+        assert_eq!(budget.in_use(), budget.limit());
+        assert_eq!(gate.in_use(), 1);
+        let wire = serde_json::to_value(response.response()).unwrap();
+        drop(response);
+        assert_eq!(budget.in_use(), 0);
+        assert_eq!(gate.in_use(), 0);
+        wire
+    }
+
+    fn uid_map_fixture() -> (BidderRegistry, Value) {
+        let mut registry = BidderRegistry::new();
+        for name in ["fake_first", "fake_second"] {
+            registry
+                .register_with_implementation(
+                    Box::leak(Box::new(BidderInfo {
+                        name: name.into(),
+                        endpoint: Some(format!("https://{HOST}/{name}")),
+                        uses_https: true,
+                        ..BidderInfo::default()
+                    })),
+                    "fake_implementation",
+                    Box::new(FakeBidder::default()),
+                )
+                .unwrap();
+        }
+        let mut source = input();
+        source["imp"][0]["ext"]["prebid"]["bidder"] = json!({"fake_first": {}, "fake_second": {}});
+        source["regs"] = json!({"gdpr": 0_i32, "coppa": 0_i32});
+        source["device"] = json!({"lmt": 0_i32});
+        source["user"] = json!({
+            "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
+            "keywords": "ordinary-context", "ext": {
+                "ordinary": "extension-context",
+                "Prebid": {"buyeruids": "case-control"},
+                "prebidx": {"buyeruids": "near-miss-context"}, "prebid": {
+                    "ordinary": "prebid-context", "buyeruidsx": "near-miss-context", "buyeruids": {
+                        "fake_first": "first-map-canary",
+                        "fake_second": "second-map-canary"
+                    }
+                }
+            }
+        });
+        (registry, source)
+    }
+
+    const UID_MAP_POLICY: &str = "schema_version = 1\n[host.gdpr]\nenabled=false\n[host.ccpa]\nenforce=false\n[host.lmt]\nenforce=false\n[account_defaults.privacy.allowactivities.transmitUfpd]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitPreciseGeo]\ndefault=true\n[account_defaults.privacy.allowactivities.transmitTid]\ndefault=true\n";
+    fn uid_map_case_input(
+        fixture: &Value,
+        user_key: &str,
+        extension_key: &str,
+        members: &[&str],
+    ) -> Value {
+        let mut source = fixture.clone();
+        let mut user = source.as_object_mut().unwrap().remove("user").unwrap();
+        let mut extension = user.as_object_mut().unwrap().remove("ext").unwrap();
+        let prebid = extension["prebid"].as_object_mut().unwrap();
+        assert!(prebid.remove("buyeruids").is_some());
+        for &member in members {
+            assert!(
+                prebid
+                    .insert(
+                        member.to_owned(),
+                        json!({
+                            "fake_first": "first-map-canary",
+                            "fake_second": "second-map-canary"
+                        }),
+                    )
+                    .is_none()
+            );
+        }
+        user[extension_key] = extension;
+        source[user_key] = user;
+        source
+    }
+
+    fn captured_uid_map_bodies(
+        source: &Value,
+        typed: &BidRequest,
+        registry: &BidderRegistry,
+    ) -> Vec<(&'static str, &'static str, Value)> {
+        let before = serde_json::to_vec(source).unwrap();
+        let typed_before = serde_json::to_value(typed).unwrap();
+        let mut bodies = Vec::new();
+        for entrypoint in ["raw", "typed"] {
+            let fanout = Arc::new(CapturedEndpoints::default());
+            let wire = if entrypoint == "raw" {
+                let (status, wire) = send(source, UID_MAP_POLICY, registry, Arc::clone(&fanout));
+                assert_eq!(status, StatusCode::OK);
+                wire
+            } else {
+                send_typed(typed, UID_MAP_POLICY, registry, &fanout)
+            };
+            let seats = wire["seatbid"].as_array().unwrap();
+            assert_eq!(seats.len(), 2, "{entrypoint}");
+            assert!(
+                seats
+                    .iter()
+                    .all(|seat| seat["bid"].as_array().unwrap().len() == 1)
+            );
+            let sent = fanout.0.lock().unwrap();
+            assert_eq!(sent.len(), 2, "{entrypoint}");
+            for name in ["fake_first", "fake_second"] {
+                let url = format!("https://{HOST}/{name}");
+                let calls: Vec<_> = sent.iter().filter(|call| call.url() == url).collect();
+                assert_eq!(calls.len(), 1, "{entrypoint}/{name}");
+                assert_eq!(calls[0].covered_imp_ids().collect::<Vec<_>>(), ["i"]);
+                let outbound: Value = serde_json::from_slice(calls[0].body()).unwrap();
+                bodies.push((entrypoint, name, outbound));
+            }
+            assert_eq!(serde_json::to_vec(source).unwrap(), before);
+            assert_eq!(serde_json::to_value(typed).unwrap(), typed_before);
+        }
+        assert_eq!(bodies.len(), 4);
+        bodies
+    }
+
+    #[test]
+    fn unprotected_recipients_never_receive_request_wide_buyeruids() {
+        let (registry, fixture) = uid_map_fixture();
+        let cases: &[(&str, &str, &[&str])] = &[
+            ("user", "ext", &["buyeruids"]),
+            ("user", "ext", &["BuyerUIDs"]),
+            ("user", "ext", &["buyerUids"]),
+            ("user", "ext", &["BUYERUIDS"]),
+            (
+                "user",
+                "ext",
+                &["buyeruids", "BuyerUIDs", "buyerUids", "BUYERUIDS"],
+            ),
+            ("User", "ext", &["buyeruids"]),
+            ("USER", "ext", &["buyeruids"]),
+            ("user", "Ext", &["buyeruids"]),
+            ("user", "EXT", &["buyeruids"]),
+            ("User", "Ext", &["buyeruids"]),
+        ];
+        let mut leaks = Vec::new();
+        let mut checked = 0_usize;
+        for &(user_key, extension_key, members) in cases {
+            let source = uid_map_case_input(&fixture, user_key, extension_key, members);
+            let expected_user = json!({
+                "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
+                "keywords": "ordinary-context", (extension_key): {
+                    "ordinary": "extension-context",
+                    "Prebid": {"buyeruids": "case-control"},
+                    "prebidx": {"buyeruids": "near-miss-context"}
+                }
+            });
+            let typed: BidRequest = serde_json::from_value(source.clone()).unwrap();
+            let typed_before = serde_json::to_value(&typed).unwrap();
+            for value in [&source, &typed_before] {
+                for &member in members {
+                    assert_eq!(
+                        value[user_key][extension_key]["prebid"][member],
+                        json!({
+                            "fake_first": "first-map-canary",
+                            "fake_second": "second-map-canary"
+                        })
+                    );
+                }
+            }
+            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry)
+            {
+                let user = &outbound[user_key];
+                // These survive only without ID/FPD restrictions; protected scrub cannot pass.
+                assert_eq!(user["id"], "ordinary-user", "{entrypoint}/{name}");
+                assert_eq!(user["buyeruid"], "explicit-top-level-hint");
+                assert_eq!(user["keywords"], "ordinary-context");
+                let encoded = serde_json::to_string(&outbound).unwrap();
+                if user != &expected_user
+                    || encoded.contains("first-map-canary")
+                    || encoded.contains("second-map-canary")
+                {
+                    leaks.push((
+                        (user_key, extension_key, members),
+                        entrypoint,
+                        name,
+                        outbound,
+                    ));
+                }
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 40);
+        assert!(leaks.is_empty(), "request-wide UID disclosure: {leaks:?}");
+    }
+
+    #[test]
+    fn prebid_cleanup_omits_only_user_extensions_it_empties_on_the_wire() {
+        let (registry, fixture) = uid_map_fixture();
+        let mut leaks = Vec::new();
+        let mut checked = 0_usize;
+        for (user_key, extension_key, had_prebid) in [
+            ("user", "ext", true),
+            ("user", "Ext", true),
+            ("User", "EXT", true),
+            ("user", "ext", false),
+        ] {
+            let mut source = uid_map_case_input(&fixture, user_key, extension_key, &["buyeruids"]);
+            let prebid = source[user_key][extension_key]["prebid"].clone();
+            let extension = if had_prebid {
+                json!({"prebid": prebid})
+            } else {
+                json!({})
+            };
+            source[user_key][extension_key] = extension.clone();
+            let mut expected_user = json!({
+                "id": "ordinary-user", "buyeruid": "explicit-top-level-hint",
+                "keywords": "ordinary-context"
+            });
+            if !had_prebid {
+                expected_user[extension_key] = json!({});
+            }
+            let typed: BidRequest = serde_json::from_value(source.clone()).unwrap();
+            let typed_before = serde_json::to_value(&typed).unwrap();
+            for value in [&source, &typed_before] {
+                assert_eq!(value[user_key].get(extension_key), Some(&extension));
+                if had_prebid {
+                    let uids = &value[user_key][extension_key]["prebid"]["buyeruids"];
+                    assert_eq!(uids["fake_first"], "first-map-canary");
+                    assert_eq!(uids["fake_second"], "second-map-canary");
+                } else {
+                    assert!(
+                        value[user_key][extension_key]
+                            .as_object()
+                            .unwrap()
+                            .is_empty()
+                    );
+                }
+            }
+            for (entrypoint, name, outbound) in captured_uid_map_bodies(&source, &typed, &registry)
+            {
+                let user = &outbound[user_key];
+                let encoded = serde_json::to_string(&outbound).unwrap();
+                if user != &expected_user
+                    || user.get(extension_key) != expected_user.get(extension_key)
+                    || encoded.contains("first-map-canary")
+                    || encoded.contains("second-map-canary")
+                {
+                    leaks.push((
+                        user_key,
+                        extension_key,
+                        had_prebid,
+                        entrypoint,
+                        name,
+                        outbound,
+                    ));
+                }
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 16);
+        assert!(
+            leaks.is_empty(),
+            "user extension presence after cleanup: {leaks:?}"
+        );
     }
 
     fn credential_binding(store: &Arc<FakeSecretStore>) -> SecretRegistry {
