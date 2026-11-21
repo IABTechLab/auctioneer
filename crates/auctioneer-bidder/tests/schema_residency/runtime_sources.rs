@@ -339,9 +339,15 @@ mod tests {
             let text = std::str::from_utf8(bytes).unwrap();
             assert!(text.contains(before));
             let changed = text.replacen(before, after, 1_usize);
-            assert_eq!(syntax(changed.as_bytes(), &digest(bytes)).err(),
-                Some(Refusal::RuntimeSource("unreviewed runtime source")));
-            let path = if bytes == STAGING_BYTES { STAGING } else { NATIVE };
+            assert_eq!(
+                syntax(changed.as_bytes(), &digest(bytes)).err(),
+                Some(Refusal::RuntimeSource("unreviewed runtime source"))
+            );
+            let path = if bytes == STAGING_BYTES {
+                STAGING
+            } else {
+                NATIVE
+            };
             fs::write(workspace.join(path), &changed).unwrap();
             let mut rebound = original_manifest.clone();
             if path == STAGING {
@@ -352,8 +358,11 @@ mod tests {
             } else {
                 "unreviewed runtime source"
             };
-            assert_eq!(capture(&workspace, &rebound).err(),
-                Some(Refusal::RuntimeSource(reason)), "{before}");
+            assert_eq!(
+                capture(&workspace, &rebound).err(),
+                Some(Refusal::RuntimeSource(reason)),
+                "{before}"
+            );
             fs::write(workspace.join(path), bytes).unwrap();
         }
     }

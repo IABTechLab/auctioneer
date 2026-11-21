@@ -99,9 +99,11 @@ pub(crate) struct RequestedStorage {
 pub(super) fn model_sources() -> Value {
     macro_rules! source {
         ($relative:literal) => {
-            ($relative, include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"), "/../../", $relative
-            )).as_slice())
+            (
+                $relative,
+                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../", $relative))
+                    .as_slice(),
+            )
         };
     }
     // These are data witnesses, not source imports. Bind the component helpers
@@ -135,9 +137,17 @@ pub(super) fn model_sources() -> Value {
         source!("crates/auctioneer-bidder/tests/schema_build/schema_regex_vendor/mod.rs"),
         source!("crates/auctioneer-bidder/tests/schema_vendor/mod.rs"),
     ];
-    json!(sources.iter().map(|(path, bytes)| {
-        (*path, json!({"bytes":bytes.len(),"sha256":expanded::digest(bytes)}))
-    }).collect::<BTreeMap<_, _>>())
+    json!(
+        sources
+            .iter()
+            .map(|(path, bytes)| {
+                (
+                    *path,
+                    json!({"bytes":bytes.len(),"sha256":expanded::digest(bytes)}),
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+    )
 }
 
 fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, Refusal> {
@@ -508,11 +518,19 @@ pub(crate) fn describe(
             "sha256":"ff3d58b0cc5ffa69e2e8c56fc7d9ef41dd399d59a639a253a51551b858cb5bbd",
             "verified_by":"program_construction::SourceRecipe::from_source"},
         "model_sources":model_sources()});
-    let recipe_identity = expanded::digest(&serde_json::to_vec(&binding)
-        .map_err(|_error| Refusal::Coverage)?);
+    let recipe_identity =
+        expanded::digest(&serde_json::to_vec(&binding).map_err(|_error| Refusal::Coverage)?);
     runtime.recheck()?;
-    Ok(ActualSourceDescriptor { binding, recipe_identity, graph, selection: manifest["selection"].clone(),
-        runtime, programs, groups, validation })
+    Ok(ActualSourceDescriptor {
+        binding,
+        recipe_identity,
+        graph,
+        selection: manifest["selection"].clone(),
+        runtime,
+        programs,
+        groups,
+        validation,
+    })
 }
 
 impl ActualSourceDescriptor {
@@ -726,7 +744,7 @@ impl ActualSourceDescriptor {
         if !missing.is_empty() {
             return Err(Refusal::TargetIncomplete(missing));
         }
-        Ok(())
+        common_target_layouts(facts.programs, facts.constructor_layouts)
     }
 
     fn reconcile_groups(
@@ -778,6 +796,35 @@ impl ActualSourceDescriptor {
         }
         Ok(total)
     }
+}
+
+// Coverage is checked first. One ABI cannot assign different layouts to the
+// same named type or to the fixed Regex/metadata/Arc/pool field types.
+fn common_target_layouts(
+    programs: &BTreeMap<String, ProgramRecipe<'_>>,
+    constructors: &BTreeMap<String, BTreeMap<String, NativeField>>,
+) -> Result<(), Refusal> {
+    let (first_id, first) = programs.first_key_value().ok_or(Refusal::TargetBinding)?;
+    let common = constructors.get(first_id).ok_or(Refusal::TargetBinding)?;
+    for (id, program) in programs {
+        let constructor = constructors.get(id).ok_or(Refusal::TargetBinding)?;
+        if constructor != common
+            || program.metadata != first.metadata
+            || program.arc_header != first.arc_header
+            || program.onepass_word != first.onepass_word
+            || program.memchr_payload != first.memchr_payload
+            || program.pool != first.pool
+            || program
+                .nfa_facts
+                .iter()
+                .any(|(name, layout)| constructor.get(name) != Some(layout))
+        {
+            return Err(Refusal::TargetBinding);
+        }
+    }
+    // Concrete strategy payloads can differ with the selected pattern/strategy.
+    // Agreement does not validate individual layouts or authenticate an ABI.
+    Ok(())
 }
 
 fn program_fact_keys<'a>(
@@ -960,8 +1007,15 @@ mod tests {
         let witnesses = witnesses.as_object().unwrap();
         assert_eq!(witnesses.keys().cloned().collect::<BTreeSet<_>>(), expected);
         for witness in witnesses.values() {
-            assert_eq!(witness.as_object().unwrap().keys().map(String::as_str)
-                .collect::<BTreeSet<_>>(), BTreeSet::from(["bytes", "sha256"]));
+            assert_eq!(
+                witness
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<BTreeSet<_>>(),
+                BTreeSet::from(["bytes", "sha256"])
+            );
             assert!(witness["bytes"].as_u64().unwrap() > 0);
             let digest = witness["sha256"].as_str().unwrap();
             assert_eq!(digest.len(), 64);
@@ -1153,17 +1207,11 @@ mod tests {
     }
 
     fn constructor_fact_names() -> BTreeSet<String> {
-        BTreeSet::from([
-            "fake_ctor::Frame".to_owned(),
-            "fake_ctor::Queue".to_owned(),
-        ])
+        BTreeSet::from(["fake_ctor::Frame".to_owned(), "fake_ctor::Queue".to_owned()])
     }
 
     fn nfa_fact_names() -> BTreeSet<String> {
-        target::fact_keys()
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
+        target::fact_keys().into_iter().map(str::to_owned).collect()
     }
 
     fn inspect_fact_names(
@@ -1266,5 +1314,180 @@ mod tests {
             inspect_fact_names(&nfa_hole, &constructor_extra),
             Err(Refusal::TargetBinding)
         );
+    }
+
+    // These synthetic premises exercise agreement only. No numeric constructor
+    // or target/physical certificate is evaluated in these controls.
+    fn common_constructor_facts() -> BTreeMap<String, NativeField> {
+        let mut facts = program_construction::required_fact_keys()
+            .into_iter()
+            .map(|name| (name, NativeField { bytes: 32_usize, alignment: 8_usize }))
+            .collect::<BTreeMap<_, _>>();
+        facts.insert(target::ABI_POINTER.to_owned(), NativeField {
+            bytes: 8_usize, alignment: 8_usize,
+        });
+        facts
+    }
+
+    fn common_nfa_facts(
+        constructor: &BTreeMap<String, NativeField>,
+    ) -> BTreeMap<String, NativeField> {
+        target::fact_keys().into_iter().map(|name| {
+            (name.to_owned(), *constructor.get(name).expect("complete constructor keys"))
+        }).collect()
+    }
+
+    fn common_program<'a>(
+        pattern: &'a str, nfa: &'a BTreeMap<String, NativeField>,
+    ) -> ProgramRecipe<'a> {
+        use crate::schema_metadata_heap::MetadataLayout;
+        use crate::schema_pool_heap::PoolLayout;
+
+        let field = NativeField { bytes: 32_usize, alignment: 8_usize };
+        ProgramRecipe {
+            pattern,
+            metadata: MetadataLayout {
+                regex_fields: [field; 2_usize], info_fields: [field; 3_usize],
+                props_payload: field, static_inline: field,
+            },
+            arc_header: NativeField { bytes: 16_usize, alignment: 8_usize },
+            strategy_payload: field, nfa_facts: nfa,
+            onepass_word: NativeField { bytes: 8_usize, alignment: 8_usize },
+            memchr_payload: NativeField { bytes: 1_usize, alignment: 1_usize },
+            pool: PoolLayout { fields: [field; 4_usize], shard: field, closure: field },
+        }
+    }
+
+    fn check_two_root_layouts(
+        first: ProgramRecipe<'_>, second: ProgramRecipe<'_>,
+        first_constructor: &BTreeMap<String, NativeField>,
+        second_constructor: &BTreeMap<String, NativeField>,
+    ) -> Result<(), Refusal> {
+        let programs = BTreeMap::from([
+            ("fake_a".to_owned(), first), ("fake_b".to_owned(), second),
+        ]);
+        let constructors = BTreeMap::from([
+            ("fake_a".to_owned(), first_constructor.clone()),
+            ("fake_b".to_owned(), second_constructor.clone()),
+        ]);
+        common_target_layouts(&programs, &constructors)
+    }
+
+    fn changed_layout(field: NativeField, change_bytes: bool) -> NativeField {
+        if change_bytes {
+            NativeField {
+                bytes: field.bytes.checked_mul(2_usize).expect("small fixture bytes"),
+                ..field
+            }
+        } else {
+            NativeField {
+                alignment: field.alignment.checked_mul(2_usize).expect("small fixture alignment"),
+                ..field
+            }
+        }
+    }
+
+    fn fixed_program_fields<'a>(program: &'a mut ProgramRecipe<'_>) -> Vec<&'a mut NativeField> {
+        program.metadata.regex_fields.iter_mut()
+            .chain(program.metadata.info_fields.iter_mut())
+            .chain([
+                &mut program.metadata.props_payload, &mut program.metadata.static_inline,
+                &mut program.arc_header, &mut program.onepass_word, &mut program.memchr_payload,
+            ])
+            .chain(program.pool.fields.iter_mut())
+            .chain([&mut program.pool.shard, &mut program.pool.closure])
+            .collect()
+    }
+
+    #[test]
+    fn constructor_type_layouts_agree_across_roots_in_bytes_and_alignment() {
+        let constructor = common_constructor_facts();
+        let nfa = common_nfa_facts(&constructor);
+        let first = common_program("^[0-9]+$", &nfa);
+        assert_eq!(check_two_root_layouts(first, first, &constructor, &constructor), Ok(()));
+        assert!(!constructor.is_empty());
+        for (name, field) in &constructor {
+            for change_bytes in [true, false] {
+                let mut changed = constructor.clone();
+                let previous = changed.insert(name.clone(), changed_layout(*field, change_bytes));
+                assert_eq!(previous, Some(*field));
+                assert_ne!(changed.get(name), Some(field));
+                assert_eq!(changed.len(), constructor.len());
+                let second_nfa = common_nfa_facts(&changed);
+                let second = common_program("^[0-9]+$", &second_nfa);
+                assert_eq!(check_two_root_layouts(first, second, &constructor, &changed),
+                    Err(Refusal::TargetBinding), "{name}: bytes={change_bytes}");
+                assert_eq!(check_two_root_layouts(second, first, &changed, &constructor),
+                    Err(Refusal::TargetBinding), "reverse {name}: bytes={change_bytes}");
+            }
+        }
+    }
+
+    #[test]
+    fn nfa_facts_reconcile_with_common_constructor_types_for_each_root() {
+        let constructor = common_constructor_facts();
+        let nfa = common_nfa_facts(&constructor);
+        let first = common_program("^[0-9]+$", &nfa);
+        assert_eq!(nfa.len(), 11_usize);
+        assert_eq!(check_two_root_layouts(first, first, &constructor, &constructor), Ok(()));
+        for (name, field) in &nfa {
+            for change_bytes in [true, false] {
+                let mut changed = nfa.clone();
+                assert_eq!(changed.insert(name.clone(), changed_layout(*field, change_bytes)), Some(*field));
+                let second = common_program("^[0-9]+$", &changed);
+                assert_eq!(check_two_root_layouts(first, second, &constructor, &constructor),
+                    Err(Refusal::TargetBinding), "{name}: bytes={change_bytes}");
+                assert_eq!(check_two_root_layouts(second, first, &constructor, &constructor),
+                    Err(Refusal::TargetBinding), "reverse {name}: bytes={change_bytes}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_fixed_program_layout_agrees_without_freezing_pattern_strategy_payloads() {
+        let constructor = common_constructor_facts();
+        let nfa = common_nfa_facts(&constructor);
+        let first = common_program("^[0-9]+$", &nfa);
+        let mut probe = first;
+        assert_eq!(fixed_program_fields(&mut probe).len(), 16_usize);
+        assert_eq!(check_two_root_layouts(first, first, &constructor, &constructor), Ok(()));
+        for index in 0_usize..16_usize {
+            for change_bytes in [true, false] {
+                let mut second = first;
+                {
+                    let mut fields = fixed_program_fields(&mut second);
+                    let field = fields.get_mut(index).expect("fixed field present");
+                    let before = **field;
+                    **field = changed_layout(before, change_bytes);
+                    assert_ne!(**field, before);
+                }
+                assert_eq!(check_two_root_layouts(first, second, &constructor, &constructor),
+                    Err(Refusal::TargetBinding), "field {index}: bytes={change_bytes}");
+                assert_eq!(check_two_root_layouts(second, first, &constructor, &constructor),
+                    Err(Refusal::TargetBinding), "reverse field {index}: bytes={change_bytes}");
+            }
+        }
+        let mut selected = common_program(r"\.[a-zA-Z]{2,3}$", &nfa);
+        selected.strategy_payload = NativeField { bytes: 64_usize, alignment: 16_usize };
+        assert_ne!(selected.pattern, first.pattern);
+        assert_ne!(selected.strategy_payload, first.strategy_payload);
+        assert_eq!(check_two_root_layouts(first, selected, &constructor, &constructor), Ok(()));
+    }
+
+    #[test]
+    fn one_abi_cannot_combine_a_four_byte_and_eight_byte_program_word() {
+        let wide_constructor = common_constructor_facts();
+        let wide_nfa = common_nfa_facts(&wide_constructor);
+        let wide = common_program("^[0-9]+$", &wide_nfa);
+        let mut narrow_constructor = wide_constructor.clone();
+        let narrow_word = NativeField { bytes: 4_usize, alignment: 4_usize };
+        assert_eq!(narrow_constructor.insert(target::ABI_POINTER.to_owned(), narrow_word),
+            Some(NativeField { bytes: 8_usize, alignment: 8_usize }));
+        let narrow_nfa = common_nfa_facts(&narrow_constructor);
+        let mut narrow = common_program("^[0-9]+$", &narrow_nfa);
+        narrow.onepass_word = narrow_word;
+        narrow.arc_header = NativeField { bytes: 8_usize, alignment: 4_usize };
+        assert_eq!(check_two_root_layouts(wide, narrow, &wide_constructor, &narrow_constructor),
+            Err(Refusal::TargetBinding));
     }
 }

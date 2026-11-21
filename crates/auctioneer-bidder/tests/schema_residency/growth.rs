@@ -622,11 +622,14 @@ fn compiled_sources(workspace: &Path) -> Result<Value, String> {
             return Err("duplicate measurement source witness".into());
         }
     }
-    for (relative, witness) in descriptor::model_sources().as_object()
+    for (relative, witness) in descriptor::model_sources()
+        .as_object()
         .ok_or("missing component model witnesses")?
     {
         if file_witness(&read_regular(&workspace.join(relative))?) != *witness {
-            return Err(format!("component model differs from compiled bytes: {relative}"));
+            return Err(format!(
+                "component model differs from compiled bytes: {relative}"
+            ));
         }
         if let Some(prior) = sources.insert(relative.clone(), witness.clone())
             && prior != *witness
@@ -1211,7 +1214,10 @@ fn run_real() -> Result<Value, String> {
     native_format_first(NATIVE_STAGING)?;
     let measurement = current_measurement(workspace)?;
     check_current_artifact(&crate_root, &measurement)?;
-    let temporary = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let temporary = tempfile::Builder::new()
+        .permissions(fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .map_err(|error| error.to_string())?;
     let private_root = temporary
         .path()
         .canonicalize()
@@ -1747,6 +1753,7 @@ mod tests {
     #[cfg(not(feature = "insecure-bidders"))]
     fn matched_catalog_growth_reconstructs_actual_reference_and_candidate() {
         let report = run_real().unwrap();
+        assert_actual_metadata_and_registry(&report);
         assert_eq!(report["reference"]["schema_owner_count"], 16);
         assert_eq!(report["reference"]["public_definition_count"], 18);
         assert_eq!(report["physical_or_serving_qualification"], false);
@@ -1757,9 +1764,31 @@ mod tests {
     #[cfg(feature = "insecure-bidders")]
     fn development_metadata_matched_catalog_growth_reconstructs_actual_reference_and_candidate() {
         let report = run_real().unwrap();
+        assert_actual_metadata_and_registry(&report);
         assert_eq!(report["reference"]["schema_owner_count"], 16);
         assert_eq!(report["reference"]["public_definition_count"], 18);
         assert_eq!(report["common_C_I_qualified"], false);
         eprintln!("{}", serde_json::to_string(&report).unwrap());
+    }
+
+    fn assert_actual_metadata_and_registry(report: &Value) {
+        for side in ["reference", "candidate"] {
+            let metadata = &report[side]["metadata_constructor_observation"];
+            let registry = &report[side]["registry_constructor_observation"];
+            assert!(metadata["cold"]["retained_bytes"].as_i64().unwrap() > 0, "{side}");
+            assert_eq!(metadata["repeat"], json!({"allocated_bytes":0_u64,
+                "peak_live_bytes":0_i64,"retained_bytes":0_i64,"allocation_calls":0_u64}));
+            let retained = registry["cold"]["retained_bytes"].as_i64().unwrap();
+            assert!(retained > 0, "{side}");
+            assert_eq!(registry["release"]["retained_bytes"].as_i64(), Some(-retained));
+            assert_eq!(registry["lookup"], json!({"allocated_bytes":0_u64,
+                "peak_live_bytes":0_i64,"retained_bytes":0_i64,"allocation_calls":0_u64}));
+            let prefix = metadata["cold"]["retained_bytes"].as_i64().unwrap();
+            let peak = registry["cold"]["peak_live_bytes"].as_i64().unwrap();
+            assert_eq!(registry["metadata_prefix_retained_bytes"].as_i64(), Some(prefix));
+            assert_eq!(registry["prefix_plus_registry_peak_bytes"].as_i64(), prefix.checked_add(peak));
+        }
+        assert_eq!(report["component_deltas"]["metadata"]["cold"]["retained_bytes"], 0);
+        assert_eq!(report["component_deltas"]["registry"]["cold"]["retained_bytes"], 0);
     }
 }

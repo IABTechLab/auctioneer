@@ -50,16 +50,10 @@ pub fn render_metadata_storage(
     declarations: usize,
 ) -> Result<String, StorageError> {
     let mut heap = MetadataHeapShape::default();
-    let mut digest = Sha256::new();
-    digest.update(b"auctioneer-metadata-storage-v1\0");
-    bind(&mut digest, bindings.as_bytes())?;
-    bind_count(&mut digest, declarations)?;
     for constructor in constructors {
         add(&mut heap, constructor_heap(constructor)?)?;
-        bind(&mut digest, constructor.as_bytes())?;
     }
-    let hash: Vec<_> = digest
-        .finalize()
+    let hash: Vec<_> = metadata_source_sha256(constructors, bindings, declarations)?
         .iter()
         .map(|byte| proc_macro2::Literal::u8_unsuffixed(*byte))
         .collect();
@@ -89,6 +83,26 @@ pub fn render_metadata_storage(
         }
     }
     .to_string())
+}
+
+/// Bind original constructor text, binding text and inactive declaration count.
+/// This is the renderer's source identity, not a numeric storage certificate.
+///
+/// # Errors
+/// Refuses input lengths that cannot be represented by the binding protocol.
+pub fn metadata_source_sha256(
+    constructors: &[String],
+    bindings: &str,
+    declarations: usize,
+) -> Result<[u8; 32], StorageError> {
+    let mut digest = Sha256::new();
+    digest.update(b"auctioneer-metadata-storage-v1\0");
+    bind(&mut digest, bindings.as_bytes())?;
+    bind_count(&mut digest, declarations)?;
+    for constructor in constructors {
+        bind(&mut digest, constructor.as_bytes())?;
+    }
+    Ok(digest.finalize().into())
 }
 
 /// Bind separate native and guest censuses to the same complete publication source.
@@ -317,7 +331,7 @@ fn vector(
 
 #[cfg(test)]
 mod tests {
-    use super::{StorageError, add, constructor_heap, render_metadata_storage};
+    use super::{StorageError, add, constructor_heap, metadata_source_sha256, render_metadata_storage};
     use crate::codegen::{BidderInfoRaw, render_bidder_info};
     use crate::types::MetadataHeapShape;
     use quote::ToTokens as _;
@@ -494,11 +508,21 @@ mod tests {
 
     #[test]
     fn descriptor_generation_binds_actual_constructor_bindings_and_inactive_declarations() {
+        for (constructors, bindings, declarations, expected) in [
+            (vec![], "", 0, "7149a712fc619899ccd73803ea1b87d672f71b88054d8e66d0652e8dd8aad5cc"),
+            (vec!["x", "yz"], "abc", 7, "b4e457d96d4af5896b5b416e601fe38094f542c8bcaaac143df8586939b5566c"),
+            (vec!["x", "yz"], "abc", 8, "615114c55c485001d1a1d817e9a23f443797e32f47492ceae622955bfef5d1ab"),
+            (vec!["xy", "z"], "abc", 7, "0fa556330e93e47e3282df3bb1b39708b0fd8f912e402c6485a4b08d2a14781b"),
+        ] {
+            let constructors = constructors.into_iter().map(str::to_owned).collect::<Vec<_>>();
+            assert_eq!(hex::encode(metadata_source_sha256(&constructors, bindings, declarations).unwrap()), expected);
+        }
         let raw: BidderInfoRaw =
             toml::from_str("implementation = 'fake_wire'\nendpoint = 'https://example.test'\n")
                 .unwrap();
         let row = render_bidder_info("fake_demo", &raw).unwrap();
         let original = render_metadata_storage(from_ref(&row), "bindings-a", 3).unwrap();
+        assert_eq!(checksum(&original), metadata_source_sha256(from_ref(&row), "bindings-a", 3).unwrap());
         let parsed = syn::parse_file(&original).unwrap();
         let normalized = parsed.to_token_stream().to_string();
         for expected in [
