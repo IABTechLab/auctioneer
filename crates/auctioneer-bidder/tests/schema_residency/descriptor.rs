@@ -2302,7 +2302,11 @@ mod tests {
             .collect()
     }
 
-    fn change_fixed_program_field(program: &mut ProgramRecipe<'_>, index: usize, change_bytes: bool) {
+    fn change_fixed_program_field(
+        program: &mut ProgramRecipe<'_>,
+        index: usize,
+        change_bytes: bool,
+    ) {
         let mut fields = fixed_program_fields(program);
         let field = fields.get_mut(index).expect("fixed field present");
         let before = **field;

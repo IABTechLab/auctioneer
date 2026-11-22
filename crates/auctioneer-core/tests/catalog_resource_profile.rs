@@ -219,8 +219,14 @@ mod tests {
             hypothetical.get("abi").and_then(Value::as_str),
             Some("hypothetical-only-not-observed-or-physical")
         );
-        for field in ["observed_target_layouts", "physical_or_serving_qualification"] {
-            assert_eq!(hypothetical.get(field).and_then(Value::as_bool), Some(false));
+        for field in [
+            "observed_target_layouts",
+            "physical_or_serving_qualification",
+        ] {
+            assert_eq!(
+                hypothetical.get(field).and_then(Value::as_bool),
+                Some(false)
+            );
         }
         let resident = captured_u64(hypothetical, "retained_requested_bytes");
         let initialization = captured_u64(hypothetical, "construction_only_requested_bytes");
@@ -314,7 +320,10 @@ mod tests {
             evaluated.schema_validation_term,
             baseline.schema_validation_term
         );
-        assert_eq!(evaluated.catalog_context_term, baseline.catalog_context_term);
+        assert_eq!(
+            evaluated.catalog_context_term,
+            baseline.catalog_context_term
+        );
     }
 
     #[test]
