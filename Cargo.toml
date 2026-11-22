@@ -119,7 +119,7 @@ proc-macro2 = "1"
 quote = "1"
 psl = "2"
 # Native maintenance fetches retain the archive tool's existing HTTP policy.
-reqwest = { version = "0.12", features = ["blocking", "json", "gzip"] }
+reqwest = { version = "0.13", features = ["blocking", "json", "gzip"] }
 regex = "=1.13.2"
 # Qualification-only direct API; this is the existing regex feature closure.
 regex-automata = { version = "=0.4.19", default-features = false, features = ["std", "meta", "nfa", "dfa-onepass", "dfa-search", "hybrid", "perf", "unicode"] }
