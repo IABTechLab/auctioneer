@@ -1800,8 +1800,8 @@ mod metadata_reconstruction_source {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::catalog_reference::{REFERENCE_COMMIT, REFERENCE_TREE};
+    use super::*;
     use quote::ToTokens as _;
     use serde_json::json;
     use std::cell::Cell;

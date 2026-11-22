@@ -645,7 +645,11 @@ mod tests {
         );
         let mut other_constructors = reconstruction();
         assert_eq!(other_constructors.constructors, reference.constructors);
-        other_constructors.constructors.first_mut().unwrap().push('x');
+        other_constructors
+            .constructors
+            .first_mut()
+            .unwrap()
+            .push('x');
         assert_eq!(
             observe_matched(&reference, &other_constructors, Duration::ZERO).unwrap_err(),
             "matched metadata constructor bytes differ"
