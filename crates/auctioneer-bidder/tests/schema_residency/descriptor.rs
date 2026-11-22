@@ -2040,6 +2040,111 @@ mod tests {
         }
     }
 
+    fn validation_program_ids(graph: &Value) -> Vec<&str> {
+        let mut ids = vec![runtime_sources::HOSTNAME];
+        for declaration in graph["declarations"].as_array().unwrap() {
+            for program in declaration["programs"].as_array().unwrap() {
+                let id = program["identity"].as_str().unwrap();
+                assert!(!id.is_empty());
+                ids.push(id);
+            }
+        }
+        assert_eq!(ids.len(), 4_usize);
+        assert_eq!(ids.iter().copied().collect::<BTreeSet<_>>().len(), ids.len());
+        ids
+    }
+
+    #[test]
+    fn validation_handoff_refuses_an_omitted_program_list() {
+        let graph = graph();
+        let ids = validation_program_ids(&graph);
+        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        assert_eq!(validation_assignments(&[], &graph), Err(Refusal::Coverage));
+    }
+
+    #[test]
+    fn validation_handoff_refuses_each_missing_program_including_hostname() {
+        let graph = graph();
+        let ids = validation_program_ids(&graph);
+        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        for (index, id) in ids.iter().enumerate() {
+            let mut missing = ids.clone();
+            assert_eq!(missing.remove(index), *id);
+            assert!(!missing.contains(id));
+            assert_eq!(
+                validation_assignments(&missing, &graph),
+                Err(Refusal::Coverage),
+                "missing {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn validation_handoff_refuses_extra_unknown_or_empty_program_ids() {
+        let graph = graph();
+        let ids = validation_program_ids(&graph);
+        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        for extra in ["fake_unknown::Marker::REGEX", ""] {
+            assert!(!ids.contains(&extra));
+            let mut expanded = ids.clone();
+            expanded.push(extra);
+            assert_eq!(
+                validation_assignments(&expanded, &graph),
+                Err(Refusal::Coverage),
+                "extra {extra:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn validation_handoff_refuses_each_duplicate_program() {
+        let graph = graph();
+        let ids = validation_program_ids(&graph);
+        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        for id in &ids {
+            let mut duplicate = ids.clone();
+            duplicate.push(id);
+            assert_eq!(
+                duplicate.iter().filter(|candidate| *candidate == id).count(),
+                2_usize
+            );
+            assert_eq!(
+                validation_assignments(&duplicate, &graph),
+                Err(Refusal::Coverage),
+                "duplicate {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn validation_handoff_refuses_empty_or_duplicate_graph_program_ids() {
+        let original = graph();
+        let ids = validation_program_ids(&original);
+        assert_eq!(
+            validation_assignments(&ids, &original).unwrap().len(),
+            20_usize
+        );
+        for replacement in ["", runtime_sources::HOSTNAME, "fake_a::MarkerA::FIRST_REGEX"] {
+            let mut altered = original.clone();
+            assert_eq!(
+                altered["declarations"][0_usize]["programs"][0_usize]["identity"],
+                "fake_b::MarkerB::FIRST_REGEX"
+            );
+            altered["declarations"][0_usize]["programs"][0_usize]["identity"] =
+                json!(replacement);
+            let mut supplied = ids.clone();
+            assert_eq!(supplied.remove(1_usize), "fake_b::MarkerB::FIRST_REGEX");
+            supplied.push(replacement);
+            supplied.sort_unstable();
+            supplied.dedup();
+            assert_eq!(
+                validation_assignments(&supplied, &altered),
+                Err(Refusal::Coverage),
+                "graph identity {replacement:?}"
+            );
+        }
+    }
+
     #[test]
     fn missing_target_rows_are_target_incomplete_and_extras_cannot_substitute() {
         let expected = BTreeSet::from(["fake_a", "fake_b"]);

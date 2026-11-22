@@ -2143,7 +2143,8 @@ mod tests {
         );
         assert_eq!(report["component_deltas"]["generated_source_bytes"], 0_i64);
         assert_eq!(report["common_C_I_qualified"], false);
-        assert_eq!(report["task8_complete"], false);
+        assert_eq!(report["matched_reconstruction_complete"], false);
+        assert!(report.get("task8_complete").is_none());
     }
 
     #[test]

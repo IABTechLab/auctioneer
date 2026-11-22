@@ -709,8 +709,66 @@ mod tests {
             .collect()
     }
 
+    fn assert_actual_validation_counts(
+        graph: &Value,
+        report: &Value,
+        assignments: &[descriptor::ValidationAssignment],
+    ) {
+        let declarations = graph["declarations"].as_array().unwrap();
+        let mut program_ids = BTreeSet::from(["schema::staging::formats::HOSTNAME_PATTERN"]);
+        let mut callbacks = BTreeSet::new();
+        for declaration in declarations {
+            for program in declaration["programs"].as_array().unwrap() {
+                let id = program["identity"].as_str().unwrap();
+                assert!(!id.is_empty());
+                assert!(program_ids.insert(id));
+            }
+            for callback in declaration["callbacks"].as_array().unwrap() {
+                let name = callback.as_str().unwrap();
+                assert!(!name.is_empty());
+                callbacks.insert(name);
+            }
+        }
+        assert!(!declarations.is_empty());
+        assert!(program_ids.len() > 1_usize);
+        let programs = report["programs_in_initialization_order"].as_array().unwrap();
+        assert_eq!(programs.len(), program_ids.len());
+        assert_eq!(
+            programs
+                .iter()
+                .map(|program| program["identity"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            program_ids
+        );
+        let program_children = program_ids.len().checked_mul(3_usize).unwrap();
+        let declaration_children = declarations.len().checked_mul(2_usize).unwrap();
+        let callback_children = callbacks.len().checked_mul(2_usize).unwrap();
+        let expected = program_children
+            .checked_add(declaration_children)
+            .unwrap()
+            .checked_add(callback_children)
+            .unwrap();
+        assert_eq!(assignments.len(), expected);
+        for id in program_ids {
+            let children = assignments
+                .iter()
+                .filter(|assignment| assignment.source_owner == id)
+                .collect::<Vec<_>>();
+            assert_eq!(children.len(), 3_usize, "{id}");
+            assert_eq!(
+                children
+                    .iter()
+                    .map(|assignment| assignment.role.as_str())
+                    .collect::<BTreeSet<_>>(),
+                BTreeSet::from(["cache", "mutable-scratch", "search-fallback"]),
+                "{id}"
+            );
+        }
+    }
+
     fn assert_actual_descriptor_controls(
         recipe: &descriptor::ActualSourceDescriptor,
+        graph: &Value,
         report: &Value,
         assignments: &[descriptor::ValidationAssignment],
     ) {
@@ -726,6 +784,7 @@ mod tests {
         });
         assert!(matches!(&missing,
             Err(descriptor::Refusal::TargetIncomplete(rows)) if !rows.is_empty()));
+        assert_actual_validation_counts(graph, report, assignments);
         assert!(!assignments.is_empty());
         assert_eq!(recipe.check_validation_handoff(assignments), Ok(()));
         for (index, assignment) in assignments.iter().enumerate() {
@@ -867,7 +926,12 @@ mod tests {
                         application_source_descriptor(seed, &sources, &release_line)?;
                     let descriptor_report = recipe.report();
                     let assignments = actual_validation_assignments(&descriptor_report)?;
-                    assert_actual_descriptor_controls(&recipe, &descriptor_report, &assignments);
+                    assert_actual_descriptor_controls(
+                        &recipe,
+                        &graph,
+                        &descriptor_report,
+                        &assignments,
+                    );
                     let mut substituted = graph.clone();
                     substituted["declarations"][0]["owner"] = json!("fake_substituted_owner");
                     assert!(matches!(
