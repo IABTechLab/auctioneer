@@ -13,7 +13,7 @@ pub(super) const STAGING: &str = "crates/auctioneer-bidder/src/schema/staging.rs
 const NATIVE: &str = "crates/auctioneer-bidder/src/schema/native.rs";
 const MAX_BYTES: u64 = 1_u64 << 20_u32;
 const STAGING_PIN: &str = "81c3809c1c0145d117f5d672557cece154f53d20ae014dc908d99e6b8aaeda5d";
-const NATIVE_PIN: &str = "3a06410ea0b3eb8d188d61b84d4d86f8cbb10226e25d407c6b97872115d4faef";
+const NATIVE_PIN: &str = "fd203542cfcd6132dace4b0d6c0500a42fd0841aa72fe46f79c36401993ee9cd";
 pub(super) const HOSTNAME: &str = "schema::staging::formats::HOSTNAME_PATTERN";
 pub(super) const COORDINATOR: &str = "schema::native::INITIALIZED";
 

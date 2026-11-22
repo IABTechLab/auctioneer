@@ -252,7 +252,9 @@ mod tests {
             util::syntax,
         };
         use std::{
+            array,
             cell::{Cell, RefCell},
+            iter::repeat_with,
             sync::{
                 Arc, Barrier, OnceLock, Weak,
                 atomic::{AtomicUsize, Ordering},
@@ -260,7 +262,7 @@ mod tests {
             thread,
         };
 
-        fn build_program(pattern: &str) -> Result<Arc<Regex>, BuildError> {
+        fn build_program(pattern: &str) -> Result<Arc<Regex>, Box<BuildError>> {
             Regex::builder()
                 .configure(
                     Regex::config()
@@ -273,14 +275,14 @@ mod tests {
                 .syntax(syntax::Config::default().utf8(true))
                 .build(pattern)
                 .map(Arc::new)
+                .map_err(Box::new)
         }
 
         #[test]
         fn fresh_success_retains_programs_in_order_and_repeat_does_not_construct() {
             let costs = controlled_native_costs(CatalogResourceCosts::UNCHANGED);
             let cell = OnceLock::new();
-            let programs: [OnceLock<Option<Arc<Regex>>>; 3] =
-                std::array::from_fn(|_| OnceLock::new());
+            let programs: [OnceLock<Option<Arc<Regex>>>; 3] = array::from_fn(|_| OnceLock::new());
             let trace = RefCell::new(Vec::new());
             assert!(cell.get().is_none());
             assert!(programs.iter().all(|program| program.get().is_none()));
@@ -291,9 +293,9 @@ mod tests {
                 &cell,
                 || {
                     for (program, pattern, name) in [
-                        (&programs[0], r"^shared[0-9]+$", "shared-format"),
-                        (&programs[1], r"^owner-a[0-9]+$", "owner-a"),
-                        (&programs[2], r"^owner-b[0-9]+$", "owner-b"),
+                        (&programs[0], "^shared[0-9]+$", "shared-format"),
+                        (&programs[1], "^owner-a[0-9]+$", "owner-a"),
+                        (&programs[2], "^owner-b[0-9]+$", "owner-b"),
                     ] {
                         if program
                             .get_or_init(|| {
@@ -345,7 +347,7 @@ mod tests {
                 let retained = prefix
                     .get_or_init(|| {
                         prefix_attempts.set(prefix_attempts.get() + 1_usize);
-                        Some(build_program(r"^live[0-9]+$").unwrap())
+                        Some(build_program("^live[0-9]+$").unwrap())
                     })
                     .as_ref()
                     .unwrap();
@@ -372,7 +374,7 @@ mod tests {
                     later
                         .get_or_init(|| {
                             later_attempts.set(later_attempts.get() + 1_usize);
-                            Some(build_program(r"^later[0-9]+$").unwrap())
+                            Some(build_program("^later[0-9]+$").unwrap())
                         })
                         .is_some()
                 }
@@ -408,11 +410,9 @@ mod tests {
             let costs = controlled_native_costs(CatalogResourceCosts::UNCHANGED);
             let cell = OnceLock::new();
             let prefix = OnceLock::<Option<Arc<Regex>>>::new();
-            assert!(
-                prefix
-                    .set(Some(build_program(r"^live[0-9]+$").unwrap()))
-                    .is_ok()
-            );
+            prefix
+                .set(Some(build_program("^live[0-9]+$").unwrap()))
+                .unwrap();
             let prefix_witness = Arc::downgrade(prefix.get().unwrap().as_ref().unwrap());
             let failing = OnceLock::<Option<Arc<Regex>>>::new();
             let attempts = Cell::new(0_usize);
@@ -434,14 +434,13 @@ mod tests {
                     failing
                         .get_or_init(|| {
                             attempts.set(attempts.get() + 1_usize);
-                            let temporary = build_program(r"^temporary[0-9]+$").unwrap();
+                            let temporary = build_program("^temporary[0-9]+$").unwrap();
                             assert!(temporary.memory_usage() > 0_usize);
                             *temporary_witness.borrow_mut() = Some(Arc::downgrade(&temporary));
                             // Fixed production-sized NFA cap, supported non-syntax
                             // failure. This is not an admitted generated pattern.
-                            let error = match build_program(r"^[ab]{65536}$") {
-                                Ok(_) => panic!("large bounded construction must fail"),
-                                Err(error) => error,
+                            let Err(error) = build_program("^[ab]{65536}$") else {
+                                panic!("large bounded construction must fail");
                             };
                             assert_eq!(error.size_limit(), Some(0x0001_0000_usize));
                             assert!(error.syntax_error().is_none());
@@ -488,19 +487,19 @@ mod tests {
             assert!(program.get().is_none());
 
             let outcomes = thread::scope(|scope| {
-                let handles = (0_usize..4_usize)
-                    .map(|_| {
-                        scope.spawn(|| {
-                            barrier.wait();
-                            initialize_native_schemas_with_cell(costs, false, &cell, || {
-                                attempts.fetch_add(1_usize, Ordering::SeqCst);
-                                let retained = program
-                                    .get_or_init(|| build_program(r"^concurrent[0-9]+$").unwrap());
-                                retained.is_match("concurrent7")
-                            })
+                let handles = repeat_with(|| {
+                    scope.spawn(|| {
+                        barrier.wait();
+                        initialize_native_schemas_with_cell(costs, false, &cell, || {
+                            attempts.fetch_add(1_usize, Ordering::SeqCst);
+                            let retained = program
+                                .get_or_init(|| build_program("^concurrent[0-9]+$").unwrap());
+                            retained.is_match("concurrent7")
                         })
                     })
-                    .collect::<Vec<_>>();
+                })
+                .take(4_usize)
+                .collect::<Vec<_>>();
                 handles
                     .into_iter()
                     .map(|handle| handle.join().unwrap())
@@ -552,7 +551,7 @@ mod tests {
                 assert!(cell.get().is_none());
                 for previous in [false, true] {
                     let cached = OnceLock::new();
-                    assert!(cached.set(previous).is_ok());
+                    cached.set(previous).unwrap();
                     assert!(!initialize_native_schemas_with_cell(
                         costs,
                         staging_only,
@@ -567,11 +566,9 @@ mod tests {
                     false,
                     &cell,
                     || {
-                        assert!(
-                            program
-                                .set(build_program(r"^funded[0-9]+$").unwrap())
-                                .is_ok()
-                        );
+                        program
+                            .set(build_program("^funded[0-9]+$").unwrap())
+                            .unwrap();
                         true
                     }
                 ));
