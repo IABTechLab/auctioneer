@@ -255,16 +255,17 @@ mod tests {
         assert!(boot_gates().is_none());
         // Supplied hosted capture: source 081b52116fcc6e690ad164121c5677ffd1441065,
         // run 44966255810, job 137035850296. Raw bytes are immutable evidence.
-        let bytes = include_bytes!(concat!(
-            "../../auctioneer-bidder/tests/conformance/fixtures/reference/",
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(concat!(
+            "../auctioneer-bidder/tests/conformance/fixtures/reference/",
             "schema-residency/hosted-growth-081b521.json"
         ));
+        let bytes = std::fs::read(path).expect("immutable hosted matched-growth capture");
         assert_eq!(bytes.len(), 1_620_650_usize);
         assert_eq!(
-            hex::encode(Sha256::digest(bytes)),
+            hex::encode(Sha256::digest(&bytes)),
             "6fff751282b3ea39ce70f4e5d7cb64acc65c9be594301035d22a2e63fb6e61e4"
         );
-        let report: Value = serde_json::from_slice(bytes).expect("hosted matched-growth capture");
+        let report: Value = serde_json::from_slice(&bytes).expect("hosted matched-growth capture");
         assert_eq!(
             report.get("label").and_then(Value::as_str),
             Some("same-build data-only source reconstruction relative to d26fcf7")
