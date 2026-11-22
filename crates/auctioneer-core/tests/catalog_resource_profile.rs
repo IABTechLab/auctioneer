@@ -21,6 +21,7 @@ mod tests {
     };
     use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
+    use std::{fs, path::Path};
 
     fn target() -> TargetPlatformConstants {
         TargetPlatformConstants {
@@ -255,11 +256,11 @@ mod tests {
         assert!(boot_gates().is_none());
         // Supplied hosted capture: source 081b52116fcc6e690ad164121c5677ffd1441065,
         // run 44966255810, job 137035850296. Raw bytes are immutable evidence.
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(concat!(
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(concat!(
             "../auctioneer-bidder/tests/conformance/fixtures/reference/",
             "schema-residency/hosted-growth-081b521.json"
         ));
-        let bytes = std::fs::read(path).expect("immutable hosted matched-growth capture");
+        let bytes = fs::read(path).expect("immutable hosted matched-growth capture");
         assert_eq!(bytes.len(), 1_620_650_usize);
         assert_eq!(
             hex::encode(Sha256::digest(&bytes)),
