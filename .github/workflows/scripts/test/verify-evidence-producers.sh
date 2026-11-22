@@ -7,6 +7,18 @@ tests=(
   tests::controlled_native_acceptance_requires_all_producers_but_never_completes_the_full_catalog
 )
 
+# Keep CI steps independently timed without changing the complete producer roster.
+if [[ $# -gt 1 ]]; then
+  printf 'expected at most one evidence producer selection\n' >&2
+  exit 2
+fi
+case "${1-all}" in
+  all) selected=("${!tests[@]}") ;;
+  schema-source) selected=(0) ;;
+  controlled-native) selected=(1) ;;
+  *) printf 'unknown evidence producer selection\n' >&2; exit 2 ;;
+esac
+
 # Enumerate without accepting zero-dispatch as a successful producer run.
 listing="$RUNNER_TEMP/evidence-producers-list.log"
 cargo test --locked -p auctioneer-cli --test bidders_evidence -- --list \
@@ -17,7 +29,7 @@ for name in "${tests[@]}"; do
   test "$(grep -Fxc "$name: test" "$listing")" -eq 1
 done
 filtered="$((total - 1))"
-for index in "${!tests[@]}"; do
+for index in "${selected[@]}"; do
   name="${tests[$index]}"
   log="$RUNNER_TEMP/evidence-producer-$index.log"
   cargo test --locked -p auctioneer-cli --test bidders_evidence "$name" -- \

@@ -220,7 +220,12 @@ features remain intact. The 17 lighter evidence cases still exercise those
 graphs, with exhaustive field matrices owned by inline verifiers. The dedicated owner
 enumerates the target, runs both full case names with `--exact`, and refuses
 missing, ignored, zero or mismatched dispatch. Each producer still executes its
-fresh child plans, including secure and development onboarding.
+fresh child plans, including secure and development onboarding. CI selects
+`schema-source` and `controlled-native` in separate sequential steps of the same
+required producer job. Each invocation still validates both roster names, then
+checks its selected case's exact dispatch. The existing job limit and all child
+build/test/resource limits remain unchanged; the local command below defaults
+to running both cases.
 
 The existing CLI lane also owns `resource_boot_parity` explicitly. Its eight
 tests build their own child feature graph, compare actual compiler feature

@@ -247,3 +247,49 @@ for this candidate. They remain required through the existing workflow owners;
 native tests and guest compilation do not prove hosted fit or deployment
 readiness. This record describes local verification; hosted CI status belongs
 to the carrying PR.
+
+
+## PR #263 Producer CI Timeout Repair
+
+At `912726e46bcd320711a2090c0cdab53a09f58bd7`, 24 of 25 hosted checks
+passed, including provider packaging/size, native feature lanes, compiler/source
+conformance and all guest-target checks. The [producer job](https://github.com/IABTechLab/auctioneer/actions/runs/44957818452/job/137009723221)
+failed when its combined producer step reached 40 minutes. Its first case passed
+in 638.54 seconds; the second was interrupted before a result. That interrupted
+case is not credited as passing.
+
+For comparison, the [exact base's producer job](https://github.com/IABTechLab/auctioneer/actions/runs/44870471656/job/136743624907)
+passed in 33 minutes 26 seconds, with producer cases taking 514.14 and 1300.60
+seconds. The upgraded run's first case alone took about 24% longer.
+
+The unchanged owner was executed locally with an isolated parent/child cache:
+
+```sh
+bash .github/workflows/scripts/test/verify-evidence-producers.sh
+```
+
+Exit 0: both cases dispatched one test, with zero failures/ignored cases and
+18 filtered cases each. The source case took 372.74 seconds; the native case
+took 1098.21 seconds. Total owner wall time, including Cargo startup/build and
+the complete controls, was **2442.68 seconds** (40 minutes 42.68 seconds).
+This establishes a complete passing owner whose wall time exceeds the failed
+combined CI step budget; it is not a hosted timing guarantee.
+
+The repair retains the same `cargo test (evidence-producers)` required job and
+its 45-minute limit. Two sequential steps each retain the existing 40-minute
+step limit while selecting `schema-source` or `controlled-native`. The local
+owner still defaults to both. Both roster entries are uniquely required before
+any selection; Cargo arguments, exact dispatch checks, fresh producer runs,
+child deadlines, scratch ceilings and workload/resource limits are unchanged.
+
+A subprocess-based shell fixture first failed against the original owner:
+`schema-source` also dispatched the native case. With the closed selections,
+all 12 controls pass, including default/all behavior, unknown/empty/extra
+arguments, missing/duplicate roster members, zero/failed dispatch and a wrong
+reported test. The fixture executes the actual owner through a controlled Cargo
+process and is also wired into the existing secure CI lane. ShellCheck and
+Actionlint pass for the affected scripts/workflow.
+
+The copied final workflow and hosted timing must still be verified at the
+repair commit. Separate steps expose the remaining part of the existing job
+budget; both producers and setup/post steps must still fit within 45 minutes.
