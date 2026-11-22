@@ -10,8 +10,7 @@ use toml::Value as Toml;
 const REFUSAL: &str = "metadata does not resolve the engine's locked regex-syntax";
 const SYNTAX_VERSION: &str = "0.8.12";
 const SYNTAX_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
-const SYNTAX_CHECKSUM: &str =
-    "d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6";
+const SYNTAX_CHECKSUM: &str = "d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6";
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ResolvedRegexDependencies {
