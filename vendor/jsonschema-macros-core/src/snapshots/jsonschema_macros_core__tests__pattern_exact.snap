@@ -1,9 +1,37 @@
 ---
 source: crates/jsonschema-macros-core/src/tests.rs
+assertion_line: 856
 description: "{\"pattern\":\"^abc$\",\"type\":\"string\"}"
-expression: is_valid_body(schema)
+expression: errors_body(schema)
 ---
 match instance {
-            __Value::String(s) => s == "abc",
-            _ => false,
+            __Value::String(s) => {
+                if let Some(__e) = '__first_error: {
+                    if !(s == "abc") {
+                        break '__first_error Some(
+                            __err::pattern("/pattern", __path.into(), instance, "^abc$"),
+                        );
+                    }
+                    None
+                } {
+                    if __errors.push(__e) {
+                        return true;
+                    }
+                }
+            }
+            _ => {
+                if __errors
+                    .push(
+                        __err::single_type(
+                            "/type",
+                            __path.into(),
+                            instance,
+                            __JT::String,
+                        ),
+                    )
+                {
+                    return true;
+                }
+            }
         }
+        false

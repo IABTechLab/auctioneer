@@ -4,7 +4,6 @@ use serde_json::Value;
 
 use super::super::CompiledExpr;
 
-/// Compile the "const" keyword.
 pub(in super::super) fn compile<E: ValueEmitter>(
     ctx: &CompileContext<'_, E>,
     value: &Value,
@@ -67,11 +66,11 @@ pub(in super::super) fn compile<E: ValueEmitter>(
                         __sj::from_str(#const_json).expect("Failed to parse const value"),
                     )
                 });
-            return Some(__err::constant(
+            break '__first_error Some(__err::constant(
                 #schema_path, __path.into(), #err_instance, &*CONST_EXPECTED,
             ));
         }
     };
 
-    CompiledExpr::with_validate_blocks(is_valid, validate_block)
+    CompiledExpr::from_first_error(is_valid, validate_block)
 }

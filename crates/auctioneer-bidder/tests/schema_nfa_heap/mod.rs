@@ -351,7 +351,7 @@ fn prefix_tree_maximum(
 }
 
 fn state_child(state: &State) -> Result<(usize, usize, usize), NfaHeapError> {
-    // nfa.rs:1514-1633,1795-1797,1882-1885. State is exhaustive in 0.4.18;
+    // nfa.rs:1514-1633,1795-1797,1882-1885. State is exhaustive in 0.4.19;
     // a future new variant fails compilation instead of silently costing zero.
     match state {
         State::Sparse(sparse) => Ok((sparse.transitions.len(), 0, 0)),

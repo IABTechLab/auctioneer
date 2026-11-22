@@ -10,7 +10,6 @@ use crate::context::MethodGates;
 
 pub(crate) struct MagnusEmitter;
 
-// A member name reaches its text through `AsRef<str>`.
 fn name_str(name: impl ToTokens) -> TokenStream {
     quote! { ::std::convert::AsRef::<str>::as_ref(&#name) }
 }
@@ -171,19 +170,6 @@ impl ValueEmitter for MagnusEmitter {
     fn object_contains_key(object_expr: impl ToTokens, key: &str) -> TokenStream {
         let key = Self::declare_key(key);
         quote! { __ObjectExt::get(&#object_expr, #key).is_some() }
-    }
-
-    fn object_iter_all(object_expr: impl ToTokens, body: impl ToTokens) -> TokenStream {
-        quote! {
-            __ObjectExt::members(&#object_expr).all(|(key, instance)| {
-                #body
-            })
-        }
-    }
-
-    fn object_get(object_expr: impl ToTokens, key: &str) -> TokenStream {
-        let key = Self::declare_key(key);
-        quote! { __ObjectExt::get(&#object_expr, #key) }
     }
 
     fn object_iter_entries(object_expr: impl ToTokens) -> TokenStream {
@@ -385,10 +371,31 @@ impl ValueEmitter for MagnusEmitter {
                 }
             }
         });
+        let evaluate = methods.evaluate.then(|| {
+            quote! {
+                pub(super) fn entry_evaluate(
+                    instance: &__rb::Value,
+                ) -> ::std::result::Result<jsonschema::Evaluation, __rb::Error> {
+                    let _scope = __json::MagnusPendingErrorScope::enter();
+                    __json::magnus_invalidate_members_cache();
+                    let node = __json::RbNode::new(__rb::AsRawValue::as_raw(*instance));
+                    __json::magnus_probe_root(node);
+                    if let Some(error) = __json::magnus_take_pending_error() {
+                        return Err(error.into());
+                    }
+                    let evaluation = evaluate(node);
+                    if let Some(error) = __json::magnus_take_pending_error() {
+                        return Err(error.into());
+                    }
+                    Ok(evaluation)
+                }
+            }
+        });
         quote! {
             #is_valid
             #validate
             #iter_errors
+            #evaluate
         }
     }
 
@@ -431,10 +438,23 @@ impl ValueEmitter for MagnusEmitter {
                 }
             }
         });
+        let evaluate = methods.evaluate.then(|| {
+            quote! {
+                pub fn evaluate(
+                    instance: &#value,
+                ) -> ::std::result::Result<
+                    #runtime_crate::Evaluation,
+                    #runtime_crate::__private::magnus::Error,
+                > {
+                    #impl_mod_name::entry_evaluate(instance)
+                }
+            }
+        });
         quote! {
             #is_valid
             #validate
             #iter_errors
+            #evaluate
         }
     }
 

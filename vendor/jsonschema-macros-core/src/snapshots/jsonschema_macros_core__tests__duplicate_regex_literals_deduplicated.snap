@@ -39,7 +39,6 @@ mod __validator_impl {
     fn __jsonschema_regex_0(
         subject: &str,
         schema_path: &str,
-        pattern: Option<&str>,
         instance_path: Option<&__paths::LazyLocation>,
     ) -> bool {
         static REGEX: __Lazy<Option<__fancy::Regex>> = __Lazy::new(|| {
@@ -49,13 +48,7 @@ mod __validator_impl {
         REGEX
             .as_ref()
             .is_some_and(|re| {
-                __unfinished::fancy_is_match(
-                    re,
-                    subject,
-                    schema_path,
-                    pattern,
-                    instance_path,
-                )
+                __unfinished::fancy_is_match(re, subject, schema_path, instance_path)
             })
     }
     pub(super) fn is_valid(instance: &__Value) -> bool {
@@ -69,7 +62,6 @@ mod __validator_impl {
                             __jsonschema_regex_0(
                                 key.as_str(),
                                 "/patternProperties/^[a-z]{2,}$",
-                                None,
                                 None,
                             )
                         } {
@@ -88,62 +80,11 @@ mod __validator_impl {
             _ => false,
         }
     }
-    pub(super) fn validate<'__i>(
+    pub(super) fn errors<'__i>(
         instance: &'__i __Value,
         __path: &__paths::LazyLocation,
-    ) -> Option<__VE<'__i>> {
-        match instance {
-            __Value::Object(obj) => {
-                for (key, value) in obj.iter() {
-                    let key_str = key.as_str();
-                    let mut covered = false;
-                    if {
-                        __jsonschema_regex_0(
-                            key.as_str(),
-                            "/patternProperties/^[a-z]{2,}$",
-                            None,
-                            Some(__path),
-                        )
-                    } {
-                        let instance = value;
-                        let __path = &__path.push(key_str);
-                        if !(instance.is_string()) {
-                            return Some(
-                                __err::single_type(
-                                    "/patternProperties/^[a-z]{2,}$/type",
-                                    __path.into(),
-                                    instance,
-                                    __JT::String,
-                                ),
-                            );
-                        }
-                        covered = true;
-                    }
-                    if !covered {
-                        return Some(
-                            __err::additional_properties(
-                                "/additionalProperties",
-                                __path.into(),
-                                instance,
-                                vec![key.clone()],
-                            ),
-                        );
-                    }
-                }
-            }
-            _ => {
-                return Some(
-                    __err::single_type("/type", __path.into(), instance, __JT::Object),
-                );
-            }
-        }
-        None
-    }
-    pub(super) fn collect_errors<'__i>(
-        instance: &'__i __Value,
-        __path: &__paths::LazyLocation,
-        __errors: &mut Vec<__VE<'__i>>,
-    ) {
+        __errors: &mut __err::Errors<'__i>,
+    ) -> bool {
         match instance {
             __Value::Object(obj) => {
                 let mut __unexpected: Vec<String> = Vec::new();
@@ -154,14 +95,13 @@ mod __validator_impl {
                         __jsonschema_regex_0(
                             key.as_str(),
                             "/patternProperties/^[a-z]{2,}$",
-                            None,
                             Some(__path),
                         )
                     } {
                         let instance = value;
                         let __path = &__path.push(key_str);
                         if !(instance.is_string()) {
-                            __errors
+                            if __errors
                                 .push(
                                     __err::single_type(
                                         "/patternProperties/^[a-z]{2,}$/type",
@@ -169,16 +109,30 @@ mod __validator_impl {
                                         instance,
                                         __JT::String,
                                     ),
-                                );
+                                )
+                            {
+                                return true;
+                            }
                         }
                         covered = true;
                     }
                     if !covered {
+                        if __errors.first_only() {
+                            return __errors
+                                .push(
+                                    __err::additional_properties(
+                                        "/additionalProperties",
+                                        __path.into(),
+                                        instance,
+                                        vec![key.clone()],
+                                    ),
+                                );
+                        }
                         __unexpected.push(key.clone());
                     }
                 }
                 if !__unexpected.is_empty() {
-                    __errors
+                    if __errors
                         .push(
                             __err::additional_properties(
                                 "/additionalProperties",
@@ -186,11 +140,52 @@ mod __validator_impl {
                                 instance,
                                 __unexpected,
                             ),
-                        );
+                        )
+                    {
+                        return true;
+                    }
+                }
+                for key in obj.keys() {
+                    let __key_val: __sj::Value = __sj::Value::String(key.clone());
+                    let mut __key_errors = __err::Errors::new(__errors.first_only());
+                    let _ = (|| -> bool {
+                        let s = key;
+                        let instance = &__key_val;
+                        let __errors = &mut __key_errors;
+                        if let Some(__e) = '__first_error: {
+                            if !(__jsonschema_regex_0(
+                                s,
+                                "/propertyNames/pattern",
+                                Some(__path),
+                            )) {
+                                break '__first_error Some(
+                                    __err::pattern(
+                                        "/propertyNames/pattern",
+                                        __path.into(),
+                                        instance,
+                                        "^[a-z]{2,}$",
+                                    ),
+                                );
+                            }
+                            None
+                        } {
+                            if __errors.push(__e) {
+                                return true;
+                            }
+                        }
+                        false
+                    })();
+                    for __e in __key_errors.into_vec() {
+                        if __errors
+                            .push(__err::property_names(__path.into(), instance, __e))
+                        {
+                            return true;
+                        }
+                    }
                 }
             }
             _ => {
-                __errors
+                if __errors
                     .push(
                         __err::single_type(
                             "/type",
@@ -198,9 +193,13 @@ mod __validator_impl {
                             instance,
                             __JT::Object,
                         ),
-                    );
+                    )
+                {
+                    return true;
+                }
             }
         }
+        false
     }
     pub(super) fn run_is_valid(instance: &__Value) -> bool {
         let valid = is_valid(instance);
@@ -210,28 +209,32 @@ mod __validator_impl {
         __unfinished::is_valid(is_valid, instance)
     }
     pub(super) fn run_validate<'__i>(instance: &'__i __Value) -> Option<__VE<'__i>> {
-        let error = validate(instance, &__paths::LazyLocation::new());
+        let error = {
+            let mut __errors = __err::Errors::new(true);
+            let _ = errors(instance, &__paths::LazyLocation::new(), &mut __errors);
+            __errors.into_first()
+        };
         if !__unfinished::met() {
             return error;
         }
         __unfinished::validate(
             || ::core::convert::Into::into(instance),
-            collect_errors,
+            errors,
             instance,
         )
     }
     pub(super) fn run_collect_errors<'__i>(instance: &'__i __Value) -> Vec<__VE<'__i>> {
-        let errors = {
-            let mut errors = Vec::new();
-            collect_errors(instance, &__paths::LazyLocation::new(), &mut errors);
-            errors
+        let found = {
+            let mut __errors = __err::Errors::new(false);
+            let _ = errors(instance, &__paths::LazyLocation::new(), &mut __errors);
+            __errors.into_vec()
         };
         if !__unfinished::met() {
-            return errors;
+            return found;
         }
         __unfinished::collect_errors(
             || ::core::convert::Into::into(instance),
-            collect_errors,
+            errors,
             instance,
         )
     }

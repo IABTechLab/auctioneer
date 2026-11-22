@@ -27,7 +27,7 @@ their diagnostics include standard-library source excerpts. CI installs the same
 component; do not regenerate snapshots to compensate for missing Rust sources.
 
 The current EdgeZero dependency is the immutable PR #275 integration revision
-`e9ffaa8f8057144155ffe164280994445fa0f6d8`, not a moving branch selector.
+`ea2549fb13728debf5afc34da2e70593061aa05f`, not a moving branch selector.
 Acquisition requires that upstream Git object to remain available. A missing
 object is a source-availability failure, not a failed runtime test; do not
 silently select another revision. Resolve the actual fetched checkout for
@@ -35,7 +35,7 @@ SDK-dependent tests rather than guessing Cargo's cache directory:
 
 ```sh
 set -euo pipefail
-pin=e9ffaa8f8057144155ffe164280994445fa0f6d8
+pin=ea2549fb13728debf5afc34da2e70593061aa05f
 metadata=$(mktemp)
 cargo metadata --locked --offline --format-version 1 > "$metadata"
 manifest=$(jq -er --arg source "git+https://github.com/IABTechLab/edgezero.git?rev=$pin#$pin" '
@@ -220,7 +220,12 @@ features remain intact. The 17 lighter evidence cases still exercise those
 graphs, with exhaustive field matrices owned by inline verifiers. The dedicated owner
 enumerates the target, runs both full case names with `--exact`, and refuses
 missing, ignored, zero or mismatched dispatch. Each producer still executes its
-fresh child plans, including secure and development onboarding.
+fresh child plans, including secure and development onboarding. CI selects
+`schema-source` and `controlled-native` in separate sequential steps of the same
+required producer job. Each invocation still validates both roster names, then
+checks its selected case's exact dispatch. The existing job limit and all child
+build/test/resource limits remain unchanged; the local command below defaults
+to running both cases.
 
 The existing CLI lane also owns `resource_boot_parity` explicitly. Its eight
 tests build their own child feature graph, compare actual compiler feature

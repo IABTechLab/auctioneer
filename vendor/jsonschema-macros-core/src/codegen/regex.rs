@@ -2,9 +2,20 @@ use crate::codegen::emit::ValueEmitter;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use crate::context::{CompileContext, PatternEngineConfig};
+use crate::context::{CompileContext, PatternEngineConfig, PatternSyntaxConfig};
 
 use super::{errors::invalid_regex_expression, CompiledExpr};
+
+/// A regex-free check for `pattern`, if it has one; only under `syntax = ecma262`.
+pub(super) fn analyze_pattern<'a, E: ValueEmitter>(
+    ctx: &CompileContext<'_, E>,
+    pattern: &'a str,
+) -> Option<jsonschema_regex::PatternAnalysis<'a>> {
+    match ctx.config.pattern_syntax {
+        PatternSyntaxConfig::Ecma262 => jsonschema_regex::analyze_pattern(pattern),
+        PatternSyntaxConfig::Engine => None,
+    }
+}
 
 pub(super) fn translate_and_validate_regex<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
@@ -14,12 +25,17 @@ pub(super) fn translate_and_validate_regex<E: ValueEmitter>(
     if let Some(cached) = ctx.translated_regex_cache.get(pattern) {
         return Ok(cached.clone());
     }
-    let Ok(translated) = jsonschema_regex::to_rust_regex(pattern) else {
-        return Err(invalid_regex_expression(keyword, pattern));
+    let translated = match ctx.config.pattern_syntax {
+        PatternSyntaxConfig::Engine => pattern.to_string(),
+        PatternSyntaxConfig::Ecma262 => {
+            let Ok(translated) = jsonschema_regex::to_rust_regex(pattern) else {
+                return Err(invalid_regex_expression(keyword, pattern));
+            };
+            // Preserve engine constructors and their default or supplied limits in every mode.
+            // Search-only substitutions must not bypass constructor refusal or initialization.
+            translated.into_owned()
+        }
     };
-    // The initialization API preserves engine constructors and their default or supplied
-    // limits in every mode; search-only substitutions must not bypass them.
-    let translated = translated.into_owned();
     let valid = match ctx.config.pattern_options {
         PatternEngineConfig::FancyRegex {
             backtrack_limit,
@@ -78,9 +94,7 @@ fn get_or_create_regex_helper<E: ValueEmitter>(
 /// Where a regex match happens, for reporting a match `fancy-regex` cannot finish.
 pub(super) struct RegexSite<'a> {
     pub(super) schema_path: &'a str,
-    /// The `pattern` keyword's source pattern.
-    pub(super) pattern: Option<&'a str>,
-    /// Emitted into `validate` or `collect_errors` code, where `__path` is the instance location.
+    /// Emitted into error-reporting code, where `__path` is the instance location.
     pub(super) located: bool,
 }
 
@@ -94,15 +108,12 @@ pub(super) fn compile_regex_match<E: ValueEmitter>(
     match ctx.config.pattern_options {
         PatternEngineConfig::FancyRegex { .. } => {
             let schema_path = site.schema_path;
-            let source = site
-                .pattern
-                .map_or_else(|| quote! { None }, |p| quote! { Some(#p) });
             let instance_path = if site.located {
                 quote! { Some(__path) }
             } else {
                 quote! { None }
             };
-            quote! { #helper(#subject, #schema_path, #source, #instance_path) }
+            quote! { #helper(#subject, #schema_path, #instance_path) }
         }
         PatternEngineConfig::Regex { .. } => quote! { #helper(#subject) },
     }

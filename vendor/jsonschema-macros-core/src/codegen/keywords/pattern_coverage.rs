@@ -5,12 +5,12 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use serde_json::Value;
 
-use super::super::{compile_regex_match, translate_and_validate_regex, CompileContext, RegexSite};
+use super::super::{
+    analyze_pattern, compile_regex_match, translate_and_validate_regex, CompileContext, RegexSite,
+};
 use crate::codegen::CompiledExpr;
 
-/// Emitted checks deciding whether a property key is covered by
-/// `patternProperties`. Built once and shared by `additionalProperties`,
-/// the wildcard properties arm, and `unevaluatedProperties`.
+/// Emitted checks deciding whether `patternProperties` covers a property key.
 pub(super) struct PatternCoverage {
     pub(super) statics: Vec<TokenStream>,
     pub(super) checks: Vec<TokenStream>,
@@ -29,7 +29,7 @@ impl PatternCoverage {
 
 /// Build the coverage checks for `patternProperties`, or `Err` with the first
 /// invalid-regex diagnostic.
-/// `located` emits the checks into `validate` code, where `__path` is the object's location.
+/// `located` emits the checks into error-reporting code, where `__path` is the object's location.
 pub(super) fn build_pattern_coverage<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     pattern_properties: Option<&Value>,
@@ -47,7 +47,7 @@ pub(super) fn build_pattern_coverage<E: ValueEmitter>(
     let mut regex_patterns: Vec<(String, &str)> = Vec::new();
     let mut predicates: Vec<TokenStream> = Vec::new();
     for pattern in obj.keys() {
-        match jsonschema_regex::analyze_pattern(pattern) {
+        match analyze_pattern(ctx, pattern) {
             Some(jsonschema_regex::PatternAnalysis::Prefix(prefix)) => prefixes.push(prefix),
             Some(jsonschema_regex::PatternAnalysis::Exact(exact)) => {
                 literals.push(exact.into_owned());
@@ -100,7 +100,6 @@ pub(super) fn build_pattern_coverage<E: ValueEmitter>(
                 });
                 let site = RegexSite {
                     schema_path: &schema_path,
-                    pattern: None,
                     located,
                 };
                 compile_regex_match(ctx, regex, &quote! { key_str }, &site)

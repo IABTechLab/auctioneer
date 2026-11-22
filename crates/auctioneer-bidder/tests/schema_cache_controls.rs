@@ -91,7 +91,7 @@ mod tests {
                         quote!(
                             schema = #schema, draft = Draft4,
                             pattern_options = { engine = regex, #cache #limits },
-                            methods = { is_valid = true, validate = false, iter_errors = false }
+                            methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
                         ),
                         quote!(
                             pub struct BoundedPattern;
@@ -161,7 +161,7 @@ mod tests {
             .iter()
             .filter(|package| package["name"].as_str() == Some("regex-automata"));
         let package = matching.next().ok_or("engine package identity")?;
-        if matching.next().is_some() || package["version"].as_str() != Some("0.4.18") {
+        if matching.next().is_some() || package["version"].as_str() != Some("0.4.19") {
             return Err("engine package identity");
         }
         let id = package["id"]
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn feature_resolution_refuses_missing_duplicate_and_wrong_packages() {
-        let original = json!({"packages": [{"name": "regex-automata", "version": "0.4.18", "id": "path+file:///reviewed#regex-automata@0.4.18"}], "resolve": {"nodes": [{"id": "path+file:///reviewed#regex-automata@0.4.18", "features": ["alloc"]}]}});
+        let original = json!({"packages": [{"name": "regex-automata", "version": "0.4.19", "id": "path+file:///reviewed#regex-automata@0.4.19"}], "resolve": {"nodes": [{"id": "path+file:///reviewed#regex-automata@0.4.19", "features": ["alloc"]}]}});
         assert_eq!(engine_features(&original), Ok(BTreeSet::from(["alloc"])));
         let mut missing_package = original.clone();
         missing_package["packages"] = json!([]);
@@ -261,19 +261,23 @@ mod tests {
             ),
             (
                 "pattern_options = { engine = regex, cache = explicit }",
-                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false`",
+                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`",
             ),
             (
-                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = true, iter_errors = false }",
-                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false`",
+                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = true, iter_errors = false, evaluate = false }",
+                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`",
             ),
             (
-                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = true }",
-                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false`",
+                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = true, evaluate = false }",
+                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`",
             ),
             (
-                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = false, validate = false, iter_errors = false }",
-                "At least one of `is_valid`, `validate`, or `iter_errors` must be enabled",
+                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false, evaluate = true }",
+                "`cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`",
+            ),
+            (
+                "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = false, validate = false, iter_errors = false, evaluate = false }",
+                "At least one of `is_valid`, `validate`, `iter_errors`, or `evaluate` must be enabled",
             ),
         ] {
             assert_eq!(expansion_error(options), expected, "{options}");
@@ -288,6 +292,8 @@ mod tests {
         pooled: Vec<String>,
         thread_locals: usize,
         boolean_helpers: usize,
+        ambient_reference_memos: usize,
+        reference_memo_contexts: usize,
     }
 
     #[expect(
@@ -303,6 +309,9 @@ mod tests {
         }
 
         fn visit_item_struct_mut(&mut self, i: &mut syn::ItemStruct) {
+            if i.ident == "__RefMemo" {
+                self.reference_memo_contexts = self.reference_memo_contexts.checked_add(1).unwrap();
+            }
             if i.ident == "__SearchCache" {
                 for field in &i.fields {
                     if let syn::Type::Path(path) = &field.ty
@@ -316,6 +325,15 @@ mod tests {
                 }
             }
             visit_mut::visit_item_struct_mut(self, i);
+        }
+
+        fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
+            if matches!(i.func.as_ref(), syn::Expr::Path(path)
+                if path.path.segments.first().is_some_and(|segment| segment.ident == "__ref_memo"))
+            {
+                self.ambient_reference_memos = self.ambient_reference_memos.checked_add(1).unwrap();
+            }
+            visit_mut::visit_expr_call_mut(self, i);
         }
 
         fn visit_expr_method_call_mut(&mut self, i: &mut syn::ExprMethodCall) {
@@ -377,7 +395,7 @@ mod tests {
         });
         let mut syntax = expanded(
             &schema,
-            "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false }",
+            "pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }",
         );
         let mut shape = GeneratedShape::default();
         shape.visit_file_mut(&mut syntax);
@@ -457,7 +475,7 @@ mod tests {
             let mut syntax = expanded(
                 &schema,
                 &format!(
-                    "draft = {draft}, {format_options} pattern_options = {{ engine = regex, cache = explicit }}, methods = {{ is_valid = true, validate = false, iter_errors = false }}"
+                    "draft = {draft}, {format_options} pattern_options = {{ engine = regex, cache = explicit }}, methods = {{ is_valid = true, validate = false, iter_errors = false, evaluate = false }}"
                 ),
             );
             let mut shape = GeneratedShape::default();
@@ -468,52 +486,77 @@ mod tests {
         }
     }
 
+    #[test]
+    fn revisited_reference_memos_and_dynamic_scopes_belong_to_each_context() {
+        for schema in [
+            serde_json::from_str(include_str!(
+                "support/fake_bidder/schemas/cache/revisited.json"
+            ))
+            .unwrap(),
+            serde_json::from_str(include_str!(
+                "support/fake_bidder/schemas/cache/scoped-revisited.json"
+            ))
+            .unwrap(),
+        ] {
+            let mut syntax = expanded(
+                &schema,
+                "draft = Draft202012, pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }",
+            );
+            let mut shape = GeneratedShape::default();
+            shape.visit_file_mut(&mut syntax);
+            assert_eq!(shape.reference_memo_contexts, 1, "{schema}");
+            assert_eq!(shape.ambient_reference_memos, 0, "{schema}");
+            assert_eq!(shape.thread_locals, 0, "{schema}");
+            assert!(shape.pooled.is_empty(), "{schema}: {:?}", shape.pooled);
+        }
+    }
+
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct ExplicitPatterns;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct DefaultPatterns;
 
     #[jsonschema::validator(
         schema = "{}", draft = Draft4,
         pattern_options = { engine = regex, cache = explicit },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Empty;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/cache/branches.json", draft = Draft202012,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Branches;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/cache/recursive.json", draft = Draft201909,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Recursive;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/cache/recursive-array.json", draft = Draft201909,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct RecursiveArray;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/cache/dynamic.json", draft = Draft202012,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Dynamic;
 
@@ -521,7 +564,7 @@ mod tests {
         schema = "{\"type\":\"string\",\"format\":\"named\"}", draft = Draft4,
         validate_formats = true, formats = { "named" => crate::target },
         pattern_options = { engine = regex, cache = explicit },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct CustomFormat;
 
@@ -529,7 +572,7 @@ mod tests {
         schema = "{\"type\":\"string\",\"format\":\"uri\"}", draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, cache = explicit },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct UriFormat;
 
@@ -537,9 +580,44 @@ mod tests {
         path = "tests/support/fake_bidder/schemas/cache/panic-reference.json", draft = Draft202012,
         validate_formats = true, formats = { "test-panic" => crate::test_panic },
         pattern_options = { engine = regex, cache = explicit },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct PanicReference;
+
+    #[jsonschema::validator(
+        path = "tests/support/fake_bidder/schemas/cache/revisited.json", draft = Draft202012,
+        pattern_options = { engine = regex, cache = explicit },
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
+    )]
+    struct Revisited;
+
+    #[jsonschema::validator(
+        path = "tests/support/fake_bidder/schemas/cache/scoped-revisited.json", draft = Draft202012,
+        pattern_options = { engine = regex, cache = explicit },
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
+    )]
+    struct ScopedRevisited;
+
+    #[test]
+    fn revisited_reference_results_do_not_survive_a_new_validation_or_cross_contexts() {
+        let mut ordinary = Revisited::new_search_cache().unwrap();
+        let mut scoped = ScopedRevisited::new_search_cache().unwrap();
+        let mut other = Revisited::new_search_cache().unwrap();
+        let mut value = json!({"value": 1_i32});
+        for _ in 0_usize..12 {
+            value = json!({"value": 1_i32, "child": value});
+        }
+        for expected in [true, false, true, false] {
+            let mut leaf = &mut value;
+            for _ in 0_usize..12 {
+                leaf = leaf.get_mut("child").unwrap();
+            }
+            leaf["value"] = if expected { json!(1_i32) } else { json!("bad") };
+            assert_eq!(Revisited::is_valid(&value, &mut ordinary), expected);
+            assert_eq!(ScopedRevisited::is_valid(&value, &mut scoped), expected);
+            assert_eq!(Revisited::is_valid(&value, &mut other), expected);
+        }
+    }
 
     #[test]
     fn nested_branches_property_names_and_pattern_properties_share_explicit_context() {

@@ -234,7 +234,7 @@ mod tests {
     fn structural_parser_is_exactly_pinned_and_native_test_only() {
         let workspace: Value = toml::from_str(include_str!("../../../../Cargo.toml")).unwrap();
         let dependency = &workspace["workspace"]["dependencies"]["regex-syntax"];
-        assert_eq!(dependency["version"].as_str(), Some("=0.8.11"));
+        assert_eq!(dependency["version"].as_str(), Some("=0.8.12"));
         assert_eq!(dependency["default-features"].as_bool(), Some(false));
         assert_eq!(
             dependency["features"].as_array().unwrap(),

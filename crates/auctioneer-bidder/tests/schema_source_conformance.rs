@@ -87,7 +87,7 @@ fn bundle_patterns(
                 "hostname" => crate::reference_hostname_format
             },
             pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-            methods = { is_valid = true, validate = false, iter_errors = false }
+            methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
         },
         quote!(
             pub struct BundleProof;
@@ -2823,7 +2823,7 @@ mod tests {
         let (compiler, target) = native_layout_build_identity(&build).unwrap();
         assert!(compiler.lines().any(|line| line == "release: 1.98.1"));
         Identity {
-            engine_version: "0.4.18".to_owned(),
+            engine_version: "0.4.19".to_owned(),
             archive_sha256: source.archive_sha256,
             patch_sha256: source.patch_sha256,
             tree_sha256: source.tree_sha256,
@@ -3535,7 +3535,7 @@ mod tests {
             .unwrap();
             let mut parser = ParserBuilder::new().utf8(true).build();
             let hir = parser.parse(pattern).unwrap();
-            // Observation only: regex-automata 0.4.18 RegexInfo::new's public
+            // Observation only: regex-automata 0.4.19 RegexInfo::new's public
             // owner sequence. HIR parsing and all engine construction are out.
             let ((props, union), construction_metrics) = super::schema_meter::measure(|| {
                 let mut props = Vec::new();

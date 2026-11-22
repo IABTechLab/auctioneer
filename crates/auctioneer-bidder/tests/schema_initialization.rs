@@ -145,7 +145,7 @@ mod tests {
     #[engine::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Concurrent;
 

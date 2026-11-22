@@ -18,7 +18,7 @@ pub(super) mod not;
 pub(super) mod number;
 pub(super) mod object;
 pub(super) mod object_pass;
-pub(super) mod one_of;
+pub(crate) mod one_of;
 pub(super) mod pattern;
 pub(super) mod pattern_coverage;
 pub(super) mod pattern_properties;
@@ -82,16 +82,16 @@ pub(super) fn compile_count_range<E: ValueEmitter>(
                 let min_error = format_ident!("{min_error}");
                 let max_error = format_ident!("{max_error}");
                 let limit = proc_macro2::Literal::u64_unsuffixed(min);
-                checks.push(CompiledExpr::with_validate_blocks(
+                checks.push(CompiledExpr::from_first_error(
                     quote! { (#count as u64) == #limit },
                     quote! {
                         if (#count as u64) < #limit {
-                            return Some(__err::#min_error(
+                            break '__first_error Some(__err::#min_error(
                                 #min_path, __path.into(), #err_instance, #limit,
                             ));
                         }
                         if (#count as u64) > #limit {
-                            return Some(__err::#max_error(
+                            break '__first_error Some(__err::#max_error(
                                 #max_path, __path.into(), #err_instance, #limit,
                             ));
                         }

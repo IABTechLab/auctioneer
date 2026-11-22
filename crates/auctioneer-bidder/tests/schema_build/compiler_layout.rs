@@ -1013,7 +1013,7 @@ fn source_inputs(
     let identity = if package["name"] == "regex-automata" && package["source"].is_null() {
         let verified =
             super::schema_regex_vendor::verify(workspace).map_err(|error| error.to_string())?;
-        if root != verified.canonical_root || package["version"] != "0.4.18" {
+        if root != verified.canonical_root || package["version"] != "0.4.19" {
             return Err("compiler layout reviewed engine mismatch".into());
         }
         serde_json::to_value(verified).map_err(|error| error.to_string())?

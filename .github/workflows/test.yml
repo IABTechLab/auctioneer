@@ -52,6 +52,10 @@ jobs:
         if: matrix.lane == 'secure'
         run: bash .github/workflows/scripts/test/check-libtest-result-fixtures.sh
 
+      - name: Check evidence producer selection controls
+        if: matrix.lane == 'secure'
+        run: bash .github/workflows/scripts/test/check-evidence-producer-selection-fixtures.sh
+
       - name: Check out prebid-server fixtures
         uses: actions/checkout@v7
         with:
@@ -341,12 +345,18 @@ jobs:
         if: matrix.lane == 'cli'
         run: cargo clippy --locked -p auctioneer-cli --test resource_boot_parity -- -D warnings
 
-      # These closed plans build and dispatch secure/development child graphs.
-      # Only libtest selection changes above; all parent Cargo graphs stay intact.
-      - name: Verify fresh evidence producers and exact dispatch
+      # Both producers stay in the same required job and retain their closed
+      # child graphs. Separate step budgets avoid charging both cold producers
+      # to one 40-minute step; the existing job budget remains unchanged.
+      - name: Verify fresh schema evidence producer and exact dispatch
         timeout-minutes: 40
         if: matrix.lane == 'evidence-producers'
-        run: bash .github/workflows/scripts/test/verify-evidence-producers.sh
+        run: bash .github/workflows/scripts/test/verify-evidence-producers.sh schema-source
+
+      - name: Verify fresh native evidence producer and exact dispatch
+        timeout-minutes: 40
+        if: matrix.lane == 'evidence-producers'
+        run: bash .github/workflows/scripts/test/verify-evidence-producers.sh controlled-native
 
       # Keep repair/reference coverage independent of application/config builds.
       # The job-level pinned bidder source also feeds these all-targets tests.

@@ -41,22 +41,23 @@ pub(in super::super) fn compile<E: ValueEmitter>(
                 },
             ));
         }
-        (Some(Ok(min)), Some(Ok(max))) => {
+        // Both report when `minLength` exceeds `maxLength`, which one first-error check cannot.
+        (Some(Ok(min)), Some(Ok(max))) if min <= max => {
             let min_path = ctx.schema_path_for_keyword("minLength");
             let max_path = ctx.schema_path_for_keyword("maxLength");
             let min = proc_macro2::Literal::u64_unsuffixed(*min);
             let max = proc_macro2::Literal::u64_unsuffixed(*max);
-            items.push(CompiledExpr::with_validate_blocks(
+            items.push(CompiledExpr::from_first_error(
                 quote! { { let len = s.chars().count(); (len as u64) >= #min && (len as u64) <= #max } },
                 quote! {
                     let len = s.chars().count();
                     if (len as u64) < #min {
-                        return Some(__err::min_length(
+                        break '__first_error Some(__err::min_length(
                             #min_path, __path.into(), #err_instance, #min,
                         ));
                     }
                     if (len as u64) > #max {
-                        return Some(__err::max_length(
+                        break '__first_error Some(__err::max_length(
                             #max_path, __path.into(), #err_instance, #max,
                         ));
                     }

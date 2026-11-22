@@ -2,7 +2,7 @@
 
 ## Schema Compiler
 
-`jsonschema-macros-core/` contains the published 0.61.2 package from
+`jsonschema-macros-core/` contains the published 0.62.0 package from
 [Stranger6667/jsonschema](https://github.com/Stranger6667/jsonschema), with three
 separate compiler patches. It is excluded from the Auctioneer workspace and patched through
 the root manifest. It generates the controlled-native validators and the
@@ -11,9 +11,9 @@ qualify guest serving.
 
 The adjacent original `.crate` archive is retained for offline provenance
 verification. Its SHA-256 is
-`75afa4b5e6986cc221f5339d7d6149360f0bf8e65bcb23617dc0f92900b576d2`.
-Its source revision is `0e82636fde8b2afb5e712ede6c261166ea10fc17`.
-All 280 published members are preserved. The upstream MIT license, fetched
+`e869997df6b45ae196cfa9261861bd21f0b6cc786fc12e8e041e2f0ccf8690f7`.
+Its source revision is `24280ebc025661f9743d969c7ea51122e21f205a`.
+All 298 published members are preserved. The upstream MIT license, fetched
 from that source revision, is added because the published package omits it.
 
 The type-check patch changes only `src/codegen/object_schema.rs`. It no longer
@@ -25,6 +25,11 @@ keyword can introduce a successful arm for a type that the schema forbids.
 Restoring the existing maintained type check prevents that arm from granting
 validation. No schema, coercion rule, runtime compiler or Auctioneer type prefilter
 is introduced. The extra check must be included in work/code-size qualification.
+
+Version 0.62.0 separates validity checks from phase-ordered errors. Its typed
+dispatch repairs some forbidden-type arms, but the unchanged numeric-union
+fixture fails to compile without the independent type-check patch. The rebase
+keeps the declared type check separate while preserving the new error phases.
 
 The initialization patch changes only `src/codegen/emit_root.rs`. Each
 generated validator exposes `initialize_regexes() -> bool`, forcing every
@@ -45,12 +50,20 @@ shared regex constructors and returns `None` on a cached constructor error.
 Non-opted-in output keeps the existing ABI. The existing `syn` dependency
 enables structured mutable AST traversal for this isolated lowering pass.
 
+Version 0.62.0 also adds reference-result memoization and evaluation methods.
+Explicit mode keeps the new memo results, visit counter and dynamic-scope
+identities inside the validator-specific context, preserving upstream
+container-identity keys and the sixteen-visit retention threshold. It does not
+call the runtime's thread-local memo helpers. Its boolean-only method contract
+now explicitly requires `evaluate = false`; opted-in evaluation is refused.
+Memo ownership does not establish a resource or work bound for recursive schemas.
+
 This patch changes exactly seven existing members: `Cargo.toml`,
 `Cargo.toml.orig`, `src/codegen.rs`, `src/context.rs`, `src/lib.rs`, and
 `src/tests.rs`, plus `src/codegen/regex.rs`. It adds one member,
 `src/codegen/explicit_cache.rs`.
 
-Version 0.61.2 introduces repetition-count matchers and collapsed search
+Version 0.61.2 introduced repetition-count matchers and collapsed search
 patterns before engine construction. The rebased patch retains original-pattern
 engine construction in every mode, including the default and supplied size
 limits. Otherwise these substitutions bypass the constructor limits and the
@@ -79,22 +92,23 @@ the complete schema compatibility set, and target/resource qualification.
 ## Upgrades
 
 The portable changes are
-[`patches/jsonschema-macros-core-0.61.2-type-check.patch`](patches/jsonschema-macros-core-0.61.2-type-check.patch),
-[`patches/jsonschema-macros-core-0.61.2-regex-initialization.patch`](patches/jsonschema-macros-core-0.61.2-regex-initialization.patch),
-and [`patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch`](patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch).
+[`patches/jsonschema-macros-core-0.62.0-type-check.patch`](patches/jsonschema-macros-core-0.62.0-type-check.patch),
+[`patches/jsonschema-macros-core-0.62.0-regex-initialization.patch`](patches/jsonschema-macros-core-0.62.0-regex-initialization.patch),
+and [`patches/jsonschema-macros-core-0.62.0-explicit-cache-all-modes.patch`](patches/jsonschema-macros-core-0.62.0-explicit-cache-all-modes.patch).
 Their SHA-256 values match the portable compiler replay test pins:
 
-- Type-check: `1d1ed4cdfdd21abbd2c469bbee6f7aa3ea8079c736dd22b9abe5d08e76265358`.
-- Regex initialization: `b21e13915ba100b27a8db5c1b765b5f81c302be806d763359f73e0ca5a5be798`.
-- Explicit cache: `846658280e27162d5ea8334ba347eb86e0cf9ff05d22f701e632ce648868befe`.
+- Type-check: `66ff2840a027d5a1b311ff68b66eeb0fd7a9220febb0e58a62109b54257632c5`.
+- Regex initialization: `781eed59d8ccabdbd0f848ba34f3a434899cc0508080927294878cae056cd4d6`.
+- Explicit cache: `3a2176665de3cb2a51d4992e71de5b3181c819586e17cc7de637647737589992`.
 
-The original 0.58.6 archive and unversioned patch files remain historical
-artifacts. They are not the active compiler pins. Published 0.61.2 snapshots
+The original 0.58.6 and 0.61.2 archives, unversioned compiler patches and
+versioned 0.61.2 patches remain historical artifacts. They are not the active
+compiler pins. Published 0.62.0 snapshots
 come unchanged from its original archive, not from recapturing patched output.
 
 Integration tests replay them in order against fresh published source and
 compare every changed or added member with the checked-in compiler tree.
-The original 280 members remain mandatory. Exact inventories reject unknown
+The original 298 members remain mandatory. Exact inventories reject unknown
 additions, deletions, symlinks, edits and partial replay; historical patch
 outputs retain their own pins rather than inheriting a later file's hash.
 
@@ -102,12 +116,12 @@ For a new upstream version, retain the new original package and its checksum,
 refresh the expanded source, then rebase all three patches in order. From the repository root:
 
 ```sh
-git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-type-check.patch
-git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-type-check.patch
-git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-regex-initialization.patch
-git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-regex-initialization.patch
-git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch
-git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch
+git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.62.0-type-check.patch
+git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.62.0-type-check.patch
+git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.62.0-regex-initialization.patch
+git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.62.0-regex-initialization.patch
+git apply --check --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.62.0-explicit-cache-all-modes.patch
+git apply --directory=vendor/jsonschema-macros-core vendor/patches/jsonschema-macros-core-0.62.0-explicit-cache-all-modes.patch
 ```
 
 Update the exact version, archive and patched-file pins only in that reviewed
@@ -120,12 +134,12 @@ replace the pinned local compiler.
 
 ## Regex Layout Queries
 
-`regex-automata/` retains all 107 published members of version 0.4.18, with
+`regex-automata/` retains all 107 published members of version 0.4.19, with
 one [portable patch](patches/regex-automata-resource-layout.patch) approved by
 AG on 2026-10-28. The original archive is
-`regex-automata-0.4.18.crate` (SHA-256
-`ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2`,
-VCS `e6ad938198e68339a593f85d228f2d44cb54718f`). The patch SHA-256 is
+`regex-automata-0.4.19.crate` (SHA-256
+`41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158`,
+VCS `4226f214c56e584304520adb9080bcc4c792390e`). The patch SHA-256 is
 `5d853f05430eda9b9e80fb1f359cddce730dcf86a61be32efa2605a46702e020`.
 
 The patch changes only `src/meta/mod.rs`, `src/meta/regex.rs` and
@@ -137,6 +151,16 @@ exclude Arc headers, all children, capacities, caches and physical memory.
 They do not identify shared allocations or expose hidden automatic prefilters.
 Native candidate observations are not generated-singleton or guest evidence.
 See the [approved contract](../docs/superpowers/specs/2026-10-28-regex-resource-layout-api-design.md).
+
+The layout patch replays unchanged on 0.4.19. This upstream release fixes
+matching boundary cases and changes the default meta-regex pool capacity from
+native available parallelism to eight. Explicit-cache validators and Auctioneer's
+custom hostname-format owner retain their configured pool capacity of one.
+Stock constructors that leave the pool unset use the new default; this source
+update does not recertify old pool observations. Regex-syntax 0.8.12 preserves
+the previous Unicode table bytes,
+repairs parser reuse and leftmost-first prefix factoring, and canonicalizes
+intervals in place. Existing bounds, workloads and captures remain unchanged.
 
 Standalone schema probes must resolve both reviewed patches. Engine controls
 replay the pinned diff against the pinned archive and compare the whole tree;

@@ -10,7 +10,7 @@ use quote::{format_ident, quote};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 
-pub const CANDIDATE_OPTIONS: &str = "jsonschema=workspace;regex=workspace;cache=explicit;size_limit=65536;dfa_size_limit=65536;validate_formats=true;ignore_unknown_formats=false;is_valid=true;validate=false;iter_errors=false;formats=private_uuid_hostname";
+pub const CANDIDATE_OPTIONS: &str = "jsonschema=workspace;regex=workspace;cache=explicit;size_limit=65536;dfa_size_limit=65536;validate_formats=true;ignore_unknown_formats=false;is_valid=true;validate=false;iter_errors=false;evaluate=false;formats=private_uuid_hostname";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Draft {
@@ -117,7 +117,7 @@ pub fn quote_validators(
                 ignore_unknown_formats = false,
                 formats = { #(#formats),* },
                 pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             struct #marker;
         });
@@ -180,7 +180,7 @@ mod tests {
                 ignore_unknown_formats = false,
                 formats = { "hostname" => crate::schema::staging::formats::hostname, "uuid" => crate::schema::staging::formats::uuid },
                 pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             struct StagedSchema0;
             #[jsonschema::validator(
@@ -188,7 +188,7 @@ mod tests {
                 ignore_unknown_formats = false,
                 formats = {},
                 pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             struct StagedSchema1;
         };

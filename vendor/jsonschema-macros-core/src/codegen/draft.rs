@@ -79,7 +79,7 @@ impl DraftExt for Draft {
 
     #[inline]
     fn supports_content_validation_keywords(self) -> bool {
-        matches!(self, Draft::Draft6 | Draft::Draft7)
+        self == Draft::Draft7
     }
 
     #[inline]
@@ -151,6 +151,36 @@ impl<E: ValueEmitter> CompileContext<'_, E> {
     #[inline]
     pub(crate) fn supports_applicator_vocabulary(&self) -> bool {
         self.has_vocabulary(&Vocabulary::Applicator)
+    }
+
+    /// Whether the active vocabularies give `keyword`, one the draft knows, any effect.
+    pub(crate) fn keyword_in_vocabulary(&self, keyword: &str) -> bool {
+        let vocabulary = match keyword {
+            "additionalItems"
+            | "additionalProperties"
+            | "allOf"
+            | "anyOf"
+            | "contains"
+            | "dependencies"
+            | "dependentSchemas"
+            | "if"
+            | "items"
+            | "not"
+            | "oneOf"
+            | "patternProperties"
+            | "prefixItems"
+            | "properties"
+            | "propertyNames" => Vocabulary::Applicator,
+            "const" | "dependentRequired" | "enum" | "exclusiveMaximum" | "exclusiveMinimum"
+            | "maxItems" | "maxLength" | "maxProperties" | "maximum" | "minItems" | "minLength"
+            | "minProperties" | "minimum" | "multipleOf" | "pattern" | "required" | "type"
+            | "uniqueItems" => Vocabulary::Validation,
+            "contentEncoding" | "contentMediaType" | "contentSchema" => Vocabulary::Content,
+            "unevaluatedItems" => return self.supports_unevaluated_items(),
+            "unevaluatedProperties" => return self.supports_unevaluated_properties(),
+            _ => return true,
+        };
+        self.has_vocabulary(&vocabulary)
     }
 
     #[inline]

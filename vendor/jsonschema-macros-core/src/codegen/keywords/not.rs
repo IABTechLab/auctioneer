@@ -17,18 +17,18 @@ pub(crate) fn compile<E: ValueEmitter>(
             __Lazy::new(|| {
                 __sj::from_str(#not_schema_json).expect("Failed to parse not schema")
             });
-        return Some(__err::not(
+        break '__first_error Some(__err::not(
             #schema_path, __path.into(), #err_instance, NOT_SCHEMA.clone(),
         ));
     };
 
     if inner.is_trivially_true() {
-        // `not: true`: always invalid; report the error at the /not path.
-        return CompiledExpr::with_validate_blocks(quote! { false }, report_error);
+        // `not: true` (or `{}`) rejects every instance; the error sits at `/not`.
+        return CompiledExpr::from_first_error(quote! { false }, report_error);
     }
     let is_valid = inner.is_valid_token_stream();
 
-    CompiledExpr::with_validate_blocks(
+    CompiledExpr::from_first_error(
         quote! { !(#is_valid) },
         quote! {
             if #is_valid {

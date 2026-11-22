@@ -12,9 +12,9 @@ use super::super::{
     CompileContext, CompiledExpr,
 };
 
-/// Match pattern for a type whose check is a bare serde variant pattern.
+/// Match pattern for a type checked by its JSON type alone.
 /// `None` for "number"/"integer", whose checks carry an integer sub-guard.
-fn simple_type_pattern<E: ValueEmitter>(ty: &str) -> Option<TokenStream> {
+pub(crate) fn simple_type_pattern<E: ValueEmitter>(ty: &str) -> Option<TokenStream> {
     Some(match ty {
         "string" => E::pattern_string(),
         "boolean" => E::pattern_boolean(),
@@ -40,13 +40,7 @@ pub(crate) fn compile<E: ValueEmitter>(ctx: &CompileContext<'_, E>, value: &Valu
     let schema_path = ctx.schema_path_for_keyword("type");
 
     match value {
-        Value::String(ty) => {
-            if is_known_type_name(ty) {
-                generate_type_check(ctx, ty.as_str(), &schema_path)
-            } else {
-                invalid_schema_unexpected_type_expression()
-            }
-        }
+        Value::String(ty) => generate_type_check(ctx, ty.as_str(), &schema_path),
         Value::Array(types) => {
             let mut type_names = Vec::with_capacity(types.len());
             for item in types {

@@ -62,6 +62,8 @@ fn unused_error_stack(name: &str) -> bool {
             | "__JSONSCHEMA_RECURSIVE_COLLECT_STACK"
             | "__JSONSCHEMA_DYNAMIC_VALIDATE_STACK"
             | "__JSONSCHEMA_DYNAMIC_COLLECT_STACK"
+            | "__JSONSCHEMA_RECURSIVE_ERRORS_STACK"
+            | "__JSONSCHEMA_DYNAMIC_ERRORS_STACK"
     )
 }
 
@@ -72,7 +74,7 @@ struct PointerAbi {
 }
 
 impl VisitMut for PointerAbi {
-    fn visit_type_bare_fn_mut(&mut self, ty: &mut syn::TypeBareFn) {
+    fn visit_type_fn_ptr_mut(&mut self, ty: &mut syn::TypeFnPtr) {
         if !is_bool(&ty.output) || ty.inputs.len() != self.arity || ty.variadic.is_some() {
             self.error = Some(failure(
                 &*ty,
@@ -214,6 +216,12 @@ pub(super) fn lower<E: ValueEmitter>(
         retained.push(item);
     }
     *items = retained;
+    if ctx.keeps_ref_results() {
+        items.retain(|item| !matches!(item, Item::Use(item)
+            if matches!(&item.tree, syn::UseTree::Path(path) if path.ident == "jsonschema"
+                && matches!(&*path.tree, syn::UseTree::Path(path) if path.ident == "__private"
+                    && matches!(&*path.tree, syn::UseTree::Rename(rename) if rename.ident == "ref_memo" && rename.rename == "__ref_memo")))));
+    }
 
     let PatternEngineConfig::Regex {
         size_limit,
@@ -279,7 +287,8 @@ pub(super) fn lower<E: ValueEmitter>(
         .iter()
         .filter_map(|item| match item {
             Item::Fn(item)
-                if is_bool(&item.sig.output) && item.sig.ident != "initialize_regexes" =>
+                if (is_bool(&item.sig.output) && item.sig.ident != "initialize_regexes")
+                    || item.sig.ident == "__dynamic_scope" =>
             {
                 Some((item.sig.ident.to_string(), item.sig.inputs.len()))
             }
@@ -346,12 +355,108 @@ pub(super) fn lower<E: ValueEmitter>(
     let cache_initializers = regex_fields
         .iter()
         .map(|(field, storage)| quote! { #field: #storage.as_ref()?.create_cache() });
+    let memo_field = ctx
+        .keeps_ref_results()
+        .then(|| quote! { __ref_memo: __RefMemo, });
+    let memo_initializer = ctx
+        .keeps_ref_results()
+        .then(|| quote! { __ref_memo: __RefMemo::default(), });
+    let memo_support = ctx.keeps_ref_results().then(|| quote! {
+        // Match the upstream container-identity keys and sixteen-visit threshold while keeping
+        // every mutable memo and scope inside the caller's validator-specific context.
+        #[derive(Default)]
+        struct __RefMemo {
+            visits: u32,
+            results: Option<std::collections::HashMap<(usize, jsonschema::json::NodeIdentity), bool>>,
+            scoped_results: Option<std::collections::HashMap<(usize, usize, jsonschema::json::NodeIdentity), bool>>,
+            scopes: Option<__RefScopes>,
+        }
+
+        #[derive(Default)]
+        struct __RefScopes {
+            identities: std::collections::HashMap<Box<[usize]>, usize>,
+            bindings: Vec<Box<[usize]>>,
+            last: usize,
+        }
+
+        fn __ref_memo_clear(__cache: &mut __SearchCache) {
+            __cache.__ref_memo.results = None;
+        }
+
+        fn __ref_memo_clear_in_scope(__cache: &mut __SearchCache) {
+            __cache.__ref_memo.scoped_results = None;
+        }
+
+        fn __ref_memo_is_valid(
+            target: fn(&__Value, &mut __SearchCache) -> bool,
+            instance: &__Value,
+            __cache: &mut __SearchCache,
+        ) -> bool {
+            use jsonschema::json::Node as _;
+            let Some(identity) = instance.container_identity() else {
+                return target(instance, __cache);
+            };
+            let key = (target as usize, identity);
+            if let Some(valid) = __cache.__ref_memo.results.as_ref().and_then(|results| results.get(&key)).copied() {
+                return valid;
+            }
+            let visit = __cache.__ref_memo.visits;
+            __cache.__ref_memo.visits = visit.wrapping_add(1);
+            let valid = target(instance, __cache);
+            if __cache.__ref_memo.visits.wrapping_sub(visit) >= 16 {
+                __cache.__ref_memo.results.get_or_insert_with(std::collections::HashMap::new).insert(key, valid);
+            }
+            valid
+        }
+
+        fn __ref_memo_is_valid_in_scope(
+            target: fn(&__Value, &mut __SearchCache) -> bool,
+            instance: &__Value,
+            scope: fn(&mut __SearchCache) -> usize,
+            __cache: &mut __SearchCache,
+        ) -> bool {
+            use jsonschema::json::Node as _;
+            let Some(identity) = instance.container_identity() else {
+                return target(instance, __cache);
+            };
+            let key = (target as usize, scope(__cache), identity);
+            if let Some(valid) = __cache.__ref_memo.scoped_results.as_ref().and_then(|results| results.get(&key)).copied() {
+                return valid;
+            }
+            let visit = __cache.__ref_memo.visits;
+            __cache.__ref_memo.visits = visit.wrapping_add(1);
+            let valid = target(instance, __cache);
+            if __cache.__ref_memo.visits.wrapping_sub(visit) >= 16 {
+                __cache.__ref_memo.scoped_results.get_or_insert_with(std::collections::HashMap::new).insert(key, valid);
+            }
+            valid
+        }
+
+        fn __ref_memo_scope<const N: usize>(bindings: &[usize; N], __cache: &mut __SearchCache) -> usize {
+            let scopes = __cache.__ref_memo.scopes.get_or_insert_with(__RefScopes::default);
+            if scopes.bindings.get(scopes.last).is_some_and(|last| last.as_ref() == bindings) {
+                return scopes.last;
+            }
+            let scope = if let Some(&scope) = scopes.identities.get(&bindings[..]) {
+                scope
+            } else {
+                let scope = scopes.bindings.len();
+                scopes.identities.insert(bindings[..].into(), scope);
+                scopes.bindings.push(bindings[..].into());
+                scope
+            };
+            scopes.last = scope;
+            scope
+        }
+    });
     let support: syn::File = syn::parse2(quote! {
         use #automata as __ra;
+        #memo_support
 
         pub(super) struct __SearchCache {
             #(#cache_fields,)*
             #(#fields,)*
+            #memo_field
         }
 
         impl __SearchCache {
@@ -360,7 +465,7 @@ pub(super) fn lower<E: ValueEmitter>(
 
         pub(super) fn new_search_cache() -> Option<__SearchCache> {
             if !initialize_regexes() { return None; }
-            Some(__SearchCache { #(#cache_initializers,)* #(#initializers,)* })
+            Some(__SearchCache { #(#cache_initializers,)* #(#initializers,)* #memo_initializer })
         }
 
         fn __with_state<T, R>(state: &std::cell::RefCell<T>, op: impl FnOnce(&std::cell::RefCell<T>) -> R) -> R {
@@ -369,6 +474,10 @@ pub(super) fn lower<E: ValueEmitter>(
 
         fn __with_state_mut<T, R>(state: &std::cell::RefCell<T>, op: impl FnOnce(&mut T) -> R) -> R {
             op(&mut *state.borrow_mut())
+        }
+
+        fn __with_state_borrow<T, R>(state: &std::cell::RefCell<T>, op: impl FnOnce(&T) -> R) -> R {
+            op(&*state.borrow())
         }
     })?;
     items.extend(support.items);
@@ -469,6 +578,7 @@ impl Lowering {
                     self.bind_pattern(pat);
                 }
             }
+            Pat::Guard(pat) => self.bind_pattern(&pat.pat),
             _ => {}
         }
     }
@@ -502,6 +612,29 @@ impl VisitMut for Lowering {
 
     fn visit_expr_call_mut(&mut self, call: &mut syn::ExprCall) {
         visit_mut::visit_expr_call_mut(self, call);
+        if let Expr::Path(path) = call.func.as_ref() {
+            if path.path.segments.len() == 2 && path.path.segments[0].ident == "__ref_memo" {
+                let method = path.path.segments[1].ident.to_string();
+                let expected = match method.as_str() {
+                    "clear" | "clear_in_scope" => 0,
+                    "scope" => 1,
+                    "is_valid" => 2,
+                    "is_valid_in_scope" => 3,
+                    _ => {
+                        self.reject(&*call, "unknown reference memo operation");
+                        return;
+                    }
+                };
+                if call.args.len() != expected {
+                    self.reject(&*call, "unexpected reference memo arity");
+                    return;
+                }
+                let helper = format_ident!("__ref_memo_{method}");
+                call.func = Box::new(parse_quote! { #helper });
+                call.args.push(parse_quote! { __cache });
+                return;
+            }
+        }
         if let Some(arity) = simple_path(&call.func).and_then(|ident| self.callable_arity(ident)) {
             if call.args.len() != arity {
                 self.reject(&*call, "unexpected helper call arity");
@@ -620,8 +753,8 @@ impl VisitMut for Lowering {
     fn visit_arm_mut(&mut self, arm: &mut syn::Arm) {
         self.scopes.push(HashMap::new());
         self.bind_pattern(&arm.pat);
-        if let Some((_, guard)) = &mut arm.guard {
-            self.visit_expr_mut(guard);
+        if let Pat::Guard(guard) = &mut arm.pat {
+            self.visit_expr_mut(&mut guard.guard);
         }
         self.visit_expr_mut(&mut arm.body);
         self.scopes.pop();
@@ -637,7 +770,7 @@ impl VisitMut for Lowering {
 
     fn visit_expr_cast_mut(&mut self, expr: &mut syn::ExprCast) {
         visit_mut::visit_expr_cast_mut(self, expr);
-        if matches!(expr.ty.as_ref(), Type::BareFn(ty) if is_bool(&ty.output)) {
+        if matches!(expr.ty.as_ref(), Type::FnPtr(ty) if is_bool(&ty.output)) {
             if let Some(arity) =
                 simple_path(&expr.expr).and_then(|ident| self.callable_arity(ident))
             {
@@ -659,6 +792,7 @@ impl VisitMut for Lowering {
                 let helper = match call.method.to_string().as_str() {
                     "with" => format_ident!("__with_state"),
                     "with_borrow_mut" => format_ident!("__with_state_mut"),
+                    "with_borrow" => format_ident!("__with_state_borrow"),
                     _ => {
                         self.reject(&*call, "unknown local-key operation");
                         return;
@@ -758,7 +892,7 @@ mod tests {
         let Pat::Type(pat) = &local.pat else {
             panic!("expected typed local")
         };
-        let Type::BareFn(ty) = pat.ty.as_ref() else {
+        let Type::FnPtr(ty) = pat.ty.as_ref() else {
             panic!("expected function pointer")
         };
         assert_eq!(ty.inputs.len(), 4);
@@ -777,7 +911,7 @@ mod tests {
     #[test]
     fn unexpected_local_key_operations_refuse_lowering() {
         let mut body = parse_quote! {
-            { __JSONSCHEMA_DYNAMIC_STACK.with_borrow(|stack| stack.len()); }
+            { __JSONSCHEMA_DYNAMIC_STACK.get(); }
         };
         let mut pass = lowering();
         pass.visit_block_mut(&mut body);
@@ -797,9 +931,39 @@ mod tests {
         let Expr::Cast(cast) = expr else {
             panic!("expected cast")
         };
-        let Type::BareFn(ty) = cast.ty.as_ref() else {
+        let Type::FnPtr(ty) = cast.ty.as_ref() else {
             panic!("expected function pointer")
         };
         assert_eq!(ty.inputs.len(), 2);
+    }
+
+    #[test]
+    fn reference_memo_operations_receive_the_validator_context() {
+        let mut body = parse_quote! {
+            {
+                __ref_memo::clear();
+                __ref_memo::is_valid::<jsonschema::json::SerdeJson>(target, instance);
+                __ref_memo::is_valid_in_scope::<jsonschema::json::SerdeJson>(target, instance, scope);
+                __ref_memo::scope(&bindings);
+            }
+        };
+        let mut pass = lowering();
+        pass.visit_block_mut(&mut body);
+        assert!(pass.error.is_none());
+        for (statement, arity) in body.stmts.iter().zip([1, 3, 4, 2]) {
+            assert_eq!(call_arity(statement), arity);
+        }
+    }
+
+    #[test]
+    fn unknown_reference_memo_operations_refuse_lowering() {
+        let mut expr: Expr = parse_quote! { __ref_memo::unknown(instance) };
+        let mut pass = lowering();
+        pass.visit_expr_mut(&mut expr);
+        assert!(pass
+            .error
+            .unwrap()
+            .to_string()
+            .contains("unknown reference memo operation"));
     }
 }

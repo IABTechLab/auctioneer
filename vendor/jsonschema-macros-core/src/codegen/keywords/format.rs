@@ -7,14 +7,14 @@ use serde_json::Value;
 use super::super::{
     draft::DraftExt, errors::invalid_schema_type_expression, CompileContext, CompiledExpr,
 };
-use crate::context::UriFormatCache;
+use crate::context::{PatternEngineConfig, PatternSyntaxConfig, UriFormatCache};
 
 fn validates_formats_by_default(draft: Draft) -> bool {
     matches!(draft, Draft::Draft4 | Draft::Draft6 | Draft::Draft7)
 }
 
 impl<E: ValueEmitter> CompileContext<'_, E> {
-    fn validates_formats(&self) -> bool {
+    pub(crate) fn validates_formats(&self) -> bool {
         self.config.validate_formats.unwrap_or_else(|| {
             self.asserts_formats_by_dialect() || validates_formats_by_default(self.draft)
         })
@@ -31,14 +31,14 @@ fn format_check<E: ValueEmitter>(
     check: TokenStream,
 ) -> CompiledExpr {
     let err_instance = E::err_instance(format_ident!("instance"));
-    let validate = quote! {
+    let first_error = quote! {
         if !(#check) {
-            return Some(__err::format(
+            break '__first_error Some(__err::format(
                 #schema_path, __path.into(), #err_instance, #format_name,
             ));
         }
     };
-    CompiledExpr::with_validate_blocks(check, validate)
+    CompiledExpr::from_first_error(check, first_error)
 }
 
 fn compile_email_options_argument<E: ValueEmitter>(ctx: &CompileContext<'_, E>) -> TokenStream {
@@ -72,6 +72,37 @@ fn compile_email_options_argument<E: ValueEmitter>(ctx: &CompileContext<'_, E>) 
     }
 
     quote! { Some(&(#expr)) }
+}
+
+/// Whether the configured regex engine compiles `s` unchanged.
+fn engine_accepts(options: PatternEngineConfig) -> TokenStream {
+    let limit =
+        |limit: Option<usize>| limit.map_or_else(|| quote! { None }, |n| quote! { Some(#n) });
+    match options {
+        PatternEngineConfig::FancyRegex {
+            backtrack_limit,
+            size_limit,
+            dfa_size_limit,
+        } => {
+            let (backtrack_limit, size_limit, dfa_size_limit) = (
+                limit(backtrack_limit),
+                limit(size_limit),
+                limit(dfa_size_limit),
+            );
+            quote! {
+                __fmt::is_valid_fancy_regex_engine_regex(
+                    s, #backtrack_limit, #size_limit, #dfa_size_limit,
+                )
+            }
+        }
+        PatternEngineConfig::Regex {
+            size_limit,
+            dfa_size_limit,
+        } => {
+            let (size_limit, dfa_size_limit) = (limit(size_limit), limit(dfa_size_limit));
+            quote! { __fmt::is_valid_regex_engine_regex(s, #size_limit, #dfa_size_limit) }
+        }
+    }
 }
 
 fn compile_builtin_format_check<E: ValueEmitter>(
@@ -113,7 +144,10 @@ fn compile_builtin_format_check<E: ValueEmitter>(
         "json-pointer" if draft.supports_draft6_plus_formats() => {
             Some(quote! { __fmt::is_valid_json_pointer(s) })
         }
-        "regex" => Some(quote! { __fmt::is_valid_regex(s) }),
+        "regex" => Some(match ctx.config.pattern_syntax {
+            PatternSyntaxConfig::Ecma262 => quote! { __fmt::is_valid_regex(s) },
+            PatternSyntaxConfig::Engine => engine_accepts(ctx.config.pattern_options),
+        }),
         "relative-json-pointer" if draft.supports_draft7_plus_formats() => {
             Some(quote! { __fmt::is_valid_relative_json_pointer(s) })
         }
@@ -153,7 +187,6 @@ pub(crate) fn format_emits_assertion<E: ValueEmitter>(
     !ctx.are_unknown_formats_ignored()
 }
 
-/// Compile the "format" keyword.
 pub(crate) fn compile<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     value: &Value,
