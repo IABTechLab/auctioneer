@@ -175,7 +175,7 @@ wasm-encoder = { version = "=0.263.0", default-features = false, features = ["st
 # wasm32-unknown-unknown it is backed by `performance.now()`, where
 # `std::time::Instant` does not exist.
 web-time = "1"
-worker = { version = "=0.8.5", default-features = false, features = ["http"] }
+worker = { version = "=0.9.0", default-features = false, features = ["http"] }
 
 [profile.release]
 # Line-level debuginfo for the NATIVE build only, where a release
