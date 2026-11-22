@@ -1694,7 +1694,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path().canonicalize().unwrap();
         let out_dir = root.join("out");
-        fs::create_dir(&out_dir).unwrap();
+        fs::DirBuilder::new().create(&out_dir).unwrap();
         let snapshots: Vec<_> = [
             ("fake_a", "fake-a.json", json!({"type":"string"})),
             ("fake_b", "fake-b.json", json!({"type":"number"})),

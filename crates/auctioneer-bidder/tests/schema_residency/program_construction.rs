@@ -34,6 +34,7 @@ use super::literal_construction::{self, KEYS as SUFFIX_KEYS};
 #[cfg(test)]
 pub(super) use tests::{layouts as hypothetical_layouts, program as hypothetical_program};
 
+#[derive(Clone, Copy)]
 pub(crate) struct Sources<'a> {
     pub workspace: &'a Path,
     pub syntax: &'a Path,
@@ -206,12 +207,13 @@ pub(crate) enum Visits {
     Unbound(&'static str),
 }
 
+/// Every prefix includes cleanup of its owned temporary storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FailurePrefix {
-    SyntaxReplacementAndCleanup,
-    NfaMutationAndCleanup,
-    OnePassRefusalAndCleanup,
-    HybridCapacityAndCleanup,
+    SyntaxReplacement,
+    NfaMutation,
+    OnePassRefusal,
+    HybridCapacity,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -247,7 +249,7 @@ impl Certificate {
         let total = self
             .work
             .values()
-            .try_fold(0_usize, |total, value| match value {
+            .try_fold(0_usize, |total, visits| match visits {
                 Visits::Bound(value) => total.checked_add(*value).ok_or(Refusal::Arithmetic),
                 Visits::Unbound(owner) => Err(Refusal::UnboundWork(owner)),
             })?;
@@ -297,9 +299,9 @@ pub(crate) fn evaluate(input: &Inputs<'_>) -> Result<Certificate, Refusal> {
     require_layouts(input)?;
     verify_sources(&input.sources)?;
     let retained = RetainedRecipe::from_pattern(input.pattern, input.config)
-        .map_err(program_error)?
+        .map_err(|error| program_error(&error))?
         .evaluate(input.program)
-        .map_err(program_error)?;
+        .map_err(|error| program_error(&error))?;
     let models = Models::project(input)?;
     models.require_coverage(&retained)?;
     let phase_scratch = models.phases(input, &retained)?;
@@ -317,10 +319,10 @@ pub(crate) fn evaluate(input: &Inputs<'_>) -> Result<Certificate, Refusal> {
         onepass_attempted: models.onepass.is_some(),
         work,
         failure_prefixes: [
-            FailurePrefix::SyntaxReplacementAndCleanup,
-            FailurePrefix::NfaMutationAndCleanup,
-            FailurePrefix::OnePassRefusalAndCleanup,
-            FailurePrefix::HybridCapacityAndCleanup,
+            FailurePrefix::SyntaxReplacement,
+            FailurePrefix::NfaMutation,
+            FailurePrefix::OnePassRefusal,
+            FailurePrefix::HybridCapacity,
         ],
     };
     certificate.complete_work()?;
@@ -361,7 +363,8 @@ fn verify_sources(sources: &Sources<'_>) -> Result<(), Refusal> {
     // schema_vendor owns jsonschema, not this regex engine.
     schema_regex_vendor::verify(sources.workspace)
         .map_err(|_error| Refusal::Source("regex-automata source"))?;
-    schema_syntax_construction::verify_source(sources.syntax).map_err(syntax_error)?;
+    schema_syntax_construction::verify_source(sources.syntax)
+        .map_err(|error| syntax_error(&error))?;
     // literal::is_poisonous calls rank; the syntax constructor's pins do not
     // cover this additional consumer dependency.
     let path = sources.syntax.join("src/rank.rs");
@@ -454,13 +457,13 @@ impl Models {
             input.layouts,
             input.sources.syntax,
         )
-        .map_err(syntax_error)?;
+        .map_err(|error| syntax_error(&error))?;
         let hir: Hir = syntax::parse_with(input.pattern, &syntax::Config::default().utf8(true))
             .map_err(|_error| Refusal::Source("selected HIR"))?;
         let forward = NfaConstructionCertificate::from_hir_with_layouts(&hir, false, input.layouts)
-            .map_err(nfa_error)?;
+            .map_err(|error| nfa_error(&error))?;
         let reverse = NfaConstructionCertificate::from_hir_with_layouts(&hir, true, input.layouts)
-            .map_err(nfa_error)?;
+            .map_err(|error| nfa_error(&error))?;
         // wrappers.rs:361-393: only decimal and hostname have an incentive.
         // No selected pattern has a Unicode word boundary.
         let onepass = if hir.properties().explicit_captures_len() == 0_usize {
@@ -470,7 +473,7 @@ impl Models {
                 .map_err(|_error| Refusal::Source("forward NFA topology"))?;
             Some(
                 OnePassConstructionCertificate::from_nfa_with_layouts(&nfa, input.layouts)
-                    .map_err(onepass_error)?,
+                    .map_err(|error| onepass_error(&error))?,
             )
         };
         Ok(Self {
@@ -518,7 +521,7 @@ impl Models {
         let hybrid = add(wrapper, dead)?;
         let literal = if input.pattern == literal_construction::PATTERN {
             literal_construction::suffix(input.pattern, facts)
-                .map_err(literal_error)?
+                .map_err(|error| literal_error(&error))?
                 .peak
         } else {
             0_usize // strategy::new skips prefix extraction when start-anchored.
@@ -871,8 +874,9 @@ fn request(bytes: usize, alignment: usize, word: NativeField) -> Result<usize, R
         _ => return Err(Refusal::Layout),
     }
     .map_err(|_error| Refusal::Arithmetic)?;
+    let padding = alignment.checked_sub(1_usize).ok_or(Refusal::Arithmetic)?;
     let limit = maximum
-        .checked_sub(alignment - 1_usize)
+        .checked_sub(padding)
         .ok_or(Refusal::Arithmetic)?;
     if bytes > limit {
         return Err(Refusal::Arithmetic);
@@ -889,7 +893,7 @@ impl From<LayoutError> for Refusal {
     }
 }
 
-fn syntax_error(error: SyntaxError) -> Refusal {
+fn syntax_error(error: &SyntaxError) -> Refusal {
     match error {
         SyntaxError::Arithmetic => Refusal::Arithmetic,
         SyntaxError::Layout => Refusal::Layout,
@@ -900,7 +904,7 @@ fn syntax_error(error: SyntaxError) -> Refusal {
     }
 }
 
-fn nfa_error(error: schema_nfa_construction::ConstructionError) -> Refusal {
+fn nfa_error(error: &schema_nfa_construction::ConstructionError) -> Refusal {
     use schema_nfa_construction::ConstructionError;
     match error {
         ConstructionError::Arithmetic => Refusal::Arithmetic,
@@ -912,17 +916,17 @@ fn nfa_error(error: schema_nfa_construction::ConstructionError) -> Refusal {
     }
 }
 
-fn onepass_error(error: schema_onepass_construction::ConstructionError) -> Refusal {
+fn onepass_error(error: &schema_onepass_construction::ConstructionError) -> Refusal {
     use schema_onepass_construction::ConstructionError;
     match error {
         ConstructionError::Arithmetic => Refusal::Arithmetic,
         ConstructionError::Layout => Refusal::Layout,
-        ConstructionError::MissingType(key) => Refusal::Missing(key.to_owned()),
+        ConstructionError::MissingType(key) => Refusal::Missing((*key).to_owned()),
         ConstructionError::Scope => Refusal::Source("onepass construction"),
     }
 }
 
-fn program_error(error: schema_program_heap::ProgramHeapError) -> Refusal {
+fn program_error(error: &schema_program_heap::ProgramHeapError) -> Refusal {
     use schema_program_heap::ProgramHeapError;
     match error {
         ProgramHeapError::Arithmetic => Refusal::Arithmetic,
@@ -939,9 +943,9 @@ fn program_error(error: schema_program_heap::ProgramHeapError) -> Refusal {
     }
 }
 
-fn literal_error(error: literal_construction::Refusal) -> Refusal {
+fn literal_error(error: &literal_construction::Refusal) -> Refusal {
     match error {
-        literal_construction::Refusal::Missing(key) => Refusal::Missing(key.to_owned()),
+        literal_construction::Refusal::Missing(key) => Refusal::Missing((*key).to_owned()),
         literal_construction::Refusal::Layout => Refusal::Layout,
         literal_construction::Refusal::Arithmetic => Refusal::Arithmetic,
         literal_construction::Refusal::Scope => Refusal::PatternScope,
@@ -1085,7 +1089,7 @@ mod tests {
     }
 
     fn features() -> BTreeSet<String> {
-        crate::schema_build::schema_regex_vendor::FEATURES
+        schema_regex_vendor::FEATURES
             .into_iter()
             .map(str::to_owned)
             .collect()
@@ -1583,24 +1587,24 @@ mod tests {
             onepass_scratch(&certificate, 28_usize),
             Err(Refusal::RetainedCoverage)
         );
-        let changed = OnePassConstructionCertificate {
+        let different_shrink = OnePassConstructionCertificate {
             shrink_overlap_bytes: 37_usize,
             retained_tables_upper_bytes: 37_usize,
             peak_requested_bytes: 135_usize,
             ..certificate
         };
-        assert_eq!(onepass_scratch(&changed, 37_usize), Ok(98_usize));
-        let changed = OnePassConstructionCertificate {
+        assert_eq!(onepass_scratch(&different_shrink, 37_usize), Ok(98_usize));
+        let different_table = OnePassConstructionCertificate {
             table_peak_bytes: 18_usize,
             ..certificate
         };
-        assert_eq!(onepass_scratch(&changed, 29_usize), Ok(99_usize));
-        let changed = OnePassConstructionCertificate {
+        assert_eq!(onepass_scratch(&different_table, 29_usize), Ok(99_usize));
+        let different_failure = OnePassConstructionCertificate {
             failure_prefix_peak_bytes: 128_usize,
             ..certificate
         };
         assert_eq!(
-            onepass_scratch(&changed, 29_usize),
+            onepass_scratch(&different_failure, 29_usize),
             Err(Refusal::RetainedCoverage)
         );
     }
@@ -1659,10 +1663,10 @@ mod tests {
             assert_eq!(
                 certificate.failure_prefixes,
                 [
-                    FailurePrefix::SyntaxReplacementAndCleanup,
-                    FailurePrefix::NfaMutationAndCleanup,
-                    FailurePrefix::OnePassRefusalAndCleanup,
-                    FailurePrefix::HybridCapacityAndCleanup,
+                    FailurePrefix::SyntaxReplacement,
+                    FailurePrefix::NfaMutation,
+                    FailurePrefix::OnePassRefusal,
+                    FailurePrefix::HybridCapacity,
                 ]
             );
             attempts += usize::from(certificate.onepass_attempted);
@@ -1762,10 +1766,10 @@ mod tests {
             onepass_attempted: false,
             work: BTreeMap::from([(Work::Literal, Visits::Unbound("unqualified literal"))]),
             failure_prefixes: [
-                FailurePrefix::SyntaxReplacementAndCleanup,
-                FailurePrefix::NfaMutationAndCleanup,
-                FailurePrefix::OnePassRefusalAndCleanup,
-                FailurePrefix::HybridCapacityAndCleanup,
+                FailurePrefix::SyntaxReplacement,
+                FailurePrefix::NfaMutation,
+                FailurePrefix::OnePassRefusal,
+                FailurePrefix::HybridCapacity,
             ],
         };
         assert_eq!(
@@ -1790,13 +1794,13 @@ mod tests {
         let config = config();
         let enabled = features();
         let path = Path::new("/fake-unread-source");
-        let mut root = program("^[0-9]+$", &facts);
-        root.arc_header = field(8_usize, 4_usize);
-        let inputs = Inputs {
+        let mut mismatched_root = program("^[0-9]+$", &facts);
+        mismatched_root.arc_header = field(8_usize, 4_usize);
+        let mismatched_inputs = Inputs {
             owner: "fake_owner",
             pattern: "^[0-9]+$",
             config: &config,
-            program: &root,
+            program: &mismatched_root,
             layouts: &facts,
             sources: Sources {
                 workspace: path,
@@ -1805,17 +1809,17 @@ mod tests {
                 features: &enabled,
             },
         };
-        assert_eq!(evaluate(&inputs).err(), Some(Refusal::Layout));
-        let changed = config.clone().hybrid(false);
-        let inputs = Inputs {
-            config: &changed,
-            ..inputs
+        assert_eq!(evaluate(&mismatched_inputs).err(), Some(Refusal::Layout));
+        let disabled_hybrid = config.clone().hybrid(false);
+        let configuration_inputs = Inputs {
+            config: &disabled_hybrid,
+            ..mismatched_inputs
         };
-        assert_eq!(evaluate(&inputs).err(), Some(Refusal::Configuration));
+        assert_eq!(evaluate(&configuration_inputs).err(), Some(Refusal::Configuration));
         let root = program("^[0-9]+$", &facts);
         let mut missing_feature = enabled.clone();
         assert!(missing_feature.remove("syntax"));
-        let inputs = Inputs {
+        let feature_inputs = Inputs {
             owner: "fake_owner",
             pattern: "^[0-9]+$",
             config: &config,
@@ -1828,18 +1832,18 @@ mod tests {
                 features: &missing_feature,
             },
         };
-        assert_eq!(evaluate(&inputs).err(), Some(Refusal::Features));
-        let inputs = Inputs {
+        assert_eq!(evaluate(&feature_inputs).err(), Some(Refusal::Features));
+        let release_inputs = Inputs {
             sources: Sources {
                 workspace: path,
                 syntax: path,
                 rust_release: "unqualified",
                 features: &enabled,
             },
-            ..inputs
+            ..feature_inputs
         };
         assert_eq!(
-            evaluate(&inputs).err(),
+            evaluate(&release_inputs).err(),
             Some(Refusal::Source("Rust collection paths"))
         );
     }
@@ -1870,7 +1874,7 @@ mod tests {
         // Physical projection is a separate call, with mandatory explicit facts.
         let facts = layouts();
         let root = program(recipe.pattern(), &facts);
-        assert!(recipe.evaluate(&facts, &root).is_ok());
+        recipe.evaluate(&facts, &root).unwrap();
     }
 
     #[test]
@@ -1890,32 +1894,32 @@ mod tests {
         );
         let mut unknown = enabled.clone();
         assert!(unknown.insert("perf-literal-inner".to_owned()));
-        let sources = Sources {
+        let unknown_sources = Sources {
             features: &unknown,
             ..sources()
         };
         assert_eq!(
-            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, unknown_sources).err(),
             Some(Refusal::Features)
         );
-        let sources = Sources {
+        let wrong_release_sources = Sources {
             workspace: path,
             syntax: path,
             rust_release: "unqualified",
             features: &enabled,
         };
         assert_eq!(
-            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, wrong_release_sources).err(),
             Some(Refusal::Source("Rust collection paths"))
         );
-        let sources = Sources {
+        let unverified_sources = Sources {
             workspace: path,
             syntax: path,
             rust_release: "1.98.1",
             features: &enabled,
         };
         assert_eq!(
-            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, sources).err(),
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, unverified_sources).err(),
             Some(Refusal::Source("regex-automata source"))
         );
     }

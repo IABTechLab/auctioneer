@@ -4,22 +4,22 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy)]
 pub(super) struct Allocation<'a> {
-    pub(super) owner: &'a str,
-    pub(super) bytes: u64,
+    pub owner: &'a str,
+    pub bytes: u64,
 }
 
 pub(super) struct Trace<'a> {
-    pub(super) label: &'a str,
-    pub(super) retained: &'a [Allocation<'a>],
-    pub(super) scratch: &'a [Allocation<'a>],
+    pub label: &'a str,
+    pub retained: &'a [Allocation<'a>],
+    pub scratch: &'a [Allocation<'a>],
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct Totals {
-    pub(super) retained: u64,
-    pub(super) construction_only: u64,
-    pub(super) additive_envelope: u64,
-    pub(super) trace_peaks: Vec<u64>,
+    pub retained: u64,
+    pub construction_only: u64,
+    pub additive_envelope: u64,
+    pub trace_peaks: Vec<u64>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -150,14 +150,14 @@ mod tests {
 
     #[test]
     fn constructor_prefix_partial_and_scratch_axes_change_independent_terms() {
-        for (first, partial, scratch, expected) in [
+        for (first_bytes, partial, scratch, expected) in [
             (3, 6, 13, (10, 13, 22, 23)),
             (4, 6, 13, (11, 13, 23, 24)),
             (3, 7, 13, (10, 13, 23, 23)),
             (3, 6, 14, (10, 14, 23, 24)),
         ] {
             let first = Allocation {
-                bytes: first,
+                bytes: first_bytes,
                 ..FIRST
             };
             let trace = Trace {
@@ -244,16 +244,16 @@ mod tests {
             owner: "fake_scratch",
             bytes: 1,
         };
-        let trace = Trace {
+        let retained_overflow_trace = Trace {
             label: "first",
             retained: &[],
             scratch: &[scratch],
         };
         assert_eq!(
-            compose(&[maximum, SECOND], &["first"], &[trace]),
+            compose(&[maximum, SECOND], &["first"], &[retained_overflow_trace]),
             Err(Refusal::Arithmetic)
         );
-        let trace = Trace {
+        let scratch_overflow_trace = Trace {
             label: "first",
             retained: &[],
             scratch: &[
@@ -265,16 +265,16 @@ mod tests {
             ],
         };
         assert_eq!(
-            compose(&[FIRST], &["first"], &[trace]),
+            compose(&[FIRST], &["first"], &[scratch_overflow_trace]),
             Err(Refusal::Arithmetic)
         );
-        let trace = Trace {
+        let additive_overflow_trace = Trace {
             label: "first",
             retained: &[],
             scratch: &[scratch],
         };
         assert_eq!(
-            compose(&[maximum], &["first"], &[trace]),
+            compose(&[maximum], &["first"], &[additive_overflow_trace]),
             Err(Refusal::Arithmetic)
         );
     }

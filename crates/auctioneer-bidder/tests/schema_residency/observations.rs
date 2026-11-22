@@ -27,7 +27,7 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
         return Err("empty reconstructed program closure".into());
     }
     let (positive, control) = measure(|| black_box(vec![black_box(1_u8); 37]));
-    if control.json()["allocated_bytes"] != 37_u64 {
+    if control.json().get("allocated_bytes").and_then(Value::as_u64) != Some(37_u64) {
         return Err("allocation control did not execute".into());
     }
     drop(positive);
@@ -37,15 +37,15 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
     let mut rows = Vec::new();
     for (owner, pattern) in programs {
         let cell = LazyLock::new(|| construct(pattern));
-        let (success, first) = measure(|| black_box(LazyLock::force(&cell).is_some()));
-        if !success {
+        let (cold_success, first) = measure(|| black_box(LazyLock::force(&cell).is_some()));
+        if !cold_success {
             return Err("reconstructed admitted program failed".into());
         }
-        let prefix = cold.json()["retained_bytes"]
-            .as_i64()
+        let prefix = cold.json().get("retained_bytes")
+            .and_then(Value::as_i64)
             .ok_or("invalid retained prefix")?;
-        let (success, again) = measure(|| black_box(LazyLock::force(&cell).is_some()));
-        if !success
+        let (repeat_success, again) = measure(|| black_box(LazyLock::force(&cell).is_some()));
+        if !repeat_success
             || again.json()
                 != json!({"allocated_bytes":0_u64,"peak_live_bytes":0_i64,
             "retained_bytes":0_i64,"allocation_calls":0_u64})
@@ -53,11 +53,11 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
             return Err("repeated singleton construction allocated".into());
         }
         let first_json = first.json();
-        if first_json["allocated_bytes"]
-            .as_u64()
+        if first_json.get("allocated_bytes")
+            .and_then(Value::as_u64)
             .is_none_or(|value| value == 0)
-            || first_json["retained_bytes"]
-                .as_i64()
+            || first_json.get("retained_bytes")
+                .and_then(Value::as_i64)
                 .is_none_or(|value| value <= 0)
         {
             return Err("reconstructed program observation is empty".into());
@@ -76,9 +76,9 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
     let failed_json = failed.json();
     if succeeded
         || cached
-        || failed_json["retained_bytes"] != 0_i64
-        || failed_json["allocated_bytes"]
-            .as_u64()
+        || failed_json.get("retained_bytes").and_then(Value::as_i64) != Some(0_i64)
+        || failed_json.get("allocated_bytes")
+            .and_then(Value::as_u64)
             .is_none_or(|value| value == 0)
         || failed_repeat.json()
             != json!({"allocated_bytes":0_u64,"peak_live_bytes":0_i64,
@@ -97,9 +97,11 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
         cleanup.append(released);
     }
     let cleanup_json = cleanup.json();
-    if cold_json["retained_bytes"]
-        .as_i64()
-        .and_then(|value| value.checked_add(cleanup_json["retained_bytes"].as_i64()?))
+    if cold_json.get("retained_bytes")
+        .and_then(Value::as_i64)
+        .and_then(|value| {
+            value.checked_add(cleanup_json.get("retained_bytes").and_then(Value::as_i64)?)
+        })
         != Some(0)
     {
         return Err("reconstructed program release mismatch".into());

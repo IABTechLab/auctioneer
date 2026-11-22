@@ -5,12 +5,15 @@ use super::{expanded, initialization, program_construction, retained, runtime_so
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_heap_layout::NativeField;
 use crate::schema_nfa_heap::target;
+use crate::schema_vendor;
 use crate::schema_program_heap::{
     NativeProgramHeap, ProgramHeapError, ProgramRecipe, SourceRecipe,
 };
 use auctioneer_bidder::catalog::CatalogOwner;
+use regex_automata::meta::Config;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+use std::slice;
 
 pub(crate) use super::program_construction::Sources;
 
@@ -19,6 +22,7 @@ pub(crate) use tests::assert_hypothetical_evaluation;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Refusal {
+    Compiler(String),
     Graph(String),
     GraphMismatch,
     Coverage,
@@ -156,7 +160,7 @@ pub(super) fn model_sources() -> Value {
 fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, Refusal> {
     value[key]
         .as_str()
-        .filter(|value| !value.is_empty())
+        .filter(|candidate| !candidate.is_empty())
         .ok_or(Refusal::Coverage)
 }
 
@@ -188,8 +192,8 @@ fn row_programs(row: &Value) -> Result<Vec<(&Value, &str)>, Refusal> {
         }
     }
     let mut result = Vec::new();
-    for symbol in array(row, "initialization")? {
-        let symbol = symbol.as_str().ok_or(Refusal::Coverage)?;
+    for value in array(row, "initialization")? {
+        let symbol = value.as_str().ok_or(Refusal::Coverage)?;
         let program = programs.remove(symbol).ok_or(Refusal::Coverage)?;
         result.push((program, text(program, "pattern")?));
     }
@@ -271,7 +275,7 @@ fn program(
     id: &str,
     pattern: &str,
     group: &str,
-    config: &regex_automata::meta::Config,
+    config: &Config,
     sources: &Sources<'_>,
 ) -> Result<Program, Refusal> {
     let retained = SourceRecipe::from_pattern(pattern, config)
@@ -325,9 +329,9 @@ fn declaration_group(row: &Value) -> Result<LinkedGroup, Refusal> {
         text(row, "marker")?
     )]);
     let mut inline = BTreeSet::new();
-    for program in array(row, "programs")? {
-        let program = text(program, "identity")?.to_owned();
-        if !roots.insert(format!("static::{program}")) || !inline.insert(program) {
+    for row_program in array(row, "programs")? {
+        let program_id = text(row_program, "identity")?.to_owned();
+        if !roots.insert(format!("static::{program_id}")) || !inline.insert(program_id) {
             return Err(Refusal::Coverage);
         }
     }
@@ -370,13 +374,13 @@ fn linked_groups(
         },
         LinkedGroup {
             id: "linked::runtime-staging".into(),
-            source_sha256: runtime.staging_sha256.clone(),
+            source_sha256: runtime.staging_sha256().to_owned(),
             roots: BTreeSet::from(["schema::staging::entire-owner".into()]),
             inline: BTreeSet::from([runtime_sources::HOSTNAME.into()]),
         },
         LinkedGroup {
             id: "linked::runtime-native".into(),
-            source_sha256: runtime.native_sha256.clone(),
+            source_sha256: runtime.native_sha256().to_owned(),
             roots: BTreeSet::from(["schema::native::entire-owner".into()]),
             inline: BTreeSet::from([runtime_sources::COORDINATOR.into()]),
         },
@@ -468,8 +472,9 @@ fn exact_assignments(
 pub(crate) fn describe(
     seed: &CapturedSeed,
     accepted_graph: &Value,
-    sources: Sources<'_>,
+    sources: &Sources<'_>,
 ) -> Result<ActualSourceDescriptor, Refusal> {
+    let compiler = schema_vendor::verify(sources.workspace).map_err(Refusal::Compiler)?;
     let graph = expanded::expand(seed).map_err(Refusal::Graph)?;
     if graph != *accepted_graph {
         return Err(Refusal::GraphMismatch);
@@ -481,10 +486,10 @@ pub(crate) fn describe(
     let groups = linked_groups(&graph, &runtime)?;
     let mut programs = vec![program(
         runtime_sources::HOSTNAME,
-        &runtime.hostname,
+        runtime.hostname(),
         "linked::runtime-staging",
-        &runtime.config,
-        &sources,
+        runtime.config(),
+        sources,
     )?];
     for row in ordered {
         let group = source_group(row)?;
@@ -493,8 +498,8 @@ pub(crate) fn describe(
                 text(child, "identity")?,
                 pattern,
                 &group,
-                &runtime.config,
-                &sources,
+                runtime.config(),
+                sources,
             )?);
         }
     }
@@ -511,12 +516,18 @@ pub(crate) fn describe(
         .syntax
         .to_str()
         .ok_or(Refusal::RuntimeSource("syntax source UTF-8"))?;
+    let compiler_source = compiler
+        .to_str()
+        .ok_or(Refusal::RuntimeSource("compiler source UTF-8"))?;
     let binding = json!({"identity":seed.identity_sha256,
         "manifest_sha256":expanded::digest(&seed.manifest_bytes),
         "expanded_graph_sha256":expanded::digest(&serde_json::to_vec(&graph)
             .map_err(|_error| Refusal::Coverage)?),
         "runtime":runtime.report(),"regex_features":sources.features,
         "rust_release":sources.rust_release,"syntax_source":syntax_source,
+        "schema_compiler":{"canonical_root":compiler_source,
+            "verified_by":"schema_vendor::verify",
+            "verifier_source":"crates/auctioneer-bidder/tests/schema_vendor/mod.rs"},
         "syntax_rank_source":{"path":"src/rank.rs",
             "sha256":"ff3d58b0cc5ffa69e2e8c56fc7d9ef41dd399d59a639a253a51551b858cb5bbd",
             "verified_by":"program_construction::SourceRecipe::from_source"},
@@ -524,11 +535,14 @@ pub(crate) fn describe(
     let recipe_identity =
         expanded::digest(&serde_json::to_vec(&binding).map_err(|_error| Refusal::Coverage)?);
     runtime.recheck()?;
+    if schema_vendor::verify(sources.workspace).map_err(Refusal::Compiler)? != compiler {
+        return Err(Refusal::Compiler("verified compiler source changed".into()));
+    }
     Ok(ActualSourceDescriptor {
         binding,
         recipe_identity,
         graph,
-        selection: manifest["selection"].clone(),
+        selection: manifest.get("selection").cloned().unwrap_or(Value::Null),
         runtime,
         programs,
         groups,
@@ -546,7 +560,7 @@ impl ActualSourceDescriptor {
                 json!({
             "identity":program.id,"retained_layout_fields":["metadata","arc_header",
                 "strategy_payload","nfa_facts","onepass_word","memchr_payload","pool"],
-            "nfa_fact_keys":crate::schema_nfa_heap::target::fact_keys(),
+            "nfa_fact_keys":target::fact_keys(),
             "constructor_layout_keys":program.constructor.required_facts(),
             "inline_in_group":program.group})
             })
@@ -598,6 +612,16 @@ impl ActualSourceDescriptor {
             "membership":self.selection,"expanded_graph":self.graph,
             "programs_in_initialization_order":programs,"linked_inline_groups":groups,
             "validation_handoff":self.validation_handoff(),
+            "constructor_work":{
+                "units":"source collection-record/byte visits",
+                "bound_kind":"checked upper bound, not an exact dynamic execution count",
+                "aggregation":"sum of constructor source record/byte-visit upper bounds",
+                "includes":["buffer initialization","buffer relocation","cleanup"],
+                "excludes":["scalar moves","atomics","allocator internals",
+                    "machine operations","elapsed time"],
+                "scope":"construction and failure-prefix cleanup; not validation/search work",
+                "latency_bound":false,"cpu_instruction_bound":false,
+                "runtime_validation_token_bound":false},
             "retained_formula":"retained::compose; exact disjoint program heaps",
             "initialization_formula":"initialization::compose; serial phase scratch maxima with final C covering each live retained prefix",
             "linked_inline_formula":"separate supplied group attribution; includes lazy cells and native coordinator",
@@ -635,7 +659,16 @@ impl ActualSourceDescriptor {
                 .evaluate(root)
                 .map_err(|error| match error {
                     ProgramHeapError::Arithmetic => Refusal::Arithmetic,
-                    _ => Refusal::TargetLayout(program.id.clone()),
+                    ProgramHeapError::Configuration
+                    | ProgramHeapError::Compilation
+                    | ProgramHeapError::Metadata
+                    | ProgramHeapError::RootLayout
+                    | ProgramHeapError::Layout
+                    | ProgramHeapError::Nfa
+                    | ProgramHeapError::OnePass
+                    | ProgramHeapError::AutomaticPrefilter(_)
+                    | ProgramHeapError::Pool
+                    | ProgramHeapError::Shape => Refusal::TargetLayout(program.id.clone()),
                 })?;
             let layouts = facts
                 .constructor_layouts
@@ -653,7 +686,14 @@ impl ActualSourceDescriptor {
                             Refusal::TargetLayout(program.id.clone())
                         }
                         program_construction::Refusal::Arithmetic => Refusal::Arithmetic,
-                        error => Refusal::Construction(program.id.clone(), error),
+                        program_construction::Refusal::Configuration
+                        | program_construction::Refusal::PatternScope
+                        | program_construction::Refusal::Features
+                        | program_construction::Refusal::Source(_)
+                        | program_construction::Refusal::RetainedCoverage
+                        | program_construction::Refusal::UnboundWork(_) => {
+                            Refusal::Construction(program.id.clone(), error)
+                        }
                     })?;
             if constructor.owner != program.id || constructor.retained != heap {
                 return Err(Refusal::Coverage);
@@ -731,13 +771,13 @@ impl ActualSourceDescriptor {
         }
         for group in &self.groups {
             if let Some(fact) = facts.linked_inline.get(&group.id) {
-                let expected = group
+                let inline_keys = group
                     .inline
                     .iter()
                     .map(String::as_str)
                     .collect::<BTreeSet<_>>();
                 exact_keys(
-                    &expected,
+                    &inline_keys,
                     fact.inline_layouts.keys().map(String::as_str),
                     &format!("inline::{}", group.id),
                     &mut missing,
@@ -778,16 +818,24 @@ impl ActualSourceDescriptor {
                 contained = contained
                     .checked_add(as_u64(field.bytes)?)
                     .ok_or(Refusal::Arithmetic)?;
-                if let Some(index) = self.programs.iter().position(|program| &program.id == id) {
-                    let root = facts.programs.get(id).ok_or(Refusal::Coverage)?;
-                    if self.programs[index].group != group.id
-                        || heaps[index].static_inline_bytes != field.bytes
-                        || root.metadata.static_inline != *field
-                    {
-                        return Err(Refusal::TargetLayout(id.clone()));
+                match self
+                    .programs
+                    .iter()
+                    .enumerate()
+                    .find(|(_, program)| &program.id == id)
+                {
+                    Some((index, program)) => {
+                        let root = facts.programs.get(id).ok_or(Refusal::Coverage)?;
+                        let heap = heaps.get(index).ok_or(Refusal::Coverage)?;
+                        if program.group != group.id
+                            || heap.static_inline_bytes != field.bytes
+                            || root.metadata.static_inline != *field
+                        {
+                            return Err(Refusal::TargetLayout(id.clone()));
+                        }
                     }
-                } else if id != runtime_sources::COORDINATOR {
-                    return Err(Refusal::TargetLayout(id.clone()));
+                    None if id == runtime_sources::COORDINATOR => (),
+                    None => return Err(Refusal::TargetLayout(id.clone())),
                 }
             }
             if contained > fact.attributed_bytes {
@@ -857,13 +905,13 @@ fn exact_keys<'a>(
     role: &str,
     missing: &mut Vec<String>,
 ) -> Result<(), Refusal> {
-    let actual = actual.collect::<BTreeSet<_>>();
-    if !actual.is_subset(expected) {
+    let actual_keys = actual.collect::<BTreeSet<_>>();
+    if !actual_keys.is_subset(expected) {
         return Err(Refusal::TargetBinding);
     }
     missing.extend(
         expected
-            .difference(&actual)
+            .difference(&actual_keys)
             .map(|id| format!("{role}::{id}")),
     );
     Ok(())
@@ -871,6 +919,29 @@ fn exact_keys<'a>(
 
 fn as_u64(value: usize) -> Result<u64, Refusal> {
     u64::try_from(value).map_err(|_error| Refusal::Arithmetic)
+}
+
+fn retained_total(
+    ids: &[&str],
+    final_owners: &[initialization::Allocation<'_>],
+) -> Result<u64, Refusal> {
+    if ids.len() != final_owners.len() {
+        return Err(Refusal::Coverage);
+    }
+    let expected = ids.iter().map(|id| (*id, *id)).collect::<Vec<_>>();
+    let charges = ids
+        .iter()
+        .zip(final_owners)
+        .map(|(id, row)| retained::Charge {
+            owner: row.owner,
+            covered: slice::from_ref(id),
+            bytes: row.bytes,
+        })
+        .collect::<Vec<_>>();
+    retained::compose(&expected, &charges, &[]).map_err(|error| match error {
+        retained::Refusal::Arithmetic => Refusal::Arithmetic,
+        retained::Refusal::Coverage | retained::Refusal::Sharing => Refusal::Coverage,
+    })
 }
 
 fn compose(
@@ -886,35 +957,22 @@ fn compose(
         .iter()
         .map(|row| row.id.as_str())
         .collect::<Vec<_>>();
-    let expected = ids.iter().map(|id| (*id, *id)).collect::<Vec<_>>();
     let final_owners = ids
         .iter()
         .zip(heaps)
         .map(|(id, heap)| {
             Ok(initialization::Allocation {
-                owner: *id,
+                owner: id,
                 bytes: as_u64(heap.total)?,
             })
         })
         .collect::<Result<Vec<_>, Refusal>>()?;
-    let charges = final_owners
-        .iter()
-        .enumerate()
-        .map(|(index, row)| retained::Charge {
-            owner: row.owner,
-            covered: &ids[index..index + 1_usize],
-            bytes: row.bytes,
-        })
-        .collect::<Vec<_>>();
-    let c = retained::compose(&expected, &charges, &[]).map_err(|error| match error {
-        retained::Refusal::Arithmetic => Refusal::Arithmetic,
-        _ => Refusal::Coverage,
-    })?;
+    let c = retained_total(&ids, &final_owners)?;
     let mut labels = Vec::new();
     let mut scratch_ids = Vec::new();
     let mut trace_rows = Vec::new();
     for (index, (program, constructor)) in programs.iter().zip(constructors).enumerate() {
-        let expected = program
+        let expected_phases = program
             .constructor
             .phase_models()
             .iter()
@@ -925,7 +983,7 @@ fn compose(
             .keys()
             .copied()
             .collect::<BTreeSet<_>>()
-            != expected
+            != expected_phases
             || constructor.phase_scratch.values().copied().max()
                 != Some(constructor.construction_only_bytes)
         {
@@ -956,18 +1014,24 @@ fn compose(
     let traces = trace_rows
         .iter()
         .enumerate()
-        .map(|(trace, (program, _))| initialization::Trace {
-            label: &labels[trace],
-            retained: &final_owners[..*program + 1_usize],
-            scratch: &scratch[trace],
+        .map(|(trace, (program, _))| {
+            Ok(initialization::Trace {
+                label: labels.get(trace).ok_or(Refusal::Coverage)?,
+                retained: final_owners.get(..=*program).ok_or(Refusal::Coverage)?,
+                scratch: scratch.get(trace).ok_or(Refusal::Coverage)?,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Refusal>>()?;
     let required = labels.iter().map(String::as_str).collect::<Vec<_>>();
-    let totals = initialization::compose(&final_owners, &required, &traces)
-        .map_err(|error| match error {
-            initialization::Refusal::Arithmetic => Refusal::Arithmetic,
-            _ => Refusal::Coverage,
-        })?;
+    let totals =
+        initialization::compose(&final_owners, &required, &traces).map_err(
+            |error| match error {
+                initialization::Refusal::Arithmetic => Refusal::Arithmetic,
+                initialization::Refusal::Owners
+                | initialization::Refusal::Traces
+                | initialization::Refusal::RetainedCoverage => Refusal::Coverage,
+            },
+        )?;
     if totals.retained != c {
         return Err(Refusal::Coverage);
     }
@@ -976,9 +1040,55 @@ fn compose(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::program_construction::Stage;
+    use super::*;
     use crate::schema_nfa_heap::target::{NFA_INNER, fact_keys as nfa_fact_keys};
+    use std::fs::{self, DirBuilder};
+    use tempfile::tempdir;
+
+    #[test]
+    fn describe_refuses_compiler_source_before_invalid_seed() {
+        for invalid_archive in [false, true] {
+            let temporary = tempdir().unwrap();
+            let workspace = temporary.path().canonicalize().unwrap();
+            let vendor = workspace.join("vendor");
+            let reason = if invalid_archive {
+                DirBuilder::new().create(&vendor).unwrap();
+                fs::write(
+                    vendor.join("jsonschema-macros-core-0.61.2.crate"),
+                    b"invalid compiler archive",
+                )
+                .unwrap();
+                "archive SHA-256 differs from approved crates.io archive".to_owned()
+            } else {
+                fs::write(&vendor, b"not a compiler directory").unwrap();
+                format!("not a directory: {}", vendor.display())
+            };
+            let seed = CapturedSeed {
+                identity_sha256: String::new(),
+                manifest_bytes: Vec::new(),
+                rust: Vec::new(),
+                build_root: workspace.clone(),
+                out_dir: workspace.clone(),
+                snapshots: Vec::new(),
+            };
+            assert_eq!(
+                expanded::expand(&seed),
+                Err("invalid captured staging manifest".to_owned())
+            );
+            let features = BTreeSet::new();
+            let sources = Sources {
+                workspace: &workspace,
+                syntax: &workspace,
+                rust_release: "invalid compiler-first control",
+                features: &features,
+            };
+            assert_eq!(
+                describe(&seed, &json!({}), &sources).err(),
+                Some(Refusal::Compiler(reason))
+            );
+        }
+    }
 
     type HypotheticalRoots<'a> = BTreeMap<String, ProgramRecipe<'a>>;
     type HypotheticalConstructors = BTreeMap<String, BTreeMap<String, NativeField>>;
@@ -996,16 +1106,24 @@ mod tests {
         let layouts = program_construction::hypothetical_layouts();
         // Own the exact retained-NFA family separately from the full
         // constructor family. Neither map represents observed target facts.
-        let nfa_layouts = nfa_fact_keys().into_iter()
-            .map(|key| (key.to_owned(), *layouts.get(key).unwrap()))
+        let nfa_layouts = nfa_fact_keys()
+            .into_iter()
+            .map(|key| (key.to_owned(), *layouts.get(key).expect("required NFA layout")))
             .collect::<BTreeMap<_, _>>();
         assert_eq!(nfa_layouts.len(), 11_usize);
-        let roots = descriptor.programs.iter().map(|program| {
-            let mut root = program_construction::hypothetical_program(&program.pattern, &layouts);
-            root.nfa_facts = &nfa_layouts;
-            (program.id.clone(), root)
-        }).collect::<HypotheticalRoots<'_>>();
-        let constructors = descriptor.programs.iter()
+        let roots = descriptor
+            .programs
+            .iter()
+            .map(|program| {
+                let mut root =
+                    program_construction::hypothetical_program(&program.pattern, &layouts);
+                root.nfa_facts = &nfa_layouts;
+                (program.id.clone(), root)
+            })
+            .collect::<HypotheticalRoots<'_>>();
+        let constructors = descriptor
+            .programs
+            .iter()
             .map(|program| (program.id.clone(), layouts.clone()))
             .collect::<HypotheticalConstructors>();
         let linked = hypothetical_linked(descriptor, &roots);
@@ -1013,18 +1131,28 @@ mod tests {
         assert_eq!(constructors.len(), descriptor.programs.len());
         assert_eq!(linked.len(), descriptor.groups.len());
         let facts = hypothetical_facts(&descriptor.binding, &roots, &constructors, &linked);
-        let heaps = descriptor.programs.iter()
+        let heaps = descriptor
+            .programs
+            .iter()
             .map(|program| program.retained.evaluate(&roots[&program.id]).unwrap())
             .collect::<Vec<_>>();
-        let certificates = descriptor.programs.iter().map(|program| {
-            program.constructor.evaluate(&constructors[&program.id], &roots[&program.id]).unwrap()
-        }).collect::<Vec<_>>();
+        let certificates = descriptor
+            .programs
+            .iter()
+            .map(|program| {
+                program
+                    .constructor
+                    .evaluate(&constructors[&program.id], &roots[&program.id])
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
         let expected = hypothetical_oracle(&heaps, &certificates, &linked);
         assert!(expected.retained_requested_bytes > 0_u64);
         assert!(expected.construction_only_requested_bytes > 0_u64);
         assert!(expected.constructor_source_visits > 0_u64);
         let evaluated = descriptor.evaluate(&facts).unwrap();
         assert_eq!(evaluated, expected);
+        assert_constructor_work_semantics(&descriptor.report()["constructor_work"]);
         assert_top_level_slots(descriptor, &facts);
         assert_required_layout_slots(descriptor, &facts);
         assert_extra_layout_slots(descriptor, &facts);
@@ -1035,41 +1163,87 @@ mod tests {
         evaluated
     }
 
+    fn assert_constructor_work_semantics(actual: &Value) {
+        assert_eq!(
+            actual,
+            &json!({
+                "units": "source collection-record/byte visits",
+                "bound_kind": "checked upper bound, not an exact dynamic execution count",
+                "aggregation": "sum of constructor source record/byte-visit upper bounds",
+                "includes": ["buffer initialization", "buffer relocation", "cleanup"],
+                "excludes": [
+                    "scalar moves", "atomics", "allocator internals",
+                    "machine operations", "elapsed time"
+                ],
+                "scope": "construction and failure-prefix cleanup; not validation/search work",
+                "latency_bound": false,
+                "cpu_instruction_bound": false,
+                "runtime_validation_token_bound": false
+            })
+        );
+    }
+
     fn hypothetical_facts<'a>(
-        binding: &'a Value, programs: &'a HypotheticalRoots<'a>,
-        constructors: &'a HypotheticalConstructors, linked: &'a HypotheticalLinked,
+        binding: &'a Value,
+        programs: &'a HypotheticalRoots<'a>,
+        constructors: &'a HypotheticalConstructors,
+        linked: &'a HypotheticalLinked,
     ) -> RequestedFacts<'a> {
         RequestedFacts {
-            binding, abi: "hypothetical-only-not-observed-or-physical",
-            programs, constructor_layouts: constructors, linked_inline: linked,
+            binding,
+            abi: "hypothetical-only-not-observed-or-physical",
+            programs,
+            constructor_layouts: constructors,
+            linked_inline: linked,
         }
     }
 
     fn hypothetical_linked(
-        descriptor: &ActualSourceDescriptor, roots: &HypotheticalRoots<'_>,
+        descriptor: &ActualSourceDescriptor,
+        roots: &HypotheticalRoots<'_>,
     ) -> HypotheticalLinked {
-        descriptor.groups.iter().map(|group| {
-            let inline_layouts = group.inline.iter().map(|id| {
-                let field = if let Some(root) = roots.get(id) {
-                    root.metadata.static_inline
-                } else {
-                    assert_eq!(id, runtime_sources::COORDINATOR);
-                    NativeField { bytes: 8_usize, alignment: 8_usize }
-                };
-                (id.clone(), field)
-            }).collect::<BTreeMap<_, _>>();
-            let contained = inline_layouts.values().try_fold(0_u64, |total, field| {
-                total.checked_add(u64::try_from(field.bytes).unwrap())
-            }).unwrap();
-            (group.id.clone(), LinkedInlineFact {
-                source_sha256: group.source_sha256.clone(), budget_owner: CatalogOwner::Validators,
-                attributed_bytes: contained.checked_add(257_u64).unwrap(), inline_layouts,
+        descriptor
+            .groups
+            .iter()
+            .map(|group| {
+                let inline_layouts = group
+                    .inline
+                    .iter()
+                    .map(|id| {
+                        let field = if let Some(root) = roots.get(id) {
+                            root.metadata.static_inline
+                        } else {
+                            assert_eq!(id, runtime_sources::COORDINATOR);
+                            NativeField {
+                                bytes: 8_usize,
+                                alignment: 8_usize,
+                            }
+                        };
+                        (id.clone(), field)
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                let contained = inline_layouts
+                    .values()
+                    .try_fold(0_u64, |total, field| {
+                        total.checked_add(u64::try_from(field.bytes).unwrap())
+                    })
+                    .unwrap();
+                (
+                    group.id.clone(),
+                    LinkedInlineFact {
+                        source_sha256: group.source_sha256.clone(),
+                        budget_owner: CatalogOwner::Validators,
+                        attributed_bytes: contained.checked_add(257_u64).unwrap(),
+                        inline_layouts,
+                    },
+                )
             })
-        }).collect()
+            .collect()
     }
 
     fn hypothetical_oracle(
-        heaps: &[NativeProgramHeap], certificates: &[program_construction::Certificate],
+        heaps: &[NativeProgramHeap],
+        certificates: &[program_construction::Certificate],
         linked: &HypotheticalLinked,
     ) -> RequestedStorage {
         let mut retained = 0_u64;
@@ -1078,28 +1252,45 @@ mod tests {
         let mut peaks = Vec::new();
         assert_eq!(heaps.len(), certificates.len());
         for (heap, certificate) in heaps.iter().zip(certificates) {
-            retained = retained.checked_add(u64::try_from(heap.total).unwrap()).unwrap();
+            retained = retained
+                .checked_add(u64::try_from(heap.total).unwrap())
+                .unwrap();
             for stage in [
-                Stage::Syntax, Stage::Literal, Stage::ForwardNfa, Stage::PikeVm,
-                Stage::Backtrack, Stage::OnePass, Stage::ReverseNfa, Stage::HybridForward,
-                Stage::HybridReverse, Stage::HybridPair, Stage::Publication, Stage::Cleanup,
+                Stage::Syntax,
+                Stage::Literal,
+                Stage::ForwardNfa,
+                Stage::PikeVm,
+                Stage::Backtrack,
+                Stage::OnePass,
+                Stage::ReverseNfa,
+                Stage::HybridForward,
+                Stage::HybridReverse,
+                Stage::HybridPair,
+                Stage::Publication,
+                Stage::Cleanup,
                 Stage::FailureCleanup,
             ] {
                 let bytes = u64::try_from(certificate.phase_scratch[&stage]).unwrap();
                 scratch = scratch.max(bytes);
                 peaks.push(retained.checked_add(bytes).unwrap());
             }
-            visits = visits.checked_add(u64::try_from(certificate.complete_work().unwrap()).unwrap())
+            visits = visits
+                .checked_add(u64::try_from(certificate.complete_work().unwrap()).unwrap())
                 .unwrap();
         }
-        let linked_bytes = linked.values().try_fold(0_u64, |total, fact| {
-            total.checked_add(fact.attributed_bytes)
-        }).unwrap();
+        let linked_bytes = linked
+            .values()
+            .try_fold(0_u64, |total, fact| {
+                total.checked_add(fact.attributed_bytes)
+            })
+            .unwrap();
         RequestedStorage {
             abi: "hypothetical-only-not-observed-or-physical".to_owned(),
-            retained_requested_bytes: retained, construction_only_requested_bytes: scratch,
+            retained_requested_bytes: retained,
+            construction_only_requested_bytes: scratch,
             additive_requested_envelope: retained.checked_add(scratch).unwrap(),
-            linked_inline_attributed_bytes: linked_bytes, trace_peaks: peaks,
+            linked_inline_attributed_bytes: linked_bytes,
+            trace_peaks: peaks,
             constructor_source_visits: visits,
         }
     }
@@ -1108,64 +1299,152 @@ mod tests {
         for id in facts.programs.keys() {
             let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
             assert!(roots.remove(id).is_some());
-            let missing_root = hypothetical_facts(facts.binding, &roots,
-                facts.constructor_layouts, facts.linked_inline);
-            assert_eq!(descriptor.evaluate(&missing_root),
-                Err(Refusal::TargetIncomplete(vec![format!("program::{id}")])));
+            let missing_root = hypothetical_facts(
+                facts.binding,
+                &roots,
+                facts.constructor_layouts,
+                facts.linked_inline,
+            );
+            assert_eq!(
+                descriptor.evaluate(&missing_root),
+                Err(Refusal::TargetIncomplete(vec![format!("program::{id}")]))
+            );
             let mut constructors = facts.constructor_layouts.clone();
             assert!(constructors.remove(id).is_some());
-            let missing_constructor = hypothetical_facts(facts.binding, facts.programs,
-                &constructors, facts.linked_inline);
-            assert_eq!(descriptor.evaluate(&missing_constructor),
-                Err(Refusal::TargetIncomplete(vec![format!("constructor::{id}")])));
+            let missing_constructor = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                &constructors,
+                facts.linked_inline,
+            );
+            assert_eq!(
+                descriptor.evaluate(&missing_constructor),
+                Err(Refusal::TargetIncomplete(vec![format!(
+                    "constructor::{id}"
+                )]))
+            );
         }
         for id in facts.linked_inline.keys() {
             let mut linked = hypothetical_linked(descriptor, facts.programs);
             assert!(linked.remove(id).is_some());
-            let missing = hypothetical_facts(facts.binding, facts.programs,
-                facts.constructor_layouts, &linked);
-            assert_eq!(descriptor.evaluate(&missing),
-                Err(Refusal::TargetIncomplete(vec![format!("linked-inline::{id}")])));
+            let missing = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &linked,
+            );
+            assert_eq!(
+                descriptor.evaluate(&missing),
+                Err(Refusal::TargetIncomplete(vec![format!(
+                    "linked-inline::{id}"
+                )]))
+            );
         }
         let unknown = "hypothetical::unexpected-source-slot";
         let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
-        assert!(roots.insert(unknown.to_owned(), *facts.programs.values().next().unwrap()).is_none());
-        assert_eq!(descriptor.evaluate(&hypothetical_facts(facts.binding, &roots,
-            facts.constructor_layouts, facts.linked_inline)), Err(Refusal::TargetBinding));
+        assert!(
+            roots
+                .insert(unknown.to_owned(), *facts.programs.values().next().unwrap())
+                .is_none()
+        );
+        assert_eq!(
+            descriptor.evaluate(&hypothetical_facts(
+                facts.binding,
+                &roots,
+                facts.constructor_layouts,
+                facts.linked_inline
+            )),
+            Err(Refusal::TargetBinding)
+        );
         let mut constructors = facts.constructor_layouts.clone();
-        assert!(constructors.insert(unknown.to_owned(),
-            facts.constructor_layouts.values().next().unwrap().clone()).is_none());
-        assert_eq!(descriptor.evaluate(&hypothetical_facts(facts.binding, facts.programs,
-            &constructors, facts.linked_inline)), Err(Refusal::TargetBinding));
+        assert!(
+            constructors
+                .insert(
+                    unknown.to_owned(),
+                    facts.constructor_layouts.values().next().unwrap().clone()
+                )
+                .is_none()
+        );
+        assert_eq!(
+            descriptor.evaluate(&hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                &constructors,
+                facts.linked_inline
+            )),
+            Err(Refusal::TargetBinding)
+        );
         let mut linked = hypothetical_linked(descriptor, facts.programs);
-        assert!(linked.insert(unknown.to_owned(), LinkedInlineFact {
-            source_sha256: "hypothetical-unbound-source".to_owned(),
-            budget_owner: CatalogOwner::Validators, attributed_bytes: 1_u64,
-            inline_layouts: BTreeMap::new(),
-        }).is_none());
-        assert_eq!(descriptor.evaluate(&hypothetical_facts(facts.binding, facts.programs,
-            facts.constructor_layouts, &linked)), Err(Refusal::TargetBinding));
+        assert!(
+            linked
+                .insert(
+                    unknown.to_owned(),
+                    LinkedInlineFact {
+                        source_sha256: "hypothetical-unbound-source".to_owned(),
+                        budget_owner: CatalogOwner::Validators,
+                        attributed_bytes: 1_u64,
+                        inline_layouts: BTreeMap::new(),
+                    }
+                )
+                .is_none()
+        );
+        assert_eq!(
+            descriptor.evaluate(&hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &linked
+            )),
+            Err(Refusal::TargetBinding)
+        );
     }
 
-    fn assert_required_layout_slots(descriptor: &ActualSourceDescriptor, facts: &RequestedFacts<'_>) {
+    fn assert_required_layout_slots(
+        descriptor: &ActualSourceDescriptor,
+        facts: &RequestedFacts<'_>,
+    ) {
         for program in &descriptor.programs {
             for key in nfa_fact_keys() {
                 let mut missing = facts.programs[&program.id].nfa_facts.clone();
                 assert!(missing.remove(key).is_some());
                 let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
                 roots.get_mut(&program.id).unwrap().nfa_facts = &missing;
-                let input = hypothetical_facts(facts.binding, &roots,
-                    facts.constructor_layouts, facts.linked_inline);
-                assert_eq!(descriptor.evaluate(&input), Err(Refusal::TargetIncomplete(
-                    vec![format!("program::{}::nfa::{key}", program.id)])));
+                let input = hypothetical_facts(
+                    facts.binding,
+                    &roots,
+                    facts.constructor_layouts,
+                    facts.linked_inline,
+                );
+                assert_eq!(
+                    descriptor.evaluate(&input),
+                    Err(Refusal::TargetIncomplete(vec![format!(
+                        "program::{}::nfa::{key}",
+                        program.id
+                    )]))
+                );
             }
             for key in program.constructor.required_facts() {
                 let mut constructors = facts.constructor_layouts.clone();
-                assert!(constructors.get_mut(&program.id).unwrap().remove(key).is_some());
-                let input = hypothetical_facts(facts.binding, facts.programs,
-                    &constructors, facts.linked_inline);
-                assert_eq!(descriptor.evaluate(&input), Err(Refusal::TargetIncomplete(
-                    vec![format!("constructor::{}::{key}", program.id)])));
+                assert!(
+                    constructors
+                        .get_mut(&program.id)
+                        .unwrap()
+                        .remove(key)
+                        .is_some()
+                );
+                let input = hypothetical_facts(
+                    facts.binding,
+                    facts.programs,
+                    &constructors,
+                    facts.linked_inline,
+                );
+                assert_eq!(
+                    descriptor.evaluate(&input),
+                    Err(Refusal::TargetIncomplete(vec![format!(
+                        "constructor::{}::{key}",
+                        program.id
+                    )]))
+                );
             }
         }
     }
@@ -1179,102 +1458,222 @@ mod tests {
             assert!(nfa.insert(extra_key.to_owned(), valid_field).is_none());
             let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
             roots.get_mut(&program.id).unwrap().nfa_facts = &nfa;
-            let nfa_extra = hypothetical_facts(facts.binding, &roots,
-                facts.constructor_layouts, facts.linked_inline);
+            let nfa_extra = hypothetical_facts(
+                facts.binding,
+                &roots,
+                facts.constructor_layouts,
+                facts.linked_inline,
+            );
             assert_eq!(descriptor.evaluate(&nfa_extra), Err(Refusal::TargetBinding));
             let mut constructors = facts.constructor_layouts.clone();
-            assert!(constructors.get_mut(&program.id).unwrap()
-                .insert(extra_key.to_owned(), valid_field).is_none());
-            let constructor_extra = hypothetical_facts(facts.binding, facts.programs,
-                &constructors, facts.linked_inline);
-            assert_eq!(descriptor.evaluate(&constructor_extra), Err(Refusal::TargetBinding));
+            assert!(
+                constructors
+                    .get_mut(&program.id)
+                    .unwrap()
+                    .insert(extra_key.to_owned(), valid_field)
+                    .is_none()
+            );
+            let constructor_extra = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                &constructors,
+                facts.linked_inline,
+            );
+            assert_eq!(
+                descriptor.evaluate(&constructor_extra),
+                Err(Refusal::TargetBinding)
+            );
         }
     }
 
     fn assert_binding_axes(
-        descriptor: &ActualSourceDescriptor, facts: &RequestedFacts<'_>, heaps: &[NativeProgramHeap],
+        descriptor: &ActualSourceDescriptor,
+        facts: &RequestedFacts<'_>,
+        heaps: &[NativeProgramHeap],
     ) {
         let binding = json!({"hypothetical":"not-the-described-source"});
         assert_ne!(facts.binding, &binding);
-        let wrong = hypothetical_facts(&binding, facts.programs,
-            facts.constructor_layouts, facts.linked_inline);
+        let wrong = hypothetical_facts(
+            &binding,
+            facts.programs,
+            facts.constructor_layouts,
+            facts.linked_inline,
+        );
         assert_eq!(descriptor.evaluate(&wrong), Err(Refusal::TargetBinding));
-        let mut blank = hypothetical_facts(facts.binding, facts.programs,
-            facts.constructor_layouts, facts.linked_inline);
+        let mut blank = hypothetical_facts(
+            facts.binding,
+            facts.programs,
+            facts.constructor_layouts,
+            facts.linked_inline,
+        );
         blank.abi = " ";
         assert_eq!(descriptor.evaluate(&blank), Err(Refusal::TargetBinding));
         for id in facts.linked_inline.keys() {
             let mut changed_source = hypothetical_linked(descriptor, facts.programs);
-            changed_source.get_mut(id).unwrap().source_sha256.push_str("-hypothetical-mismatch");
-            let source = hypothetical_facts(facts.binding, facts.programs,
-                facts.constructor_layouts, &changed_source);
-            assert_eq!(descriptor.reconcile_groups(&source, heaps), Err(Refusal::TargetBinding));
+            changed_source
+                .get_mut(id)
+                .unwrap()
+                .source_sha256
+                .push_str("-hypothetical-mismatch");
+            let source = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &changed_source,
+            );
+            assert_eq!(
+                descriptor.reconcile_groups(&source, heaps),
+                Err(Refusal::TargetBinding)
+            );
             let mut changed_owner = hypothetical_linked(descriptor, facts.programs);
             changed_owner.get_mut(id).unwrap().budget_owner = CatalogOwner::Metadata;
-            let owner = hypothetical_facts(facts.binding, facts.programs,
-                facts.constructor_layouts, &changed_owner);
-            assert_eq!(descriptor.reconcile_groups(&owner, heaps), Err(Refusal::TargetBinding));
+            let owner = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &changed_owner,
+            );
+            assert_eq!(
+                descriptor.reconcile_groups(&owner, heaps),
+                Err(Refusal::TargetBinding)
+            );
         }
     }
 
     fn assert_inline_axes(
-        descriptor: &ActualSourceDescriptor, facts: &RequestedFacts<'_>, heaps: &[NativeProgramHeap],
+        descriptor: &ActualSourceDescriptor,
+        facts: &RequestedFacts<'_>,
+        heaps: &[NativeProgramHeap],
     ) {
         let baseline = descriptor.reconcile_groups(facts, heaps).unwrap();
         for (group, fact) in facts.linked_inline {
             for (id, field) in &fact.inline_layouts {
                 let mut removed = hypothetical_linked(descriptor, facts.programs);
-                assert!(removed.get_mut(group).unwrap().inline_layouts.remove(id).is_some());
-                let missing = hypothetical_facts(facts.binding, facts.programs,
-                    facts.constructor_layouts, &removed);
-                assert_eq!(descriptor.evaluate(&missing), Err(Refusal::TargetIncomplete(
-                    vec![format!("inline::{group}::{id}")])));
+                assert!(
+                    removed
+                        .get_mut(group)
+                        .unwrap()
+                        .inline_layouts
+                        .remove(id)
+                        .is_some()
+                );
+                let missing = hypothetical_facts(
+                    facts.binding,
+                    facts.programs,
+                    facts.constructor_layouts,
+                    &removed,
+                );
+                assert_eq!(
+                    descriptor.evaluate(&missing),
+                    Err(Refusal::TargetIncomplete(vec![format!(
+                        "inline::{group}::{id}"
+                    )]))
+                );
                 let mut invalid = hypothetical_linked(descriptor, facts.programs);
-                invalid.get_mut(group).unwrap().inline_layouts.get_mut(id).unwrap().bytes = 0_usize;
-                let malformed = hypothetical_facts(facts.binding, facts.programs,
-                    facts.constructor_layouts, &invalid);
-                assert_eq!(descriptor.reconcile_groups(&malformed, heaps),
-                    Err(Refusal::TargetLayout(id.clone())));
+                invalid
+                    .get_mut(group)
+                    .unwrap()
+                    .inline_layouts
+                    .get_mut(id)
+                    .unwrap()
+                    .bytes = 0_usize;
+                let malformed = hypothetical_facts(
+                    facts.binding,
+                    facts.programs,
+                    facts.constructor_layouts,
+                    &invalid,
+                );
+                assert_eq!(
+                    descriptor.reconcile_groups(&malformed, heaps),
+                    Err(Refusal::TargetLayout(id.clone()))
+                );
                 if facts.programs.contains_key(id) {
                     for replacement in [
-                        NativeField { bytes: field.bytes.checked_add(field.alignment).unwrap(),
-                            ..*field },
-                        NativeField { alignment: field.alignment.checked_mul(2_usize).unwrap(),
-                            ..*field },
+                        NativeField {
+                            bytes: field.bytes.checked_add(field.alignment).unwrap(),
+                            ..*field
+                        },
+                        NativeField {
+                            alignment: field.alignment.checked_mul(2_usize).unwrap(),
+                            ..*field
+                        },
                     ] {
                         let mut mismatched = hypothetical_linked(descriptor, facts.programs);
-                        *mismatched.get_mut(group).unwrap().inline_layouts.get_mut(id).unwrap() =
-                            replacement;
-                        let unequal = hypothetical_facts(facts.binding, facts.programs,
-                            facts.constructor_layouts, &mismatched);
-                        assert_eq!(descriptor.reconcile_groups(&unequal, heaps),
-                            Err(Refusal::TargetLayout(id.clone())));
+                        *mismatched
+                            .get_mut(group)
+                            .unwrap()
+                            .inline_layouts
+                            .get_mut(id)
+                            .unwrap() = replacement;
+                        let unequal = hypothetical_facts(
+                            facts.binding,
+                            facts.programs,
+                            facts.constructor_layouts,
+                            &mismatched,
+                        );
+                        assert_eq!(
+                            descriptor.reconcile_groups(&unequal, heaps),
+                            Err(Refusal::TargetLayout(id.clone()))
+                        );
                     }
                 }
             }
             let mut extra = hypothetical_linked(descriptor, facts.programs);
-            assert!(extra.get_mut(group).unwrap().inline_layouts.insert(
-                "hypothetical::unexpected-inline-child".to_owned(),
-                NativeField { bytes: 8_usize, alignment: 8_usize },
-            ).is_none());
-            let unexpected = hypothetical_facts(facts.binding, facts.programs,
-                facts.constructor_layouts, &extra);
-            assert_eq!(descriptor.evaluate(&unexpected), Err(Refusal::TargetBinding));
-            let contained = fact.inline_layouts.values().try_fold(0_u64, |total, field| {
-                total.checked_add(u64::try_from(field.bytes).unwrap())
-            }).unwrap();
+            assert!(
+                extra
+                    .get_mut(group)
+                    .unwrap()
+                    .inline_layouts
+                    .insert(
+                        "hypothetical::unexpected-inline-child".to_owned(),
+                        NativeField {
+                            bytes: 8_usize,
+                            alignment: 8_usize
+                        },
+                    )
+                    .is_none()
+            );
+            let unexpected = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &extra,
+            );
+            assert_eq!(
+                descriptor.evaluate(&unexpected),
+                Err(Refusal::TargetBinding)
+            );
+            let contained = fact
+                .inline_layouts
+                .values()
+                .try_fold(0_u64, |total, field| {
+                    total.checked_add(u64::try_from(field.bytes).unwrap())
+                })
+                .unwrap();
             let mut boundary = hypothetical_linked(descriptor, facts.programs);
             boundary.get_mut(group).unwrap().attributed_bytes = contained;
-            let exact = hypothetical_facts(facts.binding, facts.programs,
-                facts.constructor_layouts, &boundary);
-            assert_eq!(descriptor.reconcile_groups(&exact, heaps),
-                Ok(baseline.checked_sub(257_u64).unwrap()));
+            let exact = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &boundary,
+            );
+            assert_eq!(
+                descriptor.reconcile_groups(&exact, heaps),
+                Ok(baseline.checked_sub(257_u64).unwrap())
+            );
             if contained > 0_u64 {
-                boundary.get_mut(group).unwrap().attributed_bytes = contained - 1_u64;
-                let short = hypothetical_facts(facts.binding, facts.programs,
-                    facts.constructor_layouts, &boundary);
-                assert_eq!(descriptor.reconcile_groups(&short, heaps),
-                    Err(Refusal::TargetLayout(group.clone())));
+                boundary.get_mut(group).unwrap().attributed_bytes = contained.checked_sub(1_u64).expect("positive linked attribution");
+                let short = hypothetical_facts(
+                    facts.binding,
+                    facts.programs,
+                    facts.constructor_layouts,
+                    &boundary,
+                );
+                assert_eq!(
+                    descriptor.reconcile_groups(&short, heaps),
+                    Err(Refusal::TargetLayout(group.clone()))
+                );
             }
         }
     }
@@ -1283,64 +1682,118 @@ mod tests {
         for program in &descriptor.programs {
             let mut pattern: HypotheticalRoots<'_> = facts.programs.clone();
             pattern.get_mut(&program.id).unwrap().pattern = "^hypothetical-wrong-binding$";
-            let substituted = hypothetical_facts(facts.binding, &pattern,
-                facts.constructor_layouts, facts.linked_inline);
-            assert_eq!(descriptor.evaluate(&substituted),
-                Err(Refusal::TargetLayout(program.id.clone())));
+            let substituted = hypothetical_facts(
+                facts.binding,
+                &pattern,
+                facts.constructor_layouts,
+                facts.linked_inline,
+            );
+            assert_eq!(
+                descriptor.evaluate(&substituted),
+                Err(Refusal::TargetLayout(program.id.clone()))
+            );
             let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
             let payload = &mut roots.get_mut(&program.id).unwrap().metadata.props_payload;
             payload.bytes = payload.bytes.checked_add(payload.alignment).unwrap();
-            let mismatched = hypothetical_facts(facts.binding, &roots,
-                facts.constructor_layouts, facts.linked_inline);
-            assert_eq!(descriptor.evaluate(&mismatched),
-                Err(Refusal::TargetBinding));
+            let mismatched = hypothetical_facts(
+                facts.binding,
+                &roots,
+                facts.constructor_layouts,
+                facts.linked_inline,
+            );
+            assert_eq!(
+                descriptor.evaluate(&mismatched),
+                Err(Refusal::TargetBinding)
+            );
             let mut nfa = facts.programs[&program.id].nfa_facts.clone();
             let inner = nfa.get_mut(NFA_INNER).unwrap();
             inner.bytes = inner.bytes.checked_add(inner.alignment).unwrap();
             let mut root_map: HypotheticalRoots<'_> = facts.programs.clone();
             root_map.get_mut(&program.id).unwrap().nfa_facts = &nfa;
-            let different_nfa = hypothetical_facts(facts.binding, &root_map,
-                facts.constructor_layouts, facts.linked_inline);
-            assert_eq!(descriptor.evaluate(&different_nfa),
-                Err(Refusal::TargetBinding));
+            let different_nfa = hypothetical_facts(
+                facts.binding,
+                &root_map,
+                facts.constructor_layouts,
+                facts.linked_inline,
+            );
+            assert_eq!(
+                descriptor.evaluate(&different_nfa),
+                Err(Refusal::TargetBinding)
+            );
         }
     }
 
     fn assert_overflow_axes(
-        descriptor: &ActualSourceDescriptor, facts: &RequestedFacts<'_>,
-        heaps: &[NativeProgramHeap], mut certificates: Vec<program_construction::Certificate>,
+        descriptor: &ActualSourceDescriptor,
+        facts: &RequestedFacts<'_>,
+        heaps: &[NativeProgramHeap],
+        mut certificates: Vec<program_construction::Certificate>,
     ) {
         for id in facts.linked_inline.keys() {
             let mut linked = hypothetical_linked(descriptor, facts.programs);
             linked.get_mut(id).unwrap().attributed_bytes = u64::MAX;
-            let overflow = hypothetical_facts(facts.binding, facts.programs,
-                facts.constructor_layouts, &linked);
-            assert_eq!(descriptor.reconcile_groups(&overflow, heaps), Err(Refusal::Arithmetic));
+            let overflow = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &linked,
+            );
+            assert_eq!(
+                descriptor.reconcile_groups(&overflow, heaps),
+                Err(Refusal::Arithmetic)
+            );
         }
         let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
         // Preserve 14's common-layout agreement. Numeric request validation
         // precedes linked reconciliation, whose hypothetical facts stay fixed.
         for root in roots.values_mut() {
-            root.metadata.static_inline = NativeField { bytes: usize::MAX, alignment: 1_usize };
+            root.metadata.static_inline = NativeField {
+                bytes: usize::MAX,
+                alignment: 1_usize,
+            };
         }
-        let request = hypothetical_facts(facts.binding, &roots,
-            facts.constructor_layouts, facts.linked_inline);
+        let request = hypothetical_facts(
+            facts.binding,
+            &roots,
+            facts.constructor_layouts,
+            facts.linked_inline,
+        );
         assert_eq!(descriptor.evaluate(&request), Err(Refusal::Arithmetic));
         let mut retained_overflow = heaps.to_vec();
         retained_overflow.first_mut().unwrap().total = usize::MAX;
-        assert_eq!(compose(&descriptor.programs, &retained_overflow, &certificates),
-            Err(Refusal::Arithmetic));
+        assert_eq!(
+            compose(&descriptor.programs, &retained_overflow, &certificates),
+            Err(Refusal::Arithmetic)
+        );
         let first = certificates.first_mut().unwrap();
-        assert!(first.phase_scratch.insert(Stage::Syntax, usize::MAX).is_some());
+        assert!(
+            first
+                .phase_scratch
+                .insert(Stage::Syntax, usize::MAX)
+                .is_some()
+        );
         first.construction_only_bytes = usize::MAX;
-        assert_eq!(compose(&descriptor.programs, heaps, &certificates), Err(Refusal::Arithmetic));
+        assert_eq!(
+            compose(&descriptor.programs, heaps, &certificates),
+            Err(Refusal::Arithmetic)
+        );
         // Keep every trace peak representable, but overflow final C + max I.
         // There are at least two positive retained owners, so final C > C0.
-        let without_first = usize::MAX.checked_sub(heaps.first().unwrap().total).unwrap();
+        let without_first = usize::MAX
+            .checked_sub(heaps.first().unwrap().total)
+            .unwrap();
         let additive = certificates.first_mut().unwrap();
-        assert!(additive.phase_scratch.insert(Stage::Syntax, without_first).is_some());
+        assert!(
+            additive
+                .phase_scratch
+                .insert(Stage::Syntax, without_first)
+                .is_some()
+        );
         additive.construction_only_bytes = without_first;
-        assert_eq!(compose(&descriptor.programs, heaps, &certificates), Err(Refusal::Arithmetic));
+        assert_eq!(
+            compose(&descriptor.programs, heaps, &certificates),
+            Err(Refusal::Arithmetic)
+        );
     }
 
     #[test]
@@ -1377,8 +1830,8 @@ mod tests {
         .map(|path| format!("crates/auctioneer-bidder/tests/{path}"))
         .into_iter()
         .collect::<BTreeSet<_>>();
-        let witnesses = model_sources();
-        let witnesses = witnesses.as_object().unwrap();
+        let source_witnesses = model_sources();
+        let witnesses = source_witnesses.as_object().unwrap();
         assert_eq!(witnesses.keys().cloned().collect::<BTreeSet<_>>(), expected);
         for witness in witnesses.values() {
             assert_eq!(
@@ -1771,13 +2224,13 @@ mod tests {
     }
 
     fn check_two_root_layouts(
-        first: ProgramRecipe<'_>,
-        second: ProgramRecipe<'_>,
+        first: &ProgramRecipe<'_>,
+        second: &ProgramRecipe<'_>,
         first_constructor: &BTreeMap<String, NativeField>,
         second_constructor: &BTreeMap<String, NativeField>,
     ) -> Result<(), Refusal> {
         let programs =
-            BTreeMap::from([("fake_a".to_owned(), first), ("fake_b".to_owned(), second)]);
+            BTreeMap::from([("fake_a".to_owned(), *first), ("fake_b".to_owned(), *second)]);
         let constructors = BTreeMap::from([
             ("fake_a".to_owned(), first_constructor.clone()),
             ("fake_b".to_owned(), second_constructor.clone()),
@@ -1829,7 +2282,7 @@ mod tests {
         let nfa = common_nfa_facts(&constructor);
         let first = common_program("^[0-9]+$", &nfa);
         assert_eq!(
-            check_two_root_layouts(first, first, &constructor, &constructor),
+            check_two_root_layouts(&first, &first, &constructor, &constructor),
             Ok(())
         );
         assert!(!constructor.is_empty());
@@ -1843,12 +2296,12 @@ mod tests {
                 let second_nfa = common_nfa_facts(&changed);
                 let second = common_program("^[0-9]+$", &second_nfa);
                 assert_eq!(
-                    check_two_root_layouts(first, second, &constructor, &changed),
+                    check_two_root_layouts(&first, &second, &constructor, &changed),
                     Err(Refusal::TargetBinding),
                     "{name}: bytes={change_bytes}"
                 );
                 assert_eq!(
-                    check_two_root_layouts(second, first, &changed, &constructor),
+                    check_two_root_layouts(&second, &first, &changed, &constructor),
                     Err(Refusal::TargetBinding),
                     "reverse {name}: bytes={change_bytes}"
                 );
@@ -1863,7 +2316,7 @@ mod tests {
         let first = common_program("^[0-9]+$", &nfa);
         assert_eq!(nfa.len(), 11_usize);
         assert_eq!(
-            check_two_root_layouts(first, first, &constructor, &constructor),
+            check_two_root_layouts(&first, &first, &constructor, &constructor),
             Ok(())
         );
         for (name, field) in &nfa {
@@ -1875,12 +2328,12 @@ mod tests {
                 );
                 let second = common_program("^[0-9]+$", &changed);
                 assert_eq!(
-                    check_two_root_layouts(first, second, &constructor, &constructor),
+                    check_two_root_layouts(&first, &second, &constructor, &constructor),
                     Err(Refusal::TargetBinding),
                     "{name}: bytes={change_bytes}"
                 );
                 assert_eq!(
-                    check_two_root_layouts(second, first, &constructor, &constructor),
+                    check_two_root_layouts(&second, &first, &constructor, &constructor),
                     Err(Refusal::TargetBinding),
                     "reverse {name}: bytes={change_bytes}"
                 );
@@ -1896,7 +2349,7 @@ mod tests {
         let mut probe = first;
         assert_eq!(fixed_program_fields(&mut probe).len(), 16_usize);
         assert_eq!(
-            check_two_root_layouts(first, first, &constructor, &constructor),
+            check_two_root_layouts(&first, &first, &constructor, &constructor),
             Ok(())
         );
         for index in 0_usize..16_usize {
@@ -1907,15 +2360,15 @@ mod tests {
                     let field = fields.get_mut(index).expect("fixed field present");
                     let before = **field;
                     **field = changed_layout(before, change_bytes);
-                    assert_ne!(**field, before);
-                }
+                    assert_ne!(**field, before)
+                };
                 assert_eq!(
-                    check_two_root_layouts(first, second, &constructor, &constructor),
+                    check_two_root_layouts(&first, &second, &constructor, &constructor),
                     Err(Refusal::TargetBinding),
                     "field {index}: bytes={change_bytes}"
                 );
                 assert_eq!(
-                    check_two_root_layouts(second, first, &constructor, &constructor),
+                    check_two_root_layouts(&second, &first, &constructor, &constructor),
                     Err(Refusal::TargetBinding),
                     "reverse field {index}: bytes={change_bytes}"
                 );
@@ -1929,7 +2382,7 @@ mod tests {
         assert_ne!(selected.pattern, first.pattern);
         assert_ne!(selected.strategy_payload, first.strategy_payload);
         assert_eq!(
-            check_two_root_layouts(first, selected, &constructor, &constructor),
+            check_two_root_layouts(&first, &selected, &constructor, &constructor),
             Ok(())
         );
     }
@@ -1959,7 +2412,7 @@ mod tests {
             alignment: 4_usize,
         };
         assert_eq!(
-            check_two_root_layouts(wide, narrow, &wide_constructor, &narrow_constructor),
+            check_two_root_layouts(&wide, &narrow, &wide_constructor, &narrow_constructor),
             Err(Refusal::TargetBinding)
         );
     }

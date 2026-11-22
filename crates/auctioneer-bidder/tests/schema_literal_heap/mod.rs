@@ -26,6 +26,12 @@ pub(crate) enum AutomaticPrefilterError {
     Layout,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AutomaticPrefilterSource {
+    ExcludedStartAnchored,
+    SingleByte(u8),
+}
+
 impl AutomaticPrefilterHeap {
     pub(crate) fn from_pattern(
         pattern: &str,
@@ -94,15 +100,6 @@ impl AutomaticPrefilterHeap {
             } => requested_bytes,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum AutomaticPrefilterSource {
-    ExcludedStartAnchored,
-    SingleByte(u8),
-}
-
-impl AutomaticPrefilterHeap {
     pub(crate) fn from_source(
         source: AutomaticPrefilterSource,
         payload: NativeField,

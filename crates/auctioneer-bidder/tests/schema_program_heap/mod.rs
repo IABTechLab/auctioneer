@@ -143,37 +143,7 @@ impl SourceRecipe {
         self.project(Projection::Supplied(facts))
     }
 
-    // Both adapters share the six-owner composition and structural dimensions.
-    // Only explicit Native mode may obtain build-host layout values.
-    fn project(&self, projection: Projection<'_>) -> Result<NativeProgramHeap, ProgramHeapError> {
-        let metadata = match projection {
-            Projection::Native => {
-                NativeImmutableRegexMetadata::from_pattern(&self.pattern, &self.config, 1)
-            }
-            Projection::Supplied(facts) => NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                &self.pattern,
-                &self.config,
-                1,
-                facts.metadata,
-                facts.arc_header,
-            ),
-        }
-        .map_err(metadata_error)?;
-        if matches!(projection, Projection::Native) {
-            require_metadata_roots(&metadata, self.native_roots)?;
-        }
-        let metadata_bytes = metadata
-            .population(1, false)
-            .map_err(metadata_error)?
-            .requested_heap_bytes;
-        let strategy_arc_bytes = match projection {
-            Projection::Native => native_arc_value_layout(self.native_roots.strategy_payload()),
-            Projection::Supplied(facts) => {
-                arc_layout_with_header(facts.strategy_payload, facts.arc_header)
-            }
-        }
-        .map_err(layout_error)?
-        .size();
+    fn project_nfas(&self, projection: Projection<'_>) -> Result<usize, ProgramHeapError> {
         let mut nfa_bytes = 0_usize;
         for nfa in [&self.forward, &self.reverse] {
             let tree = match projection {
@@ -208,6 +178,41 @@ impl SourceRecipe {
                 .checked_add(tree.requested_heap_bytes)
                 .ok_or(ProgramHeapError::Arithmetic)?;
         }
+        Ok(nfa_bytes)
+    }
+
+    // Both adapters share the six-owner composition and structural dimensions.
+    // Only explicit Native mode may obtain build-host layout values.
+    fn project(&self, projection: Projection<'_>) -> Result<NativeProgramHeap, ProgramHeapError> {
+        let metadata = match projection {
+            Projection::Native => {
+                NativeImmutableRegexMetadata::from_pattern(&self.pattern, &self.config, 1)
+            }
+            Projection::Supplied(facts) => NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                &self.pattern,
+                &self.config,
+                1,
+                facts.metadata,
+                facts.arc_header,
+            ),
+        }
+        .map_err(metadata_error)?;
+        if matches!(projection, Projection::Native) {
+            require_metadata_roots(&metadata, self.native_roots)?;
+        }
+        let metadata_bytes = metadata
+            .population(1, false)
+            .map_err(metadata_error)?
+            .requested_heap_bytes;
+        let strategy_arc_bytes = match projection {
+            Projection::Native => native_arc_value_layout(self.native_roots.strategy_payload()),
+            Projection::Supplied(facts) => {
+                arc_layout_with_header(facts.strategy_payload, facts.arc_header)
+            }
+        }
+        .map_err(layout_error)?
+        .size();
+        let nfa_bytes = self.project_nfas(projection)?;
         let shift = u32::try_from(self.forward.byte_classes().stride2())
             .map_err(|_error| ProgramHeapError::Arithmetic)?;
         let stride = 1_usize
@@ -298,10 +303,13 @@ fn target_request(
         usize::try_from(i64::MAX)
     }
     .map_err(|_error| ProgramHeapError::Arithmetic)?;
-    let maximum = maximum
-        .checked_sub(alignment - 1)
+    let padding = alignment
+        .checked_sub(1_usize)
         .ok_or(ProgramHeapError::Arithmetic)?;
-    if bytes > maximum {
+    let maximum_request = maximum
+        .checked_sub(padding)
+        .ok_or(ProgramHeapError::Arithmetic)?;
+    if bytes > maximum_request {
         return Err(ProgramHeapError::Arithmetic);
     }
     Ok(())
@@ -691,9 +699,9 @@ mod tests {
                 "{name}"
             );
         }
-        let mut changed = facts;
-        changed.pattern = "^different$";
-        assert_eq!(source.evaluate(&changed), Err(ProgramHeapError::Shape));
+        let mut mismatched_pattern = facts;
+        mismatched_pattern.pattern = "^different$";
+        assert_eq!(source.evaluate(&mismatched_pattern), Err(ProgramHeapError::Shape));
         for axis in 0_usize..5_usize {
             let mut changed = facts;
             let error = match axis {

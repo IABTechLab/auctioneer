@@ -334,6 +334,76 @@ mod tests {
         }
 
         #[test]
+        fn prelive_prefix_success_constructs_only_later_program_and_repeat_reuses_both() {
+            let costs = controlled_native_costs(CatalogResourceCosts::UNCHANGED);
+            let cell = OnceLock::new();
+            let prefix = OnceLock::<Option<Arc<Regex>>>::new();
+            let later = OnceLock::<Option<Arc<Regex>>>::new();
+            let prefix_attempts = Cell::new(0_usize);
+            let later_attempts = Cell::new(0_usize);
+            let prefix_witness = {
+                let retained = prefix
+                    .get_or_init(|| {
+                        prefix_attempts.set(prefix_attempts.get() + 1_usize);
+                        Some(build_program(r"^live[0-9]+$").unwrap())
+                    })
+                    .as_ref()
+                    .unwrap();
+                assert!(retained.memory_usage() > 0_usize);
+                Arc::downgrade(retained)
+            };
+            assert_eq!(prefix_attempts.get(), 1_usize);
+            assert_eq!(later_attempts.get(), 0_usize);
+            assert!(prefix_witness.upgrade().is_some());
+            assert!(cell.get().is_none());
+            assert!(later.get().is_none());
+
+            assert!(initialize_native_schemas_with_cell(
+                costs,
+                false,
+                &cell,
+                || {
+                    assert!(
+                        prefix
+                            .get_or_init(|| panic!("already-live prefix must not reconstruct"))
+                            .is_some()
+                    );
+                    assert!(prefix_witness.upgrade().is_some());
+                    later
+                        .get_or_init(|| {
+                            later_attempts.set(later_attempts.get() + 1_usize);
+                            Some(build_program(r"^later[0-9]+$").unwrap())
+                        })
+                        .is_some()
+                }
+            ));
+            assert_eq!(cell.get(), Some(&true));
+            assert_eq!(prefix_attempts.get(), 1_usize);
+            assert_eq!(later_attempts.get(), 1_usize);
+            let later_witness = {
+                let retained = later.get().unwrap().as_ref().unwrap();
+                assert!(retained.memory_usage() > 0_usize);
+                Arc::downgrade(retained)
+            };
+            assert!(prefix_witness.upgrade().is_some());
+            assert!(later_witness.upgrade().is_some());
+            assert!(initialize_native_schemas_with_cell(
+                costs,
+                false,
+                &cell,
+                || panic!("successful initialization must not repeat constructors")
+            ));
+            assert_eq!(cell.get(), Some(&true));
+            assert_eq!(prefix_attempts.get(), 1_usize);
+            assert_eq!(later_attempts.get(), 1_usize);
+            drop(later);
+            assert!(later_witness.upgrade().is_none());
+            assert!(prefix_witness.upgrade().is_some());
+            drop(prefix);
+            assert!(prefix_witness.upgrade().is_none());
+        }
+
+        #[test]
         fn fresh_late_failure_keeps_live_prefix_drops_temporary_and_caches_failure() {
             let costs = controlled_native_costs(CatalogResourceCosts::UNCHANGED);
             let cell = OnceLock::new();

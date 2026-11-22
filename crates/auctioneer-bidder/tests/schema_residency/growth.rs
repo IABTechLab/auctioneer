@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::env::{self, consts};
 use std::ffi::OsString;
 use std::fs;
-use std::io::Read as _;
+use std::io::{self, Read as _, Write};
 use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _};
 use std::path::{Component, Path, PathBuf};
 use std::str;
@@ -109,6 +109,31 @@ struct View {
     seed_sha256: String,
     expanded_sha256: String,
     generated_source_bytes: u64,
+}
+
+// Match serde_json's read-only indexing semantics without unchecked indexing.
+fn value_at<'a>(value: &'a Value, path: &[&str]) -> &'a Value {
+    path.iter().fold(value, |current, key| {
+        current.get(*key).unwrap_or(&Value::Null)
+    })
+}
+
+fn object_at<'a>(value: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, Value>, String> {
+    let mut current = value;
+    for key in path {
+        current = current.get_mut(*key).ok_or("missing growth report parent")?;
+    }
+    current
+        .as_object_mut()
+        .ok_or_else(|| "growth report parent is not an object".into())
+}
+
+fn write_growth_report(writer: &mut impl Write, lane: &str, report: &Value) -> io::Result<()> {
+    let body = serde_json::to_vec_pretty(report).map_err(io::Error::other)?;
+    writer.write_all(format!("AUCTIONEER_SCHEMA_GROWTH_BEGIN/{lane}\n").as_bytes())?;
+    writer.write_all(&body)?;
+    writer.write_all(format!("\nAUCTIONEER_SCHEMA_GROWTH_END/{lane}\n").as_bytes())?;
+    writer.flush()
 }
 
 fn reference_path(value: Option<OsString>) -> Result<PathBuf, String> {
@@ -231,9 +256,10 @@ fn owner_programs(view: &View) -> Result<BTreeMap<String, Vec<(String, String)>>
 }
 
 fn match_views(reference: &View, candidate: &View, declared: &Delta) -> Result<Value, String> {
-    if reference.source["kind"] != "pinned-git-object-data"
-        || reference.source["commit"] != catalog_reference::REFERENCE_COMMIT
-        || reference.source["tree"] != catalog_reference::REFERENCE_TREE
+    if value_at(&reference.source, &["kind"]).as_str() != Some("pinned-git-object-data")
+        || value_at(&reference.source, &["commit"]).as_str()
+            != Some(catalog_reference::REFERENCE_COMMIT)
+        || value_at(&reference.source, &["tree"]).as_str() != Some(catalog_reference::REFERENCE_TREE)
     {
         return Err("reference identity mismatch".into());
     }
@@ -303,17 +329,30 @@ fn literal_dispatch_edge<'a>(
     let from = edge["from"].as_str().ok_or(SCHEDULE)?;
     let role = edge["role"].as_str().ok_or(SCHEDULE)?;
     let expected = match (from, role) {
-        ("native_owner", "native-owner-lookup") =>
-            BTreeSet::from(["from", "member", "owner", "role", "ownership"]),
-        ("native_required", "native-required-predicate") =>
-            BTreeSet::from(["from", "member", "policy_correspondence", "role", "ownership"]),
+        ("native_owner", "native-owner-lookup") => {
+            BTreeSet::from(["from", "member", "owner", "role", "ownership"])
+        }
+        ("native_required", "native-required-predicate") => BTreeSet::from([
+            "from",
+            "member",
+            "policy_correspondence",
+            "role",
+            "ownership",
+        ]),
         ("native_owner" | "native_required", _)
         | (_, "native-owner-lookup" | "native-required-predicate") => return Err(SCHEDULE.into()),
         _ => return Ok(false),
     };
-    let member = edge["member"].as_str().filter(|name| !name.is_empty()).ok_or(SCHEDULE)?;
-    let fields = edge.as_object().ok_or(SCHEDULE)?.keys()
-        .map(String::as_str).collect::<BTreeSet<_>>();
+    let member = edge["member"]
+        .as_str()
+        .filter(|name| !name.is_empty())
+        .ok_or(SCHEDULE)?;
+    let fields = edge
+        .as_object()
+        .ok_or(SCHEDULE)?
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
     if fields != expected || edge["ownership"] != "literal-only" || !seen.insert((from, member)) {
         return Err(SCHEDULE.into());
     }
@@ -322,7 +361,8 @@ fn literal_dispatch_edge<'a>(
         if !owners.contains_key(owner) {
             return Err(SCHEDULE.into());
         }
-    } else if edge["policy_correspondence"] != "accepted-source-owner" {
+    }
+    if from == "native_required" && edge["policy_correspondence"] != "accepted-source-owner" {
         return Err(SCHEDULE.into());
     }
     Ok(true)
@@ -354,7 +394,7 @@ fn schedule(
     let mut edges = BTreeSet::new();
     let mut literal_edges = BTreeSet::new();
     let mut auxiliary_edges = 0_usize;
-    for edge in graph["auxiliary"]["dispatch_edges"]
+    for edge in value_at(graph, &["auxiliary", "dispatch_edges"])
         .as_array()
         .ok_or(SCHEDULE)?
     {
@@ -381,13 +421,13 @@ fn schedule(
                 if suffix != number.to_string() || number >= owners.len() {
                     return Err(SCHEDULE.into());
                 }
-                auxiliary_edges += 1;
+                auxiliary_edges = auxiliary_edges.checked_add(1_usize).ok_or(SCHEDULE)?;
             }
             ("validate_native", "validation-call-cache-factory" | "is-valid-with-call-cache") => {
                 if !declarations.contains_key(to) {
                     return Err(SCHEDULE.into());
                 }
-                auxiliary_edges += 1;
+                auxiliary_edges = auxiliary_edges.checked_add(1_usize).ok_or(SCHEDULE)?;
             }
             _ => return Err(SCHEDULE.into()),
         }
@@ -456,8 +496,9 @@ fn membership(seed: &Value, independent: &Value) -> Result<(), String> {
     }
     string_set(&independent["effective_schema_owners"], refusal)?;
     if selected_roots != roots
-        || seed["selection"]["members"] != json!(members)
-        || seed["selection"]["schema_owners"] != independent["effective_schema_owners"]
+        || value_at(seed, &["selection", "members"]) != &json!(members)
+        || value_at(seed, &["selection", "schema_owners"])
+            != value_at(independent, &["effective_schema_owners"])
     {
         return Err(refusal.into());
     }
@@ -465,14 +506,16 @@ fn membership(seed: &Value, independent: &Value) -> Result<(), String> {
 }
 
 fn signed_delta(reference: u64, candidate: u64) -> Result<i64, String> {
-    i64::try_from(i128::from(candidate) - i128::from(reference))
-        .map_err(|error| format!("growth delta overflow: {error}"))
+    let difference = i128::from(candidate)
+        .checked_sub(i128::from(reference))
+        .ok_or("growth delta overflow")?;
+    i64::try_from(difference).map_err(|error| format!("growth delta overflow: {error}"))
 }
 
-fn view_report(view: &View, observation: Value) -> Value {
+fn view_report(view: &View, observation: &Value) -> Value {
     json!({"source":view.source,"measurement":view.measurement,"membership":view.membership,
         "schema_owner_count":view.owners.len(),
-        "public_definition_count":view.membership["roots"].as_array().map(Vec::len),
+        "public_definition_count":value_at(&view.membership, &["roots"]).as_array().map(Vec::len),
         "schema_owners":view.owners,"programs":view.programs,"program_count":view.programs.len(),
         "seed_sha256":view.seed_sha256,"expanded_sha256":view.expanded_sha256,
         "generated_source_bytes":view.generated_source_bytes,
@@ -513,10 +556,10 @@ fn observation_delta(reference: &Value, candidate: &Value) -> Result<Value, Stri
                         .map(i128::from)
                         .or_else(|| after.as_u64().map(i128::from))
                         .ok_or("invalid observation")?;
-                    json!(
-                        i64::try_from(after_number - before_number)
-                            .map_err(|error| error.to_string())?
-                    )
+                    let delta = after_number
+                        .checked_sub(before_number)
+                        .ok_or("growth delta overflow")?;
+                    json!(i64::try_from(delta).map_err(|error| error.to_string())?)
                 }
                 _ => return Err("unmatched observation components".into()),
             };
@@ -539,8 +582,8 @@ fn observe_matched(
     verify_frozen(&token, reference, candidate)?;
     let constructor_delta = observation_delta(&reference_observation, &candidate_observation)?;
     Ok(json!({"label":LABEL,"owner_delta":declared,
-        "reference":view_report(reference, reference_observation),
-        "candidate":view_report(candidate, candidate_observation),
+        "reference":view_report(reference, &reference_observation),
+        "candidate":view_report(candidate, &candidate_observation),
         "component_deltas":{
             "generated_source_bytes":signed_delta(reference.generated_source_bytes,
                 candidate.generated_source_bytes)?,
@@ -588,7 +631,7 @@ pub(super) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
     fs::File::open(path)
         .map_err(|error| error.to_string())?
-        .take(cap + 1)
+        .take(cap.checked_add(1_u64).ok_or("growth source byte cap overflow")?)
         .read_to_end(&mut bytes)
         .map_err(|error| error.to_string())?;
     let length = u64::try_from(bytes.len()).map_err(|error| error.to_string())?;
@@ -633,7 +676,7 @@ fn source_files(
                     child_entry
                         .file_name()
                         .into_string()
-                        .map_err(|name| format!("non UTF-8 growth directory entry: {name:?}"))?,
+                        .map_err(|_entry_name| "non UTF-8 growth directory entry".to_owned())?,
                 );
             }
             json!({"kind":"directory","entries":entries})
@@ -795,7 +838,7 @@ fn check_build(
         .ok_or("missing build profile")?;
     if manifest["schema_version"] != 2_u8
         || manifest["kind"] != "unqualified_non_serving_schema_staging"
-        || manifest["identity"]["qualification"] != "Unqualified"
+        || value_at(manifest, &["identity", "qualification"]).as_str() != Some("Unqualified")
         || manifest["linked_or_serving_qualification"] != false
         || manifest["options"] != CANDIDATE_OPTIONS
         || build.profile != profile
@@ -835,7 +878,7 @@ fn measurement_identity(
     let compiler = schema_vendor::verify(workspace)?;
     let regex = schema_regex_vendor::verify(workspace).map_err(|error| error.to_string())?;
     let features = schema_build::resolved_engine_features(&regex)?;
-    let compiler_inputs = manifest["identity"]["inputs"]
+    let compiler_inputs = value_at(manifest, &["identity", "inputs"])
         .as_array()
         .ok_or("missing compiler inputs")?
         .iter()
@@ -864,9 +907,9 @@ fn measurement_identity(
 fn current_measurement(workspace: &Path) -> Result<Measurement, String> {
     let manifest: Value =
         serde_json::from_slice(CURRENT_MANIFEST).map_err(|error| error.to_string())?;
-    let build: Build =
-        serde_json::from_value(manifest["build"].clone()).map_err(|error| error.to_string())?;
-    let environment = serde_json::from_value(manifest["build_environment"].clone())
+    let build: Build = serde_json::from_value(value_at(&manifest, &["build"]).clone())
+        .map_err(|error| error.to_string())?;
+    let environment = serde_json::from_value(value_at(&manifest, &["build_environment"]).clone())
         .map_err(|error| error.to_string())?;
     let identity = measurement_identity(workspace, &manifest, &build, &environment)?;
     Ok(Measurement {
@@ -1057,7 +1100,7 @@ fn schema_owners(
         return Err(SCHEMAS.into());
     }
     let mut schema_inputs = BTreeMap::new();
-    for input in manifest["identity"]["inputs"].as_array().ok_or(SCHEMAS)? {
+    for input in value_at(manifest, &["identity", "inputs"]).as_array().ok_or(SCHEMAS)? {
         if input["kind"] == "Schema" {
             let name = input["id"].as_str().ok_or(SCHEMAS)?;
             let sha256 = input["sha256"].as_str().ok_or(SCHEMAS)?;
@@ -1171,10 +1214,15 @@ fn reconstruct(
         &graph,
     )?;
     let programs = schedule(&graph, &owners)?;
-    source["files"] = source_files(workspace, &paths, &snapshot_paths)?;
-    source["lock_sha256"] = json!(expanded::digest(&read_regular(
-        &workspace.join("Cargo.lock")
-    )?));
+    let source_object = object_at(&mut source, &[])?;
+    source_object.insert(
+        "files".into(),
+        source_files(workspace, &paths, &snapshot_paths)?,
+    );
+    source_object.insert(
+        "lock_sha256".into(),
+        json!(expanded::digest(&read_regular(&workspace.join("Cargo.lock"))?)),
+    );
     let view = View {
         source,
         measurement: measurement.identity.clone(),
@@ -1212,7 +1260,7 @@ fn check_materialized_reference(
     capture: &Capture,
 ) -> Result<(), String> {
     for file in snapshot.files() {
-        let record = &capture.view.source["files"][&file.witness.path];
+        let record = value_at(&capture.view.source, &["files", &file.witness.path]);
         if record["bytes"] != file.witness.bytes
             || record["sha256"] != file.witness.sha256
             || file_witness(&file.contents) != *record
@@ -1232,11 +1280,17 @@ fn rechecked_view(capture: &Capture, measurement: &Value) -> Result<View, String
         return Err("frozen inputs changed".into());
     }
     let mut view = capture.view.clone();
-    view.source["files"] =
-        source_files(&capture.workspace, &capture.paths, &capture.snapshot_paths)?;
-    view.source["lock_sha256"] = json!(expanded::digest(&read_regular(
-        &capture.workspace.join("Cargo.lock")
-    )?));
+    let source_object = object_at(&mut view.source, &[])?;
+    source_object.insert(
+        "files".into(),
+        source_files(&capture.workspace, &capture.paths, &capture.snapshot_paths)?,
+    );
+    source_object.insert(
+        "lock_sha256".into(),
+        json!(expanded::digest(&read_regular(
+            &capture.workspace.join("Cargo.lock")
+        )?)),
+    );
     view.measurement = measurement.clone();
     Ok(view)
 }
@@ -1250,38 +1304,61 @@ fn attach_source_recipes(
 ) -> Result<(), String> {
     let regex = schema_regex_vendor::verify(workspace).map_err(|error| error.to_string())?;
     let dependencies = schema_build::resolved_regex_dependencies(&regex)?;
-    let features = dependencies.engine_features.iter().cloned().collect::<BTreeSet<_>>();
-    let release = measurement.build.compiler_verbose.lines()
+    let features = dependencies
+        .engine_features
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let release = measurement
+        .build
+        .compiler_verbose
+        .lines()
         .find_map(|line| line.strip_prefix("release: "))
         .ok_or("missing current compiler release")?;
     let mut common_terms = None;
     for (side, capture) in [("reference", reference), ("candidate", candidate)] {
-        let recipe = descriptor::describe(&capture.seed, &capture.graph, descriptor::Sources {
-            workspace, syntax: &dependencies.syntax_root, rust_release: release,
-            features: &features,
-        }).map_err(|error| format!("matched source descriptor refused: {error:?}"))?;
+        let recipe = descriptor::describe(
+            &capture.seed,
+            &capture.graph,
+            &descriptor::Sources {
+                workspace,
+                syntax: &dependencies.syntax_root,
+                rust_release: release,
+                features: &features,
+            },
+        )
+        .map_err(|error| format!("matched source descriptor refused: {error:?}"))?;
         let source_report = recipe.report();
         // Relocated snapshot paths and OUT_DIR identities intentionally remain
         // distinct in each authenticated projection. Compare formula topology,
         // not these capture-specific source bindings or physical linked bytes.
-        let linked_slots = source_report["linked_inline_groups"].as_array()
-            .ok_or("missing described linked group topology")?.iter().map(|group| {
+        let linked_slots = value_at(&source_report, &["linked_inline_groups"])
+            .as_array()
+            .ok_or("missing described linked group topology")?
+            .iter()
+            .map(|group| {
                 json!({"identity":group["identity"],"roots":group["roots"],
                     "inline_children":group["inline_children"],
                     "budget_owner":group["budget_owner"],"units":group["units"]})
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let terms = json!({
-            "programs_in_initialization_order":source_report["programs_in_initialization_order"],
+            "programs_in_initialization_order":value_at(&source_report, &["programs_in_initialization_order"]),
             "linked_inline_topology":linked_slots});
         if common_terms.as_ref().is_some_and(|first| *first != terms) {
             return Err("reference/candidate common recipe terms differ".into());
         }
         common_terms = Some(terms);
-        report[side]["source_recipe_projection"] = recipe.projection();
-        report[side]["validation_handoff"] = recipe.validation_handoff();
+        let side_report = object_at(report, &[side])?;
+        side_report.insert("source_recipe_projection".into(), recipe.projection());
+        side_report.insert("validation_handoff".into(), recipe.validation_handoff());
+        side_report.insert("constructor_work".into(),
+            value_at(&source_report, &["constructor_work"]).clone());
         if side == "candidate" {
             let requested = descriptor::assert_hypothetical_evaluation(&recipe);
-            report[side]["hypothetical_requested_storage"] = json!({
+            side_report.insert(
+                "hypothetical_requested_storage".into(),
+                json!({
                 "abi":requested.abi,
                 "retained_requested_bytes":requested.retained_requested_bytes,
                 "construction_only_requested_bytes":requested.construction_only_requested_bytes,
@@ -1289,16 +1366,20 @@ fn attach_source_recipes(
                 "linked_inline_attributed_bytes":requested.linked_inline_attributed_bytes,
                 "trace_peaks":requested.trace_peaks,
                 "constructor_source_visits":requested.constructor_source_visits,
-                "observed_target_layouts":false,"physical_or_serving_qualification":false});
+                "observed_target_layouts":false,"physical_or_serving_qualification":false}),
+            );
         }
     }
-    report["component_deltas"]["common_C_I"] = json!({
+    object_at(report, &["component_deltas"])?.insert(
+        "common_C_I".into(),
+        json!({
         "scope":"equal conditional source recipes under the same supplied target premises",
         "retained_recipe_equal":true,"initialization_recipe_equal":true,
         "linked_inline_topology_equal":true,
         "linked_inline_attribution":"separately source-bound for each capture; no numeric delta",
         "numeric_target_delta":null,
-        "physical_or_serving_qualification":false});
+        "physical_or_serving_qualification":false}),
+    );
     Ok(())
 }
 
@@ -1312,23 +1393,55 @@ fn attach_metadata_observations(
     let (reference_input, candidate_input) =
         matched_metadata_reconstructions(reference, candidate, measurement)?;
     let observed = super::metadata_registry::observe_matched(
-        &reference_input, &candidate_input, schema_build::BUILD_TIMEOUT,
+        &reference_input,
+        &candidate_input,
+        schema_build::BUILD_TIMEOUT,
     )?;
     for side in ["reference", "candidate"] {
-        report[side]["metadata_constructor_observation"] = observed[side]["metadata"].clone();
-        report[side]["registry_constructor_observation"] = observed[side]["registry"].clone();
+        let side_report = object_at(report, &[side])?;
+        side_report.insert(
+            "metadata_constructor_observation".into(),
+            value_at(&observed, &[side, "metadata"]).clone(),
+        );
+        side_report.insert(
+            "registry_constructor_observation".into(),
+            value_at(&observed, &[side, "registry"]).clone(),
+        );
     }
+    let deltas = object_at(report, &["component_deltas"])?;
     for component in ["metadata", "registry"] {
-        report["component_deltas"][component] = observation_delta(
-            &observed["reference"][component], &observed["candidate"][component],
-        )?;
+        deltas.insert(
+            component.into(),
+            observation_delta(
+                value_at(&observed, &["reference", component]),
+                value_at(&observed, &["candidate", component]),
+            )?,
+        );
     }
-    report["matched_metadata_measurement"] = observed["measurement"].clone();
-    report["matched_metadata_source_proof"] = observed["proof"].clone();
-    report["incomplete"] = json!(["target-specific physical C/I qualification"]);
-    report["status"] = json!("matched source reconstruction and constructor observations complete");
-    report["task8_complete"] = json!(true);
-    report["observation_scope"] = json!("actual production metadata and registry constructors in fresh exact-test processes; schema Regex/LazyLock reconstruction; explicit hypothetical source-formula controls");
+    let report_object = object_at(report, &[])?;
+    report_object.insert(
+        "matched_metadata_measurement".into(),
+        value_at(&observed, &["measurement"]).clone(),
+    );
+    report_object.insert(
+        "matched_metadata_source_proof".into(),
+        value_at(&observed, &["proof"]).clone(),
+    );
+    report_object.insert(
+        "incomplete".into(),
+        json!(["target-specific physical C/I qualification"]),
+    );
+    report_object.insert(
+        "status".into(),
+        json!("matched source reconstruction and constructor observations complete"),
+    );
+    report_object.insert("task8_complete".into(), json!(true));
+    report_object.insert(
+        "observation_scope".into(),
+        json!(
+            "actual production metadata and registry constructors in fresh exact-test processes; schema Regex/LazyLock reconstruction; explicit hypothetical source-formula controls"
+        ),
+    );
     Ok(())
 }
 
@@ -1408,10 +1521,14 @@ fn run_real() -> Result<Value, String> {
     let candidate_after = rechecked_view(&candidate, &after)?;
     verify_frozen(&token, &reference_after, &candidate_after)?;
     check_materialized_reference(&reference_data, &reference)?;
-    report["reference"]["expanded_owner_graph"] = reference.graph;
-    report["candidate"]["expanded_owner_graph"] = candidate.graph;
-    report["current_build_identity"] = measurement.manifest["identity"].clone();
-    report["frozen_sources_and_snapshots_rechecked"] = json!(true);
+    object_at(&mut report, &["reference"])?.insert("expanded_owner_graph".into(), reference.graph);
+    object_at(&mut report, &["candidate"])?.insert("expanded_owner_graph".into(), candidate.graph);
+    let report_object = object_at(&mut report, &[])?;
+    report_object.insert(
+        "current_build_identity".into(),
+        value_at(&measurement.manifest, &["identity"]).clone(),
+    );
+    report_object.insert("frozen_sources_and_snapshots_rechecked".into(), json!(true));
     Ok(report)
 }
 
@@ -1422,13 +1539,13 @@ use self::metadata_reconstruction_source::matched_metadata_reconstructions;
 mod metadata_reconstruction_source {
     use super::{
         Capture, MEASUREMENT_SOURCES, Measurement, expanded, file_witness, read_regular,
-        source_files,
+        source_files, value_at,
     };
     use crate::schema_residency::metadata_registry::Reconstruction;
     use auctioneer_config::build_catalog::{self, Catalog};
-    use auctioneer_config::codegen::{self, BidderInfoRaw};
     use auctioneer_config::codegen::storage::metadata_source_sha256;
     use auctioneer_config::codegen::usersync::validate_catalog_size;
+    use auctioneer_config::codegen::{self, BidderInfoRaw};
     use auctioneer_config_data::bidder_metadata_storage;
     use serde_json::Value;
     use std::collections::{BTreeMap, BTreeSet};
@@ -1440,7 +1557,9 @@ mod metadata_reconstruction_source {
     const FEATURES: &str = "crates/auctioneer-config-data/Cargo.toml";
 
     pub(super) fn matched_metadata_reconstructions(
-        reference: &Capture, candidate: &Capture, measurement: &Measurement,
+        reference: &Capture,
+        candidate: &Capture,
+        measurement: &Measurement,
     ) -> Result<(Reconstruction, Reconstruction), String> {
         check_metadata_manifest_pair(reference, candidate, measurement)?;
         let first = metadata_reconstruction(reference, measurement)?;
@@ -1450,7 +1569,10 @@ mod metadata_reconstruction_source {
     }
 
     fn frozen_files(capture: &Capture) -> Result<(), String> {
-        let frozen = capture.view.source.get("files")
+        let frozen = capture
+            .view
+            .source
+            .get("files")
             .filter(|value| value.is_object())
             .ok_or("missing frozen metadata source files")?;
         if source_files(&capture.workspace, &capture.paths, &capture.snapshot_paths)? != *frozen {
@@ -1460,44 +1582,65 @@ mod metadata_reconstruction_source {
     }
 
     fn declared_features(measurement: &Measurement) -> Result<BTreeSet<String>, String> {
-        let mut matching = MEASUREMENT_SOURCES.iter()
+        let mut matching = MEASUREMENT_SOURCES
+            .iter()
             .filter(|(path, _bytes)| *path == FEATURES);
-        let (_, bytes) = matching.next().ok_or("missing current metadata feature source")?;
+        let (_, bytes) = matching
+            .next()
+            .ok_or("missing current metadata feature source")?;
         if matching.next().is_some()
-            || measurement.identity["measurement_sources"][FEATURES] != file_witness(bytes)
-            || measurement.identity["build"] != serde_json::to_value(&measurement.build)
-                .map_err(|error| error.to_string())?
-            || measurement.identity["environment"] != serde_json::to_value(&measurement.environment)
-                .map_err(|error| error.to_string())?
+            || value_at(&measurement.identity, &["measurement_sources", FEATURES])
+                != &file_witness(bytes)
+            || value_at(&measurement.identity, &["build"])
+                != &serde_json::to_value(&measurement.build).map_err(|error| error.to_string())?
+            || value_at(&measurement.identity, &["environment"])
+                != &serde_json::to_value(&measurement.environment)
+                    .map_err(|error| error.to_string())?
         {
             return Err("metadata measurement tuple mismatch".into());
         }
         // Use the current measurement manifest for BOTH snapshots, as build.rs
         // does, not the reference revision's old config-data feature declaration.
-        let manifest: Toml = toml::from_str(str::from_utf8(bytes)
-            .map_err(|error| error.to_string())?).map_err(|error| error.to_string())?;
-        Ok(manifest.get("features").and_then(Toml::as_table)
+        let manifest: Toml =
+            toml::from_str(str::from_utf8(bytes).map_err(|error| error.to_string())?)
+                .map_err(|error| error.to_string())?;
+        Ok(manifest
+            .get("features")
+            .and_then(Toml::as_table)
             .ok_or("metadata Cargo manifest must declare its features")?
-            .keys().cloned().collect())
+            .keys()
+            .cloned()
+            .collect())
     }
 
     fn manifest_witnesses(
-        capture: &Capture, catalog: &Catalog,
+        capture: &Capture,
+        catalog: &Catalog,
     ) -> Result<BTreeMap<String, Value>, String> {
-        let files = capture.view.source["files"].as_object()
+        let files = value_at(&capture.view.source, &["files"])
+            .as_object()
             .ok_or("missing frozen metadata source files")?;
         let mut expected = BTreeSet::new();
         for path in &catalog.input_paths {
             if path.file_name().is_some_and(|name| name == "bidder.toml") {
-                expected.insert(path.strip_prefix(&capture.workspace)
-                    .map_err(|_error| "metadata input escapes captured workspace")?
-                    .to_str().ok_or("non UTF-8 metadata source path")?.to_owned());
+                expected.insert(
+                    path.strip_prefix(&capture.workspace)
+                        .map_err(|_error| "metadata input escapes captured workspace")?
+                        .to_str()
+                        .ok_or("non UTF-8 metadata source path")?
+                        .to_owned(),
+                );
             }
         }
-        let recorded = files.keys().filter(|name| {
-            let path = Path::new(name);
-            path.starts_with(BIDDERS) && path.file_name().is_some_and(|file| file == "bidder.toml")
-        }).cloned().collect::<BTreeSet<_>>();
+        let recorded = files
+            .keys()
+            .filter(|name| {
+                let path = Path::new(name);
+                path.starts_with(BIDDERS)
+                    && path.file_name().is_some_and(|file| file == "bidder.toml")
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>();
         if expected.is_empty() || expected != recorded {
             return Err("metadata manifest witness set mismatch".into());
         }
@@ -1510,16 +1653,16 @@ mod metadata_reconstruction_source {
         for relative in expected {
             let witness = file_witness(&read_regular(&capture.workspace.join(&relative))?);
             if files.get(&relative) != Some(&witness) {
-                return Err(format!("metadata manifest differs from frozen source: {relative}"));
+                return Err(format!(
+                    "metadata manifest differs from frozen source: {relative}"
+                ));
             }
             witnesses.insert(relative, witness);
         }
         Ok(witnesses)
     }
 
-    fn captured_catalog(
-        capture: &Capture, measurement: &Measurement,
-    ) -> Result<Catalog, String> {
+    fn captured_catalog(capture: &Capture, measurement: &Measurement) -> Result<Catalog, String> {
         if capture.view.measurement != measurement.identity {
             return Err("metadata capture measurement mismatch".into());
         }
@@ -1535,7 +1678,9 @@ mod metadata_reconstruction_source {
     fn bidder_rows(catalog: Catalog) -> Result<Vec<(String, BidderInfoRaw)>, String> {
         let mut bidders = Vec::new();
         for manifest in catalog.manifests.into_values() {
-            let macros: Vec<String> = manifest.endpoint.as_ref()
+            let macros: Vec<String> = manifest
+                .endpoint
+                .as_ref()
                 .map(|endpoint| endpoint.fields.values().cloned().collect())
                 .unwrap_or_default();
             for (name, mut definition) in manifest.definitions {
@@ -1543,14 +1688,14 @@ mod metadata_reconstruction_source {
                 if let Some(feature) = &manifest.required_feature {
                     definition.insert("required_feature".into(), feature.clone().into());
                 }
-                let mut info: BidderInfoRaw = definition.try_into()
+                let mut info: BidderInfoRaw = definition
+                    .try_into()
                     .map_err(|_error| format!("invalid captured bidder metadata: {name}"))?;
                 info.supported_endpoint_macros.clone_from(&macros);
                 info.native_only = manifest.native_only;
                 // The build owner renders inactive rows too. Preserve that
                 // validation without copying its private parser or validators.
-                drop(codegen::render_bidder_info(&name, &info)
-                    .map_err(|error| error.to_string())?);
+                drop(codegen::render_bidder_info(&name, &info).map_err(|error| error.to_string())?);
                 bidders.push((name, info));
             }
         }
@@ -1558,7 +1703,9 @@ mod metadata_reconstruction_source {
     }
 
     pub(super) fn check_metadata_manifest_pair(
-        reference: &Capture, candidate: &Capture, measurement: &Measurement,
+        reference: &Capture,
+        candidate: &Capture,
+        measurement: &Measurement,
     ) -> Result<(), String> {
         let reference_catalog = captured_catalog(reference, measurement)?;
         let candidate_catalog = captured_catalog(candidate, measurement)?;
@@ -1573,7 +1720,8 @@ mod metadata_reconstruction_source {
     }
 
     pub(super) fn metadata_reconstruction(
-        capture: &Capture, measurement: &Measurement,
+        capture: &Capture,
+        measurement: &Measurement,
     ) -> Result<Reconstruction, String> {
         let catalog = captured_catalog(capture, measurement)?;
         let features = declared_features(measurement)?;
@@ -1583,16 +1731,21 @@ mod metadata_reconstruction_source {
         let bindings = codegen::render_bidder_bindings(&bidders, &features)
             .map_err(|error| error.to_string())?;
         let declaration_count = bidders.len();
-        bidders.retain(|(_name, info)| info.required_feature.as_ref()
-            .is_none_or(|feature| measurement.build.enabled_features.contains(feature)));
-        validate_catalog_size(bidders.len(), 0_usize)
-            .map_err(|error| error.to_string())?;
+        bidders.retain(|(_name, info)| {
+            info.required_feature
+                .as_ref()
+                .is_none_or(|feature| measurement.build.enabled_features.contains(feature))
+        });
+        validate_catalog_size(bidders.len(), 0_usize)?;
         bidders.sort_by(|left, right| left.0.cmp(&right.0));
         // Native publication keeps native_only rows; only the current active
         // feature predicate filters this same-build constructor population.
-        let constructors = bidders.iter().map(|(name, info)| {
-            codegen::render_bidder_info(name, info).map_err(|error| error.to_string())
-        }).collect::<Result<Vec<_>, _>>()?;
+        let constructors = bidders
+            .iter()
+            .map(|(name, info)| {
+                codegen::render_bidder_info(name, info).map_err(|error| error.to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let digest = metadata_source_sha256(&constructors, &bindings, declaration_count)
             .map_err(|error| error.to_string())?;
         let compiled = bidder_metadata_storage();
@@ -1607,12 +1760,16 @@ mod metadata_reconstruction_source {
         }
         frozen_files(capture)?;
         Ok(Reconstruction {
-            bindings, constructors,
-            declaration_count: u64::try_from(declaration_count).map_err(|error| error.to_string())?,
-            input_fingerprint: expanded::digest(&serde_json::to_vec(&capture.view.source)
-                .map_err(|error| error.to_string())?),
-            measurement_fingerprint: expanded::digest(&serde_json::to_vec(&measurement.identity)
-                .map_err(|error| error.to_string())?),
+            bindings,
+            constructors,
+            declaration_count: u64::try_from(declaration_count)
+                .map_err(|error| error.to_string())?,
+            input_fingerprint: expanded::digest(
+                &serde_json::to_vec(&capture.view.source).map_err(|error| error.to_string())?,
+            ),
+            measurement_fingerprint: expanded::digest(
+                &serde_json::to_vec(&measurement.identity).map_err(|error| error.to_string())?,
+            ),
         })
     }
 }
@@ -1717,6 +1874,32 @@ mod tests {
     }
 
     #[test]
+    fn growth_report_frames_each_lane_as_pretty_json() {
+        for lane in ["default", "development"] {
+            let mut output = Vec::new();
+            write_growth_report(&mut output, lane, &json!({"fixture":"framing-only"})).unwrap();
+            assert_eq!(
+                str::from_utf8(&output).unwrap(),
+                format!(
+                    "AUCTIONEER_SCHEMA_GROWTH_BEGIN/{lane}\n{{\n  \"fixture\": \"framing-only\"\n}}\nAUCTIONEER_SCHEMA_GROWTH_END/{lane}\n"
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn growth_report_propagates_writer_failure() {
+        let mut output = [0_u8; 0_usize];
+        let mut writer = io::Cursor::new(output.as_mut_slice());
+        assert_eq!(
+            write_growth_report(&mut writer, "default", &json!({}))
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::WriteZero
+        );
+    }
+
+    #[test]
     fn runtime_reference_input_is_required_without_global_environment_mutation() {
         assert_eq!(
             reference_path(None).unwrap_err(),
@@ -1800,26 +1983,26 @@ mod tests {
         let mut reordered = graph();
         reordered["declarations"].as_array_mut().unwrap().reverse();
         assert_eq!(schedule(&reordered, &owners).unwrap(), expected);
-        let mut changed = graph();
-        changed["declarations"][1]["owner"] = json!("fake_a");
+        let mut duplicate_owner = graph();
+        duplicate_owner["declarations"][1]["owner"] = json!("fake_a");
         assert_eq!(
-            schedule(&changed, &owners).unwrap_err(),
+            schedule(&duplicate_owner, &owners).unwrap_err(),
             "expanded schedule mismatch"
         );
-        let mut changed = graph();
-        changed["declarations"][0]["marker"] = json!("StagedSchema99");
+        let mut wrong_marker = graph();
+        wrong_marker["declarations"][0]["marker"] = json!("StagedSchema99");
         assert_eq!(
-            schedule(&changed, &owners).unwrap_err(),
+            schedule(&wrong_marker, &owners).unwrap_err(),
             "expanded schedule mismatch"
         );
-        let mut changed = graph();
-        let duplicate = changed["declarations"][0]["programs"][0].clone();
-        changed["declarations"][0]["programs"]
+        let mut duplicate_program = graph();
+        let duplicate = duplicate_program["declarations"][0]["programs"][0].clone();
+        duplicate_program["declarations"][0]["programs"]
             .as_array_mut()
             .unwrap()
             .push(duplicate);
         assert_eq!(
-            schedule(&changed, &owners).unwrap_err(),
+            schedule(&duplicate_program, &owners).unwrap_err(),
             "expanded schedule mismatch"
         );
         for initialization in [
@@ -1827,10 +2010,10 @@ mod tests {
             json!(["SECOND_REGEX", "FIRST_REGEX", "FIRST_REGEX"]),
             json!(["SECOND_REGEX", "FIRST_REGEX", "UNKNOWN_REGEX"]),
         ] {
-            let mut changed = graph();
-            changed["declarations"][0]["initialization"] = initialization;
+            let mut bad_initialization = graph();
+            bad_initialization["declarations"][0]["initialization"] = initialization;
             assert_eq!(
-                schedule(&changed, &owners).unwrap_err(),
+                schedule(&bad_initialization, &owners).unwrap_err(),
                 "expanded schedule mismatch"
             );
         }
@@ -1845,10 +2028,10 @@ mod tests {
                 {"from":"initialize_native","to":"StagedSchema99","role":"initialize-regexes","ownership":"callee-owned"}
             ]),
         ] {
-            let mut changed = graph();
-            changed["auxiliary"]["dispatch_edges"] = edges;
+            let mut bad_edges = graph();
+            bad_edges["auxiliary"]["dispatch_edges"] = edges;
             assert_eq!(
-                schedule(&changed, &owners).unwrap_err(),
+                schedule(&bad_edges, &owners).unwrap_err(),
                 "expanded schedule mismatch"
             );
         }
@@ -1862,17 +2045,17 @@ mod tests {
         let function = syntax
             .items
             .iter_mut()
-            .find_map(|item| match item {
-                syn::Item::Fn(function) if function.sig.ident == "initialize_native" => {
-                    Some(function)
-                }
-                _ => None,
+            .find_map(|item| {
+                let syn::Item::Fn(function) = item else {
+                    return None;
+                };
+                (function.sig.ident == "initialize_native").then_some(function)
             })
             .unwrap();
-        function.block = Box::new(syn::parse_quote!({
+        *function.block = syn::parse_quote!({
             generated::retain_for_inspection();
             generated::initialize_native() && formats::initialize()
-        }));
+        });
         assert_eq!(
             native_format_first(syntax.to_token_stream().to_string().as_bytes()).unwrap_err(),
             "native format initialization order mismatch"
@@ -1884,14 +2067,14 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path().canonicalize().unwrap();
         let workspace = root.join("workspace");
-        fs::create_dir(&workspace).unwrap();
+        fs::DirBuilder::new().create(&workspace).unwrap();
         let source = workspace.join("source.rs");
         fs::write(&source, b"source data").unwrap();
         let snapshot = root.join("known-generated-schema.json");
         let paths = BTreeSet::from([source.clone(), snapshot.clone()]);
         let captured = source_files(&workspace, &paths, &BTreeSet::from([snapshot])).unwrap();
         assert_eq!(captured.as_object().unwrap().len(), 1);
-        assert_eq!(captured["source.rs"]["bytes"], 11);
+        assert_eq!(captured["source.rs"]["bytes"], 11_u64);
         let unexpected = root.join("unexpected.rs");
         fs::write(&unexpected, b"unaccounted source").unwrap();
         assert_eq!(
@@ -1909,9 +2092,9 @@ mod tests {
     fn identical_owner_sets_allow_zero_growth_without_zero_absolute_observations() {
         let reference = view(true);
         let candidate = view(false);
-        let calls = Cell::new(0);
+        let calls = Cell::new(0_usize);
         let report = observe_matched(&reference, &candidate, &Delta::default(), |programs| {
-            calls.set(calls.get() + 1);
+            calls.set(calls.get().checked_add(1_usize).unwrap());
             assert_eq!(
                 programs,
                 &[
@@ -1920,15 +2103,15 @@ mod tests {
                 ]
             );
             Ok(json!({"programs":[{"identity":"shared::hostname",
-                "cold":{"retained_bytes":2,"peak_live_bytes":3}},
+                "cold":{"retained_bytes":2_i64,"peak_live_bytes":3_i64}},
                 {"identity":"fake_a::StagedSchema0::Regex0",
-                "cold":{"retained_bytes":13,"peak_live_bytes":17}}],
-                "repeat":{"allocated_bytes":0},
-                "late_size_limit_failure":{"retained_bytes":0},
+                "cold":{"retained_bytes":13_i64,"peak_live_bytes":17_i64}}],
+                "repeat":{"allocated_bytes":0_u64},
+                "late_size_limit_failure":{"retained_bytes":0_i64},
                 "physical_or_generated_singleton_qualification":false}))
         })
         .unwrap();
-        assert_eq!(calls.get(), 2);
+        assert_eq!(calls.get(), 2_usize);
         assert_eq!(report["label"], LABEL);
         assert_eq!(
             report["owner_delta"],
@@ -1936,13 +2119,13 @@ mod tests {
         );
         assert_eq!(
             report["reference"]["constructor_observation"]["programs"][1]["cold"]["retained_bytes"],
-            13
+            13_i64
         );
         assert_eq!(
             report["candidate"]["constructor_observation"]["programs"][1]["cold"]["peak_live_bytes"],
-            17
+            17_i64
         );
-        assert_eq!(report["component_deltas"]["generated_source_bytes"], 0);
+        assert_eq!(report["component_deltas"]["generated_source_bytes"], 0_i64);
         assert_eq!(report["common_C_I_qualified"], false);
         assert_eq!(report["task8_complete"], false);
     }
@@ -2019,17 +2202,17 @@ mod tests {
         candidate
             .programs
             .push(("fake_b::StagedSchema1::Regex0".into(), "^new$".into()));
-        let calls = Cell::new(0);
+        let calls = Cell::new(0_usize);
         let reviewed_delta = Delta::default();
         assert_eq!(
             observe_matched(&reference, &candidate, &reviewed_delta, |_| {
-                calls.set(calls.get() + 1);
+                calls.set(calls.get().checked_add(1_usize).unwrap());
                 Ok(json!({}))
             })
             .unwrap_err(),
             "undeclared owner delta"
         );
-        assert_eq!(calls.get(), 0);
+        assert_eq!(calls.get(), 0_usize);
     }
 
     #[test]
@@ -2053,17 +2236,17 @@ mod tests {
         ] {
             let mut candidate = view(false);
             *candidate.measurement.pointer_mut(pointer).unwrap() = json!("independent change");
-            let calls = Cell::new(0);
+            let calls = Cell::new(0_usize);
             assert_eq!(
                 observe_matched(&reference, &candidate, &Delta::default(), |_| {
-                    calls.set(calls.get() + 1);
+                    calls.set(calls.get().checked_add(1_usize).unwrap());
                     Ok(json!({}))
                 })
                 .unwrap_err(),
                 "measurement context mismatch",
                 "{pointer}"
             );
-            assert_eq!(calls.get(), 0);
+            assert_eq!(calls.get(), 0_usize);
         }
     }
 
@@ -2094,10 +2277,10 @@ mod tests {
     fn matched_catalog_growth_reconstructs_actual_reference_and_candidate() {
         let report = run_real().unwrap();
         assert_actual_metadata_and_registry(&report);
-        assert_eq!(report["reference"]["schema_owner_count"], 16);
-        assert_eq!(report["reference"]["public_definition_count"], 18);
+        assert_eq!(report["reference"]["schema_owner_count"], 16_u64);
+        assert_eq!(report["reference"]["public_definition_count"], 18_u64);
         assert_eq!(report["physical_or_serving_qualification"], false);
-        eprintln!("{}", serde_json::to_string(&report).unwrap());
+        write_growth_report(&mut io::stderr().lock(), "default", &report).unwrap();
     }
 
     #[test]
@@ -2105,10 +2288,10 @@ mod tests {
     fn development_metadata_matched_catalog_growth_reconstructs_actual_reference_and_candidate() {
         let report = run_real().unwrap();
         assert_actual_metadata_and_registry(&report);
-        assert_eq!(report["reference"]["schema_owner_count"], 16);
-        assert_eq!(report["reference"]["public_definition_count"], 18);
+        assert_eq!(report["reference"]["schema_owner_count"], 16_u64);
+        assert_eq!(report["reference"]["public_definition_count"], 18_u64);
         assert_eq!(report["common_C_I_qualified"], false);
-        eprintln!("{}", serde_json::to_string(&report).unwrap());
+        write_growth_report(&mut io::stderr().lock(), "development", &report).unwrap();
     }
 
     fn assert_actual_metadata_and_registry(report: &Value) {
@@ -2128,7 +2311,7 @@ mod tests {
             assert!(retained > 0, "{side}");
             assert_eq!(
                 registry["release"]["retained_bytes"].as_i64(),
-                Some(-retained)
+                retained.checked_neg()
             );
             assert_eq!(
                 registry["lookup"],
@@ -2148,29 +2331,36 @@ mod tests {
         }
         assert_eq!(
             report["component_deltas"]["metadata"]["cold"]["retained_bytes"],
-            0
+            0_i64
         );
         assert_eq!(
             report["component_deltas"]["registry"]["cold"]["retained_bytes"],
-            0
+            0_i64
         );
     }
 
     fn graph_with_literal_dispatches() -> Value {
         let mut value = graph();
-        value["auxiliary"]["dispatch_edges"].as_array_mut().unwrap().extend([
-            json!({"from":"native_owner","member":"fake_alias","owner":"fake_a",
+        value["auxiliary"]["dispatch_edges"]
+            .as_array_mut()
+            .unwrap()
+            .extend([
+                json!({"from":"native_owner","member":"fake_alias","owner":"fake_a",
                 "role":"native-owner-lookup","ownership":"literal-only"}),
-            json!({"from":"native_required","member":"fake_a",
+                json!({"from":"native_required","member":"fake_a",
                 "role":"native-required-predicate","ownership":"literal-only",
                 "policy_correspondence":"accepted-source-owner"}),
-        ]);
+            ]);
         value
     }
 
     fn literal_edge<'a>(value: &'a mut Value, role: &str) -> &'a mut Value {
-        value["auxiliary"]["dispatch_edges"].as_array_mut().unwrap().iter_mut()
-            .find(|edge| edge["role"] == role).unwrap()
+        value["auxiliary"]["dispatch_edges"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|edge| edge["role"] == role)
+            .unwrap()
     }
 
     #[test]
@@ -2178,44 +2368,83 @@ mod tests {
         let owners = BTreeMap::from([("fake_a".into(), "a".into()), ("fake_b".into(), "b".into())]);
         let value = graph_with_literal_dispatches();
         for role in ["native-owner-lookup", "native-required-predicate"] {
-            assert_eq!(value["auxiliary"]["dispatch_edges"].as_array().unwrap().iter()
-                .filter(|edge| edge["role"] == role).count(), 1_usize);
+            assert_eq!(
+                value["auxiliary"]["dispatch_edges"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|edge| edge["role"] == role)
+                    .count(),
+                1_usize
+            );
         }
-        assert_eq!(schedule(&value, &owners).unwrap(), vec![
-            ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
-            ("fake_a::StagedSchema0::SECOND_REGEX".into(), "^y$".into()),
-            ("fake_a::StagedSchema0::FIRST_REGEX".into(), "^x$".into()),
-            ("fake_b::StagedSchema1::FIRST_REGEX".into(), "^x$".into()),
-        ]);
+        assert_eq!(
+            schedule(&value, &owners).unwrap(),
+            vec![
+                ("shared::hostname".into(), HOSTNAME_SOURCE.into()),
+                ("fake_a::StagedSchema0::SECOND_REGEX".into(), "^y$".into()),
+                ("fake_a::StagedSchema0::FIRST_REGEX".into(), "^x$".into()),
+                ("fake_b::StagedSchema1::FIRST_REGEX".into(), "^x$".into()),
+            ]
+        );
     }
 
     #[test]
     fn literal_dispatches_require_exact_fields_ownership_owner_and_policy() {
         let owners = BTreeMap::from([("fake_a".into(), "a".into()), ("fake_b".into(), "b".into())]);
         for (role, fields) in [
-            ("native-owner-lookup", ["from", "member", "owner", "role", "ownership"]),
-            ("native-required-predicate", ["from", "member", "policy_correspondence", "role", "ownership"]),
+            (
+                "native-owner-lookup",
+                ["from", "member", "owner", "role", "ownership"],
+            ),
+            (
+                "native-required-predicate",
+                [
+                    "from",
+                    "member",
+                    "policy_correspondence",
+                    "role",
+                    "ownership",
+                ],
+            ),
         ] {
             for field in fields {
                 let mut value = graph_with_literal_dispatches();
-                assert!(literal_edge(&mut value, role).as_object_mut().unwrap().remove(field).is_some());
-                assert_eq!(schedule(&value, &owners).unwrap_err(), SCHEDULE, "{role}: missing {field}");
+                assert!(
+                    literal_edge(&mut value, role)
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(field)
+                        .is_some()
+                );
+                assert_eq!(
+                    schedule(&value, &owners).unwrap_err(),
+                    SCHEDULE,
+                    "{role}: missing {field}"
+                );
             }
             for (field, replacement) in [
-                ("ownership", json!("callee-owned")), ("member", json!("")),
-                ("role", json!("unknown-role")), ("from", json!("unknown-dispatch")),
+                ("ownership", json!("callee-owned")),
+                ("member", json!("")),
+                ("role", json!("unknown-role")),
+                ("from", json!("unknown-dispatch")),
                 ("to", json!("StagedSchema0")),
             ] {
                 let mut value = graph_with_literal_dispatches();
                 literal_edge(&mut value, role)[field] = replacement;
-                assert_eq!(schedule(&value, &owners).unwrap_err(), SCHEDULE, "{role}: {field}");
+                assert_eq!(
+                    schedule(&value, &owners).unwrap_err(),
+                    SCHEDULE,
+                    "{role}: {field}"
+                );
             }
         }
         let mut wrong_owner = graph_with_literal_dispatches();
         literal_edge(&mut wrong_owner, "native-owner-lookup")["owner"] = json!("fake_unknown");
         assert_eq!(schedule(&wrong_owner, &owners).unwrap_err(), SCHEDULE);
         let mut wrong_policy = graph_with_literal_dispatches();
-        literal_edge(&mut wrong_policy, "native-required-predicate")["policy_correspondence"] = json!("unknown-policy");
+        literal_edge(&mut wrong_policy, "native-required-predicate")["policy_correspondence"] =
+            json!("unknown-policy");
         assert_eq!(schedule(&wrong_policy, &owners).unwrap_err(), SCHEDULE);
     }
 
@@ -2225,21 +2454,31 @@ mod tests {
         for role in ["native-owner-lookup", "native-required-predicate"] {
             let mut value = graph_with_literal_dispatches();
             let duplicate = literal_edge(&mut value, role).clone();
-            value["auxiliary"]["dispatch_edges"].as_array_mut().unwrap().push(duplicate);
-            assert_eq!(schedule(&value, &owners).unwrap_err(), SCHEDULE, "duplicate {role}");
+            value["auxiliary"]["dispatch_edges"]
+                .as_array_mut()
+                .unwrap()
+                .push(duplicate);
+            assert_eq!(
+                schedule(&value, &owners).unwrap_err(),
+                SCHEDULE,
+                "duplicate {role}"
+            );
         }
         let mut value = graph_with_literal_dispatches();
         let mut contradictory = literal_edge(&mut value, "native-owner-lookup").clone();
         contradictory["owner"] = json!("fake_b");
-        value["auxiliary"]["dispatch_edges"].as_array_mut().unwrap().push(contradictory);
+        value["auxiliary"]["dispatch_edges"]
+            .as_array_mut()
+            .unwrap()
+            .push(contradictory);
         assert_eq!(schedule(&value, &owners).unwrap_err(), SCHEDULE);
         for (role, replacement) in [
             ("native-owner-lookup", "native-required-predicate"),
             ("native-required-predicate", "native-owner-lookup"),
         ] {
-            let mut value = graph_with_literal_dispatches();
-            literal_edge(&mut value, role)["role"] = json!(replacement);
-            assert_eq!(schedule(&value, &owners).unwrap_err(), SCHEDULE);
+            let mut swapped_roles = graph_with_literal_dispatches();
+            literal_edge(&mut swapped_roles, role)["role"] = json!(replacement);
+            assert_eq!(schedule(&swapped_roles, &owners).unwrap_err(), SCHEDULE);
         }
     }
 }

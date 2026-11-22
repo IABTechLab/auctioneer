@@ -125,7 +125,9 @@ fn reject_compiler_errors(syntax: &mut syn::File) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::schema_build::application::Adapter;
+    use super::schema_build::application::{Adapter, CapturedSeed};
+    use super::schema_residency::{descriptor, expanded};
+    use auctioneer_config::schema_staging_build::GeneratedStaging;
     use std::env::var;
     use std::io::{self, Write, stderr};
 
@@ -650,6 +652,171 @@ mod tests {
         assert_actual_application_artifacts(Adapter::Spin, "auctioneer-adapter-spin");
     }
 
+    fn application_source_descriptor(
+        seed: &CapturedSeed,
+        sources: &descriptor::Sources<'_>,
+        release_line: &str,
+    ) -> Result<(Value, descriptor::ActualSourceDescriptor), String> {
+        let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
+            .map_err(|error| error.to_string())?;
+        let compiler = manifest
+            .get("build")
+            .and_then(|build| build.get("compiler_verbose"))
+            .and_then(Value::as_str)
+            .ok_or("missing captured compiler")?;
+        if compiler
+            .lines()
+            .filter(|line| line.starts_with("release: "))
+            .collect::<Vec<_>>()
+            != [release_line]
+        {
+            return Err("captured compiler differs from repository pin".into());
+        }
+        let graph = expanded::expand(seed)?;
+        let recipe = descriptor::describe(seed, &graph, sources)
+            .map_err(|error| format!("actual source descriptor refused: {error:?}"))?;
+        Ok((graph, recipe))
+    }
+
+    fn actual_validation_assignments(
+        report: &Value,
+    ) -> Result<Vec<descriptor::ValidationAssignment>, String> {
+        report
+            .get("validation_handoff")
+            .and_then(|handoff| handoff.get("children"))
+            .and_then(Value::as_array)
+            .ok_or("missing actual validation handoff")?
+            .iter()
+            .map(|row| {
+                Ok(descriptor::ValidationAssignment {
+                    child: row.get("child").and_then(Value::as_str)
+                        .ok_or("missing child")?.to_owned(),
+                    source_owner: row.get("source_owner").and_then(Value::as_str)
+                        .ok_or("missing source owner")?.to_owned(),
+                    role: row.get("role").and_then(Value::as_str)
+                        .ok_or("missing role")?.to_owned(),
+                })
+            })
+            .collect()
+    }
+
+    fn assert_actual_descriptor_controls(
+        recipe: &descriptor::ActualSourceDescriptor,
+        report: &Value,
+        assignments: &[descriptor::ValidationAssignment],
+    ) {
+        let empty_programs = BTreeMap::new();
+        let empty_layouts = BTreeMap::new();
+        let empty_groups = BTreeMap::new();
+        let missing = recipe.evaluate(&descriptor::RequestedFacts {
+            binding: &report["binding"],
+            abi: "uninstantiated-actual-application",
+            programs: &empty_programs,
+            constructor_layouts: &empty_layouts,
+            linked_inline: &empty_groups,
+        });
+        assert!(matches!(&missing,
+            Err(descriptor::Refusal::TargetIncomplete(rows)) if !rows.is_empty()));
+        assert!(!assignments.is_empty());
+        assert_eq!(recipe.check_validation_handoff(assignments), Ok(()));
+        for (index, assignment) in assignments.iter().enumerate() {
+            let mut omitted = assignments.to_vec();
+            omitted.remove(index);
+            assert_eq!(
+                recipe.check_validation_handoff(&omitted),
+                Err(descriptor::Refusal::Coverage)
+            );
+            let mut duplicate = assignments.to_vec();
+            duplicate.push(assignment.clone());
+            assert_eq!(
+                recipe.check_validation_handoff(&duplicate),
+                Err(descriptor::Refusal::Coverage)
+            );
+        }
+    }
+
+    fn assert_actual_source_projection(descriptor: &Value, package: &str, lane: &Value) {
+        assert_eq!(descriptor["status"], "SourceComplete");
+        assert_eq!(descriptor["target_status"], "TargetIncomplete");
+        assert_eq!(descriptor["requested_storage"], Value::Null);
+        assert_eq!(descriptor["resource_qualification"], false);
+        assert_eq!(descriptor["physical_fit"], false);
+        assert_eq!(descriptor["serving_permission"], false);
+        let projection = &descriptor["projection"];
+        assert_eq!(projection["schema_version"], 1_u8);
+        assert_eq!(projection["common_status"], "SourceComplete");
+        assert_eq!(projection["target_status"], "TargetIncomplete");
+        assert_eq!(projection["numeric_costs"], Value::Null);
+        assert_eq!(projection["authenticated_qualification_receipt"], false);
+        assert_eq!(projection["physical_fit"], false);
+        assert_eq!(projection["serving_permission"], false);
+        writeln!(
+            stderr().lock(),
+            "schema-source-recipe-projection/{package}/{}: {}",
+            lane.as_str().unwrap(),
+            serde_json::to_string(projection).unwrap()
+        )
+        .unwrap();
+    }
+
+    fn assert_actual_application_report(
+        report: &Value,
+        package: &str,
+        development: bool,
+        expected: &BTreeSet<&str>,
+    ) {
+        assert_eq!(
+            report["applications"][0]["identity_sha256"],
+            report["expanded_schema_graph"]["identity_sha256"]
+        );
+        assert_eq!(
+            report["expanded_schema_graph"]["captured_rust_sha256"],
+            report["applications"][0]["manifest"]["emitted_rust_sha256"]
+        );
+        let graph = &report["expanded_schema_graph"];
+        let descriptor = &graph["source_descriptor"];
+        assert_actual_source_projection(descriptor, package, &report["lane"]);
+        let programs = descriptor["programs_in_initialization_order"]
+            .as_array()
+            .unwrap();
+        assert_eq!(
+            programs[0]["identity"],
+            "schema::staging::formats::HOSTNAME_PATTERN"
+        );
+        let declarations = graph["declarations"].as_array().unwrap();
+        assert!(!declarations.is_empty());
+        assert_eq!(graph["auxiliary"]["status"], "Complete");
+        assert_eq!(
+            graph["auxiliary"]["roots"].as_array().unwrap().len(),
+            declarations.len().checked_mul(2_usize)
+                .and_then(|count| count.checked_add(8_usize))
+                .expect("representable application root count")
+        );
+        assert_eq!(
+            report["lane"],
+            if development { "development" } else { "secure" }
+        );
+        assert_eq!(report["qualification"], "Unqualified");
+        assert_eq!(report["resource_qualification"], false);
+        assert_eq!(report["linked_or_serving_qualification"], false);
+        assert_eq!(report["final_admitted_artifact_recheck_required"], true);
+        let applications = report["applications"].as_array().unwrap();
+        assert_eq!(applications.len(), 1);
+        for application in applications {
+            assert_eq!(application["package"], package);
+            assert_eq!(application["qualification"], "Unqualified");
+            let rows = application["linked_records"].as_array().unwrap();
+            assert_eq!(rows.len(), expected.len());
+            assert_eq!(
+                &rows.iter()
+                    .map(|row| row["owner"].as_str().unwrap())
+                    .collect::<BTreeSet<_>>(),
+                expected
+            );
+            assert_eq!(application["refusal_controls"].as_array().unwrap().len(), 8);
+        }
+    }
+
     fn assert_actual_application_artifacts(adapter: Adapter, package: &str) {
         use super::schema_build::application::inspect;
         use super::schema_build::{self, ResolvedRegexDependencies, schema_regex_vendor};
@@ -669,7 +836,12 @@ mod tests {
             .collect::<BTreeSet<_>>();
         let release_line = repository_rust_release();
         let release = release_line.strip_prefix("release: ").unwrap();
-
+        let sources = descriptor::Sources {
+            workspace: &workspace,
+            syntax: &dependencies.syntax_root,
+            rust_release: release,
+            features: &features,
+        };
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
             let report = inspect(
@@ -679,156 +851,28 @@ mod tests {
                 &cohort.manifest,
                 development,
                 |seed| {
-                    use super::schema_residency::{descriptor, expanded};
-
-                    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
-                        .map_err(|error| error.to_string())?;
-                    let compiler = manifest["build"]["compiler_verbose"]
-                        .as_str()
-                        .ok_or("missing captured compiler")?;
-                    if compiler
-                        .lines()
-                        .filter(|line| line.starts_with("release: "))
-                        .collect::<Vec<_>>()
-                        != [release_line.as_str()]
-                    {
-                        return Err("captured compiler differs from repository pin".into());
-                    }
-                    let mut graph = expanded::expand(seed)?;
-                    let sources = || descriptor::Sources {
-                        workspace: &workspace,
-                        syntax: &dependencies.syntax_root,
-                        rust_release: release,
-                        features: &features,
-                    };
-                    let recipe = descriptor::describe(seed, &graph, sources())
-                        .map_err(|error| format!("actual source descriptor refused: {error:?}"))?;
-                    let report = recipe.report();
-                    let empty_programs = BTreeMap::new();
-                    let empty_layouts = BTreeMap::new();
-                    let empty_groups = BTreeMap::new();
-                    let missing = recipe.evaluate(&descriptor::RequestedFacts {
-                        binding: &report["binding"],
-                        abi: "uninstantiated-actual-application",
-                        programs: &empty_programs,
-                        constructor_layouts: &empty_layouts,
-                        linked_inline: &empty_groups,
-                    });
-                    assert!(matches!(missing,
-                        Err(descriptor::Refusal::TargetIncomplete(ref rows)) if !rows.is_empty()));
-                    let assignments = report["validation_handoff"]["children"]
-                        .as_array()
-                        .ok_or("missing actual validation handoff")?
-                        .iter()
-                        .map(|row| {
-                            Ok(descriptor::ValidationAssignment {
-                                child: row["child"].as_str().ok_or("missing child")?.to_owned(),
-                                source_owner: row["source_owner"]
-                                    .as_str()
-                                    .ok_or("missing source owner")?
-                                    .to_owned(),
-                                role: row["role"].as_str().ok_or("missing role")?.to_owned(),
-                            })
-                        })
-                        .collect::<Result<Vec<_>, String>>()?;
-                    assert!(!assignments.is_empty());
-                    assert_eq!(recipe.check_validation_handoff(&assignments), Ok(()));
-                    for index in 0..assignments.len() {
-                        let mut missing = assignments.clone();
-                        missing.remove(index);
-                        assert_eq!(
-                            recipe.check_validation_handoff(&missing),
-                            Err(descriptor::Refusal::Coverage)
-                        );
-                        let mut duplicate = assignments.clone();
-                        duplicate.push(assignments[index].clone());
-                        assert_eq!(
-                            recipe.check_validation_handoff(&duplicate),
-                            Err(descriptor::Refusal::Coverage)
-                        );
-                    }
+                    let (mut graph, recipe) =
+                        application_source_descriptor(seed, &sources, &release_line)?;
+                    let descriptor_report = recipe.report();
+                    let assignments = actual_validation_assignments(&descriptor_report)?;
+                    assert_actual_descriptor_controls(&recipe, &descriptor_report, &assignments);
                     let mut substituted = graph.clone();
                     substituted["declarations"][0]["owner"] = json!("fake_substituted_owner");
                     assert!(matches!(
-                        descriptor::describe(seed, &substituted, sources()),
+                        descriptor::describe(seed, &substituted, &sources),
                         Err(descriptor::Refusal::GraphMismatch)
                     ));
-                    graph["source_descriptor"] = report;
+                    graph["source_descriptor"] = descriptor_report;
                     Ok(graph)
                 },
             )
             .expect("actual linked application schema membership");
-            assert_eq!(
-                report["applications"][0]["identity_sha256"],
-                report["expanded_schema_graph"]["identity_sha256"]
-            );
-            assert_eq!(
-                report["expanded_schema_graph"]["captured_rust_sha256"],
-                report["applications"][0]["manifest"]["emitted_rust_sha256"]
-            );
-            let graph = &report["expanded_schema_graph"];
-            let descriptor = &graph["source_descriptor"];
-            assert_eq!(descriptor["status"], "SourceComplete");
-            assert_eq!(descriptor["target_status"], "TargetIncomplete");
-            assert_eq!(descriptor["requested_storage"], Value::Null);
-            assert_eq!(descriptor["resource_qualification"], false);
-            assert_eq!(descriptor["physical_fit"], false);
-            assert_eq!(descriptor["serving_permission"], false);
-            let projection = &descriptor["projection"];
-            assert_eq!(projection["schema_version"], 1);
-            assert_eq!(projection["common_status"], "SourceComplete");
-            assert_eq!(projection["target_status"], "TargetIncomplete");
-            assert_eq!(projection["numeric_costs"], Value::Null);
-            assert_eq!(projection["authenticated_qualification_receipt"], false);
-            assert_eq!(projection["physical_fit"], false);
-            assert_eq!(projection["serving_permission"], false);
-            eprintln!(
-                "schema-source-recipe-projection/{package}/{}: {}",
-                report["lane"].as_str().unwrap(),
-                serde_json::to_string(projection).unwrap()
-            );
-            let programs = descriptor["programs_in_initialization_order"]
-                .as_array()
-                .unwrap();
-            assert_eq!(
-                programs[0]["identity"],
-                "schema::staging::formats::HOSTNAME_PATTERN"
-            );
-            let declarations = graph["declarations"].as_array().unwrap();
-            assert!(!declarations.is_empty());
-            assert_eq!(graph["auxiliary"]["status"], "Complete");
-            assert_eq!(
-                graph["auxiliary"]["roots"].as_array().unwrap().len(),
-                2 * declarations.len() + 8
-            );
-            assert_eq!(
-                report["lane"],
-                if development { "development" } else { "secure" }
-            );
-            assert_eq!(report["qualification"], "Unqualified");
-            assert_eq!(report["resource_qualification"], false);
-            assert_eq!(report["linked_or_serving_qualification"], false);
-            assert_eq!(report["final_admitted_artifact_recheck_required"], true);
-            let applications = report["applications"].as_array().unwrap();
-            assert_eq!(applications.len(), 1);
             let expected = cohort
                 .schemas
                 .iter()
                 .map(|row| row.witness.name.as_str())
                 .collect::<BTreeSet<_>>();
-            for application in applications {
-                assert_eq!(application["package"], package);
-                assert_eq!(application["qualification"], "Unqualified");
-                let rows = application["linked_records"].as_array().unwrap();
-                assert_eq!(rows.len(), expected.len());
-                assert_eq!(
-                    rows.iter()
-                        .map(|row| row["owner"].as_str().unwrap())
-                        .collect::<BTreeSet<_>>(),
-                    expected
-                );
-                assert_eq!(application["refusal_controls"].as_array().unwrap().len(), 8);
-            }
+            assert_actual_application_report(&report, package, development, &expected);
             write_schema_diagnostics(
                 var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
                 &mut stderr().lock(),
@@ -1018,7 +1062,7 @@ mod tests {
     }
 
     fn assert_staged_declaration_bindings(
-        generated: &auctioneer_config::schema_staging_build::GeneratedStaging,
+        generated: &GeneratedStaging,
         out_dir: &Path,
     ) {
         let seed: serde_json::Value = serde_json::from_str(&generated.manifest_json).unwrap();
@@ -1067,13 +1111,14 @@ mod tests {
             assert_eq!(binding["snapshot"], serde_json::to_value(snapshot).unwrap());
             let witness = expected_witnesses
                 .get(binding["owner"].as_str().unwrap())
-                .unwrap();
+                .expect("independent staged source witness");
             assert_eq!(
                 &binding["source"], witness,
                 "independently parsed source provenance"
             );
             assert_eq!(binding["source"]["sha256"], snapshot.sha256);
-            let attribute = markers.get(binding["marker"].as_str().unwrap()).unwrap();
+            let attribute = markers.get(binding["marker"].as_str().unwrap())
+                .expect("staged validator marker");
             assert_eq!(
                 staged_attribute_paths(attribute),
                 vec![

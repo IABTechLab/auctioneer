@@ -3,8 +3,11 @@
 use crate::schema_qualification::{Draft, audit_schema};
 use proc_macro2::TokenStream;
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
-use syn::{Expr, Ident, Lit, Token, braced, parse::Parse, parse::ParseStream};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
+use syn::{Expr, Ident, Lit, Token, braced, parse::Parse, parse::ParseStream, token::Brace};
 
 const REFUSAL: &str = "unqualified captured validator options";
 
@@ -21,7 +24,7 @@ impl Parse for Settings {
         while !input.is_empty() {
             let key: Ident = input.parse()?;
             input.parse::<Token![=]>()?;
-            let value = if input.peek(syn::token::Brace) {
+            let value = if input.peek(Brace) {
                 let contents;
                 braced!(contents in input);
                 Setting::Group(contents.parse()?)
@@ -144,12 +147,12 @@ pub(super) fn check(
     settings.flag("validate_formats", true)?;
     settings.flag("ignore_unknown_formats", false)?;
     let Formats(formats) = parse(settings.group("formats")?)?;
-    let expected: std::collections::BTreeSet<_> =
+    let expected: BTreeSet<_> =
         audit.formats.iter().map(|row| row.value.as_str()).collect();
     if formats
         .keys()
         .map(String::as_str)
-        .collect::<std::collections::BTreeSet<_>>()
+        .collect::<BTreeSet<_>>()
         != expected
     {
         return Err(REFUSAL.into());
@@ -173,8 +176,8 @@ pub(super) fn check(
     let mut pattern: Settings = parse(settings.group("pattern_options")?)?;
     pattern.name("engine", "regex")?;
     pattern.name("cache", "explicit")?;
-    pattern.number("size_limit", 65_536)?;
-    pattern.number("dfa_size_limit", 65_536)?;
+    pattern.number("size_limit", 0x0001_0000_usize)?;
+    pattern.number("dfa_size_limit", 0x0001_0000_usize)?;
     pattern.finish()?;
     let mut methods: Settings = parse(settings.group("methods")?)?;
     methods.flag("is_valid", true)?;

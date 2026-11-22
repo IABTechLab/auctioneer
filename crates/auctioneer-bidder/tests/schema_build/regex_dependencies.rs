@@ -120,7 +120,7 @@ mod tests {
 
     fn inspect(value: &Value) -> Result<ResolvedRegexDependencies, String> {
         parse(
-            &serde_json::to_vec(value).unwrap(),
+            &serde_json::to_vec(value).map_err(|error| error.to_string())?,
             Path::new("/fake/vendor/regex-automata"),
         )
     }
@@ -151,10 +151,10 @@ mod tests {
                 2_usize => value["packages"][1_usize]["version"] = json!("0.8.10"),
                 3_usize => value["packages"][1_usize]["source"] = Value::Null,
                 4_usize => {
-                    value["packages"][1_usize]["manifest_path"] = json!("relative/Cargo.toml")
+                    value["packages"][1_usize]["manifest_path"] = json!("relative/Cargo.toml");
                 }
                 5_usize => {
-                    value["packages"][1_usize]["manifest_path"] = json!("/fake/../other/Cargo.toml")
+                    value["packages"][1_usize]["manifest_path"] = json!("/fake/../other/Cargo.toml");
                 }
                 _ => value["packages"][1_usize]["manifest_path"] = json!("/fake/not-a-manifest"),
             }
@@ -179,11 +179,11 @@ mod tests {
                         .push(edge);
                 }
                 2_usize => {
-                    value["resolve"]["nodes"][0_usize]["deps"][0_usize]["pkg"] = json!("other")
+                    value["resolve"]["nodes"][0_usize]["deps"][0_usize]["pkg"] = json!("other");
                 }
                 3_usize => {
                     value["resolve"]["nodes"][0_usize]["deps"][0_usize]["dep_kinds"][0_usize]["kind"] =
-                        json!("build")
+                        json!("build");
                 }
                 _ => {
                     value["resolve"]["nodes"]

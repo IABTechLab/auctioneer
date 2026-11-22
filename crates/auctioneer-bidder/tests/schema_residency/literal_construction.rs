@@ -54,9 +54,13 @@ fn request(field: NativeField, bytes: usize, word: usize) -> Result<usize, Refus
         8 => usize::try_from(i64::MAX).map_err(|_error| Refusal::Arithmetic)?,
         _ => return Err(Refusal::Layout),
     };
+    let padding = field
+        .alignment
+        .checked_sub(1_usize)
+        .ok_or(Refusal::Arithmetic)?;
     if bytes
         > maximum
-            .checked_sub(field.alignment - 1)
+            .checked_sub(padding)
             .ok_or(Refusal::Arithmetic)?
     {
         return Err(Refusal::Arithmetic);
@@ -192,9 +196,9 @@ mod tests {
             let mut inputs = facts();
             assert!(inputs.remove(key).is_some());
             assert_eq!(suffix(PATTERN, &inputs), Err(Refusal::Missing(key)));
-            let mut inputs = facts();
+            let mut malformed = facts();
             assert!(
-                inputs
+                malformed
                     .insert(
                         key.to_owned(),
                         NativeField {
@@ -204,7 +208,7 @@ mod tests {
                     )
                     .is_some()
             );
-            assert_eq!(suffix(PATTERN, &inputs), Err(Refusal::Layout));
+            assert_eq!(suffix(PATTERN, &malformed), Err(Refusal::Layout));
         }
     }
 

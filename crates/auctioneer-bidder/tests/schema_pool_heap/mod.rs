@@ -29,9 +29,9 @@ impl From<LayoutError> for PoolHeapError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PoolLayout {
-    pub(crate) fields: [Field; 4],
-    pub(crate) shard: Field,
-    pub(crate) closure: Field,
+    pub fields: [Field; 4],
+    pub shard: Field,
+    pub closure: Field,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

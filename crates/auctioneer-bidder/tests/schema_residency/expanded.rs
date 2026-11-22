@@ -6,7 +6,10 @@ use auctioneer_config::schema_staging_build::SchemaSnapshot;
 use quote::ToTokens as _;
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ptr, str,
+};
 
 pub(super) fn digest(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
@@ -17,18 +20,23 @@ const MEMBERSHIP: &str = "captured declaration membership mismatch";
 fn manifest(seed: &CapturedSeed) -> Result<Value, String> {
     let value: Value = serde_json::from_slice(&seed.manifest_bytes)
         .map_err(|_error| "invalid captured staging manifest".to_owned())?;
-    if value["schema_version"] != 2_u8
-        || value["kind"] != "unqualified_non_serving_schema_staging"
-        || value["linked_or_serving_qualification"] != false
-        || value["owner_graph_status"] != "unexpanded"
-        || value["identity"]["qualification"] != "Unqualified"
+    if value.get("schema_version").and_then(Value::as_u64) != Some(2_u64)
+        || value.get("kind").and_then(Value::as_str)
+            != Some("unqualified_non_serving_schema_staging")
+        || value.get("linked_or_serving_qualification").and_then(Value::as_bool) != Some(false)
+        || value.get("owner_graph_status").and_then(Value::as_str) != Some("unexpanded")
+        || value.pointer("/identity/qualification").and_then(Value::as_str) != Some("Unqualified")
     {
         return Err("invalid captured staging manifest".into());
     }
-    if value["identity"]["sha256"] != seed.identity_sha256 {
+    if value.pointer("/identity/sha256").and_then(Value::as_str)
+        != Some(seed.identity_sha256.as_str())
+    {
         return Err("stale captured staging identity".into());
     }
-    if value["emitted_rust_sha256"] != digest(&seed.rust) {
+    if value.get("emitted_rust_sha256").and_then(Value::as_str)
+        != Some(digest(&seed.rust).as_str())
+    {
         return Err("stale captured staging Rust".into());
     }
     seed.recheck_snapshots()
@@ -59,9 +67,11 @@ fn declarations<'a>(
             || owner.is_empty()
             || !owners.insert(owner)
             || serde_json::to_value(snapshot).map_err(|error| error.to_string())? != row["snapshot"]
-            || row["source"]["name"] != owner
-            || row["source"]["sha256"] != snapshot.sha256
-            || row["source"]["bytes"].as_u64() != u64::try_from(snapshot.bytes.len()).ok()
+            || row.pointer("/source/name").and_then(Value::as_str) != Some(owner)
+            || row.pointer("/source/sha256").and_then(Value::as_str)
+                != Some(snapshot.sha256.as_str())
+            || row.pointer("/source/bytes").and_then(Value::as_u64)
+                != u64::try_from(snapshot.bytes.len()).ok()
             || markers.insert(marker.to_owned(), (row, snapshot)).is_some()
         {
             return Err(MEMBERSHIP.into());
@@ -115,7 +125,7 @@ fn expand_declaration(
     declaration.attrs = item
         .attrs
         .iter()
-        .filter(|candidate| !std::ptr::eq(*candidate, attribute))
+        .filter(|candidate| !ptr::eq(*candidate, attribute))
         .cloned()
         .collect();
     let tokens =
@@ -152,7 +162,7 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
     let manifest = manifest(seed)?;
     let expected = declarations(&manifest, seed)?;
     let syntax =
-        syn::parse_file(std::str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
+        syn::parse_file(str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())?;
     let mut actual = BTreeMap::new();
     let mut auxiliary = Vec::new();
@@ -190,7 +200,7 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
         &auxiliary,
         &bindings,
         &seed.identity_sha256,
-        &manifest["selection"],
+        manifest.get("selection").unwrap_or(&Value::Null),
     )?;
     let auxiliary_hashes = auxiliary
         .iter()
@@ -219,10 +229,11 @@ mod tests {
     use super::expand;
     use crate::schema_build::application::CapturedSeed;
     use auctioneer_config::schema_staging_build::plan_snapshot;
+    use proc_macro2::{Span, TokenStream};
     use quote::{ToTokens as _, quote};
     use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
-    use std::{collections::BTreeSet, fs};
+    use std::{collections::BTreeSet, fs, str};
 
     fn digest(bytes: &[u8]) -> String {
         hex::encode(Sha256::digest(bytes))
@@ -233,7 +244,7 @@ mod tests {
         let out_dir = directory.path().canonicalize().unwrap();
         let mut snapshots = Vec::new();
         let mut declarations = Vec::new();
-        let mut rust = proc_macro2::TokenStream::new();
+        let mut declarations_rust = TokenStream::new();
         for (index, (owner, marker)) in [("fake_a", quote!(FakeA)), ("fake_b", quote!(FakeB))]
             .into_iter()
             .enumerate()
@@ -250,8 +261,8 @@ mod tests {
             let snapshot = plan_snapshot(owner, index, bytes).unwrap();
             let path = out_dir.join(&snapshot.relative_path);
             fs::write(&path, &snapshot.bytes).unwrap();
-            let literal = syn::LitStr::new(path.to_str().unwrap(), proc_macro2::Span::call_site());
-            rust.extend(quote! {
+            let literal = syn::LitStr::new(path.to_str().unwrap(), Span::call_site());
+            declarations_rust.extend(quote! {
                 #[jsonschema::validator(
                     path = #literal, draft = Draft4, validate_formats = true,
                     ignore_unknown_formats = false,
@@ -271,7 +282,7 @@ mod tests {
                     "revision":"b".repeat(40)}}));
             snapshots.push(snapshot);
         }
-        let rust = rust.to_string().into_bytes();
+        let rust = declarations_rust.to_string().into_bytes();
         let identity_sha256 = digest(b"fake accepted artifact identity");
         let manifest = json!({"schema_version":2_u8,
             "kind":"unqualified_non_serving_schema_staging",
@@ -296,7 +307,7 @@ mod tests {
     }
 
     fn change_rust(seed: &mut CapturedSeed, update: impl FnOnce(&mut syn::File)) {
-        let mut syntax = syn::parse_file(std::str::from_utf8(&seed.rust).unwrap()).unwrap();
+        let mut syntax = syn::parse_file(str::from_utf8(&seed.rust).unwrap()).unwrap();
         update(&mut syntax);
         seed.rust = syntax.into_token_stream().to_string().into_bytes();
         let sha256 = digest(&seed.rust);
@@ -304,8 +315,8 @@ mod tests {
     }
 
     fn change_options(seed: &mut CapturedSeed, field: &str) {
-        let path = seed.out_dir.join(&seed.snapshots[0].relative_path);
-        let path = syn::LitStr::new(path.to_str().unwrap(), proc_macro2::Span::call_site());
+        let snapshot_path = seed.out_dir.join(&seed.snapshots[0].relative_path);
+        let path = syn::LitStr::new(snapshot_path.to_str().unwrap(), Span::call_site());
         let draft = if field == "draft" {
             quote!(Draft202012)
         } else {
@@ -504,7 +515,7 @@ mod tests {
         ] {
             let (_directory, mut seed) = fixture("^a[0-9]+$");
             change_rust(&mut seed, |syntax| {
-                syntax.items.push(syn::parse2(extra).unwrap())
+                syntax.items.push(syn::parse2(extra).unwrap());
             });
             assert_eq!(
                 expand(&seed).err().as_deref(),

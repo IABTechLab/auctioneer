@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct Charge<'a> {
-    pub(super) owner: &'a str,
-    pub(super) covered: &'a [&'a str],
-    pub(super) bytes: u64,
+    pub owner: &'a str,
+    pub covered: &'a [&'a str],
+    pub bytes: u64,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -109,19 +109,19 @@ mod tests {
             rows.remove(removed);
             assert_eq!(compose(LEAVES, &rows, &[]), Err(Refusal::Coverage));
         }
-        let mut rows = charges().into_iter().collect::<Vec<_>>();
-        rows.push(Charge {
+        let mut duplicate = charges().into_iter().collect::<Vec<_>>();
+        duplicate.push(Charge {
             owner: "fake_a",
             covered: &["fake_a_regex"],
             bytes: 1,
         });
-        assert_eq!(compose(LEAVES, &rows, &[]), Err(Refusal::Coverage));
-        let mut rows = charges();
-        rows[0].covered = &["fake_unknown"];
-        assert_eq!(compose(LEAVES, &rows, &[]), Err(Refusal::Coverage));
-        let mut rows = charges();
-        rows[0].owner = "fake_b";
-        assert_eq!(compose(LEAVES, &rows, &[]), Err(Refusal::Coverage));
+        assert_eq!(compose(LEAVES, &duplicate, &[]), Err(Refusal::Coverage));
+        let mut unknown = charges();
+        unknown[0_usize].covered = &["fake_unknown"];
+        assert_eq!(compose(LEAVES, &unknown, &[]), Err(Refusal::Coverage));
+        let mut misowned = charges();
+        misowned[0_usize].owner = "fake_b";
+        assert_eq!(compose(LEAVES, &misowned, &[]), Err(Refusal::Coverage));
     }
 
     #[test]

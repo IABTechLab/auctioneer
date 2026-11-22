@@ -3,7 +3,10 @@
 use quote::ToTokens as _;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, path::Path};
-use syn::visit_mut::{self, VisitMut};
+use syn::{
+    parse::{Parse, ParseStream},
+    visit_mut::{self, VisitMut},
+};
 
 const REFUSAL: &str = "unsupported expanded schema storage";
 
@@ -65,8 +68,8 @@ fn json_initializer(expr: &syn::Expr) -> Result<Value, String> {
     };
     if path.qself.is_some()
         || path.path.segments.len() != 2
-        || path.path.segments[0].ident != "__sj"
-        || path.path.segments[1].ident != "from_str"
+        || path.path.segments.first().is_none_or(|segment| segment.ident != "__sj")
+        || path.path.segments.last().is_none_or(|segment| segment.ident != "from_str")
         || parse.args.len() != 1
     {
         return Err(REFUSAL.into());
@@ -94,10 +97,10 @@ fn type_argument<'a>(ty: &'a syn::Type, name: &str) -> Option<&'a syn::Type> {
     if segment.ident != name || arguments.args.len() != 1 {
         return None;
     }
-    match arguments.args.first()? {
-        syn::GenericArgument::Type(inner) => Some(inner),
-        _ => None,
-    }
+    let syn::GenericArgument::Type(inner) = arguments.args.first()? else {
+        return None;
+    };
+    Some(inner)
 }
 
 fn type_is(ty: &syn::Type, names: &[&str]) -> bool {
@@ -163,12 +166,14 @@ impl Owners<'_> {
         let strings = array
             .elems
             .iter()
-            .map(|expr| match expr {
-                syn::Expr::Lit(value) => match &value.lit {
-                    syn::Lit::Str(text) => Ok(text.value()),
-                    _ => Err(REFUSAL.to_owned()),
-                },
-                _ => Err(REFUSAL.to_owned()),
+            .map(|expr| {
+                let syn::Expr::Lit(literal) = expr else {
+                    return Err(REFUSAL.to_owned());
+                };
+                let syn::Lit::Str(text) = &literal.lit else {
+                    return Err(REFUSAL.to_owned());
+                };
+                Ok(text.value())
             })
             .collect::<Result<Vec<_>, _>>()?;
         self.state
@@ -180,23 +185,23 @@ impl Owners<'_> {
 }
 
 impl VisitMut for Owners<'_> {
-    fn visit_item_mod_mut(&mut self, item: &mut syn::ItemMod) {
-        if item.content.is_none() {
+    fn visit_item_mod_mut(&mut self, i: &mut syn::ItemMod) {
+        if i.content.is_none() {
             self.error = Some(REFUSAL.into());
             return;
         }
-        self.scopes.push(item.ident.to_string());
-        visit_mut::visit_item_mod_mut(self, item);
+        self.scopes.push(i.ident.to_string());
+        visit_mut::visit_item_mod_mut(self, i);
         self.scopes.pop();
     }
 
-    fn visit_item_fn_mut(&mut self, item: &mut syn::ItemFn) {
-        self.scopes.push(item.sig.ident.to_string());
-        if item.sig.ident == "initialize_regexes" {
+    fn visit_item_fn_mut(&mut self, i: &mut syn::ItemFn) {
+        self.scopes.push(i.sig.ident.to_string());
+        if i.sig.ident == "initialize_regexes" {
             struct References(Vec<String>);
             impl VisitMut for References {
-                fn visit_expr_path_mut(&mut self, path: &mut syn::ExprPath) {
-                    if let Some(name) = path.path.get_ident()
+                fn visit_expr_path_mut(&mut self, i: &mut syn::ExprPath) {
+                    if let Some(name) = i.path.get_ident()
                         && name.to_string().ends_with("_REGEX")
                     {
                         self.0.push(name.to_string());
@@ -204,31 +209,40 @@ impl VisitMut for Owners<'_> {
                 }
             }
             let mut references = References(Vec::new());
-            references.visit_block_mut(&mut item.block);
+            references.visit_block_mut(&mut i.block);
             self.state.initialization.extend(references.0);
         }
-        visit_mut::visit_item_fn_mut(self, item);
+        visit_mut::visit_item_fn_mut(self, i);
         self.scopes.pop();
     }
 
-    fn visit_block_mut(&mut self, block: &mut syn::Block) {
-        self.block += 1;
-        self.block_depth += 1;
+    fn visit_block_mut(&mut self, i: &mut syn::Block) {
+        let Some(next_block) = self.block.checked_add(1_usize) else {
+            self.error = Some(REFUSAL.into());
+            return;
+        };
+        let previous_depth = self.block_depth;
+        let Some(next_depth) = previous_depth.checked_add(1_usize) else {
+            self.error = Some(REFUSAL.into());
+            return;
+        };
+        self.block = next_block;
+        self.block_depth = next_depth;
         self.scopes.push(format!("block{}", self.block));
-        visit_mut::visit_block_mut(self, block);
+        visit_mut::visit_block_mut(self, i);
         self.scopes.pop();
-        self.block_depth -= 1;
+        self.block_depth = previous_depth;
     }
 
-    fn visit_item_static_mut(&mut self, item: &mut syn::ItemStatic) {
-        if let Err(error) = self.storage(item) {
+    fn visit_item_static_mut(&mut self, i: &mut syn::ItemStatic) {
+        if let Err(error) = self.storage(i) {
             self.error = Some(error);
         }
-        visit_mut::visit_item_static_mut(self, item);
+        visit_mut::visit_item_static_mut(self, i);
     }
 
-    fn visit_item_const_mut(&mut self, item: &mut syn::ItemConst) {
-        let valid = if let syn::Expr::Macro(expression) = item.expr.as_ref()
+    fn visit_item_const_mut(&mut self, i: &mut syn::ItemConst) {
+        let valid = if let syn::Expr::Macro(expression) = i.expr.as_ref()
             && expression.mac.path.is_ident("include_str")
         {
             syn::parse2::<syn::LitStr>(expression.mac.tokens.clone())
@@ -244,23 +258,23 @@ impl VisitMut for Owners<'_> {
         } else {
             self.error = Some(REFUSAL.into());
         }
-        visit_mut::visit_item_const_mut(self, item);
+        visit_mut::visit_item_const_mut(self, i);
     }
 
-    fn visit_macro_mut(&mut self, item: &mut syn::Macro) {
-        if item.path.is_ident("include_str") {
-            if !syn::parse2::<syn::LitStr>(item.tokens.clone())
+    fn visit_macro_mut(&mut self, i: &mut syn::Macro) {
+        if i.path.is_ident("include_str") {
+            if !syn::parse2::<syn::LitStr>(i.tokens.clone())
                 .is_ok_and(|literal| Path::new(&literal.value()) == self.snapshot)
             {
                 self.error = Some(REFUSAL.into());
             }
             return;
         }
-        if !item.path.is_ident("matches") {
+        if !i.path.is_ident("matches") {
             self.error = Some(REFUSAL.into());
             return;
         }
-        match syn::parse2::<MatchInput>(item.tokens.clone()) {
+        match syn::parse2::<MatchInput>(i.tokens.clone()) {
             Ok(mut input) => {
                 self.visit_expr_mut(&mut input.value);
                 self.visit_pat_mut(&mut input.pattern);
@@ -279,8 +293,8 @@ struct MatchInput {
     guard: Option<syn::Expr>,
 }
 
-impl syn::parse::Parse for MatchInput {
-    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+impl Parse for MatchInput {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let value = input.parse()?;
         input.parse::<syn::Token![,]>()?;
         let pattern = syn::Pat::parse_multi_with_leading_vert(input)?;
@@ -360,15 +374,13 @@ mod tests {
     #[test]
     fn expanded_storage_rejects_shadowed_regex_names_in_function_scopes() {
         let patterns = vec![("FAKE_REGEX".to_owned(), "^fake$".to_owned())];
-        assert!(
-            collect(
-                &mut fixture(),
-                "fake_owner",
-                Path::new("/fake/schema.json"),
-                &patterns
-            )
-            .is_ok()
-        );
+        collect(
+            &mut fixture(),
+            "fake_owner",
+            Path::new("/fake/schema.json"),
+            &patterns,
+        )
+        .unwrap();
         let mut syntax = fixture();
         let syn::Item::Mod(module) = &mut syntax.items[0] else {
             panic!("fixture module");

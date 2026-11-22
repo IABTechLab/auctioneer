@@ -27,10 +27,10 @@ impl From<LayoutError> for MetadataHeapError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct MetadataLayout {
-    pub(crate) regex_fields: [NativeField; 2],
-    pub(crate) info_fields: [NativeField; 3],
-    pub(crate) props_payload: NativeField,
-    pub(crate) static_inline: NativeField,
+    pub regex_fields: [NativeField; 2],
+    pub info_fields: [NativeField; 3],
+    pub props_payload: NativeField,
+    pub static_inline: NativeField,
 }
 
 impl MetadataLayout {
@@ -264,6 +264,58 @@ mod tests {
         },
     };
 
+    fn assert_metadata_field_growth(
+        config: &Config,
+        header: NativeField,
+        expected: NativeImmutableRegexMetadata,
+    ) {
+        for index in 0_usize..2_usize {
+            let mut layout = SYNTHETIC;
+            let field = layout.regex_fields.get_mut(index).expect("fixed regex field");
+            field.bytes = field.bytes.checked_add(8_usize).expect("small regex field growth");
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    "^synthetic+$",
+                    config,
+                    1_usize,
+                    layout,
+                    header,
+                ),
+                Ok(NativeImmutableRegexMetadata {
+                    regex_arc_bytes: 40_usize,
+                    requested_heap_bytes: 312_usize,
+                    ..expected
+                }),
+                "regex field {index}"
+            );
+        }
+        for index in 0_usize..3_usize {
+            let mut layout = SYNTHETIC;
+            let field = layout.info_fields.get_mut(index).expect("fixed info field");
+            field.bytes = field.bytes.checked_add(8_usize).expect("small info field growth");
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    "^synthetic+$",
+                    config,
+                    1_usize,
+                    layout,
+                    header,
+                ),
+                Ok(NativeImmutableRegexMetadata {
+                    info_arc_bytes: 88_usize,
+                    props_vec_bytes: if index == 2_usize { 64_usize } else { 32_usize },
+                    requested_heap_bytes: if index == 2_usize {
+                        344_usize
+                    } else {
+                        312_usize
+                    },
+                    ..expected
+                }),
+                "info field {index}"
+            );
+        }
+    }
+
     #[test]
     fn explicit_metadata_facts_vary_every_field_and_alignment_without_host_substitution() {
         let config = Regex::config();
@@ -291,49 +343,7 @@ mod tests {
             ),
             Ok(expected)
         );
-        for index in 0_usize..2_usize {
-            let mut layout = SYNTHETIC;
-            layout.regex_fields[index].bytes += 8_usize;
-            assert_eq!(
-                NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                    "^synthetic+$",
-                    &config,
-                    1_usize,
-                    layout,
-                    header,
-                ),
-                Ok(NativeImmutableRegexMetadata {
-                    regex_arc_bytes: 40_usize,
-                    requested_heap_bytes: 312_usize,
-                    ..expected
-                }),
-                "regex field {index}"
-            );
-        }
-        for index in 0_usize..3_usize {
-            let mut layout = SYNTHETIC;
-            layout.info_fields[index].bytes += 8_usize;
-            assert_eq!(
-                NativeImmutableRegexMetadata::from_pattern_with_layouts(
-                    "^synthetic+$",
-                    &config,
-                    1_usize,
-                    layout,
-                    header,
-                ),
-                Ok(NativeImmutableRegexMetadata {
-                    info_arc_bytes: 88_usize,
-                    props_vec_bytes: if index == 2_usize { 64_usize } else { 32_usize },
-                    requested_heap_bytes: if index == 2_usize {
-                        344_usize
-                    } else {
-                        312_usize
-                    },
-                    ..expected
-                }),
-                "info field {index}"
-            );
-        }
+        assert_metadata_field_growth(&config, header, expected);
         let mut payload = SYNTHETIC;
         payload.props_payload.bytes = 88_usize;
         assert_eq!(
