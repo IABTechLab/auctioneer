@@ -68,8 +68,16 @@ fn json_initializer(expr: &syn::Expr) -> Result<Value, String> {
     };
     if path.qself.is_some()
         || path.path.segments.len() != 2
-        || path.path.segments.first().is_none_or(|segment| segment.ident != "__sj")
-        || path.path.segments.last().is_none_or(|segment| segment.ident != "from_str")
+        || path
+            .path
+            .segments
+            .first()
+            .is_none_or(|segment| segment.ident != "__sj")
+        || path
+            .path
+            .segments
+            .last()
+            .is_none_or(|segment| segment.ident != "from_str")
         || parse.args.len() != 1
     {
         return Err(REFUSAL.into());

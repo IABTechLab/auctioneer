@@ -875,9 +875,7 @@ fn request(bytes: usize, alignment: usize, word: NativeField) -> Result<usize, R
     }
     .map_err(|_error| Refusal::Arithmetic)?;
     let padding = alignment.checked_sub(1_usize).ok_or(Refusal::Arithmetic)?;
-    let limit = maximum
-        .checked_sub(padding)
-        .ok_or(Refusal::Arithmetic)?;
+    let limit = maximum.checked_sub(padding).ok_or(Refusal::Arithmetic)?;
     if bytes > limit {
         return Err(Refusal::Arithmetic);
     }
@@ -1815,7 +1813,10 @@ mod tests {
             config: &disabled_hybrid,
             ..mismatched_inputs
         };
-        assert_eq!(evaluate(&configuration_inputs).err(), Some(Refusal::Configuration));
+        assert_eq!(
+            evaluate(&configuration_inputs).err(),
+            Some(Refusal::Configuration)
+        );
         let root = program("^[0-9]+$", &facts);
         let mut missing_feature = enabled.clone();
         assert!(missing_feature.remove("syntax"));
@@ -1909,7 +1910,8 @@ mod tests {
             features: &enabled,
         };
         assert_eq!(
-            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, wrong_release_sources).err(),
+            SourceRecipe::from_source("fake_owner", "^[0-9]+$", &config, wrong_release_sources)
+                .err(),
             Some(Refusal::Source("Rust collection paths"))
         );
         let unverified_sources = Sources {

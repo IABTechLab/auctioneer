@@ -657,8 +657,8 @@ mod tests {
         sources: &descriptor::Sources<'_>,
         release_line: &str,
     ) -> Result<(Value, descriptor::ActualSourceDescriptor), String> {
-        let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
-            .map_err(|error| error.to_string())?;
+        let manifest: Value =
+            serde_json::from_slice(&seed.manifest_bytes).map_err(|error| error.to_string())?;
         let compiler = manifest
             .get("build")
             .and_then(|build| build.get("compiler_verbose"))
@@ -689,12 +689,21 @@ mod tests {
             .iter()
             .map(|row| {
                 Ok(descriptor::ValidationAssignment {
-                    child: row.get("child").and_then(Value::as_str)
-                        .ok_or("missing child")?.to_owned(),
-                    source_owner: row.get("source_owner").and_then(Value::as_str)
-                        .ok_or("missing source owner")?.to_owned(),
-                    role: row.get("role").and_then(Value::as_str)
-                        .ok_or("missing role")?.to_owned(),
+                    child: row
+                        .get("child")
+                        .and_then(Value::as_str)
+                        .ok_or("missing child")?
+                        .to_owned(),
+                    source_owner: row
+                        .get("source_owner")
+                        .and_then(Value::as_str)
+                        .ok_or("missing source owner")?
+                        .to_owned(),
+                    role: row
+                        .get("role")
+                        .and_then(Value::as_str)
+                        .ok_or("missing role")?
+                        .to_owned(),
                 })
             })
             .collect()
@@ -788,7 +797,9 @@ mod tests {
         assert_eq!(graph["auxiliary"]["status"], "Complete");
         assert_eq!(
             graph["auxiliary"]["roots"].as_array().unwrap().len(),
-            declarations.len().checked_mul(2_usize)
+            declarations
+                .len()
+                .checked_mul(2_usize)
                 .and_then(|count| count.checked_add(8_usize))
                 .expect("representable application root count")
         );
@@ -808,7 +819,8 @@ mod tests {
             let rows = application["linked_records"].as_array().unwrap();
             assert_eq!(rows.len(), expected.len());
             assert_eq!(
-                &rows.iter()
+                &rows
+                    .iter()
                     .map(|row| row["owner"].as_str().unwrap())
                     .collect::<BTreeSet<_>>(),
                 expected
@@ -1061,10 +1073,7 @@ mod tests {
             .collect()
     }
 
-    fn assert_staged_declaration_bindings(
-        generated: &GeneratedStaging,
-        out_dir: &Path,
-    ) {
+    fn assert_staged_declaration_bindings(generated: &GeneratedStaging, out_dir: &Path) {
         let seed: serde_json::Value = serde_json::from_str(&generated.manifest_json).unwrap();
         let syntax = syn::parse2::<syn::File>(generated.rust.clone()).unwrap();
         assert_staged_marker_controls(&syntax);
@@ -1117,7 +1126,8 @@ mod tests {
                 "independently parsed source provenance"
             );
             assert_eq!(binding["source"]["sha256"], snapshot.sha256);
-            let attribute = markers.get(binding["marker"].as_str().unwrap())
+            let attribute = markers
+                .get(binding["marker"].as_str().unwrap())
                 .expect("staged validator marker");
             assert_eq!(
                 staged_attribute_paths(attribute),

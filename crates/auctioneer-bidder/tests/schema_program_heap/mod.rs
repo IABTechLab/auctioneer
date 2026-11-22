@@ -701,7 +701,10 @@ mod tests {
         }
         let mut mismatched_pattern = facts;
         mismatched_pattern.pattern = "^different$";
-        assert_eq!(source.evaluate(&mismatched_pattern), Err(ProgramHeapError::Shape));
+        assert_eq!(
+            source.evaluate(&mismatched_pattern),
+            Err(ProgramHeapError::Shape)
+        );
         for axis in 0_usize..5_usize {
             let mut changed = facts;
             let error = match axis {

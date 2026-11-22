@@ -23,9 +23,15 @@ fn manifest(seed: &CapturedSeed) -> Result<Value, String> {
     if value.get("schema_version").and_then(Value::as_u64) != Some(2_u64)
         || value.get("kind").and_then(Value::as_str)
             != Some("unqualified_non_serving_schema_staging")
-        || value.get("linked_or_serving_qualification").and_then(Value::as_bool) != Some(false)
+        || value
+            .get("linked_or_serving_qualification")
+            .and_then(Value::as_bool)
+            != Some(false)
         || value.get("owner_graph_status").and_then(Value::as_str) != Some("unexpanded")
-        || value.pointer("/identity/qualification").and_then(Value::as_str) != Some("Unqualified")
+        || value
+            .pointer("/identity/qualification")
+            .and_then(Value::as_str)
+            != Some("Unqualified")
     {
         return Err("invalid captured staging manifest".into());
     }
@@ -34,8 +40,7 @@ fn manifest(seed: &CapturedSeed) -> Result<Value, String> {
     {
         return Err("stale captured staging identity".into());
     }
-    if value.get("emitted_rust_sha256").and_then(Value::as_str)
-        != Some(digest(&seed.rust).as_str())
+    if value.get("emitted_rust_sha256").and_then(Value::as_str) != Some(digest(&seed.rust).as_str())
     {
         return Err("stale captured staging Rust".into());
     }
@@ -161,9 +166,8 @@ fn expand_declaration(
 pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
     let manifest = manifest(seed)?;
     let expected = declarations(&manifest, seed)?;
-    let syntax =
-        syn::parse_file(str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())?;
+    let syntax = syn::parse_file(str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())?;
     let mut actual = BTreeMap::new();
     let mut auxiliary = Vec::new();
     for item in &syntax.items {

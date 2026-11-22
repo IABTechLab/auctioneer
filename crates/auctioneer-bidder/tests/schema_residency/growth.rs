@@ -118,10 +118,15 @@ fn value_at<'a>(value: &'a Value, path: &[&str]) -> &'a Value {
     })
 }
 
-fn object_at<'a>(value: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, Value>, String> {
+fn object_at<'a>(
+    value: &'a mut Value,
+    path: &[&str],
+) -> Result<&'a mut Map<String, Value>, String> {
     let mut current = value;
     for key in path {
-        current = current.get_mut(*key).ok_or("missing growth report parent")?;
+        current = current
+            .get_mut(*key)
+            .ok_or("missing growth report parent")?;
     }
     current
         .as_object_mut()
@@ -259,7 +264,8 @@ fn match_views(reference: &View, candidate: &View, declared: &Delta) -> Result<V
     if value_at(&reference.source, &["kind"]).as_str() != Some("pinned-git-object-data")
         || value_at(&reference.source, &["commit"]).as_str()
             != Some(catalog_reference::REFERENCE_COMMIT)
-        || value_at(&reference.source, &["tree"]).as_str() != Some(catalog_reference::REFERENCE_TREE)
+        || value_at(&reference.source, &["tree"]).as_str()
+            != Some(catalog_reference::REFERENCE_TREE)
     {
         return Err("reference identity mismatch".into());
     }
@@ -631,7 +637,10 @@ pub(super) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
     fs::File::open(path)
         .map_err(|error| error.to_string())?
-        .take(cap.checked_add(1_u64).ok_or("growth source byte cap overflow")?)
+        .take(
+            cap.checked_add(1_u64)
+                .ok_or("growth source byte cap overflow")?,
+        )
         .read_to_end(&mut bytes)
         .map_err(|error| error.to_string())?;
     let length = u64::try_from(bytes.len()).map_err(|error| error.to_string())?;
@@ -1100,7 +1109,10 @@ fn schema_owners(
         return Err(SCHEMAS.into());
     }
     let mut schema_inputs = BTreeMap::new();
-    for input in value_at(manifest, &["identity", "inputs"]).as_array().ok_or(SCHEMAS)? {
+    for input in value_at(manifest, &["identity", "inputs"])
+        .as_array()
+        .ok_or(SCHEMAS)?
+    {
         if input["kind"] == "Schema" {
             let name = input["id"].as_str().ok_or(SCHEMAS)?;
             let sha256 = input["sha256"].as_str().ok_or(SCHEMAS)?;
@@ -1221,7 +1233,9 @@ fn reconstruct(
     );
     source_object.insert(
         "lock_sha256".into(),
-        json!(expanded::digest(&read_regular(&workspace.join("Cargo.lock"))?)),
+        json!(expanded::digest(&read_regular(
+            &workspace.join("Cargo.lock")
+        )?)),
     );
     let view = View {
         source,
@@ -1352,8 +1366,10 @@ fn attach_source_recipes(
         let side_report = object_at(report, &[side])?;
         side_report.insert("source_recipe_projection".into(), recipe.projection());
         side_report.insert("validation_handoff".into(), recipe.validation_handoff());
-        side_report.insert("constructor_work".into(),
-            value_at(&source_report, &["constructor_work"]).clone());
+        side_report.insert(
+            "constructor_work".into(),
+            value_at(&source_report, &["constructor_work"]).clone(),
+        );
         if side == "candidate" {
             let requested = descriptor::assert_hypothetical_evaluation(&recipe);
             side_report.insert(

@@ -5,10 +5,10 @@ use super::{expanded, initialization, program_construction, retained, runtime_so
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_heap_layout::NativeField;
 use crate::schema_nfa_heap::target;
-use crate::schema_vendor;
 use crate::schema_program_heap::{
     NativeProgramHeap, ProgramHeapError, ProgramRecipe, SourceRecipe,
 };
+use crate::schema_vendor;
 use auctioneer_bidder::catalog::CatalogOwner;
 use regex_automata::meta::Config;
 use serde_json::{Value, json};
@@ -1108,7 +1108,12 @@ mod tests {
         // constructor family. Neither map represents observed target facts.
         let nfa_layouts = nfa_fact_keys()
             .into_iter()
-            .map(|key| (key.to_owned(), *layouts.get(key).expect("required NFA layout")))
+            .map(|key| {
+                (
+                    key.to_owned(),
+                    *layouts.get(key).expect("required NFA layout"),
+                )
+            })
             .collect::<BTreeMap<_, _>>();
         assert_eq!(nfa_layouts.len(), 11_usize);
         let roots = descriptor
@@ -1340,6 +1345,13 @@ mod tests {
                 )]))
             );
         }
+        assert_unexpected_top_level_slots(descriptor, facts);
+    }
+
+    fn assert_unexpected_top_level_slots(
+        descriptor: &ActualSourceDescriptor,
+        facts: &RequestedFacts<'_>,
+    ) {
         let unknown = "hypothetical::unexpected-source-slot";
         let mut roots: HypotheticalRoots<'_> = facts.programs.clone();
         assert!(
@@ -1540,6 +1552,86 @@ mod tests {
         }
     }
 
+    fn assert_inline_layout_axes(
+        descriptor: &ActualSourceDescriptor,
+        facts: &RequestedFacts<'_>,
+        heaps: &[NativeProgramHeap],
+        group: &str,
+        layouts: &BTreeMap<String, NativeField>,
+    ) {
+        for (id, field) in layouts {
+            let mut removed = hypothetical_linked(descriptor, facts.programs);
+            assert!(
+                removed
+                    .get_mut(group)
+                    .unwrap()
+                    .inline_layouts
+                    .remove(id)
+                    .is_some()
+            );
+            let missing = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &removed,
+            );
+            assert_eq!(
+                descriptor.evaluate(&missing),
+                Err(Refusal::TargetIncomplete(vec![format!(
+                    "inline::{group}::{id}"
+                )]))
+            );
+            let mut invalid = hypothetical_linked(descriptor, facts.programs);
+            invalid
+                .get_mut(group)
+                .unwrap()
+                .inline_layouts
+                .get_mut(id)
+                .unwrap()
+                .bytes = 0_usize;
+            let malformed = hypothetical_facts(
+                facts.binding,
+                facts.programs,
+                facts.constructor_layouts,
+                &invalid,
+            );
+            assert_eq!(
+                descriptor.reconcile_groups(&malformed, heaps),
+                Err(Refusal::TargetLayout(id.clone()))
+            );
+            if facts.programs.contains_key(id) {
+                for replacement in [
+                    NativeField {
+                        bytes: field.bytes.checked_add(field.alignment).unwrap(),
+                        ..*field
+                    },
+                    NativeField {
+                        alignment: field.alignment.checked_mul(2_usize).unwrap(),
+                        ..*field
+                    },
+                ] {
+                    let mut mismatched = hypothetical_linked(descriptor, facts.programs);
+                    *mismatched
+                        .get_mut(group)
+                        .unwrap()
+                        .inline_layouts
+                        .get_mut(id)
+                        .unwrap() = replacement;
+                    let unequal = hypothetical_facts(
+                        facts.binding,
+                        facts.programs,
+                        facts.constructor_layouts,
+                        &mismatched,
+                    );
+                    assert_eq!(
+                        descriptor.reconcile_groups(&unequal, heaps),
+                        Err(Refusal::TargetLayout(id.clone()))
+                    );
+                }
+            }
+        }
+    }
+
     fn assert_inline_axes(
         descriptor: &ActualSourceDescriptor,
         facts: &RequestedFacts<'_>,
@@ -1547,77 +1639,7 @@ mod tests {
     ) {
         let baseline = descriptor.reconcile_groups(facts, heaps).unwrap();
         for (group, fact) in facts.linked_inline {
-            for (id, field) in &fact.inline_layouts {
-                let mut removed = hypothetical_linked(descriptor, facts.programs);
-                assert!(
-                    removed
-                        .get_mut(group)
-                        .unwrap()
-                        .inline_layouts
-                        .remove(id)
-                        .is_some()
-                );
-                let missing = hypothetical_facts(
-                    facts.binding,
-                    facts.programs,
-                    facts.constructor_layouts,
-                    &removed,
-                );
-                assert_eq!(
-                    descriptor.evaluate(&missing),
-                    Err(Refusal::TargetIncomplete(vec![format!(
-                        "inline::{group}::{id}"
-                    )]))
-                );
-                let mut invalid = hypothetical_linked(descriptor, facts.programs);
-                invalid
-                    .get_mut(group)
-                    .unwrap()
-                    .inline_layouts
-                    .get_mut(id)
-                    .unwrap()
-                    .bytes = 0_usize;
-                let malformed = hypothetical_facts(
-                    facts.binding,
-                    facts.programs,
-                    facts.constructor_layouts,
-                    &invalid,
-                );
-                assert_eq!(
-                    descriptor.reconcile_groups(&malformed, heaps),
-                    Err(Refusal::TargetLayout(id.clone()))
-                );
-                if facts.programs.contains_key(id) {
-                    for replacement in [
-                        NativeField {
-                            bytes: field.bytes.checked_add(field.alignment).unwrap(),
-                            ..*field
-                        },
-                        NativeField {
-                            alignment: field.alignment.checked_mul(2_usize).unwrap(),
-                            ..*field
-                        },
-                    ] {
-                        let mut mismatched = hypothetical_linked(descriptor, facts.programs);
-                        *mismatched
-                            .get_mut(group)
-                            .unwrap()
-                            .inline_layouts
-                            .get_mut(id)
-                            .unwrap() = replacement;
-                        let unequal = hypothetical_facts(
-                            facts.binding,
-                            facts.programs,
-                            facts.constructor_layouts,
-                            &mismatched,
-                        );
-                        assert_eq!(
-                            descriptor.reconcile_groups(&unequal, heaps),
-                            Err(Refusal::TargetLayout(id.clone()))
-                        );
-                    }
-                }
-            }
+            assert_inline_layout_axes(descriptor, facts, heaps, group, &fact.inline_layouts);
             let mut extra = hypothetical_linked(descriptor, facts.programs);
             assert!(
                 extra
@@ -1663,7 +1685,9 @@ mod tests {
                 Ok(baseline.checked_sub(257_u64).unwrap())
             );
             if contained > 0_u64 {
-                boundary.get_mut(group).unwrap().attributed_bytes = contained.checked_sub(1_u64).expect("positive linked attribution");
+                boundary.get_mut(group).unwrap().attributed_bytes = contained
+                    .checked_sub(1_u64)
+                    .expect("positive linked attribution");
                 let short = hypothetical_facts(
                     facts.binding,
                     facts.programs,
@@ -2229,8 +2253,10 @@ mod tests {
         first_constructor: &BTreeMap<String, NativeField>,
         second_constructor: &BTreeMap<String, NativeField>,
     ) -> Result<(), Refusal> {
-        let programs =
-            BTreeMap::from([("fake_a".to_owned(), *first), ("fake_b".to_owned(), *second)]);
+        let programs = BTreeMap::from([
+            ("fake_a".to_owned(), *first),
+            ("fake_b".to_owned(), *second),
+        ]);
         let constructors = BTreeMap::from([
             ("fake_a".to_owned(), first_constructor.clone()),
             ("fake_b".to_owned(), second_constructor.clone()),
@@ -2274,6 +2300,14 @@ mod tests {
             .chain(program.pool.fields.iter_mut())
             .chain([&mut program.pool.shard, &mut program.pool.closure])
             .collect()
+    }
+
+    fn change_fixed_program_field(program: &mut ProgramRecipe<'_>, index: usize, change_bytes: bool) {
+        let mut fields = fixed_program_fields(program);
+        let field = fields.get_mut(index).expect("fixed field present");
+        let before = **field;
+        **field = changed_layout(before, change_bytes);
+        assert_ne!(**field, before);
     }
 
     #[test]
@@ -2355,13 +2389,7 @@ mod tests {
         for index in 0_usize..16_usize {
             for change_bytes in [true, false] {
                 let mut second = first;
-                {
-                    let mut fields = fixed_program_fields(&mut second);
-                    let field = fields.get_mut(index).expect("fixed field present");
-                    let before = **field;
-                    **field = changed_layout(before, change_bytes);
-                    assert_ne!(**field, before)
-                };
+                change_fixed_program_field(&mut second, index, change_bytes);
                 assert_eq!(
                     check_two_root_layouts(&first, &second, &constructor, &constructor),
                     Err(Refusal::TargetBinding),

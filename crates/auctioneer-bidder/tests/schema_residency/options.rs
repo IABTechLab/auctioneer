@@ -147,14 +147,8 @@ pub(super) fn check(
     settings.flag("validate_formats", true)?;
     settings.flag("ignore_unknown_formats", false)?;
     let Formats(formats) = parse(settings.group("formats")?)?;
-    let expected: BTreeSet<_> =
-        audit.formats.iter().map(|row| row.value.as_str()).collect();
-    if formats
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>()
-        != expected
-    {
+    let expected: BTreeSet<_> = audit.formats.iter().map(|row| row.value.as_str()).collect();
+    if formats.keys().map(String::as_str).collect::<BTreeSet<_>>() != expected {
         return Err(REFUSAL.into());
     }
     for (name, callback) in &formats {

@@ -127,7 +127,11 @@ fn executable_sha() -> Result<String, String> {
         if length == 0 {
             break;
         }
-        hasher.update(buffer.get(..length).ok_or("invalid executable read length")?);
+        hasher.update(
+            buffer
+                .get(..length)
+                .ok_or("invalid executable read length")?,
+        );
     }
     Ok(hex::encode(hasher.finalize()))
 }
@@ -354,10 +358,14 @@ fn observe_current() -> Result<Value, String> {
     let (again, repeat) = measure(|| black_box(bidders()));
     if !ptr::eq(infos, again)
         || !zero(repeat)
-        || metadata.json().get("allocated_bytes")
+        || metadata
+            .json()
+            .get("allocated_bytes")
             .and_then(Value::as_u64)
             .is_none_or(|value| value == 0)
-        || metadata.json().get("retained_bytes")
+        || metadata
+            .json()
+            .get("retained_bytes")
             .and_then(Value::as_i64)
             .is_none_or(|value| value <= 0)
     {
@@ -397,20 +405,24 @@ fn observe_current() -> Result<Value, String> {
     let metadata_json = metadata.json();
     let registry_json = registry_cold.json();
     let release_json = release.json();
-    if registry_json.get("retained_bytes")
+    if registry_json
+        .get("retained_bytes")
         .and_then(Value::as_i64)
         .and_then(|value| value.checked_add(release_json.get("retained_bytes")?.as_i64()?))
         != Some(0)
-        || registry_json.get("allocated_bytes")
+        || registry_json
+            .get("allocated_bytes")
             .and_then(Value::as_u64)
             .is_none_or(|value| value == 0)
     {
         return Err("production registry release did not balance its actual constructor".into());
     }
-    let prefix = metadata_json.get("retained_bytes")
+    let prefix = metadata_json
+        .get("retained_bytes")
         .and_then(Value::as_i64)
         .ok_or("invalid metadata prefix")?;
-    let peak = registry_json.get("peak_live_bytes")
+    let peak = registry_json
+        .get("peak_live_bytes")
         .and_then(Value::as_i64)
         .ok_or("invalid registry peak")?;
     if u64::try_from(infos.len()).map_err(|error| error.to_string())?
@@ -449,16 +461,18 @@ mod tests {
             writeln!(
                 io::stderr().lock(),
                 "{MARKER}{}",
-                serde_json::to_string(&ChildReport { request, observation })
-                    .map_err(|error| error.to_string())?
+                serde_json::to_string(&ChildReport {
+                    request,
+                    observation
+                })
+                .map_err(|error| error.to_string())?
             )
             .map_err(|error| error.to_string())?;
         } else {
             // Always execute two actual fresh children on standalone dispatch.
             // CURRENT baseline only: this is never a reference-pair fallback.
             let frozen = context()?;
-            let baseline =
-                digest(&serde_json::to_vec(&frozen).map_err(|error| error.to_string())?);
+            let baseline = digest(&serde_json::to_vec(&frozen).map_err(|error| error.to_string())?);
             for slot in [Slot::BaselineFirst, Slot::BaselineSecond] {
                 let report = child(
                     &Request {
@@ -478,7 +492,10 @@ mod tests {
                         .and_then(Value::as_u64)
                         .is_none_or(|count| count == 0)
                 {
-                    return Err("baseline metadata child publication or factory count is not positive".into());
+                    return Err(
+                        "baseline metadata child publication or factory count is not positive"
+                            .into(),
+                    );
                 }
             }
         }

@@ -24,6 +24,19 @@
 
 Every task below follows tests first, recorded hosted RED, minimal implementation, hosted GREEN and a focused commit. Keep positive and negative controls together so an implementation returning refusal for everything cannot pass.
 
+## Implementation Checkpoint: 2026-11-21
+
+This status supplement does not rewrite planning history or mark unverified checklist items complete. See the [dated evidence](../../testing/evidence/schema-residency-initialization-20261121.md) for exact source/capture identities and the retained RED/GREEN sequence.
+
+| Task | Delivered / Executed Scope | Remaining Acceptance |
+| --- | --- | --- |
+| 2-3 | Discovery/version-2 capture and expanded-source controls execute in the 081 default source suite. | Final-head four-application/source/producer owners and complete matrix. |
+| 4-7 | Default captured recipes are SourceComplete / TargetIncomplete; retained/constructor/fact/handoff controls and reconstructed lifecycle observations pass in the 806-case suite. | Do not credit uninspected native lifecycle, ABI or separately owned probes from this filtered result; final-head acceptance remains required. |
+| 8 | Captured-source behavioral RED and default matched reconstruction GREEN are recorded; production metadata/registry observations and hypothetical C/I controls pass; raw hosted capture is frozen with its digest. | Verify the captured-data consumer's integration controls against unchanged production arithmetic; record existing catalog/continuity owners and development capture. No separate additional RED is required for each consumer test. |
+| 9 | Existing CI wiring and default dispatch/capture are present. | Eight strict-lint errors at 081, hosted formatting, complete final-head matrix, both producers, issue-criteria readback and advisory/independent review. |
+
+The plan ends at Task 9. Final completion/approval/merge obligations are also in specification section 10, not a separate Task 10. #46 stays open; missing physical/allocator/linked target facts remain #72-#75 inputs, not zero costs or new prerequisites reversing the approved dependency direction. No fit/serving claim is made.
+
 ## Files And Responsibility Map
 
 Existing paths unless explicitly marked new:

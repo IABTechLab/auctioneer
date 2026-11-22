@@ -154,7 +154,8 @@ mod tests {
                     value["packages"][1_usize]["manifest_path"] = json!("relative/Cargo.toml");
                 }
                 5_usize => {
-                    value["packages"][1_usize]["manifest_path"] = json!("/fake/../other/Cargo.toml");
+                    value["packages"][1_usize]["manifest_path"] =
+                        json!("/fake/../other/Cargo.toml");
                 }
                 _ => value["packages"][1_usize]["manifest_path"] = json!("/fake/not-a-manifest"),
             }

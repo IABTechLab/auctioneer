@@ -271,8 +271,14 @@ mod tests {
     ) {
         for index in 0_usize..2_usize {
             let mut layout = SYNTHETIC;
-            let field = layout.regex_fields.get_mut(index).expect("fixed regex field");
-            field.bytes = field.bytes.checked_add(8_usize).expect("small regex field growth");
+            let field = layout
+                .regex_fields
+                .get_mut(index)
+                .expect("fixed regex field");
+            field.bytes = field
+                .bytes
+                .checked_add(8_usize)
+                .expect("small regex field growth");
             assert_eq!(
                 NativeImmutableRegexMetadata::from_pattern_with_layouts(
                     "^synthetic+$",
@@ -292,7 +298,10 @@ mod tests {
         for index in 0_usize..3_usize {
             let mut layout = SYNTHETIC;
             let field = layout.info_fields.get_mut(index).expect("fixed info field");
-            field.bytes = field.bytes.checked_add(8_usize).expect("small info field growth");
+            field.bytes = field
+                .bytes
+                .checked_add(8_usize)
+                .expect("small info field growth");
             assert_eq!(
                 NativeImmutableRegexMetadata::from_pattern_with_layouts(
                     "^synthetic+$",

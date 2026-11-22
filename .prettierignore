@@ -12,6 +12,7 @@
 # Original captures, schemas, manifests, and accounting snapshots are byte-pinned.
 /crates/auctioneer-bidder/tests/conformance/fixtures/reference/catalog/*.toml
 /crates/auctioneer-bidder/tests/conformance/fixtures/reference/schema-reference/*.json
+/crates/auctioneer-bidder/tests/conformance/fixtures/reference/schema-residency/*.json
 /crates/auctioneer-bidder/tests/conformance/fixtures/waves/*.toml
 /crates/auctioneer-bidder/tests/conformance/fixtures/usersync/
 /crates/auctioneer-bidder/tests/conformance/fixtures/openrtb/*.json

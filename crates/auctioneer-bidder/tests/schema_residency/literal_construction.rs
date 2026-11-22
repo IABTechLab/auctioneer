@@ -58,11 +58,7 @@ fn request(field: NativeField, bytes: usize, word: usize) -> Result<usize, Refus
         .alignment
         .checked_sub(1_usize)
         .ok_or(Refusal::Arithmetic)?;
-    if bytes
-        > maximum
-            .checked_sub(padding)
-            .ok_or(Refusal::Arithmetic)?
-    {
+    if bytes > maximum.checked_sub(padding).ok_or(Refusal::Arithmetic)? {
         return Err(Refusal::Arithmetic);
     }
     Ok(bytes)

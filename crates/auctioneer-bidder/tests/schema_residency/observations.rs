@@ -27,7 +27,12 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
         return Err("empty reconstructed program closure".into());
     }
     let (positive, control) = measure(|| black_box(vec![black_box(1_u8); 37]));
-    if control.json().get("allocated_bytes").and_then(Value::as_u64) != Some(37_u64) {
+    if control
+        .json()
+        .get("allocated_bytes")
+        .and_then(Value::as_u64)
+        != Some(37_u64)
+    {
         return Err("allocation control did not execute".into());
     }
     drop(positive);
@@ -41,7 +46,9 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
         if !cold_success {
             return Err("reconstructed admitted program failed".into());
         }
-        let prefix = cold.json().get("retained_bytes")
+        let prefix = cold
+            .json()
+            .get("retained_bytes")
             .and_then(Value::as_i64)
             .ok_or("invalid retained prefix")?;
         let (repeat_success, again) = measure(|| black_box(LazyLock::force(&cell).is_some()));
@@ -53,10 +60,12 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
             return Err("repeated singleton construction allocated".into());
         }
         let first_json = first.json();
-        if first_json.get("allocated_bytes")
+        if first_json
+            .get("allocated_bytes")
             .and_then(Value::as_u64)
             .is_none_or(|value| value == 0)
-            || first_json.get("retained_bytes")
+            || first_json
+                .get("retained_bytes")
                 .and_then(Value::as_i64)
                 .is_none_or(|value| value <= 0)
         {
@@ -77,7 +86,8 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
     if succeeded
         || cached
         || failed_json.get("retained_bytes").and_then(Value::as_i64) != Some(0_i64)
-        || failed_json.get("allocated_bytes")
+        || failed_json
+            .get("allocated_bytes")
             .and_then(Value::as_u64)
             .is_none_or(|value| value == 0)
         || failed_repeat.json()
@@ -97,7 +107,8 @@ pub(super) fn observe(programs: &[(String, String)]) -> Result<Value, String> {
         cleanup.append(released);
     }
     let cleanup_json = cleanup.json();
-    if cold_json.get("retained_bytes")
+    if cold_json
+        .get("retained_bytes")
         .and_then(Value::as_i64)
         .and_then(|value| {
             value.checked_add(cleanup_json.get("retained_bytes").and_then(Value::as_i64)?)

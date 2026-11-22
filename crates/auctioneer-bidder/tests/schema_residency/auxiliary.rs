@@ -81,9 +81,7 @@ fn token_trees_equal(left: TokenStream, right: TokenStream) -> bool {
             (Some(TokenTree::Group(a)), Some(TokenTree::Group(b))) => {
                 a.delimiter() == b.delimiter() && token_trees_equal(a.stream(), b.stream())
             }
-            (Some(TokenTree::Ident(a)), Some(TokenTree::Ident(b))) => {
-                a == b
-            }
+            (Some(TokenTree::Ident(a)), Some(TokenTree::Ident(b))) => a == b,
             (Some(TokenTree::Punct(a)), Some(TokenTree::Punct(b))) => {
                 a.as_char() == b.as_char() && (a.as_char() == '>' || a.spacing() == b.spacing())
             }
@@ -107,14 +105,20 @@ fn path(expr: &Expr, names: &[&str]) -> bool {
 }
 
 fn call<'a>(expr: &'a Expr, names: &[&str], arity: usize) -> Option<&'a syn::ExprCall> {
-    let Expr::Call(value) = expr else { return None; };
+    let Expr::Call(value) = expr else {
+        return None;
+    };
     (value.attrs.is_empty() && path(&value.func, names) && value.args.len() == arity)
         .then_some(value)
 }
 
 fn string(expr: &Expr) -> Option<String> {
-    let Expr::Lit(value) = expr else { return None; };
-    let syn::Lit::Str(text) = &value.lit else { return None; };
+    let Expr::Lit(value) = expr else {
+        return None;
+    };
+    let syn::Lit::Str(text) = &value.lit else {
+        return None;
+    };
     value.attrs.is_empty().then(|| text.value())
 }
 
@@ -131,7 +135,9 @@ fn bytes(expr: &Expr) -> Option<Vec<u8>> {
     if !literal.attrs.is_empty() {
         return None;
     }
-    let syn::Lit::ByteStr(text) = &literal.lit else { return None; };
+    let syn::Lit::ByteStr(text) = &literal.lit else {
+        return None;
+    };
     Some(text.value())
 }
 
@@ -142,8 +148,14 @@ fn number(expr: &Expr) -> Option<usize> {
     if !value.attrs.is_empty() {
         return None;
     }
-    let syn::Lit::Int(integer) = &value.lit else { return None; };
-    if integer.suffix().is_empty() { integer.base10_parse().ok() } else { None }
+    let syn::Lit::Int(integer) = &value.lit else {
+        return None;
+    };
+    if integer.suffix().is_empty() {
+        integer.base10_parse().ok()
+    } else {
+        None
+    }
 }
 
 fn registry_type(item: &syn::ItemStruct) -> bool {
@@ -267,12 +279,17 @@ impl Parse for Assertion {
 
 fn statement_macro(statement: &Stmt) -> Option<&syn::Macro> {
     if let Stmt::Macro(value) = statement
-        && value.attrs.is_empty() && value.semi_token.is_some() {
+        && value.attrs.is_empty()
+        && value.semi_token.is_some()
+    {
         Some(&value.mac)
     } else if let Stmt::Expr(Expr::Macro(value), Some(_)) = statement
-        && value.attrs.is_empty() {
+        && value.attrs.is_empty()
+    {
         Some(&value.mac)
-    } else { None }
+    } else {
+        None
+    }
 }
 
 fn abi_predicates(cache: &syn::Ident) -> [(TokenStream, &'static str); 12_usize] {
@@ -333,15 +350,23 @@ fn abi(item: &syn::ItemConst, cache: &syn::Ident) -> bool {
     if !same(item, quote!(const _: () = #initializer;)) {
         return false;
     }
-    if !item.attrs.is_empty() || item.ident != "_"
-        || !same(&item.vis, quote!()) || !same(&item.ty, quote!(())) {
+    if !item.attrs.is_empty()
+        || item.ident != "_"
+        || !same(&item.vis, quote!())
+        || !same(&item.ty, quote!(()))
+    {
         return false;
     }
-    let Expr::Block(value) = item.expr.as_ref() else { return false; };
-    if !value.attrs.is_empty() || value.label.is_some() { return false; }
+    let Expr::Block(value) = item.expr.as_ref() else {
+        return false;
+    };
+    if !value.attrs.is_empty() || value.label.is_some() {
+        return false;
+    }
     let predicates = abi_predicates(cache);
-    let [imports, word, offsets, assertions @ ..] = value.block.stmts.as_slice()
-        else { return false; };
+    let [imports, word, offsets, assertions @ ..] = value.block.stmts.as_slice() else {
+        return false;
+    };
     if assertions.len() != predicates.len()
         || !same(
             imports,
@@ -407,31 +432,40 @@ fn tail(block: &syn::Block) -> Option<&Expr> {
 }
 
 fn patterns(pattern: &syn::Pat, output: &mut Vec<String>) -> bool {
-    if let syn::Pat::Lit(value) = pattern && value.attrs.is_empty() {
-            if let syn::Lit::Str(text) = &value.lit {
-                output.push(text.value());
-                true
-            } else {
-                false
-            }
+    if let syn::Pat::Lit(value) = pattern
+        && value.attrs.is_empty()
+    {
+        if let syn::Lit::Str(text) = &value.lit {
+            output.push(text.value());
+            true
+        } else {
+            false
+        }
     } else if let syn::Pat::Or(value) = pattern
-        && value.attrs.is_empty() && value.leading_vert.is_none() {
-            value.cases.iter().all(|case| patterns(case, output))
-    } else { false }
+        && value.attrs.is_empty()
+        && value.leading_vert.is_none()
+    {
+        value.cases.iter().all(|case| patterns(case, output))
+    } else {
+        false
+    }
 }
 
 fn named_match<'a>(expr: &'a Expr, selector: &str) -> Option<&'a syn::ExprMatch> {
-    let Expr::Match(value) = expr else { return None; };
+    let Expr::Match(value) = expr else {
+        return None;
+    };
     (value.attrs.is_empty()
-                && path(&value.expr, &[selector])
-                && value
-                    .arms
-                    .iter()
-                    .all(|arm| arm.attrs.is_empty() && !matches!(&arm.pat, syn::Pat::Guard(_)))
-                && value.arms.last().is_some_and(|arm| {
-                    matches!(&arm.pat, syn::Pat::Wild(pattern) if pattern.attrs.is_empty())
-                        && path(&arm.body, &["None"])
-                })).then_some(value)
+        && path(&value.expr, &[selector])
+        && value
+            .arms
+            .iter()
+            .all(|arm| arm.attrs.is_empty() && !matches!(&arm.pat, syn::Pat::Guard(_)))
+        && value.arms.last().is_some_and(|arm| {
+            matches!(&arm.pat, syn::Pat::Wild(pattern) if pattern.attrs.is_empty())
+                && path(&arm.body, &["None"])
+        }))
+    .then_some(value)
 }
 
 struct Required {
@@ -455,30 +489,38 @@ fn edge(edges: &mut Vec<Value>, function: &str, target: &str, role: &str) {
 
 fn initialization(expr: &Expr, output: &mut Vec<String>) -> bool {
     if let Expr::Binary(value) = expr
-        && value.attrs.is_empty() && matches!(&value.op, syn::BinOp::And(_)) {
-            initialization(&value.left, output) && initialization(&value.right, output)
+        && value.attrs.is_empty()
+        && matches!(&value.op, syn::BinOp::And(_))
+    {
+        initialization(&value.left, output) && initialization(&value.right, output)
     } else if let Expr::Call(value) = expr
-        && value.attrs.is_empty() && value.args.is_empty() {
-            let Expr::Path(name) = value.func.as_ref() else {
-                return false;
-            };
-            if !name.attrs.is_empty()
-                || name.qself.is_some()
-                || name.path.leading_colon.is_some()
-                || name.path.segments.len() != 2
-            {
-                return false;
-            }
-            let segments = name.path.segments.iter().collect::<Vec<_>>();
-            let [owner, method] = segments.as_slice() else { return false; };
-            if segments.iter().any(|part| !part.arguments.is_empty())
-                || method.ident != "initialize_regexes"
-            {
-                return false;
-            }
-            output.push(owner.ident.to_string());
-            true
-    } else { false }
+        && value.attrs.is_empty()
+        && value.args.is_empty()
+    {
+        let Expr::Path(name) = value.func.as_ref() else {
+            return false;
+        };
+        if !name.attrs.is_empty()
+            || name.qself.is_some()
+            || name.path.leading_colon.is_some()
+            || name.path.segments.len() != 2
+        {
+            return false;
+        }
+        let segments = name.path.segments.iter().collect::<Vec<_>>();
+        let [owner, method] = segments.as_slice() else {
+            return false;
+        };
+        if segments.iter().any(|part| !part.arguments.is_empty())
+            || method.ident != "initialize_regexes"
+        {
+            return false;
+        }
+        output.push(owner.ident.to_string());
+        true
+    } else {
+        false
+    }
 }
 
 fn retain_dispatch(item: &syn::ItemFn, rows: &[Row], edges: &mut Vec<Value>) -> Result<(), String> {
@@ -501,7 +543,8 @@ fn retain_dispatch(item: &syn::ItemFn, rows: &[Row], edges: &mut Vec<Value>) -> 
             return Err(error());
         };
         if !tuple.attrs.is_empty()
-            || tuple.elems.len() != rows.len().checked_add(1_usize).ok_or_else(error)? {
+            || tuple.elems.len() != rows.len().checked_add(1_usize).ok_or_else(error)?
+        {
             return Err(error());
         }
         for (reference, row) in tuple.elems.iter().zip(rows) {
@@ -545,12 +588,13 @@ fn initialize_dispatch(
     if rows.is_empty() && !same(expr, quote!(true)) {
         return Err(error());
     }
-    if !rows.is_empty() && (!initialization(expr, &mut calls)
-        || calls
-            != rows
-                .iter()
-                .map(|row| row.marker.to_string())
-                .collect::<Vec<_>>())
+    if !rows.is_empty()
+        && (!initialization(expr, &mut calls)
+            || calls
+                != rows
+                    .iter()
+                    .map(|row| row.marker.to_string())
+                    .collect::<Vec<_>>())
     {
         return Err(error());
     }
@@ -620,7 +664,9 @@ fn validate_dispatch(
         )
         .ok_or_else(error)?;
         let mut arguments = validate.args.iter();
-        if !arguments.next().is_some_and(|argument| path(argument, &["value"]))
+        if !arguments
+            .next()
+            .is_some_and(|argument| path(argument, &["value"]))
             || !arguments
                 .next()
                 .is_some_and(|argument| same(argument, quote!(&mut cache)))
@@ -742,7 +788,9 @@ fn function(
     if name == "retain_for_inspection" {
         return retain_dispatch(item, rows, edges);
     }
-    let [attribute] = item.attrs.as_slice() else { return Err(error()); };
+    let [attribute] = item.attrs.as_slice() else {
+        return Err(error());
+    };
     if !same(attribute, quote!(#[cfg(not(target_arch = "wasm32"))])) {
         return Err(error());
     }
@@ -781,10 +829,15 @@ fn selected_members(selection: &Value) -> Result<BTreeMap<String, Option<String>
             .filter(|name| !name.is_empty())
             .ok_or_else(error)?;
         let schema_owner = member.get("schema_owner").ok_or_else(error)?;
-        let owner = if schema_owner.is_null() { None }
-            else if let Value::String(owner) = schema_owner && !owner.is_empty() {
-                Some(owner.clone())
-            } else { return Err(error()); };
+        let owner = if schema_owner.is_null() {
+            None
+        } else if let Value::String(owner) = schema_owner
+            && !owner.is_empty()
+        {
+            Some(owner.clone())
+        } else {
+            return Err(error());
+        };
         if members.insert(name.to_owned(), owner).is_some() {
             return Err(error());
         }
@@ -815,8 +868,10 @@ fn complete_header(
         if !asserted.insert(row.ordinal) {
             return Err(error());
         }
-        let details = roots.get_mut(root)
-            .and_then(|record| record.get_mut("details")).ok_or_else(error)?;
+        let details = roots
+            .get_mut(root)
+            .and_then(|record| record.get_mut("details"))
+            .ok_or_else(error)?;
         *details = json!({"cache":row.cache.to_string(),"owner":row.owner});
     }
     let mut dispatch_edges = Vec::new();
@@ -868,46 +923,47 @@ pub(super) fn classify(
     for (ordinal, item) in items.iter().enumerate() {
         let mut details = json!({});
         let kind = if let Item::Use(value) = item
-                && !has_import
-                    && same(
-                        value,
-                        quote!(
-                            use std::hint::black_box;
-                        ),
-                    )
-            {
-                has_import = true;
-                "inspection-import"
-            }
-            else if let Item::Struct(value) = item && !has_type && registry_type(value) {
-                has_type = true;
-                "inline-retention-type"
-            }
-            else if let Item::Static(value) = item {
-                let row = retention_row(value, &by_owner, identity)?;
-                details = json!({"entry":row.entry.to_string(),"marker":row.marker.to_string(),
+            && !has_import
+            && same(
+                value,
+                quote!(
+                    use std::hint::black_box;
+                ),
+            ) {
+            has_import = true;
+            "inspection-import"
+        } else if let Item::Struct(value) = item
+            && !has_type
+            && registry_type(value)
+        {
+            has_type = true;
+            "inline-retention-type"
+        } else if let Item::Static(value) = item {
+            let row = retention_row(value, &by_owner, identity)?;
+            details = json!({"entry":row.entry.to_string(),"marker":row.marker.to_string(),
                     "owner":row.owner,"cache":row.cache.to_string()});
-                rows.push(row);
-                "inline-retention-row"
-            }
-            else if let Item::Const(value) = item && value.ident == "_" {
-                constants.push((ordinal, value));
-                "const-abi-assertions"
-            }
-            else if let Item::Const(value) = item
-                && !has_identity && same(value, quote!(const STAGING_INPUT_ID: &str = #id;))
-            {
-                has_identity = true;
-                "readonly-staging-identity"
-            }
-            else if let Item::Fn(value) = item
-                && functions
-                    .insert(value.sig.ident.to_string(), value)
-                    .is_none()
-            {
-                "dispatch"
-            }
-            else { return Err(error()); };
+            rows.push(row);
+            "inline-retention-row"
+        } else if let Item::Const(value) = item
+            && value.ident == "_"
+        {
+            constants.push((ordinal, value));
+            "const-abi-assertions"
+        } else if let Item::Const(value) = item
+            && !has_identity
+            && same(value, quote!(const STAGING_INPUT_ID: &str = #id;))
+        {
+            has_identity = true;
+            "readonly-staging-identity"
+        } else if let Item::Fn(value) = item
+            && functions
+                .insert(value.sig.ident.to_string(), value)
+                .is_none()
+        {
+            "dispatch"
+        } else {
+            return Err(error());
+        };
         roots.push(json!({"ordinal":ordinal,"kind":kind,"details":details,
             "source_sha256":super::expanded::digest(item.to_token_stream().to_string().as_bytes())}));
     }
@@ -1025,9 +1081,13 @@ mod tests {
             .items
             .iter_mut()
             .find_map(|item| {
-                if let syn::Item::Fn(function) = item && function.sig.ident == name {
+                if let syn::Item::Fn(function) = item
+                    && function.sig.ident == name
+                {
                     Some(function)
-                } else { None }
+                } else {
+                    None
+                }
             })
             .unwrap()
     }
@@ -1136,9 +1196,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn auxiliary_known_call_arguments_and_matches_guard_cannot_hide_storage() {
-        {
+    fn assert_known_call_arguments_cannot_hide_storage() {
         let (mut syntax, identity, selection) = fixture();
         *function(&mut syntax, "retain_for_inspection").block = syn::parse_quote! {{
             black_box(({
@@ -1150,8 +1208,12 @@ mod tests {
         assert_eq!(
             inspect(&syntax, &identity, &selection).err().as_deref(),
             Some("unsupported captured staging syntax")
-        )
-        };
+        );
+    }
+
+    #[test]
+    fn auxiliary_known_call_arguments_and_matches_guard_cannot_hide_storage() {
+        assert_known_call_arguments_cannot_hide_storage();
 
         let (mut syntax, identity, selection) = fixture();
         *function(&mut syntax, "native_required").block = syn::parse_quote! {{
@@ -1167,15 +1229,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn auxiliary_wrong_retention_identity_and_abi_refuse() {
-        {
+    fn assert_wrong_retention_identity_refuses() {
         let (mut syntax, identity, selection) = fixture();
         let row = syntax
             .items
             .iter_mut()
             .find_map(|item| {
-                if let syn::Item::Static(row) = item { Some(row) } else { None }
+                if let syn::Item::Static(row) = item {
+                    Some(row)
+                } else {
+                    None
+                }
             })
             .unwrap();
         let syn::Expr::Struct(value) = row.expr.as_mut() else {
@@ -1196,17 +1260,25 @@ mod tests {
         assert_eq!(
             inspect(&syntax, &identity, &selection).err().as_deref(),
             Some("unsupported captured staging syntax")
-        )
-        };
+        );
+    }
+
+    #[test]
+    fn auxiliary_wrong_retention_identity_and_abi_refuse() {
+        assert_wrong_retention_identity_refuses();
 
         let (mut syntax, identity, selection) = fixture();
         let abi = syntax
             .items
             .iter_mut()
             .find_map(|item| {
-                if let syn::Item::Const(constant) = item && constant.ident == "_" {
+                if let syn::Item::Const(constant) = item
+                    && constant.ident == "_"
+                {
                     Some(constant)
-                } else { None }
+                } else {
+                    None
+                }
             })
             .unwrap();
         let syn::Expr::Block(block) = abi.expr.as_mut() else {
@@ -1249,10 +1321,7 @@ mod tests {
     }
     // Syn visits macro tokens opaquely. Rename the fixture's identifiers and
     // parsed literals recursively without changing groups or punctuation.
-    fn rename_fixture_tokens(
-        visitor: &mut impl VisitMut,
-        tokens: &mut proc_macro2::TokenStream,
-    ) {
+    fn rename_fixture_tokens(visitor: &mut impl VisitMut, tokens: &mut proc_macro2::TokenStream) {
         use proc_macro2::{Group, TokenTree};
         use quote::ToTokens as _;
         let mut output = proc_macro2::TokenStream::new();
@@ -1315,7 +1384,11 @@ mod tests {
             .items
             .iter_mut()
             .find_map(|item| {
-                if let syn::Item::Static(row) = item { Some(row) } else { None }
+                if let syn::Item::Static(row) = item {
+                    Some(row)
+                } else {
+                    None
+                }
             })
             .unwrap();
         let syn::Expr::Struct(value) = row.expr.as_mut() else {
@@ -1356,7 +1429,9 @@ mod tests {
                 TokenTree::Punct(punct) if punct.as_char() == '>' => {
                     TokenTree::Punct(Punct::new('>', spacing))
                 }
-                other @ (TokenTree::Ident(_) | TokenTree::Literal(_) | TokenTree::Punct(_)) => other,
+                other @ (TokenTree::Ident(_) | TokenTree::Literal(_) | TokenTree::Punct(_)) => {
+                    other
+                }
             })
             .collect()
     }
