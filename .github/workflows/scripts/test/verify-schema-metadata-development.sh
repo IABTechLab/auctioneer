@@ -14,9 +14,7 @@ test "$total" -ge "$selected"
 test "$(LC_ALL=C sort -u "$RUNNER_TEMP/schema-residency-selected.names" | wc -l | tr -d ' ')" -eq "$selected"
 env -u AUCTIONEER__TEST__EXPECT_SCHEMA_ARTIFACT cargo test "${cargo_args[@]}" schema_residency:: -- --test-threads=1 2>&1 | tee "$RUNNER_TEMP/schema-residency-development.log"
 bash .github/workflows/scripts/test/check-libtest-result.sh "$RUNNER_TEMP/schema-residency-development.log" "$((total - selected))" 1 "$selected"
-while IFS= read -r name; do
-  test "$(grep -Fxc "test $name ... ok" "$RUNNER_TEMP/schema-residency-development.log")" -eq 1
-done < "$RUNNER_TEMP/schema-residency-selected.names"
+bash .github/workflows/scripts/test/check-schema-residency-dispatch.sh "$RUNNER_TEMP/schema-residency-development.log" "$RUNNER_TEMP/schema-residency-selected.names"
 
 env -u AUCTIONEER__TEST__EXPECT_SCHEMA_ARTIFACT cargo test --locked -p auctioneer-bidder --features insecure-bidders --test schema_source_conformance tests::staged_ -- --test-threads=1 2>&1 | tee "$RUNNER_TEMP/schema-metadata-development-normal.log"
 test "$(grep -Ec '^running [0-9]+ tests?$' "$RUNNER_TEMP/schema-metadata-development-normal.log")" -eq 1

@@ -31,6 +31,7 @@ Retained job logs, not patch filenames or static assertions, supply these result
 | `d2d69d3482f715c90f3897c253735c0c7751b9a8` | `pr262-d2-schema.log`: 335 compiler controls passed; source 794 passed / 1 failed / 6 filtered, actual growth `expanded schedule mismatch`. This did not reach metadata positivity assertions and is not their intended RED. |
 | `4b4a08cfd731cca718183f7c303b1002258c138b` | `pr262-4b-schema.log`: 335 compiler controls and 803 source tests passed; 6 intentional exclusions; job then failed on 366 strict-Clippy diagnostics. Successful `eprintln!` output was captured, not a recoverable growth JSON record. |
 | `081b52116fcc6e690ad164121c5677ffd1441065` | [Compiler-schema job 137035850296](https://github.com/IABTechLab/auctioneer/actions/runs/44966255810/job/137035850296): 335 compiler controls and 806 source tests passed, zero failed/ignored; 6 intentional exclusions; job then failed on 8 strict-Clippy diagnostics, exit 101. Complete default growth frame retained above. |
+| `55f38f1f7c97e95aa1ed8a90d7e17acc359ca179` | [Integrated compiler-schema job 137078706721](https://github.com/IABTechLab/auctioneer/actions/runs/44980134979/job/137078706721): 337 compiler controls, 809 default source tests and all 96 selected development cases passed, with zero failed/ignored. The job then exited 1 at the development dispatch reader: the framed JSON interrupted libtest's label/result line. The other 24 checks passed. This is not a passing full matrix. |
 
 The six exclusions remain separately owned: four actual-application artifact cases, the compiler-private-layout case and the selected-schema link/execution probe. These counts do not credit those owners or the later development-metadata step. No local Cargo/build/test/fmt/lint/mutation execution is evidence for this checkpoint.
 
@@ -86,6 +87,16 @@ their current-head results belong to PR #262. No old result is recertified by th
 main merge or by changing a source witness.
 
 ## Final Acceptance
+
+The dispatch repair keeps the summary/count/filtered checks on the original raw
+log. Its [transport-aware per-test checker](../../../.github/workflows/scripts/test/check-schema-residency-dispatch.sh)
+requires every selected name exactly once, accepts one balanced development
+frame only after a selected test's exact libtest label, and counts that test only
+when libtest's actual next line is exactly `ok`. It never invents an outcome or
+counts text inside the JSON as a result. The existing secure fixture owner adds
+27 positive/refusal controls for framing, unknown/duplicate/missing names and
+failed, missing or inexact outcomes. These controls still require hosted execution
+at the fixing head; the earlier successful tests do not verify this repair.
 
 - Task 8: verify the captured-data pure-core consumer's multiplicity/refusal controls against unchanged production arithmetic in its existing owner; retain current `catalog_alloc` and historical continuity acceptance. Task 8's behavioral RED is already recorded in the captured-source path; these integration tests do not require a separate new RED for each test. The producer's `task8_complete: true` labels its reconstruction path, not completion of the entire approved task.
 - Task 9: repair and rerun strict lint/hosted formatting, verify the real development growth frame and exact nonzero dispatch, all six separately owned probes, both fresh evidence producers and the unchanged complete feature/guest/packaging matrix at the final head. No final all-green result is recorded here.
