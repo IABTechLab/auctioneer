@@ -274,8 +274,7 @@ mod tests {
                 Some(kind)
             );
         }
-        let historical_lock =
-            "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c";
+        let historical_lock = "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c";
         assert_eq!(
             report
                 .pointer("/reference/source/lock_sha256")
