@@ -21,7 +21,7 @@ mod tests {
     };
     use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
-    use std::{fs, path::Path};
+    use std::{fs, panic::catch_unwind, path::Path};
 
     fn target() -> TargetPlatformConstants {
         TargetPlatformConstants {
@@ -252,7 +252,8 @@ mod tests {
         }));
     }
 
-    fn assert_captured_source_context(report: &Value, lane: &str) {
+    fn assert_captured_source_context(report: &Value, lane: &str, recorded_measurement_lock: &str) {
+        assert_eq!(recorded_measurement_lock.len(), 64_usize);
         assert_eq!(
             report.get("metadata_registry_scope"),
             Some(&json!({
@@ -319,6 +320,112 @@ mod tests {
         );
     }
 
+    // Synthetic context-only records, not allocation samples or qualification claims.
+    fn captured_source_context_fixture(lane: &str, recorded_measurement_lock: &str) -> Value {
+        let features = if lane == "development" {
+            json!(["test-support", "insecure-bidders"])
+        } else {
+            json!(["test-support"])
+        };
+        let measurement = json!({
+            "measurement_lock_sha256":recorded_measurement_lock,
+            "build":{"enabled_features":features}
+        });
+        json!({
+            "metadata_registry_scope":{
+                "reference":"equal-input-proxy-of-candidate",
+                "candidate":"actual-current-constructor",
+                "supports_nonzero_metadata_registry_delta":false
+            },
+            "reference":{
+                "metadata_registry_observation_kind":"equal-input-proxy-of-candidate",
+                "source":{"lock_sha256":
+                    "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c"},
+                "measurement":measurement
+            },
+            "candidate":{
+                "metadata_registry_observation_kind":"actual-current-constructor",
+                "source":{"lock_sha256":recorded_measurement_lock},
+                "measurement":measurement
+            },
+            "matched_metadata_measurement":{"development":lane == "development"}
+        })
+    }
+
+    #[test]
+    fn captured_context_accepts_independent_recorded_epochs_in_both_feature_lanes() {
+        assert!(boot_gates().is_none());
+        let mut checked = 0_u32;
+        for recorded_measurement_lock in [
+            "ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38".to_owned(),
+            "f".repeat(64_usize),
+        ] {
+            for lane in ["default", "development"] {
+                let report = captured_source_context_fixture(lane, &recorded_measurement_lock);
+                assert_captured_source_context(&report, lane, &recorded_measurement_lock);
+                checked = checked.checked_add(1_u32).unwrap();
+            }
+        }
+        assert_eq!(checked, 4_u32);
+        assert!(boot_gates().is_none());
+    }
+
+    #[test]
+    fn captured_context_refuses_each_changed_lock_and_coherently_wrong_measurement() {
+        assert!(boot_gates().is_none());
+        let recorded_measurement_lock =
+            "ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38";
+        let cases: [(&[&str], &str); 5_usize] = [
+            (
+                &["/reference/source/lock_sha256"],
+                "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c",
+            ),
+            (&["/candidate/source/lock_sha256"], recorded_measurement_lock),
+            (
+                &["/reference/measurement/measurement_lock_sha256"],
+                recorded_measurement_lock,
+            ),
+            (
+                &["/candidate/measurement/measurement_lock_sha256"],
+                recorded_measurement_lock,
+            ),
+            (
+                &[
+                    "/candidate/source/lock_sha256",
+                    "/reference/measurement/measurement_lock_sha256",
+                    "/candidate/measurement/measurement_lock_sha256",
+                ],
+                recorded_measurement_lock,
+            ),
+        ];
+        let mut checked = 0_u32;
+        for lane in ["default", "development"] {
+            for (pointers, expected) in cases {
+                let mut report = captured_source_context_fixture(lane, recorded_measurement_lock);
+                assert_captured_source_context(&report, lane, recorded_measurement_lock);
+                for pointer in pointers {
+                    let leaf = report.pointer_mut(pointer).expect("before-state lock leaf");
+                    assert_eq!(leaf.as_str(), Some(expected), "{lane}: {pointer}");
+                    *leaf = json!("0".repeat(64_usize));
+                }
+                if pointers.len() == 3_usize {
+                    assert_eq!(
+                        report.pointer("/reference/measurement"),
+                        report.pointer("/candidate/measurement")
+                    );
+                }
+                let rejection = catch_unwind(|| {
+                    assert_captured_source_context(&report, lane, recorded_measurement_lock);
+                })
+                .expect_err("changed recorded context must refuse");
+                drop(rejection);
+                checked = checked.checked_add(1_u32).unwrap();
+            }
+        }
+        assert_eq!(checked, 10_u32);
+        assert!(boot_gates().is_none());
+    }
+
     fn captured_growth(lane: &str) -> Value {
         assert!(boot_gates().is_none());
         // Frozen proof checkpoint 4a863c6, run 45021426271, job 137204983421.
@@ -355,7 +462,12 @@ mod tests {
         ] {
             assert_eq!(report.get(field).and_then(Value::as_bool), Some(expected));
         }
-        assert_captured_source_context(&report, lane);
+        // Recorded measurement context of these byte-pinned frames, not this checkout.
+        assert_captured_source_context(
+            &report,
+            lane,
+            "ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38",
+        );
         for name in ["reference", "candidate"] {
             let side = report.get(name).expect("captured source side");
             assert_captured_projection(side);
