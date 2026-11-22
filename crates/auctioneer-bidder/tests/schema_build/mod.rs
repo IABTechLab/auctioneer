@@ -172,29 +172,29 @@ const EXPLICIT_OPTION_REFUSALS: [ExplicitRefusal; 4] = [
     ExplicitRefusal {
         name: "incompatible-engine",
         body: "",
-        owner_items: r#"#[jsonschema::validator(schema = "{}", pattern_options = { engine = fancy_regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false })] pub struct Incompatible;"#,
+        owner_items: r#"#[jsonschema::validator(schema = "{}", pattern_options = { engine = fancy_regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false })] pub struct Incompatible;"#,
         diagnostics: &["error: `cache = explicit` requires `engine = regex`"],
     },
     ExplicitRefusal {
         name: "incompatible-backend",
         body: "",
-        owner_items: r#"#[jsonschema::validator(schema = "{}", backend = Pyo3, pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false })] pub struct Incompatible;"#,
+        owner_items: r#"#[jsonschema::validator(schema = "{}", backend = Pyo3, pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false })] pub struct Incompatible;"#,
         diagnostics: &["error: `cache = explicit` requires `backend = SerdeJson`"],
     },
     ExplicitRefusal {
         name: "enabled-validation-errors",
         body: "",
-        owner_items: r#"#[jsonschema::validator(schema = "{}", pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = true, iter_errors = false })] pub struct Incompatible;"#,
+        owner_items: r#"#[jsonschema::validator(schema = "{}", pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = true, iter_errors = false, evaluate = false })] pub struct Incompatible;"#,
         diagnostics: &[
-            "error: `cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false`",
+            "error: `cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`",
         ],
     },
     ExplicitRefusal {
         name: "enabled-error-iterator",
         body: "",
-        owner_items: r#"#[jsonschema::validator(schema = "{}", pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = true })] pub struct Incompatible;"#,
+        owner_items: r#"#[jsonschema::validator(schema = "{}", pattern_options = { engine = regex, cache = explicit }, methods = { is_valid = true, validate = false, iter_errors = true, evaluate = false })] pub struct Incompatible;"#,
         diagnostics: &[
-            "error: `cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false`",
+            "error: `cache = explicit` requires boolean-only methods: `is_valid = true, validate = false, iter_errors = false, evaluate = false`",
         ],
     },
 ];
@@ -461,14 +461,14 @@ pub fn verify_lock(child: &str, workspace: &str) -> Result<(), String> {
             own = own.checked_add(1).ok_or("package overflow")?;
             continue;
         }
-        if identity == ("jsonschema-macros-core".into(), "0.61.2".into(), None, None)
+        if identity == ("jsonschema-macros-core".into(), "0.62.0".into(), None, None)
             && reviewed.contains(&identity)
         {
             compiler = true;
             continue;
         }
         if identity.0 == "regex-automata" {
-            if identity != ("regex-automata".into(), "0.4.18".into(), None, None)
+            if identity != ("regex-automata".into(), "0.4.19".into(), None, None)
                 || !reviewed.contains(&identity)
             {
                 return Err("unreviewed patched engine".into());
@@ -512,7 +512,7 @@ pub fn verify_compiler_metadata(bytes: &[u8], vendor: &Path) -> Result<(), Strin
     });
     let package = matching.next().ok_or("missing patched compiler")?;
     if matching.next().is_some()
-        || package.get("version").and_then(Json::as_str) != Some("0.61.2")
+        || package.get("version").and_then(Json::as_str) != Some("0.62.0")
         || !package.get("source").is_some_and(Json::is_null)
         || package.get("manifest_path").and_then(Json::as_str) != vendor.join("Cargo.toml").to_str()
     {
@@ -650,25 +650,25 @@ fn explicit_control_source(body: &str, owner_items: &str) -> Result<String, Stri
             #[jsonschema::validator(
                 schema = "{\"type\":\"string\",\"pattern\":\"[0-9]+\"}", draft = Draft4,
                 pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             pub struct First;
             #[jsonschema::validator(
                 schema = "{\"type\":\"string\",\"pattern\":\"[a-z]+\"}", draft = Draft4,
                 pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             pub struct Second;
             #[jsonschema::validator(
                 schema = "{}", draft = Draft4,
                 pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             pub struct Empty;
             #[jsonschema::validator(
                 schema = "{\"type\":\"string\",\"pattern\":\"[0-9]+\"}", draft = Draft4,
                 pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             pub struct Legacy;
             #owner_syntax
@@ -792,7 +792,7 @@ fn alternate_source(
                     "hostname" => crate::reference_hostname_format
                 },
                 pattern_options = { engine = regex, #cache_option size_limit = 65_536, dfa_size_limit = 65_536 },
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             struct #marker;
             fn #check(input: &serde_json::Value) -> bool { #body }
@@ -847,7 +847,7 @@ fn primary_schema(
                 "hostname" => crate::reference_hostname_format
             },
             pattern_options = { engine = regex, #cache_option size_limit = 65_536, dfa_size_limit = 65_536 },
-            methods = { is_valid = true, validate = false, iter_errors = false }
+            methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
         )]
         struct #marker;
     };
@@ -1493,7 +1493,7 @@ impl Catalog {
         let declaration = quote! {
             #[jsonschema::validator(
                 path = #path_literal, draft = Draft4,
-                methods = { is_valid = true, validate = false, iter_errors = false }
+                methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
             )]
             struct Reference;
             fn main() { let _ = Reference::is_valid(&serde_json::Value::Null); }
@@ -2138,7 +2138,7 @@ mod tests {
             pattern_options = {
                 engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536
             },
-            methods = { is_valid = true, validate = false, iter_errors = false }
+            methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
         };
         assert_eq!(attribute.tokens.to_string(), options.to_string());
     }

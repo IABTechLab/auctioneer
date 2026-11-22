@@ -1,0 +1,31 @@
+{
+  "$defs": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer"
+        },
+        "child": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/node"
+            },
+            {
+              "$ref": "#/$defs/node"
+            }
+          ]
+        },
+        "scoped": {
+          "$dynamicRef": "#node"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "additionalProperties": false,
+      "$dynamicAnchor": "node"
+    }
+  },
+  "$ref": "#/$defs/node"
+}

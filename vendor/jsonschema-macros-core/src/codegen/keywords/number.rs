@@ -118,16 +118,16 @@ fn compile_equal_bounds<E: ValueEmitter>(
     let eq_check = equal_bound_check(min_value);
     let below_check = minmax::generate_numeric_check(ComparisonOp::Lt, min_value);
     let above_check = minmax::generate_numeric_check(ComparisonOp::Gt, min_value);
-    Some(CompiledExpr::with_validate_blocks(
+    Some(CompiledExpr::from_first_error(
         eq_check,
         quote! {
             if #below_check {
-                return Some(__err::minimum(
+                break '__first_error Some(__err::minimum(
                     #min_path, __path.into(), #err_instance, #limit_expr,
                 ));
             }
             if #above_check {
-                return Some(__err::maximum(
+                break '__first_error Some(__err::maximum(
                     #max_path, __path.into(), #err_instance, #limit_expr,
                 ));
             }
@@ -201,7 +201,7 @@ fn build_limit_value_expr(value: &Value, value_json: &str) -> TokenStream {
     } else if let Some(signed) = value.as_i64() {
         quote! { __sj::Value::Number(__sj::Number::from(#signed)) }
     } else {
-        // Float or arbitrary-precision: use LazyLock to parse at runtime.
+        // Float or arbitrary-precision: parse once, on first use.
         quote! {
             {
                 static LIMIT: __Lazy<__sj::Value> =

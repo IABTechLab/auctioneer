@@ -177,6 +177,7 @@ pub(super) fn check(
     methods.flag("is_valid", true)?;
     methods.flag("validate", false)?;
     methods.flag("iter_errors", false)?;
+    methods.flag("evaluate", false)?;
     methods.finish()?;
     settings.finish()?;
     Ok(formats.into_keys().collect())

@@ -130,19 +130,6 @@ impl ValueEmitter for SerdeEmitter {
         quote! { #object_expr.contains_key(#key) }
     }
 
-    fn object_iter_all(object_expr: impl ToTokens, body: impl ToTokens) -> TokenStream {
-        quote! {
-            #object_expr.iter().all(|(key, instance)| {
-                #body
-            })
-        }
-    }
-
-    fn object_get(object_expr: impl ToTokens, key: &str) -> TokenStream {
-        let key = Self::declare_key(key);
-        quote! { #object_expr.get(#key) }
-    }
-
     fn object_iter_entries(object_expr: impl ToTokens) -> TokenStream {
         quote! { #object_expr.iter() }
     }
@@ -190,8 +177,8 @@ impl ValueEmitter for SerdeEmitter {
         }
     }
 
-    // `const: 1` matches `1.0`, so integral floats within i64 range must
-    // normalize to the same discriminator value as their integer spelling.
+    // `const: 1` matches `1.0`, so integral floats within i64 range map to the discriminator
+    // value of the integer they equal.
     fn instance_object_property_as_i64(key: &str) -> TokenStream {
         quote! {
             match instance {
@@ -289,10 +276,18 @@ impl ValueEmitter for SerdeEmitter {
                 }
             }
         });
+        let evaluate = methods.evaluate.then(|| {
+            quote! {
+                pub(super) fn entry_evaluate(instance: &__Value) -> jsonschema::Evaluation {
+                    evaluate(instance)
+                }
+            }
+        });
         quote! {
             #is_valid
             #validate
             #iter_errors
+            #evaluate
         }
     }
 
@@ -328,10 +323,18 @@ impl ValueEmitter for SerdeEmitter {
                 }
             }
         });
+        let evaluate = methods.evaluate.then(|| {
+            quote! {
+                pub fn evaluate(instance: &#anonymous) -> #runtime_crate::Evaluation {
+                    #impl_mod_name::entry_evaluate(instance)
+                }
+            }
+        });
         quote! {
             #is_valid
             #validate
             #iter_errors
+            #evaluate
         }
     }
 

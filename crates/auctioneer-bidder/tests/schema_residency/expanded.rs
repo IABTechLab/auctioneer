@@ -273,7 +273,7 @@ mod tests {
                     formats = { "hostname" => crate::schema::staging::formats::hostname },
                     pattern_options = { engine = regex, cache = explicit,
                         size_limit = 65_536, dfa_size_limit = 65_536 },
-                    methods = { is_valid = true, validate = false, iter_errors = false }
+                    methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
                 )]
                 struct #marker;
             });
@@ -353,6 +353,12 @@ mod tests {
         let is_valid = field != "is_valid";
         let errors = field == "methods";
         let iter_errors = field == "iter_errors";
+        let evaluate = field == "evaluate";
+        let evaluation = if field == "missing_evaluate" {
+            quote!()
+        } else {
+            quote!(, evaluate = #evaluate)
+        };
         let callback = if field == "callback" {
             quote!(crate::schema::staging::formats::fake_hostname)
         } else {
@@ -374,7 +380,7 @@ mod tests {
                     formats = { "hostname" => #callback },
                     pattern_options = { engine = #engine, cache = #cache,
                         size_limit = #limit, dfa_size_limit = #dfa_limit },
-                    methods = { is_valid = #is_valid, validate = #errors, iter_errors = #iter_errors }
+                    methods = { is_valid = #is_valid, validate = #errors, iter_errors = #iter_errors #evaluation }
                     #extra
                 )]
             };
@@ -467,6 +473,8 @@ mod tests {
             "is_valid",
             "methods",
             "iter_errors",
+            "evaluate",
+            "missing_evaluate",
             "callback",
             "unknown",
         ] {

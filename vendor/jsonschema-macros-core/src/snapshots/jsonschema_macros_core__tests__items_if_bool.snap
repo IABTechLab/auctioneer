@@ -1,19 +1,50 @@
 ---
 source: crates/jsonschema-macros-core/src/tests.rs
 description: "{\"if\":true,\"then\":{\"prefixItems\":[{}]},\"type\":\"array\",\"unevaluatedItems\":false}"
-expression: is_valid_body(schema)
+expression: errors_body(schema)
 ---
 match instance {
-            __Value::Array(arr) => {
-                arr.iter()
-                    .enumerate()
-                    .all(|(idx, item)| {
-                        if if true { (false) || (idx < 1usize) } else { false } {
-                            true
-                        } else {
-                            false
-                        }
-                    })
+            __Value::Array(arr) => {}
+            _ => {
+                if __errors
+                    .push(
+                        __err::single_type("/type", __path.into(), instance, __JT::Array),
+                    )
+                {
+                    return true;
+                }
             }
-            _ => false,
         }
+        match instance {
+            __Value::Array(arr) => {
+                if let Some(__e) = '__first_error: {
+                    if let __Value::Array(arr) = instance {
+                        let mut __unexpected: Vec<String> = Vec::new();
+                        for (idx, item) in arr.iter().enumerate() {
+                            if !(if true { (false) || (idx < 1usize) } else { false })
+                                && !(false)
+                            {
+                                __unexpected.push(item.to_string());
+                            }
+                        }
+                        if !__unexpected.is_empty() {
+                            break '__first_error Some(
+                                __err::unevaluated_items(
+                                    "/unevaluatedItems",
+                                    __path.into(),
+                                    instance,
+                                    __unexpected,
+                                ),
+                            );
+                        }
+                    }
+                    None
+                } {
+                    if __errors.push(__e) {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        false

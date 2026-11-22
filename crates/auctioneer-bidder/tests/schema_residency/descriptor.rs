@@ -1055,7 +1055,7 @@ mod tests {
             let reason = if invalid_archive {
                 DirBuilder::new().create(&vendor).unwrap();
                 fs::write(
-                    vendor.join("jsonschema-macros-core-0.61.2.crate"),
+                    vendor.join("jsonschema-macros-core-0.62.0.crate"),
                     b"invalid compiler archive",
                 )
                 .unwrap();

@@ -1,0 +1,122 @@
+--- a/src/codegen/emit_root.rs
++++ b/src/codegen/emit_root.rs
+@@ -72,6 +72,7 @@
+         .iter()
+         .map(|(name, pattern)| {
+             let helper_ident = format_ident!("{}", name);
++            let storage_ident = format_ident!("{}_REGEX", name.to_uppercase());
+             if ctx.repeated_classes.contains(pattern) {
+                 let params = match ctx.config.pattern_options {
+                     PatternEngineConfig::FancyRegex { .. } => quote! {
+@@ -83,11 +84,12 @@
+                 };
+                 // The engine would unroll the count into as many copies of the class.
+                 return quote! {
++                    static #storage_ident: __Lazy<Option<__re::RepeatedClass>> =
++                        __Lazy::new(|| __re::RepeatedClass::from_translated(#pattern));
++
+                     #[inline]
+                     fn #helper_ident(#params) -> bool {
+-                        static CLASS: __Lazy<Option<__re::RepeatedClass>> =
+-                            __Lazy::new(|| __re::RepeatedClass::from_translated(#pattern));
+-                        CLASS.as_ref().is_some_and(|class| class.is_match(subject))
++                        #storage_ident.as_ref().is_some_and(|class| class.is_match(subject))
+                     }
+                 };
+             }
+@@ -104,21 +106,22 @@
+                     let set_dfa_size_limit = dfa_size_limit
+                         .map(|limit| quote! { builder.delegate_dfa_size_limit(#limit); });
+                     quote! {
++                        static #storage_ident: __Lazy<Option<__fancy::Regex>> =
++                            __Lazy::new(|| {
++                                let mut builder = __fancy::RegexBuilder::new(#pattern);
++                                #set_backtrack_limit
++                                #set_size_limit
++                                #set_dfa_size_limit
++                                builder.build().ok()
++                            });
++
+                         #[inline]
+                         fn #helper_ident(
+                             subject: &str,
+                             schema_path: &str,
+                             instance_path: Option<&__paths::LazyLocation>,
+                         ) -> bool {
+-                            static REGEX: __Lazy<Option<__fancy::Regex>> =
+-                                __Lazy::new(|| {
+-                                    let mut builder = __fancy::RegexBuilder::new(#pattern);
+-                                    #set_backtrack_limit
+-                                    #set_size_limit
+-                                    #set_dfa_size_limit
+-                                    builder.build().ok()
+-                                });
+-                            REGEX.as_ref().is_some_and(|re| {
++                            #storage_ident.as_ref().is_some_and(|re| {
+                                 __unfinished::fancy_is_match(
+                                     re, subject, schema_path, instance_path,
+                                 )
+@@ -135,22 +138,27 @@
+                     let set_dfa_size_limit =
+                         dfa_size_limit.map(|limit| quote! { builder.dfa_size_limit(#limit); });
+                     quote! {
++                        static #storage_ident: __Lazy<Option<__re::Regex>> =
++                            __Lazy::new(|| {
++                                let mut builder = __re::RegexBuilder::new(#pattern);
++                                #set_size_limit
++                                #set_dfa_size_limit
++                                builder.build().ok()
++                            });
++
+                         #[inline]
+                         fn #helper_ident(subject: &str) -> bool {
+-                            static REGEX: __Lazy<Option<__re::Regex>> =
+-                                __Lazy::new(|| {
+-                                    let mut builder = __re::RegexBuilder::new(#pattern);
+-                                    #set_size_limit
+-                                    #set_dfa_size_limit
+-                                    builder.build().ok()
+-                                });
+-                            REGEX.as_ref().is_some_and(|re| re.is_match(subject))
++                            #storage_ident.as_ref().is_some_and(|re| re.is_match(subject))
+                         }
+                     }
+                 }
+             }
+         })
+         .collect();
++    let regex_initializers = ctx.regex_helpers.iter().map(|(name, _)| {
++        let storage_ident = format_ident!("{}_REGEX", name.to_uppercase());
++        quote! { ready &= #storage_ident.as_ref().is_some(); }
++    });
+ 
+     let mut uri_cache_statics: Vec<TokenStream> = Vec::new();
+     let mut uri_cache_wrappers: Vec<TokenStream> = Vec::new();
+@@ -712,6 +720,12 @@
+             #dynamic_scope
+             #uri_cache_defs
+             #(#regex_helpers)*
++            pub(super) fn initialize_regexes() -> bool {
++                let mut ready = true;
++                #(#regex_initializers)*
++                ready
++            }
++
+             #(#branch_helpers)*
+             #(#array_errors_helpers)*
+             #(#is_valid_fns)*
+@@ -738,6 +752,14 @@
+         }
+ 
+         impl #name {
++            /// Initializes every generated pattern regex, including after a
++            /// failed constructor. Returns false if any cached construction
++            /// failed. Repeated calls do not reconstruct or retry regexes.
++            /// This does not initialize custom formats or bound search caches.
++            pub fn initialize_regexes() -> bool {
++                #impl_mod_name::initialize_regexes()
++            }
++
+             #entry_points
+         }
+     }

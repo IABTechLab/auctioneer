@@ -1,6 +1,6 @@
 {
   "git": {
-    "sha1": "0e82636fde8b2afb5e712ede6c261166ea10fc17"
+    "sha1": "24280ebc025661f9743d969c7ea51122e21f205a"
   },
   "path_in_vcs": "crates/jsonschema-macros-core"
 }

@@ -48,7 +48,7 @@ impl MetadataLayout {
                 NativeField::of::<Vec<Properties>>(),
                 NativeField::of::<Properties>(),
             ],
-            // regex-syntax 0.8.11 hir/mod.rs:1964-1990,2236: PropertiesI is
+            // regex-syntax 0.8.12 hir/mod.rs:1964-1990,2236: PropertiesI is
             // scalar-only, aligned at most as usize; memory_usage is its exact
             // size, not the Box handle or a recursive heap estimate.
             props_payload: NativeField {

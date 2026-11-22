@@ -14,7 +14,7 @@ use serde_json::Value;
 
 /// A typed constant value that can serve as a oneOf discriminator.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum DiscriminatorLiteral {
+pub(crate) enum DiscriminatorLiteral {
     // Variant order determines the derived Ord between kinds: Str < Bool < Int.
     Str(String),
     Bool(bool),
@@ -31,7 +31,7 @@ impl DiscriminatorLiteral {
     }
 
     /// The token for the inner value, used when building nested or-patterns.
-    fn to_inner_token(&self) -> TokenStream {
+    pub(crate) fn to_inner_token(&self) -> TokenStream {
         match self {
             Self::Str(value) => quote! { #value },
             Self::Bool(value) => quote! { #value },
@@ -53,6 +53,17 @@ struct DiscriminatorPlan {
     kind: DiscriminatorKind,
     per_branch_values: Vec<Option<Vec<DiscriminatorLiteral>>>,
     vacuous_guarded: usize,
+}
+
+impl DiscriminatorPlan {
+    /// The discriminator property's value in `instance`, when it has the discriminator's type.
+    fn read<E: ValueEmitter>(&self) -> TokenStream {
+        match self.kind {
+            DiscriminatorKind::Str => E::instance_object_property_as_str(&self.key),
+            DiscriminatorKind::Bool => E::instance_object_property_as_bool(&self.key),
+            DiscriminatorKind::Int => E::instance_object_property_as_i64(&self.key),
+        }
+    }
 }
 
 /// Per-key stats accumulated while searching for the best discriminator.
@@ -113,7 +124,7 @@ pub(crate) fn compile<E: ValueEmitter>(
         });
         let branch_helper = ctx.register_branch_helper(
             compiled.is_valid_token_stream(),
-            compiled.collect.as_token_stream(),
+            compiled.errors.as_token_stream(),
         );
         branch_collectors.push(format_ident!("collect_branch_errors_{}", branch_helper));
         let branch_is_valid = format_ident!("is_branch_valid_{}", branch_helper);
@@ -138,11 +149,7 @@ pub(crate) fn compile<E: ValueEmitter>(
     }
 
     let discriminator_init = if let Some(plan) = &discriminator_plan {
-        let init_expr = match plan.kind {
-            DiscriminatorKind::Str => E::instance_object_property_as_str(&plan.key),
-            DiscriminatorKind::Bool => E::instance_object_property_as_bool(&plan.key),
-            DiscriminatorKind::Int => E::instance_object_property_as_i64(&plan.key),
-        };
+        let init_expr = plan.read::<E>();
         quote! { let __one_of_discriminator = #init_expr; }
     } else {
         quote! {}
@@ -188,7 +195,7 @@ pub(crate) fn compile<E: ValueEmitter>(
     let schema_path = ctx.schema_path_for_keyword("oneOf");
     let branch_count = branch_collectors.len();
 
-    CompiledExpr::with_validate_blocks(
+    CompiledExpr::from_first_error(
         is_valid,
         quote! {
             {
@@ -199,11 +206,11 @@ pub(crate) fn compile<E: ValueEmitter>(
                 if __count != 1 {
                     let mut __context = Vec::with_capacity(#branch_count);
                     #({
-                        let mut __branch_errors = Vec::new();
-                        #branch_collectors(instance, __path, &mut __branch_errors);
-                        __context.push(__branch_errors);
+                        let mut __branch_errors = __err::Errors::new(false);
+                        let _ = #branch_collectors(instance, __path, &mut __branch_errors);
+                        __context.push(__branch_errors.into_vec());
                     })*
-                    return Some(if __count == 0 {
+                    break '__first_error Some(if __count == 0 {
                         __err::one_of_not_valid(
                             #schema_path, __path.into(), #err_instance, __context,
                         )
@@ -232,12 +239,7 @@ fn reduce_discriminator_property(
     {
         return None;
     }
-    let mut reduced = schema
-        .as_object()?
-        .get("properties")?
-        .as_object()?
-        .get(key)?
-        .clone();
+    let mut reduced = schema["properties"][key].clone();
     let property = reduced.as_object_mut()?;
     if !(allow_const && property.remove("const").is_some()) {
         property.remove("enum");
@@ -331,6 +333,35 @@ fn vacuous_branches_safely_guarded(
         .all(|(class, values)| *class != BranchObjectApplicability::Vacuous || values.is_some())
 }
 
+/// A property whose value tells which branches may accept an object.
+pub(crate) struct BranchDiscriminator {
+    /// The property's value in `instance`, when it has the discriminator's type.
+    pub(crate) read: TokenStream,
+    /// For each branch, the values it accepts, or `None` when it accepts any.
+    pub(crate) values: Vec<Option<Vec<DiscriminatorLiteral>>>,
+}
+
+pub(crate) fn branch_discriminator<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    schemas: &[Value],
+) -> Option<BranchDiscriminator> {
+    let plan = build_discriminator_plan(ctx, schemas)?;
+    Some(BranchDiscriminator {
+        read: plan.read::<E>(),
+        values: plan.per_branch_values,
+    })
+}
+
+/// For each branch, the discriminator values it runs for, or `None` when it runs for every
+/// instance. Branches with disjoint values never run on the same instance.
+pub(crate) fn branch_discriminators<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    schemas: &[Value],
+) -> Vec<Option<Vec<DiscriminatorLiteral>>> {
+    build_discriminator_plan(ctx, schemas)
+        .map_or_else(|| vec![None; schemas.len()], |plan| plan.per_branch_values)
+}
+
 fn build_discriminator_plan<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     schemas: &[Value],
@@ -343,12 +374,9 @@ fn build_discriminator_plan<E: ValueEmitter>(
     let mut branch_discriminators = Vec::with_capacity(schemas.len());
     for schema in schemas {
         let resolved = resolve_lone_top_level_ref(ctx, schema);
-        classes.push(classify_branch(
-            resolved.as_ref(),
-            &ctx.config.custom_keywords,
-        ));
+        classes.push(classify_branch(resolved, &ctx.config.custom_keywords));
         branch_discriminators.push(extract_object(
-            resolved.as_ref(),
+            resolved,
             allow_const,
             &ctx.config.custom_keywords,
         ));
@@ -379,8 +407,6 @@ fn build_discriminator_plan<E: ValueEmitter>(
 fn select_discriminator(
     branch_discriminators: &[HashMap<String, Vec<DiscriminatorLiteral>>],
 ) -> Option<DiscriminatorPlan> {
-    // For each candidate key: track (coverage, distinct_value_set, total_cardinality, kind).
-    // Keys whose values have inconsistent kinds across branches are rejected.
     // BTreeMap: iteration order below decides ties, so it must not depend on hashing.
     let mut stats: BTreeMap<String, KeyStats> = BTreeMap::new();
     for branch in branch_discriminators {

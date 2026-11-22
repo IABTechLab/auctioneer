@@ -723,6 +723,8 @@ mod tests {
     use std::collections::BTreeMap;
     use std::fs;
     use std::io::Write as _;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
     use tempfile::TempDir;
@@ -905,16 +907,16 @@ mod tests {
 
         fn corrupt_blob(&self, replacement: &[u8]) {
             let original = self.blob("Cargo.lock");
-            let replacement = line(git(
+            let replacement_oid = line(git(
                 &self.root,
                 &["hash-object", "-w", "--stdin"],
                 Some(replacement),
             ));
-            assert_ne!(original, replacement);
+            assert_ne!(original, replacement_oid);
             // Git loose objects are read-only on Linux. Replace only this
             // disposable fixture's file rather than overwriting its mode.
             fs::remove_file(self.object(&original)).expect("remove disposable original object");
-            fs::copy(self.object(&replacement), self.object(&original))
+            fs::copy(self.object(&replacement_oid), self.object(&original))
                 .expect("corrupt only disposable loose object");
         }
     }
@@ -1041,7 +1043,8 @@ mod tests {
             Err(Error::Root)
         );
         let child = fixture.root.join("child");
-        fs::create_dir(&child).unwrap();
+        assert!(!child.exists());
+        fs::create_dir_all(&child).unwrap();
         assert_eq!(
             read_pinned(&child, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
             Err(Error::Root)
@@ -1258,7 +1261,7 @@ mod tests {
         let fixture = Fixture::new();
         let aliases = tempfile::tempdir().unwrap();
         let alias = aliases.path().join("reference");
-        std::os::unix::fs::symlink(&fixture.root, &alias).unwrap();
+        symlink(&fixture.root, &alias).unwrap();
         assert_eq!(
             read_pinned(&alias, &fixture.commit, &fixture.tree, 20, fixture.bytes()),
             Err(Error::Root)
@@ -1363,7 +1366,8 @@ mod tests {
         let snapshot = fixture.read().unwrap();
         let output = tempfile::tempdir().unwrap();
         let destination = output.path().canonicalize().unwrap().join("source");
-        fs::create_dir(&destination).unwrap();
+        assert!(!destination.exists());
+        fs::create_dir_all(&destination).unwrap();
         fs::write(destination.join("sentinel"), b"keep").unwrap();
         assert_eq!(snapshot.materialize(&destination), Err(Error::Destination));
         assert_eq!(fs::read(destination.join("sentinel")).unwrap(), b"keep");
@@ -1405,9 +1409,10 @@ mod tests {
         let output = tempfile::tempdir().unwrap();
         let root = output.path().canonicalize().unwrap();
         let actual = root.join("actual");
-        fs::create_dir(&actual).unwrap();
+        assert!(!actual.exists());
+        fs::create_dir_all(&actual).unwrap();
         let alias = root.join("alias");
-        std::os::unix::fs::symlink(&actual, &alias).unwrap();
+        symlink(&actual, &alias).unwrap();
         assert_eq!(
             snapshot.materialize(&alias.join("source")),
             Err(Error::Destination)

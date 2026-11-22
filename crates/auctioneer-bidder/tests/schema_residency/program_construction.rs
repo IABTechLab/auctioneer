@@ -1104,7 +1104,7 @@ mod tests {
         );
         let mut source = None;
         for entry in fs::read_dir(cargo.join("registry/src")).unwrap() {
-            let path = entry.unwrap().path().join("regex-syntax-0.8.11");
+            let path = entry.unwrap().path().join("regex-syntax-0.8.12");
             if path.is_dir() {
                 source = Some(path.canonicalize().unwrap());
                 break;

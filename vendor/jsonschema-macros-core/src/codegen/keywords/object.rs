@@ -34,14 +34,16 @@ fn property_names_implied_by_coverage(schema: &Map<String, Value>) -> bool {
         && matches!((sole_pattern, name_pattern), (Some(pattern), Some(name)) if pattern == name)
 }
 
-/// Compile all object-specific keywords.
+/// Compile all object-specific keywords; with `split_unevaluated`, the `unevaluatedProperties`
+/// errors are returned separately.
 pub(in super::super) fn compile<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     schema: &Map<String, Value>,
-) -> CompiledExpr {
+    split_unevaluated: bool,
+) -> (CompiledExpr, Option<CompiledExpr>) {
     // Each check carries a flag: `true` marks the object cluster
     // (properties/patternProperties/additionalProperties/required) whose `is_valid` is
-    // replaced by the unified single pass; `validate` still uses every check in order.
+    // replaced by the unified single pass; errors still come from every check in order.
     let mut checks: Vec<(CompiledExpr, bool)> = Vec::new();
     let validation_vocab_enabled = ctx.supports_validation_vocabulary();
     let applicator_vocab_enabled = ctx.supports_applicator_vocabulary();
@@ -120,39 +122,16 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         None
     };
 
-    // The runtime folds `required` into the property loop (checked after property values) only for
-    // the additionalProperties:false single-required fusion; every other shape validates `required`
-    // before property values. Emit the checks before `properties` here, or after it (below) for the
-    // fused shape.
-    let has_pattern_properties = schema
-        .get("patternProperties")
-        .and_then(Value::as_object)
-        .is_some_and(|m| !m.is_empty());
-    let required_after_properties =
-        matches!(schema.get("additionalProperties"), Some(Value::Bool(false)))
-            && required_fields.len() == 1
-            && properties_map.is_some()
-            && !has_pattern_properties;
-
-    let required_after_checks: Vec<CompiledExpr> = if required_after_properties {
-        required_fields
-            .iter()
-            .map(|name| required::compile_single(ctx, name))
-            .collect()
-    } else {
-        Vec::new()
-    };
-    // `required` goes here unless the properties pass takes it over, which needs nothing checked
+    // `required` is validated before property values, as the runtime orders keywords. It goes here unless the properties pass takes it over, which needs nothing checked
     // in between.
     let required_slot = checks.len();
 
-    if applicator_vocab_enabled {
-        if let Some(value) = schema.get("dependencies") {
-            if let Some(compiled) = dependencies::compile(ctx, value) {
-                checks.push((compiled, false));
-            }
-        }
-    }
+    // The runtime checks these after `properties`, `patternProperties` and
+    // `additionalProperties`: `propertyNames`, then `dependencies`, then `dependentSchemas`.
+    let dependencies_check = schema
+        .get("dependencies")
+        .filter(|_| applicator_vocab_enabled)
+        .and_then(|value| dependencies::compile(ctx, value));
 
     if validation_vocab_enabled && ctx.draft.supports_dependent_required_keyword() {
         if let Some(value) = schema.get("dependentRequired") {
@@ -162,21 +141,22 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         }
     }
 
-    if applicator_vocab_enabled && ctx.draft.supports_dependent_schemas_keyword() {
-        if let Some(value) = schema.get("dependentSchemas") {
-            if let Some(compiled) = dependencies::compile_dependent_schemas(ctx, value) {
-                checks.push((compiled, false));
-            }
-        }
-    }
+    let dependent_schemas_check = schema
+        .get("dependentSchemas")
+        .filter(|_| applicator_vocab_enabled && ctx.draft.supports_dependent_schemas_keyword())
+        .and_then(|value| dependencies::compile_dependent_schemas(ctx, value));
 
-    if applicator_vocab_enabled && ctx.draft.supports_property_names_keyword() {
-        if let Some(value) = schema.get("propertyNames") {
-            if !property_names_implied_by_coverage(schema) {
-                checks.push((property_names::compile(ctx, value), false));
-            }
-        }
-    }
+    // Names that `patternProperties` and `additionalProperties: false` already reject leave
+    // `is_valid` to the unified pass, like the cluster; their errors still report.
+    let property_names_check = schema
+        .get("propertyNames")
+        .filter(|_| applicator_vocab_enabled && ctx.draft.supports_property_names_keyword())
+        .map(|value| {
+            (
+                property_names::compile(ctx, value),
+                property_names_implied_by_coverage(schema),
+            )
+        });
 
     let additional_properties_schema = schema
         .get("additionalProperties")
@@ -195,14 +175,11 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         Some(Value::Bool(false) | Value::Object(_))
     );
 
-    // Every cluster subschema is compiled exactly once and shared by the
-    // per-keyword and unified-pass emitters below.
-    let required_in_properties_pass = !required_after_properties
-        && !required_fields.is_empty()
+    let required_in_properties_pass = !required_fields.is_empty()
         && checks.len() == required_slot
         && properties_map.is_some()
         && !(pattern_properties_value.is_some() && additional_properties_fused);
-    if !required_after_properties && !required_in_properties_pass {
+    if !required_in_properties_pass {
         let required_checks: Vec<(CompiledExpr, bool)> = required_fields
             .iter()
             .map(|name| (required::compile_single(ctx, name), true))
@@ -215,6 +192,8 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         &[]
     };
 
+    // Every cluster subschema is compiled exactly once and shared by the
+    // per-keyword and unified-pass emitters below.
     let cluster = object_pass::compile_cluster_subschemas(
         ctx,
         properties_map.filter(|m| !m.is_empty()),
@@ -227,7 +206,7 @@ pub(in super::super) fn compile<E: ValueEmitter>(
             .map(|(property_name, reduced_property)| {
                 ctx.with_schema_path_segment("properties", |ctx| {
                     ctx.with_schema_path_segment(property_name, |ctx| {
-                        ctx.with_instance_scope(|ctx| compile_schema(ctx, reduced_property))
+                        compile_schema(ctx, reduced_property)
                     })
                 })
             });
@@ -235,15 +214,12 @@ pub(in super::super) fn compile<E: ValueEmitter>(
     if let Some(pattern_properties_value) =
         pattern_properties_value.filter(|_| additional_properties_fused)
     {
-        if let Some(validate) =
-            object_pass::compile_validate(ctx, &cluster, additional_properties_schema)
-        {
-            let collect = object_pass::compile_collect(ctx, &cluster, additional_properties_schema)
-                .expect("compile_collect mirrors compile_validate's applicability");
-            checks.push((
-                CompiledExpr::with_validate_and_collect_blocks(quote! { true }, validate, collect),
-                true,
-            ));
+        if let Some(errors) = object_pass::compile_errors(
+            ctx,
+            &cluster,
+            matches!(additional_properties_schema, Some(Value::Bool(false))),
+        ) {
+            checks.push((CompiledExpr::with_errors(quote! { true }, errors), true));
         } else {
             // Invalid pattern regex: fall back to per-keyword checks so the diagnostic surfaces.
             if let Some(props) = properties_map {
@@ -252,20 +228,22 @@ pub(in super::super) fn compile<E: ValueEmitter>(
                     true,
                 ));
             }
-            if let Some(compiled) =
+            checks.push((
                 pattern_properties::compile::<E>(pattern_properties_value, &cluster)
-            {
-                checks.push((compiled, true));
-            }
+                    .expect("an invalid pattern is reported"),
+                true,
+            ));
             if properties_map.is_none() {
-                if let Some(compiled) = additional_properties::compile(
-                    ctx,
-                    additional_properties_schema,
-                    pattern_properties_schema,
-                    cluster.additional.as_ref(),
-                ) {
-                    checks.push((compiled, true));
-                }
+                checks.push((
+                    additional_properties::compile(
+                        ctx,
+                        additional_properties_schema,
+                        pattern_properties_schema,
+                        cluster.additional.as_ref(),
+                    )
+                    .expect("an invalid pattern is reported"),
+                    true,
+                ));
             }
         }
     } else if let Some(props) = properties_map {
@@ -301,12 +279,24 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         }
     }
 
-    for check in required_after_checks {
-        checks.push((check, true));
+    checks.extend(property_names_check);
+    for check in [dependencies_check, dependent_schemas_check]
+        .into_iter()
+        .flatten()
+    {
+        checks.push((check, false));
     }
 
+    let mut unevaluated_errors = None;
     if unevaluated_properties_enabled {
         if let Some(compiled) = unevaluated_properties::compile(ctx, schema) {
+            let compiled = if split_unevaluated {
+                let (check, errors) = compiled.split_errors();
+                unevaluated_errors = Some(errors);
+                check
+            } else {
+                compiled
+            };
             checks.push((compiled, false));
         }
     }
@@ -331,7 +321,7 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         reduced_discriminator_property,
     );
 
-    match unified {
+    let checks = match unified {
         Some(pass) => {
             // Cluster `is_valid` is replaced by the unified pass; non-cluster keywords still gate.
             let extra: Vec<TokenStream> = checks
@@ -347,11 +337,13 @@ pub(in super::super) fn compile<E: ValueEmitter>(
             };
             CompiledExpr {
                 is_valid: IsValidExpr::Expr(is_valid),
-                validate: combined.validate,
-                collect: combined.collect,
+                errors: combined.errors,
                 compile_error: combined.compile_error,
+                skips_valid: combined.skips_valid,
+                ref_errors: combined.ref_errors,
             }
         }
         None => CompiledExpr::combine_and(checks.into_iter().map(|(check, _)| check)),
-    }
+    };
+    (checks, unevaluated_errors)
 }

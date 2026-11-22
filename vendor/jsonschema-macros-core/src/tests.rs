@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    fs::File,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -12,12 +17,8 @@ pub(crate) fn is_valid_body(schema: Value) -> String {
     extract_is_valid_body(&schema_to_code(schema))
 }
 
-fn validate_body(schema: Value) -> String {
-    extract_fn_body(&schema_to_code(schema), "pub(super) fn validate")
-}
-
-fn collect_body(schema: Value) -> String {
-    extract_fn_body(&schema_to_code(schema), "pub(super) fn collect_errors")
+fn errors_body(schema: Value) -> String {
+    extract_fn_body(&schema_to_code(schema), "pub(super) fn errors")
 }
 
 fn extract_is_valid_body(code: &str) -> String {
@@ -101,6 +102,7 @@ pub(crate) fn test_config_with_draft(schema: Value, draft: Draft) -> CodegenConf
         email_options: None,
         pattern_options: crate::context::PatternEngineConfig::default(),
         explicit_cache: None,
+        pattern_syntax: crate::context::PatternSyntaxConfig::default(),
         methods: crate::context::MethodGates::default(),
     }
 }
@@ -117,6 +119,8 @@ fn schema_to_code_with_runtime_alias(
     runtime_crate_alias: Option<TokenStream>,
 ) -> String {
     let mut config = test_config(schema);
+    // The code of the validation methods; `evaluate` has snapshots of its own.
+    config.methods.evaluate = false;
     config.runtime_crate_alias = runtime_crate_alias;
     config.validate_formats = validate_formats;
     config.custom_formats = custom_formats;
@@ -214,6 +218,7 @@ fn render_config_for<E: crate::codegen::emit::ValueEmitter>(config: &CodegenConf
 #[test_case(json!({"type": ["string", "integer"], "minLength": 2}), "typed_fallback_mixed_types" ; "typed_fallback_mixed_types")]
 #[test_case(json!({"$ref": "#"}), "self_ref_cycle" ; "self_ref_cycle")]
 #[test_case(json!({"type":"object","additionalProperties":false}), "additional_false_no_siblings" ; "additional_false_no_siblings")]
+#[test_case(json!({"$id":"https://example.com/root","unevaluatedProperties":false,"$defs":{"a":{"$dynamicAnchor":"a","properties":{"p":true}}},"allOf":[{"$dynamicRef":"#a"},{"$id":"x","$dynamicRef":"#a","$defs":{"a":{"$dynamicAnchor":"a","properties":{"q":true}}}}]}), "unevaluated_dynamic_ref_in_own_resource" ; "unevaluated_dynamic_ref_in_own_resource")]
 fn test_codegen_snapshot(schema: Value, snap_name: &str) {
     let description = serde_json::to_string(&schema).expect("schema serialization");
     insta::with_settings!({ description => &description }, {
@@ -221,13 +226,55 @@ fn test_codegen_snapshot(schema: Value, snap_name: &str) {
     });
 }
 
-#[test]
-fn dynamic_schema_full_module_emission() {
-    let schema = json!({"$defs":{"node":{"$dynamicAnchor":"node","type":["object","boolean"]},"plain":{"type":"integer"}},"type":"object","properties":{"child":{"$dynamicRef":"#node"},"other":{"$ref":"#/$defs/plain"}}});
+#[test_case(json!({"$defs":{"node":{"$dynamicAnchor":"node","type":["object","boolean"]},"plain":{"type":"integer"}},"type":"object","properties":{"child":{"$dynamicRef":"#node"},"other":{"$ref":"#/$defs/plain"}}}), "dynamic_schema_full_module" ; "dynamic schema")]
+#[test_case(json!({"$defs":{"item":{"type":"integer"}},"properties":{"first":{"type":"array","items":{"$ref":"#/$defs/item"}},"second":{"type":"array","items":{"$ref":"#/$defs/item"}}}}), "arrays_of_same_ref_full_module" ; "arrays of the same ref")]
+#[test_case(json!({"$defs":{"item":{"type":"integer"}},"required":["outer"],"properties":{"outer":{"additionalProperties":false,"properties":{"inner":{"properties":{"name":{"type":"string","pattern":"^a"}}}}},"list":{"type":"array","items":{"$ref":"#/$defs/item"}},"other":{"type":"array","items":{"$ref":"#/$defs/item"}}}}), "nested_objects_full_module" ; "nested objects")]
+#[test_case(json!({"$schema":"http://json-schema.org/draft-07/schema#","definitions":{"node":{"oneOf":[{"required":["a"],"properties":{"c":{"$ref":"#/definitions/node"}}},{"properties":{"c":{"$ref":"#/definitions/node"}}}]}},"$ref":"#/definitions/node"}), "ref_cycle_full_module" ; "ref cycle")]
+fn full_module_emission(schema: Value, snap_name: &str) {
     let description = serde_json::to_string(&schema).expect("schema serialization");
     insta::with_settings!({ description => &description }, {
-        insta::assert_snapshot!("dynamic_schema_full_module", schema_to_code(schema));
+        insta::assert_snapshot!(snap_name, schema_to_code(schema));
     });
+}
+
+/// The helpers whose calls through a `$ref` cycle keep their results for the run.
+fn memoized_helpers(code: &str) -> BTreeSet<String> {
+    code.match_indices("__ref_memo::is_valid::<")
+        .map(|(start, _)| {
+            let call = &code[start..];
+            let arguments = call[call.find(">(").expect("call arguments") + 2..].trim_start();
+            arguments[..arguments.find(',').expect("helper argument")].to_string()
+        })
+        .collect()
+}
+
+const DRAFT7: &str = "http://json-schema.org/draft-07/schema#";
+
+#[test_case(json!({"$schema": DRAFT7, "definitions": {"node": {"oneOf": [{"required": ["a"], "properties": {"c": {"$ref": "#/definitions/node"}}}, {"properties": {"c": {"$ref": "#/definitions/node"}}}]}}, "$ref": "#/definitions/node"}), &["validate_ref_0"] ; "branches reaching one property")]
+#[test_case(json!({"$schema": DRAFT7, "definitions": {"node": {"oneOf": [{"$ref": "#/definitions/list"}, {"$ref": "#/definitions/map"}]}, "list": {"type": "array", "items": {"$ref": "#/definitions/node"}}, "map": {"type": "object", "additionalProperties": {"$ref": "#/definitions/node"}}}, "$ref": "#/definitions/node"}), &[] ; "branches of disjoint types")]
+#[test_case(json!({"$schema": DRAFT7, "definitions": {"node": {"oneOf": [{"type": "object", "required": ["kind"], "properties": {"kind": {"const": "a"}, "c": {"$ref": "#/definitions/node"}}}, {"type": "object", "required": ["kind"], "properties": {"kind": {"const": "b"}, "c": {"$ref": "#/definitions/node"}}}]}}, "$ref": "#/definitions/node"}), &[] ; "discriminated branches")]
+#[test_case(json!({"$schema": DRAFT7, "allOf": [{"properties": {"c": {"$ref": "#"}}}, {"properties": {"c": {"$ref": "#"}}}]}), &["validate_ref_0"] ; "all of reaching one property")]
+#[test_case(json!({"$schema": DRAFT7, "allOf": [{"properties": {"c": {"$ref": "#"}}}, {"properties": {"d": {"$ref": "#"}}}]}), &[] ; "all of reaching different properties")]
+#[test_case(json!({"$schema": DRAFT7, "if": {"properties": {"c": {"$ref": "#"}}}, "then": {"properties": {"c": {"$ref": "#"}}}}), &["validate_ref_0"] ; "if and then")]
+#[test_case(json!({"$schema": DRAFT7, "if": {"required": ["a"]}, "then": {"properties": {"c": {"$ref": "#"}}}, "else": {"properties": {"c": {"$ref": "#"}}}}), &[] ; "then and else")]
+#[test_case(json!({"$schema": DRAFT7, "properties": {"a": {"$ref": "#"}}, "patternProperties": {"^a": {"$ref": "#"}}}), &["validate_ref_0"] ; "declared and pattern properties")]
+#[test_case(json!({"$schema": DRAFT7, "properties": {"a": {"$ref": "#"}, "b": {"$ref": "#"}}, "additionalProperties": {"$ref": "#"}}), &[] ; "declared and additional properties")]
+#[test_case(json!({"$schema": DRAFT7, "items": {"$ref": "#"}, "contains": {"$ref": "#"}}), &["validate_ref_0"] ; "items and contains")]
+#[test_case(json!({"prefixItems": [{"$ref": "#"}], "items": {"$ref": "#"}}), &[] ; "prefix and remaining items")]
+#[test_case(json!({"$schema": DRAFT7, "properties": {"next": {"$ref": "#"}}}), &[] ; "single path")]
+#[test_case(json!({"$schema": DRAFT7, "allOf": [{"$ref": "#/definitions/list"}, {"$ref": "#/definitions/list"}], "definitions": {"list": {"properties": {"next": {"$ref": "#/definitions/list"}}}}}), &[] ; "repeat outside the cycle")]
+#[test_case(json!({"$dynamicAnchor": "node", "allOf": [{"properties": {"c": {"$ref": "#"}}}, {"properties": {"c": {"$ref": "#"}}}, {"properties": {"d": {"$dynamicRef": "#node"}}}]}), &[] ; "dynamic reference")]
+#[test_case(json!({"$schema": DRAFT7, "definitions": {"tree": {"anyOf": [{"type": ["array", "null"], "items": {"$ref": "#/definitions/tree"}}, {"type": ["object", "null"], "additionalProperties": {"$ref": "#/definitions/tree"}}]}}, "$ref": "#/definitions/tree"}), &[] ; "nullable containers")]
+#[test_case(json!({"$schema": DRAFT7, "oneOf": [{"type": "string", "properties": {"c": {"$ref": "#"}}}, {"type": ["object", "integer"], "properties": {"c": {"$ref": "#"}}}]}), &[] ; "branches of string and other types")]
+#[test_case(json!({"$schema": DRAFT7, "allOf": [{"properties": {"c": {"$ref": "#"}}}, {"properties": {"c": {"$ref": "#"}}}, {"properties": {"c": {"$ref": "#"}}}]}), &["validate_ref_0"] ; "three all of branches reaching one property")]
+#[test_case(json!({"$defs": {"base": {"properties": {"child": {"$ref": "#/$defs/node"}}}, "node": {"$ref": "#/$defs/base", "properties": {"child": {"$ref": "#/$defs/node"}}}}, "$ref": "#/$defs/node"}), &["validate_ref_0"] ; "ref beside properties reaching one property")]
+#[test_case(serde_json::from_str(include_str!("../../benchmark/data/recursive_schema.json")).expect("valid JSON"), &[] ; "recursive benchmark")]
+#[test_case(serde_json::from_str(include_str!("../../benchmark/data/openapi.json")).expect("valid JSON"), &[] ; "openapi benchmark")]
+fn ref_cycle_memo(schema: Value, expected: &[&str]) {
+    assert_eq!(
+        memoized_helpers(&schema_to_code(schema)),
+        expected.iter().map(ToString::to_string).collect()
+    );
 }
 
 #[test_case(json!({"$schema":"http://json-schema.org/draft-07/schema#","type":"string","format":"uri"}), "uri_format_per_call_cache" ; "uri")]
@@ -273,16 +320,42 @@ fn config_parses_methods() {
 }
 
 #[test]
-fn config_methods_default_to_all_enabled() {
+fn config_methods_defaults() {
     let config = syn::parse_str::<crate::Config>(r#"schema = "{}""#).expect("config should parse");
     assert!(config.methods.is_valid);
     assert!(config.methods.validate);
     assert!(config.methods.iter_errors);
+    assert!(config.methods.evaluate);
 }
 
-#[test_case(r#"schema = "{}", methods = { evaluate = false }"#, "Unknown methods key. Expected `is_valid`, `validate`, or `iter_errors`" ; "unknown_key")]
+#[test]
+fn validator_without_methods_generates_evaluate() {
+    let config: crate::Config =
+        syn::parse2(quote! { schema = r#"{"maxLength": 5}"# }).expect("Config should parse");
+    let item: syn::ItemStruct =
+        syn::parse2(quote! { struct Validator; }).expect("Item should parse");
+    let generated: syn::File =
+        syn::parse2(crate::validator_impl(&config, &item).expect("valid schema"))
+            .expect("generated code parses");
+    let methods: Vec<String> = generated
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Impl(implementation) => Some(implementation),
+            _ => None,
+        })
+        .flat_map(|implementation| &implementation.items)
+        .filter_map(|item| match item {
+            syn::ImplItem::Fn(method) => Some(method.sig.ident.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(methods, ["is_valid", "validate", "iter_errors", "evaluate"]);
+}
+
+#[test_case(r#"schema = "{}", methods = { apply = false }"#, "Unknown methods key. Expected `is_valid`, `validate`, `iter_errors`, or `evaluate`" ; "unknown_key")]
 #[test_case(r#"schema = "{}", methods = { validate = false, validate = true }"#, "Duplicate methods key: `validate`" ; "duplicate_key")]
-#[test_case(r#"schema = "{}", methods = { is_valid = false, validate = false, iter_errors = false }"#, "At least one of `is_valid`, `validate`, or `iter_errors` must be enabled" ; "all_disabled")]
+#[test_case(r#"schema = "{}", methods = { is_valid = false, validate = false, iter_errors = false, evaluate = false }"#, "At least one of `is_valid`, `validate`, `iter_errors`, or `evaluate` must be enabled" ; "all_disabled")]
 fn config_rejects_invalid_methods(input: &str, expected: &str) {
     let error = syn::parse_str::<crate::Config>(input)
         .err()
@@ -318,7 +391,7 @@ fn methods_is_valid_off_drops_only_public_wrapper() {
 }
 
 #[test]
-fn methods_validate_off_drops_validate_functions() {
+fn methods_validate_off_drops_only_public_wrapper() {
     let code = schema_to_code_with_methods(
         branchy_schema(),
         crate::context::MethodGates {
@@ -327,10 +400,9 @@ fn methods_validate_off_drops_validate_functions() {
         },
     );
     assert!(!code.contains("pub fn validate"), "{code}");
-    assert!(!code.contains("pub(super) fn validate"), "{code}");
-    assert!(!code.contains("_validate"), "{code}");
-    // `iter_errors` keeps the error-collection functions.
-    extract_fn_body(&code, "pub(super) fn collect_errors");
+    assert!(!code.contains("run_validate"), "{code}");
+    // `iter_errors` keeps the error functions.
+    extract_fn_body(&code, "pub(super) fn errors");
 }
 
 #[test]
@@ -344,24 +416,164 @@ fn methods_iter_errors_off_drops_only_public_wrapper() {
     );
     assert!(!code.contains("pub fn iter_errors"), "{code}");
     assert!(!code.contains("entry_iter_errors"), "{code}");
-    // `validate` builds `anyOf` error context from the collection functions.
-    extract_fn_body(&code, "pub(super) fn collect_errors");
+    // `validate` reports through the error functions.
+    extract_fn_body(&code, "pub(super) fn errors");
 }
 
 #[test]
-fn methods_validate_and_iter_errors_off_drop_collection() {
+fn methods_validate_and_iter_errors_off_drop_error_functions() {
     let code = schema_to_code_with_methods(
         branchy_schema(),
         crate::context::MethodGates {
             validate: false,
             iter_errors: false,
+            evaluate: false,
             ..Default::default()
         },
     );
-    assert!(!code.contains("collect_errors"), "{code}");
+    assert!(!code.contains("__err::Errors"), "{code}");
     assert!(!code.contains("collect_branch_errors"), "{code}");
-    assert!(!code.contains("_validate"), "{code}");
     extract_is_valid_body(&code);
+}
+
+#[test]
+fn evaluate_leaf_keywords_module() {
+    let config = test_config(json!({"maxLength": 3, "minLength": 2, "type": "string"}));
+    insta::assert_snapshot!(
+        "evaluate_leaf_keywords_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+#[test]
+fn evaluate_properties_module() {
+    let config = test_config(json!({
+        "properties": {"a": {"type": "integer"}, "b/c": {"properties": {"d": false}}},
+        "required": ["a"]
+    }));
+    insta::assert_snapshot!(
+        "evaluate_properties_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+#[test]
+fn evaluate_object_applicators_module() {
+    let config = test_config(json!({
+        "properties": {"a": {}},
+        "patternProperties": {"^x-": {}, "[0-9]$": {"minimum": 1}},
+        "additionalProperties": false,
+        "propertyNames": {"maxLength": 3}
+    }));
+    insta::assert_snapshot!(
+        "evaluate_object_applicators_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+#[test_case(json!({"$schema": "https://json-schema.org/draft/2020-12/schema", "$dynamicAnchor": "node", "items": {"anyOf": [{"$dynamicRef": "#node"}, {"type": "null"}]}}), "evaluate_dynamic_scope_module" ; "dynamic ref")]
+#[test_case(json!({"$schema": "https://json-schema.org/draft/2019-09/schema", "$recursiveAnchor": true, "properties": {"child": {"if": {"$recursiveRef": "#"}, "then": {"required": ["ok"]}}}}), "evaluate_recursive_scope_module" ; "recursive ref")]
+fn evaluate_scope_module(schema: Value, name: &str) {
+    let config = test_config(schema);
+    insta::assert_snapshot!(
+        name,
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+#[test]
+fn evaluate_discriminator_module() {
+    let config = test_config(json!({"oneOf": [
+        {"properties": {"kind": {"const": "a"}}, "required": ["kind"]},
+        {"properties": {"kind": {"enum": ["b", "c"]}}, "required": ["kind"]}
+    ]}));
+    insta::assert_snapshot!(
+        "evaluate_discriminator_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+#[test]
+fn evaluate_contains_module() {
+    let config = test_config(json!({"contains": {"type": "integer"}, "minContains": 2}));
+    insta::assert_snapshot!(
+        "evaluate_contains_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+// A branch with this much code gets a function of its own, kept out of line; the small one stays
+// inline.
+#[test]
+fn evaluate_outlined_branch_module() {
+    let properties = Value::Object(
+        (b'a'..=b'p')
+            .map(|name| (char::from(name).to_string(), json!({"type": "integer"})))
+            .collect(),
+    );
+    let config = test_config(json!({"oneOf": [{"properties": properties}, {"type": "null"}]}));
+    insta::assert_snapshot!(
+        "evaluate_outlined_branch_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+// An `items` subschema of leaf keywords only is evaluated by its item function, however many it
+// has.
+#[test]
+fn evaluate_leaf_items_not_outlined() {
+    let config = test_config(json!({"items": {
+        "type": "number", "minimum": 0, "maximum": 100, "exclusiveMinimum": -1,
+        "exclusiveMaximum": 101, "multipleOf": 0.5, "minLength": 1, "maxLength": 9,
+        "minItems": 1, "maxItems": 9, "minProperties": 1, "maxProperties": 9,
+        "required": ["x"], "pattern": "^a", "uniqueItems": true,
+        "dependentRequired": {"x": ["y"]}
+    }}));
+    let code = render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config);
+    assert!(!code.contains("fn __evaluate_1"), "{code}");
+}
+
+// Each branch of nested `anyOf` gets one helper, however many enclosing branches `evaluate`
+// checks the validity of.
+#[test_case(1 ; "one level")]
+#[test_case(4 ; "four levels")]
+#[test_case(16 ; "sixteen levels")]
+fn evaluate_nested_any_of_branch_helpers(depth: usize) {
+    let mut schema = json!({"type": "integer"});
+    for level in 0..depth {
+        schema = json!({"anyOf": [schema, {"maxLength": level}]});
+    }
+    let mut config = test_config(schema);
+    config.methods.evaluate = true;
+    let code = render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config);
+    assert_eq!(code.matches("fn is_branch_valid_").count(), 2 * depth);
+}
+
+#[test]
+fn evaluate_combinators_module() {
+    let config = test_config(json!({
+        "allOf": [{"minimum": 0}],
+        "anyOf": [{"type": "integer"}, {"minimum": 2}],
+        "not": {"const": 1},
+        "if": {"type": "integer"},
+        "then": {"maximum": 9},
+    }));
+    insta::assert_snapshot!(
+        "evaluate_combinators_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
+}
+
+#[test]
+fn evaluate_ref_module() {
+    let config = test_config(json!({
+        "properties": {"next": {"$ref": "#"}, "value": {"$ref": "#/$defs/value"}},
+        "$defs": {"value": {"type": "integer"}},
+    }));
+    insta::assert_snapshot!(
+        "evaluate_ref_module",
+        render_config_for::<crate::codegen::emit_serde::SerdeEmitter>(&config)
+    );
 }
 
 #[test]
@@ -487,7 +699,7 @@ fn invalid_multiple_of_scientific_zero_matches_dynamic() {
 }
 
 #[test_case(
-    &quote! { schema = r#"{"format":"made-up"}"#, validate_formats = true, ignore_unknown_formats = false, },
+    &quote! { schema = r#"{"format":"made-up"}"#, validate_formats = true, ignore_unknown_formats = false, methods = { evaluate = false }, },
     "unknown_format_strict"
     ; "strict"
 )]
@@ -498,7 +710,8 @@ fn invalid_multiple_of_scientific_zero_matches_dynamic() {
         ignore_unknown_formats = true,
         resources = {
             "json-schema:///meta/format-assertion" => { schema = r#"{"$id":"json-schema:///meta/format-assertion","$schema":"https://json-schema.org/draft/2020-12/schema","$vocabulary":{"https://json-schema.org/draft/2020-12/vocab/core":true,"https://json-schema.org/draft/2020-12/vocab/format-assertion":true}}"# },
-        }
+        },
+        methods = { evaluate = false },
     },
     "unknown_format_under_assertion_vocabulary"
     ; "under assertion vocabulary"
@@ -528,6 +741,12 @@ const UNKNOWN_VOCABULARY_ERROR: &str = "Unknown vocabulary: 'https://example.com
     &quote! {},
     Some(UNKNOWN_VOCABULARY_ERROR)
     ; "undeclared behind ref"
+)]
+#[test_case(
+    r##"{"$schema":"json-schema:///meta/custom","$ref":"#/$defs/a","$defs":{"a":{"type":"string"}}}"##,
+    &quote! {},
+    Some(UNKNOWN_VOCABULARY_ERROR)
+    ; "undeclared beside ref"
 )]
 #[test_case(
     r#"{"$schema":"json-schema:///meta/custom","type":"string"}"#,
@@ -565,6 +784,57 @@ fn required_unknown_vocabulary(schema: &str, declaration: &TokenStream, expected
         .map(|error| error.to_string());
 
     assert_eq!(error.as_deref(), expected);
+}
+
+fn expansion_error(attr: TokenStream) -> String {
+    let config: crate::Config = syn::parse2(attr).expect("Config should parse");
+    let item: syn::ItemStruct = syn::parse2(quote! {
+        struct FileValidator;
+    })
+    .expect("Item should parse");
+    crate::validator_impl(&config, &item)
+        .expect_err("expansion fails")
+        .to_string()
+}
+
+#[test]
+fn missing_schema_file_at_absolute_path() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("missing.json");
+    let literal = path.to_string_lossy().to_string();
+    let error = File::open(&path).expect_err("the file is missing");
+    assert_eq!(
+        expansion_error(quote! { path = #literal }),
+        format!("Failed to read `{}`: {error}", path.display())
+    );
+}
+
+#[test]
+fn missing_resource_file_at_absolute_path() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("missing.json");
+    let literal = path.to_string_lossy().to_string();
+    let error = File::open(&path).expect_err("the file is missing");
+    assert_eq!(
+        expansion_error(quote! {
+            schema = "{}",
+            resources = { "json-schema:///r" => { path = #literal } }
+        }),
+        format!("Cannot open '{}': {error}", path.display())
+    );
+}
+
+#[test]
+fn resource_file_with_invalid_json() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs");
+    assert_eq!(
+        expansion_error(quote! {
+            schema = "{}",
+            resources = { "json-schema:///r" => { path = "src/lib.rs" } }
+        }),
+        format!(
+            "Invalid JSON in '{}': expected value at line 1 column 1",
+            path.display()
+        )
+    );
 }
 
 #[test]
@@ -840,58 +1110,25 @@ fn empty_prefix_items_generates_no_op() {
 #[test_case(r#"{"type":"object","patternProperties":{"^\\S*$":{}},"unevaluatedProperties":false}"#, "pattern_props_no_whitespace_uneval" ; "pattern_props_no_whitespace_uneval")]
 #[test_case(r#"{"type":"array","prefixItems":[{"type":"integer"}],"items":{}}"#, "prefix_items_then_trivial_items" ; "prefix_items_then_trivial_items")]
 #[test_case(r#"{"oneOf":[{"properties":{"k":{"const":"a"},"x":{"type":"integer"}},"required":["k"],"additionalProperties":false},{"properties":{"k":{"const":"b"}},"required":["k"],"additionalProperties":false}]}"#, "one_of_vacuous_object_discriminator" ; "one_of_vacuous_object_discriminator")]
-#[test_case(r##"{"$defs":{"a":{"properties":{"k":{"const":"a"}},"required":["k"],"additionalProperties":false},"b":{"properties":{"k":{"const":"b"}},"required":["k"],"additionalProperties":false}},"oneOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]}"##, "one_of_ref_vacuous_discriminator" ; "one_of_ref_vacuous_discriminator")]
-#[test_case(r#"{"oneOf":[{"properties":{"k":{"const":"a"}},"required":["k"]},{"type":"object","properties":{"k":{"const":"b"}},"required":["k"]}]}"#, "one_of_single_vacuous_not_guarded" ; "one_of_single_vacuous_not_guarded")]
-#[test_case(r#"{"oneOf":[{"properties":{"k":{"const":"a"}},"required":["k"]},{"properties":{"k":{"const":"b"}},"required":["k"]},{"type":"string"}]}"#, "one_of_vacuous_with_non_object_branch_not_guarded" ; "one_of_vacuous_with_non_object_branch_not_guarded")]
-#[test_case(r#"{"oneOf":[{"properties":{"k":{"const":"a"}},"required":["k"]},{"properties":{"k":{"const":"b"}},"required":["k"]},{"properties":{"z":{"type":"integer"}}}]}"#, "one_of_vacuous_uncovered_branch_not_guarded" ; "one_of_vacuous_uncovered_branch_not_guarded")]
-#[test_case(r#"{"type":"object","required":["a","b"],"properties":{"a":{"type":"string"}}}"#, "required_fused_into_properties" ; "required_fused_into_properties")]
-#[test_case(r#"{"type":"object","required":["a","b"],"properties":{"a":{"type":"string"},"b":{"type":"integer"}},"additionalProperties":false}"#, "required_fused_with_additional_false" ; "required_fused_with_additional_false")]
-#[test_case(r#"{"type":"object","required":["a"],"additionalProperties":{"type":"string"}}"#, "required_fused_with_additional_schema" ; "required_fused_with_additional_schema")]
-#[test_case(r#"{"type":"object","required":["a","b"]}"#, "required_only_not_fused" ; "required_only_not_fused")]
-#[test_case(r#"{"type":"object","required":["k"],"properties":{"k":{"type":"string"}},"oneOf":[{"required":["a"]},{"required":["b"]}]}"#, "typed_check_before_untyped_applicators" ; "typed_check_before_untyped_applicators")]
-#[test_case(r##"{"$defs":{"s":{"type":"string","format":"uri"}},"type":"object","propertyNames":{"$ref":"#/$defs/s"}}"##, "property_names_ref_string_only" ; "property_names_ref_string_only")]
-#[test_case(r#"{"type":"object","propertyNames":{"type":"string"}}"#, "property_names_type_string_only" ; "property_names_type_string_only")]
-#[test_case(r##"{"$defs":{"s":{"type":"string","pattern":"^a"}},"type":"object","propertyNames":{"$ref":"#/$defs/s"}}"##, "property_names_ref_pattern_stays_generic" ; "property_names_ref_pattern_stays_generic")]
-#[test_case(r##"{"$defs":{"s":{"minProperties":1}},"type":"object","propertyNames":{"$ref":"#/$defs/s"}}"##, "property_names_ref_non_string_stays_generic" ; "property_names_ref_non_string_stays_generic")]
-#[test_case(r##"{"$defs":{"s":{"type":"string"}},"type":"object","propertyNames":{"$ref":"#/$defs/s","minLength":2}}"##, "property_names_ref_with_sibling_stays_generic" ; "property_names_ref_with_sibling_stays_generic")]
-#[test_case(r##"{"$defs":{"node":{"$dynamicAnchor":"node","type":["object","boolean"]}},"type":"object","properties":{"child":{"$dynamicRef":"#node"}}}"##, "dynamic_ref_lookup" ; "dynamic_ref_lookup")]
-#[test_case(r#"{"$schema":"http://json-schema.org/draft-07/schema#","type":"array","items":[{"type":"string"}],"additionalItems":false,"maxItems":1}"#, "additional_items_false_subsumed_by_max_items" ; "additional_items_false_subsumed_by_max_items")]
-#[test_case(r#"{"type":"string","allOf":[{"minLength":1},{"maxLength":5}]}"#, "typed_string_before_all_of" ; "typed_string_before_all_of")]
-fn codegen_is_valid_body_snapshot(schema_json: &str, snap_name: &str) {
+#[test_case(r##"{"$defs":{"a":{"properties":{"k":{"const":"a"}},"required":["k"],"additionalProperties":false},"b":{"properties":{"k":{"const":"b"}},"required":["k"],"additionalProperties":false}},"oneOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]}"##, "errors_one_of_ref_vacuous_discriminator" ; "one_of_ref_vacuous_discriminator")]
+#[test_case(r#"{"oneOf":[{"type":"object","required":["kind"],"properties":{"kind":{"const":"circle"},"radius":{"type":"number"}}},{"type":"object","required":["kind"],"properties":{"kind":{"const":"square"},"side":{"type":"number"}}}]}"#, "errors_one_of_typed_discriminator" ; "one_of_typed_discriminator")]
+#[test_case(r#"{"oneOf":[{"type":"null"},{"type":"object","required":["kind"],"properties":{"kind":{"const":"circle"}}},{"type":"object","required":["kind"],"properties":{"kind":{"const":"square"}}}]}"#, "errors_one_of_typed_with_null_branch" ; "one_of_typed_with_null_branch")]
+#[test_case(r#"{"oneOf":[{"type":"string"},{"type":"number"}]}"#, "errors_one_of_no_discriminator" ; "one_of_no_discriminator")]
+#[test_case(r#"{"type":"object","required":["a"],"properties":{"a":{"type":"string"}},"additionalProperties":false}"#, "errors_properties_uses_bound_obj" ; "properties_uses_bound_obj")]
+#[test_case(r#"{"type":"object","properties":{"a":{"type":"integer"}},"patternProperties":{"^x":{"type":"string"}},"additionalProperties":false}"#, "errors_object_pass_uses_bound_obj" ; "object_pass_uses_bound_obj")]
+#[test_case(r#"{"type":"object","required":["a","z"],"properties":{"a":{"type":"string"},"b":{"type":"integer"}}}"#, "errors_properties_with_required" ; "properties_with_required")]
+#[test_case(r#"{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}}}"#, "errors_properties_instance_order" ; "properties_instance_order")]
+#[test_case(r#"{"type":"object","required":["a","b"],"properties":{"a":{"type":"string"},"b":{"type":"integer"}},"additionalProperties":false}"#, "errors_required_fused_with_additional_false" ; "required_fused_with_additional_false")]
+#[test_case(r#"{"type":"object","properties":{"a":{}},"patternProperties":{"^x":{"type":"integer"}},"additionalProperties":{"type":"integer"},"propertyNames":{"minLength":1}}"#, "errors_object_all_applicators" ; "object_all_applicators")]
+#[test_case(r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"array","prefixItems":[{"type":"integer"}],"items":{"type":"string"}}"#, "errors_prefix_items_then_items_schema_2020" ; "prefix_items_then_items_schema_2020")]
+#[test_case(r##"{"$defs":{"node":{"$dynamicAnchor":"node","type":["object","boolean"]}},"type":"object","properties":{"child":{"$dynamicRef":"#node"}}}"##, "errors_dynamic_ref_lookup" ; "dynamic_ref_lookup")]
+#[cfg_attr(not(feature = "arbitrary-precision"), test_case(r#"{"if":{"type":"integer"},"then":{"minimum":10,"multipleOf":3}}"#, "errors_if_then" ; "if_then"))]
+#[cfg_attr(feature = "arbitrary-precision", test_case(r#"{"if":{"type":"integer"},"then":{"minimum":10,"multipleOf":3}}"#, "errors_if_then_arbitrary" ; "if_then"))]
+fn codegen_errors_body_snapshot(schema_json: &str, snap_name: &str) {
     let schema: Value = serde_json::from_str(schema_json).expect("valid schema json");
     let description = serde_json::to_string(&schema).expect("schema serialization");
     insta::with_settings!({ description => &description }, {
-        insta::assert_snapshot!(snap_name, is_valid_body(schema));
-    });
-}
-
-#[test_case(r##"{"$defs":{"a":{"properties":{"k":{"const":"a"}},"required":["k"],"additionalProperties":false},"b":{"properties":{"k":{"const":"b"}},"required":["k"],"additionalProperties":false}},"oneOf":[{"$ref":"#/$defs/a"},{"$ref":"#/$defs/b"}]}"##, "one_of_ref_vacuous_discriminator_validate" ; "one_of_ref_vacuous_discriminator_validate")]
-#[test_case(r#"{"oneOf":[{"type":"object","required":["kind"],"properties":{"kind":{"const":"circle"},"radius":{"type":"number"}}},{"type":"object","required":["kind"],"properties":{"kind":{"const":"square"},"side":{"type":"number"}}}]}"#, "one_of_typed_discriminator_validate" ; "one_of_typed_discriminator_validate")]
-#[test_case(r#"{"oneOf":[{"type":"null"},{"type":"object","required":["kind"],"properties":{"kind":{"const":"circle"}}},{"type":"object","required":["kind"],"properties":{"kind":{"const":"square"}}}]}"#, "one_of_typed_with_null_branch_validate" ; "one_of_typed_with_null_branch_validate")]
-#[test_case(r#"{"oneOf":[{"type":"string"},{"type":"number"}]}"#, "one_of_no_discriminator_validate" ; "one_of_no_discriminator_validate")]
-#[test_case(r#"{"type":"object","required":["a"],"properties":{"a":{"type":"string"}},"additionalProperties":false}"#, "properties_validate_uses_bound_obj" ; "properties_validate_uses_bound_obj")]
-#[test_case(r#"{"type":"object","properties":{"a":{"type":"integer"}},"patternProperties":{"^x":{"type":"string"}},"additionalProperties":false}"#, "object_pass_validate_uses_bound_obj" ; "object_pass_validate_uses_bound_obj")]
-#[test_case(r#"{"type":"object","required":["a","z"],"properties":{"a":{"type":"string"},"b":{"type":"integer"}}}"#, "properties_validate_tracks_required" ; "properties_validate_tracks_required")]
-fn codegen_validate_body_snapshot(schema_json: &str, snap_name: &str) {
-    let schema: Value = serde_json::from_str(schema_json).expect("valid schema json");
-    let description = serde_json::to_string(&schema).expect("schema serialization");
-    insta::with_settings!({ description => &description }, {
-        insta::assert_snapshot!(snap_name, validate_body(schema));
-    });
-}
-
-#[test_case(r#"{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}}}"#, "collect_properties_schema_order" ; "collect_properties_schema_order")]
-#[test_case(r#"{"type":"object","required":["a","b"],"properties":{"a":{"type":"string"},"b":{"type":"integer"}},"additionalProperties":false}"#, "collect_required_fused_with_additional_false" ; "collect_required_fused_with_additional_false")]
-#[test_case(r#"{"type":"object","properties":{"a":{}},"patternProperties":{"^x":{"type":"integer"}},"additionalProperties":{"type":"integer"},"propertyNames":{"minLength":1}}"#, "collect_object_all_applicators" ; "collect_object_all_applicators")]
-#[test_case(r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"array","prefixItems":[{"type":"integer"}],"items":{"type":"string"}}"#, "collect_prefix_items_then_items_schema_2020" ; "collect_prefix_items_then_items_schema_2020")]
-#[test_case(r##"{"$defs":{"node":{"$dynamicAnchor":"node","type":["object","boolean"]}},"type":"object","properties":{"child":{"$dynamicRef":"#node"}}}"##, "collect_dynamic_ref_lookup" ; "collect_dynamic_ref_lookup")]
-#[cfg_attr(not(feature = "arbitrary-precision"), test_case(r#"{"if":{"type":"integer"},"then":{"minimum":10,"multipleOf":3}}"#, "collect_if_then" ; "collect_if_then"))]
-#[cfg_attr(feature = "arbitrary-precision", test_case(r#"{"if":{"type":"integer"},"then":{"minimum":10,"multipleOf":3}}"#, "collect_if_then_arbitrary" ; "collect_if_then"))]
-fn codegen_collect_body_snapshot(schema_json: &str, snap_name: &str) {
-    let schema: Value = serde_json::from_str(schema_json).expect("valid schema json");
-    let description = serde_json::to_string(&schema).expect("schema serialization");
-    insta::with_settings!({ description => &description }, {
-        insta::assert_snapshot!(snap_name, collect_body(schema));
+        insta::assert_snapshot!(snap_name, errors_body(schema));
     });
 }
 
@@ -984,14 +1221,16 @@ fn draft4_integer_schema() -> Value {
     json!({"$schema": "http://json-schema.org/draft-04/schema#", "type": ["integer", "string"]})
 }
 
-#[test_case("pyo3_emitter", &quote! { Pyo3 }, &keyword_families_schema() ; "pyo3 keyword families")]
-#[test_case("pyo3_emitter_draft4", &quote! { Pyo3 }, &draft4_integer_schema() ; "pyo3 draft4 integer")]
-#[test_case("magnus_emitter", &quote! { Magnus }, &keyword_families_schema() ; "magnus keyword families")]
-#[test_case("magnus_emitter_draft4", &quote! { Magnus }, &draft4_integer_schema() ; "magnus draft4 integer")]
-fn backend_emitter(snapshot: &str, backend: &TokenStream, schema: &Value) {
+#[test_case("pyo3_emitter", &quote! { backend = Pyo3, methods = { evaluate = false } }, &keyword_families_schema() ; "pyo3 keyword families")]
+#[test_case("pyo3_emitter_draft4", &quote! { backend = Pyo3, methods = { evaluate = false } }, &draft4_integer_schema() ; "pyo3 draft4 integer")]
+#[test_case("pyo3_emitter_evaluate", &quote! { backend = Pyo3 }, &json!(false) ; "pyo3 evaluate")]
+#[test_case("magnus_emitter", &quote! { backend = Magnus, methods = { evaluate = false } }, &keyword_families_schema() ; "magnus keyword families")]
+#[test_case("magnus_emitter_draft4", &quote! { backend = Magnus, methods = { evaluate = false } }, &draft4_integer_schema() ; "magnus draft4 integer")]
+#[test_case("magnus_emitter_evaluate", &quote! { backend = Magnus }, &json!(false) ; "magnus evaluate")]
+fn backend_emitter(snapshot: &str, attributes: &TokenStream, schema: &Value) {
     let schema = serde_json::to_string(schema).expect("schema serializes");
     let config: crate::Config =
-        syn::parse2(quote! { schema = #schema, backend = #backend }).expect("Config should parse");
+        syn::parse2(quote! { schema = #schema, #attributes }).expect("Config should parse");
     let item: syn::ItemStruct = syn::parse2(quote! {
         struct Validator;
     })
@@ -1005,6 +1244,7 @@ fn backend_emitter(snapshot: &str, backend: &TokenStream, schema: &Value) {
     let wrapped: syn::File = syn::parse2(wrapper.mac.tokens.clone()).expect("wrapped items");
     let declaration = syn::File {
         shebang: None,
+        frontmatter: None,
         attrs: Vec::new(),
         items: vec![syn::Item::Struct(declaration.clone())],
     };

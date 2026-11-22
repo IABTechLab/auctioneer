@@ -20,15 +20,15 @@ mod tests {
 
     const ROOT: &str = include_str!("../../../../Cargo.toml");
     const LOCK: &str = include_str!("../../../../Cargo.lock");
-    const ARCHIVE_SHA256: &str = "75afa4b5e6986cc221f5339d7d6149360f0bf8e65bcb23617dc0f92900b576d2";
+    const ARCHIVE_SHA256: &str = "e869997df6b45ae196cfa9261861bd21f0b6cc786fc12e8e041e2f0ccf8690f7";
     const TYPE_CHECK_SHA256: &str =
-        "c5fe64170d5154c5967280d28c2fcb269c24d49ef756322d269ac8eb8998d912";
+        "e4effb81dba65a019282d7089a38d3911e41bfc93df4dc0fdae701108bbe6112";
     const INITIALIZATION_SHA256: &str =
-        "5a757b0f4d360fcc9fb8dce7af0031b107067be9f5c451321ec94d49ff3fb2f8";
+        "eb480a90d12ad44be2d4292d9ac486c7d0967c3722fe089782d5368a8ab4b40c";
     const EXPLICIT_CACHE_PATCH: &str =
-        "jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch";
+        "jsonschema-macros-core-0.62.0-explicit-cache-all-modes.patch";
     const EXPLICIT_CACHE_PATCH_SHA256: &str =
-        "846658280e27162d5ea8334ba347eb86e0cf9ff05d22f701e632ce648868befe";
+        "3a2176665de3cb2a51d4992e71de5b3181c819586e17cc7de637647737589992";
 
     // Source tables fix accepts/refusals; lexical inputs distinguish JSON
     // refusals from schema refusals independently of the generated validator.
@@ -216,7 +216,7 @@ mod tests {
             Some(Value::String("vendor/regex-automata".into())),
             Some(toml::from_str::<Value>("path = 'unreviewed'").unwrap()),
             Some(
-                toml::from_str::<Value>("path = 'vendor/regex-automata'\nversion = '0.4.18'")
+                toml::from_str::<Value>("path = 'vendor/regex-automata'\nversion = '0.4.19'")
                     .unwrap(),
             ),
             Some(
@@ -247,7 +247,7 @@ mod tests {
     fn compiler_metadata_requires_the_exact_local_package_and_manifest() {
         let vendor = Path::new("/reviewed/compiler");
         let original = json!({"packages": [{
-            "name": "jsonschema-macros-core", "version": "0.61.2",
+            "name": "jsonschema-macros-core", "version": "0.62.0",
             "source": null, "manifest_path": "/reviewed/compiler/Cargo.toml"
         }, {"name": "unrelated"}]});
         assert_eq!(
@@ -309,7 +309,7 @@ mod tests {
             .join("../..")
             .canonicalize()
             .unwrap();
-        let raw = fs::read(workspace.join("vendor/jsonschema-macros-core-0.61.2.crate")).unwrap();
+        let raw = fs::read(workspace.join("vendor/jsonschema-macros-core-0.62.0.crate")).unwrap();
         assert_eq!(hex::encode(Sha256::digest(&raw)), ARCHIVE_SHA256);
         let mut archive = tar::Archive::new(GzDecoder::new(raw.as_slice()));
         let mut files = BTreeMap::new();
@@ -319,7 +319,7 @@ mod tests {
             let relative = entry
                 .path()
                 .unwrap()
-                .strip_prefix("jsonschema-macros-core-0.61.2")
+                .strip_prefix("jsonschema-macros-core-0.62.0")
                 .unwrap()
                 .to_owned();
             assert!(!relative.as_os_str().is_empty());
@@ -332,7 +332,7 @@ mod tests {
             entry.read_to_end(&mut bytes).unwrap();
             assert!(files.insert(relative, bytes).is_none());
         }
-        assert_eq!(files.len(), 280);
+        assert_eq!(files.len(), 298);
         files
     }
 
@@ -363,11 +363,11 @@ mod tests {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let patch = workspace.join("vendor/patches").join(patch_name);
         let checksum = match patch_name {
-            "jsonschema-macros-core-0.61.2-type-check.patch" => {
-                "1d1ed4cdfdd21abbd2c469bbee6f7aa3ea8079c736dd22b9abe5d08e76265358"
+            "jsonschema-macros-core-0.62.0-type-check.patch" => {
+                "66ff2840a027d5a1b311ff68b66eeb0fd7a9220febb0e58a62109b54257632c5"
             }
-            "jsonschema-macros-core-0.61.2-regex-initialization.patch" => {
-                "b21e13915ba100b27a8db5c1b765b5f81c302be806d763359f73e0ca5a5be798"
+            "jsonschema-macros-core-0.62.0-regex-initialization.patch" => {
+                "781eed59d8ccabdbd0f848ba34f3a434899cc0508080927294878cae056cd4d6"
             }
             EXPLICIT_CACHE_PATCH => EXPLICIT_CACHE_PATCH_SHA256,
             _ => panic!("unreviewed portable patch: {patch_name}"),
@@ -425,7 +425,7 @@ mod tests {
     fn portable_type_check_patch_recreates_the_reviewed_object_schema_file() {
         assert_portable_patch_recreates_historical_file(
             "src/codegen/object_schema.rs",
-            "jsonschema-macros-core-0.61.2-type-check.patch",
+            "jsonschema-macros-core-0.62.0-type-check.patch",
             TYPE_CHECK_SHA256,
         );
     }
@@ -434,7 +434,7 @@ mod tests {
     fn portable_regex_initialization_patch_recreates_the_reviewed_emit_root_file() {
         assert_portable_patch_recreates_historical_file(
             "src/codegen/emit_root.rs",
-            "jsonschema-macros-core-0.61.2-regex-initialization.patch",
+            "jsonschema-macros-core-0.62.0-regex-initialization.patch",
             INITIALIZATION_SHA256,
         );
     }
@@ -458,8 +458,8 @@ mod tests {
         );
         fs::write(temporary.path().join("LICENSE"), license).unwrap();
         for patch in [
-            "jsonschema-macros-core-0.61.2-type-check.patch",
-            "jsonschema-macros-core-0.61.2-regex-initialization.patch",
+            "jsonschema-macros-core-0.62.0-type-check.patch",
+            "jsonschema-macros-core-0.62.0-regex-initialization.patch",
         ] {
             apply_portable_compiler_patch(temporary.path(), patch);
         }
@@ -519,7 +519,7 @@ mod tests {
     }
 
     fn engine_package() -> Value {
-        toml::from_str("name = 'regex-automata'\nversion = '0.4.18'").unwrap()
+        toml::from_str("name = 'regex-automata'\nversion = '0.4.19'").unwrap()
     }
 
     #[test]
@@ -545,7 +545,7 @@ mod tests {
             ),
             (
                 "checksum",
-                "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2",
+                "41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158",
             ),
         ] {
             let mut changed = engine.clone();

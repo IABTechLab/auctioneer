@@ -1,4 +1,8 @@
-use super::super::{compile_schema, CompileContext, CompiledExpr};
+use super::super::{
+    compile_schema,
+    expr::{item_predicate, RefErrors},
+    CompileContext, CompiledExpr,
+};
 use crate::codegen::emit::ValueEmitter;
 use quote::{format_ident, quote};
 use serde_json::Value;
@@ -24,67 +28,58 @@ fn compile_plain<E: ValueEmitter>(ctx: &mut CompileContext<'_, E>, value: &Value
             .map(|(idx, schema)| {
                 let idx_str = idx.to_string();
                 let compiled = ctx.with_schema_path_segment("items", |ctx| {
-                    ctx.with_schema_path_segment(&idx_str, |ctx| {
-                        ctx.with_instance_scope(|ctx| compile_schema(ctx, schema))
-                    })
+                    ctx.with_schema_path_segment(&idx_str, |ctx| compile_schema(ctx, schema))
                 });
                 if compiled.is_trivially_true() {
                     return CompiledExpr::always_true();
                 }
                 let is_valid = compiled.is_valid_token_stream();
-                let expr = compiled.validate.as_token_stream();
-                let child_collect = compiled.collect.as_token_stream();
+                let child_errors = compiled.errors.as_token_stream();
+                let errors = compiled.guard_errors(&quote! {
+                    let __path = &__path.push(#idx);
+                    #child_errors
+                });
                 let get_expr = E::array_get(format_ident!("arr"), idx);
-                CompiledExpr::with_validate_and_collect_blocks(
+                CompiledExpr::with_errors(
                     quote! { #get_expr.map_or(true, |instance| #is_valid) },
                     quote! {
                         if let Some(instance) = #get_expr {
-                            let __path = &__path.push(#idx);
-                            #expr
-                        }
-                    },
-                    quote! {
-                        if let Some(instance) = #get_expr {
-                            if !(#is_valid) {
-                                let __path = &__path.push(#idx);
-                                #child_collect
-                            }
+                            #errors
                         }
                     },
                 )
+                .with_skips_valid(compiled.skips_valid)
             })
             .collect();
         CompiledExpr::combine_and(compiled)
     } else {
-        let compiled = ctx.with_schema_path_segment("items", |ctx| {
-            ctx.with_instance_scope(|ctx| compile_schema(ctx, value))
-        });
+        let mut compiled = ctx.with_schema_path_segment("items", |ctx| compile_schema(ctx, value));
         if compiled.is_trivially_true() {
             return CompiledExpr::always_true();
         }
-        let is_valid = compiled.is_valid_token_stream();
-        let expr = compiled.validate.as_token_stream();
-        let child_collect = compiled.collect.as_token_stream();
+        let predicate = item_predicate(&compiled.is_valid_token_stream());
+        let child_errors = compiled.errors.as_token_stream();
+        let errors = compiled.guard_errors(&quote! {
+            let __path = &__path.push(idx);
+            #child_errors
+        });
         let iter_expr = E::array_iter(format_ident!("arr"));
-        CompiledExpr::with_validate_and_collect_blocks(
-            quote! { #iter_expr.all(|instance| #is_valid) },
+        let checked = CompiledExpr::with_errors(
+            quote! { #iter_expr.all(#predicate) },
             quote! {
                 for (idx, item) in #iter_expr.enumerate() {
                     let instance = item;
-                    let __path = &__path.push(idx);
-                    #expr
-                }
-            },
-            quote! {
-                for (idx, item) in #iter_expr.enumerate() {
-                    let instance = item;
-                    if !(#is_valid) {
-                        let __path = &__path.push(idx);
-                        #child_collect
-                    }
+                    #errors
                 }
             },
         )
+        .with_skips_valid(compiled.skips_valid);
+        match compiled.ref_errors.take() {
+            Some(RefErrors::Call(name, keyword)) => {
+                checked.with_ref_errors(RefErrors::EachItem(name, keyword))
+            }
+            _ => checked,
+        }
     }
 }
 
@@ -99,60 +94,42 @@ fn compile_with_prefix<E: ValueEmitter>(
         Value::Bool(true) => CompiledExpr::always_true(),
         Value::Bool(false) => {
             let len_expr = E::array_len(format_ident!("arr"));
-            let get_expr = E::array_get(format_ident!("arr"), prefix_len);
             let iter_expr = E::array_iter(format_ident!("arr"));
-            CompiledExpr::with_validate_and_collect_blocks(
+            CompiledExpr::with_errors(
                 quote! { #len_expr <= #prefix_len },
-                quote! {
-                    if let Some(item) = #get_expr {
-                        let instance = item;
-                        let __path = &__path.push(#prefix_len);
-                        return Some(__err::false_schema(
-                            #schema_path, __path.into(), #err_instance,
-                        ));
-                    }
-                },
                 quote! {
                     for (idx, item) in #iter_expr.enumerate().skip(#prefix_len) {
                         let instance = item;
                         let __path = &__path.push(idx);
-                        __errors.push(__err::false_schema(
+                        if __errors.push(__err::false_schema(
                             #schema_path, __path.into(), #err_instance,
-                        ));
+                        )) { return true; }
                     }
                 },
             )
         }
         _ => {
-            let compiled = ctx.with_schema_path_segment("items", |ctx| {
-                ctx.with_instance_scope(|ctx| compile_schema(ctx, value))
-            });
+            let compiled = ctx.with_schema_path_segment("items", |ctx| compile_schema(ctx, value));
             if compiled.is_trivially_true() {
                 return CompiledExpr::always_true();
             }
-            let is_valid = compiled.is_valid_token_stream();
-            let expr = compiled.validate.as_token_stream();
-            let child_collect = compiled.collect.as_token_stream();
+            let predicate = item_predicate(&compiled.is_valid_token_stream());
+            let child_errors = compiled.errors.as_token_stream();
+            let errors = compiled.guard_errors(&quote! {
+                let __path = &__path.push(idx);
+                #child_errors
+            });
             let iter_expr = E::array_iter(format_ident!("arr"));
-            CompiledExpr::with_validate_and_collect_blocks(
-                quote! { #iter_expr.skip(#prefix_len).all(|instance| #is_valid) },
+            CompiledExpr::with_errors(
+                quote! { #iter_expr.skip(#prefix_len).all(#predicate) },
                 quote! {
                     for (idx, item) in #iter_expr.enumerate().skip(#prefix_len) {
                         let instance = item;
-                        let __path = &__path.push(idx);
-                        #expr
-                    }
-                },
-                quote! {
-                    for (idx, item) in #iter_expr.enumerate().skip(#prefix_len) {
-                        let instance = item;
-                        if !(#is_valid) {
-                            let __path = &__path.push(idx);
-                            #child_collect
-                        }
+                        #errors
                     }
                 },
             )
+            .with_skips_valid(compiled.skips_valid)
         }
     }
 }

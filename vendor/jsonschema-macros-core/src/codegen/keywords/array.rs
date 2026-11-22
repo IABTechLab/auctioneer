@@ -10,17 +10,19 @@ use crate::codegen::emit::ValueEmitter;
 use quote::format_ident;
 use serde_json::{Map, Value};
 
-/// Compile all array-specific keywords.
+/// Compile all array-specific keywords; with `split_unevaluated`, the `unevaluatedItems` errors
+/// are returned separately.
 pub(in super::super) fn compile<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     schema: &Map<String, Value>,
-) -> CompiledExpr {
+    split_unevaluated: bool,
+) -> (CompiledExpr, Option<CompiledExpr>) {
     let mut checks: Vec<CompiledExpr> = Vec::new();
     let validation_vocab_enabled = ctx.supports_validation_vocabulary();
     let applicator_vocab_enabled = ctx.supports_applicator_vocabulary();
 
     // Checks are pushed in the runtime's `keyword_priority` order so that
-    // `validate` reports the same first error as the runtime validator.
+    // the first error reported is the runtime validator's.
     let array_len = E::array_len(format_ident!("arr"));
     compile_count_range(
         ctx,
@@ -47,8 +49,8 @@ pub(in super::super) fn compile<E: ValueEmitter>(
     let prefix_len = if applicator_vocab_enabled && ctx.draft.supports_prefix_items_keyword() {
         if let Some(prefix_items_value) = schema.get("prefixItems") {
             match prefix_items_value {
-                Value::Array(_) => {
-                    if let Some((compiled, len)) = prefix_items::compile(ctx, prefix_items_value) {
+                Value::Array(schemas) => {
+                    if let Some((compiled, len)) = prefix_items::compile(ctx, schemas) {
                         prefix_items_check = Some(compiled);
                         Some(len)
                     } else {
@@ -124,9 +126,16 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         }
     }
 
+    let mut unevaluated_errors = None;
     if let Some(compiled) = unevaluated_items::compile(ctx, schema) {
-        checks.push(compiled);
+        if split_unevaluated {
+            let (check, errors) = compiled.split_errors();
+            unevaluated_errors = Some(errors);
+            checks.push(check);
+        } else {
+            checks.push(compiled);
+        }
     }
 
-    CompiledExpr::combine_and(checks)
+    (CompiledExpr::combine_and(checks), unevaluated_errors)
 }

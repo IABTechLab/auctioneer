@@ -1,6 +1,6 @@
 use super::super::{
-    compile_regex_match, errors::invalid_schema_type_expression, translate_and_validate_regex,
-    CompileContext, CompiledExpr, RegexSite,
+    analyze_pattern, compile_regex_match, errors::invalid_schema_type_expression,
+    translate_and_validate_regex, CompileContext, CompiledExpr, RegexSite,
 };
 use crate::codegen::emit::ValueEmitter;
 use proc_macro2::TokenStream;
@@ -15,14 +15,14 @@ fn pattern_check<E: ValueEmitter>(
 ) -> CompiledExpr {
     let err_instance = E::err_instance(format_ident!("instance"));
     let validate_check = located_check.unwrap_or(&check);
-    let validate = quote! {
+    let first_error = quote! {
         if !(#validate_check) {
-            return Some(__err::pattern(
+            break '__first_error Some(__err::pattern(
                 #schema_path, __path.into(), #err_instance, #pattern,
             ));
         }
     };
-    CompiledExpr::with_validate_blocks(check, validate)
+    CompiledExpr::from_first_error(check, first_error)
 }
 
 pub(crate) fn compile<E: ValueEmitter>(
@@ -33,7 +33,7 @@ pub(crate) fn compile<E: ValueEmitter>(
         return invalid_schema_type_expression(value, &["string"]);
     };
     let schema_path = ctx.schema_path_for_keyword("pattern");
-    match jsonschema_regex::analyze_pattern(pattern) {
+    match analyze_pattern(ctx, pattern) {
         Some(jsonschema_regex::PatternAnalysis::Prefix(prefix)) => {
             let prefix: &str = prefix.as_ref();
             pattern_check::<E>(
@@ -67,7 +67,6 @@ pub(crate) fn compile<E: ValueEmitter>(
             Ok(regex) => {
                 let mut site = RegexSite {
                     schema_path: &schema_path,
-                    pattern: Some(pattern),
                     located: false,
                 };
                 let check = compile_regex_match(ctx, &regex, &quote! { s }, &site);

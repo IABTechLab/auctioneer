@@ -1,4 +1,6 @@
 //! Source-scoped suffix extraction scratch. Retained Memchr storage is separate.
+//! Audited 0.8.12 only derives the existing Prefix default; literal/trie records
+//! and extraction operations are unchanged from 0.8.11.
 
 use crate::schema_heap_layout::{AllocationEnvelope, HeapLayout, LayoutError, NativeField};
 use std::collections::BTreeMap;
@@ -135,6 +137,7 @@ pub(super) fn suffix(
 mod tests {
     use super::{KEYS, PATTERN, Refusal, suffix};
     use crate::schema_heap_layout::NativeField;
+    use regex_syntax::hir::literal::ExtractKind;
     use std::collections::BTreeMap;
 
     fn facts() -> BTreeMap<String, NativeField> {
@@ -150,6 +153,11 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn reviewed_literal_extraction_default_remains_prefix() {
+        assert!(matches!(ExtractKind::default(), ExtractKind::Prefix));
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::codegen::emit::ValueEmitter;
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use referencing::{write_escaped_str, Uri};
 use serde_json::Value;
@@ -7,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::context::CompileContext;
+use crate::context::{CompileContext, Dialect, ErrorsFn};
 
 use super::{
     compile_schema,
@@ -15,10 +16,8 @@ use super::{
     keywords::unevaluated::{compile_index_evaluated_expr, compile_key_evaluated_expr, GuardHoist},
     refs::resolve_ref,
     stack_emit::{
-        pop_dynamic_collect_n, pop_dynamic_validate_n, pop_recursive_collect,
-        pop_recursive_validate, push_dynamic_collect, push_dynamic_validate,
-        push_recursive_collect, push_recursive_validate, stack_scoped_body, IS_VALID_FAMILY,
-        ITEM_EVAL_FAMILY, KEY_EVAL_FAMILY,
+        pop_dynamic_errors_n, pop_recursive_errors, push_dynamic_errors, push_recursive_errors,
+        stack_scoped_body, IS_VALID_FAMILY, ITEM_EVAL_FAMILY, KEY_EVAL_FAMILY,
     },
 };
 
@@ -88,26 +87,30 @@ pub(crate) fn collect_dynamic_anchor_bindings<E: ValueEmitter>(
                 let Ok(resolved) = resolve_ref(ctx, &reference) else {
                     continue;
                 };
-                if dynamic_ref_anchor_name(&reference, &resolved.schema).is_none() {
+                if dynamic_ref_anchor_name(&reference, resolved.schema).is_none() {
                     continue;
                 }
                 let is_valid_name = get_or_create_is_valid_fn(
                     ctx,
                     &resolved.location,
-                    &resolved.schema,
+                    resolved.resource_start,
+                    resolved.schema,
                     resolved.base_uri.clone(),
+                    resolved.dialect.clone(),
                 );
                 let key_eval_name = get_or_create_key_eval_fn(
                     ctx,
                     &resolved.location,
-                    &resolved.schema,
+                    resolved.schema,
                     resolved.base_uri.clone(),
+                    resolved.dialect.clone(),
                 );
                 let item_eval_name = get_or_create_item_eval_fn(
                     ctx,
                     &resolved.location,
-                    &resolved.schema,
+                    resolved.schema,
                     resolved.base_uri,
+                    resolved.dialect,
                 );
                 bindings.push(DynamicAnchorBinding {
                     anchor,
@@ -137,6 +140,7 @@ pub(crate) fn get_or_create_key_eval_fn<E: ValueEmitter>(
     location: &str,
     schema: &Value,
     schema_base_uri: Arc<Uri<String>>,
+    dialect: Dialect,
 ) -> String {
     if let Some(name) = ctx.key_eval_fns.get_name(location) {
         return name.clone();
@@ -146,9 +150,8 @@ pub(crate) fn get_or_create_key_eval_fn<E: ValueEmitter>(
 
     if let Value::Object(schema_obj) = schema {
         let body = ctx.with_key_eval_scope(location, |ctx| {
-            let schema_value = Value::Object(schema_obj.clone());
-            ctx.with_schema_env(&schema_value, schema_base_uri, |ctx| {
-                let compiled = compile_key_evaluated_expr(ctx, schema_obj, true, false);
+            ctx.with_schema_env(schema_base_uri, dialect, |ctx| {
+                let compiled = compile_key_evaluated_expr(ctx, schema_obj, true, false, None);
                 let is_recursive_anchor = ctx.draft.supports_recursive_ref_keyword()
                     && schema_obj.get("$recursiveAnchor").and_then(Value::as_bool) == Some(true);
                 let dynamic_bindings = if ctx.uses_dynamic_ref {
@@ -183,6 +186,7 @@ pub(crate) fn get_or_create_item_eval_fn<E: ValueEmitter>(
     location: &str,
     schema: &Value,
     schema_base_uri: Arc<Uri<String>>,
+    dialect: Dialect,
 ) -> String {
     if let Some(name) = ctx.item_eval_fns.get_name(location) {
         return name.clone();
@@ -192,10 +196,9 @@ pub(crate) fn get_or_create_item_eval_fn<E: ValueEmitter>(
 
     if let Value::Object(schema_obj) = schema {
         let body = ctx.with_item_eval_scope(location, |ctx| {
-            let schema_value = Value::Object(schema_obj.clone());
-            ctx.with_schema_env(&schema_value, schema_base_uri, |ctx| {
+            ctx.with_schema_env(schema_base_uri, dialect, |ctx| {
                 let mut hoist = GuardHoist::inline();
-                let compiled = compile_index_evaluated_expr(ctx, schema_obj, &mut hoist);
+                let compiled = compile_index_evaluated_expr(ctx, schema_obj, &mut hoist, None);
                 let is_recursive_anchor = ctx.draft.supports_recursive_ref_keyword()
                     && schema_obj.get("$recursiveAnchor").and_then(Value::as_bool) == Some(true);
                 let dynamic_bindings = if ctx.uses_dynamic_ref {
@@ -223,6 +226,29 @@ pub(crate) fn get_or_create_item_eval_fn<E: ValueEmitter>(
     func_name
 }
 
+/// JSON Pointer of the schema at a resolved `location` within its resource: the percent-decoded
+/// fragment ("/$defs/foo" from "base.json#/$defs/foo"), or where an anchor fragment ("#foo") sits.
+pub(crate) fn location_pointer<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    location: &str,
+    base_uri: &Uri<String>,
+) -> String {
+    location.rfind('#').map_or_else(String::new, |hash| {
+        // `#foo`, borrowed from `location` to look the anchor up
+        let reference = &location[hash..];
+        let frag = &reference[1..];
+        if frag.starts_with('/') {
+            percent_encoding::percent_decode_str(frag)
+                .decode_utf8_lossy()
+                .into_owned()
+        } else if frag.is_empty() {
+            String::new()
+        } else {
+            named_target_pointer(ctx, base_uri, reference)
+        }
+    })
+}
+
 /// JSON Pointer of the schema `reference` (`#foo`) names within the resource at `base_uri`.
 fn named_target_pointer<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
@@ -231,10 +257,18 @@ fn named_target_pointer<E: ValueEmitter>(
 ) -> String {
     let resolver = ctx.config.registry.resolver(base_uri.clone());
     let (Ok(resource), Ok(target)) = (resolver.lookup(""), resolver.lookup(reference)) else {
-        // Guard helpers key on the serialized subschema, not a URI
+        // A guard helper's location is a serialized subschema, which names no anchor.
         return String::new();
     };
-    let root = resource.contents();
+    anchor_pointer(ctx, resource.contents(), target.contents())
+}
+
+/// JSON Pointer of `target`, a schema an anchor names, within the resource rooted at `root`.
+pub(crate) fn anchor_pointer<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    root: &Value,
+    target: &Value,
+) -> String {
     ctx.anchor_pointers
         .entry(std::ptr::from_ref(root) as usize)
         .or_insert_with(|| {
@@ -242,7 +276,7 @@ fn named_target_pointer<E: ValueEmitter>(
             index_anchors(root, &mut String::new(), &mut index);
             index
         })
-        .get(&(std::ptr::from_ref(target.contents()) as usize))
+        .get(&(std::ptr::from_ref(target) as usize))
         .cloned()
         .expect("An anchor lives in the resource it is looked up in")
 }
@@ -279,50 +313,118 @@ fn index_anchors(value: &Value, pointer: &mut String, index: &mut HashMap<usize,
     }
 }
 
-/// Get or create a function for a reference location.
+/// Get or create a function for a reference location, written in `dialect`. Its pointer enters the
+/// resource at `schema_base_uri` after `resource_start` bytes.
 pub(crate) fn get_or_create_is_valid_fn<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     location: &str,
+    resource_start: usize,
     schema: &Value,
     schema_base_uri: Arc<Uri<String>>,
+    dialect: Dialect,
 ) -> String {
-    get_or_create_is_valid_fn_with(ctx, location, schema, schema_base_uri, compile_schema)
+    get_or_create_is_valid_fn_with(
+        ctx,
+        location,
+        resource_start,
+        schema,
+        schema_base_uri,
+        dialect,
+        compile_schema,
+    )
+}
+
+/// The base the runtime locates keywords against, or `None` for the internal default one.
+pub(crate) fn located_base(base: &Uri<String>) -> Option<String> {
+    (base.scheme().as_str() != "json-schema").then(|| base.as_str().to_string())
+}
+
+/// The errors function `{func_name}_errors` of the subschema at `pointer` in the resource at
+/// `base`, which starts `resource_start` bytes into `pointer`: `body` reports its errors relative
+/// to it, between `enter` and `leave`, and the runtime places them below the reference that
+/// reaches it.
+fn errors_fn(
+    func_name: &str,
+    enter: &TokenStream,
+    leave: &TokenStream,
+    body: TokenStream,
+    pointer: &str,
+    base: Option<&str>,
+    resource_start: usize,
+) -> ErrorsFn {
+    let body_ident = format_ident!("{}_errors_body", func_name);
+    let base = base.map_or_else(|| quote! { None }, |base| quote! { Some(#base) });
+    ErrorsFn {
+        entry: quote! {
+            let __start = __errors.mark();
+            #enter
+            let __stop = #body_ident(instance, __path, __errors);
+            #leave
+            __errors.reached(__start, #pointer, #base, #resource_start, __site);
+            __stop
+        },
+        body,
+    }
+}
+
+/// The code a `$recursiveRef` landing on `schema` runs, when `schema` is a resource root reached
+/// through another `location`: the code of the root as a `$recursiveRef` in it names it.
+fn recursive_anchor_name<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    location: &str,
+    schema: &Value,
+    is_recursive_anchor: bool,
+) -> Option<String> {
+    if !is_recursive_anchor {
+        return None;
+    }
+    let root = resolve_ref(ctx, "#").expect("a resource's root resolves");
+    if root.location == location || !std::ptr::eq(root.schema, schema) {
+        return None;
+    }
+    Some(get_or_create_is_valid_fn(
+        ctx,
+        &root.location,
+        root.resource_start,
+        root.schema,
+        root.base_uri,
+        root.dialect,
+    ))
 }
 
 /// Like [`get_or_create_is_valid_fn`], with a custom body compiler.
 pub(crate) fn get_or_create_is_valid_fn_with<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     location: &str,
+    resource_start: usize,
     schema: &Value,
     schema_base_uri: Arc<Uri<String>>,
+    dialect: Dialect,
     compile: impl Fn(&mut CompileContext<'_, E>, &Value) -> crate::codegen::CompiledExpr,
 ) -> String {
-    if let Some(name) = ctx.is_valid_fns.get_name(location) {
-        return name.clone();
+    if let Some(name) = ctx.is_valid_fns.get_name(location).cloned() {
+        if ctx.is_valid_fns.is_compiling(location) {
+            ctx.reentered_targets.insert(location.to_string());
+        }
+        return name;
     }
 
     let func_name = ctx.is_valid_fns.alloc_name(location);
+    ctx.compiled_within
+        .insert(location.to_string(), ctx.compiling_stack.last().cloned());
+    ctx.target_locations
+        .entry(std::ptr::from_ref(schema).addr())
+        .or_default()
+        .push(location.to_string());
 
-    // Errors inside this helper carry the target's JSON Pointer within its resource: the
-    // percent-decoded fragment of `location` ("/$defs/foo" from "base.json#/$defs/foo"), or
-    // where an anchor fragment ("#foo") sits.
-    let ref_schema_path: String = location.rfind('#').map_or_else(String::new, |hash| {
-        // `#foo`, borrowed from `location` to look the anchor up
-        let reference = &location[hash..];
-        let frag = &reference[1..];
-        if frag.starts_with('/') {
-            percent_encoding::percent_decode_str(frag)
-                .decode_utf8_lossy()
-                .into_owned()
-        } else if frag.is_empty() {
-            String::new()
-        } else {
-            named_target_pointer(ctx, &schema_base_uri, reference)
-        }
-    });
+    // Errors inside this helper carry the target's JSON Pointer from the document its location
+    // names.
+    let ref_schema_path = location_pointer(ctx, location, &schema_base_uri);
 
+    let pointer = ref_schema_path.clone();
+    let base = located_base(&schema_base_uri);
     let body = ctx.with_is_valid_scope(location, |ctx| {
-        ctx.with_schema_env(schema, schema_base_uri, |ctx| {
+        ctx.with_schema_env(schema_base_uri, dialect, |ctx| {
             // Set schema_path to the location fragment so errors embed the correct path.
             let compiled = ctx.with_schema_path_swap(ref_schema_path, |ctx| {
                 ctx.with_helper_root_scope(|ctx| compile(ctx, schema))
@@ -335,16 +437,32 @@ pub(crate) fn get_or_create_is_valid_fn_with<E: ValueEmitter>(
                 Vec::new()
             };
             if ctx.uses_recursive_ref || ctx.uses_dynamic_ref {
-                let func_ident = format_ident!("{}", func_name);
-                let key_eval_name =
-                    get_or_create_key_eval_fn(ctx, location, schema, ctx.current_base_uri.clone());
+                let recursive_name = if ctx.uses_recursive_ref {
+                    recursive_anchor_name(ctx, location, schema, is_recursive_anchor)
+                        .unwrap_or_else(|| func_name.clone())
+                } else {
+                    func_name.clone()
+                };
+                let recursive_ident = format_ident!("{}", recursive_name);
+                let key_eval_name = get_or_create_key_eval_fn(
+                    ctx,
+                    location,
+                    schema,
+                    ctx.current_base_uri.clone(),
+                    ctx.dialect(),
+                );
                 let key_eval_ident = format_ident!("{}", key_eval_name);
-                let item_eval_name =
-                    get_or_create_item_eval_fn(ctx, location, schema, ctx.current_base_uri.clone());
+                let item_eval_name = get_or_create_item_eval_fn(
+                    ctx,
+                    location,
+                    schema,
+                    ctx.current_base_uri.clone(),
+                    ctx.dialect(),
+                );
                 let item_eval_ident = format_ident!("{}", item_eval_name);
                 // Pops mirror pushes in reverse family order on every path.
                 let families = [
-                    (&IS_VALID_FAMILY, &func_ident),
+                    (&IS_VALID_FAMILY, &recursive_ident),
                     (&KEY_EVAL_FAMILY, &key_eval_ident),
                     (&ITEM_EVAL_FAMILY, &item_eval_ident),
                 ];
@@ -384,116 +502,67 @@ pub(crate) fn get_or_create_is_valid_fn_with<E: ValueEmitter>(
                 } else {
                     quote! {}
                 };
-                // Store the validate body so $recursiveRef/$dynamicRef dispatch
-                // in validate() context finds the right validate function.
                 {
-                    let validate_stmts = compiled.validate.as_token_stream();
-                    let validate_ident = format_ident!("{}_validate", func_name);
-                    let recursive_validate_push = if ctx.uses_recursive_ref {
-                        push_recursive_validate(&validate_ident, is_recursive_anchor)
+                    let errors_stmts = compiled.errors.as_token_stream();
+                    let (enter, leave) = if recursive_push.is_empty() && dynamic_push.is_empty() {
+                        (quote! {}, quote! {})
                     } else {
-                        quote! {}
-                    };
-                    let recursive_validate_pop = if ctx.uses_recursive_ref {
-                        pop_recursive_validate()
-                    } else {
-                        quote! {}
-                    };
-                    let dynamic_validate_pushes: Vec<_> = dynamic_bindings
-                        .iter()
-                        .map(|b| {
-                            let binding_validate_ident =
-                                format_ident!("{}_validate", b.is_valid_name);
-                            push_dynamic_validate(&b.anchor, &binding_validate_ident)
-                        })
-                        .collect();
-                    let dynamic_binding_count = dynamic_bindings.len();
-                    let dynamic_validate_push = if ctx.uses_dynamic_ref {
-                        quote! { #(#dynamic_validate_pushes)* }
-                    } else {
-                        quote! {}
-                    };
-                    let dynamic_validate_pop = if ctx.uses_dynamic_ref {
-                        pop_dynamic_validate_n(dynamic_binding_count)
-                    } else {
-                        quote! {}
-                    };
-                    let validate_body = if recursive_validate_push.is_empty()
-                        && dynamic_validate_push.is_empty()
-                        && recursive_push.is_empty()
-                        && dynamic_push.is_empty()
-                    {
-                        quote! { #validate_stmts None }
-                    } else {
-                        // Use an IIFE to capture early returns so the stack is always popped.
-                        quote! {
-                            #recursive_push
-                            #recursive_validate_push
-                            #dynamic_push
-                            #dynamic_validate_push
-                            let __r = (|| -> Option<__VE<'__i>> {
-                                #validate_stmts
-                                None
-                            })();
-                            #dynamic_validate_pop
-                            #dynamic_pop
-                            #recursive_validate_pop
-                            #recursive_pop
-                            if let Some(__e) = __r { return Some(__e); }
-                            None
-                        }
-                    };
-                    ctx.is_valid_fns
-                        .set_validate_body(&func_name, validate_body);
-                }
-                {
-                    let collect_stmts = compiled.collect.as_token_stream();
-                    let collect_body = if recursive_push.is_empty() && dynamic_push.is_empty() {
-                        quote! { #collect_stmts }
-                    } else {
-                        // Collect never returns early, so push/pop wrap the statements directly.
-                        let recursive_collect_push = if ctx.uses_recursive_ref {
-                            let collect_ident = format_ident!("{}_collect_errors", func_name);
-                            push_recursive_collect(&collect_ident, is_recursive_anchor)
+                        let errors_ident = format_ident!("{}_errors", recursive_name);
+                        let recursive_errors_push = if ctx.uses_recursive_ref {
+                            push_recursive_errors(&errors_ident, is_recursive_anchor)
                         } else {
                             quote! {}
                         };
-                        let recursive_collect_pop = if ctx.uses_recursive_ref {
-                            pop_recursive_collect()
+                        let recursive_errors_pop = if ctx.uses_recursive_ref {
+                            pop_recursive_errors()
                         } else {
                             quote! {}
                         };
-                        let dynamic_collect_pushes: Vec<_> = dynamic_bindings
+                        let dynamic_errors_pushes: Vec<_> = dynamic_bindings
                             .iter()
                             .map(|b| {
-                                let binding_collect_ident =
-                                    format_ident!("{}_collect_errors", b.is_valid_name);
-                                push_dynamic_collect(&b.anchor, &binding_collect_ident)
+                                let binding_errors_ident =
+                                    format_ident!("{}_errors", b.is_valid_name);
+                                push_dynamic_errors(&b.anchor, &binding_errors_ident)
                             })
                             .collect();
-                        let dynamic_collect_push = if ctx.uses_dynamic_ref {
-                            quote! { #(#dynamic_collect_pushes)* }
+                        let dynamic_errors_push = if ctx.uses_dynamic_ref {
+                            quote! { #(#dynamic_errors_pushes)* }
                         } else {
                             quote! {}
                         };
-                        let dynamic_collect_pop = if ctx.uses_dynamic_ref {
-                            pop_dynamic_collect_n(dynamic_bindings.len())
+                        let dynamic_errors_pop = if ctx.uses_dynamic_ref {
+                            pop_dynamic_errors_n(dynamic_bindings.len())
                         } else {
                             quote! {}
                         };
-                        quote! {
-                            #recursive_push
-                            #recursive_collect_push
-                            #dynamic_push
-                            #dynamic_collect_push
-                            #collect_stmts
-                            #dynamic_collect_pop
-                            #dynamic_pop
-                            #recursive_collect_pop
-                            #recursive_pop
-                        }
+                        (
+                            quote! {
+                                #recursive_push
+                                #recursive_errors_push
+                                #dynamic_push
+                                #dynamic_errors_push
+                            },
+                            quote! {
+                                #dynamic_errors_pop
+                                #dynamic_pop
+                                #recursive_errors_pop
+                                #recursive_pop
+                            },
+                        )
                     };
-                    ctx.is_valid_fns.set_collect_body(&func_name, collect_body);
+                    ctx.is_valid_fns.set_errors_body(
+                        &func_name,
+                        errors_fn(
+                            &func_name,
+                            &enter,
+                            &leave,
+                            quote! { #errors_stmts false },
+                            &pointer,
+                            base.as_deref(),
+                            resource_start,
+                        ),
+                    );
                 }
                 if recursive_push.is_empty() && dynamic_push.is_empty() {
                     compiled.into_token_stream()
@@ -510,16 +579,19 @@ pub(crate) fn get_or_create_is_valid_fn_with<E: ValueEmitter>(
                     }
                 }
             } else {
-                // Non-recursive, non-dynamic: store the complete validate function body.
-                let validate_stmts = match &compiled.validate {
-                    super::expr::ValidateBlock::Expr(v) => v.clone(),
-                    super::expr::ValidateBlock::AlwaysValid => quote! {},
-                };
-                let validate_body = quote! { #validate_stmts None };
-                ctx.is_valid_fns
-                    .set_validate_body(&func_name, validate_body);
-                ctx.is_valid_fns
-                    .set_collect_body(&func_name, compiled.collect.as_token_stream());
+                let errors_stmts = compiled.errors.as_token_stream();
+                ctx.is_valid_fns.set_errors_body(
+                    &func_name,
+                    errors_fn(
+                        &func_name,
+                        &quote! {},
+                        &quote! {},
+                        quote! { #errors_stmts false },
+                        &pointer,
+                        base.as_deref(),
+                        resource_start,
+                    ),
+                );
                 compiled.into_token_stream()
             }
         })

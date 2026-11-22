@@ -11,10 +11,37 @@ use super::{
         stack_emit::{pop_recursive_item_eval, push_recursive_item_eval},
         CompiledExpr,
     },
-    unevaluated::{compile_index_evaluated_expr, GuardHoist},
+    unevaluated::{compile_index_evaluated_expr, GuardHoist, ReportGuards},
 };
 
-/// Compile the "unevaluatedItems" keyword.
+/// Code pushing to `__unevaluated` the positions of the items of an array `instance` that `schema`
+/// leaves unevaluated, as its errors count them.
+pub(crate) fn unevaluated_items<E: ValueEmitter>(
+    ctx: &mut CompileContext<'_, E>,
+    schema: &Map<String, Value>,
+) -> proc_macro2::TokenStream {
+    // The keyword's own subschema evaluates items for a parent schema only.
+    let mut others = schema.clone();
+    others.remove("unevaluatedItems");
+    let mut report = ReportGuards::default();
+    let mut hoist = GuardHoist::hoisting();
+    let reported = compile_index_evaluated_expr(ctx, &others, &mut hoist, Some(&mut report));
+    let (bindings, cells) = (hoist.bindings(), report.cells());
+    let iter = E::array_iter(format_ident!("arr"));
+    E::if_array(
+        format_ident!("instance"),
+        quote! {
+            #(#bindings)*
+            #(#cells)*
+            for (idx, item) in #iter.enumerate() {
+                if !(#reported) {
+                    __unevaluated.push(idx);
+                }
+            }
+        },
+    )
+}
+
 pub(crate) fn compile<E: ValueEmitter>(
     ctx: &mut CompileContext<'_, E>,
     schema: &Map<String, Value>,
@@ -32,12 +59,32 @@ pub(crate) fn compile<E: ValueEmitter>(
     let array = E::array_param();
 
     let mut hoist = GuardHoist::hoisting();
-    let evaluated_expr = compile_index_evaluated_expr(ctx, schema, &mut hoist);
+    let evaluated_expr = compile_index_evaluated_expr(ctx, schema, &mut hoist, None);
     let guard_bindings = hoist.bindings();
+    // Errors count a subschema the schema applies in place only where it validates, which needs
+    // its own expression when the schema has one.
+    let mut report = ReportGuards::default();
+    let mut report_hoist = GuardHoist::hoisting();
+    let reported = [
+        "$ref",
+        "$dynamicRef",
+        "$recursiveRef",
+        "allOf",
+        "then",
+        "else",
+    ]
+    .iter()
+    .any(|keyword| schema.contains_key(*keyword))
+    .then(|| compile_index_evaluated_expr(ctx, schema, &mut report_hoist, Some(&mut report)));
+    let (reported_expr, reported_bindings) = match &reported {
+        Some(expr) if !report.is_empty() => (expr, report_hoist.bindings()),
+        _ => (&evaluated_expr, guard_bindings),
+    };
+    let report_cells = report.cells();
     let unevaluated_check = if unevaluated.as_bool() == Some(false) {
         quote! { false }
     } else {
-        let schema_check = ctx.with_instance_scope(|ctx| compile_schema(ctx, unevaluated));
+        let schema_check = compile_schema(ctx, unevaluated);
         quote! { (|instance: #node| #schema_check)(item) }
     };
 
@@ -72,7 +119,7 @@ pub(crate) fn compile<E: ValueEmitter>(
                 __result
             }
         };
-        let validate = E::if_array(
+        let first_error = E::if_array(
             format_ident!("instance"),
             quote! {
                 let __root_item_eval: fn(
@@ -82,21 +129,23 @@ pub(crate) fn compile<E: ValueEmitter>(
                     #node
                 ) -> bool = |instance, arr, idx, item| { #(#guard_bindings)* #evaluated_expr };
                 #recursive_push
+                #(#reported_bindings)*
+                #(#report_cells)*
                 let mut __unexpected: Vec<String> = Vec::new();
                 for (idx, item) in #iter_expr.enumerate() {
-                    if !__root_item_eval(instance, arr, idx, item) && !(#unevaluated_check) {
+                    if !(#reported_expr) && !(#unevaluated_check) {
                         __unexpected.push(#unexpected_item);
                     }
                 }
                 #recursive_pop
                 if !__unexpected.is_empty() {
-                    return Some(__err::unevaluated_items(
+                    break '__first_error Some(__err::unevaluated_items(
                         #schema_path, __path.into(), #err_instance, __unexpected,
                     ));
                 }
             },
         );
-        Some(CompiledExpr::with_validate_blocks(is_valid, validate))
+        Some(CompiledExpr::from_first_error(is_valid, first_error))
     } else {
         let all_expr = quote! {
             #iter_expr.enumerate().all(|(idx, item)| {
@@ -112,23 +161,24 @@ pub(crate) fn compile<E: ValueEmitter>(
         } else {
             quote! { { #(#guard_bindings)* #all_expr } }
         };
-        let validate = E::if_array(
+        let first_error = E::if_array(
             format_ident!("instance"),
             quote! {
-                #(#guard_bindings)*
+                #(#reported_bindings)*
+                #(#report_cells)*
                 let mut __unexpected: Vec<String> = Vec::new();
                 for (idx, item) in #iter_expr.enumerate() {
-                    if !(#evaluated_expr) && !(#unevaluated_check) {
+                    if !(#reported_expr) && !(#unevaluated_check) {
                         __unexpected.push(#unexpected_item);
                     }
                 }
                 if !__unexpected.is_empty() {
-                    return Some(__err::unevaluated_items(
+                    break '__first_error Some(__err::unevaluated_items(
                         #schema_path, __path.into(), #err_instance, __unexpected,
                     ));
                 }
             },
         );
-        Some(CompiledExpr::with_validate_blocks(is_valid, validate))
+        Some(CompiledExpr::from_first_error(is_valid, first_error))
     }
 }

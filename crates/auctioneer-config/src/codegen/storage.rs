@@ -536,12 +536,14 @@ mod tests {
                 "0fa556330e93e47e3282df3bb1b39708b0fd8f912e402c6485a4b08d2a14781b",
             ),
         ] {
-            let constructors = constructors
+            let owned_constructors = constructors
                 .into_iter()
                 .map(str::to_owned)
                 .collect::<Vec<_>>();
             assert_eq!(
-                hex::encode(metadata_source_sha256(&constructors, bindings, declarations).unwrap()),
+                hex::encode(
+                    metadata_source_sha256(&owned_constructors, bindings, declarations).unwrap()
+                ),
                 expected
             );
         }

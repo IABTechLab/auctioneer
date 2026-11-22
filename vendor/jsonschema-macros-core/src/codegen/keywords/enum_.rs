@@ -4,7 +4,6 @@ use serde_json::Value;
 
 use super::super::{invalid_schema_type_expression, CompiledExpr};
 
-/// Compile the "enum" keyword.
 pub(in super::super) fn compile<E: ValueEmitter>(
     ctx: &CompileContext<'_, E>,
     value: &Value,
@@ -51,14 +50,13 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         let has_false = booleans
             .iter()
             .any(|variant| variant.as_bool() == Some(false));
-        let arm = match (has_true, has_false) {
-            (true, true) => {
-                let bool_pattern = E::pattern_boolean();
-                quote! { #bool_pattern => true, }
-            }
-            (true, false) => E::match_boolean_arm(quote! { *b }),
-            (false, true) => E::match_boolean_arm(quote! { !*b }),
-            (false, false) => unreachable!(),
+        let arm = if has_true && has_false {
+            let bool_pattern = E::pattern_boolean();
+            quote! { #bool_pattern => true, }
+        } else if has_true {
+            E::match_boolean_arm(quote! { *b })
+        } else {
+            E::match_boolean_arm(quote! { !*b })
         };
         match_arms.push(arm);
     }
@@ -114,15 +112,14 @@ pub(in super::super) fn compile<E: ValueEmitter>(
         let complex_json =
             serde_json::to_string(&complex).expect("Failed to serialize complex variants");
         let variant_equals = E::value_equals_instance(format_ident!("variant"));
-        let arm_pattern = match (has_arrays, has_objects) {
-            (true, true) => {
-                let array_pattern = E::pattern_array();
-                let object_pattern = E::pattern_object();
-                quote! { #array_pattern | #object_pattern }
-            }
-            (true, false) => E::pattern_array(),
-            (false, true) => E::pattern_object(),
-            (false, false) => unreachable!(),
+        let arm_pattern = if has_arrays && has_objects {
+            let array_pattern = E::pattern_array();
+            let object_pattern = E::pattern_object();
+            quote! { #array_pattern | #object_pattern }
+        } else if has_arrays {
+            E::pattern_array()
+        } else {
+            E::pattern_object()
         };
         match_arms.push(quote! {
             #arm_pattern => {
@@ -141,7 +138,7 @@ pub(in super::super) fn compile<E: ValueEmitter>(
 
     let is_valid = E::type_match(format_ident!("instance"), match_arms);
     let err_instance = E::err_instance(format_ident!("instance"));
-    CompiledExpr::with_validate_blocks(
+    CompiledExpr::from_first_error(
         is_valid.clone(),
         quote! {
             if !(#is_valid) {
@@ -151,7 +148,7 @@ pub(in super::super) fn compile<E: ValueEmitter>(
                             __sj::from_str(#enum_json).expect("Failed to parse enum options"),
                         )
                     });
-                return Some(__err::enumeration(
+                break '__first_error Some(__err::enumeration(
                     #schema_path, __path.into(), #err_instance, &*ENUM_OPTIONS,
                 ));
             }

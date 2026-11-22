@@ -56,7 +56,36 @@ The supported library size-limit failure allocates 144,920 bytes cumulatively, p
 
 The explicitly hypothetical layout evaluation gives C = 90,720, I = 405,111 and C + I = 495,831 requested bytes, with 5,211 separately supplied linked/inline attribution bytes. These are not observed target layouts and do not add linked bytes twice. Pure tests explicitly construct hypothetical `CatalogResourceCosts` to exercise the existing arithmetic; the source recipe does not authenticate or authorize installation of physical costs, establish fit or grant serving permission. Work ledgers retain their own source-visit units and exclusions, not latency/instruction/stack bounds.
 
-## Remaining Acceptance
+## Main Dependency Integration
+
+Main advanced through [#263](https://github.com/IABTechLab/auctioneer/pull/263)
+at `05f2a56` during this implementation. The artifact/source guards refused the
+synthetic merge's syntax 0.8.12 against this branch's exact 0.8.11 assumptions.
+The normal main merge retains its compiler 0.62.0, engine 0.4.19 and SDK graph;
+this PR does not select another dependency version or alter the vendor patches.
+
+The syntax archives were independently checked against their lock checksums:
+0.8.11 `d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4`
+and 0.8.12 `d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6`.
+The complete `hir/literal.rs` delta derives the same Prefix default instead of
+implementing it manually. Literal/trie records and allocation, extraction and
+destruction paths are unchanged. Only the added literal source witness changes;
+the source-bound suffix formulas and independent expected totals do not.
+
+The resolver now requires the current exact version/source/checksum tuple and
+retains canonical package, edge, feature and vendor checks. Previous-release,
+missing, duplicated and substituted tuples refuse. Compiler declarations must
+explicitly disable the new evaluation method; both true and missing evaluation
+options refuse. No legacy method tuple is admitted.
+
+The frozen 081 capture above remains pre-upgrade evidence, not a certificate for
+the integrated graph. Its pure-core consumer checks unchanged additive arithmetic
+over that historical data only. Current common-source proofs and fresh matched
+observations must execute against the integrated graph in the full hosted matrix;
+their current-head results belong to PR #262. No old result is recertified by the
+main merge or by changing a source witness.
+
+## Final Acceptance
 
 - Task 8: verify the captured-data pure-core consumer's multiplicity/refusal controls against unchanged production arithmetic in its existing owner; retain current `catalog_alloc` and historical continuity acceptance. Task 8's behavioral RED is already recorded in the captured-source path; these integration tests do not require a separate new RED for each test. The producer's `task8_complete: true` labels its reconstruction path, not completion of the entire approved task.
 - Task 9: repair and rerun strict lint/hosted formatting, verify the real development growth frame and exact nonzero dispatch, all six separately owned probes, both fresh evidence producers and the unchanged complete feature/guest/packaging matrix at the final head. No final all-green result is recorded here.

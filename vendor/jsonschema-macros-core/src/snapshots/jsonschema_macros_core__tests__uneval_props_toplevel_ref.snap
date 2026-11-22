@@ -1,15 +1,63 @@
 ---
 source: crates/jsonschema-macros-core/src/tests.rs
 description: "{\"$defs\":{\"base\":{\"properties\":{\"a\":{}}}},\"$ref\":\"#/$defs/base\",\"type\":\"object\",\"unevaluatedProperties\":false}"
-expression: is_valid_body(schema)
+expression: errors_body(schema)
 ---
-(match instance {
+match instance {
             __Value::Object(obj) => {
-                obj.iter()
-                    .all(|(__key, __value)| {
-                        let key_str = __key.as_str();
-                        if eval_ref_0(instance, obj, key_str) { true } else { false }
-                    })
+                if let Some(__e) = '__first_error: {
+                    if let __Value::Object(obj) = instance {
+                        let mut __report_guard_0: Option<bool> = None;
+                        let mut __unexpected: Vec<String> = Vec::new();
+                        for (__key, __value) in obj.iter() {
+                            let key_str = __key.as_str();
+                            if !((eval_ref_0(instance, obj, key_str))
+                                && match __report_guard_0 {
+                                    Some(valid) => valid,
+                                    None => {
+                                        let valid = validate_ref_0(instance);
+                                        __report_guard_0 = Some(valid);
+                                        valid
+                                    }
+                                }) && !(false)
+                            {
+                                __unexpected.push(__key.clone());
+                            }
+                        }
+                        if !__unexpected.is_empty() {
+                            break '__first_error Some(
+                                __err::unevaluated_properties(
+                                    "/unevaluatedProperties",
+                                    __path.into(),
+                                    instance,
+                                    __unexpected,
+                                ),
+                            );
+                        }
+                    }
+                    None
+                } {
+                    if __errors.push(__e) {
+                        return true;
+                    }
+                }
             }
-            _ => false,
-        }) && (validate_ref_0(instance))
+            _ => {
+                if __errors
+                    .push(
+                        __err::single_type(
+                            "/type",
+                            __path.into(),
+                            instance,
+                            __JT::Object,
+                        ),
+                    )
+                {
+                    return true;
+                }
+            }
+        }
+        if validate_ref_0_errors(instance, __path, __errors, "/$ref") {
+            return true;
+        }
+        false

@@ -1,0 +1,39 @@
+--- a/src/codegen/object_schema.rs
++++ b/src/codegen/object_schema.rs
+@@ -194,7 +194,6 @@
+         let applicator_vocab_enabled = ctx.supports_applicator_vocabulary();
+ 
+         let type_value = schema.get("type").filter(|_| validation_vocab_enabled);
+-        let has_type_constraint = type_value.is_some();
+         let has_const_or_enum = validation_vocab_enabled
+             && ((ctx.draft.supports_const_keyword() && schema.contains_key("const"))
+                 || schema.contains_key("enum"));
+@@ -206,23 +205,16 @@
+ 
+         // Errors of `const` and `enum` go between the `type` error and the typed keywords' errors,
+         // those of `allOf` to `if` between the typed keywords' and `unevaluated*` errors.
+-        let typed = compile_typed(
+-            ctx,
+-            schema,
+-            has_type_constraint,
+-            !has_const_or_enum,
+-            has_applicators,
+-        );
+-        let has_typed_checks = typed.is_some();
++        let typed = compile_typed(ctx, schema, false, !has_const_or_enum, has_applicators);
+ 
+         // `is_valid` runs checks in push order; errors follow `Phase`.
+         let mut untyped: Vec<(Phase, CompiledExpr)> = Vec::new();
+         let mut errors_only: Vec<(Phase, CompiledExpr)> = Vec::new();
+-        if let Some(value) = type_value.filter(|_| !has_typed_checks || has_const_or_enum) {
++        if let Some(value) = type_value {
+             let type_check = keywords::type_::compile(ctx, value);
+-            // The typed dispatch checks the type already, and so do `const` or `enum` that
+-            // accept only values of that type.
+-            if has_typed_checks || type_check_is_redundant(schema, ctx.draft) {
++            // Enforce `type` independently of type-specific keyword dispatch. Only `const`
++            // or `enum` accepting values of that type can make the validity check redundant.
++            if type_check_is_redundant(schema, ctx.draft) {
+                 errors_only.push((Phase::Type, type_check.split_errors().1));
+             } else {
+                 untyped.push((Phase::Type, type_check));

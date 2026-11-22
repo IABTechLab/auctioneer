@@ -122,28 +122,28 @@ mod tests {
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Failed;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Good;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, cache = explicit },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Defaults;
 
     #[jsonschema::validator(
         path = "tests/support/fake_bidder/schemas/initialization.json", draft = Draft4,
         pattern_options = { engine = regex, cache = explicit, size_limit = 98_304, dfa_size_limit = 131_072 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct Asymmetric;
 

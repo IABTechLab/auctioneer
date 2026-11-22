@@ -1,5 +1,5 @@
-//! Vocabulary for turning IR pieces into token streams, one method per JSON representation
-//! detail a keyword module needs. Each JSON backend implements this once.
+//! Token-stream builders for each JSON representation detail a keyword module needs; each backend
+//! implements the trait once.
 use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
 use referencing::Draft;
@@ -34,8 +34,6 @@ pub(crate) trait ValueEmitter {
     fn array_iter(array_expr: impl ToTokens) -> TokenStream;
     fn object_len(object_expr: impl ToTokens) -> TokenStream;
     fn object_contains_key(object_expr: impl ToTokens, key: &str) -> TokenStream;
-    fn object_iter_all(object_expr: impl ToTokens, body: impl ToTokens) -> TokenStream;
-    fn object_get(object_expr: impl ToTokens, key: &str) -> TokenStream;
     fn object_iter_entries(object_expr: impl ToTokens) -> TokenStream;
     fn object_keys_iter(object_expr: impl ToTokens) -> TokenStream;
     /// Whether `body` holds for every property name, with the name bound as `s`.
@@ -63,8 +61,7 @@ pub(crate) trait ValueEmitter {
     /// The bodies behind the validator struct's methods, emitted inside the aliased module. A
     /// representation that records unreadable values out of band wraps each one and returns them.
     fn entry_bodies(methods: MethodGates) -> TokenStream;
-    /// The `is_valid`/`validate`/`iter_errors` methods on the validator struct, delegating to
-    /// [`ValueEmitter::entry_bodies`].
+    /// The public methods on the validator struct, delegating to [`ValueEmitter::entry_bodies`].
     fn entry_points(
         impl_mod_name: &Ident,
         runtime_crate: &TokenStream,
@@ -72,9 +69,9 @@ pub(crate) trait ValueEmitter {
     ) -> TokenStream;
     fn declare_key(key: &str) -> TokenStream;
     fn key_to_owned(key_expr: impl ToTokens) -> TokenStream;
-    /// Imports and aliases the emitted module opens with, and the statement every emitted
-    /// function starts from.
+    /// Imports and aliases the emitted module opens with.
     fn module_prelude() -> TokenStream;
+    /// The statement every emitted function starts from.
     fn function_prelude() -> TokenStream;
     /// Dispatch for a schema whose only typed arm is an array, narrowing once instead of
     /// classifying and then narrowing.

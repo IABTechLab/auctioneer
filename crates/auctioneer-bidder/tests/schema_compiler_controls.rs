@@ -410,7 +410,7 @@ mod tests {
     fn compiler_is_pinned_without_retrieval_for_native_serving_and_explicit_guest_staging() {
         let root: Value = toml::from_str(include_str!("../../../Cargo.toml")).unwrap();
         let candidate = &root["workspace"]["dependencies"]["jsonschema"];
-        assert_eq!(candidate["version"].as_str(), Some("=0.61.2"));
+        assert_eq!(candidate["version"].as_str(), Some("=0.62.0"));
         assert_eq!(candidate["default-features"].as_bool(), Some(false));
         assert_eq!(
             candidate["features"].as_array().unwrap(),
@@ -455,7 +455,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct SampleChoiceParameters;
 
@@ -464,7 +464,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct CounterParameters;
 
@@ -473,7 +473,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct OverlappingParameters;
 
@@ -484,7 +484,7 @@ mod tests {
         ignore_unknown_formats = false,
         formats = { "uuid" => crate::reference_uuid_format },
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct FormattedParameters;
 
@@ -494,7 +494,7 @@ mod tests {
         validate_formats = false,
         formats = { "uuid" => crate::reference_uuid_format },
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct UnformattedParameters;
 
@@ -503,7 +503,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct NamedFormatParameters;
 
@@ -514,7 +514,7 @@ mod tests {
         ignore_unknown_formats = false,
         formats = { "hostname" => crate::reference_hostname_format },
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct HostnameParameters;
 
@@ -523,7 +523,7 @@ mod tests {
         draft = Draft202012,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct ConditionalParameters;
 
@@ -532,7 +532,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct WrongDraftParameters;
 
@@ -541,7 +541,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct NumericPatternParameters;
 
@@ -550,7 +550,7 @@ mod tests {
         draft = Draft4,
         validate_formats = true,
         pattern_options = { engine = regex, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct NumericLengthParameters;
 
@@ -570,7 +570,7 @@ mod tests {
         path = "tests/support/fake_bidder/schemas/compiler-counter.json",
         draft = Draft4,
         pattern_options = { engine = regex, cache = explicit, size_limit = 65_536, dfa_size_limit = 65_536 },
-        methods = { is_valid = true, validate = false, iter_errors = false }
+        methods = { is_valid = true, validate = false, iter_errors = false, evaluate = false }
     )]
     struct CachedCounterParameters;
 

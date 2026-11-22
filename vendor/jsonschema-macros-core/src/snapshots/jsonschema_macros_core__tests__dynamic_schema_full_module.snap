@@ -1,5 +1,6 @@
 ---
 source: crates/jsonschema-macros-core/src/tests.rs
+assertion_line: 226
 description: "{\"$defs\":{\"node\":{\"$dynamicAnchor\":\"node\",\"type\":[\"object\",\"boolean\"]},\"plain\":{\"type\":\"integer\"}},\"properties\":{\"child\":{\"$dynamicRef\":\"#node\"},\"other\":{\"$ref\":\"#/$defs/plain\"}},\"type\":\"object\"}"
 expression: schema_to_code(schema)
 ---
@@ -43,48 +44,40 @@ mod __validator_impl {
         std::cell::RefCell::new(Vec::new()); static __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
         : std::cell::RefCell < Vec < (& 'static str, fn (& __Value, & [__Value], usize, &
         __Value) -> bool,) > > = std::cell::RefCell::new(Vec::new()); static
-        __JSONSCHEMA_DYNAMIC_VALIDATE_STACK : std::cell::RefCell < Vec < (& 'static str,
+        __JSONSCHEMA_DYNAMIC_ERRORS_STACK : std::cell::RefCell < Vec < (& 'static str,
         for < '__r, '__a, '__b, '__c > fn (& '__r __Value, & '__c __paths::LazyLocation <
-        '__a, '__b >) -> Option < __VE < '__r >>) > > =
-        std::cell::RefCell::new(Vec::new()); static __JSONSCHEMA_DYNAMIC_COLLECT_STACK :
-        std::cell::RefCell < Vec < (& 'static str, for < '__r, '__a, '__b, '__c > fn (&
-        '__r __Value, & '__c __paths::LazyLocation < '__a, '__b >, & mut Vec < __VE <
-        '__r >>)) > > = std::cell::RefCell::new(Vec::new()); static
-        __JSONSCHEMA_VALIDATE_MARK : std::cell::RefCell < Vec < (usize, usize) >> =
+        '__a, '__b >, & mut __err::Errors < '__r >, & str) -> bool) > > =
+        std::cell::RefCell::new(Vec::new()); static __JSONSCHEMA_VALIDATE_MARK :
+        std::cell::RefCell < Vec < (usize, usize) >> =
         std::cell::RefCell::new(Vec::new()); static __JSONSCHEMA_EVAL_MARK :
         std::cell::RefCell < Vec < (usize, usize) >> =
         std::cell::RefCell::new(Vec::new());
     }
-    #[inline]
     fn validate_ref_0(instance: &__Value) -> bool {
         matches!(instance, __Value::Object(_) | __Value::Bool(_))
     }
-    #[inline]
-    fn validate_ref_0_validate<'__i>(
-        instance: &'__i __Value,
-        __path: &__paths::LazyLocation,
-    ) -> Option<__VE<'__i>> {
-        if !(matches!(instance, __Value::Object(_) | __Value::Bool(_))) {
-            return Some(
-                __err::multiple_types(
-                    "/$defs/node/type",
-                    __path.into(),
-                    instance,
-                    __JTS::empty().insert(__JT::Object).insert(__JT::Boolean),
-                ),
-            );
-        }
-        None
-    }
-    #[cold]
     #[inline(never)]
-    fn validate_ref_0_collect_errors<'__i>(
+    fn validate_ref_0_errors<'__i>(
         instance: &'__i __Value,
         __path: &__paths::LazyLocation,
-        __errors: &mut Vec<__VE<'__i>>,
-    ) {
+        __errors: &mut __err::Errors<'__i>,
+        __site: &str,
+    ) -> bool {
+        if validate_ref_0(instance) {
+            return false;
+        }
+        let __start = __errors.mark();
+        let __stop = validate_ref_0_errors_body(instance, __path, __errors);
+        __errors.reached(__start, "/$defs/node", None, 0usize, __site);
+        __stop
+    }
+    fn validate_ref_0_errors_body<'__i>(
+        instance: &'__i __Value,
+        __path: &__paths::LazyLocation,
+        __errors: &mut __err::Errors<'__i>,
+    ) -> bool {
         if !(matches!(instance, __Value::Object(_) | __Value::Bool(_))) {
-            __errors
+            if __errors
                 .push(
                     __err::multiple_types(
                         "/$defs/node/type",
@@ -92,10 +85,13 @@ mod __validator_impl {
                         instance,
                         __JTS::empty().insert(__JT::Object).insert(__JT::Boolean),
                     ),
-                );
+                )
+            {
+                return true;
+            }
         }
+        false
     }
-    #[inline]
     fn validate_ref_1(instance: &__Value) -> bool {
         {
             __JSONSCHEMA_DYNAMIC_STACK
@@ -140,83 +136,17 @@ mod __validator_impl {
             __result
         }
     }
-    #[inline]
-    fn validate_ref_1_validate<'__i>(
-        instance: &'__i __Value,
-        __path: &__paths::LazyLocation,
-    ) -> Option<__VE<'__i>> {
-        __JSONSCHEMA_DYNAMIC_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", validate_ref_0));
-            });
-        __JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", eval_ref_0));
-            });
-        __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", eval_items_ref_0));
-            });
-        __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", validate_ref_0_validate));
-            });
-        let __r = (|| -> Option<__VE<'__i>> {
-            if !(match instance {
-                __Value::Number(n) => __types::is_integer(n),
-                _ => false,
-            }) {
-                return Some(
-                    __err::single_type(
-                        "/$defs/plain/type",
-                        __path.into(),
-                        instance,
-                        __JT::Integer,
-                    ),
-                );
-            }
-            None
-        })();
-        __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        if let Some(__e) = __r {
-            return Some(__e);
-        }
-        None
-    }
-    #[cold]
     #[inline(never)]
-    fn validate_ref_1_collect_errors<'__i>(
+    fn validate_ref_1_errors<'__i>(
         instance: &'__i __Value,
         __path: &__paths::LazyLocation,
-        __errors: &mut Vec<__VE<'__i>>,
-    ) {
+        __errors: &mut __err::Errors<'__i>,
+        __site: &str,
+    ) -> bool {
+        if validate_ref_1(instance) {
+            return false;
+        }
+        let __start = __errors.mark();
         __JSONSCHEMA_DYNAMIC_STACK
             .with(|stack| {
                 stack.borrow_mut().push(("node", validate_ref_0));
@@ -229,15 +159,52 @@ mod __validator_impl {
             .with(|stack| {
                 stack.borrow_mut().push(("node", eval_items_ref_0));
             });
-        __JSONSCHEMA_DYNAMIC_COLLECT_STACK
+        __JSONSCHEMA_DYNAMIC_ERRORS_STACK
             .with(|stack| {
-                stack.borrow_mut().push(("node", validate_ref_0_collect_errors));
+                stack.borrow_mut().push(("node", validate_ref_0_errors));
             });
+        let __stop = validate_ref_1_errors_body(instance, __path, __errors);
+        __JSONSCHEMA_DYNAMIC_ERRORS_STACK
+            .with(|stack| {
+                let mut stack = stack.borrow_mut();
+                for _ in 0..1usize {
+                    stack.pop();
+                }
+            });
+        __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
+            .with(|stack| {
+                let mut stack = stack.borrow_mut();
+                for _ in 0..1usize {
+                    stack.pop();
+                }
+            });
+        __JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK
+            .with(|stack| {
+                let mut stack = stack.borrow_mut();
+                for _ in 0..1usize {
+                    stack.pop();
+                }
+            });
+        __JSONSCHEMA_DYNAMIC_STACK
+            .with(|stack| {
+                let mut stack = stack.borrow_mut();
+                for _ in 0..1usize {
+                    stack.pop();
+                }
+            });
+        __errors.reached(__start, "/$defs/plain", None, 0usize, __site);
+        __stop
+    }
+    fn validate_ref_1_errors_body<'__i>(
+        instance: &'__i __Value,
+        __path: &__paths::LazyLocation,
+        __errors: &mut __err::Errors<'__i>,
+    ) -> bool {
         if !(match instance {
             __Value::Number(n) => __types::is_integer(n),
             _ => false,
         }) {
-            __errors
+            if __errors
                 .push(
                     __err::single_type(
                         "/$defs/plain/type",
@@ -245,36 +212,12 @@ mod __validator_impl {
                         instance,
                         __JT::Integer,
                     ),
-                );
+                )
+            {
+                return true;
+            }
         }
-        __JSONSCHEMA_DYNAMIC_COLLECT_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
+        false
     }
     #[inline]
     fn eval_ref_0(instance: &__Value, obj: &__Map, key_str: &str) -> bool {
@@ -351,67 +294,89 @@ mod __validator_impl {
             });
         let __result = {
             match instance {
-                __Value::Object(obj) => {
-                    obj.iter()
-                        .all(|(key, instance)| {
-                            let key_str = key.as_str();
-                            match key_str {
-                                "child" => {
-                                    let __dynamic_target = __JSONSCHEMA_DYNAMIC_STACK
-                                        .with(|stack| {
-                                            stack
-                                                .borrow()
-                                                .iter()
-                                                .find(|(dynamic_anchor, _)| *dynamic_anchor == "node")
-                                                .map(|(_, is_valid)| *is_valid)
-                                        });
-                                    if let Some(target) = __dynamic_target {
-                                        {
-                                            let __mark = (
-                                                target as usize,
-                                                std::ptr::from_ref(instance) as usize,
-                                            );
-                                            let __reentered = __JSONSCHEMA_VALIDATE_MARK
-                                                .with(|__marks| {
-                                                    let mut __marks = __marks.borrow_mut();
-                                                    if __marks.contains(&__mark) {
-                                                        true
-                                                    } else {
-                                                        __marks.push(__mark);
-                                                        false
-                                                    }
-                                                });
-                                            if __reentered {
-                                                true
-                                            } else {
-                                                let __valid = target(instance);
-                                                __JSONSCHEMA_VALIDATE_MARK
-                                                    .with(|__marks| __marks.borrow_mut().pop());
-                                                __valid
+                __Value::Object(obj) => '__all_0: {
+                    for (key, instance) in obj.iter() {
+                        let key_str = key.as_str();
+                        if !(match key_str {
+                            "child" => {
+                                let __dynamic_target = __JSONSCHEMA_DYNAMIC_STACK
+                                    .with(|stack| {
+                                        let stack = stack.borrow();
+                                        let mut selected = None;
+                                        for (dynamic_anchor, target) in stack.iter() {
+                                            if *dynamic_anchor == "node" {
+                                                if *target as usize != validate_ref_0 as usize {
+                                                    selected = Some(*target);
+                                                }
+                                                break;
                                             }
                                         }
-                                    } else {
-                                        validate_ref_0(instance)
+                                        selected
+                                    });
+                                if let Some(target) = __dynamic_target {
+                                    {
+                                        let __mark = (
+                                            target as usize,
+                                            std::ptr::from_ref(instance) as usize,
+                                        );
+                                        let __reentered = __JSONSCHEMA_VALIDATE_MARK
+                                            .with(|__marks| {
+                                                let mut __marks = __marks.borrow_mut();
+                                                if __marks.contains(&__mark) {
+                                                    true
+                                                } else {
+                                                    __marks.push(__mark);
+                                                    false
+                                                }
+                                            });
+                                        if __reentered {
+                                            true
+                                        } else {
+                                            let __valid = {
+                                                __JSONSCHEMA_DYNAMIC_STACK
+                                                    .with(|stack| {
+                                                        stack.borrow_mut().push(("node", validate_ref_0));
+                                                    });
+                                                let __valid = target(instance);
+                                                __JSONSCHEMA_DYNAMIC_STACK
+                                                    .with(|stack| {
+                                                        let mut stack = stack.borrow_mut();
+                                                        for _ in 0..1usize {
+                                                            stack.pop();
+                                                        }
+                                                    });
+                                                __valid
+                                            };
+                                            __JSONSCHEMA_VALIDATE_MARK
+                                                .with(|__marks| __marks.borrow_mut().pop());
+                                            __valid
+                                        }
                                     }
+                                } else {
+                                    validate_ref_0(instance)
                                 }
-                                "other" => {
-                                    __JSONSCHEMA_DYNAMIC_STACK
-                                        .with(|stack| {
-                                            stack.borrow_mut().push(("node", validate_ref_0));
-                                        });
-                                    let __result = validate_ref_1(instance);
-                                    __JSONSCHEMA_DYNAMIC_STACK
-                                        .with(|stack| {
-                                            let mut stack = stack.borrow_mut();
-                                            for _ in 0..1usize {
-                                                stack.pop();
-                                            }
-                                        });
-                                    __result
-                                }
-                                _ => true,
                             }
-                        })
+                            "other" => {
+                                __JSONSCHEMA_DYNAMIC_STACK
+                                    .with(|stack| {
+                                        stack.borrow_mut().push(("node", validate_ref_0));
+                                    });
+                                let __result = validate_ref_1(instance);
+                                __JSONSCHEMA_DYNAMIC_STACK
+                                    .with(|stack| {
+                                        let mut stack = stack.borrow_mut();
+                                        for _ in 0..1usize {
+                                            stack.pop();
+                                        }
+                                    });
+                                __result
+                            }
+                            _ => true,
+                        }) {
+                            break '__all_0 false;
+                        }
+                    }
+                    true
                 }
                 _ => false,
             }
@@ -439,10 +404,11 @@ mod __validator_impl {
             });
         __result
     }
-    pub(super) fn validate<'__i>(
+    pub(super) fn errors<'__i>(
         instance: &'__i __Value,
         __path: &__paths::LazyLocation,
-    ) -> Option<__VE<'__i>> {
+        __errors: &mut __err::Errors<'__i>,
+    ) -> bool {
         __JSONSCHEMA_DYNAMIC_STACK
             .with(|stack| {
                 stack.borrow_mut().push(("node", validate_ref_0));
@@ -455,11 +421,11 @@ mod __validator_impl {
             .with(|stack| {
                 stack.borrow_mut().push(("node", eval_items_ref_0));
             });
-        __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
+        __JSONSCHEMA_DYNAMIC_ERRORS_STACK
             .with(|stack| {
-                stack.borrow_mut().push(("node", validate_ref_0_validate));
+                stack.borrow_mut().push(("node", validate_ref_0_errors));
             });
-        let __result = (|| -> Option<__VE<'__i>> {
+        let __stop = (|| -> bool {
             match instance {
                 __Value::Object(obj) => {
                     for (key, value) in obj.iter() {
@@ -467,20 +433,25 @@ mod __validator_impl {
                         match key_str {
                             "child" => {
                                 let instance = value;
-                                let __path = &__path.push("child");
-                                {
-                                    let __dynamic_target_validate = __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
+                                if !({
+                                    let __dynamic_target = __JSONSCHEMA_DYNAMIC_STACK
                                         .with(|stack| {
-                                            stack
-                                                .borrow()
-                                                .iter()
-                                                .find(|(dynamic_anchor, _)| *dynamic_anchor == "node")
-                                                .map(|(_, validate)| *validate)
+                                            let stack = stack.borrow();
+                                            let mut selected = None;
+                                            for (dynamic_anchor, target) in stack.iter() {
+                                                if *dynamic_anchor == "node" {
+                                                    if *target as usize != validate_ref_0 as usize {
+                                                        selected = Some(*target);
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                            selected
                                         });
-                                    if let Some(target_validate) = __dynamic_target_validate {
+                                    if let Some(target) = __dynamic_target {
                                         {
                                             let __mark = (
-                                                target_validate as usize,
+                                                target as usize,
                                                 std::ptr::from_ref(instance) as usize,
                                             );
                                             let __reentered = __JSONSCHEMA_VALIDATE_MARK
@@ -493,21 +464,113 @@ mod __validator_impl {
                                                         false
                                                     }
                                                 });
-                                            if !__reentered {
-                                                let __r = target_validate(instance, __path);
+                                            if __reentered {
+                                                true
+                                            } else {
+                                                let __valid = {
+                                                    __JSONSCHEMA_DYNAMIC_STACK
+                                                        .with(|stack| {
+                                                            stack.borrow_mut().push(("node", validate_ref_0));
+                                                        });
+                                                    let __valid = target(instance);
+                                                    __JSONSCHEMA_DYNAMIC_STACK
+                                                        .with(|stack| {
+                                                            let mut stack = stack.borrow_mut();
+                                                            for _ in 0..1usize {
+                                                                stack.pop();
+                                                            }
+                                                        });
+                                                    __valid
+                                                };
                                                 __JSONSCHEMA_VALIDATE_MARK
                                                     .with(|__marks| __marks.borrow_mut().pop());
-                                                if let Some(__err) = __r {
-                                                    return Some(__err);
-                                                }
+                                                __valid
                                             }
                                         }
                                     } else {
-                                        if let Some(__err) = validate_ref_0_validate(
-                                            instance,
-                                            __path,
-                                        ) {
-                                            return Some(__err);
+                                        validate_ref_0(instance)
+                                    }
+                                }) {
+                                    let __path = &__path.push("child");
+                                    {
+                                        let __dynamic_target_errors = __JSONSCHEMA_DYNAMIC_ERRORS_STACK
+                                            .with(|stack| {
+                                                let stack = stack.borrow();
+                                                let mut selected = None;
+                                                for (dynamic_anchor, target) in stack.iter() {
+                                                    if *dynamic_anchor == "node" {
+                                                        if *target as usize != validate_ref_0_errors as usize {
+                                                            selected = Some(*target);
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+                                                selected
+                                            });
+                                        if let Some(target_errors) = __dynamic_target_errors {
+                                            {
+                                                let __mark = (
+                                                    target_errors as usize,
+                                                    std::ptr::from_ref(instance) as usize,
+                                                );
+                                                let __reentered = __JSONSCHEMA_VALIDATE_MARK
+                                                    .with(|__marks| {
+                                                        let mut __marks = __marks.borrow_mut();
+                                                        if __marks.contains(&__mark) {
+                                                            true
+                                                        } else {
+                                                            __marks.push(__mark);
+                                                            false
+                                                        }
+                                                    });
+                                                if !__reentered {
+                                                    let __stop = {
+                                                        __JSONSCHEMA_DYNAMIC_STACK
+                                                            .with(|stack| {
+                                                                stack.borrow_mut().push(("node", validate_ref_0));
+                                                            });
+                                                        __JSONSCHEMA_DYNAMIC_ERRORS_STACK
+                                                            .with(|stack| {
+                                                                stack.borrow_mut().push(("node", validate_ref_0_errors));
+                                                            });
+                                                        let __stop = target_errors(
+                                                            instance,
+                                                            __path,
+                                                            __errors,
+                                                            "/properties/child/$dynamicRef",
+                                                        );
+                                                        __JSONSCHEMA_DYNAMIC_ERRORS_STACK
+                                                            .with(|stack| {
+                                                                let mut stack = stack.borrow_mut();
+                                                                for _ in 0..1usize {
+                                                                    stack.pop();
+                                                                }
+                                                            });
+                                                        __JSONSCHEMA_DYNAMIC_STACK
+                                                            .with(|stack| {
+                                                                let mut stack = stack.borrow_mut();
+                                                                for _ in 0..1usize {
+                                                                    stack.pop();
+                                                                }
+                                                            });
+                                                        __stop
+                                                    };
+                                                    __JSONSCHEMA_VALIDATE_MARK
+                                                        .with(|__marks| __marks.borrow_mut().pop());
+                                                    if __stop {
+                                                        return true;
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            if validate_ref_0_errors(
+                                                instance,
+                                                __path,
+                                                __errors,
+                                                "/properties/child/$dynamicRef",
+                                            ) {
+                                                return true;
+                                            }
                                         }
                                     }
                                 }
@@ -520,12 +583,17 @@ mod __validator_impl {
                                         .with(|stack| {
                                             stack.borrow_mut().push(("node", validate_ref_0));
                                         });
-                                    __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
+                                    __JSONSCHEMA_DYNAMIC_ERRORS_STACK
                                         .with(|stack| {
-                                            stack.borrow_mut().push(("node", validate_ref_0_validate));
+                                            stack.borrow_mut().push(("node", validate_ref_0_errors));
                                         });
-                                    let __r = validate_ref_1_validate(instance, __path);
-                                    __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
+                                    let __stop = validate_ref_1_errors(
+                                        instance,
+                                        __path,
+                                        __errors,
+                                        "/properties/other/$ref",
+                                    );
+                                    __JSONSCHEMA_DYNAMIC_ERRORS_STACK
                                         .with(|stack| {
                                             let mut stack = stack.borrow_mut();
                                             for _ in 0..1usize {
@@ -539,8 +607,8 @@ mod __validator_impl {
                                                 stack.pop();
                                             }
                                         });
-                                    if let Some(__e) = __r {
-                                        return Some(__e);
+                                    if __stop {
+                                        return true;
                                     }
                                 }
                             }
@@ -549,19 +617,23 @@ mod __validator_impl {
                     }
                 }
                 _ => {
-                    return Some(
-                        __err::single_type(
-                            "/type",
-                            __path.into(),
-                            instance,
-                            __JT::Object,
-                        ),
-                    );
+                    if __errors
+                        .push(
+                            __err::single_type(
+                                "/type",
+                                __path.into(),
+                                instance,
+                                __JT::Object,
+                            ),
+                        )
+                    {
+                        return true;
+                    }
                 }
             }
-            None
+            false
         })();
-        __JSONSCHEMA_DYNAMIC_VALIDATE_STACK
+        __JSONSCHEMA_DYNAMIC_ERRORS_STACK
             .with(|stack| {
                 let mut stack = stack.borrow_mut();
                 for _ in 0..1usize {
@@ -589,208 +661,20 @@ mod __validator_impl {
                     stack.pop();
                 }
             });
-        __result
-    }
-    pub(super) fn collect_errors<'__i>(
-        instance: &'__i __Value,
-        __path: &__paths::LazyLocation,
-        __errors: &mut Vec<__VE<'__i>>,
-    ) {
-        __JSONSCHEMA_DYNAMIC_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", validate_ref_0));
-            });
-        __JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", eval_ref_0));
-            });
-        __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", eval_items_ref_0));
-            });
-        __JSONSCHEMA_DYNAMIC_COLLECT_STACK
-            .with(|stack| {
-                stack.borrow_mut().push(("node", validate_ref_0_collect_errors));
-            });
-        match instance {
-            __Value::Object(obj) => {
-                if let Some(value) = obj.get("child") {
-                    let instance = value;
-                    if !({
-                        let __dynamic_target = __JSONSCHEMA_DYNAMIC_STACK
-                            .with(|stack| {
-                                stack
-                                    .borrow()
-                                    .iter()
-                                    .find(|(dynamic_anchor, _)| *dynamic_anchor == "node")
-                                    .map(|(_, is_valid)| *is_valid)
-                            });
-                        if let Some(target) = __dynamic_target {
-                            {
-                                let __mark = (
-                                    target as usize,
-                                    std::ptr::from_ref(instance) as usize,
-                                );
-                                let __reentered = __JSONSCHEMA_VALIDATE_MARK
-                                    .with(|__marks| {
-                                        let mut __marks = __marks.borrow_mut();
-                                        if __marks.contains(&__mark) {
-                                            true
-                                        } else {
-                                            __marks.push(__mark);
-                                            false
-                                        }
-                                    });
-                                if __reentered {
-                                    true
-                                } else {
-                                    let __valid = target(instance);
-                                    __JSONSCHEMA_VALIDATE_MARK
-                                        .with(|__marks| __marks.borrow_mut().pop());
-                                    __valid
-                                }
-                            }
-                        } else {
-                            validate_ref_0(instance)
-                        }
-                    }) {
-                        let __path = &__path.push("child");
-                        {
-                            let __dynamic_target_collect = __JSONSCHEMA_DYNAMIC_COLLECT_STACK
-                                .with(|stack| {
-                                    stack
-                                        .borrow()
-                                        .iter()
-                                        .find(|(dynamic_anchor, _)| *dynamic_anchor == "node")
-                                        .map(|(_, collect)| *collect)
-                                });
-                            if let Some(target_collect) = __dynamic_target_collect {
-                                {
-                                    let __mark = (
-                                        target_collect as usize,
-                                        std::ptr::from_ref(instance) as usize,
-                                    );
-                                    let __reentered = __JSONSCHEMA_VALIDATE_MARK
-                                        .with(|__marks| {
-                                            let mut __marks = __marks.borrow_mut();
-                                            if __marks.contains(&__mark) {
-                                                true
-                                            } else {
-                                                __marks.push(__mark);
-                                                false
-                                            }
-                                        });
-                                    if !__reentered {
-                                        target_collect(instance, __path, __errors);
-                                        __JSONSCHEMA_VALIDATE_MARK
-                                            .with(|__marks| __marks.borrow_mut().pop());
-                                    }
-                                }
-                            } else {
-                                validate_ref_0_collect_errors(instance, __path, __errors);
-                            }
-                        }
-                    }
-                }
-                if let Some(value) = obj.get("other") {
-                    let instance = value;
-                    if !({
-                        __JSONSCHEMA_DYNAMIC_STACK
-                            .with(|stack| {
-                                stack.borrow_mut().push(("node", validate_ref_0));
-                            });
-                        let __result = validate_ref_1(instance);
-                        __JSONSCHEMA_DYNAMIC_STACK
-                            .with(|stack| {
-                                let mut stack = stack.borrow_mut();
-                                for _ in 0..1usize {
-                                    stack.pop();
-                                }
-                            });
-                        __result
-                    }) {
-                        let __path = &__path.push("other");
-                        {
-                            __JSONSCHEMA_DYNAMIC_STACK
-                                .with(|stack| {
-                                    stack.borrow_mut().push(("node", validate_ref_0));
-                                });
-                            __JSONSCHEMA_DYNAMIC_COLLECT_STACK
-                                .with(|stack| {
-                                    stack
-                                        .borrow_mut()
-                                        .push(("node", validate_ref_0_collect_errors));
-                                });
-                            validate_ref_1_collect_errors(instance, __path, __errors);
-                            __JSONSCHEMA_DYNAMIC_COLLECT_STACK
-                                .with(|stack| {
-                                    let mut stack = stack.borrow_mut();
-                                    for _ in 0..1usize {
-                                        stack.pop();
-                                    }
-                                });
-                            __JSONSCHEMA_DYNAMIC_STACK
-                                .with(|stack| {
-                                    let mut stack = stack.borrow_mut();
-                                    for _ in 0..1usize {
-                                        stack.pop();
-                                    }
-                                });
-                        }
-                    }
-                }
-            }
-            _ => {
-                __errors
-                    .push(
-                        __err::single_type(
-                            "/type",
-                            __path.into(),
-                            instance,
-                            __JT::Object,
-                        ),
-                    );
-            }
-        }
-        __JSONSCHEMA_DYNAMIC_COLLECT_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_ITEM_EVAL_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_KEY_EVAL_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
-        __JSONSCHEMA_DYNAMIC_STACK
-            .with(|stack| {
-                let mut stack = stack.borrow_mut();
-                for _ in 0..1usize {
-                    stack.pop();
-                }
-            });
+        __stop
     }
     pub(super) fn run_is_valid(instance: &__Value) -> bool {
         is_valid(instance)
     }
     pub(super) fn run_validate<'__i>(instance: &'__i __Value) -> Option<__VE<'__i>> {
-        validate(instance, &__paths::LazyLocation::new())
+        let mut __errors = __err::Errors::new(true);
+        let _ = errors(instance, &__paths::LazyLocation::new(), &mut __errors);
+        __errors.into_first()
     }
     pub(super) fn run_collect_errors<'__i>(instance: &'__i __Value) -> Vec<__VE<'__i>> {
-        let mut errors = Vec::new();
-        collect_errors(instance, &__paths::LazyLocation::new(), &mut errors);
-        errors
+        let mut __errors = __err::Errors::new(false);
+        let _ = errors(instance, &__paths::LazyLocation::new(), &mut __errors);
+        __errors.into_vec()
     }
     pub(super) fn entry_is_valid(instance: &__Value) -> bool {
         run_is_valid(instance)

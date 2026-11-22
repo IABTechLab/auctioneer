@@ -1,5 +1,5 @@
 //! Checks the approved crates.io payload from revision
-//! 0e82636fde8b2afb5e712ede6c261166ea10fc17, with exact patched and added files.
+//! 24280ebc025661f9743d969c7ea51122e21f205a, with exact patched and added files.
 
 use flate2::read::GzDecoder;
 use sha2::{Digest as _, Sha256};
@@ -9,51 +9,51 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 
-const ARCHIVE_PATH: &str = "vendor/jsonschema-macros-core-0.61.2.crate";
+const ARCHIVE_PATH: &str = "vendor/jsonschema-macros-core-0.62.0.crate";
 const VENDOR_PATH: &str = "vendor/jsonschema-macros-core";
-const ARCHIVE_PREFIX: &str = "jsonschema-macros-core-0.61.2/";
-const ARCHIVE_SHA256: &str = "75afa4b5e6986cc221f5339d7d6149360f0bf8e65bcb23617dc0f92900b576d2";
+const ARCHIVE_PREFIX: &str = "jsonschema-macros-core-0.62.0/";
+const ARCHIVE_SHA256: &str = "e869997df6b45ae196cfa9261861bd21f0b6cc786fc12e8e041e2f0ccf8690f7";
 const PATCHED_FILES: [(&str, &str); 9] = [
     (
         "Cargo.toml",
-        "7e20e3d63945bdeed04afb10a8763be91419577c510891e87a5bbbd1eaf559c3",
+        "b95d78397024df0569741bacddd1b27eb6a16de81b228210468257edabb6ed2c",
     ),
     (
         "Cargo.toml.orig",
-        "467286fa79c0c70a4952e386a960af50874868ff40caaf1e44722daf97436d6d",
+        "7d596c12ce99bd3b1c2dca6136cf5f99b71b06452d2e5681f27dfcb992f84f1a",
     ),
     (
         "src/lib.rs",
-        "8fdaf9996475baf95ad42a820d2f9e1a8b7d3fe80e3bb9144b624507c150e5cd",
+        "138d5613fe6407d0bdc21311e9599b5db77c3b17c9a4b7360e639f73822b8019",
     ),
     (
         "src/context.rs",
-        "ce580d3bcb085388ed8c11cd20e32c00789c972f461402d36233d799d93f6da5",
+        "947da2a39ba2715d6965d8a37286112357e9befd8143e501f058892d22880ba4",
     ),
     (
         "src/codegen.rs",
-        "68d9a7a692f6f9891ab9e19077ec24d22b45cb884a9281664a0c947c0c9ab35f",
+        "4c19c325c81fd685439de5ffbf77b6c4a712800af5d25f9de5552500cdeb1b8b",
     ),
     (
         "src/codegen/object_schema.rs",
-        "c5fe64170d5154c5967280d28c2fcb269c24d49ef756322d269ac8eb8998d912",
+        "e4effb81dba65a019282d7089a38d3911e41bfc93df4dc0fdae701108bbe6112",
     ),
     (
         "src/codegen/emit_root.rs",
-        "5a757b0f4d360fcc9fb8dce7af0031b107067be9f5c451321ec94d49ff3fb2f8",
+        "eb480a90d12ad44be2d4292d9ac486c7d0967c3722fe089782d5368a8ab4b40c",
     ),
     (
         "src/codegen/regex.rs",
-        "bb2103f10ab1f5a14ed490401dc74f24ddcb6a875146f35eaed581de25c4994b",
+        "beb663ab6e5b8e3390c4a5291ceba7ad0da2787edf89903fdab2af476c3bef72",
     ),
     (
         "src/tests.rs",
-        "a16c557affa559362f19e5fd49823b0ed48314cee8d45a15fe072ac7aaef56c9",
+        "705c6a38142b1b33a74c2dbcf9adfebac5fb87ebdec02155fc6db6a44bbfd29e",
     ),
 ];
 const ADDED_FILES: [(&str, &str); 1] = [(
     "src/codegen/explicit_cache.rs",
-    "d8f20ac8b4265b1a04b4cc9eb898f753c2abd9dc812784381b841893ebfdc159",
+    "94a7e12e0b83fe783070f71f1b01b43dd679a84718eb3052163740501358bc47",
 )];
 const LICENSE_SHA256: &str = "117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038";
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
@@ -133,8 +133,8 @@ fn published_files(raw: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
             return Err("duplicate archive member".into());
         }
     }
-    if files.len() != 280 {
-        return Err("expected 280 published files".into());
+    if files.len() != 298 {
+        return Err("expected 298 published files".into());
     }
     Ok(files)
 }
@@ -354,10 +354,10 @@ mod tests {
     }
 
     #[test]
-    fn patch_and_addition_membership_preserves_all_280_published_files() {
+    fn patch_and_addition_membership_preserves_all_298_published_files() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let published = published_files(&fs::read(root.join(ARCHIVE_PATH)).unwrap()).unwrap();
-        assert_eq!(published.len(), 280);
+        assert_eq!(published.len(), 298);
         for (name, _) in PATCHED_FILES {
             assert!(published.contains_key(Path::new(name)), "{name}");
         }
@@ -446,7 +446,7 @@ mod tests {
             .collect();
         let patch = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join(
-                "../../vendor/patches/jsonschema-macros-core-0.61.2-explicit-cache-all-modes.patch",
+                "../../vendor/patches/jsonschema-macros-core-0.62.0-explicit-cache-all-modes.patch",
             )
             .canonicalize()
             .unwrap();
@@ -484,11 +484,11 @@ mod tests {
             match name.to_str().unwrap() {
                 "src/codegen/object_schema.rs" => assert_eq!(
                     sha256(&actual),
-                    "c5fe64170d5154c5967280d28c2fcb269c24d49ef756322d269ac8eb8998d912"
+                    "e4effb81dba65a019282d7089a38d3911e41bfc93df4dc0fdae701108bbe6112"
                 ),
                 "src/codegen/emit_root.rs" => assert_eq!(
                     sha256(&actual),
-                    "5a757b0f4d360fcc9fb8dce7af0031b107067be9f5c451321ec94d49ff3fb2f8"
+                    "eb480a90d12ad44be2d4292d9ac486c7d0967c3722fe089782d5368a8ab4b40c"
                 ),
                 _ => assert_eq!(actual, original, "{}", name.display()),
             }
