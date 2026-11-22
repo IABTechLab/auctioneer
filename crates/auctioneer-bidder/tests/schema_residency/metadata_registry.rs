@@ -1,4 +1,5 @@
 //! Exact closed-pair observations in fresh processes of this existing test binary.
+//! The reference observation is only an equal-input proxy of current constructors.
 //! No historical code, Cargo child build, cloned cold metadata or common C/I credit.
 
 #![cfg(all(
@@ -81,7 +82,7 @@ pub(super) struct Reconstruction {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Slot {
-    Reference,
+    ReferenceProxy,
     Candidate,
     BaselineFirst,
     BaselineSecond,
@@ -264,7 +265,9 @@ fn child(request: &Request, timeout: Duration) -> Result<Value, String> {
     Ok(report.observation)
 }
 
-/// Observe only an exact closed pair. Byte drift is a refusal, never a fallback.
+/// Observe current constructors twice for an exact closed equal-input pair.
+/// The first observation proxies the reference input; no reference code executes.
+/// Nonzero metadata/registry deltas are unsupported; byte drift always refuses.
 /// Original strings must match each other AND the compiled production descriptor's
 /// cryptographic source binding. The caller rechecks its frozen source snapshots
 /// after return, before credit. Timeout is the existing owner's child budget.
@@ -304,7 +307,7 @@ pub(super) fn observe_matched(
     let frozen = context()?;
     let first = child(
         &Request {
-            slot: Slot::Reference,
+            slot: Slot::ReferenceProxy,
             input_fingerprint: reference.input_fingerprint.clone(),
             measurement_fingerprint: reference.measurement_fingerprint.clone(),
             context: frozen.clone(),
@@ -325,9 +328,12 @@ pub(super) fn observe_matched(
     }
     Ok(
         json!({"label":"same-build data-only source reconstruction relative to d26fcf7",
+        "scope":{"reference":"equal-input-proxy-of-candidate",
+            "candidate":"actual-current-constructor",
+            "supports_nonzero_metadata_registry_delta":false},
         "reference":first,"candidate":second,"measurement":frozen,
-        "proof":"original constructor/binding bytes equal; compiled storage source binding matches",
-        "common_C_I_qualified":false,"task8_complete":false,"physical_or_serving_qualification":false}),
+        "proof":"reference is an equal-input proxy of candidate; original constructor/binding bytes and declaration counts equal; compiled storage source binding matches",
+        "common_C_I_qualified":false,"matched_reconstruction_complete":false,"physical_or_serving_qualification":false}),
     )
 }
 
@@ -504,7 +510,7 @@ mod tests {
 
     fn protocol_fixture() -> (Request, String, String) {
         let request = Request {
-            slot: Slot::Reference,
+            slot: Slot::ReferenceProxy,
             input_fingerprint: "1".repeat(64),
             measurement_fingerprint: "2".repeat(64),
             context: json!({"fixture":true}),
@@ -605,6 +611,13 @@ mod tests {
                 .is_none()
         );
         let (valid, _valid_stdout, _valid_stderr) = protocol_fixture();
+        let mut legacy = serde_json::to_value(&valid).unwrap();
+        assert_eq!(legacy["slot"], "reference_proxy");
+        legacy["slot"] = json!("reference");
+        assert_eq!(
+            child_request(Ok(serde_json::to_string(&legacy).unwrap())).unwrap_err(),
+            "invalid metadata child sentinel"
+        );
         assert_eq!(
             child_request(Ok(serde_json::to_string(&valid).unwrap())).unwrap(),
             Some(valid)
@@ -628,6 +641,20 @@ mod tests {
         changed.bindings.push('x');
         assert_eq!(
             observe_matched(&reference, &changed, Duration::ZERO).unwrap_err(),
+            "matched metadata constructor bytes differ"
+        );
+        let mut other_constructors = reconstruction();
+        assert_eq!(other_constructors.constructors, reference.constructors);
+        other_constructors.constructors.first_mut().unwrap().push('x');
+        assert_eq!(
+            observe_matched(&reference, &other_constructors, Duration::ZERO).unwrap_err(),
+            "matched metadata constructor bytes differ"
+        );
+        let mut other_declarations = reconstruction();
+        assert_eq!(other_declarations.declaration_count, 1_u64);
+        other_declarations.declaration_count = 2_u64;
+        assert_eq!(
+            observe_matched(&reference, &other_declarations, Duration::ZERO).unwrap_err(),
             "matched metadata constructor bytes differ"
         );
         let mut other_measurement = reconstruction();

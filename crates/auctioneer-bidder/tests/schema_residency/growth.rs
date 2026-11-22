@@ -3,7 +3,7 @@
 
 #![cfg(all(test, not(target_arch = "wasm32")))]
 
-use super::{descriptor, expanded, observations, runtime_sources};
+use super::{catalog_reference, descriptor, expanded, observations, runtime_sources};
 use crate::schema_build::{self, application::CapturedSeed, schema_regex_vendor};
 use crate::schema_formats::HOSTNAME_SOURCE;
 use crate::schema_selection_source::{Lane, independent_source_membership};
@@ -12,7 +12,7 @@ use auctioneer_config::bidder_discovery::{self, Discovery};
 use auctioneer_config::build_catalog::{Category, Provenance};
 use auctioneer_config::schema_staging::BuildContext;
 use auctioneer_config::schema_staging_build::{
-    BuildRequest, GeneratedStaging, catalog_reference, generate, write_snapshots,
+    BuildRequest, GeneratedStaging, generate, write_snapshots,
 };
 use auctioneer_config::schema_staging_codegen::CANDIDATE_OPTIONS;
 use auctioneer_config::types::BidderMetadataDeclaration;
@@ -59,7 +59,7 @@ const MEASUREMENT_SOURCES: &[(&str, &[u8])] = measurement_sources!(
     "crates/auctioneer-config/src/schema_staging.rs",
     "crates/auctioneer-config/src/schema_staging_codegen.rs",
     "crates/auctioneer-config/src/schema_staging_build.rs",
-    "crates/auctioneer-config/src/catalog_reference.rs",
+    "crates/auctioneer-bidder/tests/schema_residency/catalog_reference.rs",
     "crates/auctioneer-config/src/bidder_discovery.rs",
     "crates/auctioneer-config/src/bidder_reconcile.rs",
     "crates/auctioneer-config/src/bidder_manifest.rs",
@@ -598,7 +598,7 @@ fn observe_matched(
         "status":INCOMPLETE,"incomplete":["matched metadata constructors",
             "matched registry constructors","common C/I qualification"],
         "observation_scope":"fresh reconstructed Regex/LazyLock requested heap, not generated singletons",
-        "common_C_I_qualified":false,"task8_complete":false,"physical_or_serving_qualification":false}))
+        "common_C_I_qualified":false,"matched_reconstruction_complete":false,"physical_or_serving_qualification":false}))
 }
 
 fn native_format_first(source: &[u8]) -> Result<(), String> {
@@ -1416,6 +1416,10 @@ fn attach_metadata_observations(
     for side in ["reference", "candidate"] {
         let side_report = object_at(report, &[side])?;
         side_report.insert(
+            "metadata_registry_observation_kind".into(),
+            value_at(&observed, &["scope", side]).clone(),
+        );
+        side_report.insert(
             "metadata_constructor_observation".into(),
             value_at(&observed, &[side, "metadata"]).clone(),
         );
@@ -1436,6 +1440,10 @@ fn attach_metadata_observations(
     }
     let report_object = object_at(report, &[])?;
     report_object.insert(
+        "metadata_registry_scope".into(),
+        value_at(&observed, &["scope"]).clone(),
+    );
+    report_object.insert(
         "matched_metadata_measurement".into(),
         value_at(&observed, &["measurement"]).clone(),
     );
@@ -1451,11 +1459,11 @@ fn attach_metadata_observations(
         "status".into(),
         json!("matched source reconstruction and constructor observations complete"),
     );
-    report_object.insert("task8_complete".into(), json!(true));
+    report_object.insert("matched_reconstruction_complete".into(), json!(true));
     report_object.insert(
         "observation_scope".into(),
         json!(
-            "actual production metadata and registry constructors in fresh exact-test processes; schema Regex/LazyLock reconstruction; explicit hypothetical source-formula controls"
+            "reference metadata/registry: equal-input proxy of candidate; candidate metadata/registry: actual current constructors; fresh exact-test processes for both; schema Regex/LazyLock reconstruction; explicit hypothetical source-formula controls"
         ),
     );
     Ok(())
@@ -1793,9 +1801,7 @@ mod metadata_reconstruction_source {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auctioneer_config::schema_staging_build::catalog_reference::{
-        REFERENCE_COMMIT, REFERENCE_TREE,
-    };
+    use super::catalog_reference::{REFERENCE_COMMIT, REFERENCE_TREE};
     use quote::ToTokens as _;
     use serde_json::json;
     use std::cell::Cell;
@@ -2312,7 +2318,22 @@ mod tests {
     }
 
     fn assert_actual_metadata_and_registry(report: &Value) {
-        for side in ["reference", "candidate"] {
+        assert_eq!(
+            report["metadata_registry_scope"],
+            json!({
+                "reference":"equal-input-proxy-of-candidate",
+                "candidate":"actual-current-constructor",
+                "supports_nonzero_metadata_registry_delta":false
+            })
+        );
+        assert_eq!(report["common_C_I_qualified"], false);
+        assert_eq!(report["physical_or_serving_qualification"], false);
+        assert_eq!(report["matched_reconstruction_complete"], true);
+        for (side, kind) in [
+            ("reference", "equal-input-proxy-of-candidate"),
+            ("candidate", "actual-current-constructor"),
+        ] {
+            assert_eq!(report[side]["metadata_registry_observation_kind"], kind);
             let metadata = &report[side]["metadata_constructor_observation"];
             let registry = &report[side]["registry_constructor_observation"];
             assert!(

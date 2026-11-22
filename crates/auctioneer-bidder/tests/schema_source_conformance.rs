@@ -731,7 +731,9 @@ mod tests {
         }
         assert!(!declarations.is_empty());
         assert!(program_ids.len() > 1_usize);
-        let programs = report["programs_in_initialization_order"].as_array().unwrap();
+        let programs = report["programs_in_initialization_order"]
+            .as_array()
+            .unwrap();
         assert_eq!(programs.len(), program_ids.len());
         assert_eq!(
             programs
@@ -2998,6 +3000,12 @@ mod tests {
             return Err("retired source membership contract");
         }
         let current = &expected[0];
+        if manifest["implemented_roots_all_features"]
+            .as_array()
+            .is_none_or(|definitions| definitions.len() != 18_usize)
+        {
+            return Err("current implemented definition count");
+        }
         for field in [
             "implemented_roots_all_features",
             "inventory_dispositions",
@@ -3023,7 +3031,9 @@ mod tests {
                 .as_array()
                 .ok_or("expected owners")?;
             let count = owners.len();
-            if count == 0
+            if count != 16_usize
+                || lane["roots"].as_array().ok_or("roots")?.len() != 18_usize
+                || lane["members"].as_array().ok_or("members")?.len() != 18_usize
                 || lane["roots"] != expected_lane["roots"]
                 || lane["members"] != expected_lane["members"]
                 || lane["effective_schema_owners"] != expected_lane["effective_schema_owners"]

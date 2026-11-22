@@ -402,6 +402,18 @@ fn validation_assignments(
     programs: &[&str],
     graph: &Value,
 ) -> Result<Vec<ValidationAssignment>, Refusal> {
+    let mut required_programs = BTreeSet::from([runtime_sources::HOSTNAME]);
+    for declaration in array(graph, "declarations")? {
+        for program in array(declaration, "programs")? {
+            if !required_programs.insert(text(program, "identity")?) {
+                return Err(Refusal::Coverage);
+            }
+        }
+    }
+    let supplied_programs = programs.iter().copied().collect::<BTreeSet<_>>();
+    if supplied_programs.len() != programs.len() || supplied_programs != required_programs {
+        return Err(Refusal::Coverage);
+    }
     let mut rows = Vec::new();
     for id in programs {
         for role in ["cache", "mutable-scratch", "search-fallback"] {
@@ -1999,8 +2011,20 @@ mod tests {
     #[test]
     fn validation_handoff_assigns_actual_program_declaration_and_format_children_once() {
         let graph = graph();
-        let ids = [runtime_sources::HOSTNAME, "fake_a::MarkerA::FIRST_REGEX"];
+        let ids = [
+            runtime_sources::HOSTNAME,
+            "fake_a::MarkerA::FIRST_REGEX",
+            "fake_a::MarkerA::SECOND_REGEX",
+            "fake_b::MarkerB::FIRST_REGEX",
+        ];
+        assert_eq!(
+            ids.into_iter().collect::<BTreeSet<_>>(),
+            validation_program_ids(&graph)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        );
         let assignments = validation_assignments(&ids, &graph).unwrap();
+        assert_eq!(assignments.len(), 20_usize);
         let expected = [
             "schema::staging::formats::HOSTNAME_PATTERN::per-call-cache",
             "schema::staging::formats::HOSTNAME_PATTERN::validation::mutable-scratch",
@@ -2008,6 +2032,12 @@ mod tests {
             "fake_a::MarkerA::FIRST_REGEX::validation::cache",
             "fake_a::MarkerA::FIRST_REGEX::validation::mutable-scratch",
             "fake_a::MarkerA::FIRST_REGEX::validation::search-fallback",
+            "fake_a::MarkerA::SECOND_REGEX::validation::cache",
+            "fake_a::MarkerA::SECOND_REGEX::validation::mutable-scratch",
+            "fake_a::MarkerA::SECOND_REGEX::validation::search-fallback",
+            "fake_b::MarkerB::FIRST_REGEX::validation::cache",
+            "fake_b::MarkerB::FIRST_REGEX::validation::mutable-scratch",
+            "fake_b::MarkerB::FIRST_REGEX::validation::search-fallback",
             "fake_b::MarkerB::declaration-stack",
             "fake_b::MarkerB::declaration-work",
             "fake_a::MarkerA::declaration-stack",
@@ -2050,7 +2080,10 @@ mod tests {
             }
         }
         assert_eq!(ids.len(), 4_usize);
-        assert_eq!(ids.iter().copied().collect::<BTreeSet<_>>().len(), ids.len());
+        assert_eq!(
+            ids.iter().copied().collect::<BTreeSet<_>>().len(),
+            ids.len()
+        );
         ids
     }
 
@@ -2058,7 +2091,10 @@ mod tests {
     fn validation_handoff_refuses_an_omitted_program_list() {
         let graph = graph();
         let ids = validation_program_ids(&graph);
-        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        assert_eq!(
+            validation_assignments(&ids, &graph).unwrap().len(),
+            20_usize
+        );
         assert_eq!(validation_assignments(&[], &graph), Err(Refusal::Coverage));
     }
 
@@ -2066,7 +2102,10 @@ mod tests {
     fn validation_handoff_refuses_each_missing_program_including_hostname() {
         let graph = graph();
         let ids = validation_program_ids(&graph);
-        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        assert_eq!(
+            validation_assignments(&ids, &graph).unwrap().len(),
+            20_usize
+        );
         for (index, id) in ids.iter().enumerate() {
             let mut missing = ids.clone();
             assert_eq!(missing.remove(index), *id);
@@ -2083,7 +2122,10 @@ mod tests {
     fn validation_handoff_refuses_extra_unknown_or_empty_program_ids() {
         let graph = graph();
         let ids = validation_program_ids(&graph);
-        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        assert_eq!(
+            validation_assignments(&ids, &graph).unwrap().len(),
+            20_usize
+        );
         for extra in ["fake_unknown::Marker::REGEX", ""] {
             assert!(!ids.contains(&extra));
             let mut expanded = ids.clone();
@@ -2100,12 +2142,18 @@ mod tests {
     fn validation_handoff_refuses_each_duplicate_program() {
         let graph = graph();
         let ids = validation_program_ids(&graph);
-        assert_eq!(validation_assignments(&ids, &graph).unwrap().len(), 20_usize);
+        assert_eq!(
+            validation_assignments(&ids, &graph).unwrap().len(),
+            20_usize
+        );
         for id in &ids {
             let mut duplicate = ids.clone();
             duplicate.push(id);
             assert_eq!(
-                duplicate.iter().filter(|candidate| *candidate == id).count(),
+                duplicate
+                    .iter()
+                    .filter(|candidate| *candidate == id)
+                    .count(),
                 2_usize
             );
             assert_eq!(
@@ -2124,14 +2172,17 @@ mod tests {
             validation_assignments(&ids, &original).unwrap().len(),
             20_usize
         );
-        for replacement in ["", runtime_sources::HOSTNAME, "fake_a::MarkerA::FIRST_REGEX"] {
+        for replacement in [
+            "",
+            runtime_sources::HOSTNAME,
+            "fake_a::MarkerA::FIRST_REGEX",
+        ] {
             let mut altered = original.clone();
             assert_eq!(
                 altered["declarations"][0_usize]["programs"][0_usize]["identity"],
                 "fake_b::MarkerB::FIRST_REGEX"
             );
-            altered["declarations"][0_usize]["programs"][0_usize]["identity"] =
-                json!(replacement);
+            altered["declarations"][0_usize]["programs"][0_usize]["identity"] = json!(replacement);
             let mut supplied = ids.clone();
             assert_eq!(supplied.remove(1_usize), "fake_b::MarkerB::FIRST_REGEX");
             supplied.push(replacement);

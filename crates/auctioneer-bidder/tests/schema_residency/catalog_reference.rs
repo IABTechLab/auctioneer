@@ -5,11 +5,14 @@
 //! freeze current measurement sources, dependencies, lock, options and ABI.
 //! This module never builds, expands, executes or activates source code.
 
-use crate::schema_staging_build::MAX_INPUT_BYTES;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Command;
+
+// Same existing per-input staging cap, kept local to this test-only reader.
+// This is not a new application limit or numeric resource policy.
+const MAX_INPUT_BYTES: u64 = 1 << 20;
 
 /// Maintainer-approved official source commit, never a moving reference.
 pub const REFERENCE_COMMIT: &str = "d26fcf7f566db6d1dce2e1847d79c9f44581edb8";

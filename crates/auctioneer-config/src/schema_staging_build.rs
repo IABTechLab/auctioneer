@@ -1,9 +1,5 @@
 //! Fixed-input, non-serving build adapter. This does not qualify or publish bidders.
 
-/// Offline catalog-growth source data shared by native test consumers.
-#[cfg(not(target_arch = "wasm32"))]
-pub use crate::catalog_reference;
-
 use crate::bidder_discovery::Discovery;
 use crate::build_catalog::{self, Artifact, Catalog, Category, Manifest, Provenance, Source};
 use crate::schema_staging::{
@@ -23,7 +19,7 @@ use std::io::{ErrorKind, Read as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 use std::str::from_utf8;
 
-pub(super) const MAX_INPUT_BYTES: u64 = 1 << 20;
+const MAX_INPUT_BYTES: u64 = 1 << 20;
 // Source witnesses are provenance data, never executable membership authority.
 const SOURCE_INPUTS: [(InputKind, &str, &str); 3] = [
     (
@@ -987,8 +983,8 @@ fn native_dispatch(owners: &[String]) -> TokenStream {
 /// never installs, initializes or executes a validator and never supplies costs.
 ///
 /// # Errors
-/// Refuses invalid discovery/planning/schema inputs, stale witnesses, unsupported
-/// declarations/features/audits, and incomplete build identity.
+/// Refuses invalid discovery/source-witness/schema inputs, stale witnesses,
+/// unsupported declarations/features/audits, and incomplete build identity.
 pub fn generate(request: BuildRequest<'_>) -> Result<GeneratedStaging, String> {
     let BuildRequest {
         crate_dir,

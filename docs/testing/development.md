@@ -64,6 +64,34 @@ of skip. For a shallow checkout at the catalog revision, use:
 git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
 ```
 
+Matched catalog-growth cases in `schema_source_conformance` additionally require
+a separate checkout of the official `IABTechLab/auctioneer` repository at
+`vendor/catalog-growth-reference`, pinned to commit
+`d26fcf7f566db6d1dce2e1847d79c9f44581edb8` and tree
+`2d54c6f53ef3d062ca9292449a4546bb76e5ddd8`. Set
+`AUCTIONEER__TEST__CATALOG_REFERENCE_DIR` to that checkout's absolute normal
+path, with no symlinked ancestors. Keep this separate from the bidder provenance
+checkout above; the reference is data, not another application build.
+
+From the workspace root, create a fresh, unfiltered reference checkout:
+
+```sh
+git init vendor/catalog-growth-reference
+git -C vendor/catalog-growth-reference remote add origin https://github.com/IABTechLab/auctioneer.git
+git --no-replace-objects -C vendor/catalog-growth-reference fetch --no-tags --depth=1 origin d26fcf7f566db6d1dce2e1847d79c9f44581edb8
+git --no-replace-objects -C vendor/catalog-growth-reference checkout --detach FETCH_HEAD
+export AUCTIONEER__TEST__CATALOG_REFERENCE_DIR="$(pwd -P)/vendor/catalog-growth-reference"
+```
+
+The reference must contain the full required commit/tree/blob object closure.
+Partial clones, promisor configuration or pack markers, object filters and
+alternate object stores are refused, even when some required objects are
+present. A complete depth-1 tip is sufficient; parent history is not required.
+Existing hosted setup acquires this exact pin before consumers. Tests verify
+HEAD/tree and consumed objects offline: missing inputs or a mismatched pin fail,
+with no fetch, lazy-fetch, current-worktree fallback or skip. The pure captured-data
+`catalog_resource_profile` consumer does not require this checkout or variable.
+
 Historical evidence retains the revision and original bytes it exercised.
 Its older SDK pin is not a current-source reproduction instruction; use the
 [current source/SDK ownership index](resource-proof-ownership.md) and

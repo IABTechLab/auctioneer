@@ -83,8 +83,8 @@ check_dispatch unknown-name refuse "$complete"$'\n''test fake_unknown ... ok'
 check_dispatch unknown-framed-name refuse "${complete/fake_growth/fake_unknown}"
 check_dispatch mismatched-lane refuse "${complete/"$opening"/AUCTIONEER_SCHEMA_GROWTH_BEGIN/default}"
 check_dispatch mismatched-end refuse "${complete/"$closing"/AUCTIONEER_SCHEMA_GROWTH_END/default}"
-check_dispatch nested-frame refuse "${complete/"$content"/"$nested"}"
-check_dispatch discarded-result refuse "${complete/"$content"/"$discarded"}"
+check_dispatch nested-frame refuse "test fake_growth ... $opening"$'\n'"$nested"$'\n'"$closing"$'\nok\n'"$regular"
+check_dispatch discarded-result refuse "test fake_growth ... $opening"$'\n'"$discarded"$'\n'"$closing"$'\nok\n'"$regular"
 check_dispatch missing-ordinary-case refuse "$frame"
 check_dispatch failed-ordinary-case refuse "$frame"$'\ntest fake_regular ... FAILED'
 check_dispatch inexact-ordinary-case refuse "$frame"$'\n'"$regular "
