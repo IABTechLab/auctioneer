@@ -6,12 +6,12 @@ For the current source-bound closure, implemented components and remaining proof
 
 **2026-11-21 common-source checkpoint:** Actual captured declarations, expanded owners, production format/coordinator sources and component models now compose into a `SourceComplete` recipe with exact required target slots and the #47 handoff. The recorded closure has 18 public definitions, 16 effective schemas, five program owners and 19 linked/inline groups.
 
-The [dated evidence](../testing/evidence/schema-residency-initialization-20261121.md) binds the default-lane capture to source `081b52116fcc6e690ad164121c5677ffd1441065`: 335 compiler controls and 806 source tests passed, then the job failed on eight strict-Clippy diagnostics. The separate development lane, remaining owners and final complete matrix still require final-head evidence. [#46](https://github.com/IABTechLab/auctioneer/issues/46) remains open.
+The [dated evidence](../testing/evidence/schema-residency-initialization-20261121.md) distinguishes the historical 081 capture from post-repair default/development captures, their separate reference and measurement locks, exact hosted results and the source-interface handoff. Earlier strict-lint failures are historical, not the current source status. GitHub PR #262 records review and issue acceptance; this index does not grant approval or qualification.
 
 Both source projections remain `TargetIncomplete`, with numeric costs null and receipt/physical-fit/serving flags false. Actual native requested-allocation observations and explicitly hypothetical C/I evaluation do not establish target layouts, physical/allocator bounds, actual linked-byte growth, adapter fit or permission to serve. #72-#75 and #47 retain those respective downstream obligations; reservations and guest publication restrictions are unchanged.
 
-**2026-11-13 dependency amendment:** The selected runtime/compiler family is
-now `jsonschema = "=0.61.2"`, with the three compiler patches replayed against
+**2026-11-13 dependency amendment (historical):** That checkpoint selected
+`jsonschema = "=0.61.2"`, with the three compiler patches replayed against
 that release. Current source/archive/patch identities are recorded in
 [vendor documentation](../../vendor/README.md) and the
 [dependency-upgrade evidence](../testing/evidence/rust-dependency-upgrade-20261112.md).
@@ -37,7 +37,7 @@ the selected validators for separately funded native admission. New guest
 publications remain excluded. The checkpoint narrative below predates this
 amendment and is not a statement that the formal engine gate has passed.
 
-**Status: patched compiler under qualification.** The selected 0.61.2 compiler
+**Status: patched compiler under qualification.** The current 0.62.0 compiler
 retains the approved numeric-type, initialization and explicit-cache patches;
 complete engine and resource certification remain pending. Normal native
 serving uses the separately funded tested-reservation contract from the
@@ -48,8 +48,10 @@ checkpoint narratives below do not supersede these current boundaries.
 
 ## Shipped Qualification Scope
 
+Current implemented membership is discovery-owned before publication filtering: 18 public definitions/aliases and 16 effective schema owners in each feature lane. Operator disablement and native-only publication do not remove a common proof owner. Additional catalogue entries remain explicit non-implemented dispositions. The dated cohort investigation below is historical; it is not an active selector or a replacement for discovery.
+
 The [2026-10-29 amendment](../superpowers/specs/2026-10-29-shipped-schema-qualification-design.md)
-scopes new bidder catalog serving/resource acceptance to the complete generated shipped
+scoped that checkpoint's serving/resource acceptance to the complete generated shipped
 closure `S`, including planned priority and existing published bindings,
 aliases, references and shared helpers in each adapter/feature lane. Existing
 full-source correctness, compatibility, integrity and component controls below
@@ -61,7 +63,7 @@ surfaces belong to their bidder expansion wave or residual remaining catalog clo
 
 ### Selected Source And Generated Membership
 
-The 2026-10-29 native source-conformance checkpoint derives the union of
+The historical 2026-10-29 native source-conformance checkpoint derived the union of
 generated publication declarations, the frozen 13-row priority wave and the
 separately witnessed supplemental priority root. It resolves ancestry and
 effective schema ownership before expanding the selected schemas. Runtime
@@ -581,7 +583,7 @@ WASM parsers reconcile every selected owner with mapped descriptor data and
 actual validator/cache/initializer references. Decoy strings, unrelated custom
 sections and imported or missing function references fail the controls. Spin's
 component is inspected through its nested core modules. All eight builds and
-inspections pass locally.
+inspections passed locally at that historical checkpoint. Current artifact/feature verification is hosted in the four separately owned application jobs; the dated evidence records their exact source and run, not a new local execution.
 
 The rows use a fixed `repr(C)` layout with compiler assertions: 160 bytes on
 32-bit guests and 176 bytes on the native target. Pointer fields are read with
@@ -3188,6 +3190,8 @@ without compiler-bound or library-owned layout facts. Whole-engine and serving
 qualification remain open.
 
 ## Remaining Gate
+
+The following 2026-10-28 layout investigation is historical. Current common C/I composition is a conditional `SourceComplete` recipe; target physical/layout/linkage and #47 validation obligations remain separate, as described in the current evidence and ownership index. Nothing below certifies current target fit.
 
 On 2026-10-28 AG approved the library-owned layout API. The
 [approved contract](../superpowers/specs/2026-10-28-regex-resource-layout-api-design.md)

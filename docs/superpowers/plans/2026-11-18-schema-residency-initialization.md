@@ -24,11 +24,11 @@
 
 Every task below follows tests first, recorded hosted RED, minimal implementation, hosted GREEN and a focused commit. Keep positive and negative controls together so an implementation returning refusal for everything cannot pass.
 
-## Implementation Checkpoint: 2026-11-21
+## Historical Implementation Checkpoint: 2026-11-21
 
 This historical checkpoint does not replace the final delivery record or GitHub review state. See the [dated evidence](../../testing/evidence/schema-residency-initialization-20261121.md) for exact source/capture identities, the per-task RED/GREEN map and current verified implementation checkpoints. Earlier failed runs remain history, not current-state claims.
 
-| Task | Delivered / Executed Scope | Remaining Acceptance |
+| Task | Delivered / Executed Scope At 081 | Remaining Acceptance At That Checkpoint |
 | --- | --- | --- |
 | 2-3 | Discovery/version-2 capture and expanded-source controls execute in the 081 default source suite. | Final-head four-application/source/producer owners and complete matrix. |
 | 4-7 | Default captured recipes are SourceComplete / TargetIncomplete; retained/constructor/fact/handoff controls and reconstructed lifecycle observations pass in the 806-case suite. | Do not credit uninspected native lifecycle, ABI or separately owned probes from this filtered result; final-head acceptance remains required. |

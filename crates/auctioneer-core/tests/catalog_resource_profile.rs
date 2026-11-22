@@ -252,20 +252,97 @@ mod tests {
         }));
     }
 
-    fn captured_growth() -> Value {
-        assert!(boot_gates().is_none());
-        // Supplied hosted capture: source 081b52116fcc6e690ad164121c5677ffd1441065,
-        // run 44966255810, job 137035850296. Raw bytes are immutable evidence.
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(concat!(
-            "../auctioneer-bidder/tests/conformance/fixtures/reference/",
-            "schema-residency/hosted-growth-081b521.json"
-        ));
-        let bytes = fs::read(path).expect("immutable hosted matched-growth capture");
-        assert_eq!(bytes.len(), 1_620_650_usize);
+    fn assert_captured_source_context(report: &Value, lane: &str) {
         assert_eq!(
-            hex::encode(Sha256::digest(&bytes)),
-            "6fff751282b3ea39ce70f4e5d7cb64acc65c9be594301035d22a2e63fb6e61e4"
+            report.get("metadata_registry_scope"),
+            Some(&json!({
+                "reference":"equal-input-proxy-of-candidate",
+                "candidate":"actual-current-constructor",
+                "supports_nonzero_metadata_registry_delta":false
+            }))
         );
+        assert!(report.get("task8_complete").is_none());
+        for (side, kind) in [
+            ("reference", "equal-input-proxy-of-candidate"),
+            ("candidate", "actual-current-constructor"),
+        ] {
+            assert_eq!(
+                report
+                    .get(side)
+                    .and_then(|value| value.get("metadata_registry_observation_kind"))
+                    .and_then(Value::as_str),
+                Some(kind)
+            );
+        }
+        let historical_lock =
+            "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c";
+        assert_eq!(
+            report
+                .pointer("/reference/source/lock_sha256")
+                .and_then(Value::as_str),
+            Some(historical_lock)
+        );
+        let current_lock = hex::encode(Sha256::digest(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../Cargo.lock"
+        ))));
+        assert_ne!(current_lock, historical_lock);
+        for pointer in [
+            "/candidate/source/lock_sha256",
+            "/reference/measurement/measurement_lock_sha256",
+            "/candidate/measurement/measurement_lock_sha256",
+        ] {
+            assert_eq!(
+                report.pointer(pointer).and_then(Value::as_str),
+                Some(current_lock.as_str()),
+                "{lane}: {pointer}"
+            );
+        }
+        let measurement = report
+            .pointer("/reference/measurement")
+            .expect("captured current measurement tuple");
+        assert_eq!(report.pointer("/candidate/measurement"), Some(measurement));
+        let features = measurement
+            .pointer("/build/enabled_features")
+            .and_then(Value::as_array)
+            .expect("captured measurement features");
+        assert_eq!(
+            features
+                .iter()
+                .any(|feature| feature.as_str() == Some("insecure-bidders")),
+            lane == "development"
+        );
+        assert_eq!(
+            report
+                .pointer("/matched_metadata_measurement/development")
+                .and_then(Value::as_bool),
+            Some(lane == "development")
+        );
+    }
+
+    fn captured_growth(lane: &str) -> Value {
+        assert!(boot_gates().is_none());
+        // Frozen proof checkpoint 4a863c6, run 45021426271, job 137204983421.
+        // Both feature lanes retain their exact hosted bytes and provenance.
+        let (filename, length, sha256): (&str, usize, &str) = match lane {
+            "default" => (
+                "hosted-growth-4a863c6-default.json",
+                1_624_271_usize,
+                "71d1be5f96ef8ac6cb3f756cb13ff26efd06b57dd3f6a44a7e23c9beddba2a51",
+            ),
+            "development" => (
+                "hosted-growth-4a863c6-development.json",
+                1_624_548_usize,
+                "87da24f9e0a9644384ffe1f1c9bcb2eb2df5d3e52401d9937eeba897430d1f13",
+            ),
+            _ => panic!("unexpected capture lane"),
+        };
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../auctioneer-bidder/tests/conformance/fixtures/reference/schema-residency")
+            .join(filename);
+        let bytes = fs::read(path).expect("immutable hosted matched-growth capture");
+        assert_eq!(bytes.len(), length);
+        assert_eq!(hex::encode(Sha256::digest(&bytes)), sha256);
         let report: Value = serde_json::from_slice(&bytes).expect("hosted matched-growth capture");
         assert_eq!(
             report.get("label").and_then(Value::as_str),
@@ -274,11 +351,12 @@ mod tests {
         for (field, expected) in [
             ("common_C_I_qualified", false),
             ("physical_or_serving_qualification", false),
-            ("task8_complete", true),
+            ("matched_reconstruction_complete", true),
             ("frozen_sources_and_snapshots_rechecked", true),
         ] {
             assert_eq!(report.get(field).and_then(Value::as_bool), Some(expected));
         }
+        assert_captured_source_context(&report, lane);
         for name in ["reference", "candidate"] {
             let side = report.get(name).expect("captured source side");
             assert_captured_projection(side);
@@ -328,10 +406,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn captured_hypothetical_c_i_add_once_independently_of_auction_and_auxiliary_scale() {
-        let report = captured_growth();
-        let hypothetical = captured_hypothetical(&report);
+    fn captured_c_i_checks(report: &Value) -> u32 {
+        let hypothetical = captured_hypothetical(report);
         let resident = captured_u64(hypothetical, "retained_requested_bytes");
         let initialization = captured_u64(hypothetical, "construction_only_requested_bytes");
         let unchanged = CatalogResourceCosts::UNCHANGED;
@@ -391,12 +467,21 @@ mod tests {
         assert_eq!(checked, 27_u32);
         assert_eq!(CatalogResourceCosts::UNCHANGED, unchanged);
         assert!(boot_gates().is_none());
+        checked
     }
 
     #[test]
-    fn captured_source_recipe_and_samples_cannot_supply_a_zero_qualification_receipt() {
-        let report = captured_growth();
-        let hypothetical = captured_hypothetical(&report);
+    fn captured_hypothetical_c_i_add_once_independently_of_auction_and_auxiliary_scale() {
+        let mut checked = 0_u32;
+        for report in [captured_growth("default"), captured_growth("development")] {
+            checked = checked.checked_add(captured_c_i_checks(&report)).unwrap();
+        }
+        assert_eq!(checked, 54_u32);
+        assert!(boot_gates().is_none());
+    }
+
+    fn assert_captured_no_receipt(report: &Value) {
+        let hypothetical = captured_hypothetical(report);
         // Synthetic nonzero tags only reach the receipt-presence check. They
         // are not a parsed or authenticated identity of the captured build.
         let control_build = CatalogBuildIdentity {
@@ -428,6 +513,14 @@ mod tests {
                 .and_then(Value::as_bool),
             Some(false)
         );
+        assert!(boot_gates().is_none());
+    }
+
+    #[test]
+    fn captured_source_recipe_and_samples_cannot_supply_a_zero_qualification_receipt() {
+        for report in [captured_growth("default"), captured_growth("development")] {
+            assert_captured_no_receipt(&report);
+        }
         assert!(boot_gates().is_none());
     }
 
