@@ -282,11 +282,7 @@ mod tests {
                 .and_then(Value::as_str),
             Some(historical_lock)
         );
-        let current_lock = hex::encode(Sha256::digest(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../Cargo.lock"
-        ))));
-        assert_ne!(current_lock, historical_lock);
+        assert_ne!(recorded_measurement_lock, historical_lock);
         for pointer in [
             "/candidate/source/lock_sha256",
             "/reference/measurement/measurement_lock_sha256",
@@ -294,13 +290,13 @@ mod tests {
         ] {
             assert_eq!(
                 report.pointer(pointer).and_then(Value::as_str),
-                Some(current_lock.as_str()),
+                Some(recorded_measurement_lock),
                 "{lane}: {pointer}"
             );
         }
         let measurement = report
             .pointer("/reference/measurement")
-            .expect("captured current measurement tuple");
+            .expect("captured measurement tuple");
         assert_eq!(report.pointer("/candidate/measurement"), Some(measurement));
         let features = measurement
             .pointer("/build/enabled_features")
@@ -380,7 +376,10 @@ mod tests {
                 &["/reference/source/lock_sha256"],
                 "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c",
             ),
-            (&["/candidate/source/lock_sha256"], recorded_measurement_lock),
+            (
+                &["/candidate/source/lock_sha256"],
+                recorded_measurement_lock,
+            ),
             (
                 &["/reference/measurement/measurement_lock_sha256"],
                 recorded_measurement_lock,

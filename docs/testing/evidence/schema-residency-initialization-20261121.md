@@ -28,12 +28,28 @@ The [capture README](../../../crates/auctioneer-bidder/tests/conformance/fixture
 
 Reference provenance is `d26fcf7f566db6d1dce2e1847d79c9f44581edb8` / tree `2d54c6f53ef3d062ca9292449a4546bb76e5ddd8` / lock `78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c`. Candidate and current measurement lock are `ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38`. Both lanes use Rust 1.98.1 (`48a229ceaefd4985c50990b14116b6d856af0985`), x86_64 Linux, debug, empty encoded rustflags and `test-support`; development additionally enables `insecure-bidders`. Every source, compiler/library/options/features witness remains inside the corresponding frame.
 
-| Lane / Binding | Reference | Candidate |
+Those locks describe the captured proof checkpoint, not the live dependency state of every later arithmetic test run. The data-only consumer pins this recorded context and its internal source/measurement consistency. The compiler/schema live-growth owner, not the historical arithmetic fixtures, owns current-build freshness and current-lock/source-model admission. No dependency change recertifies an old capture or justifies overwriting it to obtain green.
+
+| Lane / Per-Run Serialized Digest | Reference | Candidate |
 | --- | --- | --- |
-| Default seed | `e7b1d367ff1c297b2dcf7c0ab4183b8f4d0c556f5d11deec48c998358e02b143` | `c5012bd8cce24363e117abd2f4fa2074fec7cc22e07dc7aa24a125fde9af41ec` |
-| Default expanded graph | `110cc9c3fe5f3007caf031b384b00d6e022441c5e2c095b7ad3fd42f87c28d45` | `c1880816459dba14d973ba1cd6ef80273b1ef29ac98a02fbf11b08745b06ef83` |
-| Development seed | `eb6c4070b0df8dc3f51dccf9b997368e8794a51ba7b1a36cb71ae97fe7ca21f3` | `05d52f9c049c84c9b3562d5654b2bcea7183675d216e91fb49864b18df64c76e` |
-| Development expanded graph | `78bdaa12683d5b1412c6a9d903bbcf064d2a3dbf792169f5960fa0b06939dc78` | `7b2ebab119f7b519ec8f3139d146f0642ec2f6907f1c3054e93f0b1825d4ae57` |
+| Default serialized seed SHA-256 | `e7b1d367ff1c297b2dcf7c0ab4183b8f4d0c556f5d11deec48c998358e02b143` | `c5012bd8cce24363e117abd2f4fa2074fec7cc22e07dc7aa24a125fde9af41ec` |
+| Default serialized expanded graph SHA-256 | `110cc9c3fe5f3007caf031b384b00d6e022441c5e2c095b7ad3fd42f87c28d45` | `c1880816459dba14d973ba1cd6ef80273b1ef29ac98a02fbf11b08745b06ef83` |
+| Development serialized seed SHA-256 | `eb6c4070b0df8dc3f51dccf9b997368e8794a51ba7b1a36cb71ae97fe7ca21f3` | `05d52f9c049c84c9b3562d5654b2bcea7183675d216e91fb49864b18df64c76e` |
+| Development serialized expanded graph SHA-256 | `78bdaa12683d5b1412c6a9d903bbcf064d2a3dbf792169f5960fa0b06939dc78` | `7b2ebab119f7b519ec8f3139d146f0642ec2f6907f1c3054e93f0b1825d4ae57` |
+
+### Per-Run Digests And Source Comparison
+
+The table records serialized-capture correlation and integrity hashes, not cross-run reproducibility or qualification keys. `run_real` reconstructs both sides under a fresh random private temporary root. The generated schema attributes contain absolute snapshot paths, and the generated inputs also record `OUT_DIR`. These bytes feed the seed, expanded graph and descriptor binding. Consequently, rerunning identical proof code against identical source inputs can change `seed_sha256`, `expanded_sha256`, graph `captured_manifest_sha256` and `captured_rust_sha256`, declaration `expansion_sha256`, `source_recipe_identity`, and linked/inline-group `source_sha256` values. This applies to the fixed reference tree too.
+
+The retained [rerun job 137214038879](https://github.com/IABTechLab/auctioneer/actions/runs/45024347274/job/137214038879) at source `1526efa88c828f691c333ee3b2070d7709396b73` re-emitted both lanes with different seed/graph/recipe digests, while retaining the listed hypothetical C = 90,720, I = 405,111 and additive total = 495,831. It does not replace the immutable raw files above. Digest inequality alone is not evidence of a semantic change; numeric equality alone is not evidence of source equivalence.
+
+The existing source-based comparison is `growth::match_views` together with its source/schema, option and schedule checks and `attach_source_recipes`, not a normalized replacement digest. Its content and semantic witnesses are:
+
+- Workspace-relative `source.files` paths with byte lengths and SHA-256 values, including witnessed directory membership; the reference additionally retains exact commit/tree and `source.git_files` path/mode/blob/byte-length/SHA-256 records. Each snapshot is checked independently, not required to equal the other snapshot's entire source history.
+- Actual schema bytes reconciled with source, manifest and snapshot witnesses; effective schema-owner keys and schema SHA-256 values; the explicitly declared added/removed/changed owner sets; and generated helper owner/marker/symbol identities, patterns and initialization order, including the shared hostname program. Accepted semantic attributes retain exact draft, format callbacks, pattern options and method settings; each absolute path must still name that run's verified snapshot.
+- Current compiler/generator/model source witnesses, measurement lock, verified regex source and exact regex features, generator options, build/compiler/features/profile/rustflags, ABI and workload. `match_views` requires the complete reference/candidate measurement objects to be equal inside the run. `attach_source_recipes` compares `programs_in_initialization_order` and linked-group identities, roots, inline children, budget owners and units, not path-bearing serialized projection digests.
+
+These are existing comparison fields and checks, not a new cross-run normalization API. Downstream owners must either consume one capture's immutable source/seed/graph/recipe bundle and exact validation handoff, including its binding, or establish source continuity under these content/semantic witnesses and consume a fresh current-run bundle. They must not compare independently reconstructed raw digests as reproducibility keys, mix bindings from separate runs, or strip arbitrary hashes to force owner agreement. Exact same-capture graph equality, frozen-input and snapshot rechecks, source/attribute/owner-drift refusals, and metadata/registry equal-input refusals remain unchanged. No digest or source continuity comparison grants physical qualification.
 
 Both frames have 18 public definitions, 16 effective schemas, five programs, 19 linked/inline groups and empty declared owner deltas. The reference metadata/registry observations are explicitly **equal-input proxies of candidate constructors**, not reference executable observations. Exact metadata inputs must match; `supports_nonzero_metadata_registry_delta: false` means unequal metadata/registry inputs refuse, including a schema change that also changes those inputs. The candidate observations are actual current constructors in fresh processes. Both roles report metadata 12,501 retained bytes and registry 2,116 retained bytes, with zero repeat/lookup allocations; a zero component delta is not zero absolute storage or a physical bound.
 
@@ -53,11 +69,13 @@ a certificate for a newer source, dependency or model tuple.
 - One current measurement build: Rust 1.98.1 (`48a229ceaefd4985c50990b14116b6d856af0985`), `x86_64-unknown-linux-gnu`, little-endian 64-bit, debug, `test-support`, empty encoded rustflags. The record retains the exact 25 regex features, generator/options and consumed source witnesses.
 - Measurement/reference/candidate lock SHA-256: `78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c`.
 
-| Binding | Reference | Candidate |
+These historical hashes have the same per-run serialized-capture integrity and correlation scope described above. Their original values are preserved; they are not reproducible keys for an independent rerun of 081.
+
+| Historical Per-Run Serialized Digest | Reference | Candidate |
 | --- | --- | --- |
-| Seed SHA-256 | `3a4880a48e86f05b668340ce0f153098c458fb5b06e573bb8ae16494b913194c` | `26f874cadc16e451bd44d9403438844672d80a2db682d7a887120f4e8f3eaca1` |
-| Expanded graph SHA-256 | `824f3dd93c44c61eca757545b691fe9a60694e45ebbaf2cc88f6347fdd10dcc1` | `712d8c80324b859d43aacbdafe8328fe7d5e3b763c5b2ebbf20b2995a35b9306` |
-| Recipe identity | `ce4abcc8aba35215e79f2c81e3c8dbbcf1c43cb534d0fba5840fa2af1e2faa8d` | `a78ee4aafa34a32ce1d7400240b5c8fead1b16127b2bad42ff138a3f9d203a8b` |
+| Serialized seed SHA-256 | `3a4880a48e86f05b668340ce0f153098c458fb5b06e573bb8ae16494b913194c` | `26f874cadc16e451bd44d9403438844672d80a2db682d7a887120f4e8f3eaca1` |
+| Serialized expanded graph SHA-256 | `824f3dd93c44c61eca757545b691fe9a60694e45ebbaf2cc88f6347fdd10dcc1` | `712d8c80324b859d43aacbdafe8328fe7d5e3b763c5b2ebbf20b2995a35b9306` |
+| Serialized recipe identity | `ce4abcc8aba35215e79f2c81e3c8dbbcf1c43cb534d0fba5840fa2af1e2faa8d` | `a78ee4aafa34a32ce1d7400240b5c8fead1b16127b2bad42ff138a3f9d203a8b` |
 
 ## Executed Checkpoints
 
@@ -148,7 +166,7 @@ Both sides of the historical 081 capture contain 18 public definitions, 16 effec
 
 The descriptor re-expands the actual captured graph, binds production staging/native sources and complete model witnesses, and supplies exact required target slots and the #47 validation handoff. Missing/extra facts, cross-root ABI/type disagreement, missing/duplicate child assignments and hostile runtime-source mutations have executed default-lane controls in the 081 log. Source completeness is a conditional recipe, not an authenticated qualification receipt.
 
-Capture-specific seed/graph/linked-source hashes remain distinct. Only common program/formula topology and linked-group identities, roots, inline children, budget owners and units are compared. There is no numeric linked-byte delta.
+The historical seed/graph/linked-source hashes are per-run serialized-capture integrity and correlation values, not cross-run reproducibility keys. Their scope and the existing source-based comparison are described above. Only common program/formula topology and linked-group identities, roots, inline children, budget owners and units are compared for the common recipe terms; exact same-capture source/graph/binding checks still apply. There is no numeric linked-byte delta.
 
 ## Requested Allocation Observations
 
