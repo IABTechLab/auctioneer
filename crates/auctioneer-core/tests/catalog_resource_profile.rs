@@ -7,6 +7,10 @@ use fanout_limits as envelope;
 #[cfg(test)]
 mod tests {
     use super::envelope;
+    use auctioneer_bidder::catalog::{
+        CatalogBuildIdentity, CatalogCostError, CatalogOwner, CatalogRequirement,
+        CatalogRequirements, aggregate_catalog_costs,
+    };
     use auctioneer_core::auction::audit::construction_costs;
     use auctioneer_core::host_primitives::{boot_gates, resolve_budget_inputs};
     use auctioneer_runtime::budget::derive_aux_work_for_profile;
@@ -15,6 +19,9 @@ mod tests {
         RequestConstructionCosts, ResolvedIsolateLimits, TargetPlatformConstants,
         derive_isolate_budget_with_baked_config, validate_isolate_limits,
     };
+    use serde_json::{Value, json};
+    use sha2::{Digest as _, Sha256};
+    use std::{fs, panic::catch_unwind, path::Path};
 
     fn target() -> TargetPlatformConstants {
         TargetPlatformConstants {
@@ -63,6 +70,568 @@ mod tests {
             costs,
         )
         .unwrap()
+    }
+
+    fn captured_u64(value: &Value, field: &str) -> u64 {
+        value
+            .get(field)
+            .and_then(Value::as_u64)
+            .expect("captured unsigned integer")
+    }
+
+    fn captured_i64(value: &Value, field: &str) -> i64 {
+        value
+            .get(field)
+            .and_then(Value::as_i64)
+            .expect("captured signed integer")
+    }
+
+    fn captured_hypothetical(report: &Value) -> &Value {
+        report
+            .pointer("/candidate/hypothetical_requested_storage")
+            .expect("captured candidate hypothetical requested storage")
+    }
+
+    fn assert_captured_projection(side: &Value) {
+        let projection = side
+            .get("source_recipe_projection")
+            .expect("captured source recipe");
+        assert_eq!(captured_u64(projection, "schema_version"), 1_u64);
+        for (field, expected) in [
+            ("kind", "schema_source_recipe_projection"),
+            ("common_status", "SourceComplete"),
+            ("target_status", "TargetIncomplete"),
+        ] {
+            assert_eq!(
+                projection.get(field).and_then(Value::as_str),
+                Some(expected)
+            );
+        }
+        let identity = projection
+            .get("source_recipe_identity")
+            .and_then(Value::as_str)
+            .expect("captured source recipe identity");
+        assert_eq!(identity.len(), 64_usize);
+        assert!(identity.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert_eq!(projection.get("numeric_costs"), Some(&Value::Null));
+        for field in [
+            "authenticated_qualification_receipt",
+            "physical_fit",
+            "serving_permission",
+        ] {
+            assert_eq!(projection.get(field).and_then(Value::as_bool), Some(false));
+        }
+        let slots = projection
+            .get("required_slots")
+            .expect("captured target slots");
+        let programs = slots
+            .get("programs")
+            .and_then(Value::as_array)
+            .expect("captured program slots");
+        let groups = slots
+            .get("linked_inline_groups")
+            .and_then(Value::as_array)
+            .expect("captured linked/inline slots");
+        assert!(!programs.is_empty());
+        assert!(!groups.is_empty());
+        assert_eq!(programs.len(), 5_usize);
+        assert_eq!(groups.len(), 19_usize);
+        assert_eq!(captured_u64(side, "program_count"), 5_u64);
+    }
+
+    fn assert_captured_observations(side: &Value) {
+        let metadata = side
+            .get("metadata_constructor_observation")
+            .expect("captured metadata observation");
+        let registry = side
+            .get("registry_constructor_observation")
+            .expect("captured registry observation");
+        let zero = json!({
+            "allocated_bytes": 0_u64,
+            "peak_live_bytes": 0_i64,
+            "retained_bytes": 0_i64,
+            "allocation_calls": 0_u64
+        });
+        // Observations remain data, never inputs to the physical catalog charge.
+        for observation in [metadata, registry] {
+            let cold = observation.get("cold").expect("captured cold observation");
+            for field in [
+                "allocated_bytes",
+                "peak_live_bytes",
+                "retained_bytes",
+                "allocation_calls",
+            ] {
+                assert!(captured_u64(cold, field) > 0_u64);
+            }
+        }
+        assert_eq!(metadata.get("repeat"), Some(&zero));
+        assert_eq!(registry.get("lookup"), Some(&zero));
+        let registry_cold = registry.get("cold").expect("captured cold registry");
+        let release = registry.get("release").expect("captured registry release");
+        assert_eq!(
+            captured_i64(registry_cold, "retained_bytes")
+                .checked_add(captured_i64(release, "retained_bytes")),
+            Some(0_i64)
+        );
+        let metadata_cold = metadata.get("cold").expect("captured cold metadata");
+        let prefix = captured_i64(registry, "metadata_prefix_retained_bytes");
+        assert_eq!(prefix, captured_i64(metadata_cold, "retained_bytes"));
+        assert_eq!(
+            captured_i64(registry, "prefix_plus_registry_peak_bytes"),
+            prefix
+                .checked_add(captured_i64(registry_cold, "peak_live_bytes"))
+                .unwrap()
+        );
+    }
+
+    fn assert_captured_work_units(side: &Value) {
+        let work = side
+            .get("constructor_work")
+            .expect("captured constructor-work semantics");
+        assert_eq!(
+            work.get("units").and_then(Value::as_str),
+            Some("source collection-record/byte visits")
+        );
+        assert_eq!(
+            work.get("bound_kind").and_then(Value::as_str),
+            Some("checked upper bound, not an exact dynamic execution count")
+        );
+        assert_eq!(
+            work.get("excludes"),
+            Some(&json!([
+                "scalar moves",
+                "atomics",
+                "allocator internals",
+                "machine operations",
+                "elapsed time"
+            ]))
+        );
+        for field in [
+            "latency_bound",
+            "cpu_instruction_bound",
+            "runtime_validation_token_bound",
+        ] {
+            assert_eq!(work.get(field).and_then(Value::as_bool), Some(false));
+        }
+    }
+
+    fn assert_captured_hypothetical(hypothetical: &Value) {
+        assert_eq!(
+            hypothetical.get("abi").and_then(Value::as_str),
+            Some("hypothetical-only-not-observed-or-physical")
+        );
+        for field in [
+            "observed_target_layouts",
+            "physical_or_serving_qualification",
+        ] {
+            assert_eq!(
+                hypothetical.get(field).and_then(Value::as_bool),
+                Some(false)
+            );
+        }
+        let resident = captured_u64(hypothetical, "retained_requested_bytes");
+        let initialization = captured_u64(hypothetical, "construction_only_requested_bytes");
+        assert!(resident > 0_u64 && initialization > 0_u64);
+        let additive = resident.checked_add(initialization).unwrap();
+        assert_eq!(
+            captured_u64(hypothetical, "additive_requested_envelope"),
+            additive
+        );
+        assert!(additive > resident.max(initialization));
+        assert!(captured_u64(hypothetical, "linked_inline_attributed_bytes") > 0_u64);
+        assert!(captured_u64(hypothetical, "constructor_source_visits") > 0_u64);
+        let traces = hypothetical
+            .get("trace_peaks")
+            .and_then(Value::as_array)
+            .expect("captured constructor traces");
+        assert!(!traces.is_empty());
+        assert_eq!(traces.len(), 65_usize);
+        assert!(traces.iter().all(|trace| {
+            let bytes = trace.as_u64().expect("captured trace bytes");
+            bytes > 0_u64 && bytes <= additive
+        }));
+    }
+
+    fn assert_captured_source_context(report: &Value, lane: &str, recorded_measurement_lock: &str) {
+        assert_eq!(recorded_measurement_lock.len(), 64_usize);
+        assert_eq!(
+            report.get("metadata_registry_scope"),
+            Some(&json!({
+                "reference":"equal-input-proxy-of-candidate",
+                "candidate":"actual-current-constructor",
+                "supports_nonzero_metadata_registry_delta":false
+            }))
+        );
+        assert!(report.get("task8_complete").is_none());
+        for (side, kind) in [
+            ("reference", "equal-input-proxy-of-candidate"),
+            ("candidate", "actual-current-constructor"),
+        ] {
+            assert_eq!(
+                report
+                    .get(side)
+                    .and_then(|value| value.get("metadata_registry_observation_kind"))
+                    .and_then(Value::as_str),
+                Some(kind)
+            );
+        }
+        let historical_lock = "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c";
+        assert_eq!(
+            report
+                .pointer("/reference/source/lock_sha256")
+                .and_then(Value::as_str),
+            Some(historical_lock)
+        );
+        assert_ne!(recorded_measurement_lock, historical_lock);
+        for pointer in [
+            "/candidate/source/lock_sha256",
+            "/reference/measurement/measurement_lock_sha256",
+            "/candidate/measurement/measurement_lock_sha256",
+        ] {
+            assert_eq!(
+                report.pointer(pointer).and_then(Value::as_str),
+                Some(recorded_measurement_lock),
+                "{lane}: {pointer}"
+            );
+        }
+        let measurement = report
+            .pointer("/reference/measurement")
+            .expect("captured measurement tuple");
+        assert_eq!(report.pointer("/candidate/measurement"), Some(measurement));
+        let features = measurement
+            .pointer("/build/enabled_features")
+            .and_then(Value::as_array)
+            .expect("captured measurement features");
+        assert_eq!(
+            features
+                .iter()
+                .any(|feature| feature.as_str() == Some("insecure-bidders")),
+            lane == "development"
+        );
+        assert_eq!(
+            report
+                .pointer("/matched_metadata_measurement/development")
+                .and_then(Value::as_bool),
+            Some(lane == "development")
+        );
+    }
+
+    // Synthetic context-only records, not allocation samples or qualification claims.
+    fn captured_source_context_fixture(lane: &str, recorded_measurement_lock: &str) -> Value {
+        let features = if lane == "development" {
+            json!(["test-support", "insecure-bidders"])
+        } else {
+            json!(["test-support"])
+        };
+        let measurement = json!({
+            "measurement_lock_sha256":recorded_measurement_lock,
+            "build":{"enabled_features":features}
+        });
+        json!({
+            "metadata_registry_scope":{
+                "reference":"equal-input-proxy-of-candidate",
+                "candidate":"actual-current-constructor",
+                "supports_nonzero_metadata_registry_delta":false
+            },
+            "reference":{
+                "metadata_registry_observation_kind":"equal-input-proxy-of-candidate",
+                "source":{"lock_sha256":
+                    "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c"},
+                "measurement":measurement
+            },
+            "candidate":{
+                "metadata_registry_observation_kind":"actual-current-constructor",
+                "source":{"lock_sha256":recorded_measurement_lock},
+                "measurement":measurement
+            },
+            "matched_metadata_measurement":{"development":lane == "development"}
+        })
+    }
+
+    #[test]
+    fn captured_context_accepts_independent_recorded_epochs_in_both_feature_lanes() {
+        assert!(boot_gates().is_none());
+        let mut checked = 0_u32;
+        for recorded_measurement_lock in [
+            "ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38".to_owned(),
+            "f".repeat(64_usize),
+        ] {
+            for lane in ["default", "development"] {
+                let report = captured_source_context_fixture(lane, &recorded_measurement_lock);
+                assert_captured_source_context(&report, lane, &recorded_measurement_lock);
+                checked = checked.checked_add(1_u32).unwrap();
+            }
+        }
+        assert_eq!(checked, 4_u32);
+        assert!(boot_gates().is_none());
+    }
+
+    #[test]
+    fn captured_context_refuses_each_changed_lock_and_coherently_wrong_measurement() {
+        assert!(boot_gates().is_none());
+        let recorded_measurement_lock =
+            "ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38";
+        let cases: [(&[&str], &str); 5_usize] = [
+            (
+                &["/reference/source/lock_sha256"],
+                "78118dcb53fd3f486a6032c47124ba249bd5fbf361a4a1973824e56d4f55001c",
+            ),
+            (
+                &["/candidate/source/lock_sha256"],
+                recorded_measurement_lock,
+            ),
+            (
+                &["/reference/measurement/measurement_lock_sha256"],
+                recorded_measurement_lock,
+            ),
+            (
+                &["/candidate/measurement/measurement_lock_sha256"],
+                recorded_measurement_lock,
+            ),
+            (
+                &[
+                    "/candidate/source/lock_sha256",
+                    "/reference/measurement/measurement_lock_sha256",
+                    "/candidate/measurement/measurement_lock_sha256",
+                ],
+                recorded_measurement_lock,
+            ),
+        ];
+        let mut checked = 0_u32;
+        for lane in ["default", "development"] {
+            for (pointers, expected) in cases {
+                let mut report = captured_source_context_fixture(lane, recorded_measurement_lock);
+                assert_captured_source_context(&report, lane, recorded_measurement_lock);
+                for pointer in pointers {
+                    let leaf = report.pointer_mut(pointer).expect("before-state lock leaf");
+                    assert_eq!(leaf.as_str(), Some(expected), "{lane}: {pointer}");
+                    *leaf = json!("0".repeat(64_usize));
+                }
+                if pointers.len() == 3_usize {
+                    assert_eq!(
+                        report.pointer("/reference/measurement"),
+                        report.pointer("/candidate/measurement")
+                    );
+                }
+                let rejection = catch_unwind(|| {
+                    assert_captured_source_context(&report, lane, recorded_measurement_lock);
+                })
+                .expect_err("changed recorded context must refuse");
+                drop(rejection);
+                checked = checked.checked_add(1_u32).unwrap();
+            }
+        }
+        assert_eq!(checked, 10_u32);
+        assert!(boot_gates().is_none());
+    }
+
+    fn captured_growth(lane: &str) -> Value {
+        assert!(boot_gates().is_none());
+        // Frozen proof checkpoint 4a863c6, run 45021426271, job 137204983421.
+        // Both feature lanes retain their exact hosted bytes and provenance.
+        let (filename, length, sha256): (&str, usize, &str) = match lane {
+            "default" => (
+                "hosted-growth-4a863c6-default.json",
+                1_624_271_usize,
+                "71d1be5f96ef8ac6cb3f756cb13ff26efd06b57dd3f6a44a7e23c9beddba2a51",
+            ),
+            "development" => (
+                "hosted-growth-4a863c6-development.json",
+                1_624_548_usize,
+                "87da24f9e0a9644384ffe1f1c9bcb2eb2df5d3e52401d9937eeba897430d1f13",
+            ),
+            _ => panic!("unexpected capture lane"),
+        };
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../auctioneer-bidder/tests/conformance/fixtures/reference/schema-residency")
+            .join(filename);
+        let bytes = fs::read(path).expect("immutable hosted matched-growth capture");
+        assert_eq!(bytes.len(), length);
+        assert_eq!(hex::encode(Sha256::digest(&bytes)), sha256);
+        let report: Value = serde_json::from_slice(&bytes).expect("hosted matched-growth capture");
+        assert_eq!(
+            report.get("label").and_then(Value::as_str),
+            Some("same-build data-only source reconstruction relative to d26fcf7")
+        );
+        for (field, expected) in [
+            ("common_C_I_qualified", false),
+            ("physical_or_serving_qualification", false),
+            ("matched_reconstruction_complete", true),
+            ("frozen_sources_and_snapshots_rechecked", true),
+        ] {
+            assert_eq!(report.get(field).and_then(Value::as_bool), Some(expected));
+        }
+        // Recorded measurement context of these byte-pinned frames, not this checkout.
+        assert_captured_source_context(
+            &report,
+            lane,
+            "ae849e777f8216f983112f631168bf585c4604076381d265459249d62f88df38",
+        );
+        for name in ["reference", "candidate"] {
+            let side = report.get(name).expect("captured source side");
+            assert_captured_projection(side);
+            assert_captured_observations(side);
+            assert_captured_work_units(side);
+        }
+        assert_captured_hypothetical(captured_hypothetical(&report));
+        assert!(boot_gates().is_none());
+        report
+    }
+
+    fn assert_captured_c_i_delta(
+        baseline: &Derived,
+        evaluated: &Derived,
+        resident: u64,
+        initialization: u64,
+    ) {
+        assert_accounting_delta(
+            "captured hypothetical C/I only",
+            baseline,
+            evaluated,
+            [
+                0_u64,
+                0_u64,
+                0_u64,
+                0_u64,
+                0_u64,
+                0_u64,
+                0_u64,
+                0_u64,
+                0_u64,
+                resident,
+                initialization,
+            ],
+            [0_u64; 6_usize],
+            resident.checked_add(initialization).unwrap(),
+        );
+        assert_eq!(evaluated.catalog_resident_term, resident);
+        assert_eq!(evaluated.catalog_initialization_term, initialization);
+        assert_eq!(
+            evaluated.schema_validation_term,
+            baseline.schema_validation_term
+        );
+        assert_eq!(
+            evaluated.catalog_context_term,
+            baseline.catalog_context_term
+        );
+    }
+
+    fn captured_c_i_checks(report: &Value) -> u32 {
+        let hypothetical = captured_hypothetical(report);
+        let resident = captured_u64(hypothetical, "retained_requested_bytes");
+        let initialization = captured_u64(hypothetical, "construction_only_requested_bytes");
+        let unchanged = CatalogResourceCosts::UNCHANGED;
+        assert_eq!(
+            unchanged,
+            CatalogResourceCosts {
+                resident_bytes: 0_u64,
+                initialization_bytes: 0_u64,
+                schema_validation_per_auction_bytes: 0_u64,
+                context_per_auction_bytes: 0_u64,
+            }
+        );
+        let mut checked = 0_u32;
+        for auctions in [1_u32, 3_u32, 7_u32] {
+            for auxiliary in [0_u32, 1_u32, 5_u32] {
+                let mut raw = envelope::limits();
+                raw.max_concurrent_auctions = auctions;
+                raw.aux_route_permits = auxiliary;
+                let inputs = resolve_budget_inputs(&raw).unwrap();
+                let baseline = derive_raw(
+                    &inputs.limits,
+                    &target(),
+                    construction_costs(),
+                    inputs.baked_config_bytes,
+                    unchanged,
+                );
+                // Only hypothetical C/I enters this pure equation, never
+                // linked/inline attribution or observed allocator samples.
+                for (resident_term, initialization_term) in [
+                    (resident, 0_u64),
+                    (0_u64, initialization),
+                    (resident, initialization),
+                ] {
+                    let costs = CatalogResourceCosts {
+                        resident_bytes: resident_term,
+                        initialization_bytes: initialization_term,
+                        ..unchanged
+                    };
+                    let evaluated = derive_raw(
+                        &inputs.limits,
+                        &target(),
+                        construction_costs(),
+                        inputs.baked_config_bytes,
+                        costs,
+                    );
+                    assert_captured_c_i_delta(
+                        &baseline,
+                        &evaluated,
+                        resident_term,
+                        initialization_term,
+                    );
+                    assert!(boot_gates().is_none());
+                    checked = checked.checked_add(1_u32).unwrap();
+                }
+            }
+        }
+        assert_eq!(checked, 27_u32);
+        assert_eq!(CatalogResourceCosts::UNCHANGED, unchanged);
+        assert!(boot_gates().is_none());
+        checked
+    }
+
+    #[test]
+    fn captured_hypothetical_c_i_add_once_independently_of_auction_and_auxiliary_scale() {
+        let mut checked = 0_u32;
+        for report in [captured_growth("default"), captured_growth("development")] {
+            checked = checked.checked_add(captured_c_i_checks(&report)).unwrap();
+        }
+        assert_eq!(checked, 54_u32);
+        assert!(boot_gates().is_none());
+    }
+
+    fn assert_captured_no_receipt(report: &Value) {
+        let hypothetical = captured_hypothetical(report);
+        // Synthetic nonzero tags only reach the receipt-presence check. They
+        // are not a parsed or authenticated identity of the captured build.
+        let control_build = CatalogBuildIdentity {
+            target_abi: hypothetical.get("abi").and_then(Value::as_str).unwrap(),
+            features_sha256: [1_u8; 32_usize],
+            toolchain_sha256: [2_u8; 32_usize],
+            lock_sha256: [3_u8; 32_usize],
+        };
+        let no_receipt = CatalogRequirement {
+            source_sha256: [4_u8; 32_usize],
+            qualification_sha256: [0_u8; 32_usize],
+        };
+        let requirements = CatalogRequirements {
+            build: control_build,
+            metadata: no_receipt,
+            validators: no_receipt,
+            registry: no_receipt,
+            context: no_receipt,
+        };
+        assert_eq!(
+            aggregate_catalog_costs(&requirements, &[]),
+            Err(CatalogCostError::InvalidRequirement(CatalogOwner::Metadata))
+        );
+        // Aggregation checks scalar identities, not cryptographic provenance.
+        // No qualified contribution or boot installation is constructed.
+        assert_eq!(
+            report
+                .pointer("/candidate/source_recipe_projection/authenticated_qualification_receipt")
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert!(boot_gates().is_none());
+    }
+
+    #[test]
+    fn captured_source_recipe_and_samples_cannot_supply_a_zero_qualification_receipt() {
+        for report in [captured_growth("default"), captured_growth("development")] {
+            assert_captured_no_receipt(&report);
+        }
+        assert!(boot_gates().is_none());
     }
 
     fn common_catalog_costs() -> CatalogResourceCosts {

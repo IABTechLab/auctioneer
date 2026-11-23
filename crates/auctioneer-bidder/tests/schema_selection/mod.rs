@@ -9,7 +9,7 @@ pub fn select<'a>(
     roots: &[&str],
     enabled_features: &[&str],
 ) -> Result<Selection<'a>, String> {
-    select_bindings(definitions, roots, &[], enabled_features)
+    select_bindings(definitions, roots, enabled_features)
 }
 
 #[cfg(test)]

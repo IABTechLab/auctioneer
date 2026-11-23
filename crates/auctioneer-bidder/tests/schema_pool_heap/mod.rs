@@ -28,10 +28,10 @@ impl From<LayoutError> for PoolHeapError {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct PoolLayout {
-    fields: [Field; 4],
-    shard: Field,
-    closure: Field,
+pub(crate) struct PoolLayout {
+    pub fields: [Field; 4],
+    pub shard: Field,
+    pub closure: Field,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,11 +96,15 @@ impl PoolLayout {
 }
 
 impl UnusedPoolHeap {
-    pub(crate) fn native(config: &Config) -> Result<Self, PoolHeapError> {
+    pub(crate) fn with_layout(config: &Config, layout: PoolLayout) -> Result<Self, PoolHeapError> {
         if config.get_pool_capacity() != 1 {
             return Err(PoolHeapError::Configuration);
         }
-        PoolLayout::native().unused(config.get_pool_capacity())
+        layout.unused(config.get_pool_capacity())
+    }
+
+    pub(crate) fn native(config: &Config) -> Result<Self, PoolHeapError> {
+        Self::with_layout(config, PoolLayout::native())
     }
 
     pub(crate) fn population(self, helpers: usize, hostname: bool) -> Result<usize, PoolHeapError> {
@@ -159,6 +163,139 @@ mod tests {
             alignment: 8,
         },
     };
+
+    #[test]
+    fn explicit_pool_facts_vary_each_storage_term_and_alignment_independently() {
+        let config = Regex::config().pool_capacity(1_usize);
+        let expected = UnusedPoolHeap {
+            boxed_pool_bytes: 88_usize,
+            shard_stride: 64_usize,
+            shards: 1_usize,
+            shard_bytes: 64_usize,
+            closure_bytes: 16_usize,
+            requested_bytes: 168_usize,
+        };
+        assert_eq!(
+            UnusedPoolHeap::with_layout(&config, SYNTHETIC),
+            Ok(expected)
+        );
+        for index in 0_usize..4_usize {
+            let mut layout = SYNTHETIC;
+            layout.fields[index].bytes += 8_usize;
+            assert_eq!(
+                UnusedPoolHeap::with_layout(&config, layout),
+                Ok(UnusedPoolHeap {
+                    boxed_pool_bytes: 96_usize,
+                    requested_bytes: 176_usize,
+                    ..expected
+                }),
+                "field {index}"
+            );
+        }
+        let mut shard = SYNTHETIC;
+        shard.shard.bytes = 72_usize;
+        assert_eq!(
+            UnusedPoolHeap::with_layout(&config, shard),
+            Ok(UnusedPoolHeap {
+                shard_stride: 128_usize,
+                shard_bytes: 128_usize,
+                requested_bytes: 232_usize,
+                ..expected
+            })
+        );
+        let mut closure = SYNTHETIC;
+        closure.closure.bytes = 24_usize;
+        assert_eq!(
+            UnusedPoolHeap::with_layout(&config, closure),
+            Ok(UnusedPoolHeap {
+                closure_bytes: 24_usize,
+                requested_bytes: 176_usize,
+                ..expected
+            })
+        );
+        let mut aligned = SYNTHETIC;
+        aligned.fields[0].alignment = 16_usize;
+        // Unchanged byte sizes occupy 16 + 32 + 16 + 48 maximum-aligned slots.
+        assert_eq!(
+            UnusedPoolHeap::with_layout(&config, aligned),
+            Ok(UnusedPoolHeap {
+                boxed_pool_bytes: 112_usize,
+                requested_bytes: 192_usize,
+                ..expected
+            })
+        );
+    }
+
+    #[test]
+    fn explicit_pool_facts_refuse_each_missing_malformed_or_overflowed_field() {
+        let config = Regex::config().pool_capacity(1_usize);
+        for (field, error) in [
+            (
+                Field {
+                    bytes: 0_usize,
+                    alignment: 8_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: 8_usize,
+                    alignment: 0_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: 8_usize,
+                    alignment: 3_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: 9_usize,
+                    alignment: 8_usize,
+                },
+                PoolHeapError::Shape,
+            ),
+            (
+                Field {
+                    bytes: usize::MAX - 7_usize,
+                    alignment: 8_usize,
+                },
+                PoolHeapError::Arithmetic,
+            ),
+        ] {
+            for index in 0_usize..6_usize {
+                let mut layout = SYNTHETIC;
+                match index {
+                    0..=3 => layout.fields[index] = field,
+                    4 => layout.shard = field,
+                    _ => layout.closure = field,
+                }
+                assert_eq!(
+                    UnusedPoolHeap::with_layout(&config, layout),
+                    Err(error),
+                    "field {index}: {field:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_native_pool_facts_preserve_the_existing_adapter_and_configuration_contract() {
+        let config = Regex::config().pool_capacity(1_usize);
+        assert_eq!(
+            UnusedPoolHeap::with_layout(&config, PoolLayout::native()),
+            UnusedPoolHeap::native(&config)
+        );
+        for capacity in [0_usize, 2_usize, usize::MAX] {
+            assert_eq!(
+                UnusedPoolHeap::with_layout(&Regex::config().pool_capacity(capacity), SYNTHETIC,),
+                Err(PoolHeapError::Configuration)
+            );
+        }
+    }
 
     #[test]
     fn literal_components_and_shard_counts_prevent_omitted_owners() {

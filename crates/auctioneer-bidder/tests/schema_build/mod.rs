@@ -30,6 +30,8 @@ pub mod compiler_layout;
 pub mod guest;
 pub mod inspection;
 mod layout_api;
+mod regex_dependencies;
+pub use regex_dependencies::{ResolvedRegexDependencies, resolved_regex_dependencies};
 pub(crate) mod native_dwarf;
 mod schema_artifact;
 pub mod schema_regex_vendor;
@@ -41,7 +43,7 @@ const MAX_STREAM_LOG_BYTES: u64 = 4 << 20;
 const MAX_DEADLINE_DIAGNOSTIC_BYTES: usize = 4096;
 const MAX_ARTIFACT_BYTES: u64 = 64 << 20;
 const MAX_SOURCE_BYTES: usize = 512 << 10;
-const BUILD_TIMEOUT: Duration = Duration::from_secs(300);
+pub(crate) const BUILD_TIMEOUT: Duration = Duration::from_secs(300);
 const TARGETS: [&str; 4] = [
     "native",
     "wasm32-unknown-unknown",
@@ -495,11 +497,8 @@ pub fn verify_lock(child: &str, workspace: &str) -> Result<(), String> {
 pub fn resolved_engine_features(
     source: &schema_regex_vendor::VerifiedSource,
 ) -> Result<Vec<String>, String> {
-    let metadata = successful(
-        cargo(&root()).args(["metadata", "--offline", "--locked", "--format-version", "1"]),
-        Duration::from_secs(60),
-    )?;
-    schema_regex_vendor::verify_metadata(&metadata.stdout, &source.canonical_root)
+    let dependencies: ResolvedRegexDependencies = resolved_regex_dependencies(source)?;
+    Ok(dependencies.engine_features)
 }
 
 pub fn verify_compiler_metadata(bytes: &[u8], vendor: &Path) -> Result<(), String> {

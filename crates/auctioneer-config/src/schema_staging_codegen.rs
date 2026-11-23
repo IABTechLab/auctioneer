@@ -37,10 +37,18 @@ pub struct HelperAvailability {
     pub hostname: bool,
 }
 
+/// The marker actually emitted for one selected schema owner.
+#[derive(Debug)]
+pub struct DeclarationBinding {
+    pub owner: String,
+    pub marker: String,
+}
+
 #[derive(Debug)]
 pub struct ValidatorDeclarations {
     pub items: TokenStream,
     pub owners: Vec<String>,
+    pub declarations: Vec<DeclarationBinding>,
     pub required_formats: Vec<String>,
 }
 
@@ -71,6 +79,7 @@ pub fn quote_validators(
     }
     let mut items = TokenStream::new();
     let mut owners = Vec::new();
+    let mut declarations = Vec::new();
     let mut required_formats = BTreeSet::new();
     for (index, (owner, schema)) in by_owner.into_iter().enumerate() {
         if !schema.unknown_keywords.is_empty()
@@ -111,6 +120,10 @@ pub fn quote_validators(
             required_formats.insert(format.to_owned());
         }
         let marker = format_ident!("StagedSchema{index}");
+        declarations.push(DeclarationBinding {
+            owner: owner.to_owned(),
+            marker: marker.to_string(),
+        });
         items.extend(quote! {
             #[jsonschema::validator(
                 path = #path_literal, draft = #draft, validate_formats = true,
@@ -126,6 +139,7 @@ pub fn quote_validators(
     Ok(ValidatorDeclarations {
         items,
         owners,
+        declarations,
         required_formats: required_formats.into_iter().collect(),
     })
 }
@@ -173,6 +187,14 @@ mod tests {
         };
         let generated = quote_validators(&selected(), &[b, a], HELPERS).expect("fake declarations");
         assert_eq!(generated.owners, ["fake_a", "fake_b"]);
+        assert_eq!(
+            generated
+                .declarations
+                .iter()
+                .map(|row| (row.owner.as_str(), row.marker.as_str()))
+                .collect::<Vec<_>>(),
+            [("fake_a", "StagedSchema0"), ("fake_b", "StagedSchema1")]
+        );
         assert_eq!(generated.required_formats, ["hostname", "uuid"]);
         let expected = quote! {
             #[jsonschema::validator(

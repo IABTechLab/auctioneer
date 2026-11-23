@@ -18,7 +18,7 @@ use std::path::Path;
 
 const MAX_SOURCE_BYTES: u64 = 0x0010_0000;
 
-pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
+pub(crate) const SOURCE_PINS: [(&str, &str); 11] = [
     (
         "Cargo.toml",
         "13e274638a506db1eccab53538947e1af159acf182831f26b6dd215d4692e5ac",
@@ -58,6 +58,10 @@ pub(crate) const SOURCE_PINS: [(&str, &str); 10] = [
     (
         "src/hir/interval.rs",
         "63cd8403a96ea2be1260b77a869a05c136ed14e9fd631c53e51d89663b360897",
+    ),
+    (
+        "src/hir/literal.rs",
+        "0b546415351b4ed7b84025c6996eba339e4aef26e14789b74351ca5a4033c418",
     ),
 ];
 
@@ -167,7 +171,7 @@ impl SyntaxConstructionCertificate {
     }
 }
 
-fn verify_source(source: &Path) -> Result<(), ConstructionError> {
+pub(crate) fn verify_source(source: &Path) -> Result<(), ConstructionError> {
     let canonical = fs::canonicalize(source)
         .map_err(|_error| ConstructionError::Source("missing regex-syntax source"))?;
     if canonical != source

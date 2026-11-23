@@ -18,6 +18,85 @@ fn digest(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
+/// Current probe inputs must not smuggle retired source fields through a v2 wrapper.
+pub(crate) fn binding_contract(binding: &Value) -> Result<(), &'static str> {
+    let source = &binding["source"];
+    if binding["schema_version"] != 2_u8
+        || source["schema_version"] != 2_u8
+        || source["linked_or_serving_qualification"] != false
+        || [
+            "planned_roots",
+            "published_roots_all_features",
+            "actual_active_published_bindings",
+        ]
+        .iter()
+        .any(|field| source.get(*field).is_some() || binding.get(*field).is_some())
+    {
+        return Err("retired source binding contract");
+    }
+    let roots = source["implemented_roots_all_features"]
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+        .ok_or("missing implemented binding roots")?;
+    let mut names = BTreeSet::new();
+    for root in roots {
+        let name = root
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or("invalid implemented binding root")?;
+        if !names.insert(name) {
+            return Err("duplicate implemented binding root");
+        }
+    }
+    let inventory = source["inventory_dispositions"]
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+        .ok_or("missing binding inventory")?;
+    let mut identities = BTreeMap::new();
+    let mut implemented = BTreeSet::new();
+    for row in inventory {
+        let name = row["name"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or("invalid binding inventory identity")?;
+        let implementation = row["implementation"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or("invalid binding inventory identity")?;
+        if identities.insert(name, implementation).is_some() {
+            return Err("invalid binding inventory identity");
+        }
+        match row["disposition"].as_str() {
+            Some("implemented") => {
+                implemented.insert(name);
+            }
+            Some("not_implemented") => {}
+            _ => return Err("invalid binding inventory disposition"),
+        }
+    }
+    if implemented != names {
+        return Err("binding inventory membership mismatch");
+    }
+    let callables = source["callable_bindings"]
+        .as_array()
+        .ok_or("missing callable bindings")?;
+    let mut seen = BTreeSet::new();
+    for row in callables {
+        let pair = row
+            .as_array()
+            .filter(|pair| pair.len() == 2)
+            .ok_or("invalid callable binding")?;
+        let name = pair[0].as_str().ok_or("invalid callable binding")?;
+        if !names.contains(name)
+            || identities.get(name).copied() != pair[1].as_str()
+            || !seen.insert(name)
+        {
+            return Err("invalid callable binding");
+        }
+    }
+    Ok(())
+}
+
 fn membership(schemas: &[SchemaInventory], binding: &Value) -> Result<String, String> {
     if schemas.is_empty() {
         return Err("empty selected schema cohort".to_owned());
@@ -43,7 +122,7 @@ fn membership(schemas: &[SchemaInventory], binding: &Value) -> Result<String, St
         .collect::<Option<Vec<_>>>()
         .ok_or("selected schema membership mismatch")?;
     if witnesses != claimed
-        || binding["schema_version"] != 1_u8
+        || binding_contract(binding).is_err()
         || binding.pointer("/source/linked_or_serving_qualification") != Some(&Value::Bool(false))
     {
         return Err("selected schema membership mismatch".to_owned());
@@ -850,8 +929,13 @@ mod tests {
     }
 
     fn binding(schemas: &[SchemaInventory]) -> Value {
-        json!({"schema_version": 1,
-            "source": {"linked_or_serving_qualification": false},
+        json!({"schema_version": 2,
+            "source": {"schema_version": 2, "linked_or_serving_qualification": false,
+                "implemented_roots_all_features": schemas.iter().map(|row| &row.witness.name).collect::<Vec<_>>(),
+                "inventory_dispositions": schemas.iter().map(|row| json!({
+                    "name":row.witness.name,"implementation":row.witness.name,"disposition":"implemented"
+                })).collect::<Vec<_>>(),
+                "callable_bindings": schemas.iter().map(|row| (&row.witness.name,&row.witness.name)).collect::<Vec<_>>()},
             "selection": {"schemas": schemas.iter()
                 .map(|row| json!({"witness": row.witness})).collect::<Vec<_>>()}})
     }
@@ -862,6 +946,48 @@ mod tests {
         let snapshot = fixture::inventory(&inputs.bidders, &inputs.source).unwrap();
         let selected = &snapshot.schemas[..1];
         let record = binding(selected);
+        let mut old = record.clone();
+        old["schema_version"] = json!(1_u8);
+        assert_eq!(
+            super::membership(selected, &old).unwrap_err(),
+            "selected schema membership mismatch"
+        );
+        old = record.clone();
+        old["source"]["schema_version"] = json!(1_u8);
+        assert_eq!(
+            super::membership(selected, &old).unwrap_err(),
+            "selected schema membership mismatch"
+        );
+        for field in [
+            "implemented_roots_all_features",
+            "inventory_dispositions",
+            "callable_bindings",
+        ] {
+            let mut missing = record.clone();
+            assert!(
+                missing["source"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(field)
+                    .is_some()
+            );
+            assert_eq!(
+                super::membership(selected, &missing).unwrap_err(),
+                "selected schema membership mismatch"
+            );
+        }
+        for field in [
+            "planned_roots",
+            "published_roots_all_features",
+            "actual_active_published_bindings",
+        ] {
+            let mut hybrid = record.clone();
+            hybrid["source"][field] = json!([]);
+            assert_eq!(
+                super::membership(selected, &hybrid).unwrap_err(),
+                "selected schema membership mismatch"
+            );
+        }
         let (generated, marker) =
             source(&snapshot.root, selected, &record, &BTreeMap::new(), None).unwrap();
         let syntax = syn::parse_file(&generated).unwrap();

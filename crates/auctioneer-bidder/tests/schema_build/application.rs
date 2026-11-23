@@ -458,11 +458,14 @@ fn check_build(
     manifest: &Value,
     expected: &ExpectedBuild<'_>,
 ) -> Result<BTreeMap<String, String>, String> {
-    if manifest["schema_version"] != 1_u32
+    if manifest["schema_version"] != 2_u32
         || manifest["kind"] != "unqualified_non_serving_schema_staging"
         || manifest["identity"]["qualification"] != "Unqualified"
         || manifest["linked_or_serving_qualification"] != false
         || manifest["artifact_inspection"] != "pending"
+        || ["planned_roots", "published_roots_all_features"]
+            .iter()
+            .any(|field| manifest.get(*field).is_some())
     {
         return Err("application staging must remain unqualified".into());
     }
@@ -540,6 +543,46 @@ fn check_build(
     Ok(environment)
 }
 
+fn callable_bindings(
+    cohort: &Value,
+    development: bool,
+    target: &str,
+) -> Result<BTreeSet<(String, String)>, String> {
+    let publications = cohort["source"]["publication_predicates"]
+        .as_array()
+        .ok_or("application publication predicates missing")?;
+    let mut identities = BTreeSet::new();
+    let mut callable = BTreeSet::new();
+    for row in publications {
+        let name = row["name"]
+            .as_str()
+            .filter(|name| !name.is_empty())
+            .ok_or("application publication predicate mismatch")?;
+        let implementation = row["implementation"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .ok_or("application publication predicate mismatch")?;
+        let native = row["native_only"]
+            .as_bool()
+            .ok_or("application publication predicate mismatch")?;
+        let enabled = match row.get("required_feature") {
+            Some(Value::Null) => true,
+            Some(Value::String(feature)) if feature == "insecure-bidders" => development,
+            _ => return Err("application publication predicate mismatch".into()),
+        };
+        if !identities.insert(name) {
+            return Err("application publication predicate mismatch".into());
+        }
+        if enabled && (!native || !target.starts_with("wasm32-")) {
+            callable.insert((name.to_owned(), implementation.to_owned()));
+        }
+    }
+    if json!(identities) != cohort["source"]["implemented_roots_all_features"] {
+        return Err("application publication predicate mismatch".into());
+    }
+    Ok(callable)
+}
+
 fn check_cohort(
     manifest: &Value,
     schemas: &[SchemaInventory],
@@ -563,16 +606,28 @@ fn check_cohort(
         || owners.iter().copied().collect::<BTreeSet<_>>().len() != owners.len()
         || selected.len() != schemas.len()
         || staged.len() != schemas.len()
-        || cohort["schema_version"] != 1_u32
+        || super::selected::binding_contract(cohort).is_err()
         || cohort["lane"] != lane
         || cohort["source"]["linked_or_serving_qualification"] != false
         || cohort["source"]["lanes"][lane] != cohort["selection"]
         || manifest["selection"]["schema_owners"] != json!(owners)
-        || manifest["published_roots_all_features"]
-            != cohort["source"]["published_roots_all_features"]
-        || manifest["planned_roots"] != cohort["source"]["planned_roots"]
+        || ["planned_roots", "published_roots_all_features"]
+            .iter()
+            .any(|field| manifest.get(*field).is_some() || cohort["source"].get(*field).is_some())
+        || ["implemented_roots_all_features", "inventory_dispositions"]
+            .iter()
+            .any(|field| {
+                manifest[*field].as_array().is_none_or(Vec::is_empty)
+                    || manifest[*field] != cohort["source"][*field]
+            })
     {
         return Err("application source cohort mismatch".into());
+    }
+    let target = manifest["build"]["target"]
+        .as_str()
+        .ok_or("application staging target mismatch")?;
+    if manifest["callable_bindings"] != json!(callable_bindings(cohort, development, target)?) {
+        return Err("application callable publication mismatch".into());
     }
     let members = cohort["selection"]["members"]
         .as_array()
@@ -769,6 +824,31 @@ struct PreparedInspection {
     metadata: Value,
     discovery: Discovery,
     development: bool,
+}
+
+/// Accepted build-local inputs retained for conformance-owned expansion.
+pub struct CapturedSeed {
+    pub identity_sha256: String,
+    pub manifest_bytes: Vec<u8>,
+    pub rust: Vec<u8>,
+    pub build_root: PathBuf,
+    pub out_dir: PathBuf,
+    pub snapshots: Vec<SchemaSnapshot>,
+}
+
+impl CapturedSeed {
+    /// Recheck the same private build-local files before/after compiler reads.
+    ///
+    /// # Errors
+    /// Refuses missing, changed, escaped or nonregular captured snapshots.
+    pub fn recheck_snapshots(&self) -> Result<(), String> {
+        contained(&self.build_root, &self.build_root, true)?;
+        contained(&self.build_root, &self.out_dir, true)?;
+        for snapshot in &self.snapshots {
+            verified_snapshot(&self.build_root, &self.out_dir, snapshot)?;
+        }
+        Ok(())
+    }
 }
 
 fn feature_packages(
@@ -1052,26 +1132,42 @@ fn check_product_paths(
     Ok(())
 }
 
+fn verified_snapshot(
+    target_dir: &Path,
+    out_dir: &Path,
+    snapshot: &SchemaSnapshot,
+) -> Result<Vec<u8>, String> {
+    if snapshot.relative_path.components().count() != 1
+        || !matches!(
+            snapshot.relative_path.components().next(),
+            Some(Component::Normal(_))
+        )
+    {
+        return Err("application snapshot escapes OUT_DIR".into());
+    }
+    let captured = read_bounded(target_dir, &out_dir.join(&snapshot.relative_path), 1 << 20)?;
+    if captured != snapshot.bytes || digest(&captured) != snapshot.sha256 {
+        return Err("stale application schema snapshot".into());
+    }
+    Ok(captured)
+}
+
 fn check_snapshots(
     target_dir: &Path,
     out_dir: &Path,
     snapshots: &[SchemaSnapshot],
-) -> Result<(), String> {
-    for snapshot in snapshots {
-        if snapshot.relative_path.components().count() != 1
-            || !matches!(
-                snapshot.relative_path.components().next(),
-                Some(Component::Normal(_))
-            )
-        {
-            return Err("application snapshot escapes OUT_DIR".into());
-        }
-        let captured = read_bounded(target_dir, &out_dir.join(&snapshot.relative_path), 1 << 20)?;
-        if captured != snapshot.bytes || digest(&captured) != snapshot.sha256 {
-            return Err("stale application schema snapshot".into());
-        }
-    }
-    Ok(())
+) -> Result<Vec<SchemaSnapshot>, String> {
+    snapshots
+        .iter()
+        .map(|snapshot| {
+            Ok(SchemaSnapshot {
+                owner: snapshot.owner.clone(),
+                relative_path: snapshot.relative_path.clone(),
+                sha256: snapshot.sha256.clone(),
+                bytes: verified_snapshot(target_dir, out_dir, snapshot)?,
+            })
+        })
+        .collect()
 }
 
 fn verify_staging(
@@ -1080,7 +1176,8 @@ fn verify_staging(
     manifest: &Value,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
-) -> Result<(String, Vec<u8>), String> {
+    manifest_bytes: Vec<u8>,
+) -> Result<CapturedSeed, String> {
     let environment = check_build(manifest, expected)?;
     check_cohort(manifest, schemas, cohort_manifest, prepared.development)?;
     let features = enabled_features(prepared.development);
@@ -1111,8 +1208,15 @@ fn verify_staging(
         &rust,
         generated.rust.to_string().as_bytes(),
     )?;
-    check_snapshots(&prepared.target_dir, expected.out_dir, &generated.snapshots)?;
-    Ok((generated.identity.sha256, rust))
+    let snapshots = check_snapshots(&prepared.target_dir, expected.out_dir, &generated.snapshots)?;
+    Ok(CapturedSeed {
+        identity_sha256: generated.identity.sha256,
+        manifest_bytes,
+        rust,
+        build_root: prepared.target_dir.clone(),
+        out_dir: expected.out_dir.to_owned(),
+        snapshots,
+    })
 }
 
 fn linked_observations(
@@ -1154,7 +1258,7 @@ fn verify_one(
     products: &BuildProducts,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
-) -> Result<Value, String> {
+) -> Result<(Value, CapturedSeed), String> {
     check_product_paths(prepared, application, products)?;
     let guest = application.target.is_some();
     let target = application.target.unwrap_or(&prepared.host);
@@ -1175,58 +1279,70 @@ fn verify_one(
         out_dir: &products.bidder_output,
         development: prepared.development,
     };
-    let (identity, rust) =
-        verify_staging(prepared, &expected, &manifest, schemas, cohort_manifest)?;
+    let seed = verify_staging(
+        prepared,
+        &expected,
+        &manifest,
+        schemas,
+        cohort_manifest,
+        manifest_bytes,
+    )?;
+    let identity = &seed.identity_sha256;
     let owners: Vec<_> = schemas
         .iter()
         .map(|row| row.witness.name.as_str())
         .collect();
-    let (records, observations) = linked_observations(&bytes, guest, &identity, &owners)?;
-    let controls = refusal_controls(&manifest, schemas, cohort_manifest, &expected, &rust)?;
+    let (records, observations) = linked_observations(&bytes, guest, identity, &owners)?;
+    let controls = refusal_controls(&manifest, schemas, cohort_manifest, &expected, &seed.rust)?;
     let app = package(&prepared.metadata, application.package, &prepared.workspace)?;
-    Ok(
-        json!({"package":application.package,"package_id":app["id"],"target_name":application.target_name,
+    let report = json!({"package":application.package,"package_id":app["id"],"target_name":application.target_name,
             "target_kind":application.kind,"target":target,"profile":application.profile,"filename":products.artifact,
             "artifact_bytes":bytes.len(),"artifact_sha256":digest(&bytes),"bidder_out_dir":products.bidder_output,
-            "manifest_sha256":digest(&manifest_bytes),"identity_sha256":identity,"manifest":manifest,
+            "manifest_sha256":digest(&seed.manifest_bytes),"identity_sha256":identity,"manifest":manifest,
             "qualification":"Unqualified","resource_qualification":false,"final_admitted_artifact":false,
             "linked_records":records,
             "observations":observations,"actual_imports":imports(&bytes, guest)?,"refusal_controls":controls,
-            "observation_scope":"linked code/data and declared imports only; not memory, heap, work or serving bounds"}),
-    )
+            "observation_scope":"linked code/data and declared imports only; not memory, heap, work or serving bounds"});
+    Ok((report, seed))
 }
 
 /// Inspect one actual linked adapter in one requested feature lane.
 /// `root` may be the workspace or the source cohort's `src/bidders` directory.
+/// Completion consumes verified inputs while the existing build lease is held.
 pub fn inspect(
     adapter: Adapter,
     root: &Path,
     schemas: &[SchemaInventory],
     cohort_manifest: &Value,
     development: bool,
+    complete: impl FnOnce(&CapturedSeed) -> Result<Value, String>,
 ) -> Result<Value, String> {
     let prepared = prepare(root, cohort_manifest, development)?;
     let _lease = super::acquire_lease(&prepared.target_dir)?;
     let application = adapter.application();
     let products = build_one(&prepared, application)?;
-    let report = verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(
-        |error| {
-            format!(
-                "{} ({}, {}): {error}",
-                application.package,
-                application.target.unwrap_or(&prepared.host),
-                application.profile
-            )
-        },
-    )?;
-    Ok(
-        json!({"schema_version":1_u32,"kind":"actual_application_schema_staging_inspection",
+    let (application_report, seed) =
+        verify_one(&prepared, application, &products, schemas, cohort_manifest).map_err(
+            |error| {
+                format!(
+                    "{} ({}, {}): {error}",
+                    application.package,
+                    application.target.unwrap_or(&prepared.host),
+                    application.profile
+                )
+            },
+        )?;
+    seed.recheck_snapshots()?;
+    let expanded_graph = complete(&seed)?;
+    seed.recheck_snapshots()?;
+    let report = json!({"schema_version":1_u32,"kind":"actual_application_schema_staging_inspection",
         "qualification":"Unqualified","linked_or_serving_qualification":false,"resource_qualification":false,
         "final_admitted_artifact":false,"final_admitted_artifact_recheck_required":true,
         "lane":if development {"development"} else {"secure"},"binding":cohort_manifest,
-        "applications":[report],"child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
-        "pending_gaps":["resource_bounds","serving_integration","final_admitted_artifact_recheck","hosted_execution"]}),
-    )
+        "applications":[application_report],"expanded_schema_graph":expanded_graph,
+        "child_timeout_seconds":CHILD_TIMEOUT.as_secs(),"stream_byte_cap":MAX_MESSAGES,
+        "pending_gaps":["resource_bounds","serving_integration","final_admitted_artifact_recheck","hosted_execution"]});
+    Ok(report)
 }
 
 #[cfg(test)]
@@ -1571,6 +1687,94 @@ mod tests {
     }
 
     #[test]
+    fn fake_application_snapshot_capture_returns_every_verified_output() {
+        use super::{SchemaSnapshot, check_snapshots};
+        use std::fs;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let out_dir = root.join("out");
+        fs::DirBuilder::new().create(&out_dir).unwrap();
+        let snapshots: Vec<_> = [
+            ("fake_a", "fake-a.json", json!({"type":"string"})),
+            ("fake_b", "fake-b.json", json!({"type":"number"})),
+        ]
+        .into_iter()
+        .map(|(owner, path, value)| {
+            let bytes = serde_json::to_vec(&value).unwrap();
+            fs::write(out_dir.join(path), &bytes).unwrap();
+            SchemaSnapshot {
+                owner: owner.into(),
+                relative_path: path.into(),
+                sha256: digest(&bytes),
+                bytes,
+            }
+        })
+        .collect();
+        assert_eq!(snapshots.len(), 2);
+        let captured = check_snapshots(&root, &out_dir, &snapshots).unwrap();
+        assert_eq!(
+            serde_json::to_value(&captured).unwrap(),
+            json!([
+                {"owner":"fake_a","relative_path":"fake-a.json","sha256":snapshots[0].sha256},
+                {"owner":"fake_b","relative_path":"fake-b.json","sha256":snapshots[1].sha256}
+            ])
+        );
+        for (actual, expected) in captured.iter().zip(&snapshots) {
+            assert_eq!(actual.bytes, expected.bytes);
+        }
+        fs::write(out_dir.join("fake-a.json"), b"false").unwrap();
+        assert_eq!(captured[0].bytes, snapshots[0].bytes);
+        assert_eq!(
+            check_snapshots(&root, &out_dir, &snapshots)
+                .err()
+                .as_deref(),
+            Some("stale application schema snapshot")
+        );
+    }
+
+    #[test]
+    fn fake_snapshot_recheck_rejects_a_changed_ancestor_even_with_identical_bytes() {
+        use super::{CapturedSeed, SchemaSnapshot};
+        use std::{fs, os::unix::fs::symlink};
+
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let build_root = root.join("target");
+        let parent = build_root.join("fake-parent");
+        let out_dir = parent.join("out");
+        fs::create_dir_all(&out_dir).unwrap();
+        let bytes = serde_json::to_vec(&json!({"type":"string"})).unwrap();
+        fs::write(out_dir.join("fake.json"), &bytes).unwrap();
+        let snapshot = SchemaSnapshot {
+            owner: "fake_owner".into(),
+            relative_path: "fake.json".into(),
+            sha256: digest(&bytes),
+            bytes,
+        };
+        let seed = CapturedSeed {
+            identity_sha256: digest(b"fake identity"),
+            manifest_bytes: serde_json::to_vec(&json!({"kind":"fake"})).unwrap(),
+            rust: Vec::new(),
+            build_root,
+            out_dir,
+            snapshots: vec![snapshot],
+        };
+        seed.recheck_snapshots().unwrap();
+        let relocated = root.join("fake-relocated");
+        fs::rename(&parent, &relocated).unwrap();
+        symlink(&relocated, &parent).unwrap();
+        assert_eq!(
+            fs::read(seed.out_dir.join("fake.json")).unwrap(),
+            seed.snapshots[0].bytes
+        );
+        assert_eq!(
+            seed.recheck_snapshots().err().as_deref(),
+            Some("symlink in application build path")
+        );
+    }
+
+    #[test]
     fn fake_compiled_feature_closure_requires_declared_empty_default() {
         for development in [false, true] {
             let (mut packages, mut rows) = fake_feature_packages(development);
@@ -1779,9 +1983,16 @@ mod tests {
         } else {
             "secure"
         };
-        let mut cohort = json!({"schema_version":1_u32,"lane":lane,"selection":selection,
-            "source":{"linked_or_serving_qualification":false,"published_roots_all_features":["fake_alias"],
-                "planned_roots":["fake_alias"],"lanes":{}}});
+        let dispositions = json!([
+            {"name":"fake_alias","implementation":"fake_owner","disposition":"implemented"},
+            {"name":"fake_owner","implementation":"fake_owner","disposition":"not_implemented"}]);
+        let mut cohort = json!({"schema_version":2_u32,"lane":lane,"selection":selection,
+            "source":{"schema_version":2_u32,"linked_or_serving_qualification":false,
+                "implemented_roots_all_features":["fake_alias"],
+                "inventory_dispositions":dispositions,
+                "callable_bindings":[["fake_alias","fake_owner"]],
+                "publication_predicates":[{"name":"fake_alias","implementation":"fake_owner",
+                    "required_feature":null,"native_only":false}],"lanes":{}}});
         cohort["source"]["lanes"][lane] = selection;
         let rust = quote::quote! { const FAKE_STAGING: bool = false; }
             .to_string()
@@ -1789,7 +2000,7 @@ mod tests {
         let mut witness = serde_json::to_value(&schema.witness).unwrap();
         witness["repository"] = source["repository"].clone();
         witness["revision"] = source["revision"].clone();
-        let mut manifest = json!({"schema_version":1_u32,"kind":"unqualified_non_serving_schema_staging",
+        let mut manifest = json!({"schema_version":2_u32,"kind":"unqualified_non_serving_schema_staging",
             "identity":{"qualification":"Unqualified","sha256":digest(b"fake_identity")},
             "linked_or_serving_qualification":false,"artifact_inspection":"pending",
             "build":{"enabled_features":enabled_features(expected.development),"target":expected.target,
@@ -1801,7 +2012,8 @@ mod tests {
             "schemas":[witness],"selection":{"schema_owners":["fake_owner"],"members":[{
                 "name":"fake_alias","implementation":"fake_owner","is_root":true,
                 "ancestry":["fake_owner"],"schema_owner":"fake_owner"}]},
-            "published_roots_all_features":["fake_alias"],"planned_roots":["fake_alias"],"emitted_rust_sha256":digest(&rust)});
+            "implemented_roots_all_features":["fake_alias"],"inventory_dispositions":dispositions,
+            "callable_bindings":[["fake_alias","fake_owner"]],"emitted_rust_sha256":digest(&rust)});
         for feature in enabled_features(expected.development) {
             manifest["build_environment"][format!(
                 "CARGO_FEATURE_{}",
@@ -1833,6 +2045,53 @@ mod tests {
                     controls.iter().all(|row| row["rejected"] == true
                         && row["scope"] == "in_memory_evidence_mutation")
                 );
+                let mut native = cohort.clone();
+                native["source"]["publication_predicates"][0]["native_only"] = json!(true);
+                let mut gated = cohort.clone();
+                gated["source"]["publication_predicates"][0]["required_feature"] =
+                    json!("insecure-bidders");
+                for (changed, enabled) in [(native, !guest), (gated, development)] {
+                    let mut emitted = manifest.clone();
+                    emitted["callable_bindings"] = if enabled {
+                        json!([["fake_alias", "fake_owner"]])
+                    } else {
+                        json!([])
+                    };
+                    check_cohort(&emitted, &schemas, &changed, development)
+                        .expect("target and feature predicates vary independently");
+                    emitted["callable_bindings"] = if enabled {
+                        json!([])
+                    } else {
+                        json!([["fake_alias", "fake_owner"]])
+                    };
+                    assert_eq!(
+                        check_cohort(&emitted, &schemas, &changed, development).unwrap_err(),
+                        "application callable publication mismatch"
+                    );
+                }
+                for field in ["implemented_roots_all_features", "inventory_dispositions"] {
+                    let mut missing_manifest = manifest.clone();
+                    let mut missing_source = cohort.clone();
+                    assert!(
+                        missing_manifest
+                            .as_object_mut()
+                            .unwrap()
+                            .remove(field)
+                            .is_some()
+                    );
+                    assert!(
+                        missing_source["source"]
+                            .as_object_mut()
+                            .unwrap()
+                            .remove(field)
+                            .is_some()
+                    );
+                    assert_eq!(
+                        check_cohort(&missing_manifest, &schemas, &missing_source, development)
+                            .unwrap_err(),
+                        "application source cohort mismatch"
+                    );
+                }
             }
         }
     }
@@ -1896,6 +2155,20 @@ mod tests {
                 "{field}"
             );
         }
+        let mut old_version = manifest.clone();
+        old_version["schema_version"] = json!(1_u32);
+        assert_eq!(
+            check_build(&old_version, &expected).unwrap_err(),
+            "application staging must remain unqualified"
+        );
+        for field in ["planned_roots", "published_roots_all_features"] {
+            let mut hybrid = manifest.clone();
+            hybrid[field] = json!([]);
+            assert_eq!(
+                check_build(&hybrid, &expected).unwrap_err(),
+                "application staging must remain unqualified"
+            );
+        }
         let mut changed = manifest.clone();
         changed["identity"]["qualification"] = json!("fake_qualified");
         assert_eq!(
@@ -1950,6 +2223,20 @@ mod tests {
             check_cohort(&manifest, &schemas, &wrong_lane, false).unwrap_err(),
             "application source cohort mismatch"
         );
+        let mut old = cohort.clone();
+        old["schema_version"] = json!(1_u32);
+        assert_eq!(
+            check_cohort(&manifest, &schemas, &old, false).unwrap_err(),
+            "application source cohort mismatch"
+        );
+        for field in ["planned_roots", "published_roots_all_features"] {
+            let mut hybrid = cohort.clone();
+            hybrid["source"][field] = json!([]);
+            assert_eq!(
+                check_cohort(&manifest, &schemas, &hybrid, false).unwrap_err(),
+                "application source cohort mismatch"
+            );
+        }
         let mut stale_source = cohort.clone();
         stale_source["selection"]["schemas"][0]["witness"]["sha256"] = json!("fake_stale_source");
         stale_source["source"]["lanes"]["secure"] = stale_source["selection"].clone();
@@ -1983,7 +2270,10 @@ mod tests {
             Adapter::Spin,
         ] {
             assert_eq!(
-                super::inspect(adapter, &workspace, &[], &json!({}), false).unwrap_err(),
+                super::inspect(adapter, &workspace, &[], &json!({}), false, |_| {
+                    panic!("invalid source must refuse before captured-seed completion")
+                })
+                .unwrap_err(),
                 "stale application source cohort"
             );
         }

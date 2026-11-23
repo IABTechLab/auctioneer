@@ -411,6 +411,7 @@ jobs:
     env:
       PREBID_SERVER_DIR: ${{ github.workspace }}/vendor/prebid-server
       AUCTIONEER__BIDDER__SOURCE_DIR: ${{ github.workspace }}/vendor/bidder-reference
+      AUCTIONEER__TEST__CATALOG_REFERENCE_DIR: ${{ github.workspace }}/vendor/catalog-growth-reference
     steps:
       - uses: actions/checkout@v7
 
@@ -430,6 +431,15 @@ jobs:
 
       - name: Fetch additional pinned bidder reference objects
         run: git --no-replace-objects -C "$AUCTIONEER__BIDDER__SOURCE_DIR" fetch --no-tags --depth=1 origin f1e9d0d2164e76a8bcb5f10021ebb56e00dbfe9a
+      - name: Check out pinned catalog-growth reference
+        if: matrix.lane == 'schema'
+        uses: actions/checkout@v7
+        with:
+          repository: IABTechLab/auctioneer
+          ref: d26fcf7f566db6d1dce2e1847d79c9f44581edb8
+          path: vendor/catalog-growth-reference
+          fetch-depth: 1
+          persist-credentials: false
       - name: Cache Cargo downloads
         id: download-cache
         uses: actions/cache/restore@v6

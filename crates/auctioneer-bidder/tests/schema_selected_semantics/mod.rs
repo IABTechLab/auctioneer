@@ -1,5 +1,6 @@
 //! Fixed selected-schema expectations, not an oracle or serving qualification.
 
+use crate::schema_build::selected::binding_contract;
 use crate::schema_selection_source::{Lane, SelectedCohort, selected_cohort};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -217,7 +218,7 @@ pub(crate) fn for_cohort(cohort: &SelectedCohort) -> Result<Batch, String> {
         .pointer("/selection/schemas")
         .and_then(Value::as_array)
         .ok_or("missing selected semantic membership")?;
-    if cohort.manifest.get("schema_version") != Some(&Value::from(1_u8))
+    if binding_contract(&cohort.manifest).is_err()
         || cohort.schemas.is_empty()
         || claimed.len() != cohort.schemas.len()
     {
@@ -457,6 +458,7 @@ mod tests {
     use serde_json::{Value, json};
     use std::collections::BTreeSet;
     use std::fs;
+    use std::mem::replace;
     use std::os::unix::fs::symlink;
     use std::path::Path;
 
@@ -512,7 +514,11 @@ mod tests {
             toml::to_string(&declaration).unwrap(),
         )
         .unwrap();
-        let manifest = json!({"schema_version":1_u16,"lane":"secure",
+        let manifest = json!({"schema_version":2_u16,"lane":"secure",
+            "source":{"schema_version":2_u16,"linked_or_serving_qualification":false,
+                "implemented_roots_all_features":["fake_owner"],
+                "inventory_dispositions":[{"name":"fake_owner","implementation":"fake_owner","disposition":"implemented"}],
+                "callable_bindings":[["fake_owner","fake_owner"]]},
             "selection":{"schemas":[{"witness":schema.witness}]}});
         (
             directory,
@@ -847,6 +853,57 @@ mod tests {
     #[test]
     fn fake_cohort_binds_raw_sidecar_digest_and_refuses_membership_or_schema_drift() {
         let (_directory, mut cohort) = fake_cohort();
+        let mut old = cohort.manifest.clone();
+        old["schema_version"] = json!(1_u16);
+        let current = replace(&mut cohort.manifest, old);
+        assert_eq!(
+            for_cohort(&cohort).unwrap_err(),
+            "invalid selected semantic membership"
+        );
+        cohort.manifest = current;
+        for field in [
+            "implemented_roots_all_features",
+            "inventory_dispositions",
+            "callable_bindings",
+        ] {
+            let saved = cohort.manifest.clone();
+            assert!(
+                cohort.manifest["source"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(field)
+                    .is_some()
+            );
+            assert_eq!(
+                for_cohort(&cohort).unwrap_err(),
+                "invalid selected semantic membership"
+            );
+            cohort.manifest = saved;
+        }
+        for field in [
+            "planned_roots",
+            "published_roots_all_features",
+            "actual_active_published_bindings",
+        ] {
+            cohort.manifest["source"][field] = json!([]);
+            assert_eq!(
+                for_cohort(&cohort).unwrap_err(),
+                "invalid selected semantic membership"
+            );
+            assert!(
+                cohort.manifest["source"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(field)
+                    .is_some()
+            );
+        }
+        cohort.manifest["source"]["schema_version"] = json!(1_u16);
+        assert_eq!(
+            for_cohort(&cohort).unwrap_err(),
+            "invalid selected semantic membership"
+        );
+        cohort.manifest["source"]["schema_version"] = json!(2_u16);
         for lane in ["secure", "development"] {
             cohort.manifest["lane"] = json!(lane);
             let batch = for_cohort(&cohort).unwrap();

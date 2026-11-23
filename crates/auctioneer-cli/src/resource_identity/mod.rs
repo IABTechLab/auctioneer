@@ -210,7 +210,8 @@ mod tests {
                 step["uses"]
                     .as_str()
                     .is_some_and(|uses| uses.starts_with("actions/checkout@"))
-                    && step["with"]["repository"].as_str() == Some("prebid/prebid-server")
+                    && step["with"]["repository"].as_str().is_some()
+                    && step["with"]["path"].as_str().is_some()
             })
             .map(|step| step["with"]["path"].as_str().unwrap())
             .collect();

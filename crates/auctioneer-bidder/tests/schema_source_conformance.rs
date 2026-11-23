@@ -44,6 +44,7 @@ mod schema_program_heap;
 mod schema_qualification;
 mod schema_reference;
 mod schema_replay;
+mod schema_residency;
 mod schema_resource_layout;
 mod schema_selected_half_search;
 mod schema_selected_semantics;
@@ -124,7 +125,9 @@ fn reject_compiler_errors(syntax: &mut syn::File) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::schema_build::application::Adapter;
+    use super::schema_build::application::{Adapter, CapturedSeed};
+    use super::schema_residency::{descriptor, expanded};
+    use auctioneer_config::schema_staging_build::GeneratedStaging;
     use std::env::var;
     use std::io::{self, Write, stderr};
 
@@ -649,10 +652,269 @@ mod tests {
         assert_actual_application_artifacts(Adapter::Spin, "auctioneer-adapter-spin");
     }
 
+    fn application_source_descriptor(
+        seed: &CapturedSeed,
+        sources: &descriptor::Sources<'_>,
+        release_line: &str,
+    ) -> Result<(Value, descriptor::ActualSourceDescriptor), String> {
+        let manifest: Value =
+            serde_json::from_slice(&seed.manifest_bytes).map_err(|error| error.to_string())?;
+        let compiler = manifest
+            .get("build")
+            .and_then(|build| build.get("compiler_verbose"))
+            .and_then(Value::as_str)
+            .ok_or("missing captured compiler")?;
+        if compiler
+            .lines()
+            .filter(|line| line.starts_with("release: "))
+            .collect::<Vec<_>>()
+            != [release_line]
+        {
+            return Err("captured compiler differs from repository pin".into());
+        }
+        let graph = expanded::expand(seed)?;
+        let recipe = descriptor::describe(seed, &graph, sources)
+            .map_err(|error| format!("actual source descriptor refused: {error:?}"))?;
+        Ok((graph, recipe))
+    }
+
+    fn actual_validation_assignments(
+        report: &Value,
+    ) -> Result<Vec<descriptor::ValidationAssignment>, String> {
+        report
+            .get("validation_handoff")
+            .and_then(|handoff| handoff.get("children"))
+            .and_then(Value::as_array)
+            .ok_or("missing actual validation handoff")?
+            .iter()
+            .map(|row| {
+                Ok(descriptor::ValidationAssignment {
+                    child: row
+                        .get("child")
+                        .and_then(Value::as_str)
+                        .ok_or("missing child")?
+                        .to_owned(),
+                    source_owner: row
+                        .get("source_owner")
+                        .and_then(Value::as_str)
+                        .ok_or("missing source owner")?
+                        .to_owned(),
+                    role: row
+                        .get("role")
+                        .and_then(Value::as_str)
+                        .ok_or("missing role")?
+                        .to_owned(),
+                })
+            })
+            .collect()
+    }
+
+    fn assert_actual_validation_counts(
+        graph: &Value,
+        report: &Value,
+        assignments: &[descriptor::ValidationAssignment],
+    ) {
+        let declarations = graph["declarations"].as_array().unwrap();
+        let mut program_ids = BTreeSet::from(["schema::staging::formats::HOSTNAME_PATTERN"]);
+        let mut callbacks = BTreeSet::new();
+        for declaration in declarations {
+            for program in declaration["programs"].as_array().unwrap() {
+                let id = program["identity"].as_str().unwrap();
+                assert!(!id.is_empty());
+                assert!(program_ids.insert(id));
+            }
+            for callback in declaration["callbacks"].as_array().unwrap() {
+                let name = callback.as_str().unwrap();
+                assert!(!name.is_empty());
+                callbacks.insert(name);
+            }
+        }
+        assert!(!declarations.is_empty());
+        assert!(program_ids.len() > 1_usize);
+        let programs = report["programs_in_initialization_order"]
+            .as_array()
+            .unwrap();
+        assert_eq!(programs.len(), program_ids.len());
+        assert_eq!(
+            programs
+                .iter()
+                .map(|program| program["identity"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            program_ids
+        );
+        let program_children = program_ids.len().checked_mul(3_usize).unwrap();
+        let declaration_children = declarations.len().checked_mul(2_usize).unwrap();
+        let callback_children = callbacks.len().checked_mul(2_usize).unwrap();
+        let expected = program_children
+            .checked_add(declaration_children)
+            .unwrap()
+            .checked_add(callback_children)
+            .unwrap();
+        assert_eq!(assignments.len(), expected);
+        for id in program_ids {
+            let children = assignments
+                .iter()
+                .filter(|assignment| assignment.source_owner == id)
+                .collect::<Vec<_>>();
+            assert_eq!(children.len(), 3_usize, "{id}");
+            assert_eq!(
+                children
+                    .iter()
+                    .map(|assignment| assignment.role.as_str())
+                    .collect::<BTreeSet<_>>(),
+                BTreeSet::from(["cache", "mutable-scratch", "search-fallback"]),
+                "{id}"
+            );
+        }
+    }
+
+    fn assert_actual_descriptor_controls(
+        recipe: &descriptor::ActualSourceDescriptor,
+        graph: &Value,
+        report: &Value,
+        assignments: &[descriptor::ValidationAssignment],
+    ) {
+        let empty_programs = BTreeMap::new();
+        let empty_layouts = BTreeMap::new();
+        let empty_groups = BTreeMap::new();
+        let missing = recipe.evaluate(&descriptor::RequestedFacts {
+            binding: &report["binding"],
+            abi: "uninstantiated-actual-application",
+            programs: &empty_programs,
+            constructor_layouts: &empty_layouts,
+            linked_inline: &empty_groups,
+        });
+        assert!(matches!(&missing,
+            Err(descriptor::Refusal::TargetIncomplete(rows)) if !rows.is_empty()));
+        assert_actual_validation_counts(graph, report, assignments);
+        assert!(!assignments.is_empty());
+        assert_eq!(recipe.check_validation_handoff(assignments), Ok(()));
+        for (index, assignment) in assignments.iter().enumerate() {
+            let mut omitted = assignments.to_vec();
+            omitted.remove(index);
+            assert_eq!(
+                recipe.check_validation_handoff(&omitted),
+                Err(descriptor::Refusal::Coverage)
+            );
+            let mut duplicate = assignments.to_vec();
+            duplicate.push(assignment.clone());
+            assert_eq!(
+                recipe.check_validation_handoff(&duplicate),
+                Err(descriptor::Refusal::Coverage)
+            );
+        }
+    }
+
+    fn assert_actual_source_projection(descriptor: &Value, package: &str, lane: &Value) {
+        assert_eq!(descriptor["status"], "SourceComplete");
+        assert_eq!(descriptor["target_status"], "TargetIncomplete");
+        assert_eq!(descriptor["requested_storage"], Value::Null);
+        assert_eq!(descriptor["resource_qualification"], false);
+        assert_eq!(descriptor["physical_fit"], false);
+        assert_eq!(descriptor["serving_permission"], false);
+        let projection = &descriptor["projection"];
+        assert_eq!(projection["schema_version"], 1_u8);
+        assert_eq!(projection["common_status"], "SourceComplete");
+        assert_eq!(projection["target_status"], "TargetIncomplete");
+        assert_eq!(projection["numeric_costs"], Value::Null);
+        assert_eq!(projection["authenticated_qualification_receipt"], false);
+        assert_eq!(projection["physical_fit"], false);
+        assert_eq!(projection["serving_permission"], false);
+        writeln!(
+            stderr().lock(),
+            "schema-source-recipe-projection/{package}/{}: {}",
+            lane.as_str().unwrap(),
+            serde_json::to_string(projection).unwrap()
+        )
+        .unwrap();
+    }
+
+    fn assert_actual_application_report(
+        report: &Value,
+        package: &str,
+        development: bool,
+        expected: &BTreeSet<&str>,
+    ) {
+        assert_eq!(
+            report["applications"][0]["identity_sha256"],
+            report["expanded_schema_graph"]["identity_sha256"]
+        );
+        assert_eq!(
+            report["expanded_schema_graph"]["captured_rust_sha256"],
+            report["applications"][0]["manifest"]["emitted_rust_sha256"]
+        );
+        let graph = &report["expanded_schema_graph"];
+        let descriptor = &graph["source_descriptor"];
+        assert_actual_source_projection(descriptor, package, &report["lane"]);
+        let programs = descriptor["programs_in_initialization_order"]
+            .as_array()
+            .unwrap();
+        assert_eq!(
+            programs[0]["identity"],
+            "schema::staging::formats::HOSTNAME_PATTERN"
+        );
+        let declarations = graph["declarations"].as_array().unwrap();
+        assert!(!declarations.is_empty());
+        assert_eq!(graph["auxiliary"]["status"], "Complete");
+        assert_eq!(
+            graph["auxiliary"]["roots"].as_array().unwrap().len(),
+            declarations
+                .len()
+                .checked_mul(2_usize)
+                .and_then(|count| count.checked_add(8_usize))
+                .expect("representable application root count")
+        );
+        assert_eq!(
+            report["lane"],
+            if development { "development" } else { "secure" }
+        );
+        assert_eq!(report["qualification"], "Unqualified");
+        assert_eq!(report["resource_qualification"], false);
+        assert_eq!(report["linked_or_serving_qualification"], false);
+        assert_eq!(report["final_admitted_artifact_recheck_required"], true);
+        let applications = report["applications"].as_array().unwrap();
+        assert_eq!(applications.len(), 1);
+        for application in applications {
+            assert_eq!(application["package"], package);
+            assert_eq!(application["qualification"], "Unqualified");
+            let rows = application["linked_records"].as_array().unwrap();
+            assert_eq!(rows.len(), expected.len());
+            assert_eq!(
+                &rows
+                    .iter()
+                    .map(|row| row["owner"].as_str().unwrap())
+                    .collect::<BTreeSet<_>>(),
+                expected
+            );
+            assert_eq!(application["refusal_controls"].as_array().unwrap().len(), 8);
+        }
+    }
+
     fn assert_actual_application_artifacts(adapter: Adapter, package: &str) {
         use super::schema_build::application::inspect;
+        use super::schema_build::{self, ResolvedRegexDependencies, schema_regex_vendor};
         use super::schema_selection_source::{Lane, selected_cohort};
 
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        let source = schema_regex_vendor::verify(&workspace).unwrap();
+        let dependencies: ResolvedRegexDependencies =
+            schema_build::resolved_regex_dependencies(&source).unwrap();
+        let features = dependencies
+            .engine_features
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let release_line = repository_rust_release();
+        let release = release_line.strip_prefix("release: ").unwrap();
+        let sources = descriptor::Sources {
+            workspace: &workspace,
+            syntax: &dependencies.syntax_root,
+            rust_release: release,
+            features: &features,
+        };
         for (lane, development) in [(Lane::Secure, false), (Lane::Development, true)] {
             let cohort = selected_cohort(lane).expect("selected application source cohort");
             let report = inspect(
@@ -661,36 +923,34 @@ mod tests {
                 &cohort.schemas,
                 &cohort.manifest,
                 development,
+                |seed| {
+                    let (mut graph, recipe) =
+                        application_source_descriptor(seed, &sources, &release_line)?;
+                    let descriptor_report = recipe.report();
+                    let assignments = actual_validation_assignments(&descriptor_report)?;
+                    assert_actual_descriptor_controls(
+                        &recipe,
+                        &graph,
+                        &descriptor_report,
+                        &assignments,
+                    );
+                    let mut substituted = graph.clone();
+                    substituted["declarations"][0]["owner"] = json!("fake_substituted_owner");
+                    assert!(matches!(
+                        descriptor::describe(seed, &substituted, &sources),
+                        Err(descriptor::Refusal::GraphMismatch)
+                    ));
+                    graph["source_descriptor"] = descriptor_report;
+                    Ok(graph)
+                },
             )
             .expect("actual linked application schema membership");
-            assert_eq!(
-                report["lane"],
-                if development { "development" } else { "secure" }
-            );
-            assert_eq!(report["qualification"], "Unqualified");
-            assert_eq!(report["resource_qualification"], false);
-            assert_eq!(report["linked_or_serving_qualification"], false);
-            assert_eq!(report["final_admitted_artifact_recheck_required"], true);
-            let applications = report["applications"].as_array().unwrap();
-            assert_eq!(applications.len(), 1);
             let expected = cohort
                 .schemas
                 .iter()
                 .map(|row| row.witness.name.as_str())
                 .collect::<BTreeSet<_>>();
-            for application in applications {
-                assert_eq!(application["package"], package);
-                assert_eq!(application["qualification"], "Unqualified");
-                let rows = application["linked_records"].as_array().unwrap();
-                assert_eq!(rows.len(), expected.len());
-                assert_eq!(
-                    rows.iter()
-                        .map(|row| row["owner"].as_str().unwrap())
-                        .collect::<BTreeSet<_>>(),
-                    expected
-                );
-                assert_eq!(application["refusal_controls"].as_array().unwrap().len(), 8);
-            }
+            assert_actual_application_report(&report, package, development, &expected);
             write_schema_diagnostics(
                 var("AUCTIONEER__TEST__SCHEMA_DIAGNOSTICS").ok().as_deref(),
                 &mut stderr().lock(),
@@ -753,6 +1013,202 @@ mod tests {
         }
     }
 
+    fn staged_markers(
+        syntax: &syn::File,
+    ) -> Result<BTreeMap<String, &syn::Attribute>, &'static str> {
+        let mut markers = BTreeMap::new();
+        for item in &syntax.items {
+            let syn::Item::Struct(marker) = item else {
+                continue;
+            };
+            let mut attributes = marker.attrs.iter().filter(|attribute| {
+                attribute
+                    .path()
+                    .segments
+                    .last()
+                    .is_some_and(|part| part.ident == "validator")
+            });
+            let Some(attribute) = attributes.next() else {
+                continue;
+            };
+            if attributes.next().is_some()
+                || attribute.path().leading_colon.is_some()
+                || !attribute
+                    .path()
+                    .segments
+                    .iter()
+                    .map(|part| part.ident.to_string())
+                    .eq(["jsonschema", "validator"])
+            {
+                return Err("ambiguous staged validator attribute");
+            }
+            if markers
+                .insert(marker.ident.to_string(), attribute)
+                .is_some()
+            {
+                return Err("duplicate staged declaration marker");
+            }
+        }
+        Ok(markers)
+    }
+
+    fn assert_staged_marker_controls(syntax: &syn::File) {
+        let markers = staged_markers(syntax).expect("unique qualified validator declarations");
+        let mut duplicate = syntax.clone();
+        let marker = syntax
+            .items
+            .iter()
+            .find(|item| {
+                matches!(item, syn::Item::Struct(row) if markers.contains_key(&row.ident.to_string()))
+            })
+            .unwrap()
+            .clone();
+        duplicate.items.push(marker);
+        assert_eq!(
+            staged_markers(&duplicate).err(),
+            Some("duplicate staged declaration marker")
+        );
+        for invalid in [
+            syn::parse_quote! {
+                #[jsonschema::validator(path = "fake")]
+                #[jsonschema::validator(path = "fake")]
+                struct FakeRepeated;
+            },
+            syn::parse_quote! {
+                #[fake::validator(path = "fake")]
+                struct FakeUnqualified;
+            },
+        ] {
+            let mut changed = syntax.clone();
+            changed.items.push(invalid);
+            assert_eq!(
+                staged_markers(&changed).err(),
+                Some("ambiguous staged validator attribute")
+            );
+        }
+    }
+
+    fn staged_attribute_paths(attribute: &syn::Attribute) -> Vec<String> {
+        use proc_macro2::TokenTree;
+
+        let tokens: Vec<_> = attribute
+            .meta
+            .require_list()
+            .unwrap()
+            .tokens
+            .clone()
+            .into_iter()
+            .collect();
+        tokens
+            .windows(3)
+            .filter_map(|window| {
+                let [
+                    TokenTree::Ident(key),
+                    TokenTree::Punct(assign),
+                    TokenTree::Literal(literal),
+                ] = window
+                else {
+                    return None;
+                };
+                if key != "path" || assign.as_char() != '=' {
+                    return None;
+                }
+                Some(
+                    syn::parse2::<syn::LitStr>(quote::quote!(#literal))
+                        .unwrap()
+                        .value(),
+                )
+            })
+            .collect()
+    }
+
+    fn staged_source_witnesses() -> BTreeMap<String, Value> {
+        use super::schema_selection_source::{Lane, selected_cohort};
+
+        let expected = selected_cohort(Lane::Secure).unwrap();
+        expected.manifest["selection"]["schemas"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                let mut witness = row["witness"].clone();
+                witness["repository"] = row["source"]["repository"].clone();
+                witness["revision"] = row["source"]["revision"].clone();
+                (row["witness"]["name"].as_str().unwrap().to_owned(), witness)
+            })
+            .collect()
+    }
+
+    fn assert_staged_declaration_bindings(generated: &GeneratedStaging, out_dir: &Path) {
+        let seed: serde_json::Value = serde_json::from_str(&generated.manifest_json).unwrap();
+        let syntax = syn::parse2::<syn::File>(generated.rust.clone()).unwrap();
+        assert_staged_marker_controls(&syntax);
+        let markers = staged_markers(&syntax).expect("unique qualified validator declarations");
+        let expected_witnesses = staged_source_witnesses();
+        let bindings = seed["declarations"]
+            .as_array()
+            .expect("build seed must bind actual declarations to captured schemas");
+        assert_eq!(bindings.len(), generated.snapshots.len());
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|row| row["marker"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            markers.keys().map(String::as_str).collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|row| row["owner"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            expected_witnesses
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>()
+        );
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|row| row["owner"].as_str().unwrap())
+                .collect::<BTreeSet<_>>(),
+            generated
+                .snapshots
+                .iter()
+                .map(|row| row.owner.as_str())
+                .collect::<BTreeSet<_>>()
+        );
+        for binding in bindings {
+            let snapshot = generated
+                .snapshots
+                .iter()
+                .find(|row| Some(row.owner.as_str()) == binding["owner"].as_str())
+                .expect("exact captured schema owner");
+            assert_eq!(binding["snapshot"], serde_json::to_value(snapshot).unwrap());
+            let witness = expected_witnesses
+                .get(binding["owner"].as_str().unwrap())
+                .expect("independent staged source witness");
+            assert_eq!(
+                &binding["source"], witness,
+                "independently parsed source provenance"
+            );
+            assert_eq!(binding["source"]["sha256"], snapshot.sha256);
+            let attribute = markers
+                .get(binding["marker"].as_str().unwrap())
+                .expect("staged validator marker");
+            assert_eq!(
+                staged_attribute_paths(attribute),
+                vec![
+                    out_dir
+                        .join(&snapshot.relative_path)
+                        .to_str()
+                        .unwrap()
+                        .to_owned()
+                ]
+            );
+        }
+        assert_eq!(seed["owner_graph_status"], "unexpanded");
+    }
+
     #[test]
     fn staged_snapshot_compiler_inputs_are_watched_and_changed_bytes_refuse() {
         use auctioneer_config::bidder_discovery::scan;
@@ -781,6 +1237,7 @@ mod tests {
         })
         .unwrap();
         assert!(!generated.snapshots.is_empty());
+        assert_staged_declaration_bindings(&generated, &out_dir);
         write_snapshots(&out_dir, &generated.snapshots).unwrap();
         for snapshot in &generated.snapshots {
             let path = out_dir.join(&snapshot.relative_path);
@@ -820,7 +1277,7 @@ mod tests {
         assert_eq!(expected_mode.as_deref(), Some("unqualified"));
         let manifest: serde_json::Value =
             serde_json::from_str(captured_manifest.expect("actual staged build metadata")).unwrap();
-        assert_eq!(manifest["schema_version"], 1_u8);
+        assert_eq!(manifest["schema_version"], 2_u8);
         assert_eq!(manifest["kind"], "unqualified_non_serving_schema_staging");
         assert_eq!(manifest["identity"]["qualification"], "Unqualified");
         assert_eq!(manifest["linked_or_serving_qualification"], false);
@@ -2516,57 +2973,79 @@ mod tests {
 
     use super::schema_formats::HOSTNAME_SOURCE;
     use super::schema_selection_source::produce as selected_source_manifest;
+    fn membership_expectations() -> Result<[Value; 2], &'static str> {
+        use super::schema_selection_source::{Lane, independent_membership};
+        Ok([
+            independent_membership(Lane::Secure)
+                .map_err(|_error| "independent source membership")?,
+            independent_membership(Lane::Development)
+                .map_err(|_error| "independent source membership")?,
+        ])
+    }
+
     fn check_current(manifest: &Value) -> Result<(), &'static str> {
-        // The producer independently reconciles these generated declarations
-        // and target-gated bindings against bidder-owned source manifests.
-        let declarations = auctioneer_config_data::bidder_metadata_declarations();
-        let published: BTreeSet<_> = declarations.iter().map(|row| row.bidder).collect();
-        let planned = super::schema_selection_source::planned_source_roots()
-            .map_err(|_error| "planned source/publication membership")?;
+        check_membership(manifest, &membership_expectations()?)
+    }
+
+    fn check_membership(manifest: &Value, expected: &[Value; 2]) -> Result<(), &'static str> {
+        if manifest["schema_version"] != 2_u8
+            || [
+                "planned_roots",
+                "published_roots_all_features",
+                "actual_active_published_bindings",
+            ]
+            .iter()
+            .any(|field| manifest.get(*field).is_some())
+        {
+            return Err("retired source membership contract");
+        }
+        let current = &expected[0];
+        if manifest["implemented_roots_all_features"]
+            .as_array()
+            .is_none_or(|definitions| definitions.len() != 18_usize)
+        {
+            return Err("current implemented definition count");
+        }
+        for field in [
+            "implemented_roots_all_features",
+            "inventory_dispositions",
+            "publication_predicates",
+            "callable_bindings",
+        ] {
+            if manifest[field].as_array().is_none_or(Vec::is_empty)
+                || manifest[field] != current[field]
+            {
+                return Err("root/publication membership");
+            }
+        }
         let active: Vec<_> = auctioneer_config_data::bidder_implementation_bindings()
             .iter()
             .map(|row| (row.bidder, row.implementation))
             .collect();
-        let active_count = if cfg!(target_arch = "wasm32") { 4 } else { 18 };
-        if manifest["planned_roots"]
-            .as_array()
-            .ok_or("planned roots")?
-            .len()
-            != 14
-            || manifest["planned_roots"] != json!(planned)
-            || manifest["published_roots_all_features"]
-                .as_array()
-                .ok_or("published roots")?
-                .len()
-                != 18
-            || manifest["published_roots_all_features"] != json!(published)
-            || manifest["actual_active_published_bindings"]
-                .as_array()
-                .ok_or("active bindings")?
-                .len()
-                != active_count
-            || manifest["actual_active_published_bindings"] != json!(active)
-        {
-            return Err("root/publication membership");
+        if manifest["callable_bindings"] != json!(active) {
+            return Err("actual callable publication membership");
         }
-        for (lane_name, count, roots, members) in
-            [("secure", 16_usize, 18, 18), ("development", 16, 18, 18)]
-        {
+        for (lane_name, expected_lane) in ["secure", "development"].into_iter().zip(expected) {
             let lane = &manifest["lanes"][lane_name];
-            // Inspection S remains published declarations plus planned roots,
-            // even on guests where native-only serving bindings are absent.
-            let mut expected_roots: BTreeSet<_> = planned.iter().map(String::as_str).collect();
-            expected_roots.extend(
-                declarations
-                    .iter()
-                    .filter(|row| row.required_feature.is_none() || lane_name == "development")
-                    .map(|row| row.bidder),
-            );
-            if lane["roots"].as_array().ok_or("roots")?.len() != roots
-                || lane["roots"] != json!(expected_roots)
-                || lane["members"].as_array().ok_or("members")?.len() != members
+            let owners = expected_lane["effective_schema_owners"]
+                .as_array()
+                .ok_or("expected owners")?;
+            let count = owners.len();
+            if count != 16_usize
+                || lane["roots"].as_array().ok_or("roots")?.len() != 18_usize
+                || lane["members"].as_array().ok_or("members")?.len() != 18_usize
+                || lane["roots"] != expected_lane["roots"]
+                || lane["members"] != expected_lane["members"]
+                || lane["effective_schema_owners"] != expected_lane["effective_schema_owners"]
                 || lane["schema_count"] != json!(count)
                 || lane["schemas"].as_array().ok_or("schemas")?.len() != count
+                || lane["schemas"]
+                    .as_array()
+                    .ok_or("schemas")?
+                    .iter()
+                    .map(|row| &row["witness"]["name"])
+                    .collect::<Vec<_>>()
+                    != owners.iter().collect::<Vec<_>>()
             {
                 return Err("root/schema membership");
             }
@@ -2654,7 +3133,7 @@ mod tests {
             .filter(|row| row["effective_schema_owner"].is_null())
             .collect();
         assert_eq!(schema_free.len(), 1);
-        assert_eq!(schema_free[0]["published"], true);
+        assert_eq!(schema_free[0]["implemented"], true);
         assert_eq!(schema_free[0]["is_root"], true);
         let aliases: Vec<_> = members
             .iter()
@@ -2691,16 +3170,19 @@ mod tests {
 
     #[test]
     fn schema_selection_manifest_is_order_independent_and_detects_omissions() {
+        let expected = membership_expectations().expect("independent declaration expectations");
         let original = selected_source_manifest(false).expect("manifest");
         let reordered = selected_source_manifest(true).expect("reordered manifest");
+        check_membership(&original, &expected).expect("accepted before each negative control");
         assert_eq!(
             serde_json::to_vec(&original).unwrap(),
             serde_json::to_vec(&reordered).unwrap()
         );
         for field in [
-            "planned_roots",
-            "published_roots_all_features",
-            "actual_active_published_bindings",
+            "implemented_roots_all_features",
+            "inventory_dispositions",
+            "publication_predicates",
+            "callable_bindings",
         ] {
             let mut missing_publication = original.clone();
             missing_publication[field]
@@ -2708,19 +3190,50 @@ mod tests {
                 .unwrap()
                 .pop()
                 .unwrap();
-            check_current(&missing_publication).expect_err("missing publication");
+            check_membership(&missing_publication, &expected).expect_err("missing publication");
             let mut replaced_publication = original.clone();
             replaced_publication[field].as_array_mut().unwrap()[0] = json!("fake_substitute");
-            check_current(&replaced_publication).expect_err("same-count publication substitution");
+            check_membership(&replaced_publication, &expected)
+                .expect_err("same-count publication substitution");
         }
-        for field in ["roots", "schemas"] {
+        let mut old = original.clone();
+        old["schema_version"] = json!(1_u8);
+        assert_eq!(
+            check_membership(&old, &expected),
+            Err("retired source membership contract")
+        );
+        for field in [
+            "planned_roots",
+            "published_roots_all_features",
+            "actual_active_published_bindings",
+        ] {
+            let mut hybrid = original.clone();
+            hybrid[field] = json!([]);
+            assert_eq!(
+                check_membership(&hybrid, &expected),
+                Err("retired source membership contract")
+            );
+        }
+        let mut false_skip = original.clone();
+        let implemented = false_skip["inventory_dispositions"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|row| row["disposition"] == "implemented")
+            .expect("before-state implemented identity");
+        implemented["disposition"] = json!("not_implemented");
+        assert_eq!(
+            check_membership(&false_skip, &expected),
+            Err("root/publication membership")
+        );
+        for field in ["roots", "members", "effective_schema_owners", "schemas"] {
             let mut missing = original.clone();
             missing["lanes"]["secure"][field]
                 .as_array_mut()
                 .unwrap()
                 .pop()
                 .unwrap();
-            check_current(&missing).expect_err(field);
+            check_membership(&missing, &expected).expect_err(field);
         }
         let mut missing = original.clone();
         let patterned = missing["lanes"]["secure"]["schemas"]
@@ -2734,14 +3247,14 @@ mod tests {
             .unwrap()
             .pop()
             .unwrap();
-        check_current(&missing).expect_err("missing generated helper");
+        check_membership(&missing, &expected).expect_err("missing generated helper");
         let mut missing_shared = original;
         missing_shared["lanes"]["secure"]["shared_regex_helpers"]
             .as_array_mut()
             .unwrap()
             .pop()
             .unwrap();
-        check_current(&missing_shared).expect_err("missing shared helper");
+        check_membership(&missing_shared, &expected).expect_err("missing shared helper");
     }
     use super::bundle_patterns;
     use regex_automata::{meta::Regex, nfa::thompson::NFA, util::prefilter::Prefilter};

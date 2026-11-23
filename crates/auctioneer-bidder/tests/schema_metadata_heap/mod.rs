@@ -1,11 +1,11 @@
 //! Native immutable metadata only, excluding engines, caches and constructor scratch.
 
 use super::schema_heap_layout::{
-    LayoutError, NativeField, native_arc_layout, private_struct_slot_bound,
+    LayoutError, NativeField, arc_layout_with_header, private_struct_slot_bound,
 };
 use regex_automata::meta::{Config, Regex};
 use regex_syntax::{ParserBuilder, hir::Properties};
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, atomic::AtomicUsize};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum MetadataHeapError {
@@ -26,11 +26,11 @@ impl From<LayoutError> for MetadataHeapError {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct MetadataLayout {
-    regex_fields: [NativeField; 2],
-    info_fields: [NativeField; 3],
-    props_payload: NativeField,
-    static_inline: NativeField,
+pub(crate) struct MetadataLayout {
+    pub regex_fields: [NativeField; 2],
+    pub info_fields: [NativeField; 3],
+    pub props_payload: NativeField,
+    pub static_inline: NativeField,
 }
 
 impl MetadataLayout {
@@ -60,6 +60,14 @@ impl MetadataLayout {
     }
 
     fn metadata(self) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
+        self.metadata_with_header(NativeField::of::<[AtomicUsize; 2]>())
+    }
+
+    fn metadata_with_header(
+        self,
+        header: NativeField,
+    ) -> Result<NativeImmutableRegexMetadata, MetadataHeapError> {
+        header.validate()?;
         for field in self
             .regex_fields
             .into_iter()
@@ -83,10 +91,10 @@ impl MetadataLayout {
         }
         .validate()?;
         let regex_arc_bytes =
-            native_arc_layout(private_struct_slot_bound(&self.regex_fields)?)?.size();
+            arc_layout_with_header(private_struct_slot_bound(&self.regex_fields)?, header)?.size();
         // Any strategy RegexInfo references share this allocation.
         let info_arc_bytes =
-            native_arc_layout(private_struct_slot_bound(&self.info_fields)?)?.size();
+            arc_layout_with_header(private_struct_slot_bound(&self.info_fields)?, header)?.size();
         let props_box_bytes = self.props_payload.bytes;
         let props_union_box_bytes = self.props_payload.bytes;
         let requested_heap_bytes = checked_sum(&[
@@ -129,10 +137,33 @@ pub(crate) struct MetadataPopulation {
 }
 
 impl NativeImmutableRegexMetadata {
+    pub(crate) fn from_pattern_with_layouts(
+        pattern: &str,
+        config: &Config,
+        pattern_count: usize,
+        layout: MetadataLayout,
+        header: NativeField,
+    ) -> Result<Self, MetadataHeapError> {
+        Self::with_checked_pattern(pattern, config, pattern_count, |_properties| {
+            layout.metadata_with_header(header)
+        })
+    }
+
     pub(crate) fn from_pattern(
         pattern: &str,
         config: &Config,
         pattern_count: usize,
+    ) -> Result<Self, MetadataHeapError> {
+        Self::with_checked_pattern(pattern, config, pattern_count, |properties| {
+            MetadataLayout::native(properties).metadata()
+        })
+    }
+
+    fn with_checked_pattern(
+        pattern: &str,
+        config: &Config,
+        pattern_count: usize,
+        project: impl FnOnce(&Properties) -> Result<Self, MetadataHeapError>,
     ) -> Result<Self, MetadataHeapError> {
         // Config's only possible heap-owning field is an explicitly configured
         // prefilter. Automatic strategy prefilters remain outside this model.
@@ -146,7 +177,7 @@ impl NativeImmutableRegexMetadata {
         let hir = parser
             .parse(pattern)
             .map_err(|_error| MetadataHeapError::Syntax)?;
-        MetadataLayout::native(hir.properties()).metadata()
+        project(hir.properties())
     }
 
     pub(crate) fn population(
@@ -233,6 +264,259 @@ mod tests {
         },
     };
 
+    fn assert_metadata_field_growth(
+        config: &Config,
+        header: NativeField,
+        expected: NativeImmutableRegexMetadata,
+    ) {
+        for index in 0_usize..2_usize {
+            let mut layout = SYNTHETIC;
+            let field = layout
+                .regex_fields
+                .get_mut(index)
+                .expect("fixed regex field");
+            field.bytes = field
+                .bytes
+                .checked_add(8_usize)
+                .expect("small regex field growth");
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    "^synthetic+$",
+                    config,
+                    1_usize,
+                    layout,
+                    header,
+                ),
+                Ok(NativeImmutableRegexMetadata {
+                    regex_arc_bytes: 40_usize,
+                    requested_heap_bytes: 312_usize,
+                    ..expected
+                }),
+                "regex field {index}"
+            );
+        }
+        for index in 0_usize..3_usize {
+            let mut layout = SYNTHETIC;
+            let field = layout.info_fields.get_mut(index).expect("fixed info field");
+            field.bytes = field
+                .bytes
+                .checked_add(8_usize)
+                .expect("small info field growth");
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    "^synthetic+$",
+                    config,
+                    1_usize,
+                    layout,
+                    header,
+                ),
+                Ok(NativeImmutableRegexMetadata {
+                    info_arc_bytes: 88_usize,
+                    props_vec_bytes: if index == 2_usize { 64_usize } else { 32_usize },
+                    requested_heap_bytes: if index == 2_usize {
+                        344_usize
+                    } else {
+                        312_usize
+                    },
+                    ..expected
+                }),
+                "info field {index}"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_metadata_facts_vary_every_field_and_alignment_without_host_substitution() {
+        let config = Regex::config();
+        let header = NativeField {
+            bytes: 8_usize,
+            alignment: 4_usize,
+        };
+        let expected = NativeImmutableRegexMetadata {
+            regex_arc_bytes: 32_usize,
+            info_arc_bytes: 80_usize,
+            props_capacity: 4_usize,
+            props_vec_bytes: 32_usize,
+            props_box_bytes: 80_usize,
+            props_union_box_bytes: 80_usize,
+            requested_heap_bytes: 304_usize,
+            static_inline_bytes: 64_usize,
+        };
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$",
+                &config,
+                1_usize,
+                SYNTHETIC,
+                header,
+            ),
+            Ok(expected)
+        );
+        assert_metadata_field_growth(&config, header, expected);
+        let mut payload = SYNTHETIC;
+        payload.props_payload.bytes = 88_usize;
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$",
+                &config,
+                1_usize,
+                payload,
+                header,
+            ),
+            Ok(NativeImmutableRegexMetadata {
+                props_box_bytes: 88_usize,
+                props_union_box_bytes: 88_usize,
+                requested_heap_bytes: 320_usize,
+                ..expected
+            })
+        );
+        let mut inline = SYNTHETIC;
+        inline.static_inline.bytes = 72_usize;
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$",
+                &config,
+                1_usize,
+                inline,
+                header,
+            ),
+            Ok(NativeImmutableRegexMetadata {
+                static_inline_bytes: 72_usize,
+                ..expected
+            })
+        );
+        let mut aligned = SYNTHETIC;
+        aligned.regex_fields[0].alignment = 16_usize;
+        // The 8/4 header pads to offset 16, followed by a 32/16 payload bound.
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "^synthetic+$",
+                &config,
+                1_usize,
+                aligned,
+                header,
+            ),
+            Ok(NativeImmutableRegexMetadata {
+                regex_arc_bytes: 48_usize,
+                requested_heap_bytes: 320_usize,
+                ..expected
+            })
+        );
+    }
+
+    #[test]
+    fn explicit_metadata_facts_refuse_each_missing_malformed_or_overflowed_field_and_header() {
+        let config = Regex::config();
+        for (field, error) in [
+            (
+                NativeField {
+                    bytes: 0_usize,
+                    alignment: 8_usize,
+                },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField {
+                    bytes: 8_usize,
+                    alignment: 0_usize,
+                },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField {
+                    bytes: 8_usize,
+                    alignment: 3_usize,
+                },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField {
+                    bytes: 9_usize,
+                    alignment: 8_usize,
+                },
+                MetadataHeapError::Shape,
+            ),
+            (
+                NativeField {
+                    bytes: usize::MAX - 7_usize,
+                    alignment: 8_usize,
+                },
+                MetadataHeapError::Arithmetic,
+            ),
+        ] {
+            for index in 0_usize..8_usize {
+                let mut layout = SYNTHETIC;
+                let mut header = NativeField {
+                    bytes: 8_usize,
+                    alignment: 4_usize,
+                };
+                match index {
+                    0..=1 => layout.regex_fields[index] = field,
+                    2..=4 => layout.info_fields[index - 2_usize] = field,
+                    5 => layout.props_payload = field,
+                    6 => layout.static_inline = field,
+                    _ => header = field,
+                }
+                assert_eq!(
+                    NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                        "^synthetic+$",
+                        &config,
+                        1_usize,
+                        layout,
+                        header,
+                    ),
+                    Err(error),
+                    "field {index}: {field:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_native_metadata_facts_preserve_adapter_and_pattern_configuration_refusals() {
+        let pattern = "^synthetic+$";
+        let config = Regex::config();
+        let hir = parse(pattern).unwrap();
+        let layout = MetadataLayout::native(hir.properties());
+        let header = NativeField::of::<[AtomicUsize; 2]>();
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                pattern, &config, 1_usize, layout, header,
+            ),
+            NativeImmutableRegexMetadata::from_pattern(pattern, &config, 1_usize)
+        );
+        for count in [0_usize, 2_usize, usize::MAX] {
+            assert_eq!(
+                NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                    pattern, &config, count, layout, header,
+                ),
+                Err(MetadataHeapError::PatternCount)
+            );
+        }
+        let prefilter = Prefilter::new(MatchKind::LeftmostFirst, &[b"synthetic"]).unwrap();
+        let configured = Regex::config().prefilter(Some(prefilter));
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                pattern,
+                &configured,
+                1_usize,
+                layout,
+                header,
+            ),
+            Err(MetadataHeapError::Configuration)
+        );
+        assert_eq!(
+            NativeImmutableRegexMetadata::from_pattern_with_layouts(
+                "[synthetic",
+                &config,
+                1_usize,
+                layout,
+                header,
+            ),
+            Err(MetadataHeapError::Syntax)
+        );
+    }
+
     #[test]
     fn metadata_literal_terms_charge_two_arcs_capacity_four_and_two_property_boxes() {
         assert_eq!(
@@ -247,6 +531,102 @@ mod tests {
                 requested_heap_bytes: 320,
                 static_inline_bytes: 64,
             })
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_16_byte_header_preserves_literal_terms() {
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(NativeField {
+                bytes: 16_usize,
+                alignment: 8_usize,
+            }),
+            Ok(NativeImmutableRegexMetadata {
+                regex_arc_bytes: 40_usize,
+                info_arc_bytes: 88_usize,
+                props_capacity: 4_usize,
+                props_vec_bytes: 32_usize,
+                props_box_bytes: 80_usize,
+                props_union_box_bytes: 80_usize,
+                requested_heap_bytes: 320_usize,
+                static_inline_bytes: 64_usize,
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_8_byte_header_changes_only_arc_terms() {
+        // Synthetic payload bounds stay 24/8 and 72/8; extending an 8/4
+        // header and padding to alignment 8 gives Arc requests of 32 and 80.
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(NativeField {
+                bytes: 8_usize,
+                alignment: 4_usize,
+            }),
+            Ok(NativeImmutableRegexMetadata {
+                regex_arc_bytes: 32_usize,
+                info_arc_bytes: 80_usize,
+                props_capacity: 4_usize,
+                props_vec_bytes: 32_usize,
+                props_box_bytes: 80_usize,
+                props_union_box_bytes: 80_usize,
+                requested_heap_bytes: 304_usize,
+                static_inline_bytes: 64_usize,
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_header_rejects_malformed_shapes() {
+        for header in [
+            NativeField {
+                bytes: 0_usize,
+                alignment: 8_usize,
+            },
+            NativeField {
+                bytes: 8_usize,
+                alignment: 0_usize,
+            },
+            NativeField {
+                bytes: 8_usize,
+                alignment: 3_usize,
+            },
+            NativeField {
+                bytes: 9_usize,
+                alignment: 8_usize,
+            },
+        ] {
+            assert_eq!(
+                SYNTHETIC.metadata_with_header(header),
+                Err(MetadataHeapError::Shape)
+            );
+        }
+    }
+
+    #[test]
+    fn metadata_explicit_header_rejects_allocation_limit_overflow() {
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(NativeField {
+                bytes: usize::MAX - 7_usize,
+                alignment: 8_usize,
+            }),
+            Err(MetadataHeapError::Arithmetic)
+        );
+    }
+
+    #[test]
+    fn metadata_explicit_header_rejects_arc_extension_overflow() {
+        let maximum = usize::try_from(isize::MAX).unwrap();
+        let header = NativeField {
+            bytes: maximum - 7_usize,
+            alignment: 8_usize,
+        };
+        // The header is legal by itself; appending either payload exceeds
+        // Layout's allocation limit without overflowing usize.
+        assert_eq!(header.validate(), Ok(()));
+        assert_eq!(
+            SYNTHETIC.metadata_with_header(header),
+            Err(MetadataHeapError::Arithmetic)
         );
     }
 
