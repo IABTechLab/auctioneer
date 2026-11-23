@@ -1,6 +1,8 @@
 # Shared Schema Validation Bounds
 
-Status: proposed written contract for maintainer review. The maintainer approved this design direction, not implementation, publication, admission, qualification or merge.
+Status: maintainer-approved for implementation planning, including the hard-cut retirement contract. Approval does not authorize implementation, publication, admission, qualification or merge.
+
+Implementation plan: [Shared Schema Validation Bounds](../plans/2026-11-23-schema-validation-resources.md).
 
 Issue: [#47](https://github.com/IABTechLab/auctioneer/issues/47). Parent epic: [#9, Complete Resource Qualification And Target Fit](https://github.com/IABTechLab/auctioneer/issues/9). Planning basis: merged Auctioneer `8baf0a5e71bf685d3e8ae755d4adcbe0d2329525`, including [#262](https://github.com/IABTechLab/auctioneer/pull/262). The recorded prerequisite [#33](https://github.com/IABTechLab/auctioneer/issues/33) is closed. [#46](https://github.com/IABTechLab/auctioneer/issues/46) remains open; reuse its delivered source interface without claiming its remaining certification is complete.
 
