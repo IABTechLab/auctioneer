@@ -194,8 +194,17 @@ mod tests {
     }
 
     fn assert_sites(facts: EpochFacts, expected: [u64; 9]) {
-        let [root_entries, insert_attempts, stack_pushes, pop_decisions, state_dispatches, look_tests, union_first_tests, tail_elements, tail_advances] =
-            expected;
+        let [
+            root_entries,
+            insert_attempts,
+            stack_pushes,
+            pop_decisions,
+            state_dispatches,
+            look_tests,
+            union_first_tests,
+            tail_elements,
+            tail_advances,
+        ] = expected;
         let expected = LocalEpsilon {
             sites: SiteTable {
                 root_entries,

@@ -425,7 +425,13 @@ impl<'a> Index<'a> {
                     declaration: None,
                     ty: Ty::Cache(function.receiver.clone().ok_or(Refusal::ReceiverMismatch)?),
                     place: "self".to_owned(),
-                    borrowed: receiver.reference.is_some(),
+                    borrowed: match &receiver.kind {
+                        syn::ReceiverKind::Reference(_, _, _) => true,
+                        syn::ReceiverKind::Value => false,
+                        // Explicitly typed and future receiver forms are not
+                        // emitted shorthand receivers in this finite grammar.
+                        _ => return Err(Refusal::ReceiverMismatch),
+                    },
                     origin: Origin::Parameter {
                         function: id,
                         ordinal,
@@ -501,11 +507,11 @@ fn initializer_documentation(method: &syn::ImplItemFn) -> bool {
     ];
     let signature = &method.sig;
     matches!(method.vis, syn::Visibility::Public(_))
-        && method.defaultness.is_none()
+        && method.modifiers.defaultness.is_none()
         && signature.ident == "initialize_regexes"
         && signature.constness.is_none()
         && signature.asyncness.is_none()
-        && signature.unsafety.is_none()
+        && matches!(signature.safety, syn::Safety::Default)
         && signature.abi.is_none()
         && signature.generics.params.is_empty()
         && signature.generics.where_clause.is_none()
