@@ -296,7 +296,6 @@ pub(super) fn tail_advances(elements: u64) -> Result<u64, EpsilonError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quote::ToTokens as _;
 
     fn pristine_source() -> syn::ItemFn {
         let file = syn::parse_file(include_str!(concat!(

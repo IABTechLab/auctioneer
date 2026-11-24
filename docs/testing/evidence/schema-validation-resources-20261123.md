@@ -347,3 +347,16 @@ error: could not compile `auctioneer-bidder` (test "schema_source_conformance") 
 Default lint covered both `schema_build_controls` and `schema_source_conformance` with `--locked -p auctioneer-bidder -- -D warnings`; development lint explicitly selected `--features insecure-bidders --test schema_source_conformance`, also with `-D warnings` and the artifact-expectation variable unset. Diagnostics include shadowed bindings, exhaustive-pattern/style requirements, scoped field visibility, checked arithmetic, explicit numeric types, oversized functions and parent modules requiring `mod.rs`. They are author-owned failures, not valid tests-first RED or an external verification blocker. Later success-gated core/staged steps were skipped, not passed.
 
 The repair preserves every assertion, independent literal, refusal and test name, uses ordinary directory modules with corrected data-include paths, and retains the same lint policy. No lint allowance, hidden cfg, ignored case, test/feature reduction or resource-limit change is authorized. Hosted verification must establish the repairs; static review and pinned formatting are not substitutes.
+
+### Tests-First Checkpoint Stops At A Redundant Import
+
+At `29b442a2dc8a7f1b5f8579f4fe66428e8b2afdbb`, the [private-layout job](https://github.com/IABTechLab/auctioneer/actions/runs/45512666791/job/138864077230) and [Axum artifact job](https://github.com/IABTechLab/auctioneer/actions/runs/45512666791/job/138864077495) both failed compiling the shared source-conformance target with exit 101:
+
+```text
+warning: unused import: `quote::ToTokens`
+--> crates/auctioneer-bidder/tests/schema_validation/work/epsilon/mod.rs:299:9
+error: `auctioneer-bidder` (test "schema_source_conformance") generated 1 warning
+error: warnings are denied by `build.warnings` configuration
+```
+
+The outer module already provides the required trait scope; the child module's duplicate import is unused. The repair removes only that child import, retaining the outer import, every case, oracle, source recipe and the existing warning policy. These failed compilations produced no executed source-conformance result and establish no intended primitive/cache/entropy assertion RED. The checkpoint's new controls, lint repairs and unchanged full matrix still require hosted execution at the fixing head. This author-owned setup failure is not waived or relabelled as missing target evidence.
