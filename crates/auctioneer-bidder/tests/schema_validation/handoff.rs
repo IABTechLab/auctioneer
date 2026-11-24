@@ -1,6 +1,10 @@
 //! Exact child and caller-context correspondence, not numeric proof authority.
 
-use crate::schema_residency::descriptor::{ValidationAssignment, exact_assignments};
+use crate::schema_build::application::CapturedSeed;
+use crate::schema_residency::descriptor::{
+    ValidationAssignment, ValidationView, exact_assignments,
+};
+use crate::schema_residency::expanded::DeclarationBody;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -9,6 +13,39 @@ enum Refusal {
     Binding,
     ChildCoverage,
     ContextCoverage,
+    BodiesUnavailable,
+    BodyCoverage,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct BodyReceipt {
+    owner: String,
+    marker: String,
+    expansion_sha256: String,
+}
+
+/// Private construction proves correspondence only; analysis is still unqualified.
+struct CheckedBodies<'a, T> {
+    view: ValidationView<'a>,
+    receipts: Vec<BodyReceipt>,
+    analyses: Vec<T>,
+}
+
+impl<T> CheckedBodies<'_, T> {
+    fn recheck(&self, _view: ValidationView<'_>) -> Result<(), Refusal> {
+        // This stage is intentionally RED until the same-kernel join exists.
+        let _: (&ValidationView<'_>, &[BodyReceipt], &[T]) =
+            (&self.view, &self.receipts, &self.analyses);
+        Err(Refusal::BodiesUnavailable)
+    }
+}
+
+fn checked_bodies<'a, T>(
+    _seed: &CapturedSeed,
+    _view: ValidationView<'a>,
+    _analyze: impl FnMut(DeclarationBody<'_>) -> Result<T, Refusal>,
+) -> Result<CheckedBodies<'a, T>, Refusal> {
+    Err(Refusal::BodiesUnavailable)
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -49,9 +86,16 @@ fn check_contexts(expected: &[ContextRoot], actual: &[ContextRoot]) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{ContextRoot, Refusal, check_children, check_contexts};
+    use super::{
+        BodyReceipt, ContextRoot, Refusal, check_children, check_contexts, checked_bodies,
+    };
+    use crate::schema_build::application::CapturedSeed;
     use crate::schema_residency::descriptor::ValidationAssignment;
+    use crate::schema_residency::expanded::DeclarationBody;
+    use crate::schema_residency::with_current_descriptor;
+    use quote::ToTokens as _;
     use serde_json::{Value, json};
+    use sha2::{Digest as _, Sha256};
 
     fn binding() -> Value {
         json!({
@@ -273,5 +317,213 @@ mod tests {
                 row.role
             );
         }
+    }
+
+    fn body_shape(body: DeclarationBody<'_>) -> Result<usize, Refusal> {
+        assert!(!body.owner.is_empty());
+        assert!(!body.marker.is_empty());
+        assert_eq!(body.expansion_sha256.len(), 64);
+        let raw_sha256 = hex::encode(Sha256::digest(body.tokens.to_string().as_bytes()));
+        let pristine: syn::File = syn::parse2(body.tokens.clone()).unwrap();
+        if body.syntax.items.is_empty()
+            || raw_sha256 != body.expansion_sha256
+            || pristine.to_token_stream().to_string() != body.syntax.to_token_stream().to_string()
+        {
+            return Err(Refusal::BodyCoverage);
+        }
+        Ok(body.syntax.items.len())
+    }
+
+    fn copy_seed(seed: &CapturedSeed) -> CapturedSeed {
+        CapturedSeed {
+            identity_sha256: seed.identity_sha256.clone(),
+            manifest_bytes: seed.manifest_bytes.clone(),
+            rust: seed.rust.clone(),
+            build_root: seed.build_root.clone(),
+            out_dir: seed.out_dir.clone(),
+            snapshots: seed.snapshots.clone(),
+        }
+    }
+
+    #[test]
+    fn actual_bodies_require_the_descriptor_capture() {
+        with_current_descriptor(|seed, descriptor| {
+            let view = descriptor.validation_view().unwrap();
+            assert_eq!(view.check_handoff(view.assignments()), Ok(()));
+            assert!(!view.selection().is_null());
+            let expected = view.graph()["declarations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| BodyReceipt {
+                    owner: row["owner"].as_str().unwrap().into(),
+                    marker: row["marker"].as_str().unwrap().into(),
+                    expansion_sha256: row["expansion_sha256"].as_str().unwrap().into(),
+                })
+                .collect::<Vec<_>>();
+            assert!(!expected.is_empty());
+            let mut visited = Vec::new();
+            let result = checked_bodies(seed, view, |body| {
+                visited.push(BodyReceipt {
+                    owner: body.owner.into(),
+                    marker: body.marker.into(),
+                    expansion_sha256: body.expansion_sha256.into(),
+                });
+                body_shape(body)
+            });
+            assert_eq!(
+                result.as_ref().map(|bodies| &bodies.receipts),
+                Ok(&expected)
+            );
+            let bodies = result.unwrap();
+            assert_eq!(visited, expected);
+            assert_eq!(
+                visited
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
+                expected.len()
+            );
+            assert_eq!(bodies.analyses.len(), expected.len());
+            assert!(bodies.analyses.iter().all(|count| *count > 0));
+            assert_eq!(bodies.recheck(view), Ok(()));
+            assert_eq!(view.binding(), bodies.view.binding());
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn body_receipts_reject_changed_owner_and_expansion() {
+        with_current_descriptor(|seed, descriptor| {
+            let view = descriptor.validation_view().unwrap();
+            let result = checked_bodies(seed, view, body_shape);
+            assert_eq!(
+                result.as_ref().map(|bodies| bodies.receipts.is_empty()),
+                Ok(false)
+            );
+            let mut bodies = result.unwrap();
+            assert_eq!(bodies.recheck(view), Ok(()));
+            assert!(!bodies.receipts.is_empty());
+            for index in 0..bodies.receipts.len() {
+                let original = bodies.receipts[index].clone();
+                bodies.receipts[index].owner = "fake_other_body_owner".into();
+                assert_eq!(bodies.recheck(view), Err(Refusal::BodyCoverage));
+                bodies.receipts[index] = original.clone();
+                assert_eq!(bodies.recheck(view), Ok(()));
+                bodies.receipts[index].marker = "FakeOtherMarker".into();
+                assert_eq!(bodies.recheck(view), Err(Refusal::BodyCoverage));
+                bodies.receipts[index] = original.clone();
+                assert_eq!(bodies.recheck(view), Ok(()));
+                bodies.receipts[index].expansion_sha256 = "fake_changed_expansion".into();
+                assert_eq!(bodies.recheck(view), Err(Refusal::BodyCoverage));
+                bodies.receipts[index] = original;
+            }
+            assert_eq!(bodies.recheck(view), Ok(()));
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn seed_and_options_drift_cannot_reuse_body_authority() {
+        with_current_descriptor(|seed, descriptor| {
+            let view = descriptor.validation_view().unwrap();
+            assert_eq!(
+                checked_bodies(seed, view, body_shape).map(|b| b.receipts.len()),
+                Ok(view.graph()["declarations"].as_array().unwrap().len())
+            );
+            with_current_descriptor(|other_seed, other_descriptor| {
+                let other_view = other_descriptor.validation_view().unwrap();
+                assert_ne!(view.binding(), other_view.binding());
+                assert!(checked_bodies(other_seed, other_view, body_shape).is_ok());
+                assert_eq!(
+                    checked_bodies(other_seed, view, body_shape).err(),
+                    Some(Refusal::Binding)
+                );
+                Ok(())
+            })?;
+            let mut changed = copy_seed(seed);
+            let mut syntax = syn::parse_file(std::str::from_utf8(&changed.rust).unwrap()).unwrap();
+            let declaration = syntax
+                .items
+                .iter_mut()
+                .find_map(|item| {
+                    if let syn::Item::Struct(item) = item {
+                        item.attrs.iter_mut().find(|attribute| {
+                            attribute
+                                .path()
+                                .segments
+                                .last()
+                                .is_some_and(|segment| segment.ident == "validator")
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let syn::Meta::List(options) = &mut declaration.meta else {
+                panic!("captured validator options");
+            };
+            // Reorder one complete top-level option, keeping groups and values intact.
+            let original = options.tokens.to_string();
+            let mut fields = options.tokens.clone().into_iter().collect::<Vec<_>>();
+            let comma = fields.iter().position(|token| {
+                matches!(token, proc_macro2::TokenTree::Punct(punct) if punct.as_char() == ',')
+            }).unwrap();
+            let first = fields.drain(..=comma).collect::<Vec<_>>();
+            if !matches!(fields.last(), Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ',') {
+                fields.push(proc_macro2::TokenTree::Punct(proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone)));
+            }
+            fields.extend(first);
+            options.tokens = fields.into_iter().collect();
+            assert_ne!(options.tokens.to_string(), original);
+            changed.rust = syntax.to_token_stream().to_string().into_bytes();
+            let mut manifest: Value = serde_json::from_slice(&changed.manifest_bytes).unwrap();
+            manifest["emitted_rust_sha256"] =
+                json!(hex::encode(Sha256::digest(&changed.rust)));
+            changed.manifest_bytes = serde_json::to_vec(&manifest).unwrap();
+            assert!(crate::schema_residency::expanded::expand(&changed).is_ok(), "changed capture remains independently valid");
+            assert_eq!(
+                checked_bodies(&changed, view, body_shape).err(),
+                Some(Refusal::Binding)
+            );
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn unrelated_nonempty_syntax_cannot_replace_pristine_body() {
+        with_current_descriptor(|seed, descriptor| {
+            let view = descriptor.validation_view().unwrap();
+            let mut rejected = 0;
+            let result = checked_bodies(seed, view, |body| {
+                let unrelated: syn::File = syn::parse_quote!(
+                    fn fake_unrelated_body() {}
+                );
+                assert_eq!(
+                    body_shape(DeclarationBody {
+                        owner: body.owner,
+                        marker: body.marker,
+                        expansion_sha256: body.expansion_sha256,
+                        tokens: body.tokens,
+                        syntax: &unrelated,
+                    }),
+                    Err(Refusal::BodyCoverage)
+                );
+                rejected += 1;
+                body_shape(body)
+            });
+            assert_eq!(
+                result.as_ref().map(|bodies| bodies.receipts.len()),
+                Ok(view.graph()["declarations"].as_array().unwrap().len())
+            );
+            let bodies = result.unwrap();
+            assert!(!bodies.receipts.is_empty());
+            assert_eq!(rejected, bodies.receipts.len());
+            Ok(())
+        })
+        .unwrap();
     }
 }

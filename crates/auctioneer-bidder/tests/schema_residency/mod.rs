@@ -14,3 +14,5 @@ mod program_construction;
 mod retained;
 pub(super) mod runtime_sources;
 mod storage;
+
+pub(crate) use growth::with_current_descriptor;

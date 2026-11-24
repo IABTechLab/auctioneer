@@ -17,6 +17,16 @@ pub(super) fn digest(bytes: &[u8]) -> String {
 
 const MEMBERSHIP: &str = "captured declaration membership mismatch";
 
+/// Invocation-scoped syntax supplied by the one captured expansion kernel.
+/// Borrowing syntax here does not certify its work, storage or call graph.
+pub(crate) struct DeclarationBody<'a> {
+    pub owner: &'a str,
+    pub marker: &'a str,
+    pub expansion_sha256: &'a str,
+    pub tokens: &'a proc_macro2::TokenStream,
+    pub syntax: &'a syn::File,
+}
+
 fn manifest(seed: &CapturedSeed) -> Result<Value, String> {
     let value: Value = serde_json::from_slice(&seed.manifest_bytes)
         .map_err(|_error| "invalid captured staging manifest".to_owned())?;

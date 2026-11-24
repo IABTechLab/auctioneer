@@ -13,6 +13,40 @@ validation_required=(
   schema_validation::handoff::tests::every_child_requires_exactly_one_owner
   schema_validation::handoff::tests::caller_context_is_not_a_regex_child
   schema_validation::handoff::tests::zero_regex_declarations_still_require_work_and_stack
+  schema_validation::handoff::tests::actual_bodies_require_the_descriptor_capture
+  schema_validation::handoff::tests::body_receipts_reject_changed_owner_and_expansion
+  schema_validation::handoff::tests::seed_and_options_drift_cannot_reuse_body_authority
+  schema_validation::handoff::tests::unrelated_nonempty_syntax_cannot_replace_pristine_body
+  schema_validation::storage::tests::fallback_is_covered_once
+  schema_validation::storage::tests::heap_terms_and_inline_wrapper_vary_independently
+  schema_validation::storage::tests::hostname_overlaps_the_live_wrapper
+  schema_validation::storage::tests::fresh_cache_construction_and_partial_failure_are_included
+  schema_validation::storage::tests::exact_release_rejects_missing_early_late_and_duplicate_events
+  schema_validation::storage::tests::serial_calls_do_not_multiply_peak
+  schema_validation::storage::tests::overlap_change_invalidates_serial_composition
+  schema_validation::storage::tests::duplicate_ownership_is_not_a_disjoint_live_child
+  schema_validation::storage::tests::checked_sums_reject_heap_and_combined_overflow
+  schema_validation::storage::tests::lifetimes_require_ordered_in_trace_release_states
+  schema_validation::stack::tests::nested_calls_sum_and_alternatives_take_max
+  schema_validation::stack::tests::instance_and_schema_depth_are_independent
+  schema_validation::stack::tests::heap_stack_records_are_not_frames
+  schema_validation::stack::tests::missing_common_edge_differs_from_missing_target_fact
+  schema_validation::stack::tests::each_frame_owner_and_target_slot_is_independently_required
+  schema_validation::stack::tests::abi_and_panic_mode_must_match
+  schema_validation::stack::tests::expiry_callback_facts_are_nonzero_and_identity_bound
+  schema_validation::stack::tests::expiry_work_storage_and_frame_dimensions_vary_independently
+  schema_validation::stack::tests::checked_overflow_refuses_instead_of_wrapping
+  schema_validation::admission::tests::missing_common_proof_cannot_complete
+  schema_validation::admission::tests::hypothetical_facts_cannot_qualify
+  schema_validation::admission::tests::component_ratios_are_not_cpu_weights
+  schema_validation::admission::tests::coefficient_boundaries_vary_independently
+  schema_validation::admission::tests::uncharged_attempts_survive_zero_debit
+  schema_validation::admission::tests::shape_complete_cannot_qualify_policy
+  schema_validation::admission::tests::missing_target_facts_cannot_be_zero
+  schema_validation::admission::tests::retired_candidate_cannot_supply_costs
+  schema_validation::admission::tests::existing_policy_tuple_is_checked_independently
+  schema_validation::admission::tests::declaration_maxima_preserve_components
+  schema_validation::admission::tests::checked_arithmetic_refuses_overflow
 )
 printf '%s\n' "${validation_required[@]}" > "$RUNNER_TEMP/schema-validation-required.names"
 for owner in schema_residency schema_validation; do
@@ -34,6 +68,7 @@ for owner in schema_residency schema_validation; do
   bash .github/workflows/scripts/test/check-libtest-result.sh "$log" "$((total - selected))" 1 "$selected"
   bash .github/workflows/scripts/test/check-schema-residency-dispatch.sh "$log" "$names" "$frames" "$required"
 done
+env -u AUCTIONEER__TEST__EXPECT_SCHEMA_ARTIFACT cargo clippy "${cargo_args[@]}" -- -D warnings
 
 env -u AUCTIONEER__TEST__EXPECT_SCHEMA_ARTIFACT cargo test --locked -p auctioneer-bidder --features insecure-bidders --test schema_source_conformance tests::staged_ -- --test-threads=1 2>&1 | tee "$RUNNER_TEMP/schema-metadata-development-normal.log"
 test "$(grep -Ec '^running [0-9]+ tests?$' "$RUNNER_TEMP/schema-metadata-development-normal.log")" -eq 1

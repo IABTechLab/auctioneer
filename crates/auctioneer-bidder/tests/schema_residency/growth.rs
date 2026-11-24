@@ -1469,6 +1469,75 @@ fn attach_metadata_observations(
     Ok(())
 }
 
+/// Reuse only the current reconstruction; no historical data or child build.
+pub(crate) fn with_current_descriptor<R>(
+    inspect: impl FnOnce(&CapturedSeed, &descriptor::ActualSourceDescriptor) -> Result<R, String>,
+) -> Result<R, String> {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let workspace = crate_root
+        .parent()
+        .and_then(Path::parent)
+        .ok_or("missing workspace")?;
+    let measurement = current_measurement(workspace)?;
+    check_current_artifact(&crate_root, &measurement)?;
+    let temporary = tempfile::Builder::new()
+        .permissions(fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .map_err(|error| error.to_string())?;
+    let output = temporary
+        .path()
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if regular_metadata(&output)?.permissions().mode() & 0o777 != 0o700 {
+        return Err("current reconstruction requires private tempfile0700".into());
+    }
+    let capture = reconstruct(
+        workspace,
+        &output,
+        &measurement,
+        json!({"kind":"current-source-content-snapshot"}),
+        &BTreeSet::new(),
+    )?;
+    let regex = schema_regex_vendor::verify(workspace).map_err(|error| error.to_string())?;
+    let dependencies = schema_build::resolved_regex_dependencies(&regex)?;
+    let features = dependencies
+        .engine_features
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let release = measurement
+        .build
+        .compiler_verbose
+        .lines()
+        .find_map(|line| line.strip_prefix("release: "))
+        .ok_or("missing current compiler release")?;
+    let descriptor = descriptor::describe(
+        &capture.seed,
+        &capture.graph,
+        &descriptor::Sources {
+            workspace,
+            syntax: &dependencies.syntax_root,
+            rust_release: release,
+            features: &features,
+        },
+    )
+    .map_err(|error| format!("current source descriptor refused: {error:?}"))?;
+    let result = inspect(&capture.seed, &descriptor);
+    let after = measurement_identity(
+        workspace,
+        &measurement.manifest,
+        &measurement.build,
+        &measurement.environment,
+    )?;
+    check_current_artifact(&crate_root, &measurement)?;
+    if after != measurement.identity || rechecked_view(&capture, &after)? != capture.view {
+        return Err("current source capture changed during inspection".into());
+    }
+    result
+}
+
 fn run_real() -> Result<Value, String> {
     if cfg!(feature = "schema-artifact-staging") {
         return Err("inspection-only staging cannot observe a serving registry".into());

@@ -66,6 +66,39 @@ pub(crate) struct ActualSourceDescriptor {
     validation: Vec<ValidationAssignment>,
 }
 
+/// A borrow of checked source identity, not a cost or qualification receipt.
+#[derive(Clone, Copy)]
+pub(crate) struct ValidationView<'a> {
+    descriptor: &'a ActualSourceDescriptor,
+}
+
+impl ValidationView<'_> {
+    pub(crate) fn binding(&self) -> &Value {
+        &self.descriptor.binding
+    }
+
+    pub(crate) fn graph(&self) -> &Value {
+        &self.descriptor.graph
+    }
+
+    pub(crate) fn selection(&self) -> &Value {
+        &self.descriptor.selection
+    }
+
+    pub(crate) fn assignments(&self) -> &[ValidationAssignment] {
+        &self.descriptor.validation
+    }
+
+    pub(crate) fn check_handoff(&self, rows: &[ValidationAssignment]) -> Result<(), Refusal> {
+        self.recheck()?;
+        self.descriptor.check_validation_handoff(rows)
+    }
+
+    pub(crate) fn recheck(&self) -> Result<(), Refusal> {
+        self.descriptor.runtime.recheck()
+    }
+}
+
 /// Conditional premises, supplied by the target evidence owner, never defaults.
 pub(crate) struct RequestedFacts<'a> {
     pub binding: &'a Value,
@@ -564,6 +597,12 @@ pub(crate) fn describe(
 }
 
 impl ActualSourceDescriptor {
+    pub(crate) fn validation_view(&self) -> Result<ValidationView<'_>, Refusal> {
+        let view = ValidationView { descriptor: self };
+        view.recheck()?;
+        Ok(view)
+    }
+
     /// Stable data projection for the existing pure consumer; not a receipt.
     pub(crate) fn projection(&self) -> Value {
         let programs = self
