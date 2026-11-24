@@ -483,6 +483,91 @@ mod tests {
     }
 
     #[test]
+    fn deep_boolean_source_preserves_every_occurrence() {
+        let mut source: syn::File = syn::parse_quote! {
+            fn is_valid(instance: &serde_json::Value) -> bool { first(instance) }
+            fn first(instance: &serde_json::Value) -> bool {
+                match instance { serde_json::Value::String(_) => true, _ => false }
+            }
+            fn second(instance: &serde_json::Value) -> bool {
+                match instance { serde_json::Value::Bool(_) => true, _ => false }
+            }
+        };
+        let before = classify_source_body(&source, &[], &[]);
+        assert_eq!(
+            before
+                .as_ref()
+                .map(|operations| operations.calls.get("first")),
+            Ok(Some(&1))
+        );
+        drop(before);
+
+        // Match the emitter's left fold, including both parentheses per join.
+        // This is source-occurrence coverage, not actual-input execution credit.
+        let mut expression: syn::Expr = syn::parse_quote!(first(instance));
+        let mut expected_order = vec!["first".to_owned()];
+        for ordinal in 1..32 {
+            let (next, name): (syn::Expr, &str) = if ordinal % 2 == 0 {
+                (syn::parse_quote!(first(instance)), "first")
+            } else {
+                (syn::parse_quote!(second(instance)), "second")
+            };
+            expression = syn::parse_quote!((#expression) && (#next));
+            expected_order.push(name.to_owned());
+        }
+        root(&mut source).block = Box::new(syn::parse_quote!({ #expression }));
+        let classified = classify_source_body(&source, &[], &[]);
+        assert_eq!(
+            classified
+                .as_ref()
+                .map(|operations| operations.calls.get("first")),
+            Ok(Some(&16))
+        );
+        assert_eq!(
+            classified
+                .as_ref()
+                .map(|operations| operations.calls.get("second")),
+            Ok(Some(&16))
+        );
+        assert_eq!(
+            classified
+                .as_ref()
+                .map(|operations| operations.ledger.scalar_comparisons),
+            Ok(Some(32))
+        );
+        let operations = classified.unwrap();
+        let recipe = operations.recipe();
+        assert_eq!(recipe.roots.len(), 1);
+        let root = *recipe.roots.first().unwrap();
+        let function = recipe.functions.get(&root).unwrap();
+        let mut actual_order = Vec::new();
+        let mut sites = BTreeSet::new();
+        let mut conjunctions = 0;
+        super::model::walk(&function.body, &mut |op| {
+            assert_eq!(op.site.function, root);
+            match &op.kind {
+                super::model::Kind::Call { target, .. } => {
+                    actual_order.push(recipe.functions.get(target).unwrap().identity.clone());
+                    assert!(sites.insert(op.site.lexical.clone()));
+                }
+                super::model::Kind::ShortCircuit(junction, operands) => {
+                    assert_eq!(*junction, super::model::Junction::And);
+                    assert_eq!(operands.len(), 2);
+                    conjunctions += 1;
+                }
+                _ => {}
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(actual_order, expected_order);
+        assert_eq!(sites.len(), 32);
+        assert_eq!(conjunctions, 31);
+        drop(operations);
+        drop(source);
+    }
+
+    #[test]
     fn non_regex_declaration_has_a_nonempty_closure() {
         let operations = classify_source_body(&body(), &[], &[]);
         assert!(

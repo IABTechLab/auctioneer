@@ -19,6 +19,7 @@ validation_required=(
   schema_validation::handoff::tests::unrelated_nonempty_syntax_cannot_replace_pristine_body
   schema_validation::operations::tests::unclassified_call_refuses_completion
   schema_validation::operations::tests::changed_branch_multiplicity_changes_the_recipe
+  schema_validation::operations::tests::deep_boolean_source_preserves_every_occurrence
   schema_validation::operations::tests::non_regex_declaration_has_a_nonempty_closure
   schema_validation::operations::tests::changed_primitive_semantics_is_not_approved_by_rehashing
   schema_validation::operations::tests::expiry_binding_is_explicit

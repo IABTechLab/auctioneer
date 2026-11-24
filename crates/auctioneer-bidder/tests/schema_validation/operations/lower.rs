@@ -250,509 +250,521 @@ impl Lower<'_, '_> {
     }
 
     fn expression(&mut self, expression: &Expr, site: &[usize]) -> Result<Op, Refusal> {
+        // Keep operator temporaries out of this recursively re-entered frame.
+        // Op has a wide owned Kind; unrelated match-arm locals otherwise make
+        // debug-frame pressure grow with every emitted parenthesis/operator.
         match expression {
             Expr::Paren(expr) => self.expr(&expr.expr, &child(site, 0)),
             Expr::Group(expr) => self.expr(&expr.expr, &child(site, 0)),
-            Expr::Block(expr) => {
-                let label = expr
-                    .label
-                    .as_ref()
-                    .map(|label| label.name.ident.to_string());
-                if let Some(label) = &label {
-                    self.labels.push(label.clone());
-                }
-                let mut body = self.block(&expr.block, site)?;
-                if label.is_some() {
-                    self.labels.pop();
-                }
-                if let Kind::Scope { label: target, .. } = &mut body.kind {
-                    *target = label;
-                }
-                Ok(body)
-            }
-            Expr::Lit(expr) => {
-                let (ty, atom) = match &expr.lit {
-                    syn::Lit::Bool(value) => (Ty::Bool, Atom::Bool(value.value)),
-                    syn::Lit::Int(_) | syn::Lit::Float(_) => (
-                        Ty::Scalar,
-                        Atom::Scalar(expr.lit.to_token_stream().to_string()),
-                    ),
-                    syn::Lit::Str(value) => (Ty::String, Atom::String(value.value())),
-                    _ => return Err(Refusal::UnsupportedSource),
-                };
-                let mut op = self.op(site, ty, Kind::Value(atom));
-                // String literals are borrowed static data, not owned Strings.
-                op.value.borrowed = matches!(expr.lit, syn::Lit::Str(_));
-                Ok(op)
-            }
-            Expr::Path(expr) if expr.qself.is_none() => {
-                let name = path(&expr.path);
-                if let Some(value) = self.lookup(&name) {
-                    return Ok(Op {
-                        site: self.site(site),
-                        value,
-                        kind: Kind::Value(Atom::Place),
-                    });
-                }
-                let qualified = join(self.module, &name);
-                if let Some(ty) = self.index.statics.get(&qualified) {
-                    return Ok(Op {
-                        site: self.site(site),
-                        value: Binding {
-                            declaration: None,
-                            ty: ty.clone(),
-                            place: qualified.clone(),
-                            borrowed: true,
-                            origin: Origin::Static(qualified),
-                        },
-                        kind: Kind::Value(Atom::Place),
-                    });
-                }
-                if name == "None" {
-                    let result = self.index.result(self.function)?;
-                    return Ok(self.op(
-                        site,
-                        if matches!(result, Ty::Option(_)) {
-                            result
-                        } else {
-                            Ty::Option(Box::new(Ty::Unit))
-                        },
-                        Kind::Value(Atom::None),
-                    ));
-                }
-                Err(Refusal::UnclassifiedCall)
-            }
-            Expr::Reference(expr) => {
-                let value = self.expr(&expr.expr, &child(site, 0))?;
-                let mut op = self.op(
-                    site,
-                    value.value.ty.clone(),
-                    Kind::Evaluate(
-                        Action::Borrow {
-                            mutable: expr.mutability.is_some(),
-                        },
-                        vec![value.clone()],
-                    ),
-                );
-                op.value = value.value;
-                op.value.borrowed = true;
-                Ok(op)
-            }
-            Expr::Field(expr) => {
-                let base = self.expr(&expr.base, &child(site, 0))?;
-                let syn::Member::Named(member) = &expr.member else {
-                    return Err(Refusal::ReceiverMismatch);
-                };
-                let Ty::Cache(owner) = &base.value.ty else {
-                    return Err(Refusal::ReceiverMismatch);
-                };
-                let ty = self
-                    .index
-                    .fields
-                    .get(owner)
-                    .and_then(|fields| fields.get(&member.to_string()))
-                    .ok_or(Refusal::ReceiverMismatch)?
-                    .clone();
-                let mut value = self.op(
-                    site,
-                    ty,
-                    Kind::Evaluate(Action::Field(member.to_string()), vec![base.clone()]),
-                );
-                value.value.borrowed = base.value.borrowed;
-                value.value.place = format!("{}.{}", base.value.place, member);
-                value.value.origin = Origin::Projection {
-                    base: Box::new(base.value.origin),
-                    member: member.to_string(),
-                };
-                Ok(value)
-            }
+            Expr::Block(expr) => self.block_expr(expr, site),
+            Expr::Lit(expr) => self.literal_expr(expr, site),
+            Expr::Path(expr) if expr.qself.is_none() => self.path_expr(expr, site),
+            Expr::Reference(expr) => self.reference_expr(expr, site),
+            Expr::Field(expr) => self.field_expr(expr, site),
             Expr::Call(expr) => self.call(expr, site),
             Expr::MethodCall(expr) => self.method(expr, site),
-            Expr::Match(expr) => {
-                let selector = self.expr(&expr.expr, &child(site, 0))?;
-                let selector_value = selector.value.clone();
-                let selector = if selector_value.ty == Ty::String {
-                    self.primitive(
-                        &child(site, 0),
-                        Ty::Bool,
-                        Primitive::StringAccess,
-                        "str::pattern_decision".to_owned(),
-                        Some(selector_value.clone()),
-                        vec![selector],
-                    )
-                } else {
-                    self.op(
-                        &child(site, 0),
-                        Ty::Bool,
-                        Kind::ScalarTest(Comparison::TypeDiscriminant, vec![selector]),
-                    )
-                };
-                let mut arms = Vec::new();
-                let mut ty = Ty::Unit;
-                for (ordinal, arm) in expr.arms.iter().enumerate() {
-                    let here = child(site, ordinal + 1);
-                    self.scopes.push(BTreeMap::new());
-                    let (source_pattern, source_guard) = match &arm.pat {
-                        Pat::Guard(guard) => (guard.pat.as_ref(), Some(guard.guard.as_ref())),
-                        pattern => (pattern, None),
-                    };
-                    let (pattern, _) = self.pattern(source_pattern, &selector_value, &here)?;
-                    let guard = source_guard
-                        .map(|guard| self.expr(guard, &child(&here, 0)))
-                        .transpose()?;
-                    let body = self.expr(&arm.body, &child(&here, 1))?;
-                    ty = body.value.ty.clone();
-                    arms.push(Arm {
-                        pattern,
-                        guard,
-                        body,
-                    });
-                    self.scopes.pop();
-                }
-                Ok(self.op(
-                    site,
-                    ty,
-                    Kind::Choice {
-                        selector: Box::new(selector),
-                        arms,
-                    },
-                ))
-            }
-            Expr::If(expr) => {
-                let selector = self.expr(&expr.cond, &child(site, 0))?;
-                if selector.value.ty != Ty::Bool {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                let yes = self.block(&expr.then_branch, &child(site, 1))?;
-                let no = if let Some((_, no)) = &expr.else_branch {
-                    self.expr(no, &child(site, 2))?
-                } else {
-                    self.op(&child(site, 2), Ty::Unit, Kind::Value(Atom::Unit))
-                };
-                let ty = if expr.else_branch.is_some() {
-                    no.value.ty.clone()
-                } else {
-                    Ty::Unit
-                };
-                Ok(self.op(
-                    site,
-                    ty,
-                    Kind::Choice {
-                        selector: Box::new(selector),
-                        arms: vec![
-                            Arm {
-                                pattern: Pattern::Literal("true".to_owned()),
-                                guard: None,
-                                body: yes,
-                            },
-                            Arm {
-                                pattern: Pattern::Literal("false".to_owned()),
-                                guard: None,
-                                body: no,
-                            },
-                        ],
-                    },
-                ))
-            }
-            Expr::Binary(expr) => {
-                let left = self.expr(&expr.left, &child(site, 0))?;
-                let right = self.expr(&expr.right, &child(site, 1))?;
-                if matches!(expr.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) {
-                    if left.value.ty != Ty::Bool || right.value.ty != Ty::Bool {
-                        return Err(Refusal::ReceiverMismatch);
-                    }
-                    return Ok(self.op(
-                        site,
-                        Ty::Bool,
-                        Kind::ShortCircuit(
-                            if matches!(expr.op, syn::BinOp::And(_)) {
-                                Junction::And
-                            } else {
-                                Junction::Or
-                            },
-                            vec![left, right],
-                        ),
-                    ));
-                }
-                if matches!(expr.op, syn::BinOp::BitAndAssign(_))
-                    && left.value.ty == Ty::Bool
-                    && right.value.ty == Ty::Bool
-                {
-                    return Ok(self.op(
-                        site,
-                        Ty::Unit,
-                        Kind::Evaluate(Action::AndAssign(left.value.clone()), vec![left, right]),
-                    ));
-                }
-                if !matches!(
-                    expr.op,
-                    syn::BinOp::Eq(_)
-                        | syn::BinOp::Ne(_)
-                        | syn::BinOp::Lt(_)
-                        | syn::BinOp::Le(_)
-                        | syn::BinOp::Gt(_)
-                        | syn::BinOp::Ge(_)
-                ) || left.value.ty != right.value.ty
-                {
-                    return Err(Refusal::UnsupportedSource);
-                }
-                let comparison = comparison(&expr.op)?;
-                if left.value.ty == Ty::String {
-                    return Ok(self.primitive(
-                        site,
-                        Ty::Bool,
-                        Primitive::StringAccess,
-                        format!("str::{comparison:?}"),
-                        Some(left.value.clone()),
-                        vec![left, right],
-                    ));
-                }
-                if !matches!(left.value.ty, Ty::Bool | Ty::Scalar) {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                Ok(self.op(
-                    site,
-                    Ty::Bool,
-                    Kind::ScalarTest(comparison, vec![left, right]),
-                ))
-            }
-            Expr::Unary(expr) => {
-                let value = self.expr(&expr.expr, &child(site, 0))?;
-                let valid = match expr.op {
-                    syn::UnOp::Not(_) => value.value.ty == Ty::Bool,
-                    syn::UnOp::Neg(_) => value.value.ty == Ty::Scalar,
-                    syn::UnOp::Deref(_) => value.value.borrowed,
-                    _ => false,
-                };
-                if !valid {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                let action = match expr.op {
-                    syn::UnOp::Not(_) => Action::Not,
-                    syn::UnOp::Neg(_) => Action::Negate,
-                    syn::UnOp::Deref(_) => Action::Dereference,
-                    _ => return Err(Refusal::UnsupportedSource),
-                };
-                Ok(self.op(
-                    site,
-                    value.value.ty.clone(),
-                    Kind::Evaluate(action, vec![value]),
-                ))
-            }
-            Expr::Assign(expr) => {
-                let Expr::Path(target) = expr.left.as_ref() else {
-                    return Err(Refusal::UnsupportedSource);
-                };
-                let binding = self
-                    .lookup(&path(&target.path))
-                    .ok_or(Refusal::ReceiverMismatch)?;
-                let value = self.expr(&expr.right, &child(site, 1))?;
-                if binding.ty != Ty::Bool || value.value.ty != Ty::Bool {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                let left = self.expr(&expr.left, &child(site, 0))?;
-                Ok(self.op(
-                    site,
-                    Ty::Unit,
-                    Kind::Evaluate(Action::Assign(binding), vec![left, value]),
-                ))
-            }
-            Expr::Cast(expr) => {
-                let value = self.expr(&expr.expr, &child(site, 0))?;
-                if value.value.ty != Ty::Scalar
-                    || self.index.ty(&expr.ty, self.module)? != Ty::Scalar
-                {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                Ok(self.op(
-                    site,
-                    Ty::Scalar,
-                    Kind::Evaluate(Action::CastScalar, vec![value]),
-                ))
-            }
-            Expr::Tuple(expr) => {
-                let mut values = Vec::new();
-                for (ordinal, value) in expr.elems.iter().enumerate() {
-                    values.push(self.expr(value, &child(site, ordinal))?);
-                }
-                Ok(self.op(
-                    site,
-                    Ty::Tuple(values.iter().map(|value| value.value.ty.clone()).collect()),
-                    Kind::Construct {
-                        fields: values
-                            .into_iter()
-                            .enumerate()
-                            .map(|(ordinal, value)| (ordinal.to_string(), value))
-                            .collect(),
-                        cleanup: Some(Primitive::Cleanup),
-                    },
-                ))
-            }
+            Expr::Match(expr) => self.match_expr(expr, site),
+            Expr::If(expr) => self.if_expr(expr, site),
+            Expr::Binary(expr) => self.binary_expr(expr, site),
+            Expr::Unary(expr) => self.unary_expr(expr, site),
+            Expr::Assign(expr) => self.assign_expr(expr, site),
+            Expr::Cast(expr) => self.cast_expr(expr, site),
+            Expr::Tuple(expr) => self.tuple_expr(expr, site),
             Expr::Struct(expr) => self.construct(expr, site),
-            Expr::Return(expr) => {
-                let value = expr
-                    .expr
-                    .as_ref()
-                    .map(|value| self.expr(value, &child(site, 0)).map(Box::new))
-                    .transpose()?;
-                Ok(self.op(
-                    site,
-                    Ty::Unit,
-                    Kind::Exit(
-                        Exit::Return(
-                            self.returns
-                                .last()
-                                .ok_or(Refusal::UnsupportedSource)?
-                                .clone(),
-                        ),
-                        value,
-                    ),
-                ))
-            }
-            Expr::Break(expr) => {
-                let label = expr.label.as_ref().map(|label| label.ident.to_string());
-                if label
-                    .as_ref()
-                    .is_some_and(|label| !self.labels.contains(label))
-                    || (label.is_none() && self.loop_depth == 0)
-                {
-                    return Err(Refusal::UnsupportedSource);
-                }
-                let value = expr
-                    .expr
-                    .as_ref()
-                    .map(|value| self.expr(value, &child(site, 0)).map(Box::new))
-                    .transpose()?;
-                let ty = value
-                    .as_ref()
-                    .map_or(Ty::Unit, |value| value.value.ty.clone());
-                Ok(self.op(
-                    site,
-                    ty,
-                    Kind::Exit(Exit::Break(label.unwrap_or_default()), value),
-                ))
-            }
-            Expr::Try(expr) => {
-                let value = self.expr(&expr.expr, &child(site, 0))?;
-                let Ty::Option(inner) = &value.value.ty else {
-                    return Err(Refusal::ReceiverMismatch);
-                };
-                let mut op = self.op(
-                    site,
-                    *inner.clone(),
-                    Kind::Exit(
-                        Exit::TryNone(
-                            self.returns
-                                .last()
-                                .ok_or(Refusal::UnsupportedSource)?
-                                .clone(),
-                        ),
-                        Some(Box::new(value.clone())),
-                    ),
-                );
-                op.value.borrowed = value.value.borrowed;
-                op.value.origin = value.value.origin;
-                Ok(op)
-            }
-            Expr::ForLoop(expr) => {
-                let receiver = self.expr(&expr.expr, &child(site, 0))?;
-                let bound = iteration_bound(&receiver)?;
-                let Ty::Iterator(element) = &receiver.value.ty else {
-                    return Err(Refusal::UnboundedTraversal);
-                };
-                let element = self.element(&receiver.value, *element.clone(), "member");
-                self.scopes.push(BTreeMap::new());
-                let (_, parameters) = self.pattern(&expr.pat, &element, &child(site, 1))?;
-                self.loop_depth += 1;
-                let body = self.block(&expr.body, &child(site, 1))?;
-                self.loop_depth -= 1;
-                self.scopes.pop();
-                Ok(self.op(
-                    site,
-                    Ty::Unit,
-                    Kind::Iterate {
-                        protocol: Primitive::IteratorProtocol,
-                        callee: "Iterator::next/for".to_owned(),
-                        stop: StopRule::BreakOrExhaustion,
-                        none_on_exhaustion: true,
-                        bound,
-                        receiver: receiver.value.clone(),
-                        parameters,
-                        body: Box::new(body),
-                        evaluation: Box::new(receiver),
-                    },
-                ))
-            }
-            Expr::Macro(expr) if expr.mac.path.is_ident("matches") => {
-                let parser = |input: syn::parse::ParseStream<'_>| {
-                    let value: Expr = input.parse()?;
-                    input.parse::<syn::Token![,]>()?;
-                    let pattern = Pat::parse_multi_with_leading_vert(input)?;
-                    if !input.is_empty() {
-                        input.parse::<syn::Token![,]>()?;
-                    }
-                    Ok((value, pattern))
-                };
-                let (mut value, mut pattern) =
-                    syn::parse::Parser::parse2(parser, expr.mac.tokens.clone())
-                        .map_err(|_error| Refusal::UnsupportedSource)?;
-                super::resolve::check_match_attributes(&mut value, &mut pattern)?;
-                let value = self.expr(&value, &child(site, 0))?;
-                self.scopes.push(BTreeMap::new());
-                let (pattern, bindings) = self.pattern(&pattern, &value.value, &child(site, 1))?;
-                self.scopes.pop();
-                if !bindings.is_empty() {
-                    return Err(Refusal::UnsupportedSource);
-                }
-                let selector = if value.value.ty == Ty::String {
-                    self.primitive(
-                        &child(site, 0),
-                        Ty::Bool,
-                        Primitive::StringAccess,
-                        "str::pattern_decision".to_owned(),
-                        Some(value.value.clone()),
-                        vec![value],
-                    )
-                } else {
-                    self.op(
-                        &child(site, 0),
-                        Ty::Bool,
-                        Kind::ScalarTest(Comparison::TypeDiscriminant, vec![value]),
-                    )
-                };
-                Ok(self.op(
-                    site,
-                    Ty::Bool,
-                    Kind::Choice {
-                        selector: Box::new(selector),
-                        arms: vec![
-                            Arm {
-                                pattern,
-                                guard: None,
-                                body: self.op(
-                                    &child(site, 1),
-                                    Ty::Bool,
-                                    Kind::Value(Atom::Bool(true)),
-                                ),
-                            },
-                            Arm {
-                                pattern: Pattern::Wild,
-                                guard: None,
-                                body: self.op(
-                                    &child(site, 2),
-                                    Ty::Bool,
-                                    Kind::Value(Atom::Bool(false)),
-                                ),
-                            },
-                        ],
-                    },
-                ))
-            }
+            Expr::Return(expr) => self.return_expr(expr, site),
+            Expr::Break(expr) => self.break_expr(expr, site),
+            Expr::Try(expr) => self.try_expr(expr, site),
+            Expr::ForLoop(expr) => self.for_expr(expr, site),
+            Expr::Macro(expr) if expr.mac.path.is_ident("matches") => self.matches_expr(expr, site),
             Expr::Loop(_) | Expr::While(_) => Err(Refusal::UnboundedTraversal),
             _ => Err(Refusal::UnsupportedSource),
         }
     }
 
+    fn block_expr(&mut self, expr: &syn::ExprBlock, site: &[usize]) -> Result<Op, Refusal> {
+        let label = expr
+            .label
+            .as_ref()
+            .map(|label| label.name.ident.to_string());
+        if let Some(label) = &label {
+            self.labels.push(label.clone());
+        }
+        let mut body = self.block(&expr.block, site)?;
+        if label.is_some() {
+            self.labels.pop();
+        }
+        if let Kind::Scope { label: target, .. } = &mut body.kind {
+            *target = label;
+        }
+        Ok(body)
+    }
+    fn literal_expr(&self, expr: &syn::ExprLit, site: &[usize]) -> Result<Op, Refusal> {
+        let (ty, atom) = match &expr.lit {
+            syn::Lit::Bool(value) => (Ty::Bool, Atom::Bool(value.value)),
+            syn::Lit::Int(_) | syn::Lit::Float(_) => (
+                Ty::Scalar,
+                Atom::Scalar(expr.lit.to_token_stream().to_string()),
+            ),
+            syn::Lit::Str(value) => (Ty::String, Atom::String(value.value())),
+            _ => return Err(Refusal::UnsupportedSource),
+        };
+        let mut op = self.op(site, ty, Kind::Value(atom));
+        // String literals are borrowed static data, not owned Strings.
+        op.value.borrowed = matches!(expr.lit, syn::Lit::Str(_));
+        Ok(op)
+    }
+    fn path_expr(&self, expr: &syn::ExprPath, site: &[usize]) -> Result<Op, Refusal> {
+        let name = path(&expr.path);
+        if let Some(value) = self.lookup(&name) {
+            return Ok(Op {
+                site: self.site(site),
+                value,
+                kind: Kind::Value(Atom::Place),
+            });
+        }
+        let qualified = join(self.module, &name);
+        if let Some(ty) = self.index.statics.get(&qualified) {
+            return Ok(Op {
+                site: self.site(site),
+                value: Binding {
+                    declaration: None,
+                    ty: ty.clone(),
+                    place: qualified.clone(),
+                    borrowed: true,
+                    origin: Origin::Static(qualified),
+                },
+                kind: Kind::Value(Atom::Place),
+            });
+        }
+        if name == "None" {
+            let result = self.index.result(self.function)?;
+            return Ok(self.op(
+                site,
+                if matches!(result, Ty::Option(_)) {
+                    result
+                } else {
+                    Ty::Option(Box::new(Ty::Unit))
+                },
+                Kind::Value(Atom::None),
+            ));
+        }
+        Err(Refusal::UnclassifiedCall)
+    }
+    fn reference_expr(&mut self, expr: &syn::ExprReference, site: &[usize]) -> Result<Op, Refusal> {
+        let value = self.expr(&expr.expr, &child(site, 0))?;
+        let binding = value.value.clone();
+        let mut op = self.op(
+            site,
+            binding.ty.clone(),
+            Kind::Evaluate(
+                Action::Borrow {
+                    mutable: expr.mutability.is_some(),
+                },
+                vec![value],
+            ),
+        );
+        op.value = binding;
+        op.value.borrowed = true;
+        Ok(op)
+    }
+    fn field_expr(&mut self, expr: &syn::ExprField, site: &[usize]) -> Result<Op, Refusal> {
+        let base = self.expr(&expr.base, &child(site, 0))?;
+        let syn::Member::Named(member) = &expr.member else {
+            return Err(Refusal::ReceiverMismatch);
+        };
+        let Ty::Cache(owner) = &base.value.ty else {
+            return Err(Refusal::ReceiverMismatch);
+        };
+        let ty = self
+            .index
+            .fields
+            .get(owner)
+            .and_then(|fields| fields.get(&member.to_string()))
+            .ok_or(Refusal::ReceiverMismatch)?
+            .clone();
+        let binding = base.value.clone();
+        let mut value = self.op(
+            site,
+            ty,
+            Kind::Evaluate(Action::Field(member.to_string()), vec![base]),
+        );
+        value.value.borrowed = binding.borrowed;
+        value.value.place = format!("{}.{}", binding.place, member);
+        value.value.origin = Origin::Projection {
+            base: Box::new(binding.origin),
+            member: member.to_string(),
+        };
+        Ok(value)
+    }
+    fn match_expr(&mut self, expr: &syn::ExprMatch, site: &[usize]) -> Result<Op, Refusal> {
+        let selector = self.expr(&expr.expr, &child(site, 0))?;
+        let selector_value = selector.value.clone();
+        let selector = if selector_value.ty == Ty::String {
+            self.primitive(
+                &child(site, 0),
+                Ty::Bool,
+                Primitive::StringAccess,
+                "str::pattern_decision".to_owned(),
+                Some(selector_value.clone()),
+                vec![selector],
+            )
+        } else {
+            self.op(
+                &child(site, 0),
+                Ty::Bool,
+                Kind::ScalarTest(Comparison::TypeDiscriminant, vec![selector]),
+            )
+        };
+        let mut arms = Vec::new();
+        let mut ty = Ty::Unit;
+        for (ordinal, arm) in expr.arms.iter().enumerate() {
+            let here = child(site, ordinal + 1);
+            self.scopes.push(BTreeMap::new());
+            let (source_pattern, source_guard) = match &arm.pat {
+                Pat::Guard(guard) => (guard.pat.as_ref(), Some(guard.guard.as_ref())),
+                pattern => (pattern, None),
+            };
+            let (pattern, _) = self.pattern(source_pattern, &selector_value, &here)?;
+            let guard = source_guard
+                .map(|guard| self.expr(guard, &child(&here, 0)))
+                .transpose()?;
+            let body = self.expr(&arm.body, &child(&here, 1))?;
+            ty = body.value.ty.clone();
+            arms.push(Arm {
+                pattern,
+                guard,
+                body,
+            });
+            self.scopes.pop();
+        }
+        Ok(self.op(
+            site,
+            ty,
+            Kind::Choice {
+                selector: Box::new(selector),
+                arms,
+            },
+        ))
+    }
+    fn if_expr(&mut self, expr: &syn::ExprIf, site: &[usize]) -> Result<Op, Refusal> {
+        let selector = self.expr(&expr.cond, &child(site, 0))?;
+        if selector.value.ty != Ty::Bool {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        let yes = self.block(&expr.then_branch, &child(site, 1))?;
+        let no = if let Some((_, no)) = &expr.else_branch {
+            self.expr(no, &child(site, 2))?
+        } else {
+            self.op(&child(site, 2), Ty::Unit, Kind::Value(Atom::Unit))
+        };
+        let ty = if expr.else_branch.is_some() {
+            no.value.ty.clone()
+        } else {
+            Ty::Unit
+        };
+        Ok(self.op(
+            site,
+            ty,
+            Kind::Choice {
+                selector: Box::new(selector),
+                arms: vec![
+                    Arm {
+                        pattern: Pattern::Literal("true".to_owned()),
+                        guard: None,
+                        body: yes,
+                    },
+                    Arm {
+                        pattern: Pattern::Literal("false".to_owned()),
+                        guard: None,
+                        body: no,
+                    },
+                ],
+            },
+        ))
+    }
+    fn binary_expr(&mut self, expr: &syn::ExprBinary, site: &[usize]) -> Result<Op, Refusal> {
+        let left = self.expr(&expr.left, &child(site, 0))?;
+        let right = self.expr(&expr.right, &child(site, 1))?;
+        if matches!(expr.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) {
+            if left.value.ty != Ty::Bool || right.value.ty != Ty::Bool {
+                return Err(Refusal::ReceiverMismatch);
+            }
+            return Ok(self.op(
+                site,
+                Ty::Bool,
+                Kind::ShortCircuit(
+                    if matches!(expr.op, syn::BinOp::And(_)) {
+                        Junction::And
+                    } else {
+                        Junction::Or
+                    },
+                    vec![left, right],
+                ),
+            ));
+        }
+        if matches!(expr.op, syn::BinOp::BitAndAssign(_))
+            && left.value.ty == Ty::Bool
+            && right.value.ty == Ty::Bool
+        {
+            return Ok(self.op(
+                site,
+                Ty::Unit,
+                Kind::Evaluate(Action::AndAssign(left.value.clone()), vec![left, right]),
+            ));
+        }
+        if !matches!(
+            expr.op,
+            syn::BinOp::Eq(_)
+                | syn::BinOp::Ne(_)
+                | syn::BinOp::Lt(_)
+                | syn::BinOp::Le(_)
+                | syn::BinOp::Gt(_)
+                | syn::BinOp::Ge(_)
+        ) || left.value.ty != right.value.ty
+        {
+            return Err(Refusal::UnsupportedSource);
+        }
+        let comparison = comparison(&expr.op)?;
+        if left.value.ty == Ty::String {
+            return Ok(self.primitive(
+                site,
+                Ty::Bool,
+                Primitive::StringAccess,
+                format!("str::{comparison:?}"),
+                Some(left.value.clone()),
+                vec![left, right],
+            ));
+        }
+        if !matches!(left.value.ty, Ty::Bool | Ty::Scalar) {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        Ok(self.op(
+            site,
+            Ty::Bool,
+            Kind::ScalarTest(comparison, vec![left, right]),
+        ))
+    }
+    fn unary_expr(&mut self, expr: &syn::ExprUnary, site: &[usize]) -> Result<Op, Refusal> {
+        let value = self.expr(&expr.expr, &child(site, 0))?;
+        let valid = match expr.op {
+            syn::UnOp::Not(_) => value.value.ty == Ty::Bool,
+            syn::UnOp::Neg(_) => value.value.ty == Ty::Scalar,
+            syn::UnOp::Deref(_) => value.value.borrowed,
+            _ => false,
+        };
+        if !valid {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        let action = match expr.op {
+            syn::UnOp::Not(_) => Action::Not,
+            syn::UnOp::Neg(_) => Action::Negate,
+            syn::UnOp::Deref(_) => Action::Dereference,
+            _ => return Err(Refusal::UnsupportedSource),
+        };
+        Ok(self.op(
+            site,
+            value.value.ty.clone(),
+            Kind::Evaluate(action, vec![value]),
+        ))
+    }
+    fn assign_expr(&mut self, expr: &syn::ExprAssign, site: &[usize]) -> Result<Op, Refusal> {
+        let Expr::Path(target) = expr.left.as_ref() else {
+            return Err(Refusal::UnsupportedSource);
+        };
+        let binding = self
+            .lookup(&path(&target.path))
+            .ok_or(Refusal::ReceiverMismatch)?;
+        let value = self.expr(&expr.right, &child(site, 1))?;
+        if binding.ty != Ty::Bool || value.value.ty != Ty::Bool {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        let left = self.expr(&expr.left, &child(site, 0))?;
+        Ok(self.op(
+            site,
+            Ty::Unit,
+            Kind::Evaluate(Action::Assign(binding), vec![left, value]),
+        ))
+    }
+    fn cast_expr(&mut self, expr: &syn::ExprCast, site: &[usize]) -> Result<Op, Refusal> {
+        let value = self.expr(&expr.expr, &child(site, 0))?;
+        if value.value.ty != Ty::Scalar || self.index.ty(&expr.ty, self.module)? != Ty::Scalar {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        Ok(self.op(
+            site,
+            Ty::Scalar,
+            Kind::Evaluate(Action::CastScalar, vec![value]),
+        ))
+    }
+    fn tuple_expr(&mut self, expr: &syn::ExprTuple, site: &[usize]) -> Result<Op, Refusal> {
+        let mut values = Vec::new();
+        for (ordinal, value) in expr.elems.iter().enumerate() {
+            values.push(self.expr(value, &child(site, ordinal))?);
+        }
+        Ok(self.op(
+            site,
+            Ty::Tuple(values.iter().map(|value| value.value.ty.clone()).collect()),
+            Kind::Construct {
+                fields: values
+                    .into_iter()
+                    .enumerate()
+                    .map(|(ordinal, value)| (ordinal.to_string(), value))
+                    .collect(),
+                cleanup: Some(Primitive::Cleanup),
+            },
+        ))
+    }
+    fn return_expr(&mut self, expr: &syn::ExprReturn, site: &[usize]) -> Result<Op, Refusal> {
+        let value = expr
+            .expr
+            .as_ref()
+            .map(|value| self.expr(value, &child(site, 0)).map(Box::new))
+            .transpose()?;
+        Ok(self.op(
+            site,
+            Ty::Unit,
+            Kind::Exit(
+                Exit::Return(
+                    self.returns
+                        .last()
+                        .ok_or(Refusal::UnsupportedSource)?
+                        .clone(),
+                ),
+                value,
+            ),
+        ))
+    }
+    fn break_expr(&mut self, expr: &syn::ExprBreak, site: &[usize]) -> Result<Op, Refusal> {
+        let label = expr.label.as_ref().map(|label| label.ident.to_string());
+        if label
+            .as_ref()
+            .is_some_and(|label| !self.labels.contains(label))
+            || (label.is_none() && self.loop_depth == 0)
+        {
+            return Err(Refusal::UnsupportedSource);
+        }
+        let value = expr
+            .expr
+            .as_ref()
+            .map(|value| self.expr(value, &child(site, 0)).map(Box::new))
+            .transpose()?;
+        let ty = value
+            .as_ref()
+            .map_or(Ty::Unit, |value| value.value.ty.clone());
+        Ok(self.op(
+            site,
+            ty,
+            Kind::Exit(Exit::Break(label.unwrap_or_default()), value),
+        ))
+    }
+    fn try_expr(&mut self, expr: &syn::ExprTry, site: &[usize]) -> Result<Op, Refusal> {
+        let value = self.expr(&expr.expr, &child(site, 0))?;
+        let binding = value.value.clone();
+        let Ty::Option(inner) = &binding.ty else {
+            return Err(Refusal::ReceiverMismatch);
+        };
+        let mut op = self.op(
+            site,
+            *inner.clone(),
+            Kind::Exit(
+                Exit::TryNone(
+                    self.returns
+                        .last()
+                        .ok_or(Refusal::UnsupportedSource)?
+                        .clone(),
+                ),
+                Some(Box::new(value)),
+            ),
+        );
+        op.value.borrowed = binding.borrowed;
+        op.value.origin = binding.origin;
+        Ok(op)
+    }
+    fn for_expr(&mut self, expr: &syn::ExprForLoop, site: &[usize]) -> Result<Op, Refusal> {
+        let receiver = self.expr(&expr.expr, &child(site, 0))?;
+        let bound = iteration_bound(&receiver)?;
+        let Ty::Iterator(element) = &receiver.value.ty else {
+            return Err(Refusal::UnboundedTraversal);
+        };
+        let element = self.element(&receiver.value, *element.clone(), "member");
+        self.scopes.push(BTreeMap::new());
+        let (_, parameters) = self.pattern(&expr.pat, &element, &child(site, 1))?;
+        self.loop_depth += 1;
+        let body = self.block(&expr.body, &child(site, 1))?;
+        self.loop_depth -= 1;
+        self.scopes.pop();
+        Ok(self.op(
+            site,
+            Ty::Unit,
+            Kind::Iterate {
+                protocol: Primitive::IteratorProtocol,
+                callee: "Iterator::next/for".to_owned(),
+                stop: StopRule::BreakOrExhaustion,
+                none_on_exhaustion: true,
+                bound,
+                receiver: receiver.value.clone(),
+                parameters,
+                body: Box::new(body),
+                evaluation: Box::new(receiver),
+            },
+        ))
+    }
+    fn matches_expr(&mut self, expr: &syn::ExprMacro, site: &[usize]) -> Result<Op, Refusal> {
+        let parser = |input: syn::parse::ParseStream<'_>| {
+            let value: Expr = input.parse()?;
+            input.parse::<syn::Token![,]>()?;
+            let pattern = Pat::parse_multi_with_leading_vert(input)?;
+            if !input.is_empty() {
+                input.parse::<syn::Token![,]>()?;
+            }
+            Ok((value, pattern))
+        };
+        let (mut value, mut pattern) = syn::parse::Parser::parse2(parser, expr.mac.tokens.clone())
+            .map_err(|_error| Refusal::UnsupportedSource)?;
+        super::resolve::check_match_attributes(&mut value, &mut pattern)?;
+        let value = self.expr(&value, &child(site, 0))?;
+        self.scopes.push(BTreeMap::new());
+        let (pattern, bindings) = self.pattern(&pattern, &value.value, &child(site, 1))?;
+        self.scopes.pop();
+        if !bindings.is_empty() {
+            return Err(Refusal::UnsupportedSource);
+        }
+        let selector = if value.value.ty == Ty::String {
+            self.primitive(
+                &child(site, 0),
+                Ty::Bool,
+                Primitive::StringAccess,
+                "str::pattern_decision".to_owned(),
+                Some(value.value.clone()),
+                vec![value],
+            )
+        } else {
+            self.op(
+                &child(site, 0),
+                Ty::Bool,
+                Kind::ScalarTest(Comparison::TypeDiscriminant, vec![value]),
+            )
+        };
+        Ok(self.op(
+            site,
+            Ty::Bool,
+            Kind::Choice {
+                selector: Box::new(selector),
+                arms: vec![
+                    Arm {
+                        pattern,
+                        guard: None,
+                        body: self.op(&child(site, 1), Ty::Bool, Kind::Value(Atom::Bool(true))),
+                    },
+                    Arm {
+                        pattern: Pattern::Wild,
+                        guard: None,
+                        body: self.op(&child(site, 2), Ty::Bool, Kind::Value(Atom::Bool(false))),
+                    },
+                ],
+            },
+        ))
+    }
     fn call(&mut self, call: &syn::ExprCall, site: &[usize]) -> Result<Op, Refusal> {
         let Expr::Path(callee) = call.func.as_ref() else {
             return Err(Refusal::UnknownCallback);
@@ -899,7 +911,7 @@ impl Lower<'_, '_> {
         }
         if let Ty::Cache(owner) = &receiver.value.ty {
             if let Some(target) = self.index.function(&join(owner, &name)) {
-                let mut args = vec![receiver.clone()];
+                let mut args = vec![receiver];
                 for (ordinal, arg) in call.args.iter().enumerate() {
                     args.push(self.expr(arg, &child(site, ordinal + 1))?);
                 }
@@ -991,7 +1003,8 @@ impl Lower<'_, '_> {
                 },
             ));
         }
-        let mut args = vec![receiver.clone()];
+        let receiver_binding = receiver.value.clone();
+        let mut args = vec![receiver];
         for (ordinal, arg) in call.args.iter().enumerate() {
             args.push(self.expr(arg, &child(site, ordinal + 1))?);
         }
@@ -1000,72 +1013,74 @@ impl Lower<'_, '_> {
             .skip(1)
             .map(|arg| arg.value.ty.clone())
             .collect();
-        let (lemma, result, borrowed) = match (&receiver.value.ty, name.as_str(), others.as_slice())
-        {
-            (
-                Ty::Value,
-                "is_string" | "is_number" | "is_boolean" | "is_null" | "is_array" | "is_object",
-                [],
-            ) => (Primitive::ValueAccess, Ty::Bool, false),
-            (Ty::String, "as_str", []) => (Primitive::StringAccess, Ty::String, true),
-            (Ty::String, "len", []) | (Ty::Array | Ty::Map, "len", []) => {
-                (Primitive::ValueAccess, Ty::Scalar, false)
-            }
-            (Ty::String | Ty::Array | Ty::Map, "is_empty", []) => {
-                (Primitive::ValueAccess, Ty::Bool, false)
-            }
-            (Ty::String, "starts_with", [Ty::String]) => (Primitive::StringAccess, Ty::Bool, false),
-            (Ty::Map, "contains_key", [Ty::String]) => (Primitive::MapAccess, Ty::Bool, false),
-            (Ty::Array, "iter", []) => (
-                Primitive::IteratorProtocol,
-                Ty::Iterator(Box::new(Ty::Value)),
-                true,
-            ),
-            (Ty::Map, "iter", []) => (
-                Primitive::IteratorProtocol,
-                Ty::Iterator(Box::new(Ty::Tuple(vec![Ty::String, Ty::Value]))),
-                true,
-            ),
-            (Ty::Map, "values", []) => (
-                Primitive::IteratorProtocol,
-                Ty::Iterator(Box::new(Ty::Value)),
-                true,
-            ),
-            (Ty::Map, "keys", []) => (
-                Primitive::IteratorProtocol,
-                Ty::Iterator(Box::new(Ty::String)),
-                true,
-            ),
-            (Ty::LazyRegex(_), "as_ref", []) => {
-                (Primitive::Readiness, Ty::Option(Box::new(Ty::Regex)), true)
-            }
-            (Ty::Option(inner), "as_ref", []) => {
-                (Primitive::ValueAccess, Ty::Option(inner.clone()), true)
-            }
-            (Ty::Option(_), "is_some", []) => (Primitive::ValueAccess, Ty::Bool, false),
-            (Ty::Regex, "create_cache", []) => (
-                Primitive::CacheConstruction,
-                Ty::Cache("regex_automata::meta::Cache".to_owned()),
-                false,
-            ),
-            (Ty::Regex, "search_half_with", [Ty::Cache(cache), Ty::Input])
-                if cache == "regex_automata::meta::Cache" =>
-            {
+        let (lemma, result, borrowed) =
+            match (&receiver_binding.ty, name.as_str(), others.as_slice()) {
                 (
-                    Primitive::RegexSearch,
-                    Ty::Option(Box::new(Ty::Scalar)),
+                    Ty::Value,
+                    "is_string" | "is_number" | "is_boolean" | "is_null" | "is_array" | "is_object",
+                    [],
+                ) => (Primitive::ValueAccess, Ty::Bool, false),
+                (Ty::String, "as_str", []) => (Primitive::StringAccess, Ty::String, true),
+                (Ty::String, "len", []) | (Ty::Array | Ty::Map, "len", []) => {
+                    (Primitive::ValueAccess, Ty::Scalar, false)
+                }
+                (Ty::String | Ty::Array | Ty::Map, "is_empty", []) => {
+                    (Primitive::ValueAccess, Ty::Bool, false)
+                }
+                (Ty::String, "starts_with", [Ty::String]) => {
+                    (Primitive::StringAccess, Ty::Bool, false)
+                }
+                (Ty::Map, "contains_key", [Ty::String]) => (Primitive::MapAccess, Ty::Bool, false),
+                (Ty::Array, "iter", []) => (
+                    Primitive::IteratorProtocol,
+                    Ty::Iterator(Box::new(Ty::Value)),
+                    true,
+                ),
+                (Ty::Map, "iter", []) => (
+                    Primitive::IteratorProtocol,
+                    Ty::Iterator(Box::new(Ty::Tuple(vec![Ty::String, Ty::Value]))),
+                    true,
+                ),
+                (Ty::Map, "values", []) => (
+                    Primitive::IteratorProtocol,
+                    Ty::Iterator(Box::new(Ty::Value)),
+                    true,
+                ),
+                (Ty::Map, "keys", []) => (
+                    Primitive::IteratorProtocol,
+                    Ty::Iterator(Box::new(Ty::String)),
+                    true,
+                ),
+                (Ty::LazyRegex(_), "as_ref", []) => {
+                    (Primitive::Readiness, Ty::Option(Box::new(Ty::Regex)), true)
+                }
+                (Ty::Option(inner), "as_ref", []) => {
+                    (Primitive::ValueAccess, Ty::Option(inner.clone()), true)
+                }
+                (Ty::Option(_), "is_some", []) => (Primitive::ValueAccess, Ty::Bool, false),
+                (Ty::Regex, "create_cache", []) => (
+                    Primitive::CacheConstruction,
+                    Ty::Cache("regex_automata::meta::Cache".to_owned()),
                     false,
-                )
-            }
-            (Ty::Input, "earliest", [Ty::Bool]) => (Primitive::RegexSearch, Ty::Input, false),
-            _ => {
-                return Err(if matches!(receiver.value.ty, Ty::Named(_)) {
-                    Refusal::ReceiverMismatch
-                } else {
-                    Refusal::UnclassifiedCall
-                });
-            }
-        };
+                ),
+                (Ty::Regex, "search_half_with", [Ty::Cache(cache), Ty::Input])
+                    if cache == "regex_automata::meta::Cache" =>
+                {
+                    (
+                        Primitive::RegexSearch,
+                        Ty::Option(Box::new(Ty::Scalar)),
+                        false,
+                    )
+                }
+                (Ty::Input, "earliest", [Ty::Bool]) => (Primitive::RegexSearch, Ty::Input, false),
+                _ => {
+                    return Err(if matches!(receiver_binding.ty, Ty::Named(_)) {
+                        Refusal::ReceiverMismatch
+                    } else {
+                        Refusal::UnclassifiedCall
+                    });
+                }
+            };
         // Input/search protocol selection is a semantic premise, not any bool.
         if name == "earliest"
             && !matches!(call.args.first(), Some(Expr::Lit(value)) if matches!(&value.lit, syn::Lit::Bool(value) if value.value))
@@ -1076,13 +1091,13 @@ impl Lower<'_, '_> {
             site,
             result,
             lemma,
-            format!("{:?}::{name}", receiver.value.ty),
-            Some(receiver.value.clone()),
+            format!("{:?}::{name}", receiver_binding.ty),
+            Some(receiver_binding.clone()),
             args,
         );
         if name == "search_half_with" {
             let program =
-                program_origin(&receiver.value.origin).ok_or(Refusal::ReceiverMismatch)?;
+                program_origin(&receiver_binding.origin).ok_or(Refusal::ReceiverMismatch)?;
             let cache = match &op.kind {
                 Kind::Primitive { arguments, .. } => {
                     arguments.get(1).ok_or(Refusal::ReceiverMismatch)?
@@ -1095,8 +1110,8 @@ impl Lower<'_, '_> {
             }
         }
         op.value.borrowed = borrowed;
-        op.value.place = receiver.value.place;
-        op.value.origin = receiver.value.origin;
+        op.value.place = receiver_binding.place;
+        op.value.origin = receiver_binding.origin;
         Ok(op)
     }
 
