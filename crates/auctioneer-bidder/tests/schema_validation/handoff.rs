@@ -87,7 +87,7 @@ pub(super) fn checked_bodies<'a, T>(
     Ok(bodies)
 }
 
-fn check_seed(seed: &CapturedSeed, view: ValidationView<'_>) -> Result<(), Refusal> {
+pub(super) fn check_seed(seed: &CapturedSeed, view: ValidationView<'_>) -> Result<(), Refusal> {
     let digest = |bytes: &[u8]| hex::encode(Sha256::digest(bytes));
     if view.binding()["identity"].as_str() != Some(seed.identity_sha256.as_str())
         || view.binding()["manifest_sha256"].as_str() != Some(digest(&seed.manifest_bytes).as_str())

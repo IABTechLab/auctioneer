@@ -1,4 +1,5 @@
-//! Tests-first local epsilon-closure recipe, not a complete work certificate.
+//! Local epsilon-closure recipe and supplied-facts evaluation, not a complete
+//! work certificate.
 //!
 //! Supplied dimensions are hypotheses, not selected-program/source authority.
 //! Each epoch starts with an empty destination set; roots within it share that
@@ -7,7 +8,10 @@
 //! The parent must join these facts to their owners.
 //! Site ceilings count entries/decisions, not the work inside called primitives.
 
+use quote::ToTokens;
 use std::collections::BTreeSet;
+use syn::parse::Parser as _;
+use syn::visit_mut::{self, VisitMut};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct EpochFacts {
@@ -50,11 +54,92 @@ pub(super) struct LocalEpsilon {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum EpsilonError {
-    MissingSourceProof,
     UnsupportedBody,
     UnknownSourceCall(String),
     InvalidFacts,
     Overflow,
+}
+
+fn literal_doc(attribute: &syn::Attribute) -> bool {
+    if !matches!(&attribute.style, syn::AttrStyle::Outer) || !attribute.path().is_ident("doc") {
+        return false;
+    }
+    let syn::Meta::NameValue(meta) = &attribute.meta else {
+        return false;
+    };
+    matches!(&meta.value, syn::Expr::Lit(value) if matches!(&value.lit, syn::Lit::Str(_)))
+}
+
+fn receiver_root(expression: &syn::Expr) -> Option<&syn::Ident> {
+    match expression {
+        syn::Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+            path.path.segments.first().map(|segment| &segment.ident)
+        }
+        syn::Expr::MethodCall(call) => receiver_root(&call.receiver),
+        syn::Expr::Index(index) => receiver_root(&index.expr),
+        syn::Expr::Paren(paren) => receiver_root(&paren.expr),
+        syn::Expr::Group(group) => receiver_root(&group.expr),
+        _ => None,
+    }
+}
+
+#[derive(Default)]
+struct BodyGate {
+    nested_attribute: bool,
+    unsupported_macro: bool,
+    unknown_call: Option<String>,
+}
+
+impl VisitMut for BodyGate {
+    fn visit_attribute_mut(&mut self, _attribute: &mut syn::Attribute) {
+        self.nested_attribute = true;
+    }
+
+    fn visit_expr_call_mut(&mut self, call: &mut syn::ExprCall) {
+        visit_mut::visit_expr_call_mut(self, call);
+        if self.unknown_call.is_none() {
+            self.unknown_call = Some(call.func.to_token_stream().to_string());
+        }
+    }
+
+    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
+        visit_mut::visit_expr_method_call_mut(self, call);
+        let root = receiver_root(&call.receiver).map(ToString::to_string);
+        let method = call.method.to_string();
+        // This inventory classifies diagnostics only. Exact recipe equality
+        // below, not a recognized method name, is the acceptance condition.
+        let known = matches!(
+            (root.as_deref(), method.as_str()),
+            (Some("nfa"), "state" | "is_epsilon")
+                | (Some("set"), "insert")
+                | (Some("stack"), "is_empty" | "push" | "pop" | "extend")
+                | (Some("look_have"), "contains")
+                | (Some("alternates"), "get" | "iter" | "rev")
+        );
+        if !known && self.unknown_call.is_none() {
+            self.unknown_call = Some(format!(
+                "{}::{}",
+                call.receiver.to_token_stream(),
+                call.method
+            ));
+        }
+    }
+
+    fn visit_macro_mut(&mut self, source: &mut syn::Macro) {
+        if !source.path.is_ident("assert") {
+            self.unsupported_macro = true;
+            return;
+        }
+        let parser = syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+        match parser.parse2(source.tokens.clone()) {
+            Ok(arguments) => {
+                for mut argument in arguments {
+                    self.visit_expr_mut(&mut argument);
+                }
+            }
+            Err(_) => self.unsupported_macro = true,
+        }
+    }
 }
 
 // Independent supported AST recipe, never compiled as a traversal/proof function.
@@ -124,16 +209,79 @@ fn supported_epsilon_recipe() -> syn::ItemFn {
 /// Arithmetic is checked. Unrecognized callees refuse rather than cost zero;
 /// recognized but undischarged callees remain required lemmas on success.
 pub(super) fn epsilon_sites(
-    _source: &syn::ItemFn,
-    _facts: EpochFacts,
+    source: &syn::ItemFn,
+    facts: EpochFacts,
 ) -> Result<LocalEpsilon, EpsilonError> {
-    Err(EpsilonError::MissingSourceProof)
+    if !source.attrs.iter().all(literal_doc) {
+        return Err(EpsilonError::UnsupportedBody);
+    }
+    let supported = supported_epsilon_recipe();
+    if source.sig.to_token_stream().to_string() != supported.sig.to_token_stream().to_string() {
+        return Err(EpsilonError::UnsupportedBody);
+    }
+    let mut gate = BodyGate::default();
+    gate.visit_block_mut(&mut source.block.as_ref().clone());
+    if gate.nested_attribute || gate.unsupported_macro {
+        return Err(EpsilonError::UnsupportedBody);
+    }
+    if let Some(callee) = gate.unknown_call {
+        return Err(EpsilonError::UnknownSourceCall(callee));
+    }
+    if source.block.to_token_stream().to_string() != supported.block.to_token_stream().to_string() {
+        return Err(EpsilonError::UnsupportedBody);
+    }
+    if facts.nfa_states == 0 || (facts.epochs == 0 && facts.root_calls != 0) {
+        return Err(EpsilonError::InvalidFacts);
+    }
+    let dispatches = facts
+        .nfa_states
+        .checked_mul(facts.epochs)
+        .ok_or(EpsilonError::Overflow)?;
+    let tails = facts
+        .extra_branches
+        .checked_mul(facts.epochs)
+        .ok_or(EpsilonError::Overflow)?;
+    let pushes = facts
+        .root_calls
+        .checked_add(tails)
+        .ok_or(EpsilonError::Overflow)?;
+    let attempts = pushes
+        .checked_add(dispatches)
+        .ok_or(EpsilonError::Overflow)?;
+    let pops = pushes
+        .checked_add(facts.root_calls)
+        .ok_or(EpsilonError::Overflow)?;
+    let advances = tails
+        .checked_add(dispatches)
+        .ok_or(EpsilonError::Overflow)?;
+    Ok(LocalEpsilon {
+        sites: SiteTable {
+            root_entries: facts.root_calls,
+            insert_attempts: attempts,
+            stack_pushes: pushes,
+            pop_decisions: pops,
+            state_dispatches: dispatches,
+            look_tests: dispatches,
+            union_first_tests: dispatches,
+            tail_elements: tails,
+            tail_advances: advances,
+        },
+        required_lemmas: BTreeSet::from([
+            RequiredLemma::NfaStateAccess,
+            RequiredLemma::SparseSetInsert,
+            RequiredLemma::LookMatcherAndSet,
+            RequiredLemma::VectorReserveAndGrowth,
+            RequiredLemma::StateIdClone,
+            RequiredLemma::ReverseClonedSliceIterator,
+            RequiredLemma::Drop,
+        ]),
+    })
 }
 
 /// Local reverse-tail protocol: t successful advances plus terminating None.
 /// This does not discharge Vec reserve/growth, cloning, iterator bodies or drop.
-pub(super) fn tail_advances(_elements: u64) -> Result<u64, EpsilonError> {
-    Err(EpsilonError::MissingSourceProof)
+pub(super) fn tail_advances(elements: u64) -> Result<u64, EpsilonError> {
+    elements.checked_add(1).ok_or(EpsilonError::Overflow)
 }
 
 #[cfg(test)]

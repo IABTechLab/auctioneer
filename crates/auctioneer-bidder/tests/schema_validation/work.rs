@@ -1,4 +1,4 @@
-//! Attempted-prefix contracts, awaiting hosted RED and source derivations.
+//! Conditional source-event counts; primitive work derivations remain pending.
 //!
 //! Binding/provenance below is DATA, not an artifact capability. The parent
 //! joins these bytes to the sealed descriptor and its compiled-source census,
@@ -14,7 +14,14 @@
 //! bodies remain separate N_clock*H and N_seed*E requirements; no warm TLS premise.
 //! Seed multiplicity requires the matched construction closure, not search count.
 //! No result here is CommonSourceComplete, a numeric work cost or qualification.
+//! P begins at the schema caller after successful core admission. Whole-request
+//! cleanup still needs the core prepare/services/operation, policy resolution,
+//! runtime preflight/bounded-JSON, OpenRTB type and scrub/split-resource proofs.
+//! Contexts omitting those caller caps are not covered by an actual-use claim.
+//! Allocation success is a separate premise: fatal OOM diagnostics are excluded,
+//! never ordinary returned-error, partial-construction or unwind cleanup.
 
+mod context;
 mod epsilon;
 
 use super::operations::{self, Primitive, model::Recipe};
@@ -22,7 +29,7 @@ use auctioneer_bidder::schema::{
     SchemaEvaluationError, SchemaInputError, SchemaInputLimits, SchemaInputStats,
 };
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 const NATIVE: &[u8] = include_bytes!("../../src/schema/native.rs");
 const BUDGET: &[u8] = include_bytes!("../../src/schema/mod.rs");
@@ -85,6 +92,7 @@ pub(super) enum CallerFact {
     OriginalImpressions,
     BidderCap,
     PanicUnwind,
+    ScopeGate,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -96,6 +104,7 @@ pub(super) enum Refusal {
     UnsupportedNativePath,
     NoSourceLeafDuty(Primitive),
     MissingRuntimeLemma(Primitive),
+    InputRejected(SchemaInputError),
     Overflow,
 }
 
@@ -166,46 +175,473 @@ struct RecipeCounts {
     unresolved: Vec<Primitive>,
 }
 
-// RED stubs only. Actual caller AST correspondence and recipe interpretation
-// must be implemented after hosted assertion failures, never inferred from data.
+// This validates conditional source data, not a sealed descriptor capability.
 pub(super) fn bind_attempt_context<'a>(
-    _binding: &'a ContextBinding<'a>,
-    _sources: &'a ContextSources<'a>,
+    binding: &'a ContextBinding<'a>,
+    sources: &'a ContextSources<'a>,
 ) -> Result<AttemptContext<'a>, Refusal> {
-    Err(Refusal::UnsupportedContext)
+    let native_input_limits = context::check(binding, sources)?;
+    Ok(AttemptContext {
+        binding,
+        sources,
+        native_input_limits,
+    })
 }
 
 fn input_counts(
-    _context: &AttemptContext<'_>,
-    _value: &Value,
-    _limits: SchemaInputLimits,
+    context: &AttemptContext<'_>,
+    value: &Value,
+    limits: SchemaInputLimits,
 ) -> Result<InputCounts, Refusal> {
-    Err(Refusal::UnsupportedContext)
+    if limits != context.native_input_limits {
+        return Err(Refusal::UnsupportedContext);
+    }
+    let stats = auctioneer_bidder::schema::measure_schema_input(value, limits)
+        .map_err(Refusal::InputRejected)?;
+    let mut counts = InputCounts {
+        stats,
+        value_visits: 0,
+        key_visits: 0,
+        container_entries: 0,
+        scalar_serializations: 0,
+        unresolved_calls: Vec::new(),
+    };
+    // Project the checked input recipe's events, not a second byte-admission
+    // implementation. The production owner above supplies exact B/J/D.
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        checked_add(&mut counts.value_visits, 1)?;
+        match value {
+            Value::Array(items) => {
+                checked_add(&mut counts.container_entries, 1)?;
+                pending.extend(items);
+            }
+            Value::Object(items) => {
+                let keys = u64::try_from(items.len()).map_err(|_error| Refusal::Overflow)?;
+                checked_add(&mut counts.container_entries, 1)?;
+                checked_add(&mut counts.key_visits, keys)?;
+                checked_add(&mut counts.scalar_serializations, keys)?;
+                pending.extend(items.values());
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                checked_add(&mut counts.scalar_serializations, 1)?;
+            }
+        }
+    }
+    if counts.scalar_serializations != 0 {
+        counts.unresolved_calls.push("serde_json::to_writer");
+    }
+    if counts.container_entries != 0 {
+        counts.unresolved_calls.push("IteratorProtocol");
+    }
+    Ok(counts)
 }
 
 fn prefix_counts(
     _context: &AttemptContext<'_>,
-    _facts: CallerFacts,
-    _population: Population,
+    facts: CallerFacts,
+    population: Population,
 ) -> Result<PrefixCounts, Refusal> {
-    Err(Refusal::UnsupportedContext)
+    let original = facts
+        .original_impressions
+        .ok_or(Refusal::MissingCallerFact(CallerFact::OriginalImpressions))?;
+    let cap = facts
+        .configured_bidder_cap
+        .ok_or(Refusal::MissingCallerFact(CallerFact::BidderCap))?;
+    let maximum_visits = original
+        .checked_mul(population.scopes_entered)
+        .ok_or(Refusal::Overflow)?;
+    let classified_visits = population
+        .missing_parameters
+        .checked_add(population.native_attempts)
+        .ok_or(Refusal::Overflow)?;
+    if population.scopes_entered > cap
+        || population.retain_visits > maximum_visits
+        || classified_visits != population.retain_visits
+        || (population.native_attempts == 0) != population.native_path.is_none()
+    {
+        return Err(Refusal::UnsupportedContext);
+    }
+    // This API describes reached retain predicates. A skipped/unfunded scope
+    // needs its own caller-gate fact, not a fabricated zero-work scope.
+    if population.scopes_entered != 0 && population.retain_visits == 0 {
+        return Err(Refusal::MissingCallerFact(CallerFact::ScopeGate));
+    }
+    let (preflight, budget, charged, post, failed) = match population.native_path {
+        None => (false, false, false, false, false),
+        Some(NativePath::EntryExpired | NativePath::Unavailable) => {
+            (false, false, false, false, true)
+        }
+        Some(NativePath::InputRejected(SchemaInputError::InvalidDepthLimit)) => {
+            return Err(Refusal::UnsupportedNativePath);
+        }
+        Some(NativePath::InputRejected(_)) => (true, false, false, false, true),
+        Some(NativePath::BudgetRejected(
+            SchemaEvaluationError::Deadline | SchemaEvaluationError::AggregateWork,
+        )) => (true, true, false, false, true),
+        Some(NativePath::BudgetRejected(_)) => return Err(Refusal::UnsupportedNativePath),
+        Some(NativePath::Returned { valid }) => (true, true, true, true, !valid),
+        Some(NativePath::ValidatorPanicked) => {
+            match facts.panic_unwinds {
+                None => return Err(Refusal::MissingCallerFact(CallerFact::PanicUnwind)),
+                Some(false) => return Err(Refusal::UnsupportedNativePath),
+                Some(true) => {}
+            }
+            if population.native_attempts != 1 {
+                return Err(Refusal::UnsupportedNativePath);
+            }
+            (true, true, true, false, false)
+        }
+    };
+    let native = population.native_attempts;
+    let preflight_entries = if preflight { native } else { 0 };
+    let budget_entries = if budget { native } else { 0 };
+    let debit_events = if charged { native } else { 0 };
+    let post_evaluate_checks = if post { native } else { 0 };
+    let native_clock_calls = native
+        .checked_add(budget_entries)
+        .and_then(|count| count.checked_add(post_evaluate_checks))
+        .ok_or(Refusal::Overflow)?;
+    let error_rows = population
+        .missing_parameters
+        .checked_add(if failed { native } else { 0 })
+        .ok_or(Refusal::Overflow)?;
+    Ok(PrefixCounts {
+        outer_scopes: population.scopes_entered,
+        retain_visits: population.retain_visits,
+        missing_parameter_errors: population.missing_parameters,
+        error_rows,
+        removed_impressions: error_rows,
+        native_entries: native,
+        preflight_entries,
+        budget_entries,
+        debit_events,
+        post_evaluate_checks,
+        native_clock_calls,
+        fresh_cache_calls: debit_events,
+        cache_drop_entries: debit_events,
+        seed_invocations: None,
+        unresolved: vec![Primitive::CacheConstruction, Primitive::Cleanup],
+    })
 }
 
 fn recipe_counts(
-    _context: &AttemptContext<'_>,
-    _recipe: &Recipe,
-    _dimensions: SchemaInputStats,
-    _attempts: u64,
+    context: &AttemptContext<'_>,
+    recipe: &Recipe,
+    dimensions: SchemaInputStats,
+    attempts: u64,
 ) -> Result<RecipeCounts, Refusal> {
-    Err(Refusal::UnsupportedContext)
+    if recipe.roots.is_empty()
+        || dimensions.nodes == 0
+        || dimensions.serialized_bytes > context.native_input_limits.serialized_bytes
+        || dimensions.nodes > context.native_input_limits.nodes
+        || dimensions.max_depth > context.native_input_limits.depth
+    {
+        return Err(Refusal::UnsupportedContext);
+    }
+    let mut counts = empty_recipe_counts();
+    counts.root_entries = attempts
+        .checked_mul(u64::try_from(recipe.roots.len()).map_err(|_error| Refusal::Overflow)?)
+        .ok_or(Refusal::Overflow)?;
+    let mut active = BTreeSet::new();
+    for root in &recipe.roots {
+        let function = recipe
+            .functions
+            .get(root)
+            .ok_or(Refusal::UnsupportedContext)?;
+        if !active.insert(*root) {
+            return Err(Refusal::UnsupportedContext);
+        }
+        let root_counts = count_operation(
+            recipe,
+            &function.body,
+            dimensions.nodes,
+            attempts,
+            &mut active,
+        )?;
+        active.remove(root);
+        add_recipe_counts(&mut counts, root_counts)?;
+    }
+    // Source requirements survive zero invocation. A synthetic zero count is
+    // not an absence proof for the ordinary primitive closure or hash seeding.
+    counts.unresolved = source_duties(recipe)?.into_iter().collect();
+    // These are individual engine-cache constructor/drop bounds, unlike the
+    // native prefix's validation-wrapper episode count. Fields remain distinct.
+    counts.cache_drop_entries = counts.fresh_cache_calls;
+    Ok(counts)
+}
+
+fn empty_recipe_counts() -> RecipeCounts {
+    RecipeCounts {
+        root_entries: 0,
+        helpers: BTreeMap::new(),
+        iterator_callbacks: 0,
+        searches: 0,
+        fresh_cache_calls: 0,
+        cache_drop_entries: 0,
+        seed_invocations: None,
+        unresolved: Vec::new(),
+    }
+}
+
+fn add_recipe_counts(total: &mut RecipeCounts, next: RecipeCounts) -> Result<(), Refusal> {
+    checked_add(&mut total.root_entries, next.root_entries)?;
+    checked_add(&mut total.iterator_callbacks, next.iterator_callbacks)?;
+    checked_add(&mut total.searches, next.searches)?;
+    checked_add(&mut total.fresh_cache_calls, next.fresh_cache_calls)?;
+    checked_add(&mut total.cache_drop_entries, next.cache_drop_entries)?;
+    for (helper, visits) in next.helpers {
+        checked_add(total.helpers.entry(helper).or_default(), visits)?;
+    }
+    Ok(())
+}
+
+fn maximum_recipe_counts(total: &mut RecipeCounts, next: RecipeCounts) {
+    total.root_entries = total.root_entries.max(next.root_entries);
+    total.iterator_callbacks = total.iterator_callbacks.max(next.iterator_callbacks);
+    total.searches = total.searches.max(next.searches);
+    total.fresh_cache_calls = total.fresh_cache_calls.max(next.fresh_cache_calls);
+    total.cache_drop_entries = total.cache_drop_entries.max(next.cache_drop_entries);
+    for (helper, visits) in next.helpers {
+        let prior = total.helpers.entry(helper).or_default();
+        *prior = (*prior).max(visits);
+    }
+}
+
+fn count_sequence(
+    recipe: &Recipe,
+    steps: &[operations::model::Op],
+    nodes: u64,
+    visits: u64,
+    active: &mut BTreeSet<usize>,
+) -> Result<RecipeCounts, Refusal> {
+    let mut total = empty_recipe_counts();
+    for step in steps {
+        add_recipe_counts(
+            &mut total,
+            count_operation(recipe, step, nodes, visits, active)?,
+        )?;
+        if matches!(
+            &step.kind,
+            operations::model::Kind::Exit(
+                operations::model::Exit::Return(_) | operations::model::Exit::Break(_),
+                _
+            )
+        ) {
+            break;
+        }
+    }
+    Ok(total)
+}
+
+fn count_operation(
+    recipe: &Recipe,
+    op: &operations::model::Op,
+    nodes: u64,
+    visits: u64,
+    active: &mut BTreeSet<usize>,
+) -> Result<RecipeCounts, Refusal> {
+    use operations::model::{Kind, Ty};
+    let mut total = empty_recipe_counts();
+    match &op.kind {
+        Kind::Value(_) => {}
+        Kind::Scope { steps, .. }
+        | Kind::Evaluate(_, steps)
+        | Kind::ScalarTest(_, steps)
+        | Kind::ShortCircuit(_, steps) => {
+            // Both short-circuit operands may execute. Keeping all occurrences
+            // is conservative; it does not claim every input takes that path.
+            total = count_sequence(recipe, steps, nodes, visits, active)?;
+        }
+        Kind::Bind { value, .. } => total = count_operation(recipe, value, nodes, visits, active)?,
+        Kind::Choice { selector, arms } => {
+            total = count_operation(recipe, selector, nodes, visits, active)?;
+            let mut alternatives = empty_recipe_counts();
+            // A failed guard can precede a later selected body. Guards sum;
+            // only bodies of the same source match/if are exclusive.
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    // Nested or-pattern alternatives can retest a failed guard.
+                    // A once-per-arm count is not a bound for that protocol.
+                    if pattern_has_alternatives(&arm.pattern) {
+                        return Err(Refusal::UnsupportedContext);
+                    }
+                    add_recipe_counts(
+                        &mut total,
+                        count_operation(recipe, guard, nodes, visits, active)?,
+                    )?;
+                }
+                maximum_recipe_counts(
+                    &mut alternatives,
+                    count_operation(recipe, &arm.body, nodes, visits, active)?,
+                );
+            }
+            add_recipe_counts(&mut total, alternatives)?;
+        }
+        Kind::Call {
+            target, evaluation, ..
+        } => {
+            total = count_sequence(recipe, evaluation, nodes, visits, active)?;
+            let function = recipe
+                .functions
+                .get(target)
+                .ok_or(Refusal::UnsupportedContext)?;
+            if !active.insert(*target) {
+                return Err(Refusal::UnsupportedContext);
+            }
+            checked_add(
+                total.helpers.entry(function.identity.clone()).or_default(),
+                visits,
+            )?;
+            let called = count_operation(recipe, &function.body, nodes, visits, active)?;
+            active.remove(target);
+            add_recipe_counts(&mut total, called)?;
+        }
+        Kind::Primitive {
+            lemma,
+            arguments,
+            source_calls,
+            ..
+        } => {
+            total = count_sequence(recipe, arguments, nodes, visits, active)?;
+            add_recipe_counts(
+                &mut total,
+                count_sequence(recipe, source_calls, nodes, visits, active)?,
+            )?;
+            match lemma {
+                Primitive::RegexSearch => checked_add(&mut total.searches, visits)?,
+                Primitive::CacheConstruction => checked_add(&mut total.fresh_cache_calls, visits)?,
+                _ => {}
+            }
+        }
+        Kind::Service(_) => return Err(Refusal::UnsupportedContext),
+        Kind::Iterate {
+            bound,
+            body,
+            evaluation,
+            ..
+        } => {
+            total = count_operation(recipe, evaluation, nodes, visits, active)?;
+            let remaining = nodes.checked_sub(1).ok_or(Refusal::UnsupportedContext)?;
+            let members = match &bound.collection.ty {
+                Ty::Array => remaining,
+                Ty::Map => remaining / 2,
+                _ => return Err(Refusal::UnsupportedContext),
+            };
+            let callbacks = visits.checked_mul(members).ok_or(Refusal::Overflow)?;
+            checked_add(&mut total.iterator_callbacks, callbacks)?;
+            // This deliberately retains a global subtree ceiling per nested
+            // pass. No disjoint-child optimization is inferred from an origin
+            // label; a stronger aggregate formula needs its own source proof.
+            add_recipe_counts(
+                &mut total,
+                count_operation(recipe, body, nodes, callbacks, active)?,
+            )?;
+        }
+        Kind::Callback {
+            body, evaluation, ..
+        } => {
+            total = count_operation(recipe, evaluation, nodes, visits, active)?;
+            add_recipe_counts(
+                &mut total,
+                count_operation(recipe, body, nodes, visits, active)?,
+            )?;
+        }
+        Kind::Construct { fields, .. } => {
+            for (_, field) in fields {
+                add_recipe_counts(
+                    &mut total,
+                    count_operation(recipe, field, nodes, visits, active)?,
+                )?;
+            }
+        }
+        Kind::Exit(_, value) => {
+            if let Some(value) = value {
+                total = count_operation(recipe, value, nodes, visits, active)?;
+            }
+        }
+    }
+    Ok(total)
+}
+
+fn pattern_has_alternatives(pattern: &operations::model::Pattern) -> bool {
+    use operations::model::Pattern;
+    match pattern {
+        Pattern::Or(_) => true,
+        Pattern::Variant(_, fields) | Pattern::Tuple(fields) => {
+            fields.iter().any(pattern_has_alternatives)
+        }
+        Pattern::Wild | Pattern::Binding(_) | Pattern::Literal(_) => false,
+    }
 }
 
 fn require_source_leaf_cost(
     _context: &AttemptContext<'_>,
-    _recipe: &Recipe,
-    _duty: Primitive,
+    recipe: &Recipe,
+    duty: Primitive,
 ) -> Result<(), Refusal> {
-    Err(Refusal::UnsupportedContext)
+    if source_duties(recipe)?.contains(&duty) {
+        Err(Refusal::MissingRuntimeLemma(duty))
+    } else {
+        Err(Refusal::NoSourceLeafDuty(duty))
+    }
+}
+
+fn checked_add(total: &mut u64, value: u64) -> Result<(), Refusal> {
+    *total = total.checked_add(value).ok_or(Refusal::Overflow)?;
+    Ok(())
+}
+
+fn source_duties(recipe: &Recipe) -> Result<BTreeSet<Primitive>, Refusal> {
+    use operations::model::{Kind, walk};
+    let mut pending = recipe.roots.clone();
+    let mut visited = BTreeSet::new();
+    let mut duties = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id) {
+            continue;
+        }
+        let function = recipe
+            .functions
+            .get(&id)
+            .ok_or(Refusal::UnsupportedContext)?;
+        walk(&function.body, &mut |op| {
+            match &op.kind {
+                Kind::Call { target, .. } => pending.push(*target),
+                Kind::Primitive { lemma, .. }
+                | Kind::Construct {
+                    cleanup: Some(lemma),
+                    ..
+                } => {
+                    duties.insert(*lemma);
+                }
+                Kind::Iterate {
+                    protocol,
+                    parameters,
+                    ..
+                }
+                | Kind::Callback {
+                    protocol,
+                    parameters,
+                    ..
+                } => {
+                    duties.insert(*protocol);
+                    if parameters.iter().any(operations::model::needs_cleanup) {
+                        duties.insert(Primitive::Cleanup);
+                    }
+                }
+                Kind::Scope { locals, .. }
+                    if locals.iter().any(operations::model::needs_cleanup) =>
+                {
+                    duties.insert(Primitive::Cleanup);
+                }
+                _ => {}
+            }
+            Ok(())
+        })
+        .map_err(|_error| Refusal::UnsupportedContext)?;
+    }
+    Ok(duties)
 }
 
 #[cfg(test)]
@@ -780,6 +1216,45 @@ mod tests {
         );
         assert_eq!(counts.seed_invocations, None); // Opaque primitive closure is not seed-free proof.
         assert!(counts.unresolved.contains(&Primitive::IteratorProtocol));
+        {
+            use operations::model::{Arm, Atom, Kind, Pattern};
+            let recipe = operations.recipe();
+            let mut value = recipe.functions[&recipe.roots[0]].body.clone();
+            value.kind = Kind::Value(Atom::Place);
+            let alternatives = Pattern::Or(vec![Pattern::Wild, Pattern::Wild]);
+            for pattern in [
+                alternatives.clone(),
+                Pattern::Tuple(vec![alternatives.clone()]),
+                Pattern::Variant("fixture".to_owned(), vec![alternatives]),
+            ] {
+                let mut decision = value.clone();
+                decision.kind = Kind::Choice {
+                    selector: Box::new(value.clone()),
+                    arms: vec![Arm {
+                        pattern,
+                        guard: Some(value.clone()),
+                        body: value.clone(),
+                    }],
+                };
+                assert_eq!(
+                    count_operation(recipe, &decision, 4, 1, &mut BTreeSet::new()),
+                    Err(Refusal::UnsupportedContext)
+                );
+            }
+            let mut decision = value.clone();
+            decision.kind = Kind::Choice {
+                selector: Box::new(value.clone()),
+                arms: vec![Arm {
+                    pattern: Pattern::Wild,
+                    guard: Some(value.clone()),
+                    body: value,
+                }],
+            };
+            assert_eq!(
+                count_operation(recipe, &decision, 4, 1, &mut BTreeSet::new()),
+                Ok(empty_recipe_counts())
+            );
+        }
         let search_syntax: syn::File = syn::parse_quote! {
             struct Fixture;
             struct FixtureSearchCache {
@@ -908,6 +1383,70 @@ mod tests {
         assert_eq!(counts.root_entries, 10);
         assert_eq!(counts.fresh_cache_calls, 5);
         assert_eq!(counts.searches, 15);
+
+        let mut two_caches = changed_syntax.clone();
+        let module = two_caches
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Mod(module) if module.ident == "__fixture_impl" => Some(module),
+                _ => None,
+            })
+            .unwrap();
+        let (_, items) = module.content.as_mut().unwrap();
+        items.push(syn::parse_quote! {
+            static OTHER_REGEX: std::sync::LazyLock<Option<regex_automata::meta::Regex>> =
+                std::sync::LazyLock::new(|| regex_automata::meta::Regex::new("b").ok());
+        });
+        let extra: syn::ItemStruct = syn::parse_quote! {
+            struct ExtraCacheField { other_cache: regex_automata::meta::Cache }
+        };
+        let mut changed_fields = 0;
+        let mut changed_initializers = 0;
+        let mut changed_constructors = 0;
+        for item in items {
+            match item {
+                syn::Item::Struct(cache) if cache.ident == "__SearchCache" => {
+                    let syn::Fields::Named(fields) = &mut cache.fields else {
+                        panic!("the cache fixture has named fields");
+                    };
+                    assert_eq!(fields.named.len(), 1);
+                    fields.named.extend(extra.fields.iter().cloned());
+                    changed_fields += 1;
+                }
+                syn::Item::Fn(function) if function.sig.ident == "initialize_regexes" => {
+                    function.block = Box::new(syn::parse_quote!({
+                        PATTERN_REGEX.as_ref().is_some() && OTHER_REGEX.as_ref().is_some()
+                    }));
+                    changed_initializers += 1;
+                }
+                syn::Item::Fn(function) if function.sig.ident == "new_search_cache" => {
+                    function.block = Box::new(syn::parse_quote!({
+                        if !initialize_regexes() {
+                            return None;
+                        }
+                        Some(__SearchCache {
+                            pattern_cache: PATTERN_REGEX.as_ref()?.create_cache(),
+                            other_cache: OTHER_REGEX.as_ref()?.create_cache(),
+                        })
+                    }));
+                    changed_constructors += 1;
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(
+            (changed_fields, changed_initializers, changed_constructors),
+            (1, 1, 1)
+        );
+        let two_caches = classified(&two_caches);
+        let counts = successful(recipe_counts(&context, two_caches.recipe(), dimensions, 5));
+        // The additional field is eager but never searched. Root/search
+        // populations are unchanged; individual cache constructions double.
+        assert_eq!(counts.root_entries, 10);
+        assert_eq!(counts.searches, 15);
+        assert_eq!(counts.fresh_cache_calls, 10);
+        assert_eq!(counts.cache_drop_entries, 10);
     }
 
     #[test]

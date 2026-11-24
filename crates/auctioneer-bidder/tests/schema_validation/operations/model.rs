@@ -755,7 +755,7 @@ pub(in crate::schema_validation) fn walk(
     Ok(())
 }
 
-pub(super) fn needs_cleanup(binding: &Binding) -> bool {
+pub(in crate::schema_validation) fn needs_cleanup(binding: &Binding) -> bool {
     !binding.borrowed && !matches!(binding.ty, Ty::Bool | Ty::Scalar | Ty::Unit)
 }
 

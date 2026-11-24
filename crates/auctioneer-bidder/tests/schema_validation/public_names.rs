@@ -1,13 +1,14 @@
-//! Public-name/source-dispatch RED contract, not common V, costs or serving authority.
+//! Public-name/source-dispatch correspondence, not common V, costs or serving authority.
 
+use super::handoff;
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_residency::descriptor::ValidationView;
-use crate::schema_selection_source::public_names::{PublicName, PublicNameCensus};
+use crate::schema_selection_source::public_names::{Disposition, PublicName, PublicNameCensus};
 use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
-    JoinNotImplemented,
     Binding,
     MissingName(String),
     UnexpectedName(String),
@@ -17,23 +18,122 @@ enum Refusal {
     Disposition(String),
 }
 
-// Both entrypoints remain RED until the source join has completed hosted RED.
 fn check_public_dispositions(
-    _seed: &CapturedSeed,
-    _view: ValidationView<'_>,
-    _census: &PublicNameCensus,
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    census: &PublicNameCensus,
 ) -> Result<(), Refusal> {
-    Err(Refusal::JoinNotImplemented)
+    view.recheck().map_err(|_error| Refusal::Binding)?;
+    handoff::check_seed(seed, view).map_err(|_error| Refusal::Binding)?;
+    let result = (|| {
+        let graph = view.graph();
+        if graph["auxiliary"]["status"] != "Complete" {
+            return Err(Refusal::Binding);
+        }
+        let members = view.selection()["members"]
+            .as_array()
+            .ok_or(Refusal::Binding)?;
+        let routes = graph["auxiliary"]["dispatch_edges"]
+            .as_array()
+            .ok_or(Refusal::Binding)?
+            .iter()
+            .filter(|row| row["from"] == "native_owner")
+            .cloned()
+            .collect::<Vec<_>>();
+        check_relation(&census.names, members, &routes, &graph["declarations"])
+    })();
+    handoff::check_seed(seed, view).map_err(|_error| Refusal::Binding)?;
+    view.recheck().map_err(|_error| Refusal::Binding)?;
+    result
 }
 
 // Candidate projections are test data only, never constructors for a sealed view.
 fn check_relation(
-    _expected: &[PublicName],
-    _members: &[Value],
-    _routes: &[Value],
-    _declarations: &Value,
+    expected: &[PublicName],
+    members: &[Value],
+    routes: &[Value],
+    declarations: &Value,
 ) -> Result<(), Refusal> {
-    Err(Refusal::JoinNotImplemented)
+    let names: BTreeSet<_> = expected.iter().map(|name| name.name.as_str()).collect();
+    if names.is_empty() || names.len() != expected.len() {
+        return Err(Refusal::Binding);
+    }
+    let declarations = declarations.as_array().ok_or(Refusal::Binding)?;
+    let mut roots = BTreeMap::new();
+    for member in members {
+        let name = member["name"].as_str().ok_or(Refusal::Binding)?;
+        let is_root = member["is_root"].as_bool().ok_or(Refusal::Binding)?;
+        if is_root && roots.insert(name, member).is_some() {
+            return Err(Refusal::UnexpectedName(name.into()));
+        }
+    }
+    for name in roots.keys() {
+        if !names.contains(*name) {
+            return Err(Refusal::UnexpectedName((*name).into()));
+        }
+    }
+    for name in expected {
+        let member = roots
+            .get(name.name.as_str())
+            .ok_or_else(|| Refusal::MissingName(name.name.clone()))?;
+        let refusal = || Refusal::Disposition(name.name.clone());
+        let ancestry = member["ancestry"].as_array().ok_or_else(refusal)?;
+        if member["implementation"].as_str() != Some(name.implementation.as_str())
+            || ancestry.first().and_then(Value::as_str) != name.parent.as_deref()
+            || (name.parent.is_none() && !ancestry.is_empty())
+        {
+            return Err(refusal());
+        }
+        match &name.disposition {
+            Disposition::SchemaOwner(owner) => {
+                if owner.is_empty()
+                    || member["schema_owner"].as_str() != Some(owner.as_str())
+                    || declarations
+                        .iter()
+                        .filter(|row| row["owner"] == *owner)
+                        .count()
+                        != 1
+                {
+                    return Err(refusal());
+                }
+            }
+            Disposition::LocalSchemaFree => {
+                if name.parent.is_some() || !member.get("schema_owner").is_some_and(Value::is_null)
+                {
+                    return Err(refusal());
+                }
+            }
+        }
+    }
+    let schema_names: BTreeSet<_> = expected
+        .iter()
+        .filter(|name| matches!(&name.disposition, Disposition::SchemaOwner(_)))
+        .map(|name| name.name.as_str())
+        .collect();
+    let mut routed = BTreeMap::new();
+    for route in routes {
+        let name = route["member"].as_str().ok_or(Refusal::Binding)?;
+        if !schema_names.contains(name) {
+            return Err(Refusal::UnexpectedRoute(name.into()));
+        }
+        if routed.insert(name, route).is_some() {
+            return Err(Refusal::DuplicateRoute(name.into()));
+        }
+    }
+    for name in expected {
+        if let Disposition::SchemaOwner(owner) = &name.disposition {
+            let refusal = || Refusal::Route(name.name.clone());
+            let route = routed.get(name.name.as_str()).ok_or_else(refusal)?;
+            if route["from"] != "native_owner"
+                || route["owner"].as_str() != Some(owner.as_str())
+                || route["role"] != "native-owner-lookup"
+                || route["ownership"] != "literal-only"
+            {
+                return Err(refusal());
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -46,10 +46,8 @@ if [[ "$lane" == all || "$lane" == exports ]]; then
 fi
 
 if [[ "$lane" == all || "$lane" == schema ]]; then
-  cargo test --locked -p auctioneer-bidder --test schema_build_controls -- \
-    --test-threads=1 2>&1 | tee "$RUNNER_TEMP/schema-controls.log"
-  check_complete "$RUNNER_TEMP/schema-controls.log" 0
-
+  # Fail fast on source regressions without bypassing compiler controls on a
+  # successful head. Keep each invocation paired with its result checker.
   cargo test --locked -p auctioneer-bidder --test schema_source_conformance -- \
     --test-threads=1 \
     --skip tests::actual_application_artifacts_axum_retain_every_selected_validator_in_both_feature_lanes \
@@ -60,6 +58,10 @@ if [[ "$lane" == all || "$lane" == schema ]]; then
     --skip tests::selected_schema_probe_links_and_executes_the_source_bound_cohort \
     2>&1 | tee "$RUNNER_TEMP/schema-source-compiler.log"
   check_complete "$RUNNER_TEMP/schema-source-compiler.log" 6
+
+  cargo test --locked -p auctioneer-bidder --test schema_build_controls -- \
+    --test-threads=1 2>&1 | tee "$RUNNER_TEMP/schema-controls.log"
+  check_complete "$RUNNER_TEMP/schema-controls.log" 0
 fi
 
 if [[ "$lane" == all || "$lane" == discovery ]]; then
