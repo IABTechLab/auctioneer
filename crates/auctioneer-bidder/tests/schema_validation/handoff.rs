@@ -1,7 +1,8 @@
 //! Exact child and caller-context correspondence, not numeric proof authority.
 
-use crate::schema_residency::descriptor::ValidationAssignment;
+use crate::schema_residency::descriptor::{ValidationAssignment, exact_assignments};
 use serde_json::Value;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
@@ -10,29 +11,40 @@ enum Refusal {
     ContextCoverage,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct ContextRoot {
     role: &'static str,
     source_owner: String,
     source_sha256: String,
 }
 
-// Compileable tests-first entrypoints. Neither can issue a proof/report.
-// The hosted refusal controls must fail before the exact join is implemented.
+// Pure correspondence checks cannot issue proof authority. The source join
+// must obtain its expected rows and binding from the sealed descriptor.
 fn check_children(
-    _expected_binding: &Value,
-    _actual_binding: &Value,
-    _expected: &[ValidationAssignment],
+    expected_binding: &Value,
+    actual_binding: &Value,
+    expected: &[ValidationAssignment],
     actual: &[ValidationAssignment],
 ) -> Result<(), Refusal> {
-    actual.first().map(|_row| ()).ok_or(Refusal::ChildCoverage)
+    if expected_binding != actual_binding {
+        return Err(Refusal::Binding);
+    }
+    exact_assignments(expected, actual).map_err(|_error| Refusal::ChildCoverage)
 }
 
-fn check_contexts(_expected: &[ContextRoot], actual: &[ContextRoot]) -> Result<(), Refusal> {
-    actual
-        .first()
-        .map(|_row| ())
-        .ok_or(Refusal::ContextCoverage)
+fn check_contexts(expected: &[ContextRoot], actual: &[ContextRoot]) -> Result<(), Refusal> {
+    let unique_roles = |roots: &[ContextRoot]| {
+        let mut roles = BTreeSet::new();
+        roots.iter().all(|root| roles.insert(root.role))
+    };
+    if expected.is_empty()
+        || !unique_roles(expected)
+        || !unique_roles(actual)
+        || expected.iter().collect::<BTreeSet<_>>() != actual.iter().collect::<BTreeSet<_>>()
+    {
+        return Err(Refusal::ContextCoverage);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

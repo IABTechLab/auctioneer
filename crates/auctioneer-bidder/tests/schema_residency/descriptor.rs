@@ -460,7 +460,8 @@ fn validation_assignments(
     Ok(rows)
 }
 
-fn exact_assignments(
+/// Data correspondence only; this cannot construct descriptor authority.
+pub(crate) fn exact_assignments(
     expected: &[ValidationAssignment],
     actual: &[ValidationAssignment],
 ) -> Result<(), Refusal> {
