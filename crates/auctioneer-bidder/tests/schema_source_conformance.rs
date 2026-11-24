@@ -51,6 +51,7 @@ mod schema_selected_semantics;
 mod schema_selection;
 mod schema_selection_source;
 mod schema_syntax_construction;
+mod schema_validation;
 mod schema_vendor;
 
 // Keep all 37 case tests (29 build, 7 cache, 1 inventory). Sharing support removes

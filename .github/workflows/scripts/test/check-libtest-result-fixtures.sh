@@ -46,10 +46,12 @@ printf 'libtest summary controls: %s passed\n' "$checked"
 dispatch_checked=0
 check_dispatch() {
   local name="$1" expected="$2" input="$3" selection="${4-$'fake_growth\nfake_regular\n'}"
+  local frames="${5-1}" required="${6-$selection}"
   printf '%s\n' "$input" > "$scratch/dispatch.log"
   printf '%s' "$selection" > "$scratch/dispatch.names"
+  printf '%s' "$required" > "$scratch/required.names"
   local actual=0
-  bash "$script_dir/check-schema-residency-dispatch.sh" "$scratch/dispatch.log" "$scratch/dispatch.names" || actual=$?
+  bash "$script_dir/check-schema-residency-dispatch.sh" "$scratch/dispatch.log" "$scratch/dispatch.names" "$frames" "$scratch/required.names" || actual=$?
   if [[ "$expected" == pass ]]; then
     test "$actual" -eq 0 || { printf 'valid dispatch refused: %s\n' "$name" >&2; exit 1; }
   else
@@ -93,4 +95,32 @@ check_dispatch unmatched-end refuse "$complete"$'\n'"$closing"
 check_dispatch zero-names refuse "$complete" ''
 check_dispatch duplicate-names refuse "$complete" $'fake_growth\nfake_regular\nfake_growth\n'
 check_dispatch blank-name refuse "$complete" $'fake_growth\n\nfake_regular\n'
+plain=$'test fake_first ... ok\ntest fake_second ... ok'
+plain_names=$'fake_first\nfake_second\n'
+check_dispatch plain pass "$plain" "$plain_names" 0
+check_dispatch plain-required-subset pass "$plain" "$plain_names" 0 $'fake_first\n'
+check_dispatch plain-wrong-frame refuse "$plain" "$plain_names" 1
+check_dispatch framed-wrong-frame refuse "$complete" $'fake_growth\nfake_regular\n' 0
+check_dispatch invalid-frame-mode refuse "$plain" "$plain_names" 2
+check_dispatch empty-frame-mode refuse "$plain" "$plain_names" ''
+check_dispatch missing-required-name refuse "$plain" "$plain_names" 0 $'fake_third\n'
+check_dispatch empty-required-roster refuse "$plain" "$plain_names" 0 ''
+check_dispatch duplicate-required-roster refuse "$plain" "$plain_names" 0 $'fake_first\nfake_first\n'
+check_dispatch blank-required-name refuse "$plain" "$plain_names" 0 $'fake_first\n\nfake_second\n'
+check_dispatch duplicate-plain-result refuse "$plain"$'\ntest fake_first ... ok' "$plain_names" 0
+check_dispatch extra-plain-result refuse "$plain"$'\ntest fake_third ... ok' "$plain_names" 0
+check_dispatch ignored-plain-result refuse "${plain/first ... ok/first ... ignored}" "$plain_names" 0
+check_dispatch missing-plain-result refuse 'test fake_first ... ok' "$plain_names" 0
+if bash "$script_dir/check-schema-residency-dispatch.sh" "$scratch/dispatch.log" "$scratch/dispatch.names"; then
+  printf 'missing frame/roster arguments accepted\n' >&2
+  exit 1
+fi
+if bash "$script_dir/check-schema-residency-dispatch.sh" "$scratch/dispatch.log" "$scratch/dispatch.names" 0; then
+  printf 'missing required-roster argument accepted\n' >&2
+  exit 1
+fi
+if bash "$script_dir/check-schema-residency-dispatch.sh" "$scratch/dispatch.log" "$scratch/dispatch.names" 0 "$scratch/missing.names"; then
+  printf 'unreadable required roster accepted\n' >&2
+  exit 1
+fi
 printf 'schema residency dispatch controls: %s passed\n' "$dispatch_checked"
