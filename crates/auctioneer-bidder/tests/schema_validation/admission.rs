@@ -1,4 +1,4 @@
-//! Tests-first conditional correspondence fixtures, not generated-source proof.
+//! Hypothetical correspondence calculations, not generated-source proof.
 //!
 //! For each source component, the intended premise is V <= a + b*B + c*J.
 //! Q = max(ceil(a/1024), ceil(b/16), ceil(c/128)) then bounds admitted work
@@ -9,7 +9,12 @@
 //! These interfaces neither implement a budget nor issue serving authority.
 //! The parent owns module registration, hosted RED and the actual source join;
 //! no fixture witness below is authority for an actual generated source.
+//! Only the declared clock fixture is evaluated here. Other external services
+//! remain unevaluated, not implicitly absent or included in that clock term.
+//! Policy extraction recognizes the named work local only. Cost-use and actual
+//! coordinator-graph correspondence still require the parent's source join.
 
+use quote::ToTokens as _;
 use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -19,7 +24,7 @@ enum Component {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Axis {
+enum CoefficientDimension {
     Constant,
     Bytes,
     Nodes,
@@ -61,7 +66,7 @@ enum TargetFact {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Refusal {
     MissingCommonProof(Obligation),
-    MissingCoefficient(Axis),
+    MissingCoefficient(CoefficientDimension),
     UnwitnessedZero,
     PolicyTuple,
     ComponentMismatch,
@@ -189,70 +194,449 @@ struct HypotheticalEvaluation {
     numeric_policy_adequacy: NumericalPolicyAdequacy,
 }
 
-// Deliberate RED stubs. No source join, policy reader or arithmetic is claimed.
 fn captured_policy_tuple() -> Result<PolicyTuple, Refusal> {
-    Err(Refusal::Unsupported)
+    let policy = policy_tuple_from_source(include_str!("../../src/schema/native.rs"))?;
+    check_policy_tuple(policy)?;
+    Ok(policy)
 }
 
-fn check_policy_tuple(_actual: PolicyTuple) -> Result<(), Refusal> {
-    Err(Refusal::Unsupported)
+fn native_policy_block(function: &syn::ItemFn) -> Result<&syn::Block, Refusal> {
+    let mut blocks = function.block.stmts.iter().filter_map(|statement| {
+        let syn::Stmt::Expr(syn::Expr::Block(block), None) = statement else {
+            return None;
+        };
+        let [attribute] = block.attrs.as_slice() else {
+            return None;
+        };
+        if block.label.is_some() {
+            return None;
+        }
+        let syn::Meta::List(cfg) = &attribute.meta else {
+            return None;
+        };
+        if !cfg.path.is_ident("cfg") {
+            return None;
+        }
+        let syn::Meta::List(not) = syn::parse2::<syn::Meta>(cfg.tokens.clone()).ok()? else {
+            return None;
+        };
+        if !not.path.is_ident("not") {
+            return None;
+        }
+        let syn::Meta::NameValue(target) = syn::parse2::<syn::Meta>(not.tokens).ok()? else {
+            return None;
+        };
+        let syn::Expr::Lit(value) = target.value else {
+            return None;
+        };
+        let syn::Lit::Str(architecture) = value.lit else {
+            return None;
+        };
+        (target.path.is_ident("target_arch") && architecture.value() == "wasm32")
+            .then_some(&block.block)
+    });
+    let block = blocks.next().ok_or(Refusal::Unsupported)?;
+    if blocks.next().is_some() {
+        return Err(Refusal::Unsupported);
+    }
+    Ok(block)
+}
+
+fn policy_work_local(block: &syn::Block) -> Result<&syn::Local, Refusal> {
+    let mut locals = block.stmts.iter().filter_map(|statement| {
+        let syn::Stmt::Local(local) = statement else {
+            return None;
+        };
+        let pattern = match &local.pat {
+            syn::Pat::Type(typed) => typed.pat.as_ref(),
+            pattern => pattern,
+        };
+        matches!(pattern, syn::Pat::Ident(binding) if binding.ident == "work").then_some(local)
+    });
+    let local = locals.next().ok_or(Refusal::Unsupported)?;
+    if locals.next().is_some() {
+        return Err(Refusal::Unsupported);
+    }
+    Ok(local)
+}
+
+fn method_parts<'a>(
+    expression: &'a syn::Expr,
+    method: &str,
+) -> Result<(&'a syn::Expr, &'a syn::Expr), Refusal> {
+    let syn::Expr::MethodCall(call) = expression else {
+        return Err(Refusal::Unsupported);
+    };
+    if call.method != method
+        || call.turbofish.is_some()
+        || !call.attrs.is_empty()
+        || call.args.len() != 1
+    {
+        return Err(Refusal::Unsupported);
+    }
+    Ok((
+        call.receiver.as_ref(),
+        call.args.first().ok_or(Refusal::Unsupported)?,
+    ))
+}
+
+fn closure_body(expression: &syn::Expr) -> Result<&syn::Expr, Refusal> {
+    let syn::Expr::Closure(closure) = expression else {
+        return Err(Refusal::Unsupported);
+    };
+    Ok(closure.body.as_ref())
+}
+
+fn policy_literal(expression: &syn::Expr) -> Result<&syn::LitInt, Refusal> {
+    let syn::Expr::Lit(literal) = expression else {
+        return Err(Refusal::Unsupported);
+    };
+    let syn::Lit::Int(integer) = &literal.lit else {
+        return Err(Refusal::Unsupported);
+    };
+    if !literal.attrs.is_empty() || !integer.suffix().is_empty() {
+        return Err(Refusal::Unsupported);
+    }
+    Ok(integer)
+}
+
+// Extract literals from the named function's native work local, then require
+// the complete supported AST shape. Token printing compares parsed ASTs only;
+// it never searches raw source text or substitutes another budget calculation.
+fn policy_tuple_from_source(source: &str) -> Result<PolicyTuple, Refusal> {
+    let syntax = syn::parse_file(source).map_err(|_error| Refusal::Unsupported)?;
+    let mut functions = syntax.items.iter().filter_map(|item| match item {
+        syn::Item::Fn(function) if function.sig.ident == "validate_native_parameters" => {
+            Some(function)
+        }
+        _ => None,
+    });
+    let function = functions.next().ok_or(Refusal::Unsupported)?;
+    if functions.next().is_some() {
+        return Err(Refusal::Unsupported);
+    }
+    let work = policy_work_local(native_policy_block(function)?)?;
+    let initializer = work.init.as_ref().ok_or(Refusal::Unsupported)?;
+    let (byte_stage, constant_closure) = method_parts(&initializer.expr, "and_then")?;
+    let (_, constant_expression) = method_parts(closure_body(constant_closure)?, "checked_add")?;
+    let constant = policy_literal(constant_expression)?;
+    let (byte_multiply, node_closure) = method_parts(byte_stage, "and_then")?;
+    let syn::Expr::Block(node_block) = closure_body(node_closure)? else {
+        return Err(Refusal::Unsupported);
+    };
+    let [syn::Stmt::Local(nodes), syn::Stmt::Expr(_, None)] = node_block.block.stmts.as_slice()
+    else {
+        return Err(Refusal::Unsupported);
+    };
+    let nodes_initializer = nodes.init.as_ref().ok_or(Refusal::Unsupported)?;
+    let syn::Expr::Try(nodes_try) = nodes_initializer.expr.as_ref() else {
+        return Err(Refusal::Unsupported);
+    };
+    let (_, node_expression) = method_parts(&nodes_try.expr, "checked_mul")?;
+    let nodes = policy_literal(node_expression)?;
+    let (_, byte_expression) = method_parts(byte_multiply, "checked_mul")?;
+    let bytes = policy_literal(byte_expression)?;
+    let expected: syn::Stmt = syn::parse_quote! {
+        let work = stats
+            .serialized_bytes
+            .checked_mul(#bytes)
+            .and_then(|bytes| {
+                let nodes = stats.nodes.checked_mul(#nodes)?;
+                bytes.checked_add(nodes)
+            })
+            .and_then(|units| units.checked_add(#constant));
+    };
+    if work.to_token_stream().to_string() != expected.to_token_stream().to_string() {
+        return Err(Refusal::Unsupported);
+    }
+    Ok(PolicyTuple {
+        constant: constant
+            .base10_parse()
+            .map_err(|_error| Refusal::Overflow)?,
+        bytes: bytes.base10_parse().map_err(|_error| Refusal::Overflow)?,
+        nodes: nodes.base10_parse().map_err(|_error| Refusal::Overflow)?,
+    })
+}
+
+fn check_policy_tuple(actual: PolicyTuple) -> Result<(), Refusal> {
+    if actual
+        != (PolicyTuple {
+            constant: 1_024,
+            bytes: 16,
+            nodes: 128,
+        })
+    {
+        return Err(Refusal::PolicyTuple);
+    }
+    Ok(())
+}
+
+fn coefficient_value(
+    coefficient: Option<Coefficient>,
+    dimension: CoefficientDimension,
+) -> Result<u64, Refusal> {
+    match coefficient.ok_or(Refusal::MissingCoefficient(dimension))? {
+        Coefficient::Derived { count: 0, .. } => Err(Refusal::UnwitnessedZero),
+        Coefficient::Derived { count, witness } => {
+            if witness.trim().is_empty() {
+                return Err(Refusal::MissingCommonProof(Obligation::Shape));
+            }
+            Ok(count)
+        }
+        Coefficient::ProvenAbsent { witness } => {
+            if witness.trim().is_empty() {
+                return Err(Refusal::UnwitnessedZero);
+            }
+            Ok(0)
+        }
+    }
+}
+
+fn checked_ceiling(numerator: u64, denominator: u64) -> Result<u64, Refusal> {
+    let quotient = numerator
+        .checked_div(denominator)
+        .ok_or(Refusal::PolicyTuple)?;
+    let remainder = numerator
+        .checked_rem(denominator)
+        .ok_or(Refusal::PolicyTuple)?;
+    quotient
+        .checked_add(u64::from(remainder != 0))
+        .ok_or(Refusal::Overflow)
 }
 
 fn component_ratio(
-    _coefficients: &AffineCoefficients,
-    _policy: PolicyTuple,
+    coefficients: &AffineCoefficients,
+    policy: PolicyTuple,
 ) -> Result<ComponentRatio, Refusal> {
-    Err(Refusal::Unsupported)
+    check_policy_tuple(policy)?;
+    let a = coefficient_value(coefficients.a, CoefficientDimension::Constant)?;
+    let b = coefficient_value(coefficients.b, CoefficientDimension::Bytes)?;
+    let c = coefficient_value(coefficients.c, CoefficientDimension::Nodes)?;
+    Ok(ComponentRatio {
+        component: coefficients.component,
+        source_units_per_debit: checked_ceiling(a, policy.constant)?
+            .max(checked_ceiling(b, policy.bytes)?)
+            .max(checked_ceiling(c, policy.nodes)?),
+    })
 }
 
-fn declaration_maximum(_ratios: &[ComponentRatio]) -> Result<ComponentRatio, Refusal> {
-    Err(Refusal::Unsupported)
+fn declaration_maximum(ratios: &[ComponentRatio]) -> Result<ComponentRatio, Refusal> {
+    let (first, rest) = ratios
+        .split_first()
+        .ok_or(Refusal::MissingCommonProof(Obligation::Ownership))?;
+    let mut maximum = *first;
+    for ratio in rest {
+        if ratio.component != maximum.component {
+            return Err(Refusal::ComponentMismatch);
+        }
+        maximum.source_units_per_debit = maximum
+            .source_units_per_debit
+            .max(ratio.source_units_per_debit);
+    }
+    Ok(maximum)
 }
 
-fn check_common_fixture(_fixture: &CommonFixture) -> Result<ConditionalShape, Refusal> {
-    Err(Refusal::MissingCommonProof(Obligation::Operations))
+// Fixture premise presence is not source authority. This function has no
+// actual-source input and can return only a hypothetical, non-qualifying shape.
+fn check_common_fixture(fixture: &CommonFixture) -> Result<ConditionalShape, Refusal> {
+    for (premise, obligation) in fixture.premises.iter().zip(OBLIGATIONS) {
+        if premise.is_none_or(|witness| witness.trim().is_empty()) {
+            return Err(Refusal::MissingCommonProof(obligation));
+        }
+    }
+    if fixture.declarations.is_empty() {
+        return Err(Refusal::MissingCommonProof(Obligation::Ownership));
+    }
+    let policy = captured_policy_tuple()?;
+    let mut component_maxima: Vec<ComponentRatio> = Vec::new();
+    for declaration in &fixture.declarations {
+        if declaration
+            .owner
+            .is_none_or(|owner| owner.trim().is_empty())
+        {
+            return Err(Refusal::MissingCommonProof(Obligation::Ownership));
+        }
+        let ratio = component_ratio(&declaration.coefficients, policy)?;
+        if let Some(maximum) = component_maxima
+            .iter_mut()
+            .find(|maximum| maximum.component == ratio.component)
+        {
+            *maximum = declaration_maximum(&[*maximum, ratio])?;
+        } else {
+            component_maxima.push(ratio);
+        }
+    }
+    Ok(ConditionalShape {
+        component_maxima,
+        numeric_policy_adequacy: NumericalPolicyAdequacy::NotEvaluated,
+        attempted_work_funding: AttemptFunding::NotEstablished,
+    })
 }
 
 fn affine_bound(
-    _coefficients: &AffineCoefficients,
-    _bytes: u64,
-    _nodes: u64,
+    coefficients: &AffineCoefficients,
+    bytes: u64,
+    nodes: u64,
 ) -> Result<SourceWork, Refusal> {
-    Err(Refusal::Unsupported)
+    let a = coefficient_value(coefficients.a, CoefficientDimension::Constant)?;
+    let b = coefficient_value(coefficients.b, CoefficientDimension::Bytes)?;
+    let c = coefficient_value(coefficients.c, CoefficientDimension::Nodes)?;
+    let byte_work = b.checked_mul(bytes).ok_or(Refusal::Overflow)?;
+    let node_work = c.checked_mul(nodes).ok_or(Refusal::Overflow)?;
+    a.checked_add(byte_work)
+        .and_then(|work| work.checked_add(node_work))
+        .map(SourceWork)
+        .ok_or(Refusal::Overflow)
 }
 
 fn local_envelope(
-    _ratio: ComponentRatio,
-    _population: &AttemptPopulation,
+    ratio: ComponentRatio,
+    population: &AttemptPopulation,
 ) -> Result<LocalEnvelope, Refusal> {
-    Err(Refusal::Unsupported)
+    let admitted_count =
+        u64::try_from(population.admitted_work.len()).map_err(|_error| Refusal::Overflow)?;
+    if population.admitted_work.len() != population.admitted_debits.len()
+        || admitted_count > population.attempts
+    {
+        return Err(Refusal::Unsupported);
+    }
+    let attempts = population
+        .attempts
+        .checked_mul(population.per_attempt.0)
+        .ok_or(Refusal::Overflow)?;
+    let admitted = population
+        .admitted_work
+        .iter()
+        .try_fold(0_u64, |sum, work| {
+            sum.checked_add(work.0).ok_or(Refusal::Overflow)
+        })?;
+    let debit_sum = population
+        .admitted_debits
+        .iter()
+        .try_fold(0_u64, |sum, debit| {
+            sum.checked_add(*debit).ok_or(Refusal::Overflow)
+        })?;
+    let admitted_policy_bound = ratio
+        .source_units_per_debit
+        .checked_mul(debit_sum)
+        .ok_or(Refusal::Overflow)?;
+    let local = attempts.checked_add(admitted).ok_or(Refusal::Overflow)?;
+    let local_policy_bound = attempts
+        .checked_add(admitted_policy_bound)
+        .ok_or(Refusal::Overflow)?;
+    if admitted > admitted_policy_bound {
+        return Err(Refusal::Unsupported);
+    }
+    Ok(LocalEnvelope {
+        component: ratio.component,
+        attempts: SourceWork(attempts),
+        admitted: SourceWork(admitted),
+        local: SourceWork(local),
+        admitted_policy_bound: SourceWork(admitted_policy_bound),
+        local_policy_bound: SourceWork(local_policy_bound),
+        attempted_work_funding: AttemptFunding::NotEstablished,
+    })
+}
+
+fn supplied_fact<T: Copy + Eq>(
+    fact: Option<SuppliedFact<T>>,
+    required: TargetFact,
+    zero: T,
+) -> Result<T, Refusal> {
+    match fact.ok_or(Refusal::MissingTargetFact(required))? {
+        SuppliedFact::Value(value) if value != zero => Ok(value),
+        SuppliedFact::ProvenAbsent { witness } if !witness.trim().is_empty() => Ok(zero),
+        SuppliedFact::Value(_) | SuppliedFact::ProvenAbsent { .. } => Err(Refusal::UnwitnessedZero),
+    }
 }
 
 fn evaluate_hypothetical(
-    _ratio: ComponentRatio,
-    _population: &AttemptPopulation,
-    _facts: &HypotheticalTargetFacts,
+    ratio: ComponentRatio,
+    population: &AttemptPopulation,
+    facts: &HypotheticalTargetFacts,
 ) -> Result<HypotheticalEvaluation, Refusal> {
-    Err(Refusal::Unsupported)
+    if facts.clock_binding.trim().is_empty() || facts.clock_binding != population.clock_binding {
+        return Err(Refusal::TargetBinding);
+    }
+    // All facts remain required even for zero calls. An explicit absence is
+    // limited to this supplied clock fixture; it says nothing about other hosts.
+    let clock_work = supplied_fact(facts.clock_work, TargetFact::ClockWork, SourceWork(0))?;
+    let requested_storage = supplied_fact(
+        facts.requested_storage,
+        TargetFact::RequestedStorage,
+        RequestedBytes(0),
+    )?;
+    let retained_state = supplied_fact(
+        facts.retained_state,
+        TargetFact::RetainedState,
+        RequestedBytes(0),
+    )?;
+    let stack_frame = supplied_fact(facts.stack_frame, TargetFact::StackFrame, FrameBytes(0))?;
+    let local = local_envelope(ratio, population)?;
+    let external_work = population
+        .clock_invocations
+        .checked_mul(clock_work.0)
+        .ok_or(Refusal::Overflow)?;
+    let total_work = local
+        .local
+        .0
+        .checked_add(external_work)
+        .ok_or(Refusal::Overflow)?;
+    let total_policy_bound = local
+        .local_policy_bound
+        .0
+        .checked_add(external_work)
+        .ok_or(Refusal::Overflow)?;
+    Ok(HypotheticalEvaluation {
+        local,
+        external_work: SourceWork(external_work),
+        total_work: SourceWork(total_work),
+        total_policy_bound: SourceWork(total_policy_bound),
+        requested_storage,
+        retained_state,
+        stack_frame,
+        numeric_policy_adequacy: NumericalPolicyAdequacy::NotEvaluated,
+    })
 }
 
 // Only refusals are representable here: no qualified receipt or serving result.
 fn qualification_refusal(
     _shape: &ConditionalShape,
-    _evaluation: Option<&HypotheticalEvaluation>,
+    evaluation: Option<&HypotheticalEvaluation>,
 ) -> Refusal {
-    Refusal::Unsupported
+    match evaluation {
+        Some(_) => Refusal::HypotheticalFacts,
+        None => Refusal::NumericalPolicyNotEvaluated,
+    }
 }
 
 // In-memory output field check only; this cannot read or return active costs.
-fn check_current_report_fields(_report: &Value) -> Result<(), Refusal> {
-    Err(Refusal::Unsupported)
+fn check_current_report_fields(report: &Value) -> Result<(), Refusal> {
+    let fields = report.as_object().ok_or(Refusal::NonCanonicalField)?;
+    if fields.contains_key("native_cache_heap_candidate")
+        || fields.get("kind").and_then(Value::as_str)
+            == Some("conditional_native_schema_cache_heap_candidate")
+    {
+        return Err(Refusal::RetiredCandidate);
+    }
+    if fields.len() != 3
+        || fields.get("kind").and_then(Value::as_str) != Some("conditional_source_shape")
+        || fields
+            .get("numeric_policy_adequacy")
+            .and_then(Value::as_str)
+            != Some("not_evaluated")
+        || fields.get("attempted_work_funding").and_then(Value::as_str) != Some("not_established")
+    {
+        return Err(Refusal::NonCanonicalField);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+    use syn::visit_mut::{self, VisitMut};
 
     const ZERO: Option<Coefficient> = Some(Coefficient::ProvenAbsent {
         witness: "fake_explicit_source_absence",
@@ -367,6 +751,236 @@ mod tests {
         }
     }
 
+    fn fixture_policy_function(source: &mut syn::File) -> &mut syn::ItemFn {
+        source
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Fn(function) if function.sig.ident == "validate_native_parameters" => {
+                    Some(function)
+                }
+                _ => None,
+            })
+            .expect("actual native entrypoint")
+    }
+
+    fn fixture_policy_block(source: &mut syn::File) -> &mut syn::ExprBlock {
+        fixture_policy_function(source)
+            .block
+            .stmts
+            .iter_mut()
+            .find_map(|statement| match statement {
+                syn::Stmt::Expr(syn::Expr::Block(block), None) => Some(block),
+                _ => None,
+            })
+            .expect("first entrypoint block is the native fixture")
+    }
+
+    fn fixture_policy_work(source: &mut syn::File) -> &mut syn::Local {
+        fixture_policy_block(source)
+            .block
+            .stmts
+            .iter_mut()
+            .find_map(|statement| match statement {
+                syn::Stmt::Local(local)
+                    if matches!(&local.pat, syn::Pat::Ident(binding) if binding.ident == "work") =>
+                {
+                    Some(local)
+                }
+                _ => None,
+            })
+            .expect("actual named work local")
+    }
+
+    enum FormulaEdit {
+        Literal(CoefficientDimension, syn::LitInt),
+        Saturating(CoefficientDimension),
+        SwapReceivers,
+    }
+
+    struct FormulaEditor {
+        edit: FormulaEdit,
+        changes: usize,
+    }
+
+    fn fixture_method_dimension(call: &syn::ExprMethodCall) -> Option<CoefficientDimension> {
+        if call.method == "checked_add"
+            && matches!(call.args.first(), Some(syn::Expr::Lit(value)) if matches!(value.lit, syn::Lit::Int(_)))
+        {
+            return Some(CoefficientDimension::Constant);
+        }
+        if call.method != "checked_mul" {
+            return None;
+        }
+        let syn::Expr::Field(field) = call.receiver.as_ref() else {
+            return None;
+        };
+        match &field.member {
+            syn::Member::Named(name) if name == "serialized_bytes" => {
+                Some(CoefficientDimension::Bytes)
+            }
+            syn::Member::Named(name) if name == "nodes" => Some(CoefficientDimension::Nodes),
+            _ => None,
+        }
+    }
+
+    impl VisitMut for FormulaEditor {
+        fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
+            match (&self.edit, fixture_method_dimension(call)) {
+                (FormulaEdit::Literal(selected, replacement), Some(found))
+                    if *selected == found =>
+                {
+                    *call.args.first_mut().expect("original literal argument") =
+                        syn::parse_quote!(#replacement);
+                    self.changes += 1;
+                }
+                (FormulaEdit::Saturating(selected), Some(found)) if *selected == found => {
+                    call.method = match found {
+                        CoefficientDimension::Constant => syn::parse_quote!(saturating_add),
+                        CoefficientDimension::Bytes | CoefficientDimension::Nodes => {
+                            syn::parse_quote!(saturating_mul)
+                        }
+                    };
+                    self.changes += 1;
+                }
+                (FormulaEdit::SwapReceivers, Some(found)) => {
+                    if let syn::Expr::Field(field) = call.receiver.as_mut() {
+                        field.member = match found {
+                            CoefficientDimension::Bytes => {
+                                syn::Member::Named(syn::parse_quote!(nodes))
+                            }
+                            CoefficientDimension::Nodes => {
+                                syn::Member::Named(syn::parse_quote!(serialized_bytes))
+                            }
+                            CoefficientDimension::Constant => return,
+                        };
+                        self.changes += 1;
+                    }
+                }
+                _ => {}
+            }
+            visit_mut::visit_expr_method_call_mut(self, call);
+        }
+    }
+
+    fn policy_coefficient_source_controls() {
+        let original = syn::parse_file(include_str!("../../src/schema/native.rs")).unwrap();
+        assert_eq!(
+            policy_tuple_from_source(&original.to_token_stream().to_string()),
+            Ok(PolicyTuple {
+                constant: 1_024,
+                bytes: 16,
+                nodes: 128
+            })
+        );
+        for (dimension, replacement, expected) in [
+            (
+                CoefficientDimension::Constant,
+                syn::parse_quote!(1_025),
+                PolicyTuple {
+                    constant: 1_025,
+                    bytes: 16,
+                    nodes: 128,
+                },
+            ),
+            (
+                CoefficientDimension::Bytes,
+                syn::parse_quote!(17),
+                PolicyTuple {
+                    constant: 1_024,
+                    bytes: 17,
+                    nodes: 128,
+                },
+            ),
+            (
+                CoefficientDimension::Nodes,
+                syn::parse_quote!(129),
+                PolicyTuple {
+                    constant: 1_024,
+                    bytes: 16,
+                    nodes: 129,
+                },
+            ),
+        ] {
+            let mut changed = original.clone();
+            let mut editor = FormulaEditor {
+                edit: FormulaEdit::Literal(dimension, replacement),
+                changes: 0,
+            };
+            editor.visit_local_mut(fixture_policy_work(&mut changed));
+            assert_eq!(editor.changes, 1);
+            let extracted = policy_tuple_from_source(&changed.to_token_stream().to_string())
+                .expect("changed coefficient must be extracted, not replaced by a fixed tuple");
+            assert_eq!(extracted, expected);
+            assert_eq!(check_policy_tuple(extracted), Err(Refusal::PolicyTuple));
+        }
+    }
+
+    fn assert_unsupported_policy(source: &syn::File) {
+        assert_eq!(
+            policy_tuple_from_source(&source.to_token_stream().to_string()),
+            Err(Refusal::Unsupported)
+        );
+    }
+
+    fn policy_shape_source_controls() {
+        let original = syn::parse_file(include_str!("../../src/schema/native.rs")).unwrap();
+        assert_eq!(
+            policy_tuple_from_source(&original.to_token_stream().to_string()),
+            Ok(policy())
+        );
+        for (edit, changes) in [
+            (FormulaEdit::Saturating(CoefficientDimension::Constant), 1),
+            (FormulaEdit::Saturating(CoefficientDimension::Bytes), 1),
+            (FormulaEdit::Saturating(CoefficientDimension::Nodes), 1),
+            (FormulaEdit::SwapReceivers, 2),
+        ] {
+            let mut changed = original.clone();
+            let mut editor = FormulaEditor { edit, changes: 0 };
+            editor.visit_local_mut(fixture_policy_work(&mut changed));
+            assert_eq!(editor.changes, changes);
+            assert_unsupported_policy(&changed);
+        }
+        let mut addition = original.clone();
+        let initializer = fixture_policy_work(&mut addition).init.as_mut().unwrap();
+        let previous = &initializer.expr;
+        initializer.expr = Box::new(syn::parse_quote!(
+            #previous.and_then(|units| units.checked_add(1))
+        ));
+        assert_unsupported_policy(&addition);
+
+        let mut duplicate = original.clone();
+        let statements = &mut fixture_policy_block(&mut duplicate).block.stmts;
+        let index = statements
+            .iter()
+            .position(|statement| {
+                matches!(statement, syn::Stmt::Local(local)
+                if matches!(&local.pat, syn::Pat::Ident(binding) if binding.ident == "work"))
+            })
+            .unwrap();
+        let work = statements[index].clone();
+        statements.insert(index, work);
+        assert_unsupported_policy(&duplicate);
+
+        let mut cfg = original.clone();
+        let native = fixture_policy_block(&mut cfg);
+        assert_eq!(native.attrs.len(), 1);
+        native.attrs[0] = syn::parse_quote!(#[cfg(target_arch = "wasm32")]);
+        assert_unsupported_policy(&cfg);
+
+        let mut name = original.clone();
+        fixture_policy_function(&mut name).sig.ident = syn::parse_quote!(fake_policy_helper);
+        assert_unsupported_policy(&name);
+
+        let mut decoy = original;
+        let mut helper = fixture_policy_function(&mut decoy).clone();
+        helper.sig.ident = syn::parse_quote!(fake_formula_decoy);
+        fixture_policy_work(&mut decoy).init.as_mut().unwrap().expr =
+            Box::new(syn::parse_quote!(None));
+        decoy.items.push(syn::Item::Fn(helper));
+        assert_unsupported_policy(&decoy);
+    }
+
     #[test]
     fn missing_common_proof_cannot_complete() {
         let original = common_fixture();
@@ -392,13 +1006,17 @@ mod tests {
             check_common_fixture(&empty),
             Err(Refusal::MissingCommonProof(Obligation::Ownership))
         );
-        for axis in [Axis::Constant, Axis::Bytes, Axis::Nodes] {
+        for axis in [
+            CoefficientDimension::Constant,
+            CoefficientDimension::Bytes,
+            CoefficientDimension::Nodes,
+        ] {
             let mut missing = original.clone();
             let work = &mut missing.declarations[0].coefficients;
             let coefficient = match axis {
-                Axis::Constant => &mut work.a,
-                Axis::Bytes => &mut work.b,
-                Axis::Nodes => &mut work.c,
+                CoefficientDimension::Constant => &mut work.a,
+                CoefficientDimension::Bytes => &mut work.b,
+                CoefficientDimension::Nodes => &mut work.c,
             };
             assert!(coefficient.take().is_some());
             assert_eq!(
@@ -472,12 +1090,16 @@ mod tests {
         ] {
             assert_eq!(component_ratio(&work, policy()), Ok(ratio(expected)));
         }
-        for axis in [Axis::Constant, Axis::Bytes, Axis::Nodes] {
+        for axis in [
+            CoefficientDimension::Constant,
+            CoefficientDimension::Bytes,
+            CoefficientDimension::Nodes,
+        ] {
             let mut missing = coefficients(ZERO, ZERO, ZERO);
             let coefficient = match axis {
-                Axis::Constant => &mut missing.a,
-                Axis::Bytes => &mut missing.b,
-                Axis::Nodes => &mut missing.c,
+                CoefficientDimension::Constant => &mut missing.a,
+                CoefficientDimension::Bytes => &mut missing.b,
+                CoefficientDimension::Nodes => &mut missing.c,
             };
             assert_eq!(coefficient.take(), ZERO);
             assert_eq!(
@@ -485,9 +1107,9 @@ mod tests {
                 Err(Refusal::MissingCoefficient(axis))
             );
             *match axis {
-                Axis::Constant => &mut missing.a,
-                Axis::Bytes => &mut missing.b,
-                Axis::Nodes => &mut missing.c,
+                CoefficientDimension::Constant => &mut missing.a,
+                CoefficientDimension::Bytes => &mut missing.b,
+                CoefficientDimension::Nodes => &mut missing.c,
             } = Some(derived(0));
             assert_eq!(
                 component_ratio(&missing, policy()),
@@ -710,6 +1332,8 @@ mod tests {
                 Err(Refusal::PolicyTuple)
             );
         }
+        policy_coefficient_source_controls();
+        policy_shape_source_controls();
     }
 
     #[test]

@@ -1,6 +1,6 @@
-//! Task 6 tests-first contract, not an actual-source closure or frame certificate.
-//! All paths, bounds, identities and numeric facts below are hypothetical fixtures.
-//! The operation-graph/source join and hosted RED precede any implementation.
+//! Hypothetical Task 6 composition, not an actual-source closure or frame certificate.
+//! Path witnesses, identities and numeric facts here carry no source authority.
+//! The authenticated operation-graph/source join remains a separate obligation.
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FrameBytes(u64);
@@ -160,26 +160,173 @@ struct HypotheticalExpiry {
     peak_frame: FrameBytes,
 }
 
-// Intentionally missing common proof: positive assertions must fail, not compile
-// errors, placeholder panics, absent symbols or synthetic qualification receipts.
-fn check_common(_formula: &LogicalFormula) -> Result<(), Refusal> {
-    Err(Refusal::MissingCommonProof(CommonGap::OperationGraph))
+// This checks fixture consistency only; it cannot authenticate source witnesses.
+fn check_common(formula: &LogicalFormula) -> Result<(), Refusal> {
+    let mut owners = Vec::new();
+    collect_frame_owners(&formula.path, &mut owners)?;
+    if owners.is_empty() {
+        return Err(Refusal::MissingCommonProof(CommonGap::OperationGraph));
+    }
+    for owner in &owners {
+        if !formula.required_frames.contains(owner) {
+            return Err(Refusal::MissingCommonProof(CommonGap::FrameOwner(*owner)));
+        }
+    }
+    for (index, owner) in formula.required_frames.iter().enumerate() {
+        if !owners.contains(owner)
+            || formula
+                .required_frames
+                .iter()
+                .take(index)
+                .any(|prior| prior == owner)
+        {
+            return Err(Refusal::MissingCommonProof(CommonGap::FrameOwner(*owner)));
+        }
+    }
+    Ok(())
+}
+
+fn collect_frame_owners(path: &CallPath, owners: &mut Vec<SourceHelper>) -> Result<(), Refusal> {
+    match path {
+        CallPath::Frame(owner) => {
+            if !owners.contains(owner) {
+                owners.push(*owner);
+            }
+            Ok(())
+        }
+        CallPath::Alternatives { exclusivity, .. } if exclusivity.is_none_or(str::is_empty) => {
+            Err(Refusal::MissingCommonProof(CommonGap::Exclusivity))
+        }
+        CallPath::Coexisting(paths) | CallPath::Alternatives { paths, .. } => {
+            if paths.is_empty() {
+                return Err(Refusal::MissingCommonProof(CommonGap::OperationGraph));
+            }
+            for child in paths {
+                collect_frame_owners(child, owners)?;
+            }
+            Ok(())
+        }
+        CallPath::Recursion {
+            axis,
+            decreasing,
+            body,
+        } => {
+            if decreasing.is_none_or(|bound| {
+                bound.recursive_edge.is_empty()
+                    || bound.remaining_measure.is_empty()
+                    || bound.decrease_by == 0
+            }) {
+                return Err(Refusal::MissingCommonProof(CommonGap::DecreasingBound(
+                    *axis,
+                )));
+            }
+            collect_frame_owners(body, owners)
+        }
+        CallPath::RegexHeapStack { .. } => Ok(()),
+        CallPath::UnclassifiedEdge { caller, callee } => {
+            Err(Refusal::MissingCommonProof(CommonGap::Edge {
+                caller: *caller,
+                callee: *callee,
+            }))
+        }
+    }
 }
 
 fn evaluate_hypothetical(
-    _formula: &LogicalFormula,
-    _depth: DepthInputs,
-    _identity: TargetIdentity,
-    _facts: &[FrameFact],
+    formula: &LogicalFormula,
+    depth: DepthInputs,
+    identity: TargetIdentity,
+    facts: &[FrameFact],
 ) -> Result<HypotheticalStack, Refusal> {
-    Err(Refusal::MissingCommonProof(CommonGap::OperationGraph))
+    check_common(formula)?;
+    for owner in &formula.required_frames {
+        let mut matching = facts.iter().filter(|fact| fact.owner == *owner);
+        let fact = matching.next().ok_or(Refusal::MissingTargetFact(*owner))?;
+        if matching.next().is_some() || fact.identity != identity {
+            return Err(Refusal::FrameIdentity(*owner));
+        }
+    }
+    for fact in facts {
+        if !formula.required_frames.contains(&fact.owner) {
+            return Err(Refusal::FrameIdentity(fact.owner));
+        }
+    }
+    Ok(HypotheticalStack {
+        peak: FrameBytes(path_peak(&formula.path, depth, facts)?),
+    })
+}
+
+fn path_peak(path: &CallPath, depth: DepthInputs, facts: &[FrameFact]) -> Result<u64, Refusal> {
+    match path {
+        CallPath::Frame(owner) => facts
+            .iter()
+            .find(|fact| fact.owner == *owner)
+            .map(|fact| fact.bytes.0)
+            .ok_or(Refusal::MissingTargetFact(*owner)),
+        CallPath::Coexisting(paths) => paths.iter().try_fold(0_u64, |peak, child| {
+            peak.checked_add(path_peak(child, depth, facts)?)
+                .ok_or(Refusal::Overflow(ArithmeticDomain::Frames))
+        }),
+        CallPath::Alternatives { paths, .. } => paths.iter().try_fold(0_u64, |peak, child| {
+            Ok(peak.max(path_peak(child, depth, facts)?))
+        }),
+        CallPath::Recursion { axis, body, .. } => {
+            let levels = match axis {
+                DepthAxis::Schema => depth.schema_levels,
+                DepthAxis::Instance => depth.instance_containers,
+            };
+            path_peak(body, depth, facts)?
+                .checked_mul(levels)
+                .ok_or(Refusal::Overflow(ArithmeticDomain::Frames))
+        }
+        // An explicitly classified heap record contributes no machine frame.
+        CallPath::RegexHeapStack { .. } => Ok(0),
+        CallPath::UnclassifiedEdge { caller, callee } => {
+            Err(Refusal::MissingCommonProof(CommonGap::Edge {
+                caller: *caller,
+                callee: *callee,
+            }))
+        }
+    }
 }
 
 fn evaluate_expiry_hypothetical(
-    _schedule: ExpirySchedule,
-    _facts: ExpiryFacts,
+    schedule: ExpirySchedule,
+    facts: ExpiryFacts,
 ) -> Result<HypotheticalExpiry, Refusal> {
-    Err(Refusal::MissingCommonProof(CommonGap::OperationGraph))
+    if schedule.serial_temporary_witness.is_none_or(str::is_empty) {
+        return Err(Refusal::MissingCommonProof(CommonGap::ExpirySchedule));
+    }
+    if schedule.owner != facts.owner || schedule.identity != facts.identity {
+        return Err(Refusal::ExpiryIdentity);
+    }
+    let work = required_expiry_fact(facts.work_per_call.map(|value| value.0), ExpiryField::Work)?;
+    let temporary = required_expiry_fact(
+        facts.temporary_heap_peak.map(|value| value.0),
+        ExpiryField::TemporaryHeap,
+    )?;
+    let retained = required_expiry_fact(
+        facts.retained_state.map(|value| value.0),
+        ExpiryField::RetainedState,
+    )?;
+    let frame = required_expiry_fact(facts.frame.map(|value| value.0), ExpiryField::Frame)?;
+    let cumulative_work = work
+        .checked_mul(schedule.invocations)
+        .ok_or(Refusal::Overflow(ArithmeticDomain::Work))?;
+    Ok(HypotheticalExpiry {
+        cumulative_work: WorkUnits(cumulative_work),
+        temporary_heap_peak: RequestedBytes(temporary),
+        retained_state: RequestedBytes(retained),
+        peak_frame: FrameBytes(frame),
+    })
+}
+
+fn required_expiry_fact(value: Option<u64>, field: ExpiryField) -> Result<u64, Refusal> {
+    match value {
+        None => Err(Refusal::MissingExpiryFact(field)),
+        Some(0) => Err(Refusal::InvalidExpiryFact(field)),
+        Some(value) => Ok(value),
+    }
 }
 
 #[cfg(test)]
@@ -592,6 +739,26 @@ mod tests {
             evaluate_hypothetical(&formula, depth(), identity(), &absent),
             Err(Refusal::MissingTargetFact(CALLBACK))
         );
+        for path in [
+            CallPath::Coexisting(Vec::new()),
+            CallPath::RegexHeapStack {
+                owner: VALIDATOR,
+                records: HeapStackRecords(900),
+            },
+        ] {
+            let incomplete = LogicalFormula {
+                path,
+                required_frames: Vec::new(),
+            };
+            assert_eq!(
+                check_common(&incomplete),
+                Err(Refusal::MissingCommonProof(CommonGap::OperationGraph))
+            );
+            assert_eq!(
+                evaluate_hypothetical(&incomplete, depth(), identity(), &[]),
+                Err(Refusal::MissingCommonProof(CommonGap::OperationGraph))
+            );
+        }
     }
 
     #[test]

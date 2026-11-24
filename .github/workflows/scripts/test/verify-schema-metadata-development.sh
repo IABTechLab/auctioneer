@@ -17,6 +17,15 @@ validation_required=(
   schema_validation::handoff::tests::body_receipts_reject_changed_owner_and_expansion
   schema_validation::handoff::tests::seed_and_options_drift_cannot_reuse_body_authority
   schema_validation::handoff::tests::unrelated_nonempty_syntax_cannot_replace_pristine_body
+  schema_validation::operations::tests::unclassified_call_refuses_completion
+  schema_validation::operations::tests::changed_branch_multiplicity_changes_the_recipe
+  schema_validation::operations::tests::non_regex_declaration_has_a_nonempty_closure
+  schema_validation::operations::tests::changed_primitive_semantics_is_not_approved_by_rehashing
+  schema_validation::operations::tests::expiry_binding_is_explicit
+  schema_validation::operations::tests::unknown_callback_is_not_a_free_source_edge
+  schema_validation::operations::tests::new_nested_literal_owner_requires_a_supported_proof
+  schema_validation::operations::tests::cold_entropy_has_exact_identity_lifetime_and_nonfree_obligations
+  schema_validation::tests::current_body_shapes_have_declared_operation_obligations
   schema_validation::storage::tests::fallback_is_covered_once
   schema_validation::storage::tests::heap_terms_and_inline_wrapper_vary_independently
   schema_validation::storage::tests::hostname_overlaps_the_live_wrapper
@@ -27,6 +36,11 @@ validation_required=(
   schema_validation::storage::tests::duplicate_ownership_is_not_a_disjoint_live_child
   schema_validation::storage::tests::checked_sums_reject_heap_and_combined_overflow
   schema_validation::storage::tests::lifetimes_require_ordered_in_trace_release_states
+  schema_validation::storage::tests::missing_and_invalid_states_are_not_zero_storage_proofs
+  schema_validation::storage::tests::structural_and_release_refusals_precede_arithmetic
+  schema_validation::storage::tests::coverage_requires_exact_obligations_and_live_heap_parents
+  schema_validation::storage::tests::owner_names_are_unique_and_allocation_aliases_must_not_overlap
+  schema_validation::storage::tests::combined_peak_uses_same_state_not_independent_maxima
   schema_validation::stack::tests::nested_calls_sum_and_alternatives_take_max
   schema_validation::stack::tests::instance_and_schema_depth_are_independent
   schema_validation::stack::tests::heap_stack_records_are_not_frames

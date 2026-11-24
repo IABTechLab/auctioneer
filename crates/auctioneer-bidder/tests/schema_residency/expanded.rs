@@ -118,13 +118,14 @@ fn validator(item: &syn::ItemStruct) -> Result<Option<&syn::Attribute>, String> 
     }
 }
 
-fn expand_declaration(
+fn expand_declaration<T>(
     seed: &CapturedSeed,
     item: &syn::ItemStruct,
     attribute: &syn::Attribute,
     row: &Value,
     snapshot: &SchemaSnapshot,
-) -> Result<Value, String> {
+    visit: &mut impl FnMut(DeclarationBody<'_>) -> T,
+) -> Result<(Value, T), String> {
     let syn::Meta::List(options) = &attribute.meta else {
         return Err("unqualified captured validator options".into());
     };
@@ -146,7 +147,14 @@ fn expand_declaration(
     let tokens =
         jsonschema_macros_core::expand(options.tokens.clone(), declaration.to_token_stream());
     let expansion_sha256 = digest(tokens.to_string().as_bytes());
-    let mut syntax: syn::File = syn::parse2(tokens).map_err(|error| error.to_string())?;
+    let mut syntax: syn::File = syn::parse2(tokens.clone()).map_err(|error| error.to_string())?;
+    let analysis = visit(DeclarationBody {
+        owner: &snapshot.owner,
+        marker: &item.ident.to_string(),
+        expansion_sha256: &expansion_sha256,
+        tokens: &tokens,
+        syntax: &syntax,
+    });
     crate::reject_compiler_errors(&mut syntax)?;
     let patterns = emitted_patterns(&syntax)
         .map_err(|error| format!("unsupported expanded regex owner: {error:?}"))?;
@@ -163,17 +171,27 @@ fn expand_declaration(
             })
         })
         .collect::<Vec<_>>();
-    Ok(
+    Ok((
         json!({"owner":snapshot.owner,"marker":item.ident.to_string(),
         "source":row["source"],"snapshot":row["snapshot"],
         "expansion_sha256":expansion_sha256,"programs":programs,
         "schema_state":storage.schema_state,"readonly":storage.readonly,
         "initialization":storage.initialization,"callbacks":callbacks,
         "qualification":"Unqualified","resource_qualification":false}),
-    )
+        analysis,
+    ))
 }
 
 pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
+    visit_bodies(seed, |_body| ()).map(|(graph, _analyses)| graph)
+}
+
+/// One expansion kernel supplies immutable pristine bodies and the checked graph.
+/// Analyses remain provisional until the entire capture has passed its checks.
+pub(crate) fn visit_bodies<T>(
+    seed: &CapturedSeed,
+    mut visit: impl FnMut(DeclarationBody<'_>) -> T,
+) -> Result<(Value, Vec<T>), String> {
     let manifest = manifest(seed)?;
     let expected = declarations(&manifest, seed)?;
     let syntax = syn::parse_file(str::from_utf8(&seed.rust).map_err(|error| error.to_string())?)
@@ -221,13 +239,16 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
         .map(|item| digest(item.to_token_stream().to_string().as_bytes()))
         .collect::<Vec<_>>();
     let mut rows = Vec::new();
+    let mut analyses = Vec::new();
     for (marker, (row, snapshot)) in expected {
         let (item, attribute) = actual.get(&marker).ok_or(MEMBERSHIP)?;
-        rows.push(expand_declaration(seed, item, attribute, row, snapshot)?);
+        let (row, analysis) = expand_declaration(seed, item, attribute, row, snapshot, &mut visit)?;
+        rows.push(row);
+        analyses.push(analysis);
     }
     seed.recheck_snapshots()
         .map_err(|_error| "captured schema snapshot mismatch".to_owned())?;
-    Ok(
+    Ok((
         json!({"schema_version":2_u8,"identity_sha256":seed.identity_sha256,
         "captured_manifest_sha256":digest(&seed.manifest_bytes),
         "captured_rust_sha256":digest(&seed.rust),"declarations":rows,
@@ -235,7 +256,8 @@ pub(crate) fn expand(seed: &CapturedSeed) -> Result<Value, String> {
         "auxiliary":{"status":classified.status.as_str(),"roots":classified.roots,
             "dispatch_edges":classified.dispatch_edges},"qualification":"Unqualified",
         "resource_qualification":false,"source_completeness":"owner-graph-only"}),
-    )
+        analyses,
+    ))
 }
 
 #[cfg(test)]

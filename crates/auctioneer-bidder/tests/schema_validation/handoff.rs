@@ -6,10 +6,11 @@ use crate::schema_residency::descriptor::{
 };
 use crate::schema_residency::expanded::DeclarationBody;
 use serde_json::Value;
+use sha2::{Digest as _, Sha256};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(super) enum Refusal {
     Binding,
     ChildCoverage,
     ContextCoverage,
@@ -25,27 +26,105 @@ struct BodyReceipt {
 }
 
 /// Private construction proves correspondence only; analysis is still unqualified.
-struct CheckedBodies<'a, T> {
+pub(super) struct CheckedBodies<'a, T> {
+    seed: &'a CapturedSeed,
     view: ValidationView<'a>,
     receipts: Vec<BodyReceipt>,
     analyses: Vec<T>,
 }
 
 impl<T> CheckedBodies<'_, T> {
-    fn recheck(&self, _view: ValidationView<'_>) -> Result<(), Refusal> {
-        // This stage is intentionally RED until the same-kernel join exists.
-        let _: (&ValidationView<'_>, &[BodyReceipt], &[T]) =
-            (&self.view, &self.receipts, &self.analyses);
-        Err(Refusal::BodiesUnavailable)
+    pub(super) fn analyses(&self) -> &[T] {
+        &self.analyses
+    }
+
+    pub(super) fn recheck(&self, view: ValidationView<'_>) -> Result<(), Refusal> {
+        self.view.recheck().map_err(|_error| Refusal::Binding)?;
+        view.recheck().map_err(|_error| Refusal::Binding)?;
+        if view.binding() != self.view.binding() {
+            return Err(Refusal::Binding);
+        }
+        check_seed(self.seed, view)?;
+        if self.receipts != expected_bodies(view)? || self.analyses.len() != self.receipts.len() {
+            return Err(Refusal::BodyCoverage);
+        }
+        Ok(())
     }
 }
 
-fn checked_bodies<'a, T>(
-    _seed: &CapturedSeed,
-    _view: ValidationView<'a>,
-    _analyze: impl FnMut(DeclarationBody<'_>) -> Result<T, Refusal>,
+pub(super) fn checked_bodies<'a, T>(
+    seed: &'a CapturedSeed,
+    view: ValidationView<'a>,
+    mut analyze: impl FnMut(DeclarationBody<'_>) -> Result<T, Refusal>,
 ) -> Result<CheckedBodies<'a, T>, Refusal> {
-    Err(Refusal::BodiesUnavailable)
+    view.recheck().map_err(|_error| Refusal::Binding)?;
+    check_seed(seed, view)?;
+    let (graph, provisional) = crate::schema_residency::expanded::visit_bodies(seed, |body| {
+        let receipt = BodyReceipt {
+            owner: body.owner.into(),
+            marker: body.marker.into(),
+            expansion_sha256: body.expansion_sha256.into(),
+        };
+        (receipt, analyze(body))
+    })
+    .map_err(|_error| Refusal::BodiesUnavailable)?;
+    if graph != *view.graph() {
+        return Err(Refusal::Binding);
+    }
+    let mut receipts = Vec::new();
+    let mut analyses = Vec::new();
+    for (receipt, analysis) in provisional {
+        receipts.push(receipt);
+        analyses.push(analysis?);
+    }
+    let bodies = CheckedBodies {
+        seed,
+        view,
+        receipts,
+        analyses,
+    };
+    bodies.recheck(view)?;
+    Ok(bodies)
+}
+
+fn check_seed(seed: &CapturedSeed, view: ValidationView<'_>) -> Result<(), Refusal> {
+    let digest = |bytes: &[u8]| hex::encode(Sha256::digest(bytes));
+    if view.binding()["identity"].as_str() != Some(seed.identity_sha256.as_str())
+        || view.binding()["manifest_sha256"].as_str() != Some(digest(&seed.manifest_bytes).as_str())
+        || view.graph()["captured_rust_sha256"].as_str() != Some(digest(&seed.rust).as_str())
+    {
+        return Err(Refusal::Binding);
+    }
+    seed.recheck_snapshots().map_err(|_error| Refusal::Binding)
+}
+
+fn expected_bodies(view: ValidationView<'_>) -> Result<Vec<BodyReceipt>, Refusal> {
+    let declarations = view.graph()["declarations"]
+        .as_array()
+        .ok_or(Refusal::BodyCoverage)?;
+    if declarations.is_empty() {
+        return Err(Refusal::BodyCoverage);
+    }
+    let mut owners = BTreeSet::new();
+    let mut markers = BTreeSet::new();
+    declarations
+        .iter()
+        .map(|row| {
+            let owner = row["owner"].as_str().ok_or(Refusal::BodyCoverage)?;
+            let marker = row["marker"].as_str().ok_or(Refusal::BodyCoverage)?;
+            let expansion_sha256 = row["expansion_sha256"]
+                .as_str()
+                .ok_or(Refusal::BodyCoverage)?;
+            if !owners.insert(owner) || !markers.insert(marker) {
+                return Err(Refusal::BodyCoverage);
+            }
+            Ok(BodyReceipt {
+                owner: owner.into(),
+                marker: marker.into(),
+                expansion_sha256: expansion_sha256.into(),
+            })
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
