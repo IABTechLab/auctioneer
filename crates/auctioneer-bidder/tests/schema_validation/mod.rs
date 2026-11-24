@@ -3,8 +3,10 @@
 mod admission;
 mod handoff;
 mod operations;
+mod public_names;
 mod stack;
 mod storage;
+mod work;
 
 #[cfg(test)]
 mod tests {
@@ -31,12 +33,17 @@ mod tests {
                 bodies.analyses().len(),
                 view.graph()["declarations"].as_array().unwrap().len()
             );
-            for (owner, operations) in bodies.analyses() {
-                assert!(
-                    operations.is_ok(),
-                    "unclassified declaration {owner}: {operations:?}"
-                );
-            }
+            let refusals: Vec<_> = bodies
+                .analyses()
+                .iter()
+                .filter_map(|(owner, operations)| {
+                    operations.as_ref().err().map(|reason| (owner, reason))
+                })
+                .collect();
+            assert!(
+                refusals.is_empty(),
+                "unclassified declarations: {refusals:#?}"
+            );
             assert_eq!(bodies.recheck(view), Ok(()));
             // Declaring primitive obligations is not discharging their work,
             // storage or stack lemmas, nor does it issue completeness authority.

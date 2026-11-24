@@ -516,10 +516,15 @@ mod tests {
                 let other_view = other_descriptor.validation_view().unwrap();
                 assert_ne!(view.binding(), other_view.binding());
                 assert!(checked_bodies(other_seed, other_view, body_shape).is_ok());
+                let mut visits = 0;
                 assert_eq!(
-                    checked_bodies(other_seed, view, body_shape).err(),
+                    checked_bodies(other_seed, view, |body| {
+                        visits += 1;
+                        body_shape(body)
+                    }).err(),
                     Some(Refusal::Binding)
                 );
+                assert_eq!(visits, 0, "a mismatched capture must refuse before analysis");
                 Ok(())
             })?;
             let mut changed = copy_seed(seed);
@@ -563,10 +568,15 @@ mod tests {
                 json!(hex::encode(Sha256::digest(&changed.rust)));
             changed.manifest_bytes = serde_json::to_vec(&manifest).unwrap();
             assert!(crate::schema_residency::expanded::expand(&changed).is_ok(), "changed capture remains independently valid");
+            let mut visits = 0;
             assert_eq!(
-                checked_bodies(&changed, view, body_shape).err(),
+                checked_bodies(&changed, view, |body| {
+                    visits += 1;
+                    body_shape(body)
+                }).err(),
                 Some(Refusal::Binding)
             );
+            assert_eq!(visits, 0, "changed options must refuse before analysis");
             Ok(())
         })
         .unwrap();

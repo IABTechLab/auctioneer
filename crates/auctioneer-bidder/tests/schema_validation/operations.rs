@@ -1,4 +1,4 @@
-//! Task 3 source-recognizer RED contract, not a common-source work certificate.
+//! Task 3 finite source recognizer, not a common-source work certificate.
 //!
 //! Fixtures use the selected emitter's call shapes. Supplied ASTs, identities
 //! and digests grant no source authority; the parent must join pristine bodies.
@@ -33,6 +33,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod lower;
+pub(super) mod model;
+mod resolve;
+
 // One service body covers warm/cold TLS and platform seeding. HashMap setup,
 // ownership, hashing, probing, growth and drop remain common-source obligations.
 const ENTROPY_ENTRY: &str = "std::hash::RandomState::new";
@@ -58,9 +62,21 @@ struct WorkLedger {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Primitive {
+pub(super) enum Primitive {
     UuidFormat,
     StateMapConstruction,
+    ValueAccess,
+    StringAccess,
+    MapAccess,
+    IteratorProtocol,
+    Numeric,
+    RegexSearch,
+    CacheConstruction,
+    Readiness,
+    HostnameFormat,
+    Equality,
+    Uniqueness,
+    Cleanup,
 }
 
 #[derive(Clone)]
@@ -123,6 +139,9 @@ struct ServiceRequirement {
 // A local classification only. There is no completed-proof/report conversion.
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct BodyOperations {
+    // The maps below are source-site/per-body test projections, not invocation
+    // bounds. Work and stack must consume this one owned structured recipe.
+    recipe: model::Recipe,
     ledger: WorkLedger,
     calls: BTreeMap<String, u64>,
     traversals: BTreeMap<String, TraversalMeasure>,
@@ -130,9 +149,14 @@ pub(super) struct BodyOperations {
     services: Vec<ServiceRequirement>,
 }
 
+impl BodyOperations {
+    pub(super) fn recipe(&self) -> &model::Recipe {
+        &self.recipe
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum Refusal {
-    ClassifierNotImplemented,
     UnclassifiedCall,
     ReceiverMismatch,
     UnboundedTraversal,
@@ -144,16 +168,25 @@ pub(super) enum Refusal {
     MissingServiceFact(ExternalService, ServiceFact),
     UnknownCallback,
     UnsupportedNestedLiteralOwner,
+    UnsupportedSource,
+    Overflow,
+    AtSource {
+        function: String,
+        lexical_site: Vec<usize>,
+        cause: Box<Self>,
+    },
 }
 
-// Only a named refusal until the actual source recognizer has hosted RED.
-// No supplied primitive body or hash can make this a complete work proof.
+// Recognition only declares source edges and outstanding lemmas. Neither a
+// supplied body nor its digest can complete work, storage or target-stack proof.
 pub(super) fn classify_source_body(
-    _syntax: &syn::File,
-    _primitives: &[PrimitiveSource],
-    _services: &[ServiceBinding],
+    syntax: &syn::File,
+    primitives: &[PrimitiveSource],
+    services: &[ServiceBinding],
 ) -> Result<BodyOperations, Refusal> {
-    Err(Refusal::ClassifierNotImplemented)
+    let index = resolve::Index::collect(syntax)?;
+    let recipe = lower::recognize(&index, primitives, services)?;
+    recipe.project()
 }
 
 #[cfg(test)]
@@ -231,6 +264,112 @@ mod tests {
     fn unclassified_call_refuses_completion() {
         let original = body();
         assert!(classify_source_body(&original, &[], &[]).is_ok());
+        let mut attributed = original.clone();
+        root(&mut attributed)
+            .attrs
+            .push(syn::parse_quote!(#[opaque_source_transform]));
+        assert_eq!(
+            classify_source_body(&attributed, &[], &[]),
+            Err(Refusal::UnsupportedSource)
+        );
+        let coupled: syn::File = syn::parse_quote! {
+            struct Captured;
+            #[doc(hidden)]
+            #[allow(non_snake_case, dead_code, unused_imports, unused_variables, unreachable_code, clippy::all)]
+            mod __captured_impl {
+                pub(super) struct __SearchCache {}
+                pub(super) fn initialize_regexes() -> bool { true }
+                pub(super) fn new_search_cache() -> Option<__SearchCache> {
+                    if !initialize_regexes() { return None; }
+                    Some(__SearchCache {})
+                }
+                #[inline]
+                pub(super) fn entry_is_valid(instance: &serde_json::Value, __cache: &mut __SearchCache) -> bool {
+                    match instance { serde_json::Value::String(_) => true, _ => false }
+                }
+            }
+            impl Captured {
+                #[doc = " Initializes every generated pattern regex, including after a"]
+                #[doc = " failed constructor. Returns false if any cached construction"]
+                #[doc = " failed. Repeated calls do not reconstruct or retry regexes."]
+                #[doc = " This does not initialize custom formats or bound search caches."]
+                pub fn initialize_regexes() -> bool { __captured_impl::initialize_regexes() }
+                fn new_search_cache() -> Option<CapturedSearchCache> {
+                    __captured_impl::new_search_cache().map(|__inner| CapturedSearchCache { __inner })
+                }
+                fn is_valid(instance: &serde_json::Value, __cache: &mut CapturedSearchCache) -> bool {
+                    __captured_impl::entry_is_valid(instance, &mut __cache.__inner)
+                }
+            }
+            struct CapturedSearchCache { __inner: __captured_impl::__SearchCache }
+        };
+        assert!(classify_source_body(&coupled, &[], &[]).is_ok());
+        let mut changed_documentation = coupled.clone();
+        let syn::Item::Impl(marker) = &mut changed_documentation.items[2] else {
+            panic!("coupled marker impl must be present");
+        };
+        let syn::ImplItem::Fn(initializer) = &mut marker.items[0] else {
+            panic!("coupled initialization wrapper must be present");
+        };
+        initializer.attrs[0] = syn::parse_quote!(#[doc = "different documentation"]);
+        assert_eq!(
+            classify_source_body(&changed_documentation, &[], &[]),
+            Err(Refusal::UnsupportedSource)
+        );
+        let mut changed_signature = coupled.clone();
+        let syn::Item::Impl(marker) = &mut changed_signature.items[2] else {
+            panic!("coupled marker impl must be present");
+        };
+        let syn::ImplItem::Fn(initializer) = &mut marker.items[0] else {
+            panic!("coupled initialization wrapper must be present");
+        };
+        initializer
+            .sig
+            .inputs
+            .push(syn::parse_quote!(unexpected: bool));
+        assert_eq!(
+            classify_source_body(&changed_signature, &[], &[]),
+            Err(Refusal::UnsupportedSource)
+        );
+        let mut helper_attribute = coupled.clone();
+        let syn::Item::Mod(module) = &mut helper_attribute.items[1] else {
+            panic!("coupled module must be present");
+        };
+        let (_, items) = module.content.as_mut().unwrap();
+        let syn::Item::Fn(helper) = &mut items[3] else {
+            panic!("coupled entry helper must be present");
+        };
+        helper
+            .attrs
+            .push(syn::parse_quote!(#[cfg_attr(all(), inline)]));
+        assert_eq!(
+            classify_source_body(&helper_attribute, &[], &[]),
+            Err(Refusal::UnsupportedSource)
+        );
+        let mut field_attribute = coupled.clone();
+        let syn::Item::Struct(cache) = &mut field_attribute.items[3] else {
+            panic!("coupled wrapper cache must be present");
+        };
+        cache
+            .fields
+            .iter_mut()
+            .next()
+            .unwrap()
+            .attrs
+            .push(syn::parse_quote!(#[opaque_source_transform]));
+        assert_eq!(
+            classify_source_body(&field_attribute, &[], &[]),
+            Err(Refusal::UnsupportedSource)
+        );
+        let mut altered_allow = coupled;
+        let syn::Item::Mod(module) = &mut altered_allow.items[1] else {
+            panic!("coupled module must be present");
+        };
+        module.attrs[1] = syn::parse_quote!(#[allow(dead_code)]);
+        assert_eq!(
+            classify_source_body(&altered_allow, &[], &[]),
+            Err(Refusal::UnsupportedSource)
+        );
         let mut changed = original.clone();
         root(&mut changed).block = Box::new(syn::parse_quote!({ unknown(instance) }));
         assert_eq!(
@@ -260,6 +399,45 @@ mod tests {
                 .as_ref()
                 .map(|operations| operations.traversals.get("is_valid::arr")),
             Ok(Some(&TraversalMeasure::ValuesAndKeys))
+        );
+        let selected = selected.unwrap();
+        let mut iteration_sites = 0;
+        for function in selected.recipe().functions.values() {
+            super::model::walk(&function.body, &mut |op| {
+                if let super::model::Kind::Iterate {
+                    callee,
+                    stop,
+                    none_on_exhaustion,
+                    bound,
+                    parameters,
+                    ..
+                } = &op.kind
+                {
+                    iteration_sites += 1;
+                    assert_eq!(callee, "Iterator::all");
+                    assert_eq!(*stop, super::model::StopRule::FirstFalseOrExhaustion);
+                    assert!(*none_on_exhaustion);
+                    assert_eq!(bound.collection.ty, super::model::Ty::Array);
+                    assert!(bound.collection.borrowed);
+                    assert_eq!(bound.element, super::model::Ty::Value);
+                    assert_eq!(parameters.len(), 1);
+                    assert!(parameters[0].borrowed);
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        assert_eq!(iteration_sites, 1);
+        let shadowed: syn::File = syn::parse_quote! {
+            fn is_valid(instance: &serde_json::Value) -> bool {
+                let is_branch_valid_0 = false;
+                is_branch_valid_0(instance)
+            }
+            fn is_branch_valid_0(instance: &serde_json::Value) -> bool { true }
+        };
+        assert_eq!(
+            classify_source_body(&shadowed, &[], &[]),
+            Err(Refusal::UnknownCallback)
         );
         let unbounded: syn::File = syn::parse_quote! {
             fn is_valid(instance: &serde_json::Value) -> bool {
@@ -301,6 +479,7 @@ mod tests {
         );
         let after = after.unwrap();
         assert_ne!(before.calls, after.calls);
+        assert_ne!(before.recipe(), after.recipe());
     }
 
     #[test]
@@ -326,6 +505,82 @@ mod tests {
         assert_eq!(ledger.relocated_bytes, Some(0));
         assert_eq!(ledger.cleanup_visits, Some(0));
         assert_eq!(ledger.search_transitions, Some(0));
+        let nested_bool: syn::File = syn::parse_quote! {
+            fn is_valid(instance: &serde_json::Value) -> bool {
+                match instance {
+                    serde_json::Value::Bool(true) => true,
+                    _ => false,
+                }
+            }
+        };
+        let nested_some: syn::File = syn::parse_quote! {
+            fn is_valid(instance: &Option<serde_json::Value>) -> bool {
+                match instance {
+                    Some(serde_json::Value::Bool(true)) => true,
+                    _ => false,
+                }
+            }
+        };
+        for nested in [nested_bool, nested_some] {
+            let nested = classify_source_body(&nested, &[], &[]);
+            assert_eq!(
+                nested
+                    .as_ref()
+                    .map(|operations| operations.ledger.scalar_comparisons),
+                Ok(None)
+            );
+            assert_eq!(
+                nested
+                    .as_ref()
+                    .map(|operations| operations.ledger.source_visits),
+                Ok(None)
+            );
+        }
+        let owned: syn::File = syn::parse_quote! {
+            fn is_valid(value: String) -> bool { true }
+        };
+        let owned = classify_source_body(&owned, &[], &[]);
+        assert!(
+            owned.is_ok(),
+            "owned parameter must retain cleanup obligation"
+        );
+        let owned = owned.unwrap();
+        assert!(owned.required_lemmas.contains(&Primitive::Cleanup));
+        assert_eq!(owned.ledger.cleanup_visits, None);
+        assert_eq!(owned.recipe().roots.len(), 1);
+        let guarded: syn::File = syn::parse_quote! {
+            fn is_valid(instance: &serde_json::Value) -> bool {
+                match instance {
+                    serde_json::Value::String(_) if false => true,
+                    serde_json::Value::String(_) if true => false,
+                    _ => true,
+                }
+            }
+        };
+        let guarded = classify_source_body(&guarded, &[], &[]);
+        assert!(
+            guarded.is_ok(),
+            "guard prefix must be retained, not maxed away"
+        );
+        let guarded = guarded.unwrap();
+        assert_eq!(guarded.ledger.control_visits, None);
+        assert_eq!(guarded.ledger.scalar_comparisons, None);
+        let mut guards = 0;
+        let mut booleans = BTreeSet::new();
+        for function in guarded.recipe().functions.values() {
+            super::model::walk(&function.body, &mut |op| {
+                if let super::model::Kind::Choice { arms, .. } = &op.kind {
+                    guards += arms.iter().filter(|arm| arm.guard.is_some()).count();
+                }
+                if let super::model::Kind::Value(super::model::Atom::Bool(value)) = &op.kind {
+                    booleans.insert(*value);
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        assert_eq!(guards, 2);
+        assert_eq!(booleans, BTreeSet::from([false, true]));
     }
 
     #[test]

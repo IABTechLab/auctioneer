@@ -26,6 +26,26 @@ validation_required=(
   schema_validation::operations::tests::new_nested_literal_owner_requires_a_supported_proof
   schema_validation::operations::tests::cold_entropy_has_exact_identity_lifetime_and_nonfree_obligations
   schema_validation::tests::current_body_shapes_have_declared_operation_obligations
+  schema_validation::public_names::tests::every_public_name_has_exact_schema_disposition
+  schema_validation::work::tests::dimensions_vary_independently
+  schema_validation::work::tests::expiry_prefixes_bound_real_call_sites
+  schema_validation::work::tests::attempts_before_admission_are_charged
+  schema_validation::work::tests::branches_and_callbacks_have_source_derived_multiplicity
+  schema_validation::work::tests::late_failure_includes_cleanup
+  schema_validation::work::tests::overflow_refuses
+  schema_validation::work::epsilon::tests::pristine_body_matches_the_independent_recipe
+  schema_validation::work::epsilon::tests::capture_self_loop_has_literal_site_ceilings
+  schema_validation::work::epsilon::tests::duplicate_union_alternatives_have_a_conservative_ceiling
+  schema_validation::work::epsilon::tests::roots_vary_without_multiplying_epoch_dispatches
+  schema_validation::work::epsilon::tests::epochs_vary_independently_of_root_calls
+  schema_validation::work::epsilon::tests::nfa_states_vary_independently_of_branches
+  schema_validation::work::epsilon::tests::branches_vary_independently_of_nfa_states
+  schema_validation::work::epsilon::tests::empty_local_execution_does_not_discharge_primitive_lemmas
+  schema_validation::work::epsilon::tests::reverse_tail_counts_the_final_none
+  schema_validation::work::epsilon::tests::changed_known_source_is_not_approved_by_its_identity
+  schema_validation::work::epsilon::tests::unknown_source_call_is_refused_not_assigned_zero_work
+  schema_validation::work::epsilon::tests::malformed_epoch_hypotheses_are_refused
+  schema_validation::work::epsilon::tests::overflow_is_refused_for_each_independent_formula_axis
   schema_validation::storage::tests::fallback_is_covered_once
   schema_validation::storage::tests::heap_terms_and_inline_wrapper_vary_independently
   schema_validation::storage::tests::hostname_overlaps_the_live_wrapper
