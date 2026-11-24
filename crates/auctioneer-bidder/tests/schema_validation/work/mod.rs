@@ -11,12 +11,12 @@
 //! Missing parameters invoke native zero times but still visit retain/error/drop
 //! paths. P includes those outer paths and every reached preflight, before debit.
 //! V includes fresh cache construction, validation and release. Clock and seed
-//! bodies remain separate N_clock*H and N_seed*E requirements; no warm TLS premise.
+//! bodies remain separate `N_clock*H` and `N_seed*E` requirements; no warm TLS premise.
 //! Seed multiplicity requires the matched construction closure, not search count.
-//! No result here is CommonSourceComplete, a numeric work cost or qualification.
+//! No result here is `CommonSourceComplete`, a numeric work cost or qualification.
 //! P begins at the schema caller after successful core admission. Whole-request
 //! cleanup still needs the core prepare/services/operation, policy resolution,
-//! runtime preflight/bounded-JSON, OpenRTB type and scrub/split-resource proofs.
+//! runtime preflight/bounded-JSON, `OpenRTB` type and scrub/split-resource proofs.
 //! Contexts omitting those caller caps are not covered by an actual-use claim.
 //! Allocation success is a separate premise: fatal OOM diagnostics are excluded,
 //! never ordinary returned-error, partial-construction or unwind cleanup.
@@ -27,43 +27,45 @@ mod epsilon;
 use super::operations::{self, Primitive, model::Recipe};
 use auctioneer_bidder::schema::{
     SchemaEvaluationError, SchemaInputError, SchemaInputLimits, SchemaInputStats,
+    measure_schema_input,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::str::from_utf8;
 
-const NATIVE: &[u8] = include_bytes!("../../src/schema/native.rs");
-const BUDGET: &[u8] = include_bytes!("../../src/schema/mod.rs");
-const INPUT: &[u8] = include_bytes!("../../src/schema/input.rs");
-const JSON_SIZE: &[u8] = include_bytes!("../../../auctioneer-runtime/src/json_size.rs");
-const EXCHANGE_SCHEMA: &[u8] = include_bytes!("../../../auctioneer-exchange/src/run/schema.rs");
-const EXCHANGE_RUN: &[u8] = include_bytes!("../../../auctioneer-exchange/src/run/mod.rs");
-const EXCHANGE_SPLIT: &[u8] = include_bytes!("../../../auctioneer-exchange/src/split/mod.rs");
-const EXCHANGE_LIMITS: &[u8] = include_bytes!("../../../auctioneer-exchange/src/limits.rs");
+const NATIVE: &[u8] = include_bytes!("../../../src/schema/native.rs");
+const BUDGET: &[u8] = include_bytes!("../../../src/schema/mod.rs");
+const INPUT: &[u8] = include_bytes!("../../../src/schema/input.rs");
+const JSON_SIZE: &[u8] = include_bytes!("../../../../auctioneer-runtime/src/json_size.rs");
+const EXCHANGE_SCHEMA: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/run/schema.rs");
+const EXCHANGE_RUN: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/run/mod.rs");
+const EXCHANGE_SPLIT: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/split/mod.rs");
+const EXCHANGE_LIMITS: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/limits.rs");
 const DISPATCH_GENERATOR: &[u8] =
-    include_bytes!("../../../auctioneer-config/src/schema_staging_build.rs");
-const FORMATS: &[u8] = include_bytes!("../../src/schema/staging.rs");
+    include_bytes!("../../../../auctioneer-config/src/schema_staging_build.rs");
+const FORMATS: &[u8] = include_bytes!("../../../src/schema/staging.rs");
 
 // Borrow existing parent provenance; none of these values creates authority.
 #[derive(Debug)]
 pub(super) struct ContextBinding<'a> {
-    pub(super) descriptor_binding: &'a Value,
-    pub(super) context_binding: &'a Value,
-    pub(super) context_roots: &'a Value,
-    pub(super) compiled_sources: &'a Value,
+    descriptor_binding: &'a Value,
+    capture_binding: &'a Value,
+    context_roots: &'a Value,
+    compiled_sources: &'a Value,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct ContextSources<'a> {
-    pub(super) native: &'a [u8],
-    pub(super) budget: &'a [u8],
-    pub(super) input: &'a [u8],
-    pub(super) json_size: &'a [u8],
-    pub(super) exchange_schema: &'a [u8],
-    pub(super) exchange_run: &'a [u8],
-    pub(super) exchange_split: &'a [u8],
-    pub(super) exchange_limits: &'a [u8],
-    pub(super) dispatch_generator: &'a [u8],
-    pub(super) formats: &'a [u8],
+    native: &'a [u8],
+    budget: &'a [u8],
+    input: &'a [u8],
+    json_size: &'a [u8],
+    exchange_schema: &'a [u8],
+    exchange_run: &'a [u8],
+    exchange_split: &'a [u8],
+    exchange_limits: &'a [u8],
+    dispatch_generator: &'a [u8],
+    formats: &'a [u8],
 }
 
 #[derive(Debug)]
@@ -196,8 +198,7 @@ fn input_counts(
     if limits != context.native_input_limits {
         return Err(Refusal::UnsupportedContext);
     }
-    let stats = auctioneer_bidder::schema::measure_schema_input(value, limits)
-        .map_err(Refusal::InputRejected)?;
+    let stats = measure_schema_input(value, limits).map_err(Refusal::InputRejected)?;
     let mut counts = InputCounts {
         stats,
         value_visits: 0,
@@ -209,9 +210,9 @@ fn input_counts(
     // Project the checked input recipe's events, not a second byte-admission
     // implementation. The production owner above supplies exact B/J/D.
     let mut pending = vec![value];
-    while let Some(value) = pending.pop() {
+    while let Some(current) = pending.pop() {
         checked_add(&mut counts.value_visits, 1)?;
-        match value {
+        match current {
             Value::Array(items) => {
                 checked_add(&mut counts.container_entries, 1)?;
                 pending.extend(items);
@@ -275,11 +276,21 @@ fn prefix_counts(
         Some(NativePath::InputRejected(SchemaInputError::InvalidDepthLimit)) => {
             return Err(Refusal::UnsupportedNativePath);
         }
-        Some(NativePath::InputRejected(_)) => (true, false, false, false, true),
+        Some(NativePath::InputRejected(
+            SchemaInputError::Bytes
+            | SchemaInputError::Nodes
+            | SchemaInputError::Depth
+            | SchemaInputError::Representation,
+        )) => (true, false, false, false, true),
         Some(NativePath::BudgetRejected(
             SchemaEvaluationError::Deadline | SchemaEvaluationError::AggregateWork,
         )) => (true, true, false, false, true),
-        Some(NativePath::BudgetRejected(_)) => return Err(Refusal::UnsupportedNativePath),
+        Some(NativePath::BudgetRejected(
+            SchemaEvaluationError::CostOverflow
+            | SchemaEvaluationError::ZeroWork
+            | SchemaEvaluationError::SingleWork
+            | SchemaEvaluationError::Scratch,
+        )) => return Err(Refusal::UnsupportedNativePath),
         Some(NativePath::Returned { valid }) => (true, true, true, true, !valid),
         Some(NativePath::ValidatorPanicked) => {
             match facts.panic_unwinds {
@@ -434,6 +445,109 @@ fn count_sequence(
     Ok(total)
 }
 
+fn count_choice(
+    recipe: &Recipe,
+    selector: &operations::model::Op,
+    arms: &[operations::model::Arm],
+    nodes: u64,
+    visits: u64,
+    active: &mut BTreeSet<usize>,
+) -> Result<RecipeCounts, Refusal> {
+    let mut total = count_operation(recipe, selector, nodes, visits, active)?;
+    let mut alternatives = empty_recipe_counts();
+    // A failed guard can precede a later selected body. Guards sum;
+    // only bodies of the same source match/if are exclusive.
+    for arm in arms {
+        if let Some(guard) = &arm.guard {
+            // Nested or-pattern alternatives can retest a failed guard.
+            // A once-per-arm count is not a bound for that protocol.
+            if pattern_has_alternatives(&arm.pattern) {
+                return Err(Refusal::UnsupportedContext);
+            }
+            add_recipe_counts(
+                &mut total,
+                count_operation(recipe, guard, nodes, visits, active)?,
+            )?;
+        }
+        maximum_recipe_counts(
+            &mut alternatives,
+            count_operation(recipe, &arm.body, nodes, visits, active)?,
+        );
+    }
+    add_recipe_counts(&mut total, alternatives)?;
+    Ok(total)
+}
+
+fn count_called(
+    recipe: &Recipe,
+    target: usize,
+    evaluation: &[operations::model::Op],
+    nodes: u64,
+    visits: u64,
+    active: &mut BTreeSet<usize>,
+) -> Result<RecipeCounts, Refusal> {
+    let mut total = count_sequence(recipe, evaluation, nodes, visits, active)?;
+    let function = recipe
+        .functions
+        .get(&target)
+        .ok_or(Refusal::UnsupportedContext)?;
+    if !active.insert(target) {
+        return Err(Refusal::UnsupportedContext);
+    }
+    checked_add(
+        total.helpers.entry(function.identity.clone()).or_default(),
+        visits,
+    )?;
+    let called = count_operation(recipe, &function.body, nodes, visits, active)?;
+    active.remove(&target);
+    add_recipe_counts(&mut total, called)?;
+    Ok(total)
+}
+
+fn count_iteration(
+    recipe: &Recipe,
+    bound: &operations::model::IterationBound,
+    body: &operations::model::Op,
+    evaluation: &operations::model::Op,
+    nodes: u64,
+    visits: u64,
+    active: &mut BTreeSet<usize>,
+) -> Result<RecipeCounts, Refusal> {
+    use operations::model::Ty;
+
+    let mut total = count_operation(recipe, evaluation, nodes, visits, active)?;
+    let remaining = nodes.checked_sub(1).ok_or(Refusal::UnsupportedContext)?;
+    let members = match &bound.collection.ty {
+        Ty::Array => remaining,
+        Ty::Map => remaining.checked_div(2).ok_or(Refusal::Overflow)?,
+        Ty::Value
+        | Ty::String
+        | Ty::Number
+        | Ty::Bool
+        | Ty::Scalar
+        | Ty::Regex
+        | Ty::Input
+        | Ty::Cache(_)
+        | Ty::LazyRegex(_)
+        | Ty::Option(_)
+        | Ty::Iterator(_)
+        | Ty::Tuple(_)
+        | Ty::Callback(_)
+        | Ty::Named(_)
+        | Ty::Unit => return Err(Refusal::UnsupportedContext),
+    };
+    let callbacks = visits.checked_mul(members).ok_or(Refusal::Overflow)?;
+    checked_add(&mut total.iterator_callbacks, callbacks)?;
+    // This deliberately retains a global subtree ceiling per nested
+    // pass. No disjoint-child optimization is inferred from an origin
+    // label; a stronger aggregate formula needs its own source proof.
+    add_recipe_counts(
+        &mut total,
+        count_operation(recipe, body, nodes, callbacks, active)?,
+    )?;
+    Ok(total)
+}
+
 fn count_operation(
     recipe: &Recipe,
     op: &operations::model::Op,
@@ -441,7 +555,7 @@ fn count_operation(
     visits: u64,
     active: &mut BTreeSet<usize>,
 ) -> Result<RecipeCounts, Refusal> {
-    use operations::model::{Kind, Ty};
+    use operations::model::Kind;
     let mut total = empty_recipe_counts();
     match &op.kind {
         Kind::Value(_) => {}
@@ -455,47 +569,12 @@ fn count_operation(
         }
         Kind::Bind { value, .. } => total = count_operation(recipe, value, nodes, visits, active)?,
         Kind::Choice { selector, arms } => {
-            total = count_operation(recipe, selector, nodes, visits, active)?;
-            let mut alternatives = empty_recipe_counts();
-            // A failed guard can precede a later selected body. Guards sum;
-            // only bodies of the same source match/if are exclusive.
-            for arm in arms {
-                if let Some(guard) = &arm.guard {
-                    // Nested or-pattern alternatives can retest a failed guard.
-                    // A once-per-arm count is not a bound for that protocol.
-                    if pattern_has_alternatives(&arm.pattern) {
-                        return Err(Refusal::UnsupportedContext);
-                    }
-                    add_recipe_counts(
-                        &mut total,
-                        count_operation(recipe, guard, nodes, visits, active)?,
-                    )?;
-                }
-                maximum_recipe_counts(
-                    &mut alternatives,
-                    count_operation(recipe, &arm.body, nodes, visits, active)?,
-                );
-            }
-            add_recipe_counts(&mut total, alternatives)?;
+            total = count_choice(recipe, selector, arms, nodes, visits, active)?;
         }
         Kind::Call {
             target, evaluation, ..
         } => {
-            total = count_sequence(recipe, evaluation, nodes, visits, active)?;
-            let function = recipe
-                .functions
-                .get(target)
-                .ok_or(Refusal::UnsupportedContext)?;
-            if !active.insert(*target) {
-                return Err(Refusal::UnsupportedContext);
-            }
-            checked_add(
-                total.helpers.entry(function.identity.clone()).or_default(),
-                visits,
-            )?;
-            let called = count_operation(recipe, &function.body, nodes, visits, active)?;
-            active.remove(target);
-            add_recipe_counts(&mut total, called)?;
+            total = count_called(recipe, *target, evaluation, nodes, visits, active)?;
         }
         Kind::Primitive {
             lemma,
@@ -511,7 +590,18 @@ fn count_operation(
             match lemma {
                 Primitive::RegexSearch => checked_add(&mut total.searches, visits)?,
                 Primitive::CacheConstruction => checked_add(&mut total.fresh_cache_calls, visits)?,
-                _ => {}
+                Primitive::UuidFormat
+                | Primitive::StateMapConstruction
+                | Primitive::ValueAccess
+                | Primitive::StringAccess
+                | Primitive::MapAccess
+                | Primitive::IteratorProtocol
+                | Primitive::Numeric
+                | Primitive::Readiness
+                | Primitive::HostnameFormat
+                | Primitive::Equality
+                | Primitive::Uniqueness
+                | Primitive::Cleanup => {}
             }
         }
         Kind::Service(_) => return Err(Refusal::UnsupportedContext),
@@ -521,22 +611,7 @@ fn count_operation(
             evaluation,
             ..
         } => {
-            total = count_operation(recipe, evaluation, nodes, visits, active)?;
-            let remaining = nodes.checked_sub(1).ok_or(Refusal::UnsupportedContext)?;
-            let members = match &bound.collection.ty {
-                Ty::Array => remaining,
-                Ty::Map => remaining / 2,
-                _ => return Err(Refusal::UnsupportedContext),
-            };
-            let callbacks = visits.checked_mul(members).ok_or(Refusal::Overflow)?;
-            checked_add(&mut total.iterator_callbacks, callbacks)?;
-            // This deliberately retains a global subtree ceiling per nested
-            // pass. No disjoint-child optimization is inferred from an origin
-            // label; a stronger aggregate formula needs its own source proof.
-            add_recipe_counts(
-                &mut total,
-                count_operation(recipe, body, nodes, callbacks, active)?,
-            )?;
+            total = count_iteration(recipe, bound, body, evaluation, nodes, visits, active)?;
         }
         Kind::Callback {
             body, evaluation, ..
@@ -556,8 +631,8 @@ fn count_operation(
             }
         }
         Kind::Exit(_, value) => {
-            if let Some(value) = value {
-                total = count_operation(recipe, value, nodes, visits, active)?;
+            if let Some(exit_value) = value {
+                total = count_operation(recipe, exit_value, nodes, visits, active)?;
             }
         }
     }
@@ -635,7 +710,16 @@ fn source_duties(recipe: &Recipe) -> Result<BTreeSet<Primitive>, Refusal> {
                 {
                     duties.insert(Primitive::Cleanup);
                 }
-                _ => {}
+                Kind::Value(_)
+                | Kind::Scope { .. }
+                | Kind::Bind { .. }
+                | Kind::Evaluate(_, _)
+                | Kind::ScalarTest(_, _)
+                | Kind::Choice { .. }
+                | Kind::ShortCircuit(_, _)
+                | Kind::Service(_)
+                | Kind::Construct { cleanup: None, .. }
+                | Kind::Exit(_, _) => {}
             }
             Ok(())
         })
@@ -647,10 +731,10 @@ fn source_duties(recipe: &Recipe) -> Result<BTreeSet<Primitive>, Refusal> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auctioneer_bidder::schema::measure_schema_input;
     use quote::ToTokens as _;
     use serde_json::json;
     use std::collections::BTreeSet;
+    use std::fmt::Debug;
     use syn::visit_mut::{self, VisitMut};
 
     fn sources() -> ContextSources<'static> {
@@ -668,7 +752,7 @@ mod tests {
         }
     }
 
-    fn successful<T: std::fmt::Debug>(result: Result<T, Refusal>) -> T {
+    fn successful<T: Debug>(result: Result<T, Refusal>) -> T {
         assert_eq!(result.as_ref().map(|_| ()), Ok(()));
         result.unwrap()
     }
@@ -714,14 +798,14 @@ mod tests {
             checked.binding.descriptor_binding,
             binding.descriptor_binding
         );
-        assert_eq!(checked.binding.context_binding, binding.context_binding);
+        assert_eq!(checked.binding.capture_binding, binding.capture_binding);
         assert_eq!(checked.binding.context_roots, binding.context_roots);
         assert_eq!(checked.binding.compiled_sources, binding.compiled_sources);
         assert_eq!(checked.sources, sources);
         assert_eq!(
             checked.native_input_limits,
             SchemaInputLimits {
-                serialized_bytes: 65_536,
+                serialized_bytes: 0x0001_0000,
                 nodes: 4_096,
                 depth: 32,
             }
@@ -805,7 +889,16 @@ mod tests {
                     Kind::Iterate { protocol, .. } | Kind::Callback { protocol, .. } => {
                         duties.insert(*protocol);
                     }
-                    _ => {}
+                    Kind::Value(_)
+                    | Kind::Scope { .. }
+                    | Kind::Bind { .. }
+                    | Kind::Evaluate(_, _)
+                    | Kind::ScalarTest(_, _)
+                    | Kind::Choice { .. }
+                    | Kind::ShortCircuit(_, _)
+                    | Kind::Service(_)
+                    | Kind::Construct { cleanup: None, .. }
+                    | Kind::Exit(_, _) => {}
                 }
                 Ok(())
             })
@@ -840,24 +933,24 @@ mod tests {
             hits: usize,
         }
         impl VisitMut for Edit<'_> {
-            fn visit_item_fn_mut(&mut self, item: &mut syn::ItemFn) {
-                if item.sig.ident == self.name {
-                    (self.change)(&mut item.block);
-                    self.hits += 1;
+            fn visit_item_fn_mut(&mut self, i: &mut syn::ItemFn) {
+                if i.sig.ident == self.name {
+                    (self.change)(&mut i.block);
+                    self.hits = self.hits.checked_add(1).expect("bounded caller root count");
                 } else {
-                    visit_mut::visit_item_fn_mut(self, item);
+                    visit_mut::visit_item_fn_mut(self, i);
                 }
             }
-            fn visit_impl_item_fn_mut(&mut self, item: &mut syn::ImplItemFn) {
-                if item.sig.ident == self.name {
-                    (self.change)(&mut item.block);
-                    self.hits += 1;
+            fn visit_impl_item_fn_mut(&mut self, i: &mut syn::ImplItemFn) {
+                if i.sig.ident == self.name {
+                    (self.change)(&mut i.block);
+                    self.hits = self.hits.checked_add(1).expect("bounded caller root count");
                 } else {
-                    visit_mut::visit_impl_item_fn_mut(self, item);
+                    visit_mut::visit_impl_item_fn_mut(self, i);
                 }
             }
         }
-        let mut syntax = syn::parse_file(std::str::from_utf8(source).unwrap()).unwrap();
+        let mut syntax = syn::parse_file(from_utf8(source).unwrap()).unwrap();
         let mut edit = Edit {
             name,
             change,
@@ -875,7 +968,7 @@ mod tests {
         let census = json!({"fixture":"existing_compiled_source_provenance"});
         let binding = ContextBinding {
             descriptor_binding: &descriptor,
-            context_binding: &descriptor,
+            capture_binding: &descriptor,
             context_roots: &roots,
             compiled_sources: &census,
         };
@@ -885,9 +978,9 @@ mod tests {
         for (value, bytes, nodes, depth, values, keys, containers, serializations) in [
             (json!("a"), 3, 1, 0, 1, 0, 0, 1),
             (json!("abcd"), 6, 1, 0, 1, 0, 0, 1),
-            (json!([1, 2]), 5, 3, 1, 3, 0, 1, 2),
-            (json!([123]), 5, 2, 1, 2, 0, 1, 1),
-            (json!([[0]]), 5, 3, 2, 3, 0, 2, 1),
+            (json!([1_i32, 2_i32]), 5, 3, 1, 3, 0, 1, 2),
+            (json!([123_i32]), 5, 2, 1, 2, 0, 1, 1),
+            (json!([[0_i32]]), 5, 3, 2, 3, 0, 2, 1),
             (json!([]), 2, 1, 1, 1, 0, 1, 0),
             (json!({}), 2, 1, 1, 1, 0, 1, 0),
             (json!(false), 5, 1, 0, 1, 0, 0, 1),
@@ -934,18 +1027,18 @@ mod tests {
             bind_attempt_context(&binding, &changed_sources).map(|_| ()),
             Err(Refusal::SourceShape(SourceRole::Input))
         );
-        let changed = edited(JSON_SIZE, "serialized_json_bytes", &mut |body| {
+        let json_changed = edited(JSON_SIZE, "serialized_json_bytes", &mut |body| {
             *body = syn::parse_quote!({
                 let bytes = serde_json::to_vec(value)?;
                 Ok(u64::try_from(bytes.len()).unwrap())
             });
         });
-        let changed_sources = ContextSources {
-            json_size: &changed,
+        let json_sources = ContextSources {
+            json_size: &json_changed,
             ..sources
         };
         assert_eq!(
-            bind_attempt_context(&binding, &changed_sources).map(|_| ()),
+            bind_attempt_context(&binding, &json_sources).map(|_| ()),
             Err(Refusal::SourceShape(SourceRole::JsonSize))
         );
     }
@@ -957,7 +1050,7 @@ mod tests {
         let census = json!({"fixture":"existing_compiled_source_provenance"});
         let binding = ContextBinding {
             descriptor_binding: &descriptor,
-            context_binding: &descriptor,
+            capture_binding: &descriptor,
             context_roots: &roots,
             compiled_sources: &census,
         };
@@ -1004,7 +1097,7 @@ mod tests {
             [1, 1, 1, 0, 2, 1, 1, 0, 0],
         );
         let changed = edited(NATIVE, "validate_native_parameters", &mut |body| {
-            body.stmts.swap(0, 1)
+            body.stmts.swap(0, 1);
         });
         let changed_sources = ContextSources {
             native: &changed,
@@ -1014,7 +1107,7 @@ mod tests {
             bind_attempt_context(&binding, &changed_sources).map(|_| ()),
             Err(Refusal::SourceShape(SourceRole::Native))
         );
-        let changed = edited(BUDGET, "evaluate", &mut |body| {
+        let budget_changed = edited(BUDGET, "evaluate", &mut |body| {
             let tail = body.stmts.pop().unwrap();
             let debit = body.stmts.pop().unwrap();
             assert!(matches!(
@@ -1028,13 +1121,83 @@ mod tests {
             body.stmts
                 .push(syn::Stmt::Expr(syn::parse_quote!(result), None));
         });
-        let changed_sources = ContextSources {
-            budget: &changed,
+        let budget_sources = ContextSources {
+            budget: &budget_changed,
             ..sources
         };
         assert_eq!(
-            bind_attempt_context(&binding, &changed_sources).map(|_| ()),
+            bind_attempt_context(&binding, &budget_sources).map(|_| ()),
             Err(Refusal::SourceShape(SourceRole::Budget))
+        );
+    }
+
+    fn assert_preflight_refusals(context: &AttemptContext<'_>) {
+        for reason in [
+            SchemaInputError::Bytes,
+            SchemaInputError::Nodes,
+            SchemaInputError::Depth,
+            SchemaInputError::Representation,
+        ] {
+            let attempts = Population {
+                native_attempts: 3,
+                retain_visits: 3,
+                ..population(NativePath::InputRejected(reason))
+            };
+            let counts = successful(prefix_counts(context, facts(), attempts));
+            assert_eq!(
+                (
+                    counts.native_entries,
+                    counts.preflight_entries,
+                    counts.native_clock_calls
+                ),
+                (3, 3, 3)
+            );
+            assert_eq!(
+                (
+                    counts.budget_entries,
+                    counts.debit_events,
+                    counts.fresh_cache_calls
+                ),
+                (0, 0, 0)
+            );
+        }
+    }
+
+    fn assert_caller_source_binding(binding: &ContextBinding<'_>, sources: ContextSources<'_>) {
+        let changed = edited(EXCHANGE_SCHEMA, "retain_valid", &mut |body| {
+            *body = syn::parse_quote!({
+                request.imp.retain(|imp| {
+                    let value = imp
+                        .ext
+                        .as_ref()
+                        .and_then(|ext| ext.bidder.as_ref())
+                        .unwrap_or(&Value::Null);
+                    match validate(value) {
+                        Ok(()) => true,
+                        Err(reason) => {
+                            errors.push(error(reason));
+                            false
+                        }
+                    }
+                });
+            });
+        });
+        let changed_sources = ContextSources {
+            exchange_schema: &changed,
+            ..sources
+        };
+        assert_eq!(
+            bind_attempt_context(binding, &changed_sources).map(|_| ()),
+            Err(Refusal::SourceShape(SourceRole::ExchangeSchema))
+        );
+        let other = json!({"identity":"fixture_capture_b"});
+        let other_binding = ContextBinding {
+            descriptor_binding: &other,
+            ..*binding
+        };
+        assert_eq!(
+            bind_attempt_context(&other_binding, &sources).map(|_| ()),
+            Err(Refusal::BindingMismatch)
         );
     }
 
@@ -1045,7 +1208,7 @@ mod tests {
         let census = json!({"fixture":"existing_compiled_source_provenance"});
         let binding = ContextBinding {
             descriptor_binding: &descriptor,
-            context_binding: &descriptor,
+            capture_binding: &descriptor,
             context_roots: &roots,
             compiled_sources: &census,
         };
@@ -1088,35 +1251,7 @@ mod tests {
             (0, 0, 0, 0, 0, 0)
         );
         assert!(counts.unresolved.contains(&Primitive::Cleanup));
-        for reason in [
-            SchemaInputError::Bytes,
-            SchemaInputError::Nodes,
-            SchemaInputError::Depth,
-            SchemaInputError::Representation,
-        ] {
-            let attempts = Population {
-                native_attempts: 3,
-                retain_visits: 3,
-                ..population(NativePath::InputRejected(reason))
-            };
-            let counts = successful(prefix_counts(&context, facts(), attempts));
-            assert_eq!(
-                (
-                    counts.native_entries,
-                    counts.preflight_entries,
-                    counts.native_clock_calls
-                ),
-                (3, 3, 3)
-            );
-            assert_eq!(
-                (
-                    counts.budget_entries,
-                    counts.debit_events,
-                    counts.fresh_cache_calls
-                ),
-                (0, 0, 0)
-            );
-        }
+        assert_preflight_refusals(&context);
         // These generic API errors cannot arise from native's fixed, positive,
         // bounded projection. Do not manufacture additional native paths.
         for path in [
@@ -1135,128 +1270,56 @@ mod tests {
             prefix_counts(&context, missing, outer_only),
             Err(Refusal::MissingCallerFact(CallerFact::OriginalImpressions))
         );
-        let mut missing = facts();
-        assert_eq!(missing.configured_bidder_cap.take(), Some(2));
+        let mut missing_cap = facts();
+        assert_eq!(missing_cap.configured_bidder_cap.take(), Some(2));
         assert_eq!(
-            prefix_counts(&context, missing, outer_only),
+            prefix_counts(&context, missing_cap, outer_only),
             Err(Refusal::MissingCallerFact(CallerFact::BidderCap))
         );
-        let changed = edited(EXCHANGE_SCHEMA, "retain_valid", &mut |body| {
-            *body = syn::parse_quote!({
-                request.imp.retain(|imp| {
-                    let value = imp
-                        .ext
-                        .as_ref()
-                        .and_then(|ext| ext.bidder.as_ref())
-                        .unwrap_or(&Value::Null);
-                    match validate(value) {
-                        Ok(()) => true,
-                        Err(reason) => {
-                            errors.push(error(reason));
-                            false
-                        }
-                    }
-                });
-            });
-        });
-        let changed_sources = ContextSources {
-            exchange_schema: &changed,
-            ..sources
-        };
-        assert_eq!(
-            bind_attempt_context(&binding, &changed_sources).map(|_| ()),
-            Err(Refusal::SourceShape(SourceRole::ExchangeSchema))
-        );
-        let other = json!({"identity":"fixture_capture_b"});
-        let other_binding = ContextBinding {
-            descriptor_binding: &other,
-            ..binding
-        };
-        assert_eq!(
-            bind_attempt_context(&other_binding, &sources).map(|_| ()),
-            Err(Refusal::BindingMismatch)
-        );
+        assert_caller_source_binding(&binding, sources);
     }
 
-    #[test]
-    fn branches_and_callbacks_have_source_derived_multiplicity() {
-        let descriptor = json!({"identity":"fixture_capture_a"});
-        let roots = json!({"fixture":"caller_roots"});
-        let census = json!({"fixture":"existing_compiled_source_provenance"});
-        let binding = ContextBinding {
-            descriptor_binding: &descriptor,
-            context_binding: &descriptor,
-            context_roots: &roots,
-            compiled_sources: &census,
-        };
-        let sources = sources();
-        let context = context(&binding, &sources);
-        let syntax = callback_body();
-        let operations = classified(&syntax);
-        let dimensions = SchemaInputStats {
-            serialized_bytes: 7,
-            nodes: 4,
-            max_depth: 1,
-        };
-        assert_eq!(
-            measure_schema_input(&json!([1, 2, 3]), context.native_input_limits),
-            Ok(dimensions)
-        );
-        let counts = successful(recipe_counts(&context, operations.recipe(), dimensions, 1));
-        assert_eq!(counts.root_entries, 1);
-        assert_eq!(counts.helpers.get("is_branch_valid_0"), Some(&2));
-        assert_eq!(counts.helpers.get("is_branch_valid_1"), Some(&6));
-        assert_eq!(counts.iterator_callbacks, 6); // One callback site executes repeatedly.
-        assert_eq!(
-            (
-                counts.searches,
-                counts.fresh_cache_calls,
-                counts.cache_drop_entries
-            ),
-            (0, 0, 0)
-        );
-        assert_eq!(counts.seed_invocations, None); // Opaque primitive closure is not seed-free proof.
-        assert!(counts.unresolved.contains(&Primitive::IteratorProtocol));
-        {
-            use operations::model::{Arm, Atom, Kind, Pattern};
-            let recipe = operations.recipe();
-            let mut value = recipe.functions[&recipe.roots[0]].body.clone();
-            value.kind = Kind::Value(Atom::Place);
-            let alternatives = Pattern::Or(vec![Pattern::Wild, Pattern::Wild]);
-            for pattern in [
-                alternatives.clone(),
-                Pattern::Tuple(vec![alternatives.clone()]),
-                Pattern::Variant("fixture".to_owned(), vec![alternatives]),
-            ] {
-                let mut decision = value.clone();
-                decision.kind = Kind::Choice {
-                    selector: Box::new(value.clone()),
-                    arms: vec![Arm {
-                        pattern,
-                        guard: Some(value.clone()),
-                        body: value.clone(),
-                    }],
-                };
-                assert_eq!(
-                    count_operation(recipe, &decision, 4, 1, &mut BTreeSet::new()),
-                    Err(Refusal::UnsupportedContext)
-                );
-            }
+    fn assert_guarded_alternatives(recipe: &Recipe) {
+        use operations::model::{Arm, Atom, Kind, Pattern};
+        let mut value = recipe.functions[&recipe.roots[0]].body.clone();
+        value.kind = Kind::Value(Atom::Place);
+        let alternatives = Pattern::Or(vec![Pattern::Wild, Pattern::Wild]);
+        for pattern in [
+            alternatives.clone(),
+            Pattern::Tuple(vec![alternatives.clone()]),
+            Pattern::Variant("fixture".to_owned(), vec![alternatives]),
+        ] {
             let mut decision = value.clone();
             decision.kind = Kind::Choice {
                 selector: Box::new(value.clone()),
                 arms: vec![Arm {
-                    pattern: Pattern::Wild,
+                    pattern,
                     guard: Some(value.clone()),
-                    body: value,
+                    body: value.clone(),
                 }],
             };
             assert_eq!(
                 count_operation(recipe, &decision, 4, 1, &mut BTreeSet::new()),
-                Ok(empty_recipe_counts())
+                Err(Refusal::UnsupportedContext)
             );
         }
-        let search_syntax: syn::File = syn::parse_quote! {
+        let mut decision = value.clone();
+        decision.kind = Kind::Choice {
+            selector: Box::new(value.clone()),
+            arms: vec![Arm {
+                pattern: Pattern::Wild,
+                guard: Some(value.clone()),
+                body: value,
+            }],
+        };
+        assert_eq!(
+            count_operation(recipe, &decision, 4, 1, &mut BTreeSet::new()),
+            Ok(empty_recipe_counts())
+        );
+    }
+
+    fn search_body() -> syn::File {
+        syn::parse_quote! {
             struct Fixture;
             struct FixtureSearchCache {
                 __inner: __fixture_impl::__SearchCache,
@@ -1310,36 +1373,12 @@ mod tests {
                     })
                 }
             }
-        };
-        let search = classified(&search_syntax);
-        assert_eq!(
-            search
-                .recipe()
-                .roots
-                .iter()
-                .map(|id| search.recipe().functions[id].identity.as_str())
-                .collect::<Vec<_>>(),
-            vec!["Fixture::is_valid", "Fixture::new_search_cache"]
-        );
-        assert_eq!(
-            search
-                .recipe()
-                .initialization
-                .get("__fixture_impl::initialize_regexes"),
-            Some(&vec!["__fixture_impl::PATTERN_REGEX".to_owned()])
-        );
-        let counts = successful(recipe_counts(&context, search.recipe(), dimensions, 5));
-        // Five episodes enter both coupled roots: ten function-root entries.
-        // Constructor attempts remain a distinct count, not additional searches.
-        assert_eq!(counts.root_entries, 10);
-        assert_eq!(counts.fresh_cache_calls, 5);
-        assert_eq!(counts.searches, 10); // Not J=4, callbacks=6, or a flat site census of 2.
-        assert!(counts.unresolved.contains(&Primitive::RegexSearch));
-        assert!(counts.unresolved.contains(&Primitive::CacheConstruction));
-        assert!(counts.unresolved.contains(&Primitive::Cleanup));
-        assert_eq!(counts.seed_invocations, None);
+        }
+    }
+
+    fn three_searches(syntax: &syn::File) -> syn::File {
         let changed_bytes = edited(
-            search_syntax.to_token_stream().to_string().as_bytes(),
+            syntax.to_token_stream().to_string().as_bytes(),
             "entry_is_valid",
             &mut |body| {
                 let before: syn::Block = syn::parse_quote!({
@@ -1373,25 +1412,19 @@ mod tests {
                 });
             },
         );
-        let changed_syntax = syn::parse_file(std::str::from_utf8(&changed_bytes).unwrap()).unwrap();
-        let changed = classified(&changed_syntax);
-        assert_eq!(changed.recipe().roots, search.recipe().roots);
-        assert_eq!(
-            changed.recipe().initialization,
-            search.recipe().initialization
-        );
-        let counts = successful(recipe_counts(&context, changed.recipe(), dimensions, 5));
-        assert_eq!(counts.root_entries, 10);
-        assert_eq!(counts.fresh_cache_calls, 5);
-        assert_eq!(counts.searches, 15);
+        syn::parse_file(from_utf8(&changed_bytes).unwrap()).unwrap()
+    }
 
-        let mut two_caches = changed_syntax.clone();
+    fn additional_cache(syntax: &syn::File) -> syn::File {
+        let mut two_caches = syntax.clone();
         let module = two_caches
             .items
             .iter_mut()
-            .find_map(|item| match item {
-                syn::Item::Mod(module) if module.ident == "__fixture_impl" => Some(module),
-                _ => None,
+            .find_map(|item| {
+                let syn::Item::Mod(module) = item else {
+                    return None;
+                };
+                (module.ident == "__fixture_impl").then_some(module)
             })
             .unwrap();
         let (_, items) = module.content.as_mut().unwrap();
@@ -1402,52 +1435,159 @@ mod tests {
         let extra: syn::ItemStruct = syn::parse_quote! {
             struct ExtraCacheField { other_cache: regex_automata::meta::Cache }
         };
-        let mut changed_fields = 0;
-        let mut changed_initializers = 0;
-        let mut changed_constructors = 0;
+        let mut changed_fields = 0_usize;
+        let mut changed_initializers = 0_usize;
+        let mut changed_constructors = 0_usize;
         for item in items {
-            match item {
-                syn::Item::Struct(cache) if cache.ident == "__SearchCache" => {
+            if let syn::Item::Struct(cache) = item {
+                if cache.ident == "__SearchCache" {
                     let syn::Fields::Named(fields) = &mut cache.fields else {
                         panic!("the cache fixture has named fields");
                     };
                     assert_eq!(fields.named.len(), 1);
                     fields.named.extend(extra.fields.iter().cloned());
-                    changed_fields += 1;
+                    changed_fields = changed_fields
+                        .checked_add(1)
+                        .expect("bounded fixture edit count");
                 }
-                syn::Item::Fn(function) if function.sig.ident == "initialize_regexes" => {
-                    function.block = Box::new(syn::parse_quote!({
-                        PATTERN_REGEX.as_ref().is_some() && OTHER_REGEX.as_ref().is_some()
-                    }));
-                    changed_initializers += 1;
-                }
-                syn::Item::Fn(function) if function.sig.ident == "new_search_cache" => {
-                    function.block = Box::new(syn::parse_quote!({
-                        if !initialize_regexes() {
-                            return None;
-                        }
-                        Some(__SearchCache {
-                            pattern_cache: PATTERN_REGEX.as_ref()?.create_cache(),
-                            other_cache: OTHER_REGEX.as_ref()?.create_cache(),
-                        })
-                    }));
-                    changed_constructors += 1;
-                }
-                _ => {}
+                continue;
+            }
+            let syn::Item::Fn(function) = item else {
+                continue;
+            };
+            if function.sig.ident == "initialize_regexes" {
+                *function.block = syn::parse_quote!({
+                    PATTERN_REGEX.as_ref().is_some() && OTHER_REGEX.as_ref().is_some()
+                });
+                changed_initializers = changed_initializers
+                    .checked_add(1)
+                    .expect("bounded fixture edit count");
+                continue;
+            }
+            if function.sig.ident == "new_search_cache" {
+                *function.block = syn::parse_quote!({
+                    if !initialize_regexes() {
+                        return None;
+                    }
+                    Some(__SearchCache {
+                        pattern_cache: PATTERN_REGEX.as_ref()?.create_cache(),
+                        other_cache: OTHER_REGEX.as_ref()?.create_cache(),
+                    })
+                });
+                changed_constructors = changed_constructors
+                    .checked_add(1)
+                    .expect("bounded fixture edit count");
             }
         }
         assert_eq!(
             (changed_fields, changed_initializers, changed_constructors),
             (1, 1, 1)
         );
-        let two_caches = classified(&two_caches);
-        let counts = successful(recipe_counts(&context, two_caches.recipe(), dimensions, 5));
+        two_caches
+    }
+
+    fn assert_search_multiplicity(context: &AttemptContext<'_>, dimensions: SchemaInputStats) {
+        let search_syntax = search_body();
+        let search = classified(&search_syntax);
+        assert_eq!(
+            search
+                .recipe()
+                .roots
+                .iter()
+                .map(|id| search.recipe().functions[id].identity.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Fixture::is_valid", "Fixture::new_search_cache"]
+        );
+        assert_eq!(
+            search
+                .recipe()
+                .initialization
+                .get("__fixture_impl::initialize_regexes"),
+            Some(&vec!["__fixture_impl::PATTERN_REGEX".to_owned()])
+        );
+        let search_counts = successful(recipe_counts(context, search.recipe(), dimensions, 5));
+        // Five episodes enter both coupled roots: ten function-root entries.
+        // Constructor attempts remain a distinct count, not additional searches.
+        assert_eq!(search_counts.root_entries, 10);
+        assert_eq!(search_counts.fresh_cache_calls, 5);
+        assert_eq!(search_counts.searches, 10); // Not J=4, callbacks=6, or a flat site census of 2.
+        assert!(search_counts.unresolved.contains(&Primitive::RegexSearch));
+        assert!(
+            search_counts
+                .unresolved
+                .contains(&Primitive::CacheConstruction)
+        );
+        assert!(search_counts.unresolved.contains(&Primitive::Cleanup));
+        assert_eq!(search_counts.seed_invocations, None);
+        let changed_syntax = three_searches(&search_syntax);
+        let changed = classified(&changed_syntax);
+        assert_eq!(changed.recipe().roots, search.recipe().roots);
+        assert_eq!(
+            changed.recipe().initialization,
+            search.recipe().initialization
+        );
+        let changed_counts = successful(recipe_counts(context, changed.recipe(), dimensions, 5));
+        assert_eq!(changed_counts.root_entries, 10);
+        assert_eq!(changed_counts.fresh_cache_calls, 5);
+        assert_eq!(changed_counts.searches, 15);
+
+        let two_caches = additional_cache(&changed_syntax);
+        let extra_cache_operations = classified(&two_caches);
+        let extra_cache_counts = successful(recipe_counts(
+            context,
+            extra_cache_operations.recipe(),
+            dimensions,
+            5,
+        ));
         // The additional field is eager but never searched. Root/search
         // populations are unchanged; individual cache constructions double.
-        assert_eq!(counts.root_entries, 10);
-        assert_eq!(counts.searches, 15);
-        assert_eq!(counts.fresh_cache_calls, 10);
-        assert_eq!(counts.cache_drop_entries, 10);
+        assert_eq!(extra_cache_counts.root_entries, 10);
+        assert_eq!(extra_cache_counts.searches, 15);
+        assert_eq!(extra_cache_counts.fresh_cache_calls, 10);
+        assert_eq!(extra_cache_counts.cache_drop_entries, 10);
+    }
+
+    #[test]
+    fn branches_and_callbacks_have_source_derived_multiplicity() {
+        let descriptor = json!({"identity":"fixture_capture_a"});
+        let roots = json!({"fixture":"caller_roots"});
+        let census = json!({"fixture":"existing_compiled_source_provenance"});
+        let binding = ContextBinding {
+            descriptor_binding: &descriptor,
+            capture_binding: &descriptor,
+            context_roots: &roots,
+            compiled_sources: &census,
+        };
+        let sources = sources();
+        let context = context(&binding, &sources);
+        let syntax = callback_body();
+        let operations = classified(&syntax);
+        let dimensions = SchemaInputStats {
+            serialized_bytes: 7,
+            nodes: 4,
+            max_depth: 1,
+        };
+        assert_eq!(
+            measure_schema_input(&json!([1_i32, 2_i32, 3_i32]), context.native_input_limits),
+            Ok(dimensions)
+        );
+        let counts = successful(recipe_counts(&context, operations.recipe(), dimensions, 1));
+        assert_eq!(counts.root_entries, 1);
+        assert_eq!(counts.helpers.get("is_branch_valid_0"), Some(&2));
+        assert_eq!(counts.helpers.get("is_branch_valid_1"), Some(&6));
+        assert_eq!(counts.iterator_callbacks, 6); // One callback site executes repeatedly.
+        assert_eq!(
+            (
+                counts.searches,
+                counts.fresh_cache_calls,
+                counts.cache_drop_entries
+            ),
+            (0, 0, 0)
+        );
+        assert_eq!(counts.seed_invocations, None); // Opaque primitive closure is not seed-free proof.
+        assert!(counts.unresolved.contains(&Primitive::IteratorProtocol));
+        assert_guarded_alternatives(operations.recipe());
+        assert_search_multiplicity(&context, dimensions);
     }
 
     #[test]
@@ -1457,7 +1597,7 @@ mod tests {
         let census = json!({"fixture":"existing_compiled_source_provenance"});
         let binding = ContextBinding {
             descriptor_binding: &descriptor,
-            context_binding: &descriptor,
+            capture_binding: &descriptor,
             context_roots: &roots,
             compiled_sources: &census,
         };
@@ -1492,12 +1632,15 @@ mod tests {
                 match instance { serde_json::Value::String(_) => true, _ => false }
             }
         };
-        let primitive_free = classified(&primitive_free);
-        assert!(!reachable_duties(primitive_free.recipe()).contains(&Primitive::IteratorProtocol));
+        let primitive_free_operations = classified(&primitive_free);
+        assert!(
+            !reachable_duties(primitive_free_operations.recipe())
+                .contains(&Primitive::IteratorProtocol)
+        );
         assert_eq!(
             require_source_leaf_cost(
                 &context,
-                primitive_free.recipe(),
+                primitive_free_operations.recipe(),
                 Primitive::IteratorProtocol
             ),
             Err(Refusal::NoSourceLeafDuty(Primitive::IteratorProtocol))
@@ -1526,7 +1669,7 @@ mod tests {
         let census = json!({"fixture":"existing_compiled_source_provenance"});
         let binding = ContextBinding {
             descriptor_binding: &descriptor,
-            context_binding: &descriptor,
+            capture_binding: &descriptor,
             context_roots: &roots,
             compiled_sources: &census,
         };

@@ -8,30 +8,33 @@
 //! The parent must join these facts to their owners.
 //! Site ceilings count entries/decisions, not the work inside called primitives.
 
-use quote::ToTokens;
+mod primitives;
+
+use quote::ToTokens as _;
 use std::collections::BTreeSet;
 use syn::parse::Parser as _;
+use syn::punctuated::Punctuated;
 use syn::visit_mut::{self, VisitMut};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct EpochFacts {
-    pub(super) nfa_states: u64,
-    pub(super) extra_branches: u64,
-    pub(super) root_calls: u64,
-    pub(super) epochs: u64,
+    nfa_states: u64,
+    extra_branches: u64,
+    root_calls: u64,
+    epochs: u64,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct SiteTable {
-    pub(super) root_entries: u64,
-    pub(super) insert_attempts: u64,
-    pub(super) stack_pushes: u64,
-    pub(super) pop_decisions: u64,
-    pub(super) state_dispatches: u64,
-    pub(super) look_tests: u64,
-    pub(super) union_first_tests: u64,
-    pub(super) tail_elements: u64,
-    pub(super) tail_advances: u64,
+    root_entries: u64,
+    insert_attempts: u64,
+    stack_pushes: u64,
+    pop_decisions: u64,
+    state_dispatches: u64,
+    look_tests: u64,
+    union_first_tests: u64,
+    tail_elements: u64,
+    tail_advances: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -48,8 +51,8 @@ pub(super) enum RequiredLemma {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct LocalEpsilon {
-    pub(super) sites: SiteTable,
-    pub(super) required_lemmas: BTreeSet<RequiredLemma>,
+    sites: SiteTable,
+    required_lemmas: BTreeSet<RequiredLemma>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -71,16 +74,26 @@ fn literal_doc(attribute: &syn::Attribute) -> bool {
 }
 
 fn receiver_root(expression: &syn::Expr) -> Option<&syn::Ident> {
-    match expression {
-        syn::Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+    if let syn::Expr::Path(path) = expression {
+        return if path.qself.is_none() && path.path.segments.len() == 1 {
             path.path.segments.first().map(|segment| &segment.ident)
-        }
-        syn::Expr::MethodCall(call) => receiver_root(&call.receiver),
-        syn::Expr::Index(index) => receiver_root(&index.expr),
-        syn::Expr::Paren(paren) => receiver_root(&paren.expr),
-        syn::Expr::Group(group) => receiver_root(&group.expr),
-        _ => None,
+        } else {
+            None
+        };
     }
+    if let syn::Expr::MethodCall(call) = expression {
+        return receiver_root(&call.receiver);
+    }
+    if let syn::Expr::Index(index) = expression {
+        return receiver_root(&index.expr);
+    }
+    if let syn::Expr::Paren(paren) = expression {
+        return receiver_root(&paren.expr);
+    }
+    if let syn::Expr::Group(group) = expression {
+        return receiver_root(&group.expr);
+    }
+    None
 }
 
 #[derive(Default)]
@@ -91,21 +104,21 @@ struct BodyGate {
 }
 
 impl VisitMut for BodyGate {
-    fn visit_attribute_mut(&mut self, _attribute: &mut syn::Attribute) {
+    fn visit_attribute_mut(&mut self, _i: &mut syn::Attribute) {
         self.nested_attribute = true;
     }
 
-    fn visit_expr_call_mut(&mut self, call: &mut syn::ExprCall) {
-        visit_mut::visit_expr_call_mut(self, call);
+    fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
+        visit_mut::visit_expr_call_mut(self, i);
         if self.unknown_call.is_none() {
-            self.unknown_call = Some(call.func.to_token_stream().to_string());
+            self.unknown_call = Some(i.func.to_token_stream().to_string());
         }
     }
 
-    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
-        visit_mut::visit_expr_method_call_mut(self, call);
-        let root = receiver_root(&call.receiver).map(ToString::to_string);
-        let method = call.method.to_string();
+    fn visit_expr_method_call_mut(&mut self, i: &mut syn::ExprMethodCall) {
+        visit_mut::visit_expr_method_call_mut(self, i);
+        let root = receiver_root(&i.receiver).map(ToString::to_string);
+        let method = i.method.to_string();
         // This inventory classifies diagnostics only. Exact recipe equality
         // below, not a recognized method name, is the acceptance condition.
         let known = matches!(
@@ -117,21 +130,17 @@ impl VisitMut for BodyGate {
                 | (Some("alternates"), "get" | "iter" | "rev")
         );
         if !known && self.unknown_call.is_none() {
-            self.unknown_call = Some(format!(
-                "{}::{}",
-                call.receiver.to_token_stream(),
-                call.method
-            ));
+            self.unknown_call = Some(format!("{}::{}", i.receiver.to_token_stream(), i.method));
         }
     }
 
-    fn visit_macro_mut(&mut self, source: &mut syn::Macro) {
-        if !source.path.is_ident("assert") {
+    fn visit_macro_mut(&mut self, i: &mut syn::Macro) {
+        if !i.path.is_ident("assert") {
             self.unsupported_macro = true;
             return;
         }
-        let parser = syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
-        match parser.parse2(source.tokens.clone()) {
+        let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+        match parser.parse2(i.tokens.clone()) {
             Ok(arguments) => {
                 for mut argument in arguments {
                     self.visit_expr_mut(&mut argument);
@@ -287,7 +296,7 @@ pub(super) fn tail_advances(elements: u64) -> Result<u64, EpsilonError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quote::ToTokens;
+    use quote::ToTokens as _;
 
     fn pristine_source() -> syn::ItemFn {
         let file = syn::parse_file(include_str!(concat!(
@@ -297,11 +306,11 @@ mod tests {
         .expect("pristine determinization source parses as data");
         file.items
             .into_iter()
-            .find_map(|item| match item {
-                syn::Item::Fn(function) if function.sig.ident == "epsilon_closure" => {
-                    Some(function)
-                }
-                _ => None,
+            .find_map(|item| {
+                let syn::Item::Fn(function) = item else {
+                    return None;
+                };
+                (function.sig.ident == "epsilon_closure").then_some(function)
             })
             .expect("pristine epsilon_closure body is present")
     }
@@ -353,7 +362,7 @@ mod tests {
             tail_elements,
             tail_advances,
         ] = expected;
-        let expected = LocalEpsilon {
+        let expected_local = LocalEpsilon {
             sites: SiteTable {
                 root_entries,
                 insert_attempts,
@@ -370,7 +379,10 @@ mod tests {
         assert_eq!(
             epsilon_sites(&pristine_source(), facts)
                 .map(|local| (counts(&local.sites), local.required_lemmas)),
-            Ok((counts(&expected.sites), expected.required_lemmas))
+            Ok((
+                counts(&expected_local.sites),
+                expected_local.required_lemmas
+            ))
         );
     }
 
@@ -589,7 +601,7 @@ mod tests {
                 ..capture_facts()
             },
             EpochFacts {
-                root_calls: u64::MAX / 2 + 1,
+                root_calls: u64::MAX.checked_div(2).unwrap().checked_add(1).unwrap(),
                 ..capture_facts()
             },
         ] {

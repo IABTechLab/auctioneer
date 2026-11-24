@@ -325,7 +325,7 @@ fn required_expiry_fact(value: Option<u64>, field: ExpiryField) -> Result<u64, R
     match value {
         None => Err(Refusal::MissingExpiryFact(field)),
         Some(0) => Err(Refusal::InvalidExpiryFact(field)),
-        Some(value) => Ok(value),
+        Some(nonzero) => Ok(nonzero),
     }
 }
 
@@ -599,7 +599,7 @@ mod tests {
             );
         }
         for axis in [DepthAxis::Schema, DepthAxis::Instance] {
-            for decreasing in [
+            for invalid_bound in [
                 None,
                 Some(DecreasingBound {
                     recursive_edge: "fake_recursive_edge",
@@ -608,28 +608,34 @@ mod tests {
                 }),
             ] {
                 let mut unproved = formula.clone();
-                let bound = match &mut unproved.path {
-                    CallPath::Coexisting(paths) => paths.iter_mut().find_map(|path| match path {
-                        CallPath::Recursion {
+                let CallPath::Coexisting(paths) = &mut unproved.path else {
+                    panic!("fixture contains coexisting paths");
+                };
+                let bound = paths
+                    .iter_mut()
+                    .find_map(|path| {
+                        let CallPath::Recursion {
                             axis: candidate,
                             decreasing,
                             body,
-                        } if *candidate == axis => {
-                            let owner = match axis {
-                                DepthAxis::Schema => VALIDATOR,
-                                DepthAxis::Instance => CALLBACK,
-                            };
-                            assert!(matches!(
-                                body.as_ref(),
-                                CallPath::Frame(actual) if *actual == owner
-                            ));
-                            Some(decreasing)
+                        } = path
+                        else {
+                            return None;
+                        };
+                        if *candidate != axis {
+                            return None;
                         }
-                        _ => None,
-                    }),
-                    _ => None,
-                }
-                .expect("fixture contains each independent recursive edge");
+                        let owner = match axis {
+                            DepthAxis::Schema => VALIDATOR,
+                            DepthAxis::Instance => CALLBACK,
+                        };
+                        assert!(matches!(
+                            body.as_ref(),
+                            CallPath::Frame(actual) if *actual == owner
+                        ));
+                        Some(decreasing)
+                    })
+                    .expect("fixture contains each independent recursive edge");
                 assert_eq!(
                     bound.as_ref().map(|proof| proof.recursive_edge),
                     Some("fake_recursive_edge")
@@ -642,7 +648,7 @@ mod tests {
                     })
                 );
                 assert_eq!(bound.as_ref().map(|proof| proof.decrease_by), Some(1));
-                *bound = decreasing;
+                *bound = invalid_bound;
                 assert_eq!(
                     check_common(&unproved),
                     Err(Refusal::MissingCommonProof(CommonGap::DecreasingBound(

@@ -89,12 +89,12 @@ impl ValidationView<'_> {
         &self.descriptor.validation
     }
 
-    pub(crate) fn check_handoff(&self, rows: &[ValidationAssignment]) -> Result<(), Refusal> {
+    pub(crate) fn check_handoff(self, rows: &[ValidationAssignment]) -> Result<(), Refusal> {
         self.recheck()?;
         self.descriptor.check_validation_handoff(rows)
     }
 
-    pub(crate) fn recheck(&self) -> Result<(), Refusal> {
+    pub(crate) fn recheck(self) -> Result<(), Refusal> {
         self.descriptor.runtime.recheck()
     }
 }

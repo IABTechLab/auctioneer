@@ -5,6 +5,10 @@
 //! must reuse the existing MetaCache/BundleHeap owners, not duplicate them here.
 //! Success checks only the supplied accounting, never its source completeness.
 
+mod source;
+
+use std::iter::once;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct OwnerId(&'static str);
 
@@ -246,10 +250,7 @@ fn check_releases(trace: &LifetimeTrace) -> Result<(), StorageError> {
         .heap
         .iter()
         .map(|row| (row.owner, row.lifetime))
-        .chain(std::iter::once((
-            trace.wrapper.owner,
-            trace.wrapper.lifetime,
-        )));
+        .chain(once((trace.wrapper.owner, trace.wrapper.lifetime)));
     for (owner, lifetime) in owners {
         let mut releases = trace.releases.iter().filter(|row| row.owner == owner);
         if releases
@@ -358,6 +359,7 @@ mod tests {
         SerialBoundary, SourceState, StateId, StorageError, evaluate_serial_facts_hypothetically,
         evaluate_supplied_facts_hypothetically,
     };
+    use std::slice::from_ref;
 
     const META: OwnerId = OwnerId("hypothetical-meta-cache");
     const SIBLING: OwnerId = OwnerId("hypothetical-sibling-cache");
@@ -474,13 +476,17 @@ mod tests {
 
         let mut missing = original.clone();
         assert_eq!(missing.covered_by.remove(0), original.covered_by[0]);
-        let result = evaluate_supplied_facts_hypothetically(&missing);
-        assert_eq!(result, Err(StorageError::MissingCoverage(FALLBACK)));
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&missing),
+            Err(StorageError::MissingCoverage(FALLBACK))
+        );
 
         let mut duplicate = original.clone();
         duplicate.covered_by.push(original.covered_by[0]);
-        let result = evaluate_supplied_facts_hypothetically(&duplicate);
-        assert_eq!(result, Err(StorageError::DuplicateCoverage(FALLBACK)));
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&duplicate),
+            Err(StorageError::DuplicateCoverage(FALLBACK))
+        );
 
         let mut counted_twice = original.clone();
         counted_twice.heap.push(heap_owner(FALLBACK, 5, 0, 2));
@@ -488,15 +494,16 @@ mod tests {
             owner: FALLBACK,
             at: StateId(2),
         });
-        let result = evaluate_supplied_facts_hypothetically(&counted_twice);
-        assert_eq!(result, Err(StorageError::CoveredChildAlsoOwned(FALLBACK)));
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&counted_twice),
+            Err(StorageError::CoveredChildAlsoOwned(FALLBACK))
+        );
 
         let mut unknown_parent = original.clone();
         let unknown = OwnerId("hypothetical-unknown-parent");
         unknown_parent.covered_by[0].parent = unknown;
-        let result = evaluate_supplied_facts_hypothetically(&unknown_parent);
         assert_eq!(
-            result,
+            evaluate_supplied_facts_hypothetically(&unknown_parent),
             Err(StorageError::InvalidCoverage {
                 child: FALLBACK,
                 parent: unknown,
@@ -717,7 +724,7 @@ mod tests {
             Ok(peak(70, 7, 77))
         );
         assert_eq!(
-            evaluate_serial_facts_hypothetically(&[original.clone()], &[]),
+            evaluate_serial_facts_hypothetically(from_ref(&original), &[]),
             Ok(peak(70, 7, 77))
         );
         let calls = [original.clone(), original.clone(), original.clone()];
@@ -816,12 +823,16 @@ mod tests {
         );
         let mut heap_overflow = boundary.clone();
         set_heap_bytes(&mut heap_overflow, META, u64::MAX - 58);
-        let result = evaluate_supplied_facts_hypothetically(&heap_overflow);
-        assert_eq!(result, Err(StorageError::LiveHeapOverflow(StateId(1))));
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&heap_overflow),
+            Err(StorageError::LiveHeapOverflow(StateId(1)))
+        );
         let mut combined_overflow = boundary.clone();
         combined_overflow.wrapper.bytes = InlineBytes(8);
-        let result = evaluate_supplied_facts_hypothetically(&combined_overflow);
-        assert_eq!(result, Err(StorageError::CombinedOverflow(StateId(1))));
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&combined_overflow),
+            Err(StorageError::CombinedOverflow(StateId(1)))
+        );
     }
 
     #[test]

@@ -10,13 +10,14 @@ use super::{ContextBinding, ContextSources, Refusal, SourceRole};
 use auctioneer_bidder::schema::SchemaInputLimits;
 use quote::ToTokens;
 use serde_json::Value;
+use std::str::from_utf8;
 use syn::visit_mut::{self, VisitMut};
 
 pub(super) fn check(
     binding: &ContextBinding<'_>,
     sources: &ContextSources<'_>,
 ) -> Result<SchemaInputLimits, Refusal> {
-    if binding.descriptor_binding != binding.context_binding {
+    if binding.descriptor_binding != binding.capture_binding {
         return Err(Refusal::BindingMismatch);
     }
     if !nonempty_collection(binding.context_roots) || !nonempty_collection(binding.compiled_sources)
@@ -108,12 +109,12 @@ fn nonempty_collection(value: &Value) -> bool {
     match value {
         Value::Array(items) => !items.is_empty(),
         Value::Object(items) => !items.is_empty(),
-        _ => false,
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => false,
     }
 }
 
 fn parse(source: &[u8], role: SourceRole) -> Result<syn::File, Refusal> {
-    let text = std::str::from_utf8(source).map_err(|_error| Refusal::SourceShape(role))?;
+    let text = from_utf8(source).map_err(|_error| Refusal::SourceShape(role))?;
     syn::parse_file(text).map_err(|_error| Refusal::SourceShape(role))
 }
 
@@ -132,20 +133,23 @@ fn literal_doc(attribute: &syn::Attribute) -> bool {
 }
 
 fn without_docs(mut item: syn::Item) -> syn::Item {
-    match &mut item {
-        syn::Item::Fn(function) => function.attrs.retain(|attribute| !literal_doc(attribute)),
-        syn::Item::Const(value) => value.attrs.retain(|attribute| !literal_doc(attribute)),
-        syn::Item::Impl(implementation) => {
-            implementation
-                .attrs
-                .retain(|attribute| !literal_doc(attribute));
-            for member in &mut implementation.items {
-                if let syn::ImplItem::Fn(function) = member {
-                    function.attrs.retain(|attribute| !literal_doc(attribute));
-                }
+    if let syn::Item::Fn(function) = &mut item {
+        function.attrs.retain(|attribute| !literal_doc(attribute));
+        return item;
+    }
+    if let syn::Item::Const(constant) = &mut item {
+        constant.attrs.retain(|attribute| !literal_doc(attribute));
+        return item;
+    }
+    if let syn::Item::Impl(implementation) = &mut item {
+        implementation
+            .attrs
+            .retain(|attribute| !literal_doc(attribute));
+        for member in &mut implementation.items {
+            if let syn::ImplItem::Fn(function) = member {
+                function.attrs.retain(|attribute| !literal_doc(attribute));
             }
         }
-        _ => {}
     }
     item
 }
@@ -188,20 +192,20 @@ struct NativeLimits {
 }
 
 impl VisitMut for NativeLimits {
-    fn visit_expr_struct_mut(&mut self, value: &mut syn::ExprStruct) {
-        if value.qself.is_none() && value.path.is_ident("SchemaInputLimits") {
-            self.hits += 1;
+    fn visit_expr_struct_mut(&mut self, i: &mut syn::ExprStruct) {
+        if i.qself.is_none() && i.path.is_ident("SchemaInputLimits") {
+            self.hits = self.hits.checked_add(1).expect("bounded AST literal count");
             let field = |name: &str| -> Option<u64> {
-                let value = value.fields.iter().find(
+                let member = i.fields.iter().find(
                     |field| matches!(&field.member, syn::Member::Named(ident) if ident == name),
                 )?;
-                let syn::Expr::Lit(value) = &value.expr else {
+                let syn::Expr::Lit(literal) = &member.expr else {
                     return None;
                 };
-                let syn::Lit::Int(value) = &value.lit else {
+                let syn::Lit::Int(integer) = &literal.lit else {
                     return None;
                 };
-                value.base10_parse().ok()
+                integer.base10_parse().ok()
             };
             self.limits = (|| {
                 Some(SchemaInputLimits {
@@ -211,7 +215,7 @@ impl VisitMut for NativeLimits {
                 })
             })();
         }
-        visit_mut::visit_expr_struct_mut(self, value);
+        visit_mut::visit_expr_struct_mut(self, i);
     }
 }
 

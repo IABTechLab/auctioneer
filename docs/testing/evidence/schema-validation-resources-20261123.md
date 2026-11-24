@@ -310,3 +310,40 @@ unexpected end of input, expected semicolon
 Syn 3's standalone statement parser requires a semicolon for that bare expression. The intended mutation retains `result` as the block's tail expression, so the repair constructs `syn::Stmt::Expr(syn::parse_quote!(result), None)` explicitly. It does not add a semicolon, remove the ordering mutation, change its before-state checks, relax the expected budget-source refusal or modify production code. All thirteen epsilon cases, the public-name case and the other five work cases passed in both lanes; the sixth case's positive prefixes ran before this fixture failure, but the whole case is not passing.
 
 The failure occurred before compiler controls in the approved new order. Those controls and later success-gated lint/core/staged checks were not run, not passed. Development source diagnostics still ran under their existing failure condition. The tail-expression repair and unchanged full matrix require hosted verification at the next head. No twenty-case GREEN, common completeness or review readiness is claimed here.
+
+### Primitive And Cache-Source Tests-First Contracts
+
+The next tests-first checkpoint registers twelve NFA-access/sparse-set cases and four cache-source-lifetime cases under the existing source-conformance target and both normal feature lanes. All previous required names remain; the mandatory validation roster grows from 73 to 89. The primitive and cache-source evaluators deliberately remain `MissingSourceProof` and `NotDerived` refusal stubs until completed hosted assertion RED. The modified existing entropy case additionally requires both thread and process retention; its lowerer deliberately retains the older thread-only expectation for that RED. No new target, job, exclusion, source population reduction or limit change is introduced.
+
+Primitive oracles require finite source/control/scalar event bounds for every supported ordinary helper, not all-unknown call-table scaffolding. Independent positive inputs include different root/dispatch populations and different sparse attempt/success/RHS populations. Data/source/receiver/invariant/compiler refusals include self-consistently rehashed owner-field/import/impl/index-macro drift and a signature-only change retaining the body. The builtin single-field equality lemma is documented against the exact compiler revision and vendor declarations. These three event components are separate from the eleven remaining work components, requested buffer extents, target frames and actual selected-program/invariant binding. No instruction, latency, complete-work or target claim follows.
+
+The frozen unit boundary is source-level: compiler-inserted bounds checks within a matched intrinsic indexing operation are grouped under that operation's source visit, not enumerated as separate source predicate/control events. Explicit Rust predicates in matched bodies count normally. Matched-source and valid-ID premises remain mandatory. This clarification changes no unit, weight or count and assigns neither zero CPU cost nor an instruction/latency bound.
+
+The cache-source contract consumes the sealed checked-bodies handoff and its existing typed operation recipe. Its actual-owner oracle independently checks the exact native wrapper and coupled roots, ordered field/full-program/site tuples, completed-sibling prefixes and complete program coverage. It includes a positively identified zero-cache owner, callback/wrapper overlap, malformed initializer order versus an extra constructor, escaping/reset/cloned/rebound-cache refusals, and before/after source/binding checks. This is a source-structure/lifetime prerequisite, not the full storage/cleanup proof or another engine heap model.
+
+The narrow shared changes reuse the existing compiler probe and bounded regular-file reader. A conformance-local `WorkLedger::source_events` constructor keeps fields private and sets only the three supplied event components; all other components remain unproved. Actual rust-src interpretation still requires a consumption-window recheck and correspondence to the existing captured compiler identity, not just consecutive fixture snapshots or matching version strings. The whole-entry entropy contract now explicitly requires shared process retention alongside thread retention, with independent missing-process/thread-only refusals and no multiplication of retained state by seed calls. No new service exemption or serving path is added.
+
+Static specification and quality review cleared these bounded contracts, including repair of a Syn 2-style impl-trait tuple before publication. Pinned rustfmt was editing only. Compilation, actual dispatch, intended assertion RED, subsequent implementations and all final acceptance remain pending; no expected case count is an executed result. The fixing head `c7bfd5c` was still undergoing its separate hosted matrix when this contract was prepared; its completed results are recorded below. Complete common derivations, canonical integration, four application joins and the old-report hard cut are still required before review readiness.
+
+### Twenty Contract Cases GREEN; First Complete Strict Lint Fails
+
+At `c7bfd5cf2997409484a5960abfa3acd47a9d8c6e`, 24 hosted checks passed and the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45504266150/job/138835404692) failed at strict lint. Source conformance ran before compiler controls in the approved order. Actual secure source, compiler controls, development residency and development validation result lines:
+
+```text
+test result: ok. 913 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1039.23s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 213.31s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 792 filtered out; finished in 86.82s
+test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 846 filtered out; finished in 64.42s
+```
+
+The tail-expression fixture repair therefore passes in both source lanes, and all twenty caller/epsilon/public-name contract cases have completed hosted GREEN. These are contract/correspondence results, not the still-missing complete common derivations. Both source and compiler-control tests ran successfully; their different durations do not establish a comparable performance improvement.
+
+The now-reached explicit Clippy invocations failed with exit 101 in both normal feature lanes:
+
+```text
+error: could not compile `auctioneer-bidder` (test "schema_source_conformance") due to 320 previous errors
+```
+
+Default lint covered both `schema_build_controls` and `schema_source_conformance` with `--locked -p auctioneer-bidder -- -D warnings`; development lint explicitly selected `--features insecure-bidders --test schema_source_conformance`, also with `-D warnings` and the artifact-expectation variable unset. Diagnostics include shadowed bindings, exhaustive-pattern/style requirements, scoped field visibility, checked arithmetic, explicit numeric types, oversized functions and parent modules requiring `mod.rs`. They are author-owned failures, not valid tests-first RED or an external verification blocker. Later success-gated core/staged steps were skipped, not passed.
+
+The repair preserves every assertion, independent literal, refusal and test name, uses ordinary directory modules with corrected data-include paths, and retains the same lint policy. No lint allowance, hidden cfg, ignored case, test/feature reduction or resource-limit change is authorized. Hosted verification must establish the repairs; static review and pinned formatting are not substitutes.

@@ -3,7 +3,7 @@
 //! For each source component, the intended premise is V <= a + b*B + c*J.
 //! Q = max(ceil(a/1024), ceil(b/16), ceil(c/128)) then bounds admitted work
 //! by Q*sum(T), using a maximum across declarations of that same component.
-//! Attempts P and external N_clock*H are disjoint from the admitted closure.
+//! Attempts P and external `N_clock*H` are disjoint from the admitted closure.
 //! Q need not be one: it is not a CPU weight or an intrinsic token unit, and
 //! establishes neither numerical policy adequacy nor latency qualification.
 //! These interfaces neither implement a budget nor issue serving authority.
@@ -247,9 +247,10 @@ fn policy_work_local(block: &syn::Block) -> Result<&syn::Local, Refusal> {
         let syn::Stmt::Local(local) = statement else {
             return None;
         };
-        let pattern = match &local.pat {
-            syn::Pat::Type(typed) => typed.pat.as_ref(),
-            pattern => pattern,
+        let pattern = if let syn::Pat::Type(typed) = &local.pat {
+            typed.pat.as_ref()
+        } else {
+            &local.pat
         };
         matches!(pattern, syn::Pat::Ident(binding) if binding.ident == "work").then_some(local)
     });
@@ -305,11 +306,11 @@ fn policy_literal(expression: &syn::Expr) -> Result<&syn::LitInt, Refusal> {
 // it never searches raw source text or substitutes another budget calculation.
 fn policy_tuple_from_source(source: &str) -> Result<PolicyTuple, Refusal> {
     let syntax = syn::parse_file(source).map_err(|_error| Refusal::Unsupported)?;
-    let mut functions = syntax.items.iter().filter_map(|item| match item {
-        syn::Item::Fn(function) if function.sig.ident == "validate_native_parameters" => {
-            Some(function)
-        }
-        _ => None,
+    let mut functions = syntax.items.iter().filter_map(|item| {
+        let syn::Item::Fn(function) = item else {
+            return None;
+        };
+        (function.sig.ident == "validate_native_parameters").then_some(function)
     });
     let function = functions.next().ok_or(Refusal::Unsupported)?;
     if functions.next().is_some() {
@@ -324,11 +325,12 @@ fn policy_tuple_from_source(source: &str) -> Result<PolicyTuple, Refusal> {
     let syn::Expr::Block(node_block) = closure_body(node_closure)? else {
         return Err(Refusal::Unsupported);
     };
-    let [syn::Stmt::Local(nodes), syn::Stmt::Expr(_, None)] = node_block.block.stmts.as_slice()
+    let [syn::Stmt::Local(node_local), syn::Stmt::Expr(_, None)] =
+        node_block.block.stmts.as_slice()
     else {
         return Err(Refusal::Unsupported);
     };
-    let nodes_initializer = nodes.init.as_ref().ok_or(Refusal::Unsupported)?;
+    let nodes_initializer = node_local.init.as_ref().ok_or(Refusal::Unsupported)?;
     let syn::Expr::Try(nodes_try) = nodes_initializer.expr.as_ref() else {
         return Err(Refusal::Unsupported);
     };
@@ -755,11 +757,11 @@ mod tests {
         source
             .items
             .iter_mut()
-            .find_map(|item| match item {
-                syn::Item::Fn(function) if function.sig.ident == "validate_native_parameters" => {
-                    Some(function)
-                }
-                _ => None,
+            .find_map(|item| {
+                let syn::Item::Fn(function) = item else {
+                    return None;
+                };
+                (function.sig.ident == "validate_native_parameters").then_some(function)
             })
             .expect("actual native entrypoint")
     }
@@ -769,9 +771,11 @@ mod tests {
             .block
             .stmts
             .iter_mut()
-            .find_map(|statement| match statement {
-                syn::Stmt::Expr(syn::Expr::Block(block), None) => Some(block),
-                _ => None,
+            .find_map(|statement| {
+                let syn::Stmt::Expr(syn::Expr::Block(block), None) = statement else {
+                    return None;
+                };
+                Some(block)
             })
             .expect("first entrypoint block is the native fixture")
     }
@@ -781,13 +785,12 @@ mod tests {
             .block
             .stmts
             .iter_mut()
-            .find_map(|statement| match statement {
-                syn::Stmt::Local(local)
-                    if matches!(&local.pat, syn::Pat::Ident(binding) if binding.ident == "work") =>
-                {
-                    Some(local)
-                }
-                _ => None,
+            .find_map(|statement| {
+                let syn::Stmt::Local(local) = statement else {
+                    return None;
+                };
+                matches!(&local.pat, syn::Pat::Ident(binding) if binding.ident == "work")
+                    .then_some(local)
             })
             .expect("actual named work local")
     }
@@ -815,36 +818,39 @@ mod tests {
         let syn::Expr::Field(field) = call.receiver.as_ref() else {
             return None;
         };
-        match &field.member {
-            syn::Member::Named(name) if name == "serialized_bytes" => {
-                Some(CoefficientDimension::Bytes)
-            }
-            syn::Member::Named(name) if name == "nodes" => Some(CoefficientDimension::Nodes),
-            _ => None,
+        let syn::Member::Named(name) = &field.member else {
+            return None;
+        };
+        if name == "serialized_bytes" {
+            Some(CoefficientDimension::Bytes)
+        } else if name == "nodes" {
+            Some(CoefficientDimension::Nodes)
+        } else {
+            None
         }
     }
 
     impl VisitMut for FormulaEditor {
-        fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
-            match (&self.edit, fixture_method_dimension(call)) {
+        fn visit_expr_method_call_mut(&mut self, i: &mut syn::ExprMethodCall) {
+            match (&self.edit, fixture_method_dimension(i)) {
                 (FormulaEdit::Literal(selected, replacement), Some(found))
                     if *selected == found =>
                 {
-                    *call.args.first_mut().expect("original literal argument") =
+                    *i.args.first_mut().expect("original literal argument") =
                         syn::parse_quote!(#replacement);
-                    self.changes += 1;
+                    self.changes = self.changes.checked_add(1).expect("fixture edit count");
                 }
                 (FormulaEdit::Saturating(selected), Some(found)) if *selected == found => {
-                    call.method = match found {
+                    i.method = match found {
                         CoefficientDimension::Constant => syn::parse_quote!(saturating_add),
                         CoefficientDimension::Bytes | CoefficientDimension::Nodes => {
                             syn::parse_quote!(saturating_mul)
                         }
                     };
-                    self.changes += 1;
+                    self.changes = self.changes.checked_add(1).expect("fixture edit count");
                 }
                 (FormulaEdit::SwapReceivers, Some(found)) => {
-                    if let syn::Expr::Field(field) = call.receiver.as_mut() {
+                    if let syn::Expr::Field(field) = i.receiver.as_mut() {
                         field.member = match found {
                             CoefficientDimension::Bytes => {
                                 syn::Member::Named(syn::parse_quote!(nodes))
@@ -854,12 +860,12 @@ mod tests {
                             }
                             CoefficientDimension::Constant => return,
                         };
-                        self.changes += 1;
+                        self.changes = self.changes.checked_add(1).expect("fixture edit count");
                     }
                 }
                 _ => {}
             }
-            visit_mut::visit_expr_method_call_mut(self, call);
+            visit_mut::visit_expr_method_call_mut(self, i);
         }
     }
 
@@ -944,9 +950,9 @@ mod tests {
         let mut addition = original.clone();
         let initializer = fixture_policy_work(&mut addition).init.as_mut().unwrap();
         let previous = &initializer.expr;
-        initializer.expr = Box::new(syn::parse_quote!(
+        *initializer.expr = syn::parse_quote!(
             #previous.and_then(|units| units.checked_add(1))
-        ));
+        );
         assert_unsupported_policy(&addition);
 
         let mut duplicate = original.clone();
@@ -975,8 +981,7 @@ mod tests {
         let mut decoy = original;
         let mut helper = fixture_policy_function(&mut decoy).clone();
         helper.sig.ident = syn::parse_quote!(fake_formula_decoy);
-        fixture_policy_work(&mut decoy).init.as_mut().unwrap().expr =
-            Box::new(syn::parse_quote!(None));
+        *fixture_policy_work(&mut decoy).init.as_mut().unwrap().expr = syn::parse_quote!(None);
         decoy.items.push(syn::Item::Fn(helper));
         assert_unsupported_policy(&decoy);
     }
@@ -1251,7 +1256,7 @@ mod tests {
         assert_eq!(check_current_report_fields(&current), Ok(()));
         let retired = json!({
             "kind": "conditional_native_schema_cache_heap_candidate",
-            "native_cache_heap_candidate": {"requested_bytes": 7}
+            "native_cache_heap_candidate": {"requested_bytes": 7_u64}
         });
         assert_eq!(
             check_current_report_fields(&retired),
@@ -1259,14 +1264,14 @@ mod tests {
         );
         let mut hybrid = current.clone();
         assert!(hybrid.get("native_cache_heap_candidate").is_none());
-        hybrid["native_cache_heap_candidate"] = json!({"requested_bytes": 7});
+        hybrid["native_cache_heap_candidate"] = json!({"requested_bytes": 7_u64});
         assert_eq!(
             check_current_report_fields(&hybrid),
             Err(Refusal::RetiredCandidate)
         );
         let mut fallback = current;
         assert!(fallback.get("heuristic_fallback").is_none());
-        fallback["heuristic_fallback"] = json!({"work_units": 1_024});
+        fallback["heuristic_fallback"] = json!({"work_units": 1_024_u64});
         assert_eq!(
             check_current_report_fields(&fallback),
             Err(Refusal::NonCanonicalField)
@@ -1379,7 +1384,7 @@ mod tests {
         // Ceiling division must not spuriously overflow at numerator + divisor - 1.
         assert_eq!(
             component_ratio(&coefficients(Some(derived(u64::MAX)), ZERO, ZERO), policy()),
-            Ok(ratio(18_014_398_509_481_984))
+            Ok(ratio(0x0040_0000_0000_0000))
         );
         for (work, bytes, nodes) in [
             (coefficients(ZERO, Some(derived(u64::MAX)), ZERO), 2, 0),

@@ -47,6 +47,22 @@ validation_required=(
   schema_validation::work::epsilon::tests::unknown_source_call_is_refused_not_assigned_zero_work
   schema_validation::work::epsilon::tests::malformed_epoch_hypotheses_are_refused
   schema_validation::work::epsilon::tests::overflow_is_refused_for_each_independent_formula_axis
+  schema_validation::work::epsilon::primitives::tests::nfa_access_matches_pristine_recipes_and_literal_counts
+  schema_validation::work::epsilon::primitives::tests::sparse_insert_matches_pristine_recipes_and_branch_counts
+  schema_validation::work::epsilon::primitives::tests::zero_invocations_keep_required_helper_slots_and_premises
+  schema_validation::work::epsilon::primitives::tests::helper_receipts_require_exact_concrete_receivers
+  schema_validation::work::epsilon::primitives::tests::missing_duplicate_or_changed_source_receipts_are_refused
+  schema_validation::work::epsilon::primitives::tests::compiler_source_identity_mismatch_is_refused
+  schema_validation::work::epsilon::primitives::tests::known_helper_semantic_changes_are_refused
+  schema_validation::work::epsilon::primitives::tests::unknown_helper_calls_are_not_zero_work
+  schema_validation::work::epsilon::primitives::tests::unapproved_helper_attributes_are_refused
+  schema_validation::work::epsilon::primitives::tests::sparse_invariants_require_matching_owner_and_epoch
+  schema_validation::work::epsilon::primitives::tests::invalid_sparse_dimensions_and_ids_are_refused
+  schema_validation::work::epsilon::primitives::tests::primitive_count_overflow_is_refused
+  schema_validation::storage::source::tests::actual_cache_lifetimes_cover_discovered_owners
+  schema_validation::storage::source::tests::initializer_order_preserves_complete_sibling_prefixes
+  schema_validation::storage::source::tests::cache_escape_reset_clone_and_rebind_are_refused
+  schema_validation::storage::source::tests::zero_cache_owner_still_requires_wrapper_and_callback_obligations
   schema_validation::storage::tests::fallback_is_covered_once
   schema_validation::storage::tests::heap_terms_and_inline_wrapper_vary_independently
   schema_validation::storage::tests::hostname_overlaps_the_live_wrapper

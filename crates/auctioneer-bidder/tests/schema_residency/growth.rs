@@ -628,7 +628,7 @@ fn regular_metadata(path: &Path) -> Result<fs::Metadata, String> {
     fs::symlink_metadata(path).map_err(|error| error.to_string())
 }
 
-pub(super) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_regular(path: &Path) -> Result<Vec<u8>, String> {
     let metadata = regular_metadata(path)?;
     if !metadata.is_file() {
         return Err("growth source is not a file".into());

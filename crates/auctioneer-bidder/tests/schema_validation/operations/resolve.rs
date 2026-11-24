@@ -3,6 +3,7 @@
 use super::Refusal;
 use super::model::{Binding, Origin, Ty};
 use std::collections::BTreeMap;
+use syn::punctuated::Punctuated;
 use syn::visit_mut::{self, VisitMut as _};
 use syn::{FnArg, GenericArgument, Item, Pat, PathArguments, ReturnType, Type, UseTree};
 
@@ -15,11 +16,11 @@ pub(super) struct SourceFunction<'a> {
 }
 
 pub(super) struct Index<'a> {
-    pub functions: Vec<SourceFunction<'a>>,
-    pub roots: Vec<usize>,
-    pub fields: BTreeMap<String, BTreeMap<String, Ty>>,
-    pub statics: BTreeMap<String, Ty>,
-    pub initialization: BTreeMap<String, Vec<String>>,
+    functions: Vec<SourceFunction<'a>>,
+    roots: Vec<usize>,
+    fields: BTreeMap<String, BTreeMap<String, Ty>>,
+    statics: BTreeMap<String, Ty>,
+    initialization: BTreeMap<String, Vec<String>>,
     imports: BTreeMap<String, String>,
     aliases: BTreeMap<String, &'a Type>,
 }
@@ -43,6 +44,26 @@ pub(super) fn path(path: &syn::Path) -> String {
 }
 
 impl<'a> Index<'a> {
+    pub(super) fn source(&self, id: usize) -> Option<&SourceFunction<'a>> {
+        self.functions.get(id)
+    }
+
+    pub(super) fn roots(&self) -> &[usize] {
+        &self.roots
+    }
+
+    pub(super) fn fields(&self, owner: &str) -> Option<&BTreeMap<String, Ty>> {
+        self.fields.get(owner)
+    }
+
+    pub(super) fn static_type(&self, name: &str) -> Option<&Ty> {
+        self.statics.get(name)
+    }
+
+    pub(super) fn initialization(&self) -> &BTreeMap<String, Vec<String>> {
+        &self.initialization
+    }
+
     pub(super) fn collect(syntax: &'a syn::File) -> Result<Self, Refusal> {
         let mut inspected = syntax.clone();
         let mut attributes = Attributes { refused: false };
@@ -88,8 +109,8 @@ impl<'a> Index<'a> {
     }
 
     fn declarations(&mut self, items: &'a [Item], module: &str) -> Result<(), Refusal> {
-        for item in items {
-            match item {
+        for source_item in items {
+            match source_item {
                 Item::Use(item) => self.import(module, "", &item.tree)?,
                 Item::Type(item) => {
                     if self
@@ -101,16 +122,16 @@ impl<'a> Index<'a> {
                     }
                 }
                 Item::Fn(function) => {
-                    self.add_function(module, None, &function.sig, &function.block)?
+                    self.add_function(module, None, &function.sig, &function.block)?;
                 }
                 Item::Impl(item) => {
                     if item.trait_.is_some() {
                         return Err(Refusal::UnsupportedSource);
                     }
-                    let Type::Path(receiver) = item.self_ty.as_ref() else {
+                    let Type::Path(receiver_path) = item.self_ty.as_ref() else {
                         return Err(Refusal::ReceiverMismatch);
                     };
-                    let receiver = join(module, &path(&receiver.path));
+                    let receiver = join(module, &path(&receiver_path.path));
                     for member in &item.items {
                         if let syn::ImplItem::Fn(function) = member {
                             self.add_function(
@@ -125,11 +146,19 @@ impl<'a> Index<'a> {
                     }
                 }
                 Item::Mod(item) => {
-                    let (_, items) = item.content.as_ref().ok_or(Refusal::UnsupportedSource)?;
-                    self.declarations(items, &join(module, &item.ident.to_string()))?;
+                    let (_, members) = item.content.as_ref().ok_or(Refusal::UnsupportedSource)?;
+                    self.declarations(members, &join(module, &item.ident.to_string()))?;
                 }
                 Item::Struct(_) | Item::Static(_) | Item::Const(_) => {}
-                _ => return Err(Refusal::UnsupportedSource),
+                Item::Enum(_)
+                | Item::ExternCrate(_)
+                | Item::ForeignMod(_)
+                | Item::Macro(_)
+                | Item::Trait(_)
+                | Item::TraitAlias(_)
+                | Item::Union(_)
+                | Item::Verbatim(_)
+                | _ => return Err(Refusal::UnsupportedSource),
             }
         }
         Ok(())
@@ -188,8 +217,8 @@ impl<'a> Index<'a> {
     }
 
     fn structures(&mut self, items: &'a [Item], module: &str) -> Result<(), Refusal> {
-        for item in items {
-            match item {
+        for source_item in items {
+            match source_item {
                 Item::Struct(item) => {
                     let mut fields = BTreeMap::new();
                     for field in &item.fields {
@@ -240,10 +269,23 @@ impl<'a> Index<'a> {
                     }
                 }
                 Item::Mod(item) => {
-                    let (_, items) = item.content.as_ref().ok_or(Refusal::UnsupportedSource)?;
-                    self.structures(items, &join(module, &item.ident.to_string()))?;
+                    let (_, members) = item.content.as_ref().ok_or(Refusal::UnsupportedSource)?;
+                    self.structures(members, &join(module, &item.ident.to_string()))?;
                 }
-                _ => {}
+                Item::Const(_)
+                | Item::Enum(_)
+                | Item::ExternCrate(_)
+                | Item::Fn(_)
+                | Item::ForeignMod(_)
+                | Item::Impl(_)
+                | Item::Macro(_)
+                | Item::Trait(_)
+                | Item::TraitAlias(_)
+                | Item::Type(_)
+                | Item::Union(_)
+                | Item::Use(_)
+                | Item::Verbatim(_)
+                | _ => {}
             }
         }
         Ok(())
@@ -278,11 +320,11 @@ impl<'a> Index<'a> {
                 .rsplit("::")
                 .next()
                 .ok_or(Refusal::UnsupportedSource)?;
-            let field = symbol
+            let mut field = symbol
                 .strip_suffix("_REGEX")
                 .ok_or(Refusal::UnsupportedSource)?
-                .to_lowercase()
-                + "_cache";
+                .to_lowercase();
+            field.push_str("_cache");
             if inner_fields.get(&field)
                 != Some(&Ty::Cache("regex_automata::meta::Cache".to_owned()))
             {
@@ -325,17 +367,17 @@ impl<'a> Index<'a> {
         let mut current = input.to_owned();
         for _ in 0..=self.imports.len() {
             let (first, rest) = current.split_once("::").unwrap_or((&current, ""));
-            let replacement = self
+            let candidate = self
                 .imports
                 .get(&join(module, first))
                 .or_else(|| self.imports.get(first));
-            let Some(replacement) = replacement else {
-                if let Some(rest) = current.strip_prefix("self::") {
-                    return Ok(join(module, rest));
+            let Some(replacement) = candidate else {
+                if let Some(relative) = current.strip_prefix("self::") {
+                    return Ok(join(module, relative));
                 }
-                if let Some(rest) = current.strip_prefix("super::") {
+                if let Some(relative) = current.strip_prefix("super::") {
                     let parent = module.rsplit_once("::").map_or("", |(parent, _)| parent);
-                    return Ok(join(parent, rest));
+                    return Ok(join(parent, relative));
                 }
                 return Ok(current);
             };
@@ -352,46 +394,74 @@ impl<'a> Index<'a> {
         self.ty_inner(ty, module, 0)
     }
 
-    fn ty_inner(&self, ty: &Type, module: &str, depth: usize) -> Result<Ty, Refusal> {
-        if depth > self.aliases.len() + 1 {
+    fn ty_inner(&self, source_type: &Type, module: &str, depth: usize) -> Result<Ty, Refusal> {
+        if depth > self.aliases.len().checked_add(1).ok_or(Refusal::Overflow)? {
             return Err(Refusal::UnsupportedSource);
         }
-        match ty {
+        match source_type {
             Type::Reference(ty) => self.ty_inner(&ty.elem, module, depth),
             Type::Slice(ty) if self.ty_inner(&ty.elem, module, depth)? == Ty::Value => Ok(Ty::Array),
             Type::Slice(_) => Ok(Ty::Named("slice".to_owned())),
-            Type::Tuple(ty) => Ok(if ty.elems.is_empty() { Ty::Unit } else { Ty::Tuple(ty.elems.iter().map(|ty| self.ty_inner(ty, module, depth)).collect::<Result<_, _>>()?) }),
-            Type::TraitObject(ty) if ty.bounds.iter().any(|bound| matches!(bound, syn::TypeParamBound::Trait(bound) if bound.path.segments.last().is_some_and(|segment| segment.ident == "FnMut"))) => Ok(Ty::Callback(String::new())),
+            Type::Tuple(ty) => Ok(if ty.elems.is_empty() { Ty::Unit } else { Ty::Tuple(ty.elems.iter().map(|member| self.ty_inner(member, module, depth)).collect::<Result<_, _>>()?) }),
+            Type::TraitObject(ty) if ty.bounds.iter().any(|bound| matches!(bound, syn::TypeParamBound::Trait(trait_bound) if trait_bound.path.segments.last().is_some_and(|segment| segment.ident == "FnMut"))) => Ok(Ty::Callback(String::new())),
             Type::Path(ty) if ty.qself.is_none() => {
-                let raw = path(&ty.path);
-                if let Some(alias) = self.aliases.get(&join(module, &raw)) {
-                    return self.ty_inner(alias, module, depth + 1);
-                }
-                let name = self.canonical(module, &raw)?;
-                let last = ty.path.segments.last().ok_or(Refusal::UnsupportedSource)?;
-                let generic = |position: usize| -> Result<Ty, Refusal> {
-                    let PathArguments::AngleBracketed(arguments) = &last.arguments else { return Err(Refusal::ReceiverMismatch); };
-                    let Some(GenericArgument::Type(ty)) = arguments.args.iter().nth(position) else { return Err(Refusal::ReceiverMismatch); };
-                    self.ty_inner(ty, module, depth)
-                };
-                Ok(match name.as_str() {
-                    "serde_json::Value" | "jsonschema::__private::serde_json::Value" => Ty::Value,
-                    "String" | "str" | "std::string::String" => Ty::String,
-                    "serde_json::Number" | "jsonschema::__private::serde_json::Number" => Ty::Number,
-                    "bool" => Ty::Bool,
-                    "usize" | "u64" | "u8" | "i64" | "f64" => Ty::Scalar,
-                    "serde_json::Map" | "jsonschema::__private::serde_json::Map" if generic(0)? == Ty::String && generic(1)? == Ty::Value => Ty::Map,
-                    "Option" | "std::option::Option" => Ty::Option(Box::new(generic(0)?)),
-                    "std::sync::LazyLock" if generic(0)? == Ty::Option(Box::new(Ty::Regex)) => Ty::LazyRegex(String::new()),
-                    "regex_automata::meta::Regex" => Ty::Regex,
-                    "regex_automata::meta::Cache" => Ty::Cache(name),
-                    "regex_automata::Input" => Ty::Input,
-                    _ if self.fields.contains_key(&join(module, &name)) || name.ends_with("SearchCache") => Ty::Cache(if name.contains("::") { name } else { join(module, &name) }),
-                    _ => Ty::Named(name),
+                self.path_ty(ty, module, depth)
+            }
+            Type::Array(_) | Type::FnPtr(_) | Type::Group(_) | Type::ImplTrait(_)
+            | Type::Infer(_) | Type::Macro(_) | Type::Never(_) | Type::Paren(_)
+            | Type::Path(_) | Type::Ptr(_) | Type::TraitObject(_) | Type::Verbatim(_) | _ => Err(Refusal::ReceiverMismatch),
+        }
+    }
+
+    fn path_ty(&self, ty: &syn::TypePath, module: &str, depth: usize) -> Result<Ty, Refusal> {
+        let raw = path(&ty.path);
+        if let Some(alias) = self.aliases.get(&join(module, &raw)) {
+            return self.ty_inner(
+                alias,
+                module,
+                depth.checked_add(1).ok_or(Refusal::Overflow)?,
+            );
+        }
+        let name = self.canonical(module, &raw)?;
+        let last = ty.path.segments.last().ok_or(Refusal::UnsupportedSource)?;
+        let generic = |position: usize| -> Result<Ty, Refusal> {
+            let PathArguments::AngleBracketed(arguments) = &last.arguments else {
+                return Err(Refusal::ReceiverMismatch);
+            };
+            let Some(GenericArgument::Type(argument)) = arguments.args.iter().nth(position) else {
+                return Err(Refusal::ReceiverMismatch);
+            };
+            self.ty_inner(argument, module, depth)
+        };
+        Ok(match name.as_str() {
+            "serde_json::Value" | "jsonschema::__private::serde_json::Value" => Ty::Value,
+            "String" | "str" | "std::string::String" => Ty::String,
+            "serde_json::Number" | "jsonschema::__private::serde_json::Number" => Ty::Number,
+            "bool" => Ty::Bool,
+            "usize" | "u64" | "u8" | "i64" | "f64" => Ty::Scalar,
+            "serde_json::Map" | "jsonschema::__private::serde_json::Map"
+                if generic(0)? == Ty::String && generic(1)? == Ty::Value =>
+            {
+                Ty::Map
+            }
+            "Option" | "std::option::Option" => Ty::Option(Box::new(generic(0)?)),
+            "std::sync::LazyLock" if generic(0)? == Ty::Option(Box::new(Ty::Regex)) => {
+                Ty::LazyRegex(String::new())
+            }
+            "regex_automata::meta::Regex" => Ty::Regex,
+            "regex_automata::meta::Cache" => Ty::Cache(name),
+            "regex_automata::Input" => Ty::Input,
+            _ if self.fields.contains_key(&join(module, &name))
+                || name.ends_with("SearchCache") =>
+            {
+                Ty::Cache(if name.contains("::") {
+                    name
+                } else {
+                    join(module, &name)
                 })
             }
-            _ => Err(Refusal::ReceiverMismatch),
-        }
+            _ => Ty::Named(name),
+        })
     }
 
     pub(super) fn parameters(&self, id: usize) -> Result<Vec<Binding>, Refusal> {
@@ -401,7 +471,7 @@ impl<'a> Index<'a> {
             .inputs
             .iter()
             .enumerate()
-            .map(|(ordinal, argument)| match argument {
+            .map(|(ordinal, parameter)| match parameter {
                 FnArg::Typed(argument) => {
                     let Pat::Ident(name) = argument.pat.as_ref() else {
                         return Err(Refusal::ReceiverMismatch);
@@ -430,7 +500,7 @@ impl<'a> Index<'a> {
                         syn::ReceiverKind::Value => false,
                         // Explicitly typed and future receiver forms are not
                         // emitted shorthand receivers in this finite grammar.
-                        _ => return Err(Refusal::ReceiverMismatch),
+                        syn::ReceiverKind::Typed(..) | _ => return Err(Refusal::ReceiverMismatch),
                     },
                     origin: Origin::Parameter {
                         function: id,
@@ -473,25 +543,25 @@ impl visit_mut::VisitMut for Attributes {
         self.refused = true;
     }
 
-    fn visit_item_mod_mut(&mut self, module: &mut syn::ItemMod) {
-        self.refused |= !module.attrs.iter().all(module_attribute);
-        module.attrs.clear();
-        visit_mut::visit_item_mod_mut(self, module);
+    fn visit_item_mod_mut(&mut self, i: &mut syn::ItemMod) {
+        self.refused |= !i.attrs.iter().all(module_attribute);
+        i.attrs.clear();
+        visit_mut::visit_item_mod_mut(self, i);
     }
 
-    fn visit_item_fn_mut(&mut self, function: &mut syn::ItemFn) {
-        self.refused |= !function.attrs.iter().all(|attribute| {
+    fn visit_item_fn_mut(&mut self, i: &mut syn::ItemFn) {
+        self.refused |= !i.attrs.iter().all(|attribute| {
             matches!(attribute.style, syn::AttrStyle::Outer)
                 && matches!(&attribute.meta, syn::Meta::Path(path) if path.is_ident("inline"))
         });
-        function.attrs.clear();
-        visit_mut::visit_item_fn_mut(self, function);
+        i.attrs.clear();
+        visit_mut::visit_item_fn_mut(self, i);
     }
 
-    fn visit_impl_item_fn_mut(&mut self, method: &mut syn::ImplItemFn) {
-        self.refused |= !method.attrs.is_empty() && !initializer_documentation(method);
-        method.attrs.clear();
-        visit_mut::visit_impl_item_fn_mut(self, method);
+    fn visit_impl_item_fn_mut(&mut self, i: &mut syn::ImplItemFn) {
+        self.refused |= !i.attrs.is_empty() && !initializer_documentation(i);
+        i.attrs.clear();
+        visit_mut::visit_impl_item_fn_mut(self, i);
     }
 }
 
@@ -518,7 +588,7 @@ fn initializer_documentation(method: &syn::ImplItemFn) -> bool {
         && signature.inputs.is_empty()
         && signature.variadic.is_none()
         && matches!(&signature.output, ReturnType::Type(_, ty)
-            if matches!(ty.as_ref(), Type::Path(ty) if ty.qself.is_none() && ty.path.is_ident("bool")))
+            if matches!(ty.as_ref(), Type::Path(result) if result.qself.is_none() && result.path.is_ident("bool")))
         && method.attrs.len() == DOCS.len()
         && method.attrs.iter().zip(DOCS).all(|(attribute, expected)| {
             matches!(attribute.style, syn::AttrStyle::Outer)
@@ -551,20 +621,20 @@ fn module_attribute(attribute: &syn::Attribute) -> bool {
     } else {
         return false;
     };
-    let Ok(arguments) = list.parse_args_with(
-        syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
-    ) else {
+    let Ok(arguments) =
+        list.parse_args_with(Punctuated::<syn::Path, syn::Token![,]>::parse_terminated)
+    else {
         return false;
     };
     arguments.len() == expected.len()
         && !arguments.trailing_punct()
-        && arguments.iter().zip(expected).all(|(argument, expected)| {
+        && arguments.iter().zip(expected).all(|(argument, name)| {
             argument.leading_colon.is_none()
                 && argument
                     .segments
                     .iter()
                     .all(|segment| matches!(segment.arguments, PathArguments::None))
-                && path(argument) == *expected
+                && path(argument) == *name
         })
 }
 
@@ -583,18 +653,17 @@ pub(super) fn check_match_attributes(
 
 fn wrapper_target(block: &syn::Block, target: &str, found: &mut bool) {
     fn expr(value: &syn::Expr, target: &str, found: &mut bool) {
-        match value {
-            syn::Expr::Block(block) => wrapper_target(&block.block, target, found),
-            syn::Expr::Call(call) => {
-                if matches!(call.func.as_ref(), syn::Expr::Path(callee) if path(&callee.path) == target)
-                {
-                    *found = true;
-                }
+        if let syn::Expr::Block(block) = value {
+            wrapper_target(&block.block, target, found);
+        } else if let syn::Expr::Call(call) = value {
+            if matches!(call.func.as_ref(), syn::Expr::Path(callee) if path(&callee.path) == target)
+            {
+                *found = true;
             }
-            syn::Expr::MethodCall(call) if call.method == "map" => {
-                expr(&call.receiver, target, found)
-            }
-            _ => {}
+        } else if let syn::Expr::MethodCall(call) = value
+            && call.method == "map"
+        {
+            expr(&call.receiver, target, found);
         }
     }
     for statement in &block.stmts {

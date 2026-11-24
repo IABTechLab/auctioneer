@@ -1,6 +1,7 @@
 //! Data projection of the existing independent census, not source-proof authority.
 
 use super::{Lane, Provenance, Schema, independent_membership_from_inputs, load_source};
+use serde_json::Value;
 use std::path::Path;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -28,11 +29,13 @@ pub(crate) struct PublicNameCensus {
 pub(crate) fn discover(crate_root: &Path, lane: Lane) -> Result<PublicNameCensus, String> {
     let (inputs, catalog) = load_source(crate_root)?;
     let membership = independent_membership_from_inputs(&inputs, lane)?;
-    let roots = membership["roots"]
-        .as_array()
+    let roots = membership
+        .get("roots")
+        .and_then(Value::as_array)
         .ok_or("missing independent roots")?;
-    let members = membership["members"]
-        .as_array()
+    let members = membership
+        .get("members")
+        .and_then(Value::as_array)
         .ok_or("missing independent members")?;
     let mut names = Vec::new();
     for root in roots {
@@ -49,7 +52,7 @@ pub(crate) fn discover(crate_root: &Path, lane: Lane) -> Result<PublicNameCensus
             .ok_or("public name is not an executable definition")?;
         let member = members
             .iter()
-            .find(|row| row["name"].as_str() == Some(name))
+            .find(|row| row.get("name").and_then(Value::as_str) == Some(name))
             .ok_or("missing independent selected member")?;
         let manifest = catalog
             .manifests
@@ -66,15 +69,18 @@ pub(crate) fn discover(crate_root: &Path, lane: Lane) -> Result<PublicNameCensus
             Schema::LocalSchemaFree => {
                 if !matches!(&manifest.provenance, Provenance::Local {})
                     || definition.parent.is_some()
-                    || !member["effective_schema_owner"].is_null()
+                    || !member
+                        .get("effective_schema_owner")
+                        .is_some_and(Value::is_null)
                 {
                     return Err("invalid explicit local schema-free disposition".into());
                 }
                 Disposition::LocalSchemaFree
             }
             Schema::Owners(_) | Schema::Inherit => {
-                let owner = member["effective_schema_owner"]
-                    .as_str()
+                let owner = member
+                    .get("effective_schema_owner")
+                    .and_then(Value::as_str)
                     .filter(|owner| !owner.is_empty())
                     .ok_or("schema-bearing public name has no independent owner")?;
                 Disposition::SchemaOwner(owner.into())

@@ -239,12 +239,13 @@ pub(crate) fn visit_bodies<T>(
         .map(|item| digest(item.to_token_stream().to_string().as_bytes()))
         .collect::<Vec<_>>();
     let mut rows = Vec::new();
-    let mut analyses = Vec::new();
+    let mut body_results = Vec::new();
     for (marker, (row, snapshot)) in expected {
         let (item, attribute) = actual.get(&marker).ok_or(MEMBERSHIP)?;
-        let (row, analysis) = expand_declaration(seed, item, attribute, row, snapshot, &mut visit)?;
-        rows.push(row);
-        analyses.push(analysis);
+        let (expanded_row, outcome) =
+            expand_declaration(seed, item, attribute, row, snapshot, &mut visit)?;
+        rows.push(expanded_row);
+        body_results.push(outcome);
     }
     seed.recheck_snapshots()
         .map_err(|_error| "captured schema snapshot mismatch".to_owned())?;
@@ -256,7 +257,7 @@ pub(crate) fn visit_bodies<T>(
         "auxiliary":{"status":classified.status.as_str(),"roots":classified.roots,
             "dispatch_edges":classified.dispatch_edges},"qualification":"Unqualified",
         "resource_qualification":false,"source_completeness":"owner-graph-only"}),
-        analyses,
+        body_results,
     ))
 }
 

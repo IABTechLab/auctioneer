@@ -26,9 +26,12 @@ All paths below are repository-relative. `T` abbreviates `crates/auctioneer-bidd
 | --- | --- |
 | `T/schema_validation/mod.rs` | One conformance-local common V consumer, source binding, status and strict canonical report. |
 | `T/schema_validation/handoff.rs` | Exact descriptor child assignments and separately witnessed preflight/coordinator roots. |
-| `T/schema_validation/operations.rs` | Accepted emitted/runtime primitive closure, call graph and source-work unit definitions. |
-| `T/schema_validation/work.rs` | Checked invocation/work formulas, including attempts before admission. |
-| `T/schema_validation/storage.rs` | Per-call disjoint lifetimes, cache construction/growth/drop and callback overlap. |
+| `T/schema_validation/operations/mod.rs` | Accepted emitted/runtime primitive closure, call graph and source-work unit definitions. |
+| `T/schema_validation/work/mod.rs` | Checked invocation/work formulas, including attempts before admission. |
+| `T/schema_validation/work/context.rs` | Caller schedule correspondence; identities alone do not prove runtime helper costs. |
+| `T/schema_validation/work/epsilon/{mod,primitives}.rs` | Epsilon-site and transitive helper source contracts, with separate byte/frame obligations. |
+| `T/schema_validation/storage/mod.rs` | Per-call disjoint lifetimes, cache construction/growth/drop and callback overlap. |
+| `T/schema_validation/storage/source.rs` | Exact cache initializer, coupled wrapper and callback source-lifetime correspondence. |
 | `T/schema_validation/stack.rs` | Logical call-path composition and required target-specific frame facts. |
 | `T/schema_validation/admission.rs` | Source-to-existing-policy correspondence and fail-closed statuses, not a new runtime budget. |
 | `T/schema_validation/observations.rs` | Migrated selected-cache observation assertions, subordinate to the common consumer and explicitly non-qualifying. |
@@ -44,6 +47,8 @@ All paths below are repository-relative. `T` abbreviates `crates/auctioneer-bidd
 | `docs/bidders/schema-qualification.md` and `docs/testing/resource-proof-ownership.md` | Current qualification/ownership references migrate with the retired report; historical captures remain unchanged. |
 
 Unit tests stay inline in each owning module. Use ordinary module declarations; no handwritten `#[path]` or source `include!`, cross-crate private imports, public test-only serving API or generated Rust string assembly. Source bytes inspected as evidence are data, not a second compiled implementation. Use `json!` for valid structured fixtures; preserve narrowly justified lexical controls and existing capture bytes.
+
+Owners with child modules use directory `mod.rs` files under the existing workspace lint policy. Module/test identities and acceptance remain unchanged; relative data includes must still resolve to the same source bytes after a move. Historical evidence retains its original head-specific filenames and result lines.
 
 ## Task 1: Freeze The Current Boundary And Retirement Inventory
 
@@ -85,9 +90,11 @@ The maintainer approved the host-entropy amendment on 2026-11-24 after source in
 
 Use exactly `std::hash::RandomState::new` as the service entry, with its whole warm/cold body covered by the supplied fact. Keep local map construction, hashing/probing/growth/drop outside that boundary, and reject substitution of a private lower-level entropy entry. Count source calls conservatively even if their thread is already warm; retained-thread storage remains one host-lifetime/multiplicity obligation, not a per-call sum.
 
+The typed service contract must retain both thread and process lifetimes under that same whole-entry boundary. Require process-retained-state identity, shared ownership, lifetime and process population separately from thread retained state and thread multiplicity. Independently reject thread-only scope and an omitted process fact. Attribute shared state once per bound process (or explicitly covered by its existing domain), not once per seed call; do not assume a process population of one. Preserve the clock's caller scope, service identity, transient overlap, local map/cleanup obligations and every runtime limit.
+
 The maintainer approved an explicit allocation-success premise on 2026-11-24. Bind every relevant allocation site, retain returning-error/partial-construction/ordinary unwind cleanup, and explicitly exclude terminal allocation-failure handlers and fatal diagnostics from this theorem. Do not assign those bodies zero work, infer bounded termination from ordinary `panic = "abort"`, or introduce another service boundary. Actual target use requires independently supported allocation-success facts matched to allocator/source/artifact; requested bytes or observed headroom do not supply them. This changes theorem scope only, not allocator behavior, production paths, reservations or limits.
 
-**Files:** create `T/schema_validation/operations.rs`; extend `handoff.rs` and the existing source-model owner only where required. Inspect `vendor/jsonschema-macros-core/src/codegen/{emit_serde,explicit_cache,expr,helpers}.rs`, reachable keyword emitters, Task 2's checked emitted bodies and the pinned runtime primitive sources. These production/vendor files are witnesses, not authorized patch sites.
+**Files:** create `T/schema_validation/operations/mod.rs`; extend `handoff.rs` and the existing source-model owner only where required. Inspect `vendor/jsonschema-macros-core/src/codegen/{emit_serde,explicit_cache,expr,helpers}.rs`, reachable keyword emitters, Task 2's checked emitted bodies and the pinned runtime primitive sources. These production/vendor files are witnesses, not authorized patch sites.
 
 - [ ] Add failing inline controls `operations::tests::{unclassified_call_refuses_completion,changed_branch_multiplicity_changes_the_recipe,non_regex_declaration_has_a_nonempty_closure,changed_primitive_semantics_is_not_approved_by_rehashing}` using typed `syn` AST/source fixtures. Independently alter a branch, loop, callback target, runtime primitive and recursive edge. A changed digest alone must not authorize the altered operation semantics.
 - [ ] Freeze a finite typed operation grammar before collecting samples: source/control visits, iterator/map/property visits, scalar comparisons, bytes/characters scanned or copied, structural equality/uniqueness work, allocation initialization/relocation/cleanup, and search state/transition processing. Keep different units in distinct ledger fields. Define each unit's charged primitive actions and exclusions in module documentation; do not call an abstract visit a CPU instruction or a native work token. Schema/compiler maintainers own that checked grammar and its source-unit definitions under #47; complete this freeze before Task 4. Derive/freeze the resulting coefficients before using new allocation/stress observations to corroborate them; existing mandatory baseline observations may still run unchanged.
@@ -99,7 +106,7 @@ The maintainer approved an explicit allocation-success premise on 2026-11-24. Bi
 
 ## Task 4: Derive Work And Invocation Bounds
 
-**Files:** create `T/schema_validation/work.rs`; extend the existing component owner where its result needs a caller-count premise, without copying its implementation.
+**Files:** create `T/schema_validation/work/mod.rs`; extend the existing component owner where its result needs a caller-count premise, without copying its implementation.
 
 - [ ] Add inline controls `work::tests::{dimensions_vary_independently,expiry_prefixes_bound_real_call_sites,attempts_before_admission_are_charged,branches_and_callbacks_have_source_derived_multiplicity,late_failure_includes_cleanup,overflow_refuses}`. Synthetic dimensions independently vary compact bytes `B`, values-plus-keys `J`, container depth `D`, schema/branch nesting, search-call count and attempts; do not keep the compared quantities equal. Actual JSON witnesses must independently establish admitted dimensions, including escaped/non-ASCII keys/strings and scalar/empty-container cases.
 - [ ] Construct formulas over the accepted operation graph: checked sum for sequential work; count-times-body for bounded traversals; maximum only for exclusive alternatives; bounded recursion over its proved decreasing measure. Derive calls from actual control flow, including branches that revisit input, rather than setting calls equal to nodes. For regexes include construction/search/fallback/drop costs; byte progress and graph exploration budgets are not search-work proofs.
@@ -109,7 +116,7 @@ The maintainer approved an explicit allocation-success premise on 2026-11-24. Bi
 
 ## Task 5: Compose Disjoint Storage Lifetimes
 
-**Files:** create `T/schema_validation/storage.rs`; reuse `T/schema_{cache_model,backtrack_bounds,onepass_bounds,hybrid_capacity,selected_half_search,meta_heap,bundle_heap}/` under their existing owners. Modify a component only to expose an already justified result or prove a genuinely missing bound.
+**Files:** create `T/schema_validation/storage/mod.rs`; reuse `T/schema_{cache_model,backtrack_bounds,onepass_bounds,hybrid_capacity,selected_half_search,meta_heap,bundle_heap}/` under their existing owners. Modify a component only to expose an already justified result or prove a genuinely missing bound.
 
 - [ ] Add inline controls `storage::tests::{fallback_is_covered_once,hostname_overlaps_the_live_wrapper,fresh_cache_construction_and_partial_failure_are_included,serial_calls_do_not_multiply_peak,overlap_change_invalidates_serial_composition}`. Keep independent before-state owners and compare exact peaks. Use unrelated values: live heap children 11 and 29, a callback heap of 13 and relocation overlap 17 produce a heap peak of **70**; separately supplied wrapper-inline storage of 7 produces combined illustrative storage of **77**, not an additional heap allocation. Keep those domains separately labelled in real results.
 - [ ] Implement a checked lifetime trace whose states enumerate disjoint live owners and justified growth/partial-construction/release overlap. Peak is `max(sum(disjoint_live) + transient_overlap)` across supported source states. Store an explicit covered-by edge for fallback storage already included in `MetaCacheHeap`; reject duplicate/broken attribution rather than adding it twice or treating it as absent.

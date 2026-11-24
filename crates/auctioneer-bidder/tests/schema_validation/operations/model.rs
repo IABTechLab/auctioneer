@@ -4,10 +4,7 @@
 //! lexical block charges one block event. Calls charge their call-site event
 //! and revisit the callee's entry/body on every execution, not once per symbol.
 
-use super::{
-    BodyOperations, Primitive, Refusal, ServiceBinding, ServiceRequirement, TraversalMeasure,
-    WorkLedger,
-};
+use super::{BodyOperations, Primitive, Refusal, ServiceBinding, ServiceRequirement, WorkLedger};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -232,7 +229,7 @@ impl Recipe {
             self.check_calls(*root, &mut active)?;
         }
         let mut calls = BTreeMap::new();
-        let mut traversals = BTreeMap::new();
+        let mut traversals = BTreeSet::new();
         let mut required_lemmas = BTreeSet::new();
         let mut services: Vec<ServiceRequirement> = Vec::new();
         for initializer in self.initialization.keys() {
@@ -260,10 +257,7 @@ impl Recipe {
                         receiver, protocol, ..
                     } => {
                         required_lemmas.insert(*protocol);
-                        traversals.insert(
-                            format!("{}::{}", function.identity, receiver.place),
-                            TraversalMeasure::ValuesAndKeys,
-                        );
+                        traversals.insert(format!("{}::{}", function.identity, receiver.place));
                     }
                     Kind::Callback {
                         protocol,
@@ -275,10 +269,8 @@ impl Recipe {
                             required_lemmas.insert(Primitive::Cleanup);
                         }
                     }
-                    Kind::Primitive { lemma, .. } => {
-                        required_lemmas.insert(*lemma);
-                    }
-                    Kind::Construct {
+                    Kind::Primitive { lemma, .. }
+                    | Kind::Construct {
                         cleanup: Some(lemma),
                         ..
                     } => {
@@ -300,26 +292,22 @@ impl Recipe {
                             });
                         }
                     }
-                    _ => {}
+                    Kind::Value(_)
+                    | Kind::Scope { .. }
+                    | Kind::Bind { .. }
+                    | Kind::Evaluate(..)
+                    | Kind::ScalarTest(..)
+                    | Kind::Choice { .. }
+                    | Kind::ShortCircuit(..)
+                    | Kind::Construct { .. }
+                    | Kind::Exit(..) => {}
                 }
                 Ok(())
             })?;
         }
         // Only primitive-free, traversal-free source fragments receive constant
         // event bounds here. Unknown library work never becomes a zero default.
-        let mut ledger = zero();
-        for root in &self.roots {
-            ledger = add(
-                ledger,
-                self.events(
-                    &self
-                        .functions
-                        .get(root)
-                        .ok_or(Refusal::UnclassifiedCall)?
-                        .body,
-                )?,
-            )?;
-        }
+        let ledger = self.root_events()?;
         Ok(BodyOperations {
             recipe: self,
             ledger,
@@ -328,6 +316,23 @@ impl Recipe {
             required_lemmas,
             services,
         })
+    }
+
+    fn root_events(&self) -> Result<WorkLedger, Refusal> {
+        let mut ledger = zero();
+        for root in &self.roots {
+            ledger = add(
+                &ledger,
+                &self.events(
+                    &self
+                        .functions
+                        .get(root)
+                        .ok_or(Refusal::UnclassifiedCall)?
+                        .body,
+                )?,
+            )?;
+        }
+        Ok(ledger)
     }
 
     fn check_calls(&self, id: usize, active: &mut BTreeSet<usize>) -> Result<(), Refusal> {
@@ -384,7 +389,7 @@ impl Recipe {
                 if self
                     .functions
                     .get(function)
-                    .is_none_or(|function| *ordinal >= function.parameters.len())
+                    .is_none_or(|callee| *ordinal >= callee.parameters.len())
                 {
                     return Err(Refusal::ReceiverMismatch);
                 }
@@ -442,7 +447,7 @@ impl Recipe {
                         Pattern::Variant(_, fields) | Pattern::Tuple(fields) => {
                             !fields.iter().all(irrefutable_payload)
                         }
-                        _ => false,
+                        Pattern::Wild | Pattern::Binding(_) => false,
                     })
                     || arms
                         .iter()
@@ -467,10 +472,10 @@ impl Recipe {
                     if arm.guard.is_some() && matches!(arm.pattern, Pattern::Or(_)) {
                         return Ok(WorkLedger::default());
                     }
-                    decisions = add(decisions, guard)?;
-                    alternatives = maximum(alternatives, self.events(&arm.body)?);
+                    decisions = add(&decisions, &guard)?;
+                    alternatives = maximum(&alternatives, &self.events(&arm.body)?);
                 }
-                add(add(self.events(selector)?, decisions)?, alternatives)?
+                add(&add(&self.events(selector)?, &decisions)?, &alternatives)?
             }
             Kind::ShortCircuit(_, operands) => {
                 own.control_visits =
@@ -484,19 +489,19 @@ impl Recipe {
                     .functions
                     .get(target)
                     .ok_or(Refusal::UnclassifiedCall)?;
-                add(self.sequence(evaluation)?, self.events(&function.body)?)?
+                add(&self.sequence(evaluation)?, &self.events(&function.body)?)?
             }
             Kind::Exit(_, value) => value
                 .as_ref()
-                .map_or(Ok(zero()), |value| self.events(value))?,
+                .map_or(Ok(zero()), |expression| self.events(expression))?,
         };
-        add(own, children)
+        add(&own, &children)
     }
 
     fn sequence(&self, steps: &[Op]) -> Result<WorkLedger, Refusal> {
         let mut total = zero();
         for step in steps {
-            total = add(total, self.events(step)?)?;
+            total = add(&total, &self.events(step)?)?;
             if matches!(step.kind, Kind::Exit(Exit::Return(_) | Exit::Break(_), _)) {
                 break;
             }
@@ -507,15 +512,7 @@ impl Recipe {
 
 fn check_shape(op: &Op) -> Result<(), Refusal> {
     match &op.kind {
-        Kind::Value(atom) => match atom {
-            Atom::Bool(_) if op.value.ty == Ty::Bool => {}
-            Atom::Scalar(value) if !value.is_empty() && op.value.ty == Ty::Scalar => {}
-            Atom::String(_) if op.value.ty == Ty::String && op.value.borrowed => {}
-            Atom::None if matches!(op.value.ty, Ty::Option(_)) => {}
-            Atom::Unit if op.value.ty == Ty::Unit => {}
-            Atom::Place if !op.value.place.is_empty() => {}
-            _ => return Err(Refusal::ReceiverMismatch),
-        },
+        Kind::Value(atom) => check_atom(atom, &op.value)?,
         Kind::Scope { label, locals, .. } => {
             if label.as_ref().is_some_and(String::is_empty)
                 || locals.iter().any(|local| local.place.is_empty())
@@ -530,84 +527,18 @@ fn check_shape(op: &Op) -> Result<(), Refusal> {
             ..
         } => {
             if callee.is_empty()
-                || receiver.as_ref().is_some_and(|receiver| {
+                || receiver.as_ref().is_some_and(|binding| {
                     arguments
                         .first()
-                        .is_none_or(|argument| argument.value != *receiver)
+                        .is_none_or(|argument| argument.value != *binding)
                 })
             {
                 return Err(Refusal::ReceiverMismatch);
             }
         }
-        Kind::Iterate {
-            protocol,
-            callee,
-            stop,
-            none_on_exhaustion,
-            bound,
-            receiver,
-            parameters,
-            evaluation,
-            body,
-        } => {
-            let expected = match stop {
-                StopRule::FirstFalseOrExhaustion => "Iterator::all",
-                StopRule::BreakOrExhaustion => "Iterator::next/for",
-            };
-            if *protocol != Primitive::IteratorProtocol
-                || callee != expected
-                || !none_on_exhaustion
-                || receiver != &evaluation.value
-                || !matches!(receiver.ty, Ty::Iterator(_))
-                || !matches!(bound.collection.ty, Ty::Array | Ty::Map)
-                || !bound.collection.borrowed
-                || receiver.ty != Ty::Iterator(Box::new(bound.element.clone()))
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.place.is_empty())
-                || (*stop == StopRule::FirstFalseOrExhaustion && body.value.ty != Ty::Bool)
-            {
-                return Err(Refusal::ReceiverMismatch);
-            }
-        }
-        Kind::Callback {
-            protocol,
-            callee,
-            receiver,
-            parameters,
-            evaluation,
-            body,
-        } => {
-            if *protocol != Primitive::ValueAccess
-                || !matches!(callee.as_str(), "Option::map" | "Option::is_some_and")
-                || receiver != &evaluation.value
-                || !matches!(receiver.ty, Ty::Option(_))
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.place.is_empty())
-                || (callee == "Option::is_some_and" && body.value.ty != Ty::Bool)
-            {
-                return Err(Refusal::ReceiverMismatch);
-            }
-        }
-        Kind::Evaluate(action, operands) => {
-            let valid = match action {
-                Action::Borrow { .. } => operands.len() == 1 && op.value.borrowed,
-                Action::Field(member) => !member.is_empty() && operands.len() == 1,
-                Action::Not => operands.len() == 1 && op.value.ty == Ty::Bool,
-                Action::Negate | Action::CastScalar => {
-                    operands.len() == 1 && op.value.ty == Ty::Scalar
-                }
-                Action::Dereference => operands.first().is_some_and(|value| value.value.borrowed),
-                Action::Assign(target) | Action::AndAssign(target) => {
-                    operands.len() == 2
-                        && operands.first().is_some_and(|value| value.value == *target)
-                }
-            };
-            if !valid {
-                return Err(Refusal::ReceiverMismatch);
-            }
-        }
+        Kind::Iterate { .. } => check_iteration(op)?,
+        Kind::Callback { .. } => check_callback(op)?,
+        Kind::Evaluate(action, operands) => check_action(action, operands, &op.value)?,
         Kind::ScalarTest(comparison, operands) => {
             let arity = if *comparison == Comparison::TypeDiscriminant {
                 1
@@ -663,6 +594,105 @@ fn check_shape(op: &Op) -> Result<(), Refusal> {
     Ok(())
 }
 
+fn check_atom(atom: &Atom, binding: &Binding) -> Result<(), Refusal> {
+    match atom {
+        Atom::Bool(_) if binding.ty == Ty::Bool => {}
+        Atom::Scalar(value) if !value.is_empty() && binding.ty == Ty::Scalar => {}
+        Atom::String(_) if binding.ty == Ty::String && binding.borrowed => {}
+        Atom::None if matches!(binding.ty, Ty::Option(_)) => {}
+        Atom::Unit if binding.ty == Ty::Unit => {}
+        Atom::Place if !binding.place.is_empty() => {}
+        Atom::Place
+        | Atom::Bool(_)
+        | Atom::Scalar(_)
+        | Atom::String(_)
+        | Atom::None
+        | Atom::Unit => return Err(Refusal::ReceiverMismatch),
+    }
+    Ok(())
+}
+
+fn check_action(action: &Action, operands: &[Op], result: &Binding) -> Result<(), Refusal> {
+    let valid = match action {
+        Action::Borrow { .. } => operands.len() == 1 && result.borrowed,
+        Action::Field(member) => !member.is_empty() && operands.len() == 1,
+        Action::Not => operands.len() == 1 && result.ty == Ty::Bool,
+        Action::Negate | Action::CastScalar => operands.len() == 1 && result.ty == Ty::Scalar,
+        Action::Dereference => operands.first().is_some_and(|value| value.value.borrowed),
+        Action::Assign(target) | Action::AndAssign(target) => {
+            operands.len() == 2 && operands.first().is_some_and(|value| value.value == *target)
+        }
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(Refusal::ReceiverMismatch)
+    }
+}
+
+fn check_iteration(op: &Op) -> Result<(), Refusal> {
+    let Kind::Iterate {
+        protocol,
+        callee,
+        stop,
+        none_on_exhaustion,
+        bound,
+        receiver,
+        parameters,
+        evaluation,
+        body,
+    } = &op.kind
+    else {
+        return Err(Refusal::ReceiverMismatch);
+    };
+    let expected = match stop {
+        StopRule::FirstFalseOrExhaustion => "Iterator::all",
+        StopRule::BreakOrExhaustion => "Iterator::next/for",
+    };
+    if *protocol != Primitive::IteratorProtocol
+        || callee != expected
+        || !none_on_exhaustion
+        || receiver != &evaluation.value
+        || !matches!(receiver.ty, Ty::Iterator(_))
+        || !matches!(bound.collection.ty, Ty::Array | Ty::Map)
+        || !bound.collection.borrowed
+        || receiver.ty != Ty::Iterator(Box::new(bound.element.clone()))
+        || parameters
+            .iter()
+            .any(|parameter| parameter.place.is_empty())
+        || (*stop == StopRule::FirstFalseOrExhaustion && body.value.ty != Ty::Bool)
+    {
+        return Err(Refusal::ReceiverMismatch);
+    }
+    Ok(())
+}
+
+fn check_callback(op: &Op) -> Result<(), Refusal> {
+    let Kind::Callback {
+        protocol,
+        callee,
+        receiver,
+        parameters,
+        evaluation,
+        body,
+    } = &op.kind
+    else {
+        return Err(Refusal::ReceiverMismatch);
+    };
+    if *protocol != Primitive::ValueAccess
+        || !matches!(callee.as_str(), "Option::map" | "Option::is_some_and")
+        || receiver != &evaluation.value
+        || !matches!(receiver.ty, Ty::Option(_))
+        || parameters
+            .iter()
+            .any(|parameter| parameter.place.is_empty())
+        || (callee == "Option::is_some_and" && body.value.ty != Ty::Bool)
+    {
+        return Err(Refusal::ReceiverMismatch);
+    }
+    Ok(())
+}
+
 // Only bindings/wildcards and their tuple products add no payload decision.
 // Nested variants, literals and alternatives require a separate decision bound.
 fn irrefutable_payload(pattern: &Pattern) -> bool {
@@ -675,7 +705,6 @@ fn irrefutable_payload(pattern: &Pattern) -> bool {
 
 fn check_pattern(pattern: &Pattern) -> Result<(), Refusal> {
     match pattern {
-        Pattern::Wild => {}
         Pattern::Binding(name) | Pattern::Literal(name) if name.is_empty() => {
             return Err(Refusal::UnsupportedSource);
         }
@@ -692,7 +721,7 @@ fn check_pattern(pattern: &Pattern) -> Result<(), Refusal> {
                 check_pattern(field)?;
             }
         }
-        Pattern::Binding(_) | Pattern::Literal(_) => {}
+        Pattern::Wild | Pattern::Binding(_) | Pattern::Literal(_) => {}
     }
     Ok(())
 }
@@ -711,7 +740,7 @@ pub(in crate::schema_validation) fn walk(
                 walk(step, visit)?;
             }
         }
-        Kind::Bind { value, .. } => walk(value, visit)?,
+        Kind::Bind { value, .. } | Kind::Exit(_, Some(value)) => walk(value, visit)?,
         Kind::Choice { selector, arms } => {
             walk(selector, visit)?;
             for arm in arms {
@@ -749,7 +778,6 @@ pub(in crate::schema_validation) fn walk(
                 walk(value, visit)?;
             }
         }
-        Kind::Exit(_, Some(value)) => walk(value, visit)?,
         Kind::Value(_) | Kind::Service(_) | Kind::Exit(_, None) => {}
     }
     Ok(())
@@ -800,16 +828,17 @@ macro_rules! fields {
     };
 }
 
-fn add(left: WorkLedger, right: WorkLedger) -> Result<WorkLedger, Refusal> {
+fn add(left: &WorkLedger, right: &WorkLedger) -> Result<WorkLedger, Refusal> {
     let mut overflow = false;
-    let mut sum = |a: Option<u64>, b: Option<u64>| match (a, b) {
-        (Some(a), Some(b)) => {
-            let result = a.checked_add(b);
-            overflow |= result.is_none();
-            result
-        }
-        _ => None,
-    };
+    let mut sum =
+        |left_count: Option<u64>, right_count: Option<u64>| match (left_count, right_count) {
+            (Some(left_value), Some(right_value)) => {
+                let result = left_value.checked_add(right_value);
+                overflow |= result.is_none();
+                result
+            }
+            _ => None,
+        };
     let result = fields!(left, right, sum);
     if overflow {
         Err(Refusal::Overflow)
@@ -818,7 +847,11 @@ fn add(left: WorkLedger, right: WorkLedger) -> Result<WorkLedger, Refusal> {
     }
 }
 
-fn maximum(left: WorkLedger, right: WorkLedger) -> WorkLedger {
-    let max = |a: Option<u64>, b: Option<u64>| a.zip(b).map(|(a, b)| a.max(b));
+fn maximum(left: &WorkLedger, right: &WorkLedger) -> WorkLedger {
+    let max = |left_count: Option<u64>, right_count: Option<u64>| {
+        left_count
+            .zip(right_count)
+            .map(|(left_value, right_value)| left_value.max(right_value))
+    };
     fields!(left, right, max)
 }

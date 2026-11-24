@@ -12,6 +12,7 @@ use super::{
 use quote::ToTokens as _;
 use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use syn::parse::{ParseStream, Parser as _};
 use syn::{Expr, Pat, Stmt};
 
 fn child(site: &[usize], ordinal: usize) -> Vec<usize> {
@@ -27,16 +28,16 @@ pub(super) fn recognize(
 ) -> Result<Recipe, Refusal> {
     check_primitives(primitives)?;
     let mut recipe = Recipe {
-        roots: index.roots.clone(),
+        roots: index.roots().to_vec(),
         functions: BTreeMap::new(),
-        initialization: index.initialization.clone(),
+        initialization: index.initialization().clone(),
     };
     let mut pending = recipe.roots.clone();
     while let Some(id) = pending.pop() {
         if recipe.functions.contains_key(&id) {
             continue;
         }
-        let source = index.functions.get(id).ok_or(Refusal::UnclassifiedCall)?;
+        let source = index.source(id).ok_or(Refusal::UnclassifiedCall)?;
         let parameters = index.parameters(id)?;
         let mut lower = Lower {
             index,
@@ -213,7 +214,7 @@ impl Lower<'_, '_> {
                             return Err(Refusal::UnsupportedSource);
                         }
                     }
-                    _ => return Err(Refusal::UnsupportedSource),
+                    Stmt::Item(_) | Stmt::Macro(_) => return Err(Refusal::UnsupportedSource),
                 }
             }
             Ok(self.op(
@@ -232,15 +233,16 @@ impl Lower<'_, '_> {
 
     fn expr(&mut self, expression: &Expr, site: &[usize]) -> Result<Op, Refusal> {
         self.expression(expression, site).map_err(|cause| {
-            let source = self.index.functions.get(self.function);
-            if source.is_some_and(|source| source.module.is_empty() && source.receiver.is_none())
+            let source = self.index.source(self.function);
+            if source
+                .is_some_and(|function| function.module.is_empty() && function.receiver.is_none())
                 || matches!(&cause, Refusal::AtSource { .. })
             {
                 cause
             } else {
                 Refusal::AtSource {
-                    function: source.map_or(String::new(), |source| {
-                        source.identity.chars().take(128).collect()
+                    function: source.map_or(String::new(), |function| {
+                        function.identity.chars().take(128).collect()
                     }),
                     lexical_site: site.to_vec(),
                     cause: Box::new(cause),
@@ -277,7 +279,25 @@ impl Lower<'_, '_> {
             Expr::ForLoop(expr) => self.for_expr(expr, site),
             Expr::Macro(expr) if expr.mac.path.is_ident("matches") => self.matches_expr(expr, site),
             Expr::Loop(_) | Expr::While(_) => Err(Refusal::UnboundedTraversal),
-            _ => Err(Refusal::UnsupportedSource),
+            Expr::Array(_)
+            | Expr::Async(_)
+            | Expr::Await(_)
+            | Expr::Closure(_)
+            | Expr::Const(_)
+            | Expr::Continue(_)
+            | Expr::Index(_)
+            | Expr::Infer(_)
+            | Expr::Let(_)
+            | Expr::Macro(_)
+            | Expr::Path(_)
+            | Expr::Range(_)
+            | Expr::RawAddr(_)
+            | Expr::Repeat(_)
+            | Expr::TryBlock(_)
+            | Expr::Unsafe(_)
+            | Expr::Verbatim(_)
+            | Expr::Yield(_)
+            | _ => Err(Refusal::UnsupportedSource),
         }
     }
 
@@ -286,8 +306,8 @@ impl Lower<'_, '_> {
             .label
             .as_ref()
             .map(|label| label.name.ident.to_string());
-        if let Some(label) = &label {
-            self.labels.push(label.clone());
+        if let Some(name) = &label {
+            self.labels.push(name.clone());
         }
         let mut body = self.block(&expr.block, site)?;
         if label.is_some() {
@@ -306,7 +326,12 @@ impl Lower<'_, '_> {
                 Atom::Scalar(expr.lit.to_token_stream().to_string()),
             ),
             syn::Lit::Str(value) => (Ty::String, Atom::String(value.value())),
-            _ => return Err(Refusal::UnsupportedSource),
+            syn::Lit::ByteStr(_)
+            | syn::Lit::CStr(_)
+            | syn::Lit::Byte(_)
+            | syn::Lit::Char(_)
+            | syn::Lit::Verbatim(_)
+            | _ => return Err(Refusal::UnsupportedSource),
         };
         let mut op = self.op(site, ty, Kind::Value(atom));
         // String literals are borrowed static data, not owned Strings.
@@ -323,7 +348,7 @@ impl Lower<'_, '_> {
             });
         }
         let qualified = join(self.module, &name);
-        if let Some(ty) = self.index.statics.get(&qualified) {
+        if let Some(ty) = self.index.static_type(&qualified) {
             return Ok(Op {
                 site: self.site(site),
                 value: Binding {
@@ -377,8 +402,7 @@ impl Lower<'_, '_> {
         };
         let ty = self
             .index
-            .fields
-            .get(owner)
+            .fields(owner)
             .and_then(|fields| fields.get(&member.to_string()))
             .ok_or(Refusal::ReceiverMismatch)?
             .clone();
@@ -397,8 +421,8 @@ impl Lower<'_, '_> {
         Ok(value)
     }
     fn match_expr(&mut self, expr: &syn::ExprMatch, site: &[usize]) -> Result<Op, Refusal> {
-        let selector = self.expr(&expr.expr, &child(site, 0))?;
-        let selector_value = selector.value.clone();
+        let selected_expression = self.expr(&expr.expr, &child(site, 0))?;
+        let selector_value = selected_expression.value.clone();
         let selector = if selector_value.ty == Ty::String {
             self.primitive(
                 &child(site, 0),
@@ -406,23 +430,24 @@ impl Lower<'_, '_> {
                 Primitive::StringAccess,
                 "str::pattern_decision".to_owned(),
                 Some(selector_value.clone()),
-                vec![selector],
+                vec![selected_expression],
             )
         } else {
             self.op(
                 &child(site, 0),
                 Ty::Bool,
-                Kind::ScalarTest(Comparison::TypeDiscriminant, vec![selector]),
+                Kind::ScalarTest(Comparison::TypeDiscriminant, vec![selected_expression]),
             )
         };
         let mut arms = Vec::new();
         let mut ty = Ty::Unit;
         for (ordinal, arm) in expr.arms.iter().enumerate() {
-            let here = child(site, ordinal + 1);
+            let here = child(site, ordinal.checked_add(1).ok_or(Refusal::Overflow)?);
             self.scopes.push(BTreeMap::new());
-            let (source_pattern, source_guard) = match &arm.pat {
-                Pat::Guard(guard) => (guard.pat.as_ref(), Some(guard.guard.as_ref())),
-                pattern => (pattern, None),
+            let (source_pattern, source_guard) = if let Pat::Guard(guard) = &arm.pat {
+                (guard.pat.as_ref(), Some(guard.guard.as_ref()))
+            } else {
+                (&arm.pat, None)
             };
             let (pattern, _) = self.pattern(source_pattern, &selector_value, &here)?;
             let guard = source_guard
@@ -638,7 +663,7 @@ impl Lower<'_, '_> {
         let label = expr.label.as_ref().map(|label| label.ident.to_string());
         if label
             .as_ref()
-            .is_some_and(|label| !self.labels.contains(label))
+            .is_some_and(|name| !self.labels.contains(name))
             || (label.is_none() && self.loop_depth == 0)
         {
             return Err(Refusal::UnsupportedSource);
@@ -650,7 +675,7 @@ impl Lower<'_, '_> {
             .transpose()?;
         let ty = value
             .as_ref()
-            .map_or(Ty::Unit, |value| value.value.ty.clone());
+            .map_or(Ty::Unit, |result| result.value.ty.clone());
         Ok(self.op(
             site,
             ty,
@@ -686,12 +711,12 @@ impl Lower<'_, '_> {
         let Ty::Iterator(element) = &receiver.value.ty else {
             return Err(Refusal::UnboundedTraversal);
         };
-        let element = self.element(&receiver.value, *element.clone(), "member");
+        let element_binding = Self::element(&receiver.value, *element.clone(), "member");
         self.scopes.push(BTreeMap::new());
-        let (_, parameters) = self.pattern(&expr.pat, &element, &child(site, 1))?;
-        self.loop_depth += 1;
+        let (_, parameters) = self.pattern(&expr.pat, &element_binding, &child(site, 1))?;
+        self.loop_depth = self.loop_depth.checked_add(1).ok_or(Refusal::Overflow)?;
         let body = self.block(&expr.body, &child(site, 1))?;
-        self.loop_depth -= 1;
+        self.loop_depth = self.loop_depth.checked_sub(1).ok_or(Refusal::Overflow)?;
         self.scopes.pop();
         Ok(self.op(
             site,
@@ -710,7 +735,7 @@ impl Lower<'_, '_> {
         ))
     }
     fn matches_expr(&mut self, expr: &syn::ExprMacro, site: &[usize]) -> Result<Op, Refusal> {
-        let parser = |input: syn::parse::ParseStream<'_>| {
+        let parser = |input: ParseStream<'_>| {
             let value: Expr = input.parse()?;
             input.parse::<syn::Token![,]>()?;
             let pattern = Pat::parse_multi_with_leading_vert(input)?;
@@ -719,12 +744,13 @@ impl Lower<'_, '_> {
             }
             Ok((value, pattern))
         };
-        let (mut value, mut pattern) = syn::parse::Parser::parse2(parser, expr.mac.tokens.clone())
+        let (mut source_value, mut source_pattern) = parser
+            .parse2(expr.mac.tokens.clone())
             .map_err(|_error| Refusal::UnsupportedSource)?;
-        super::resolve::check_match_attributes(&mut value, &mut pattern)?;
-        let value = self.expr(&value, &child(site, 0))?;
+        super::resolve::check_match_attributes(&mut source_value, &mut source_pattern)?;
+        let value = self.expr(&source_value, &child(site, 0))?;
         self.scopes.push(BTreeMap::new());
-        let (pattern, bindings) = self.pattern(&pattern, &value.value, &child(site, 1))?;
+        let (pattern, bindings) = self.pattern(&source_pattern, &value.value, &child(site, 1))?;
         self.scopes.pop();
         if !bindings.is_empty() {
             return Err(Refusal::UnsupportedSource);
@@ -815,6 +841,10 @@ impl Lower<'_, '_> {
                 },
             ));
         }
+        self.primitive_call(name, args, site)
+    }
+
+    fn primitive_call(&self, name: String, args: Vec<Op>, site: &[usize]) -> Result<Op, Refusal> {
         let types: Vec<_> = args.iter().map(|arg| arg.value.ty.clone()).collect();
         let (lemma, result) = match (name.as_str(), types.as_slice()) {
             ("Some", [ty]) => {
@@ -855,49 +885,58 @@ impl Lower<'_, '_> {
             }
             ("regex_automata::Input::new", [Ty::String]) => (Primitive::RegexSearch, Ty::Input),
             ("std::collections::HashMap::new", []) => {
-                let service = self.op(
-                    site,
-                    Ty::Unit,
-                    Kind::Service(self.service(ExternalService::HostEntropy)?),
-                );
-                let mut seed_default = self.primitive(
-                    site,
-                    Ty::Named("std::hash::RandomState".to_owned()),
-                    Primitive::StateMapConstruction,
-                    "std::hash::RandomState::default".to_owned(),
-                    None,
-                    Vec::new(),
-                );
-                if let Kind::Primitive { source_calls, .. } = &mut seed_default.kind {
-                    source_calls.push(service);
-                }
-                let mut map_default = self.primitive(
-                    site,
-                    Ty::Named("StateMap".to_owned()),
-                    Primitive::StateMapConstruction,
-                    "std::collections::HashMap::default".to_owned(),
-                    None,
-                    Vec::new(),
-                );
-                if let Kind::Primitive { source_calls, .. } = &mut map_default.kind {
-                    source_calls.push(seed_default);
-                }
-                let mut op = self.primitive(
-                    site,
-                    Ty::Named("StateMap".to_owned()),
-                    Primitive::StateMapConstruction,
-                    name,
-                    None,
-                    args,
-                );
-                if let Kind::Primitive { source_calls, .. } = &mut op.kind {
-                    source_calls.push(map_default);
-                }
-                return Ok(op);
+                return self.state_map_constructor(site, name, args);
             }
             _ => return Err(Refusal::UnclassifiedCall),
         };
         Ok(self.primitive(site, result, lemma, name, None, args))
+    }
+
+    fn state_map_constructor(
+        &self,
+        site: &[usize],
+        name: String,
+        args: Vec<Op>,
+    ) -> Result<Op, Refusal> {
+        let service = self.op(
+            site,
+            Ty::Unit,
+            Kind::Service(self.service(ExternalService::HostEntropy)?),
+        );
+        let mut seed_default = self.primitive(
+            site,
+            Ty::Named("std::hash::RandomState".to_owned()),
+            Primitive::StateMapConstruction,
+            "std::hash::RandomState::default".to_owned(),
+            None,
+            Vec::new(),
+        );
+        if let Kind::Primitive { source_calls, .. } = &mut seed_default.kind {
+            source_calls.push(service);
+        }
+        let mut map_default = self.primitive(
+            site,
+            Ty::Named("StateMap".to_owned()),
+            Primitive::StateMapConstruction,
+            "std::collections::HashMap::default".to_owned(),
+            None,
+            Vec::new(),
+        );
+        if let Kind::Primitive { source_calls, .. } = &mut map_default.kind {
+            source_calls.push(seed_default);
+        }
+        let mut op = self.primitive(
+            site,
+            Ty::Named("StateMap".to_owned()),
+            Primitive::StateMapConstruction,
+            name,
+            None,
+            args,
+        );
+        if let Kind::Primitive { source_calls, .. } = &mut op.kind {
+            source_calls.push(map_default);
+        }
+        Ok(op)
     }
 
     fn method(&mut self, call: &syn::ExprMethodCall, site: &[usize]) -> Result<Op, Refusal> {
@@ -909,104 +948,129 @@ impl Lower<'_, '_> {
         if matches!(&receiver.value.ty, Ty::Named(owner) if owner == "aho_corasick::AhoCorasick") {
             return Err(Refusal::UnsupportedNestedLiteralOwner);
         }
-        if let Ty::Cache(owner) = &receiver.value.ty {
-            if let Some(target) = self.index.function(&join(owner, &name)) {
-                let mut args = vec![receiver];
-                for (ordinal, arg) in call.args.iter().enumerate() {
-                    args.push(self.expr(arg, &child(site, ordinal + 1))?);
-                }
-                let parameters = self.index.parameters(target)?;
-                if parameters.len() != args.len()
-                    || parameters
-                        .iter()
-                        .zip(&args)
-                        .any(|(expected, actual)| expected.ty != actual.value.ty)
-                {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                return Ok(self.op(
-                    site,
-                    self.index.result(target)?,
-                    Kind::Call {
-                        target,
-                        arguments: args.iter().map(|arg| arg.value.clone()).collect(),
-                        evaluation: args,
-                    },
-                ));
+        if let Ty::Cache(owner) = &receiver.value.ty
+            && let Some(target) = self.index.function(&join(owner, &name))
+        {
+            let mut args = vec![receiver];
+            for (ordinal, arg) in call.args.iter().enumerate() {
+                args.push(self.expr(
+                    arg,
+                    &child(site, ordinal.checked_add(1).ok_or(Refusal::Overflow)?),
+                )?);
             }
-        }
-        if matches!(name.as_str(), "all" | "map" | "is_some_and") {
-            if call.args.len() != 1 {
-                return Err(Refusal::UnknownCallback);
-            }
-            let element = match (&receiver.value.ty, name.as_str()) {
-                (Ty::Iterator(element), "all") | (Ty::Option(element), "map" | "is_some_and") => {
-                    *element.clone()
-                }
-                _ => return Err(Refusal::ReceiverMismatch),
-            };
-            let argument = call.args.first().ok_or(Refusal::UnknownCallback)?;
-            let Expr::Closure(closure) = argument else {
-                return Err(Refusal::UnknownCallback);
-            };
-            if closure.inputs.len() != 1 || closure.capture.is_some() || closure.asyncness.is_some()
+            let parameters = self.index.parameters(target)?;
+            if parameters.len() != args.len()
+                || parameters
+                    .iter()
+                    .zip(&args)
+                    .any(|(expected, actual)| expected.ty != actual.value.ty)
             {
-                return Err(Refusal::UnknownCallback);
-            }
-            self.scopes.push(BTreeMap::new());
-            let element = self.element(
-                &receiver.value,
-                element,
-                if name == "all" { "member" } else { "Some" },
-            );
-            let (_, parameters) = self.pattern(
-                closure.inputs.first().ok_or(Refusal::UnknownCallback)?,
-                &element,
-                &child(site, 1),
-            )?;
-            self.returns.push(self.site(&child(site, 1)));
-            let body = self.expr(&closure.body, &child(site, 1))?;
-            self.returns.pop();
-            self.scopes.pop();
-            if name != "map" && body.value.ty != Ty::Bool {
                 return Err(Refusal::ReceiverMismatch);
             }
-            let ty = if name == "map" {
-                Ty::Option(Box::new(body.value.ty.clone()))
-            } else {
-                Ty::Bool
-            };
             return Ok(self.op(
                 site,
-                ty,
-                if name == "all" {
-                    Kind::Iterate {
-                        protocol: Primitive::IteratorProtocol,
-                        callee: "Iterator::all".to_owned(),
-                        stop: StopRule::FirstFalseOrExhaustion,
-                        none_on_exhaustion: true,
-                        bound: iteration_bound(&receiver)?,
-                        receiver: receiver.value.clone(),
-                        parameters,
-                        body: Box::new(body),
-                        evaluation: Box::new(receiver),
-                    }
-                } else {
-                    Kind::Callback {
-                        protocol: Primitive::ValueAccess,
-                        callee: format!("Option::{name}"),
-                        receiver: receiver.value.clone(),
-                        parameters,
-                        body: Box::new(body),
-                        evaluation: Box::new(receiver),
-                    }
+                self.index.result(target)?,
+                Kind::Call {
+                    target,
+                    arguments: args.iter().map(|arg| arg.value.clone()).collect(),
+                    evaluation: args,
                 },
             ));
         }
+        if matches!(name.as_str(), "all" | "map" | "is_some_and") {
+            return self.callback_method(call, site, receiver, &name);
+        }
+        self.primitive_method(call, site, receiver, &name)
+    }
+
+    fn callback_method(
+        &mut self,
+        call: &syn::ExprMethodCall,
+        site: &[usize],
+        receiver: Op,
+        name: &str,
+    ) -> Result<Op, Refusal> {
+        if call.args.len() != 1 {
+            return Err(Refusal::UnknownCallback);
+        }
+        let element = match (&receiver.value.ty, name) {
+            (Ty::Iterator(element), "all") | (Ty::Option(element), "map" | "is_some_and") => {
+                *element.clone()
+            }
+            _ => return Err(Refusal::ReceiverMismatch),
+        };
+        let argument = call.args.first().ok_or(Refusal::UnknownCallback)?;
+        let Expr::Closure(closure) = argument else {
+            return Err(Refusal::UnknownCallback);
+        };
+        if closure.inputs.len() != 1 || closure.capture.is_some() || closure.asyncness.is_some() {
+            return Err(Refusal::UnknownCallback);
+        }
+        self.scopes.push(BTreeMap::new());
+        let element_binding = Self::element(
+            &receiver.value,
+            element,
+            if name == "all" { "member" } else { "Some" },
+        );
+        let (_, parameters) = self.pattern(
+            closure.inputs.first().ok_or(Refusal::UnknownCallback)?,
+            &element_binding,
+            &child(site, 1),
+        )?;
+        self.returns.push(self.site(&child(site, 1)));
+        let body = self.expr(&closure.body, &child(site, 1))?;
+        self.returns.pop();
+        self.scopes.pop();
+        if name != "map" && body.value.ty != Ty::Bool {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        let ty = if name == "map" {
+            Ty::Option(Box::new(body.value.ty.clone()))
+        } else {
+            Ty::Bool
+        };
+        Ok(self.op(
+            site,
+            ty,
+            if name == "all" {
+                Kind::Iterate {
+                    protocol: Primitive::IteratorProtocol,
+                    callee: "Iterator::all".to_owned(),
+                    stop: StopRule::FirstFalseOrExhaustion,
+                    none_on_exhaustion: true,
+                    bound: iteration_bound(&receiver)?,
+                    receiver: receiver.value.clone(),
+                    parameters,
+                    body: Box::new(body),
+                    evaluation: Box::new(receiver),
+                }
+            } else {
+                Kind::Callback {
+                    protocol: Primitive::ValueAccess,
+                    callee: format!("Option::{name}"),
+                    receiver: receiver.value.clone(),
+                    parameters,
+                    body: Box::new(body),
+                    evaluation: Box::new(receiver),
+                }
+            },
+        ))
+    }
+
+    fn primitive_method(
+        &mut self,
+        call: &syn::ExprMethodCall,
+        site: &[usize],
+        receiver: Op,
+        name: &str,
+    ) -> Result<Op, Refusal> {
         let receiver_binding = receiver.value.clone();
         let mut args = vec![receiver];
         for (ordinal, arg) in call.args.iter().enumerate() {
-            args.push(self.expr(arg, &child(site, ordinal + 1))?);
+            args.push(self.expr(
+                arg,
+                &child(site, ordinal.checked_add(1).ok_or(Refusal::Overflow)?),
+            )?);
         }
         let others: Vec<_> = args
             .iter()
@@ -1014,76 +1078,10 @@ impl Lower<'_, '_> {
             .map(|arg| arg.value.ty.clone())
             .collect();
         let (lemma, result, borrowed) =
-            match (&receiver_binding.ty, name.as_str(), others.as_slice()) {
-                (
-                    Ty::Value,
-                    "is_string" | "is_number" | "is_boolean" | "is_null" | "is_array" | "is_object",
-                    [],
-                ) => (Primitive::ValueAccess, Ty::Bool, false),
-                (Ty::String, "as_str", []) => (Primitive::StringAccess, Ty::String, true),
-                (Ty::String, "len", []) | (Ty::Array | Ty::Map, "len", []) => {
-                    (Primitive::ValueAccess, Ty::Scalar, false)
-                }
-                (Ty::String | Ty::Array | Ty::Map, "is_empty", []) => {
-                    (Primitive::ValueAccess, Ty::Bool, false)
-                }
-                (Ty::String, "starts_with", [Ty::String]) => {
-                    (Primitive::StringAccess, Ty::Bool, false)
-                }
-                (Ty::Map, "contains_key", [Ty::String]) => (Primitive::MapAccess, Ty::Bool, false),
-                (Ty::Array, "iter", []) => (
-                    Primitive::IteratorProtocol,
-                    Ty::Iterator(Box::new(Ty::Value)),
-                    true,
-                ),
-                (Ty::Map, "iter", []) => (
-                    Primitive::IteratorProtocol,
-                    Ty::Iterator(Box::new(Ty::Tuple(vec![Ty::String, Ty::Value]))),
-                    true,
-                ),
-                (Ty::Map, "values", []) => (
-                    Primitive::IteratorProtocol,
-                    Ty::Iterator(Box::new(Ty::Value)),
-                    true,
-                ),
-                (Ty::Map, "keys", []) => (
-                    Primitive::IteratorProtocol,
-                    Ty::Iterator(Box::new(Ty::String)),
-                    true,
-                ),
-                (Ty::LazyRegex(_), "as_ref", []) => {
-                    (Primitive::Readiness, Ty::Option(Box::new(Ty::Regex)), true)
-                }
-                (Ty::Option(inner), "as_ref", []) => {
-                    (Primitive::ValueAccess, Ty::Option(inner.clone()), true)
-                }
-                (Ty::Option(_), "is_some", []) => (Primitive::ValueAccess, Ty::Bool, false),
-                (Ty::Regex, "create_cache", []) => (
-                    Primitive::CacheConstruction,
-                    Ty::Cache("regex_automata::meta::Cache".to_owned()),
-                    false,
-                ),
-                (Ty::Regex, "search_half_with", [Ty::Cache(cache), Ty::Input])
-                    if cache == "regex_automata::meta::Cache" =>
-                {
-                    (
-                        Primitive::RegexSearch,
-                        Ty::Option(Box::new(Ty::Scalar)),
-                        false,
-                    )
-                }
-                (Ty::Input, "earliest", [Ty::Bool]) => (Primitive::RegexSearch, Ty::Input, false),
-                _ => {
-                    return Err(if matches!(receiver_binding.ty, Ty::Named(_)) {
-                        Refusal::ReceiverMismatch
-                    } else {
-                        Refusal::UnclassifiedCall
-                    });
-                }
-            };
+            Self::method_signature(&receiver_binding.ty, name, &others)?;
         // Input/search protocol selection is a semantic premise, not any bool.
         if name == "earliest"
-            && !matches!(call.args.first(), Some(Expr::Lit(value)) if matches!(&value.lit, syn::Lit::Bool(value) if value.value))
+            && !matches!(call.args.first(), Some(Expr::Lit(literal)) if matches!(&literal.lit, syn::Lit::Bool(value) if value.value))
         {
             return Err(Refusal::UnsupportedSource);
         }
@@ -1098,12 +1096,10 @@ impl Lower<'_, '_> {
         if name == "search_half_with" {
             let program =
                 program_origin(&receiver_binding.origin).ok_or(Refusal::ReceiverMismatch)?;
-            let cache = match &op.kind {
-                Kind::Primitive { arguments, .. } => {
-                    arguments.get(1).ok_or(Refusal::ReceiverMismatch)?
-                }
-                _ => return Err(Refusal::ReceiverMismatch),
+            let Kind::Primitive { arguments, .. } = &op.kind else {
+                return Err(Refusal::ReceiverMismatch);
             };
+            let cache = arguments.get(1).ok_or(Refusal::ReceiverMismatch)?;
             if !matches!(&cache.value.origin, Origin::Projection { member, .. } if *member == cache_field(program)?)
             {
                 return Err(Refusal::ReceiverMismatch);
@@ -1115,21 +1111,82 @@ impl Lower<'_, '_> {
         Ok(op)
     }
 
+    fn method_signature(
+        receiver_type: &Ty,
+        name: &str,
+        others: &[Ty],
+    ) -> Result<(Primitive, Ty, bool), Refusal> {
+        Ok(match (receiver_type, name, others) {
+            (
+                Ty::Value,
+                "is_string" | "is_number" | "is_boolean" | "is_null" | "is_array" | "is_object",
+                [],
+            )
+            | (Ty::String | Ty::Array | Ty::Map, "is_empty", [])
+            | (Ty::Option(_), "is_some", []) => (Primitive::ValueAccess, Ty::Bool, false),
+            (Ty::String, "as_str", []) => (Primitive::StringAccess, Ty::String, true),
+            (Ty::String | Ty::Array | Ty::Map, "len", []) => {
+                (Primitive::ValueAccess, Ty::Scalar, false)
+            }
+            (Ty::String, "starts_with", [Ty::String]) => (Primitive::StringAccess, Ty::Bool, false),
+            (Ty::Map, "contains_key", [Ty::String]) => (Primitive::MapAccess, Ty::Bool, false),
+            (Ty::Array, "iter", []) | (Ty::Map, "values", []) => (
+                Primitive::IteratorProtocol,
+                Ty::Iterator(Box::new(Ty::Value)),
+                true,
+            ),
+            (Ty::Map, "iter", []) => (
+                Primitive::IteratorProtocol,
+                Ty::Iterator(Box::new(Ty::Tuple(vec![Ty::String, Ty::Value]))),
+                true,
+            ),
+            (Ty::Map, "keys", []) => (
+                Primitive::IteratorProtocol,
+                Ty::Iterator(Box::new(Ty::String)),
+                true,
+            ),
+            (Ty::LazyRegex(_), "as_ref", []) => {
+                (Primitive::Readiness, Ty::Option(Box::new(Ty::Regex)), true)
+            }
+            (Ty::Option(inner), "as_ref", []) => {
+                (Primitive::ValueAccess, Ty::Option(inner.clone()), true)
+            }
+            (Ty::Regex, "create_cache", []) => (
+                Primitive::CacheConstruction,
+                Ty::Cache("regex_automata::meta::Cache".to_owned()),
+                false,
+            ),
+            (Ty::Regex, "search_half_with", [Ty::Cache(cache), Ty::Input])
+                if cache == "regex_automata::meta::Cache" =>
+            {
+                (
+                    Primitive::RegexSearch,
+                    Ty::Option(Box::new(Ty::Scalar)),
+                    false,
+                )
+            }
+            (Ty::Input, "earliest", [Ty::Bool]) => (Primitive::RegexSearch, Ty::Input, false),
+            _ => {
+                return Err(if matches!(receiver_type, Ty::Named(_)) {
+                    Refusal::ReceiverMismatch
+                } else {
+                    Refusal::UnclassifiedCall
+                });
+            }
+        })
+    }
+
     fn construct(&mut self, expr: &syn::ExprStruct, site: &[usize]) -> Result<Op, Refusal> {
         if expr.rest.is_some() {
             return Err(Refusal::UnsupportedSource);
         }
         let raw = path(&expr.path);
-        let owner = if self.index.fields.contains_key(&join(self.module, &raw)) {
+        let owner = if self.index.fields(&join(self.module, &raw)).is_some() {
             join(self.module, &raw)
         } else {
             raw
         };
-        let expected = self
-            .index
-            .fields
-            .get(&owner)
-            .ok_or(Refusal::ReceiverMismatch)?;
+        let expected = self.index.fields(&owner).ok_or(Refusal::ReceiverMismatch)?;
         if expected.len() != expr.fields.len() {
             return Err(Refusal::ReceiverMismatch);
         }
@@ -1166,7 +1223,7 @@ impl Lower<'_, '_> {
         ))
     }
 
-    fn element(&self, receiver: &Binding, ty: Ty, member: &str) -> Binding {
+    fn element(receiver: &Binding, ty: Ty, member: &str) -> Binding {
         Binding {
             declaration: None,
             ty,
@@ -1208,57 +1265,16 @@ impl Lower<'_, '_> {
                 }
                 let mut patterns = Vec::new();
                 let mut bindings = Vec::new();
-                for (ordinal, (pat, ty)) in pat.elems.iter().zip(types).enumerate() {
-                    let element = self.element(value, ty.clone(), &ordinal.to_string());
-                    let (pattern, bound) = self.pattern(pat, &element, &child(site, ordinal))?;
-                    patterns.push(pattern);
+                for (ordinal, (member_pattern, ty)) in pat.elems.iter().zip(types).enumerate() {
+                    let element = Self::element(value, ty.clone(), &ordinal.to_string());
+                    let (member, bound) =
+                        self.pattern(member_pattern, &element, &child(site, ordinal))?;
+                    patterns.push(member);
                     bindings.extend(bound);
                 }
                 Ok((Pattern::Tuple(patterns), bindings))
             }
-            Pat::TupleStruct(pat) => {
-                let name = self.index.canonical(self.module, &path(&pat.path))?;
-                let ty = match (&value.ty, name.as_str()) {
-                    (
-                        Ty::Value,
-                        "serde_json::Value::String"
-                        | "jsonschema::__private::serde_json::Value::String",
-                    ) => Ty::String,
-                    (
-                        Ty::Value,
-                        "serde_json::Value::Number"
-                        | "jsonschema::__private::serde_json::Value::Number",
-                    ) => Ty::Number,
-                    (
-                        Ty::Value,
-                        "serde_json::Value::Bool"
-                        | "jsonschema::__private::serde_json::Value::Bool",
-                    ) => Ty::Bool,
-                    (
-                        Ty::Value,
-                        "serde_json::Value::Array"
-                        | "jsonschema::__private::serde_json::Value::Array",
-                    ) => Ty::Array,
-                    (
-                        Ty::Value,
-                        "serde_json::Value::Object"
-                        | "jsonschema::__private::serde_json::Value::Object",
-                    ) => Ty::Map,
-                    (Ty::Option(inner), "Some") => *inner.clone(),
-                    _ => return Err(Refusal::ReceiverMismatch),
-                };
-                if pat.elems.len() != 1 {
-                    return Err(Refusal::ReceiverMismatch);
-                }
-                let mut element = self.element(value, ty, &name);
-                element.borrowed = true;
-                let (inner, bindings) = self.pattern(
-                    pat.elems.first().ok_or(Refusal::ReceiverMismatch)?,
-                    &element,
-                    &child(site, 0),
-                )?;
-                Ok((Pattern::Variant(name, vec![inner]), bindings))
-            }
+            Pat::TupleStruct(pat) => self.variant_pattern(pat, value, site),
             Pat::Path(pat)
                 if value.ty == Ty::Value
                     && matches!(
@@ -1279,7 +1295,13 @@ impl Lower<'_, '_> {
                     syn::Lit::Str(_) => value.ty == Ty::String,
                     syn::Lit::Bool(_) => value.ty == Ty::Bool,
                     syn::Lit::Int(_) => value.ty == Ty::Scalar,
-                    _ => false,
+                    syn::Lit::ByteStr(_)
+                    | syn::Lit::CStr(_)
+                    | syn::Lit::Byte(_)
+                    | syn::Lit::Char(_)
+                    | syn::Lit::Float(_)
+                    | syn::Lit::Verbatim(_)
+                    | _ => false,
                 };
                 if !compatible {
                     return Err(Refusal::ReceiverMismatch);
@@ -1292,16 +1314,72 @@ impl Lower<'_, '_> {
             Pat::Or(pat) => {
                 let mut patterns = Vec::new();
                 for (ordinal, case) in pat.cases.iter().enumerate() {
-                    let (pattern, bindings) = self.pattern(case, value, &child(site, ordinal))?;
+                    let (alternative, bindings) =
+                        self.pattern(case, value, &child(site, ordinal))?;
                     if !bindings.is_empty() {
                         return Err(Refusal::UnsupportedSource);
                     }
-                    patterns.push(pattern);
+                    patterns.push(alternative);
                 }
                 Ok((Pattern::Or(patterns), Vec::new()))
             }
-            _ => Err(Refusal::UnsupportedSource),
+            Pat::Const(_)
+            | Pat::Guard(_)
+            | Pat::Ident(_)
+            | Pat::Macro(_)
+            | Pat::Path(_)
+            | Pat::Range(_)
+            | Pat::Rest(_)
+            | Pat::Slice(_)
+            | Pat::Struct(_)
+            | Pat::Type(_)
+            | Pat::Verbatim(_)
+            | _ => Err(Refusal::UnsupportedSource),
         }
+    }
+
+    fn variant_pattern(
+        &mut self,
+        pat: &syn::PatTupleStruct,
+        value: &Binding,
+        site: &[usize],
+    ) -> Result<(Pattern, Vec<Binding>), Refusal> {
+        let name = self.index.canonical(self.module, &path(&pat.path))?;
+        let ty = match (&value.ty, name.as_str()) {
+            (
+                Ty::Value,
+                "serde_json::Value::String" | "jsonschema::__private::serde_json::Value::String",
+            ) => Ty::String,
+            (
+                Ty::Value,
+                "serde_json::Value::Number" | "jsonschema::__private::serde_json::Value::Number",
+            ) => Ty::Number,
+            (
+                Ty::Value,
+                "serde_json::Value::Bool" | "jsonschema::__private::serde_json::Value::Bool",
+            ) => Ty::Bool,
+            (
+                Ty::Value,
+                "serde_json::Value::Array" | "jsonschema::__private::serde_json::Value::Array",
+            ) => Ty::Array,
+            (
+                Ty::Value,
+                "serde_json::Value::Object" | "jsonschema::__private::serde_json::Value::Object",
+            ) => Ty::Map,
+            (Ty::Option(inner), "Some") => *inner.clone(),
+            _ => return Err(Refusal::ReceiverMismatch),
+        };
+        if pat.elems.len() != 1 {
+            return Err(Refusal::ReceiverMismatch);
+        }
+        let mut element = Self::element(value, ty, &name);
+        element.borrowed = true;
+        let (inner, bindings) = self.pattern(
+            pat.elems.first().ok_or(Refusal::ReceiverMismatch)?,
+            &element,
+            &child(site, 0),
+        )?;
+        Ok((Pattern::Variant(name, vec![inner]), bindings))
     }
 
     fn service(&self, service: ExternalService) -> Result<ServiceBinding, Refusal> {
@@ -1368,7 +1446,29 @@ fn comparison(operator: &syn::BinOp) -> Result<Comparison, Refusal> {
         syn::BinOp::Le(_) => Comparison::Le,
         syn::BinOp::Gt(_) => Comparison::Gt,
         syn::BinOp::Ge(_) => Comparison::Ge,
-        _ => return Err(Refusal::UnsupportedSource),
+        syn::BinOp::Add(_)
+        | syn::BinOp::Sub(_)
+        | syn::BinOp::Mul(_)
+        | syn::BinOp::Div(_)
+        | syn::BinOp::Rem(_)
+        | syn::BinOp::And(_)
+        | syn::BinOp::Or(_)
+        | syn::BinOp::BitXor(_)
+        | syn::BinOp::BitAnd(_)
+        | syn::BinOp::BitOr(_)
+        | syn::BinOp::Shl(_)
+        | syn::BinOp::Shr(_)
+        | syn::BinOp::AddAssign(_)
+        | syn::BinOp::SubAssign(_)
+        | syn::BinOp::MulAssign(_)
+        | syn::BinOp::DivAssign(_)
+        | syn::BinOp::RemAssign(_)
+        | syn::BinOp::BitXorAssign(_)
+        | syn::BinOp::BitAndAssign(_)
+        | syn::BinOp::BitOrAssign(_)
+        | syn::BinOp::ShlAssign(_)
+        | syn::BinOp::ShrAssign(_)
+        | _ => return Err(Refusal::UnsupportedSource),
     })
 }
 
@@ -1398,11 +1498,12 @@ fn cache_field(program: &str) -> Result<String, Refusal> {
         .rsplit("::")
         .next()
         .ok_or(Refusal::ReceiverMismatch)?;
-    Ok(symbol
+    let mut field = symbol
         .strip_suffix("_REGEX")
         .ok_or(Refusal::ReceiverMismatch)?
-        .to_lowercase()
-        + "_cache")
+        .to_lowercase();
+    field.push_str("_cache");
+    Ok(field)
 }
 
 fn check_primitives(primitives: &[PrimitiveSource]) -> Result<(), Refusal> {
@@ -1433,7 +1534,18 @@ fn check_primitives(primitives: &[PrimitiveSource]) -> Result<(), Refusal> {
                     fn new() -> HashMap<K, V, RandomState> { Default::default() }
                 },
             ),
-            _ => return Err(Refusal::PrimitiveSemanticsChanged),
+            Primitive::ValueAccess
+            | Primitive::StringAccess
+            | Primitive::MapAccess
+            | Primitive::IteratorProtocol
+            | Primitive::Numeric
+            | Primitive::RegexSearch
+            | Primitive::CacheConstruction
+            | Primitive::Readiness
+            | Primitive::HostnameFormat
+            | Primitive::Equality
+            | Primitive::Uniqueness
+            | Primitive::Cleanup => return Err(Refusal::PrimitiveSemanticsChanged),
         };
         let actual = source.body.to_token_stream().to_string();
         if source.callee != callee

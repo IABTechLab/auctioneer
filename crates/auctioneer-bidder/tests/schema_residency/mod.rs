@@ -15,4 +15,4 @@ mod retained;
 pub(super) mod runtime_sources;
 mod storage;
 
-pub(crate) use growth::with_current_descriptor;
+pub(crate) use growth::{read_regular, with_current_descriptor};

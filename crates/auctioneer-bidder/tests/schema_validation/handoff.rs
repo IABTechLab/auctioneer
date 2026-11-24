@@ -4,7 +4,7 @@ use crate::schema_build::application::CapturedSeed;
 use crate::schema_residency::descriptor::{
     ValidationAssignment, ValidationView, exact_assignments,
 };
-use crate::schema_residency::expanded::DeclarationBody;
+use crate::schema_residency::expanded::{self, DeclarationBody};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeSet;
@@ -59,7 +59,7 @@ pub(super) fn checked_bodies<'a, T>(
 ) -> Result<CheckedBodies<'a, T>, Refusal> {
     view.recheck().map_err(|_error| Refusal::Binding)?;
     check_seed(seed, view)?;
-    let (graph, provisional) = crate::schema_residency::expanded::visit_bodies(seed, |body| {
+    let (graph, provisional) = expanded::visit_bodies(seed, |body| {
         let receipt = BodyReceipt {
             owner: body.owner.into(),
             marker: body.marker.into(),
@@ -89,9 +89,17 @@ pub(super) fn checked_bodies<'a, T>(
 
 pub(super) fn check_seed(seed: &CapturedSeed, view: ValidationView<'_>) -> Result<(), Refusal> {
     let digest = |bytes: &[u8]| hex::encode(Sha256::digest(bytes));
-    if view.binding()["identity"].as_str() != Some(seed.identity_sha256.as_str())
-        || view.binding()["manifest_sha256"].as_str() != Some(digest(&seed.manifest_bytes).as_str())
-        || view.graph()["captured_rust_sha256"].as_str() != Some(digest(&seed.rust).as_str())
+    if view.binding().get("identity").and_then(Value::as_str) != Some(seed.identity_sha256.as_str())
+        || view
+            .binding()
+            .get("manifest_sha256")
+            .and_then(Value::as_str)
+            != Some(digest(&seed.manifest_bytes).as_str())
+        || view
+            .graph()
+            .get("captured_rust_sha256")
+            .and_then(Value::as_str)
+            != Some(digest(&seed.rust).as_str())
     {
         return Err(Refusal::Binding);
     }
@@ -99,8 +107,10 @@ pub(super) fn check_seed(seed: &CapturedSeed, view: ValidationView<'_>) -> Resul
 }
 
 fn expected_bodies(view: ValidationView<'_>) -> Result<Vec<BodyReceipt>, Refusal> {
-    let declarations = view.graph()["declarations"]
-        .as_array()
+    let declarations = view
+        .graph()
+        .get("declarations")
+        .and_then(Value::as_array)
         .ok_or(Refusal::BodyCoverage)?;
     if declarations.is_empty() {
         return Err(Refusal::BodyCoverage);
@@ -110,10 +120,17 @@ fn expected_bodies(view: ValidationView<'_>) -> Result<Vec<BodyReceipt>, Refusal
     declarations
         .iter()
         .map(|row| {
-            let owner = row["owner"].as_str().ok_or(Refusal::BodyCoverage)?;
-            let marker = row["marker"].as_str().ok_or(Refusal::BodyCoverage)?;
-            let expansion_sha256 = row["expansion_sha256"]
-                .as_str()
+            let owner = row
+                .get("owner")
+                .and_then(Value::as_str)
+                .ok_or(Refusal::BodyCoverage)?;
+            let marker = row
+                .get("marker")
+                .and_then(Value::as_str)
+                .ok_or(Refusal::BodyCoverage)?;
+            let expansion_sha256 = row
+                .get("expansion_sha256")
+                .and_then(Value::as_str)
                 .ok_or(Refusal::BodyCoverage)?;
             if !owners.insert(owner) || !markers.insert(marker) {
                 return Err(Refusal::BodyCoverage);
@@ -170,11 +187,12 @@ mod tests {
     };
     use crate::schema_build::application::CapturedSeed;
     use crate::schema_residency::descriptor::ValidationAssignment;
-    use crate::schema_residency::expanded::DeclarationBody;
+    use crate::schema_residency::expanded::{self, DeclarationBody};
     use crate::schema_residency::with_current_descriptor;
     use quote::ToTokens as _;
     use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
+    use std::{collections::BTreeSet, str};
 
     fn binding() -> Value {
         json!({
@@ -398,12 +416,16 @@ mod tests {
         }
     }
 
-    fn body_shape(body: DeclarationBody<'_>) -> Result<usize, Refusal> {
+    fn pristine_body(body: &DeclarationBody<'_>) -> syn::File {
         assert!(!body.owner.is_empty());
         assert!(!body.marker.is_empty());
         assert_eq!(body.expansion_sha256.len(), 64);
+        syn::parse2(body.tokens.clone()).unwrap()
+    }
+
+    fn body_shape(body: &DeclarationBody<'_>) -> Result<usize, Refusal> {
+        let pristine = pristine_body(body);
         let raw_sha256 = hex::encode(Sha256::digest(body.tokens.to_string().as_bytes()));
-        let pristine: syn::File = syn::parse2(body.tokens.clone()).unwrap();
         if body.syntax.items.is_empty()
             || raw_sha256 != body.expansion_sha256
             || pristine.to_token_stream().to_string() != body.syntax.to_token_stream().to_string()
@@ -448,7 +470,7 @@ mod tests {
                     marker: body.marker.into(),
                     expansion_sha256: body.expansion_sha256.into(),
                 });
-                body_shape(body)
+                body_shape(&body)
             });
             assert_eq!(
                 result.as_ref().map(|bodies| &bodies.receipts),
@@ -457,10 +479,7 @@ mod tests {
             let bodies = result.unwrap();
             assert_eq!(visited, expected);
             assert_eq!(
-                visited
-                    .iter()
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .len(),
+                visited.iter().collect::<BTreeSet<_>>().len(),
                 expected.len()
             );
             assert_eq!(bodies.analyses.len(), expected.len());
@@ -476,7 +495,7 @@ mod tests {
     fn body_receipts_reject_changed_owner_and_expansion() {
         with_current_descriptor(|seed, descriptor| {
             let view = descriptor.validation_view().unwrap();
-            let result = checked_bodies(seed, view, body_shape);
+            let result = checked_bodies(seed, view, |body| body_shape(&body));
             assert_eq!(
                 result.as_ref().map(|bodies| bodies.receipts.is_empty()),
                 Ok(false)
@@ -509,18 +528,18 @@ mod tests {
         with_current_descriptor(|seed, descriptor| {
             let view = descriptor.validation_view().unwrap();
             assert_eq!(
-                checked_bodies(seed, view, body_shape).map(|b| b.receipts.len()),
+                checked_bodies(seed, view, |body| body_shape(&body)).map(|b| b.receipts.len()),
                 Ok(view.graph()["declarations"].as_array().unwrap().len())
             );
             with_current_descriptor(|other_seed, other_descriptor| {
                 let other_view = other_descriptor.validation_view().unwrap();
                 assert_ne!(view.binding(), other_view.binding());
-                assert!(checked_bodies(other_seed, other_view, body_shape).is_ok());
-                let mut visits = 0;
+                checked_bodies(other_seed, other_view, |body| body_shape(&body)).unwrap();
+                let mut visits = 0_usize;
                 assert_eq!(
                     checked_bodies(other_seed, view, |body| {
                         visits += 1;
-                        body_shape(body)
+                        body_shape(&body)
                     }).err(),
                     Some(Refusal::Binding)
                 );
@@ -528,13 +547,13 @@ mod tests {
                 Ok(())
             })?;
             let mut changed = copy_seed(seed);
-            let mut syntax = syn::parse_file(std::str::from_utf8(&changed.rust).unwrap()).unwrap();
+            let mut syntax = syn::parse_file(str::from_utf8(&changed.rust).unwrap()).unwrap();
             let declaration = syntax
                 .items
                 .iter_mut()
                 .find_map(|item| {
-                    if let syn::Item::Struct(item) = item {
-                        item.attrs.iter_mut().find(|attribute| {
+                    if let syn::Item::Struct(structure) = item {
+                        structure.attrs.iter_mut().find(|attribute| {
                             attribute
                                 .path()
                                 .segments
@@ -567,12 +586,12 @@ mod tests {
             manifest["emitted_rust_sha256"] =
                 json!(hex::encode(Sha256::digest(&changed.rust)));
             changed.manifest_bytes = serde_json::to_vec(&manifest).unwrap();
-            assert!(crate::schema_residency::expanded::expand(&changed).is_ok(), "changed capture remains independently valid");
-            let mut visits = 0;
+            expanded::expand(&changed).unwrap();
+            let mut visits = 0_usize;
             assert_eq!(
                 checked_bodies(&changed, view, |body| {
                     visits += 1;
-                    body_shape(body)
+                    body_shape(&body)
                 }).err(),
                 Some(Refusal::Binding)
             );
@@ -592,7 +611,7 @@ mod tests {
                     fn fake_unrelated_body() {}
                 );
                 assert_eq!(
-                    body_shape(DeclarationBody {
+                    body_shape(&DeclarationBody {
                         owner: body.owner,
                         marker: body.marker,
                         expansion_sha256: body.expansion_sha256,
@@ -602,7 +621,7 @@ mod tests {
                     Err(Refusal::BodyCoverage)
                 );
                 rejected += 1;
-                body_shape(body)
+                body_shape(&body)
             });
             assert_eq!(
                 result.as_ref().map(|bodies| bodies.receipts.len()),
