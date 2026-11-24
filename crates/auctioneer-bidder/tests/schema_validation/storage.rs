@@ -261,19 +261,13 @@ mod tests {
 
         let mut missing = original.clone();
         assert_eq!(missing.covered_by.remove(0), original.covered_by[0]);
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&missing),
-            Err(StorageError::MissingCoverage(child))
-                if StorageError::MissingCoverage(child) == StorageError::MissingCoverage(FALLBACK)
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&missing);
+        assert_eq!(result, Err(StorageError::MissingCoverage(FALLBACK)));
 
         let mut duplicate = original.clone();
         duplicate.covered_by.push(original.covered_by[0]);
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&duplicate),
-            Err(StorageError::DuplicateCoverage(child))
-                if StorageError::DuplicateCoverage(child) == StorageError::DuplicateCoverage(FALLBACK)
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&duplicate);
+        assert_eq!(result, Err(StorageError::DuplicateCoverage(FALLBACK)));
 
         let mut counted_twice = original.clone();
         counted_twice.heap.push(heap_owner(FALLBACK, 5, 0, 2));
@@ -281,21 +275,20 @@ mod tests {
             owner: FALLBACK,
             at: StateId(2),
         });
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&counted_twice),
-            Err(StorageError::CoveredChildAlsoOwned(child))
-                if StorageError::CoveredChildAlsoOwned(child)
-                    == StorageError::CoveredChildAlsoOwned(FALLBACK)
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&counted_twice);
+        assert_eq!(result, Err(StorageError::CoveredChildAlsoOwned(FALLBACK)));
 
         let mut unknown_parent = original.clone();
         let unknown = OwnerId("hypothetical-unknown-parent");
         unknown_parent.covered_by[0].parent = unknown;
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&unknown_parent),
-            Err(StorageError::InvalidCoverage { child, parent })
-                if (child, parent) == (FALLBACK, unknown)
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&unknown_parent);
+        assert_eq!(
+            result,
+            Err(StorageError::InvalidCoverage {
+                child: FALLBACK,
+                parent: unknown,
+            })
+        );
 
         let mut outliving_parent = original.clone();
         outliving_parent.coverage_obligations[0]
@@ -458,11 +451,14 @@ mod tests {
                 at: StateId(1)
             }
         );
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&missing_release),
-            Err(StorageError::ReleaseMismatch { owner, expected })
-                if (owner, expected) == (CONSTRUCTION, StateId(1))
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&missing_release);
+        assert_eq!(
+            result,
+            Err(StorageError::ReleaseMismatch {
+                owner: CONSTRUCTION,
+                expected: StateId(1),
+            })
+        );
     }
 
     #[test]
@@ -496,11 +492,8 @@ mod tests {
             at: StateId(2),
         };
         extra.releases.push(release);
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&extra),
-            Err(StorageError::UnexpectedRelease(actual))
-                if StorageError::UnexpectedRelease(actual) == StorageError::UnexpectedRelease(release)
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&extra);
+        assert_eq!(result, Err(StorageError::UnexpectedRelease(release)));
     }
 
     #[test]
@@ -558,12 +551,11 @@ mod tests {
             SerialBoundary::CacheReset,
             SerialBoundary::SourceChanged,
         ] {
-            assert!(matches!(
-                evaluate_serial_facts_hypothetically(&calls, &[invalidation]),
-                Err(StorageError::InvalidSerialComposition(actual))
-                    if StorageError::InvalidSerialComposition(actual)
-                        == StorageError::InvalidSerialComposition(invalidation)
-            ));
+            let result = evaluate_serial_facts_hypothetically(&calls, &[invalidation]);
+            assert_eq!(
+                result,
+                Err(StorageError::InvalidSerialComposition(invalidation))
+            );
         }
         assert_eq!(
             evaluate_serial_facts_hypothetically(&calls, &[]),
@@ -596,12 +588,8 @@ mod tests {
                 .unwrap();
             assert_ne!(row.owner, META);
             row.allocation = allocation;
-            assert!(matches!(
-                evaluate_supplied_facts_hypothetically(&aliased),
-                Err(StorageError::DuplicateOwnership(actual))
-                    if StorageError::DuplicateOwnership(actual)
-                        == StorageError::DuplicateOwnership(allocation)
-            ));
+            let result = evaluate_supplied_facts_hypothetically(&aliased);
+            assert_eq!(result, Err(StorageError::DuplicateOwnership(allocation)));
         }
     }
 
@@ -615,18 +603,12 @@ mod tests {
         );
         let mut heap_overflow = boundary.clone();
         set_heap_bytes(&mut heap_overflow, META, u64::MAX - 58);
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&heap_overflow),
-            Err(StorageError::LiveHeapOverflow(at))
-                if StorageError::LiveHeapOverflow(at) == StorageError::LiveHeapOverflow(StateId(1))
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&heap_overflow);
+        assert_eq!(result, Err(StorageError::LiveHeapOverflow(StateId(1))));
         let mut combined_overflow = boundary.clone();
         combined_overflow.wrapper.bytes = InlineBytes(8);
-        assert!(matches!(
-            evaluate_supplied_facts_hypothetically(&combined_overflow),
-            Err(StorageError::CombinedOverflow(at))
-                if StorageError::CombinedOverflow(at) == StorageError::CombinedOverflow(StateId(1))
-        ));
+        let result = evaluate_supplied_facts_hypothetically(&combined_overflow);
+        assert_eq!(result, Err(StorageError::CombinedOverflow(StateId(1))));
     }
 
     #[test]
@@ -644,11 +626,8 @@ mod tests {
                 .find(|row| row.owner == CALLBACK)
                 .unwrap();
             row.lifetime = invalid;
-            assert!(matches!(
-                evaluate_supplied_facts_hypothetically(&changed),
-                Err(StorageError::InvalidLifetime(owner))
-                    if StorageError::InvalidLifetime(owner) == StorageError::InvalidLifetime(CALLBACK)
-            ));
+            let result = evaluate_supplied_facts_hypothetically(&changed);
+            assert_eq!(result, Err(StorageError::InvalidLifetime(CALLBACK)));
         }
     }
 }
