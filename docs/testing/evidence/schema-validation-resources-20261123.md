@@ -228,3 +228,32 @@ Process completed with exit code 101.
 These are author-owned uses of older Syn fields, not valid tests-first assertion RED. Locked Syn 3.0.10 represents receivers with `ReceiverKind`, impl defaultness under `modifiers`, and signature safety with the `Safety` enum. The narrow repair must preserve the accepted borrowed-receiver and initializer-signature constraints against those actual representations; it adds no dependency or broader grammar.
 
 The [format owner](https://github.com/IABTechLab/auctioneer/actions/runs/45467489200/job/138706191135) separately returned exit 1 for the long array-pattern layout in `work/epsilon.rs:194`. Explicit pinned editing with both `--edition 2024 --style-edition 2024` produces the exact multiline layout requested by hosted Cargo formatting; specifying the syntax edition alone had retained the older style. This editing result is not credited as hosted formatting acceptance. No warning/lint policy is relaxed. Recognizer GREEN, the new 20 assertion failures, development strict lint and full acceptance remain unestablished at this head.
+
+### Entropy Construction And Cleanup Source Audit
+
+Read-only inspection on 2026-11-24 traced the selected `std` construction path through `meta::Regex::create_cache`, `Core::create_cache`, the hybrid wrapper, `hybrid::regex::Cache::new`, and its forward/reverse `dfa::Cache::new` calls. Each DFA constructor creates one `StateMap`; its `std` alias is `HashMap`, whose default constructor calls `RandomState::new` once. `Core` initializes `revhybrid` to `None`; the extra reverse-prefix constructor belongs to `ReverseInner` and requires its separately proved exclusion. Searches and map clearing do not themselves construct a new seed. These source facts are not yet a checked transitive proof.
+
+For completed constructions, the conditional count is `2 * sum(R_d * C_d) + 2 * H`: `R_d` is the descriptor-bound regex-cache field count, `C_d` the declaration-cache construction count, and `H` the hostname callbacks reaching their local cache constructor. Eager sibling fields count even when never searched. An interrupted meta construction contributes the reached forward/reverse seed-entry indicators, each at most one, with reverse entry implying forward entry. Partial prefixes therefore contribute zero, one or two; completed siblings remain counted. Neither search count nor observed warm-thread behavior supplies this count. Thread/process-retained service state is a separate lifetime requirement, not a per-construction resident sum.
+
+A separate caller audit found a bounded cleanup premise for successfully admitted core inputs with installed construction limits: each materialized scope passes whole-request byte/node/depth checks before scrub/schema processing, and Impression scrubbing only removes TID/shadow fields. Those checked scope dimensions can bound the disjoint Impression subtrees removed by schema filtering. This does not cover arbitrary low-level contexts without construction limits, original borrowed-input preparation/rejection work, or prove the work inside collection/type destruction. The actual source binding must include those admission, transformation, model and cleanup owners before claiming this premise.
+
+The pinned std allocation-failure path can print through an interrupted-write retry; requested-storage bounds do not prove allocation success. The maintainer separately approved an explicit allocation-success premise on 2026-11-24: conditional validation bounds retain normal/error/unwind cleanup but exclude terminal allocation-failure handlers and fatal diagnostics. The spec/plan now require that exclusion and independently matched allocator/source/artifact support before actual target use. No new service boundary, bounded-abort claim, production change or common-completion claim follows. The source/report controls, hosted execution and missing common derivations remain required.
+
+### Actual-Body Recognizer Stack Failure
+
+At `24b556fde37b6e32d50b174924ebd58a880aa8d2`, 24 hosted checks passed, including formatting/Clippy and all four actual application-artifact owners. The [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45469232266/job/138712504225) failed in both normal source lanes. The eight operation unit controls individually reported `ok` in each lane, but the actual-body consumer aborted its process before the work/epsilon tests and before a result summary. Actual secure diagnostics, repeated with the same test name in development:
+
+```text
+test schema_validation::tests::current_body_shapes_have_declared_operation_obligations ...
+thread 'schema_validation::tests::current_body_shapes_have_declared_operation_obligations' (38876) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+Process completed with exit code 101.
+```
+
+Both processes reported `signal: 6, SIGABRT: process abort signal`. Secure announced `running 912 tests`; development announced `running 72 tests`. Neither invocation produced its required final result line, so these headers are not passing/executed population totals. The public-name case printed `FAILED` before each abort, but its deferred assertion diagnostic was not emitted; that alone does not establish its intended refusal reason. Work and epsilon assertion RED remains unexecuted, and actual declaration-recognition GREEN remains unestablished. The independent development residency invocation did complete:
+
+```text
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 791 filtered out; finished in 110.96s
+```
+
+The existing compiler-control owner separately completed `337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out` in 758.10 seconds. Later success-gated lint/staged acceptance was skipped, not passed. The actual-body stack overflow is an author-owned recognizer failure, not a production-engine failure, target fact or completed tests-first checkpoint. Repair must preserve every owner/control and the existing stack allowance; no higher stack setting, skip or reduced source population is authorized.
