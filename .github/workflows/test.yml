@@ -486,6 +486,7 @@ jobs:
         run: bash .github/workflows/scripts/test/execute-catalog-publication.sh
 
       - name: Verify bounded schema compiler controls and source conformance
+        id: schema-conformance
         timeout-minutes: 35
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh '${{ matrix.lane }}'
@@ -507,7 +508,8 @@ jobs:
         run: bash .github/workflows/scripts/test/verify-schema-core-development.sh
 
       - name: Verify schema artifact metadata (development normal and staged)
-        if: matrix.lane == 'schema'
+        # Preserve a compiler-step failure while still observing development RED.
+        if: ${{ !cancelled() && matrix.lane == 'schema' && (success() || steps.schema-conformance.outcome == 'failure') }}
         shell: bash
         run: bash .github/workflows/scripts/test/verify-schema-metadata-development.sh
 
