@@ -29,7 +29,10 @@ fn check_children(
 }
 
 fn check_contexts(_expected: &[ContextRoot], actual: &[ContextRoot]) -> Result<(), Refusal> {
-    actual.first().map(|_row| ()).ok_or(Refusal::ContextCoverage)
+    actual
+        .first()
+        .map(|_row| ())
+        .ok_or(Refusal::ContextCoverage)
 }
 
 #[cfg(test)]
@@ -105,7 +108,10 @@ mod tests {
         let parent = binding();
         let original = children();
         assert_eq!(original.len(), 7);
-        assert_eq!(check_children(&parent, &parent, &original, &original), Ok(()));
+        assert_eq!(
+            check_children(&parent, &parent, &original, &original),
+            Ok(())
+        );
         for index in 0..original.len() {
             let mut missing = original.clone();
             assert_eq!(missing.remove(index), original[index]);
@@ -175,21 +181,39 @@ mod tests {
         for index in 0..original.len() {
             let mut missing = original.clone();
             assert_eq!(missing.remove(index), original[index]);
-            assert_eq!(check_contexts(&original, &missing), Err(Refusal::ContextCoverage));
+            assert_eq!(
+                check_contexts(&original, &missing),
+                Err(Refusal::ContextCoverage)
+            );
             let mut duplicate = original.clone();
             duplicate.push(original[index].clone());
-            assert_eq!(check_contexts(&original, &duplicate), Err(Refusal::ContextCoverage));
+            assert_eq!(
+                check_contexts(&original, &duplicate),
+                Err(Refusal::ContextCoverage)
+            );
             let mut misowned = original.clone();
             misowned[index].source_owner = "fake_other_context".into();
-            assert_eq!(check_contexts(&original, &misowned), Err(Refusal::ContextCoverage));
+            assert_eq!(
+                check_contexts(&original, &misowned),
+                Err(Refusal::ContextCoverage)
+            );
             let mut stale = original.clone();
             stale[index].source_sha256 = "fake_changed_source".into();
-            assert_eq!(check_contexts(&original, &stale), Err(Refusal::ContextCoverage));
+            assert_eq!(
+                check_contexts(&original, &stale),
+                Err(Refusal::ContextCoverage)
+            );
             let mut wrong_role = original.clone();
             wrong_role[index].role = "fake_unknown_context_role";
-            assert_eq!(check_contexts(&original, &wrong_role), Err(Refusal::ContextCoverage));
+            assert_eq!(
+                check_contexts(&original, &wrong_role),
+                Err(Refusal::ContextCoverage)
+            );
             let mut disguised = rows.clone();
-            disguised.push(assignment(&original[index].source_owner, original[index].role));
+            disguised.push(assignment(
+                &original[index].source_owner,
+                original[index].role,
+            ));
             assert_eq!(
                 check_children(&parent, &parent, &rows, &disguised),
                 Err(Refusal::ChildCoverage)
@@ -201,7 +225,10 @@ mod tests {
             source_owner: "fake_extra_context".into(),
             source_sha256: "fake_extra_sha".into(),
         });
-        assert_eq!(check_contexts(&original, &extra), Err(Refusal::ContextCoverage));
+        assert_eq!(
+            check_contexts(&original, &extra),
+            Err(Refusal::ContextCoverage)
+        );
         assert_eq!(check_contexts(&[], &[]), Err(Refusal::ContextCoverage));
     }
 
@@ -209,7 +236,10 @@ mod tests {
     fn zero_regex_declarations_still_require_work_and_stack() {
         let parent = binding();
         let original = children();
-        assert_eq!(check_children(&parent, &parent, &original, &original), Ok(()));
+        assert_eq!(
+            check_children(&parent, &parent, &original, &original),
+            Ok(())
+        );
         let zero_regex = original
             .iter()
             .filter(|row| row.source_owner == "fake_zero_regex_declaration")
@@ -219,7 +249,10 @@ mod tests {
         assert_eq!(zero_regex[1].role, "declaration-stack");
         for row in zero_regex {
             let mut missing = original.clone();
-            let index = missing.iter().position(|candidate| candidate == row).unwrap();
+            let index = missing
+                .iter()
+                .position(|candidate| candidate == row)
+                .unwrap();
             assert_eq!(&missing.remove(index), row);
             assert_eq!(
                 check_children(&parent, &parent, &original, &missing),
