@@ -289,3 +289,24 @@ Conditional recipe counts retain repeated calls, conservative short-circuit oper
 The thirteen epsilon cases now check the supported source signature/body and checked site arithmetic under explicit supplied geometry. All seven ordinary helper obligations remain required even for a zero-execution evaluation. These site ceilings do not discharge the work inside NFA access, sparse sets, look, iterators, growth, clone or destruction. No primitive prototype or extra test roster is integrated in this checkpoint.
 
 Compilation, the twenty-case GREEN, strict lint, the approved CI command ordering and the unchanged full hosted matrix remain pending at publication. Pinned rustfmt was used solely for editing and source/diff inspection is not executable verification. Actual source-derived primitive/caller/lifetime/stack closure, canonical reporting, four application joins and hard-cut retirement remain unfinished; the PR stays draft and #47 stays open.
+
+### Contract Implementations Reach A Fixture Parser Failure
+
+At `838b4cd477fba689cc08e54143d94a4d1f11d6f5`, the [schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45501069679/job/138824185869) compiled the new evaluators and executed source conformance first. Its secure run completed with one failing case; the separate development residency and validation runs completed too:
+
+```text
+test result: FAILED. 912 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 752.17s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 792 filtered out; finished in 51.68s
+test result: FAILED. 72 passed; 1 failed; 0 ignored; 0 measured; 846 filtered out; finished in 37.83s
+```
+
+Both failures returned exit 101 in `work::tests::expiry_prefixes_bound_real_call_sites`, at the same mutation-fixture construction:
+
+```text
+panicked at crates/auctioneer-bidder/tests/schema_validation/work.rs:1028:29:
+unexpected end of input, expected semicolon
+```
+
+Syn 3's standalone statement parser requires a semicolon for that bare expression. The intended mutation retains `result` as the block's tail expression, so the repair constructs `syn::Stmt::Expr(syn::parse_quote!(result), None)` explicitly. It does not add a semicolon, remove the ordering mutation, change its before-state checks, relax the expected budget-source refusal or modify production code. All thirteen epsilon cases, the public-name case and the other five work cases passed in both lanes; the sixth case's positive prefixes ran before this fixture failure, but the whole case is not passing.
+
+The failure occurred before compiler controls in the approved new order. Those controls and later success-gated lint/core/staged checks were not run, not passed. Development source diagnostics still ran under their existing failure condition. The tail-expression repair and unchanged full matrix require hosted verification at the next head. No twenty-case GREEN, common completeness or review readiness is claimed here.

@@ -1025,7 +1025,8 @@ mod tests {
             body.stmts
                 .push(syn::parse_quote!(let result = Ok(validate());));
             body.stmts.push(debit);
-            body.stmts.push(syn::parse_quote!(result));
+            body.stmts
+                .push(syn::Stmt::Expr(syn::parse_quote!(result), None));
         });
         let changed_sources = ContextSources {
             budget: &changed,
