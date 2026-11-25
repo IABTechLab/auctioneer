@@ -831,19 +831,6 @@ fn argument_value(op: &Op, bindings: &ProvenanceBindings) -> Option<Provenance> 
                 member: member.clone(),
             }))
         }
-        Kind::Value(_)
-        | Kind::Scope { .. }
-        | Kind::Bind { .. }
-        | Kind::Evaluate(_, _)
-        | Kind::ScalarTest(_, _)
-        | Kind::Choice { .. }
-        | Kind::ShortCircuit(_, _)
-        | Kind::Call { .. }
-        | Kind::Service(_)
-        | Kind::Iterate { .. }
-        | Kind::Callback { .. }
-        | Kind::Construct { .. }
-        | Kind::Exit(_, _) => None,
         Kind::Primitive {
             lemma,
             callee,
@@ -864,7 +851,20 @@ fn argument_value(op: &Op, bindings: &ProvenanceBindings) -> Option<Provenance> 
                 && argument_value(argument, bindings) == Some(Provenance::Scalar))
             .then_some(Provenance::Scalar)
         }
-        Kind::Primitive { .. } => None,
+        Kind::Value(_)
+        | Kind::Scope { .. }
+        | Kind::Bind { .. }
+        | Kind::Evaluate(_, _)
+        | Kind::ScalarTest(_, _)
+        | Kind::Choice { .. }
+        | Kind::ShortCircuit(_, _)
+        | Kind::Call { .. }
+        | Kind::Service(_)
+        | Kind::Iterate { .. }
+        | Kind::Callback { .. }
+        | Kind::Construct { .. }
+        | Kind::Exit(_, _)
+        | Kind::Primitive { .. } => None,
     }
 }
 
@@ -1202,8 +1202,9 @@ impl Deriver<'_> {
                     )?);
                 }
                 pattern if nonbinding_pattern(pattern, selector) => {}
-                Pattern::Wild | Pattern::Literal(_) => return Err(unsupported(op)),
-                Pattern::Binding(_)
+                Pattern::Wild
+                | Pattern::Literal(_)
+                | Pattern::Binding(_)
                 | Pattern::Variant(_, _)
                 | Pattern::Tuple(_)
                 | Pattern::Or(_) => return Err(unsupported(op)),
@@ -1519,10 +1520,12 @@ impl Deriver<'_> {
             }
             Action::Dereference
                 if values.len() == 1
-                    && values[0].value.ty == Ty::Bool
-                    && values[0].value.borrowed
                     && temporary(op, &Ty::Bool)
-                    && bound_boolean(bindings, &values[0].value) =>
+                    && values.first().is_some_and(|value| {
+                        value.value.ty == Ty::Bool
+                            && value.value.borrowed
+                            && bound_boolean(bindings, &value.value)
+                    }) =>
             {
                 self.sequence(values, bindings)
             }
@@ -1688,10 +1691,10 @@ fn bound_boolean(bindings: &ProvenanceBindings, binding: &Binding) -> bool {
 fn boolean_result(op: &Op, bindings: &ProvenanceBindings) -> bool {
     match &op.kind {
         Kind::Value(Atom::Place) => bound_boolean(bindings, &op.value),
-        Kind::Value(Atom::Bool(_)) => temporary(op, &Ty::Bool),
         Kind::Value(Atom::Scalar(_) | Atom::String(_) | Atom::None | Atom::Unit) => false,
         Kind::Primitive { .. } => boolean_primitive(op),
-        Kind::Scope { .. }
+        Kind::Value(Atom::Bool(_))
+        | Kind::Scope { .. }
         | Kind::Bind { .. }
         | Kind::Evaluate(_, _)
         | Kind::ScalarTest(_, _)
@@ -1713,14 +1716,14 @@ fn boolean_primitive(op: &Op) -> bool {
     let Kind::Primitive {
         lemma,
         callee,
-        receiver,
+        receiver: receiver_option,
         arguments,
         ..
     } = &op.kind
     else {
         return false;
     };
-    let Some(receiver) = receiver else {
+    let Some(receiver) = receiver_option else {
         return temporary(op, &Ty::Bool);
     };
     let Some(argument) = arguments.first() else {
@@ -1788,7 +1791,7 @@ fn container_type(name: &str) -> Option<Ty> {
 }
 
 fn payload_type(name: &str) -> Option<Ty> {
-    container_type(name).or_else(|| match name {
+    container_type(name).or(match name {
         "serde_json::Value::String" | "jsonschema::__private::serde_json::Value::String" => {
             Some(Ty::String)
         }
@@ -4164,8 +4167,8 @@ mod coupled_tests {
                     let syn::Item::Mod(module) = item else {
                         return None;
                     };
-                    module.content.as_mut()?.1.iter_mut().find_map(|item| {
-                        if let syn::Item::Fn(function) = item
+                    module.content.as_mut()?.1.iter_mut().find_map(|member| {
+                        if let syn::Item::Fn(function) = member
                             && function.sig.ident == "entry_is_valid"
                         {
                             Some(function)
@@ -4217,7 +4220,7 @@ mod coupled_tests {
 
         #[test]
         fn emitted_protocols_keep_scalar_and_optional_callback_coefficients() {
-            let witness = json!({"s":"x", "n":1});
+            let witness = json!({"s":"x", "n":1_u64});
             for (rescan, cap, string_nodes, callback_nodes) in [
                 (false, 7, 1, 1),
                 (false, 11, 1, 1),
@@ -4392,9 +4395,12 @@ mod coupled_tests {
                 let mut anchors = Vec::new();
                 operations::model::walk(
                     &labelled.functions[&function(&labelled, ENTRY)].body,
-                    &mut |op| {
-                        if matches!(&op.kind, Kind::Exit(operations::model::Exit::Break(_), _)) {
-                            anchors.push(op.site.clone());
+                    &mut |candidate| {
+                        if matches!(
+                            &candidate.kind,
+                            Kind::Exit(operations::model::Exit::Break(_), _)
+                        ) {
+                            anchors.push(candidate.site.clone());
                         }
                         Ok(())
                     },

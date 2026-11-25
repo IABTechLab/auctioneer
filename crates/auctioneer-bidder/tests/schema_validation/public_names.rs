@@ -309,8 +309,8 @@ mod tests {
             assert!(functions.next().is_none());
             *function.block = syn::parse_quote!({
                 match name { #(#names => Some(#owners),)* _ => None }
-            });
-        }
+            })
+        };
         changed.rust = syntax.to_token_stream().to_string().into_bytes();
         let mut manifest: Value = serde_json::from_slice(&changed.manifest_bytes).unwrap();
         manifest["emitted_rust_sha256"] = json!(hex::encode(Sha256::digest(&changed.rust)));

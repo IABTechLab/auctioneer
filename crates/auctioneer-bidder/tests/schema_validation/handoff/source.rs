@@ -672,7 +672,7 @@ mod tests {
             assert!(path.starts_with(&output));
             assert_eq!(path.canonicalize().unwrap(), path);
             let metadata = fs::symlink_metadata(&path).unwrap();
-            let is_regular_file = metadata.file_type().is_file();
+            let is_regular_file = metadata.is_file();
             assert!(is_regular_file);
             assert_eq!(metadata.nlink(), 1);
             let original = read_regular(&path).unwrap();

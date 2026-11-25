@@ -18,13 +18,11 @@ use syn::visit_mut::{self, VisitMut};
 
 struct Sources(BTreeMap<SourceUnit, syn::File>);
 
-impl ConstTraitImpl {
-    fn header(&mut self, unit: SourceUnit) -> Result<String, Refusal> {
-        attributes(self.attrs_mut(), unit)?;
-        let attrs = self.attrs();
-        let header = self.header_tokens();
-        Ok(spelling(&quote!(#(#attrs)* #header)))
-    }
+fn const_header(implementation: &mut ConstTraitImpl, unit: SourceUnit) -> Result<String, Refusal> {
+    attributes(implementation.attrs_mut(), unit)?;
+    let attrs = implementation.attrs();
+    let header = implementation.header_tokens();
+    Ok(spelling(&quote!(#(#attrs)* #header)))
 }
 
 const PATHS: [(SourceUnit, &str, bool); 12] = [
@@ -302,7 +300,7 @@ impl Sources {
     ) -> Result<(), Refusal> {
         let mut recipe = syn::parse2::<ConstTraitImpl>(expected)
             .map_err(|_error| Refusal::UnsupportedBody(unit))?;
-        let header = recipe.header(unit)?;
+        let header = const_header(&mut recipe, unit)?;
         let mut found = Vec::new();
         for item in &self.file(unit)?.items {
             let syn::Item::Verbatim(tokens) = item else {
@@ -311,7 +309,7 @@ impl Sources {
             let Ok(mut candidate) = syn::parse2::<ConstTraitImpl>(tokens.clone()) else {
                 continue;
             };
-            if candidate.header(unit)? == header {
+            if const_header(&mut candidate, unit)? == header {
                 found.push(candidate.into_items());
             }
         }
