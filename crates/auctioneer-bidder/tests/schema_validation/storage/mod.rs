@@ -6,6 +6,7 @@
 //! Success checks only the supplied accounting, never its source completeness.
 
 mod source;
+pub(super) use source::{OwnerSchedule, owner_schedule_data};
 
 use std::iter::once;
 

@@ -5,6 +5,7 @@
 //! test oracles.
 
 use super::{CapturedData, CompilerData, EQUALITY_COMPILER_COMMIT, Refusal, SourceUnit};
+use crate::schema_validation::operations::source_syntax::ConstTraitImpl;
 use proc_macro2::{Delimiter, Group, Ident, Punct, Spacing, TokenStream, TokenTree};
 use quote::{ToTokens, quote};
 use sha2::{Digest as _, Sha256};
@@ -12,45 +13,10 @@ use std::collections::BTreeMap;
 use std::mem;
 use std::path::Path;
 use std::str::from_utf8;
-use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::visit_mut::{self, VisitMut};
 
 struct Sources(BTreeMap<SourceUnit, syn::File>);
-
-// Syn 3.0.10 preserves const trait impls as Item::Verbatim. This deliberately
-// narrow projection retains the const token, unsafe qualifier, all generic
-// bounds and the where clause. It never turns const syntax into ItemImpl.
-struct ConstTraitImpl {
-    attrs: Vec<syn::Attribute>,
-    header: TokenStream,
-    items: Vec<syn::ImplItem>,
-}
-
-impl Parse for ConstTraitImpl {
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let attrs = input.call(syn::Attribute::parse_outer)?;
-        let constness: syn::Token![const] = input.parse()?;
-        let unsafety: Option<syn::Token![unsafe]> = input.parse()?;
-        let impl_token: syn::Token![impl] = input.parse()?;
-        let generics: syn::Generics = input.parse()?;
-        let trait_path: syn::Path = input.parse()?;
-        let for_token: syn::Token![for] = input.parse()?;
-        let self_type: syn::Type = input.parse()?;
-        let where_clause: Option<syn::WhereClause> = input.parse()?;
-        let content;
-        syn::braced!(content in input);
-        let mut items = Vec::new();
-        while !content.is_empty() {
-            items.push(content.parse()?);
-        }
-        Ok(Self {
-            attrs,
-            header: quote!(#constness #unsafety #impl_token #generics #trait_path #for_token #self_type #where_clause),
-            items,
-        })
-    }
-}
 
 impl ConstTraitImpl {
     fn header(&mut self, unit: SourceUnit) -> Result<String, Refusal> {
@@ -1043,7 +1009,38 @@ fn arc_methods(sources: &Sources) -> Result<(), Refusal> {
     )
 }
 
+// Only the two authored Vec recipes use this constructor. Rebuild their
+// expected lists after formatting; no actual method syntax is rewritten.
+fn expected_slice_call(mut call: syn::ExprCall) -> Result<syn::ExprCall, Refusal> {
+    let unit = SourceUnit::Vec;
+    call.args = mem::take(&mut call.args).into_iter().collect();
+    let syn::Expr::Path(function) = call.func.as_mut() else {
+        return Err(Refusal::UnsupportedBody(unit));
+    };
+    let segment = function
+        .path
+        .segments
+        .last_mut()
+        .ok_or(Refusal::UnsupportedBody(unit))?;
+    let syn::PathArguments::AngleBracketed(generics) = &mut segment.arguments else {
+        return Err(Refusal::UnsupportedBody(unit));
+    };
+    generics.args = mem::take(&mut generics.args).into_iter().collect();
+    Ok(call)
+}
+
 fn vector_methods(sources: &Sources) -> Result<(), Refusal> {
+    let as_slice = expected_slice_call(syn::parse_quote!(core::intrinsics::aggregate_raw_ptr::<
+        *const [T],
+        _,
+        _,
+    >(self.as_ptr(), self.len)))?;
+    let as_mut_slice =
+        expected_slice_call(syn::parse_quote!(core::intrinsics::aggregate_raw_ptr::<
+            *mut [T],
+            _,
+            _,
+        >(self.as_mut_ptr(), self.len)))?;
     sources.implementation(
         SourceUnit::Vec,
         syn::parse_quote!(
@@ -1054,10 +1051,7 @@ fn vector_methods(sources: &Sources) -> Result<(), Refusal> {
                 #[rustc_const_stable(feature = "const_vec_string_slice", since = "1.87.0")]
                 pub const fn as_slice(&self) -> &[T] {
                     unsafe {
-                        &*core::intrinsics::aggregate_raw_ptr::<*const [T], _, _>(
-                            self.as_ptr(),
-                            self.len
-                        )
+                        &*#as_slice
                     }
                 }
                 #[inline]
@@ -1066,10 +1060,7 @@ fn vector_methods(sources: &Sources) -> Result<(), Refusal> {
                 #[rustc_const_stable(feature = "const_vec_string_slice", since = "1.87.0")]
                 pub const fn as_mut_slice(&mut self) -> &mut [T] {
                     unsafe {
-                        &mut *core::intrinsics::aggregate_raw_ptr::<*mut [T], _, _>(
-                            self.as_mut_ptr(),
-                            self.len
-                        )
+                        &mut *#as_mut_slice
                     }
                 }
                 #[stable(feature = "vec_as_ptr", since = "1.37.0")]
@@ -1104,6 +1095,9 @@ fn vector_methods(sources: &Sources) -> Result<(), Refusal> {
 }
 
 fn vector_traits(sources: &Sources) -> Result<(), Refusal> {
+    // Syn preserves these const bounds verbatim. Match the source lexer's
+    // joint closing angle before the comma without rewriting actual bounds.
+    let bound_close = Punct::new('>', Spacing::Joint);
     sources.constant_implementation(
         SourceUnit::Vec,
         quote!(
@@ -1136,7 +1130,7 @@ fn vector_traits(sources: &Sources) -> Result<(), Refusal> {
         quote!(
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_index", issue = "143775")]
-            const impl<T, I: [const] SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
+            const impl<T, I: [const] SliceIndex<[T]#bound_close, A: Allocator> Index<I> for Vec<T, A> {
                 type Output = I::Output;
                 #[inline]
                 fn index(&self, index: I) -> &Self::Output {
@@ -1150,7 +1144,7 @@ fn vector_traits(sources: &Sources) -> Result<(), Refusal> {
         quote!(
             #[stable(feature = "rust1", since = "1.0.0")]
             #[rustc_const_unstable(feature = "const_index", issue = "143775")]
-            const impl<T, I: [const] SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
+            const impl<T, I: [const] SliceIndex<[T]#bound_close, A: Allocator> IndexMut<I> for Vec<T, A> {
                 #[inline]
                 fn index_mut(&mut self, index: I) -> &mut Self::Output {
                     IndexMut::index_mut(&mut **self, index)
@@ -1161,6 +1155,11 @@ fn vector_traits(sources: &Sources) -> Result<(), Refusal> {
 }
 
 fn pointer_methods(sources: &Sources) -> Result<(), Refusal> {
+    let mut unique_cast: syn::ExprStruct = syn::parse_quote!(Unique {
+        pointer: self.pointer.cast(),
+        _marker: PhantomData,
+    });
+    unique_cast.fields = mem::take(&mut unique_cast.fields).into_iter().collect();
     sources.implementation(
         SourceUnit::RawVec,
         syn::parse_quote!(
@@ -1195,10 +1194,7 @@ fn pointer_methods(sources: &Sources) -> Result<(), Refusal> {
                 #[must_use = "`self` will be dropped if the result is not used"]
                 #[inline]
                 pub const fn cast<U>(self) -> Unique<U> {
-                    Unique {
-                        pointer: self.pointer.cast(),
-                        _marker: PhantomData
-                    }
+                    #unique_cast
                 }
                 #[must_use = "`self` will be dropped if the result is not used"]
                 #[inline]
@@ -1259,6 +1255,7 @@ fn nonnull_methods(sources: &Sources) -> Result<(), Refusal> {
 }
 
 fn slice_methods(sources: &Sources) -> Result<(), Refusal> {
+    let bound_close = Punct::new('>', Spacing::Joint);
     sources.constant_implementation(
         SourceUnit::SliceIndex,
         quote!(
@@ -1266,7 +1263,7 @@ fn slice_methods(sources: &Sources) -> Result<(), Refusal> {
             #[rustc_const_unstable(feature = "const_index", issue = "143775")]
             const impl<T, I> ops::Index<I> for [T]
             where
-                I: [const] SliceIndex<[T]>,
+                I: [const] SliceIndex<[T]#bound_close,
             {
                 type Output = I::Output;
                 #[inline(always)]
@@ -1283,7 +1280,7 @@ fn slice_methods(sources: &Sources) -> Result<(), Refusal> {
             #[rustc_const_unstable(feature = "const_index", issue = "143775")]
             const impl<T, I> ops::IndexMut<I> for [T]
             where
-                I: [const] SliceIndex<[T]>,
+                I: [const] SliceIndex<[T]#bound_close,
             {
                 #[inline(always)]
                 #[rustc_no_writable]
@@ -1454,17 +1451,45 @@ fn assert_macro(sources: &Sources) -> Result<(), Refusal> {
 }
 
 pub(super) fn check(data: &CapturedData, expected: &CompilerData) -> Result<(), Refusal> {
+    check_with_stages(data, expected, |_name| {})
+}
+
+// Used only by an assertion's lazy failure message. Reusing the same data-only
+// kernel avoids a second classifier, mutable global state or direct printing.
+pub(super) fn failure_stage(data: &CapturedData, expected: &CompilerData) -> Option<&'static str> {
+    let mut stage = None;
+    let result = check_with_stages(data, expected, |name| stage = Some(name));
+    if result.is_err() { stage } else { None }
+}
+
+fn check_with_stages(
+    data: &CapturedData,
+    expected: &CompilerData,
+    mut enter: impl FnMut(&'static str),
+) -> Result<(), Refusal> {
+    enter("capture");
     let sources = capture(data, expected)?;
+    enter("vendor_declarations");
     vendor_declarations(&sources)?;
+    enter("imports");
     imports(&sources)?;
+    enter("vendor_methods");
     vendor_methods(&sources)?;
+    enter("id_limits");
     id_limits(&sources)?;
+    enter("index_macro");
     index_macro(&sources)?;
+    enter("standard_declarations");
     standard_declarations(&sources)?;
+    enter("arc_methods");
     arc_methods(&sources)?;
+    enter("vector_methods");
     vector_methods(&sources)?;
+    enter("pointer_methods");
     pointer_methods(&sources)?;
+    enter("slice_methods");
     slice_methods(&sources)?;
+    enter("intrinsic_boundaries");
     intrinsic_boundaries(&sources)
 }
 

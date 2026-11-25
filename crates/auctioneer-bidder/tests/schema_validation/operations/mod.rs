@@ -40,6 +40,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod lower;
 pub(super) mod model;
 mod resolve;
+pub(super) mod source_syntax;
 
 // One service body covers warm/cold TLS, process state and platform seeding.
 // HashMap setup, ownership, hashing, probing, growth and drop remain common-source obligations.

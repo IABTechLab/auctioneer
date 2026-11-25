@@ -33,12 +33,35 @@ pub(super) struct CallbackOverlap {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(super) struct OwnerSchedule {
+pub(in crate::schema_validation) struct OwnerSchedule {
     pub(super) wrapper: String,
     pub(super) factory_root: usize,
     pub(super) validation_root: usize,
     pub(super) initializers: Vec<FieldInitializer>,
     pub(super) callbacks: Vec<CallbackOverlap>,
+}
+
+impl OwnerSchedule {
+    pub(in crate::schema_validation) fn initializers(
+        &self,
+    ) -> impl Iterator<Item = (&str, &str, &Site, &[String])> + '_ {
+        self.initializers.iter().map(|row| {
+            (
+                row.field.as_str(),
+                row.program.as_str(),
+                &row.site,
+                row.completed_siblings.as_slice(),
+            )
+        })
+    }
+
+    pub(in crate::schema_validation) fn callbacks(
+        &self,
+    ) -> impl Iterator<Item = (&Site, Primitive, &str)> + '_ {
+        self.callbacks
+            .iter()
+            .map(|row| (&row.site, row.helper, row.wrapper.as_str()))
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -58,7 +81,7 @@ struct NativeRoots {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(super) enum Refusal {
+pub(in crate::schema_validation) enum Refusal {
     NotDerived,
     Operations(operations::Refusal),
     InitializerOrder,
@@ -764,6 +787,17 @@ fn derive_owner(recipe: &Recipe, roots: &NativeRoots) -> Result<OwnerSchedule, R
         initializers,
         callbacks,
     })
+}
+
+// Reuses the owner recognizer on supplied DATA. This entry does not capture a
+// source body, seal an owner, price cleanup or establish source completeness.
+pub(in crate::schema_validation) fn owner_schedule_data(
+    recipe: &Recipe,
+    graph: &Value,
+    owner: &str,
+    marker: &str,
+) -> Result<OwnerSchedule, Refusal> {
+    derive_owner(recipe, &native_roots(graph, owner, marker))
 }
 
 pub(super) fn check_sources<'a>(

@@ -38,6 +38,10 @@ validation_required=(
   schema_validation::work::tests::branches_and_callbacks_have_source_derived_multiplicity
   schema_validation::work::tests::late_failure_includes_cleanup
   schema_validation::work::tests::overflow_refuses
+  schema_validation::work::caller::tests::original_impressions_follow_both_core_admission_representations
+  schema_validation::work::caller::tests::bidder_cap_records_clamp_then_nonzero_effective_cap
+  schema_validation::work::caller::tests::scope_gates_do_not_discharge_retention_or_cleanup
+  schema_validation::work::caller::tests::missing_and_rehashed_caller_sources_refuse_at_zero_attempts
   schema_validation::work::partition::tests::disjoint_children_across_helpers_have_linear_coefficients
   schema_validation::work::partition::tests::ancestor_rescans_require_source_bound_cap_lifting
   schema_validation::work::partition::tests::changed_iteration_and_call_bindings_are_refused

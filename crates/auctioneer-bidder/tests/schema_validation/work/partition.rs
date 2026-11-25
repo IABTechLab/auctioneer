@@ -1,4 +1,4 @@
-//! Tests-first traversal/affine caller-bound DATA, not source authority.
+//! Traversal/affine caller-bound DATA, not source authority.
 //!
 //! Coefficients count existing helper entries and iterator callbacks per input
 //! and per attempt. They are not new work units or a closed `WorkLedger`. Actual
@@ -8,8 +8,14 @@
 //! Ordinary primitive, cleanup, byte, frame and target obligations stay open.
 //! The old coarse counter is neither changed nor exposed as a fallback here.
 
-use crate::schema_validation::operations::model::{Binding, Recipe, Site};
-use std::collections::BTreeSet;
+use crate::schema_validation::operations::{
+    self, Primitive,
+    model::{
+        Arm, Atom, Binding, Comparison, Function, Kind, Op, Origin, Pattern, Recipe, Site,
+        StopRule, Ty,
+    },
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct NodeCapData {
@@ -53,23 +59,509 @@ struct SourceBounds {
 
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
-    NotDerived,
+    Source(operations::Refusal),
     IterationBinding(Site),
     CallBinding(Site),
     Overflow,
 }
 
-// Hosted assertion RED precedes any provenance or coefficient implementation.
-// Zero attempts must still check source bindings and retain per-attempt duties.
-// Coefficients and their cap-domain/attempt arithmetic must be checked; an
-// unrepresentable bound refuses rather than publishing wrapped coefficients.
-// No compatibility path into the old J-per-nested-pass counter is provided.
+impl From<operations::Refusal> for Refusal {
+    fn from(refusal: operations::Refusal) -> Self {
+        Self::Source(refusal)
+    }
+}
+
+#[derive(Clone)]
+struct InputNode {
+    root: usize,
+    // Each entry is one authenticated child iteration, not an origin label.
+    members: Vec<usize>,
+}
+
+type ProvenanceBindings = [(Binding, InputNode)];
+
+#[derive(Default)]
+struct Occurrences {
+    constant: u64,
+    by_depth: BTreeMap<(usize, usize), u64>,
+}
+
+impl Occurrences {
+    fn combine(&mut self, other: Self) -> Result<(), Refusal> {
+        self.constant = self
+            .constant
+            .checked_add(other.constant)
+            .ok_or(Refusal::Overflow)?;
+        for (key, count) in other.by_depth {
+            let prior = self.by_depth.entry(key).or_default();
+            *prior = prior.checked_add(count).ok_or(Refusal::Overflow)?;
+        }
+        Ok(())
+    }
+
+    fn coefficient(&self) -> Result<SourceBoundCoeff, Refusal> {
+        // Distinct depths partition one borrowed tree. Separate source passes
+        // at the same depth add; they are never declared disjoint by label.
+        let mut roots = BTreeMap::<usize, u64>::new();
+        for (&(root, _depth), &count) in &self.by_depth {
+            let maximum = roots.entry(root).or_default();
+            *maximum = (*maximum).max(count);
+        }
+        let nodes = roots.values().try_fold(0_u64, |sum, count| {
+            sum.checked_add(*count).ok_or(Refusal::Overflow)
+        })?;
+        Ok(SourceBoundCoeff {
+            constant: self.constant,
+            nodes,
+        })
+    }
+}
+
+struct CallOccurrences {
+    binding: CallBound,
+    occurrences: Occurrences,
+}
+
+struct Deriver<'a> {
+    recipe: &'a Recipe,
+    child_cap: u64,
+    active_functions: BTreeSet<usize>,
+    active_members: Vec<InputNode>,
+    next_member: usize,
+    calls: Vec<CallOccurrences>,
+    callbacks: Occurrences,
+}
+
+fn formal<'a>(function: &'a Function, id: usize, site: &Site) -> Result<&'a Binding, Refusal> {
+    let [parameter] = function.parameters.as_slice() else {
+        return Err(Refusal::CallBinding(site.clone()));
+    };
+    if parameter.ty != Ty::Value
+        || !parameter.borrowed
+        || parameter.declaration.is_some()
+        || parameter.origin
+            != (Origin::Parameter {
+                function: id,
+                ordinal: 0,
+            })
+        || function.result != Ty::Bool
+        || function.body.site.function != id
+    {
+        return Err(Refusal::CallBinding(site.clone()));
+    }
+    Ok(parameter)
+}
+
+fn input_node(bindings: &ProvenanceBindings, binding: &Binding) -> Option<InputNode> {
+    bindings
+        .iter()
+        .rev()
+        .find_map(|(known, node)| (known == binding).then(|| node.clone()))
+}
+
+struct Traversal<'a> {
+    parameter: &'a Binding,
+    evaluation: &'a Op,
+    body: &'a Op,
+    parent: InputNode,
+}
+
+fn iterator_matches(evaluation: &Op, collection: &Binding, receiver: &Binding) -> bool {
+    let Kind::Primitive {
+        lemma,
+        callee,
+        receiver: Some(actual),
+        arguments,
+        source_calls,
+    } = &evaluation.kind
+    else {
+        return false;
+    };
+    let [argument] = arguments.as_slice() else {
+        return false;
+    };
+    *lemma == Primitive::IteratorProtocol
+        && callee == "Array::iter"
+        && source_calls.is_empty()
+        && actual == collection
+        && argument.value == *collection
+        && matches!(&argument.kind, Kind::Value(Atom::Place))
+        && receiver == &evaluation.value
+        && receiver.ty == Ty::Iterator(Box::new(Ty::Value))
+        && receiver.borrowed
+        && receiver.origin == collection.origin
+        && receiver.place == collection.place
+        && receiver.declaration.is_none()
+}
+
+fn traversal<'a>(op: &'a Op, bindings: &ProvenanceBindings) -> Result<Traversal<'a>, Refusal> {
+    let Kind::Iterate {
+        protocol,
+        callee,
+        stop,
+        none_on_exhaustion,
+        bound,
+        receiver,
+        parameters,
+        body,
+        evaluation,
+    } = &op.kind
+    else {
+        return Err(operations::Refusal::UnsupportedSource.into());
+    };
+    let refusal = || Refusal::IterationBinding(op.site.clone());
+    let [parameter] = parameters.as_slice() else {
+        return Err(refusal());
+    };
+    let mut body_site = op.site.clone();
+    body_site.lexical.push(1);
+    if *protocol != Primitive::IteratorProtocol
+        || callee != "Iterator::all"
+        || *stop != StopRule::FirstFalseOrExhaustion
+        || !*none_on_exhaustion
+        || bound.collection.ty != Ty::Array
+        || !bound.collection.borrowed
+        || bound.element != Ty::Value
+        || !iterator_matches(evaluation, &bound.collection, receiver)
+        || body.site != body_site
+        || parameter.ty != Ty::Value
+        || !parameter.borrowed
+        || parameter.declaration.as_ref() != Some(&body.site)
+        || parameter.origin
+            != (Origin::Projection {
+                base: Box::new(bound.collection.origin.clone()),
+                member: "member".to_owned(),
+            })
+    {
+        return Err(refusal());
+    }
+    let parent = input_node(bindings, &bound.collection).ok_or_else(refusal)?;
+    Ok(Traversal {
+        parameter,
+        evaluation,
+        body,
+        parent,
+    })
+}
+
+impl Deriver<'_> {
+    fn occurrences(&self) -> Result<Occurrences, Refusal> {
+        let Some(deepest) = self
+            .active_members
+            .iter()
+            .max_by_key(|node| node.members.len())
+        else {
+            return Ok(Occurrences {
+                constant: 1,
+                ..Occurrences::default()
+            });
+        };
+        // The selected node determines every ancestor member index in its
+        // path. Each remaining active rescan index has at most cap-1 choices.
+        let extra = self
+            .active_members
+            .len()
+            .checked_sub(deepest.members.len())
+            .ok_or(Refusal::Overflow)?;
+        let mut multiplicity = 1_u64;
+        for _ in 0..extra {
+            multiplicity = multiplicity
+                .checked_mul(self.child_cap)
+                .ok_or(Refusal::Overflow)?;
+        }
+        Ok(Occurrences {
+            constant: 0,
+            by_depth: BTreeMap::from([((deepest.root, deepest.members.len()), multiplicity)]),
+        })
+    }
+
+    fn enter(&mut self, id: usize, node: InputNode, site: &Site) -> Result<(), Refusal> {
+        let recipe = self.recipe;
+        let function = recipe
+            .functions
+            .get(&id)
+            .ok_or(operations::Refusal::UnclassifiedCall)?;
+        let parameter = formal(function, id, site)?;
+        if !self.active_functions.insert(id) {
+            return Err(operations::Refusal::MissingDecreasingMeasure.into());
+        }
+        let result = self.visit(&function.body, &[(parameter.clone(), node)]);
+        self.active_functions.remove(&id);
+        result
+    }
+
+    fn call(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Kind::Call {
+            target,
+            arguments,
+            evaluation,
+        } = &op.kind
+        else {
+            return Err(operations::Refusal::UnsupportedSource.into());
+        };
+        let recipe = self.recipe;
+        let function = recipe
+            .functions
+            .get(target)
+            .ok_or(operations::Refusal::UnclassifiedCall)?;
+        let parameter = formal(function, *target, &op.site)?;
+        let ([argument], [evaluated]) = (arguments.as_slice(), evaluation.as_slice()) else {
+            return Err(Refusal::CallBinding(op.site.clone()));
+        };
+        if argument != &evaluated.value
+            || argument.ty != parameter.ty
+            || !argument.borrowed
+            || !matches!(&evaluated.kind, Kind::Value(Atom::Place))
+        {
+            return Err(Refusal::CallBinding(op.site.clone()));
+        }
+        let node =
+            input_node(bindings, argument).ok_or_else(|| Refusal::CallBinding(op.site.clone()))?;
+        self.visit(evaluated, bindings)?;
+        let binding = CallBound {
+            site: op.site.clone(),
+            target: *target,
+            formal_ordinal: 0,
+            formal: parameter.clone(),
+            actual: argument.clone(),
+            per_attempt: SourceBoundCoeff {
+                constant: 0,
+                nodes: 0,
+            },
+        };
+        let occurrences = self.occurrences()?;
+        if let Some(prior) = self
+            .calls
+            .iter_mut()
+            .find(|prior| prior.binding.site == op.site)
+        {
+            if prior.binding != binding {
+                return Err(Refusal::CallBinding(op.site.clone()));
+            }
+            prior.occurrences.combine(occurrences)?;
+        } else {
+            self.calls.push(CallOccurrences {
+                binding,
+                occurrences,
+            });
+        }
+        self.enter(*target, node, &op.site)
+    }
+
+    fn choice(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Kind::Choice { selector, arms } = &op.kind else {
+            return Err(operations::Refusal::UnsupportedSource.into());
+        };
+        self.visit(selector, bindings)?;
+        for (ordinal, arm) in arms.iter().enumerate() {
+            let mut branch = bindings.to_vec();
+            match &arm.pattern {
+                Pattern::Variant(name, fields)
+                    if matches!(
+                        name.as_str(),
+                        "serde_json::Value::Array"
+                            | "jsonschema::__private::serde_json::Value::Array"
+                    ) =>
+                {
+                    branch.push(array_binding(
+                        op, selector, arm, ordinal, bindings, name, fields,
+                    )?);
+                }
+                Pattern::Wild | Pattern::Literal(_) => {}
+                _ => return Err(operations::Refusal::UnsupportedSource.into()),
+            }
+            if let Some(guard) = &arm.guard {
+                self.visit(guard, &branch)?;
+            }
+            self.visit(&arm.body, &branch)?;
+        }
+        Ok(())
+    }
+
+    fn iteration(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Traversal {
+            parameter,
+            evaluation,
+            body,
+            parent: mut node,
+        } = traversal(op, bindings)?;
+        self.visit(evaluation, bindings)?;
+        let member = self.next_member;
+        self.next_member = member.checked_add(1).ok_or(Refusal::Overflow)?;
+        node.members.push(member);
+        self.active_members.push(node.clone());
+        let occurrences = self.occurrences()?;
+        self.callbacks.combine(occurrences)?;
+        let mut nested = bindings.to_vec();
+        nested.push((parameter.clone(), node));
+        let result = self.visit(body, &nested);
+        self.active_members.pop();
+        result
+    }
+
+    fn visit(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        match &op.kind {
+            Kind::Value(_) => Ok(()),
+            Kind::Scope { steps, locals, .. } if locals.is_empty() => {
+                for step in steps {
+                    self.visit(step, bindings)?;
+                }
+                Ok(())
+            }
+            Kind::ScalarTest(_, values) | Kind::ShortCircuit(_, values) => {
+                for value in values {
+                    self.visit(value, bindings)?;
+                }
+                Ok(())
+            }
+            Kind::Choice { .. } => self.choice(op, bindings),
+            Kind::Call { .. } => self.call(op, bindings),
+            Kind::Iterate { .. } => self.iteration(op, bindings),
+            Kind::Primitive {
+                arguments,
+                source_calls,
+                ..
+            } if source_calls.is_empty() => {
+                for argument in arguments {
+                    self.visit(argument, bindings)?;
+                }
+                Ok(())
+            }
+            Kind::Exit(_, value) => {
+                if let Some(value) = value {
+                    self.visit(value, bindings)?;
+                }
+                Ok(())
+            }
+            _ => Err(operations::Refusal::UnsupportedSource.into()),
+        }
+    }
+}
+
+// Payload provenance comes from the actual typed match arm and selector, then
+// the iterator checks its exact receiver and binder sites. The spelling of a
+// Projection alone cannot introduce either a container or a member.
+fn array_binding(
+    op: &Op,
+    selector: &Op,
+    arm: &Arm,
+    ordinal: usize,
+    bindings: &ProvenanceBindings,
+    name: &str,
+    fields: &[Pattern],
+) -> Result<(Binding, InputNode), Refusal> {
+    let refusal = || Refusal::IterationBinding(op.site.clone());
+    let Kind::ScalarTest(Comparison::TypeDiscriminant, values) = &selector.kind else {
+        return Err(refusal());
+    };
+    let ([value], [Pattern::Binding(place)]) = (values.as_slice(), fields) else {
+        return Err(refusal());
+    };
+    if value.value.ty != Ty::Value
+        || !value.value.borrowed
+        || !matches!(&value.kind, Kind::Value(Atom::Place))
+    {
+        return Err(refusal());
+    }
+    let node = input_node(bindings, &value.value).ok_or_else(refusal)?;
+    let mut anchor = op.site.clone();
+    anchor
+        .lexical
+        .push(ordinal.checked_add(1).ok_or(Refusal::Overflow)?);
+    let mut body_site = anchor.clone();
+    body_site.lexical.push(1);
+    if arm.body.site != body_site {
+        return Err(refusal());
+    }
+    anchor.lexical.push(0);
+    Ok((
+        Binding {
+            ty: Ty::Array,
+            place: place.clone(),
+            borrowed: true,
+            origin: Origin::Projection {
+                base: Box::new(value.value.origin.clone()),
+                member: name.to_owned(),
+            },
+            declaration: Some(anchor),
+        },
+        node,
+    ))
+}
+
+fn checked_bound(coefficient: SourceBoundCoeff, cap: NodeCapData) -> Result<u64, Refusal> {
+    coefficient
+        .nodes
+        .checked_mul(cap.nodes)
+        .and_then(|value| value.checked_add(coefficient.constant))
+        .ok_or(Refusal::Overflow)
+}
+
+// Only borrowed unary Value functions and the canonical array/all protocol are
+// supported here. Other grammar refuses; no coarse counter is a fallback.
+// All source checks and per-attempt duties survive zero execution attempts.
 fn derive_source_bounds(
-    _recipe: &Recipe,
-    _cap: NodeCapData,
-    _attempts: u64,
+    recipe: &Recipe,
+    cap: NodeCapData,
+    attempts: u64,
 ) -> Result<SourceBounds, Refusal> {
-    Err(Refusal::NotDerived)
+    if recipe.roots.is_empty()
+        || recipe.roots.iter().collect::<BTreeSet<_>>().len() != recipe.roots.len()
+        || !recipe.initialization.is_empty()
+    {
+        return Err(operations::Refusal::UnsupportedSource.into());
+    }
+    let mut deriver = Deriver {
+        recipe,
+        child_cap: cap.nodes.checked_sub(1).ok_or(Refusal::Overflow)?,
+        active_functions: BTreeSet::new(),
+        active_members: Vec::new(),
+        next_member: 0,
+        calls: Vec::new(),
+        callbacks: Occurrences::default(),
+    };
+    for &root in &recipe.roots {
+        deriver.enter(
+            root,
+            InputNode {
+                root,
+                members: Vec::new(),
+            },
+            &Site {
+                function: root,
+                lexical: Vec::new(),
+            },
+        )?;
+    }
+    let callbacks = deriver.callbacks.coefficient()?;
+    let mut maximum = checked_bound(callbacks, cap)?;
+    let mut helper_calls = Vec::new();
+    for CallOccurrences {
+        mut binding,
+        occurrences,
+    } in deriver.calls
+    {
+        binding.per_attempt = occurrences.coefficient()?;
+        maximum = maximum
+            .checked_add(checked_bound(binding.per_attempt, cap)?)
+            .ok_or(Refusal::Overflow)?;
+        helper_calls.push(binding);
+    }
+    maximum.checked_mul(attempts).ok_or(Refusal::Overflow)?;
+    Ok(SourceBounds {
+        roots: recipe.roots.clone(),
+        cap,
+        attempts,
+        helper_calls,
+        iterator_callbacks_per_attempt: callbacks,
+        required_sources: BTreeSet::from([
+            SourceRequirement::CanonicalRecipe,
+            SourceRequirement::BorrowedInputTree,
+            SourceRequirement::FormalActualBindings,
+            SourceRequirement::IteratorMemberProtocol,
+            SourceRequirement::CallerNodeCap,
+        ]),
+    })
 }
 
 #[cfg(test)]

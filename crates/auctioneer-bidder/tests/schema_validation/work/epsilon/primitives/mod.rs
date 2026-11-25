@@ -1015,7 +1015,9 @@ mod tests {
         };
         assert_eq!(
             source_contract(data, expected_compiler, lemma, calls, premises).map(view),
-            Ok(view(expected))
+            Ok(view(expected)),
+            "primitive source stage: {:?}",
+            super::source::failure_stage(data, expected_compiler)
         );
     }
 

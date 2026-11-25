@@ -21,6 +21,7 @@
 //! Allocation success is a separate premise: fatal OOM diagnostics are excluded,
 //! never ordinary returned-error, partial-construction or unwind cleanup.
 
+mod caller;
 mod context;
 mod entropy;
 mod epsilon;
