@@ -63,6 +63,7 @@ validation_required=(
   schema_validation::work::partition::coupled_tests::input_tests::coupled_input_source_checks_and_overflow_survive_zero_validations
   schema_validation::work::partition::coupled_tests::input_tests::emitted_protocols_keep_scalar_and_optional_callback_coefficients
   schema_validation::work::partition::coupled_tests::input_tests::emitted_protocol_bindings_refuse_at_zero_validations
+  schema_validation::work::partition::coupled_tests::input_tests::erased_wrappers_change_only_expression_addresses
   schema_validation::work::prefix::tests::rejected_preflight_prefixes_remain_charged
   schema_validation::work::prefix::tests::keys_and_string_prechecks_bound_partial_prefixes
   schema_validation::work::prefix::tests::iterator_population_and_recursion_axes_remain_distinct

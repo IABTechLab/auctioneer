@@ -882,7 +882,7 @@ fn evaluated_arguments(
     for (ordinal, ((formal, argument), expression)) in
         parameters.iter().zip(arguments).zip(evaluation).enumerate()
     {
-        if expression.site != coupled_child(site, ordinal)
+        if !expression_site(&expression.site, &coupled_child(site, ordinal))
             || argument != &expression.value
             || argument.ty != formal.ty
             || !argument.borrowed
@@ -994,7 +994,7 @@ fn member_matches(parameter: &Binding, ty: &Ty, origin: &Origin, declaration: &S
 
 fn value_parameter<'a>(
     parameters: &'a [Binding],
-    body: &Op,
+    declaration: &Site,
     collection: &Binding,
 ) -> Option<&'a Binding> {
     let member = Origin::Projection {
@@ -1003,15 +1003,15 @@ fn value_parameter<'a>(
     };
     match (&collection.ty, parameters) {
         (Ty::Array | Ty::Map, [value])
-            if member_matches(value, &Ty::Value, &member, &body.site) =>
+            if member_matches(value, &Ty::Value, &member, declaration) =>
         {
             Some(value)
         }
-        (Ty::Map, [key]) if member_matches(key, &Ty::String, &member, &body.site) => Some(key),
+        (Ty::Map, [key]) if member_matches(key, &Ty::String, &member, declaration) => Some(key),
         (Ty::Map, [key, value]) => {
-            let mut key_site = body.site.clone();
+            let mut key_site = declaration.clone();
             key_site.lexical.push(0);
-            let mut value_site = body.site.clone();
+            let mut value_site = declaration.clone();
             value_site.lexical.push(1);
             let key_origin = Origin::Projection {
                 base: Box::new(member.clone()),
@@ -1057,11 +1057,11 @@ fn traversal<'a>(op: &'a Op, bindings: &ProvenanceBindings) -> Result<Traversal<
         || !*none_on_exhaustion
         || !bound.collection.borrowed
         || !iterator_matches(evaluation, bound, receiver)
-        || body.site != body_site
+        || !expression_site(&body.site, &body_site)
     {
         return Err(refusal());
     }
-    value_parameter(parameters, body, &bound.collection).ok_or_else(refusal)?;
+    value_parameter(parameters, &body_site, &bound.collection).ok_or_else(refusal)?;
     let parent = input_node(bindings, &bound.collection).ok_or_else(refusal)?;
     Ok(Traversal {
         parameters,
@@ -1324,7 +1324,7 @@ impl Deriver<'_> {
                 base: Box::new(expected_storage.origin.clone()),
                 member: "Some".to_owned(),
             },
-            declaration: Some(body.site.clone()),
+            declaration: Some(coupled_child(&op.site, 1)),
         };
         if callee != "Option::is_some_and"
             || readiness != &format!("{:?}::as_ref", storage.ty)
@@ -1333,13 +1333,13 @@ impl Deriver<'_> {
             || *storage != expected_storage
             || argument.value != expected_storage
             || !matches!(&argument.kind, Kind::Value(Atom::Place))
-            || argument.site != coupled_child(&evaluation.site, 0)
+            || !expression_site(&argument.site, &coupled_child(&evaluation.site, 0))
             || *receiver != expected_receiver
             || evaluation.value != expected_receiver
             || *parameter != expected_parameter
             || parameter.place.is_empty()
-            || evaluation.site != coupled_child(&op.site, 0)
-            || body.site != coupled_child(&op.site, 1)
+            || !expression_site(&evaluation.site, &coupled_child(&op.site, 0))
+            || !expression_site(&body.site, &coupled_child(&op.site, 1))
         {
             return Err(Refusal::CallBinding(op.site.clone()));
         }
@@ -1373,9 +1373,9 @@ impl Deriver<'_> {
             return Err(Refusal::CallBinding(op.site.clone()));
         };
         if regex.value != *receiver
-            || regex.site != coupled_child(&op.site, 0)
-            || cache.site != coupled_child(&op.site, 1)
-            || input.site != coupled_child(&op.site, 2)
+            || !expression_site(&regex.site, &coupled_child(&op.site, 0))
+            || !expression_site(&cache.site, &coupled_child(&op.site, 1))
+            || !expression_site(&input.site, &coupled_child(&op.site, 2))
             || member != row.field
             || !borrowed_search_input(input, bindings)
         {
@@ -1463,7 +1463,7 @@ impl Deriver<'_> {
         if binding != &expected
             || (binding.ty == Ty::Bool && binding.borrowed)
             || name.is_empty()
-            || value.site != coupled_child(&op.site, 0)
+            || !expression_site(&value.site, &coupled_child(&op.site, 0))
             || !temporary(op, &Ty::Unit)
         {
             return Err(Refusal::LocalBinding(op.site.clone()));
@@ -1483,13 +1483,14 @@ impl Deriver<'_> {
             return Err(unsupported(op));
         };
         match action {
+            Action::CastScalar => self.scalar_cast(op, values, bindings),
             Action::Not => {
                 let [value] = values.as_slice() else {
                     return Err(Refusal::LocalBinding(op.site.clone()));
                 };
                 if !temporary(op, &Ty::Bool)
                     || value.value.ty != Ty::Bool
-                    || value.site != coupled_child(&op.site, 0)
+                    || !expression_site(&value.site, &coupled_child(&op.site, 0))
                 {
                     return Err(Refusal::LocalBinding(op.site.clone()));
                 }
@@ -1504,7 +1505,7 @@ impl Deriver<'_> {
                     || !matches!(&left.kind, Kind::Value(Atom::Place))
                     || right.value.ty != Ty::Bool
                     || left.site != coupled_child(&op.site, 0)
-                    || right.site != coupled_child(&op.site, 1)
+                    || !expression_site(&right.site, &coupled_child(&op.site, 1))
                     || !temporary(op, &Ty::Unit)
                 {
                     return Err(Refusal::LocalBinding(op.site.clone()));
@@ -1532,9 +1533,28 @@ impl Deriver<'_> {
             | Action::Field(_)
             | Action::Negate
             | Action::Dereference
-            | Action::AndAssign(_)
-            | Action::CastScalar => Err(unsupported(op)),
+            | Action::AndAssign(_) => Err(unsupported(op)),
         }
+    }
+
+    // A scalar cast changes no helper/iterator population. This visits its
+    // operand once; scalar semantics, work and width remain separate duties.
+    fn scalar_cast(
+        &mut self,
+        op: &Op,
+        values: &[Op],
+        bindings: &ProvenanceBindings,
+    ) -> Result<(), Refusal> {
+        let [value] = values else {
+            return Err(unsupported(op));
+        };
+        if value.value.ty != Ty::Scalar
+            || !temporary(op, &Ty::Scalar)
+            || !expression_site(&value.site, &coupled_child(&op.site, 0))
+        {
+            return Err(unsupported(op));
+        }
+        self.visit(value, bindings)
     }
 
     fn visit(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
@@ -1615,9 +1635,9 @@ fn borrowed_search_input(op: &Op, bindings: &ProvenanceBindings) -> bool {
     if callee != "Input::earliest"
         || !source_calls.is_empty()
         || op.value != borrowed
-        || earliest.site != coupled_child(&op.site, 0)
-        || new.site != coupled_child(&earliest.site, 0)
-        || flag.site != coupled_child(&earliest.site, 1)
+        || !expression_site(&earliest.site, &coupled_child(&op.site, 0))
+        || !expression_site(&new.site, &coupled_child(&earliest.site, 0))
+        || !expression_site(&flag.site, &coupled_child(&earliest.site, 1))
         || !matches!(&flag.kind, Kind::Value(Atom::Bool(true)))
         || flag.value.ty != Ty::Bool
         || *receiver != new.value
@@ -1641,7 +1661,7 @@ fn borrowed_search_input(op: &Op, bindings: &ProvenanceBindings) -> bool {
     constructor_callee == "regex_automata::Input::new"
         && constructor_source_calls.is_empty()
         && temporary(new, &Ty::Input)
-        && subject.site == coupled_child(&new.site, 0)
+        && expression_site(&subject.site, &coupled_child(&new.site, 0))
         && subject.value.ty == Ty::String
         && subject.value.borrowed
         && argument_value(subject, bindings) == Some(Provenance::Scalar)
@@ -1710,9 +1730,9 @@ fn boolean_primitive(op: &Op) -> bool {
         return false;
     }
     if *lemma == Primitive::StringAccess && callee == "str::pattern_decision" {
-        return argument.site == op.site && temporary(op, &Ty::Bool);
+        return expression_site(&argument.site, &op.site) && temporary(op, &Ty::Bool);
     }
-    argument.site == coupled_child(&op.site, 0)
+    expression_site(&argument.site, &coupled_child(&op.site, 0))
         && op.value
             == (Binding {
                 ty: Ty::Bool,
@@ -1723,14 +1743,29 @@ fn boolean_primitive(op: &Op) -> bool {
             })
 }
 
+// The canonical lowerer erases Paren/Group while descending through child 0.
+// Only expression slots admit those zero suffixes; declarations stay exact.
+// This is conditional on CanonicalRecipe, not source or work authority.
+fn expression_site(actual: &Site, expected: &Site) -> bool {
+    actual.function == expected.function
+        && actual
+            .lexical
+            .strip_prefix(expected.lexical.as_slice())
+            .is_some_and(|wrappers| wrappers.iter().all(|ordinal| *ordinal == 0))
+}
+
 fn scope_sites(op: &Op, steps: &[Op]) -> bool {
     let mut previous = None;
     for step in steps {
-        let Some((ordinal, prefix)) = step.site.lexical.split_last() else {
+        let Some(relative) = step.site.lexical.strip_prefix(op.site.lexical.as_slice()) else {
+            return false;
+        };
+        let Some((ordinal, wrappers)) = relative.split_first() else {
             return false;
         };
         if step.site.function != op.site.function
-            || prefix != op.site.lexical.as_slice()
+            || wrappers.iter().any(|component| *component != 0)
+            || (matches!(&step.kind, Kind::Bind { .. }) && !wrappers.is_empty())
             || previous.is_some_and(|prior| prior >= *ordinal)
         {
             return false;
@@ -1838,7 +1873,7 @@ fn container_binding(
         .push(ordinal.checked_add(1).ok_or(Refusal::Overflow)?);
     let mut body_site = anchor.clone();
     body_site.lexical.push(1);
-    if arm.body.site != body_site {
+    if !expression_site(&arm.body.site, &body_site) {
         return Err(refusal());
     }
     anchor.lexical.push(0);
@@ -3746,6 +3781,68 @@ mod coupled_tests {
         const RESET: &str = "__coupled_impl::__SearchCache::reset";
         const LEAF: &str = "__coupled_impl::leaf";
 
+        #[test]
+        fn erased_wrappers_change_only_expression_addresses() {
+            let expected = super::super::Site {
+                function: 7,
+                lexical: vec![0, 1, 2],
+            };
+            for lexical in [vec![0, 1, 2], vec![0, 1, 2, 0], vec![0, 1, 2, 0, 0]] {
+                let actual = super::super::Site {
+                    function: 7,
+                    lexical,
+                };
+                assert!(super::super::expression_site(&actual, &expected));
+            }
+            for actual in [
+                super::super::Site {
+                    function: 8,
+                    lexical: vec![0, 1, 2],
+                },
+                super::super::Site {
+                    function: 7,
+                    lexical: vec![0, 1],
+                },
+                super::super::Site {
+                    function: 7,
+                    lexical: vec![0, 1, 3],
+                },
+                super::super::Site {
+                    function: 7,
+                    lexical: vec![0, 1, 2, 0, 1],
+                },
+            ] {
+                assert!(!super::super::expression_site(&actual, &expected));
+            }
+            let mut fixture = local_fixture();
+            let scope = object_scope(&mut fixture.recipe);
+            let Kind::Scope {
+                steps: original_steps,
+                ..
+            } = &scope.kind
+            else {
+                panic!("object local scope");
+            };
+            assert!(super::super::scope_sites(scope, original_steps));
+            let mut changed = scope.clone();
+            let Kind::Scope {
+                steps: changed_steps,
+                ..
+            } = &mut changed.kind
+            else {
+                panic!("cloned object scope");
+            };
+            assert!(matches!(&changed_steps[0].kind, Kind::Bind { .. }));
+            changed_steps[0].site.lexical.push(0);
+            let Kind::Scope {
+                steps: final_steps, ..
+            } = &changed.kind
+            else {
+                panic!("changed object scope");
+            };
+            assert!(!super::super::scope_sites(&changed, final_steps));
+        }
+
         fn input(
             fixture: &Fixture,
             cap: u64,
@@ -3968,6 +4065,7 @@ mod coupled_tests {
             };
             let object = if rescan {
                 quote::quote! { 'pass: {
+                    if (obj.len() as u64) < 1 { return false; }
                     for (key, instance) in obj.iter() {
                         let key_str = key.as_str();
                         if !key_leaf(key_str, __cache) { break 'pass false; }
@@ -3976,7 +4074,10 @@ mod coupled_tests {
                     true
                 } }
             } else {
-                values
+                quote::quote! {{
+                    if (obj.len() as u64) < 1 { return false; }
+                    #values
+                }}
             };
             *entry.block = syn::parse2(quote::quote!({
                 __cache.reset();
@@ -4253,6 +4354,7 @@ mod coupled_tests {
                     validations,
                 };
                 input(&fixture, 11, population).unwrap();
+                assert_scalar_cast_binding(&fixture, population);
                 assert_search_binding_mutants(&fixture, population);
                 let mut formal = fixture.recipe.clone();
                 let target = function(&formal, STRING_LEAF);
@@ -4313,6 +4415,38 @@ mod coupled_tests {
                     })
                 );
             }
+        }
+
+        fn assert_scalar_cast_binding(fixture: &Fixture, population: CoupledPopulation) {
+            let mut recipe = fixture.recipe.clone();
+            let Kind::Scope { steps, .. } = &mut object_scope(&mut recipe).kind else {
+                panic!("count-check scope");
+            };
+            let Kind::Choice { selector, .. } = &mut steps[0].kind else {
+                panic!("count comparison guard");
+            };
+            let Kind::ScalarTest(_, operands) = &mut selector.kind else {
+                panic!("count comparison");
+            };
+            let cast = &mut operands[0];
+            let anchor = cast.site.clone();
+            let Kind::Evaluate(Action::CastScalar, cast_operands) = &mut cast.kind else {
+                panic!("count cast");
+            };
+            assert_eq!(cast_operands.len(), 1);
+            assert_eq!(
+                cast_operands[0].site,
+                super::super::coupled_child(&anchor, 0)
+            );
+            cast_operands[0].site.lexical.push(99);
+            assert_eq!(
+                coupled_input_bounds(&recipe, &fixture.graph, OWNER, MARKER, 11, population),
+                Err(CoupledRefusal::SourceRefusal {
+                    function: Some(ENTRY.to_owned()),
+                    site: anchor,
+                    cause: operations::Refusal::UnsupportedSource,
+                })
+            );
         }
 
         fn object_scope(recipe: &mut Recipe) -> &mut Op {
