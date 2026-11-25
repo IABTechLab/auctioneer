@@ -55,6 +55,9 @@ validation_required=(
   schema_validation::work::partition::tests::object_entry_values_partition_across_parameterized_helpers
   schema_validation::work::partition::tests::object_ancestor_rescans_require_key_funded_cap_lifting
   schema_validation::work::partition::tests::cache_and_object_binder_drift_are_independently_refused
+  schema_validation::work::partition::coupled_tests::coupled_factories_keep_constant_work_separate_from_input_traversals
+  schema_validation::work::partition::coupled_tests::factory_readiness_prefixes_and_source_duties_survive_zero_entries
+  schema_validation::work::partition::coupled_tests::coupled_factory_bindings_and_overflow_refuse_independently
   schema_validation::work::prefix::tests::rejected_preflight_prefixes_remain_charged
   schema_validation::work::prefix::tests::keys_and_string_prechecks_bound_partial_prefixes
   schema_validation::work::prefix::tests::iterator_population_and_recursion_axes_remain_distinct

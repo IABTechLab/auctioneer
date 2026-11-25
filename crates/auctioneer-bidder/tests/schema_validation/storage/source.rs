@@ -42,6 +42,10 @@ pub(in crate::schema_validation) struct OwnerSchedule {
 }
 
 impl OwnerSchedule {
+    pub(in crate::schema_validation) fn roots(&self) -> (usize, usize) {
+        (self.factory_root, self.validation_root)
+    }
+
     pub(in crate::schema_validation) fn initializers(
         &self,
     ) -> impl Iterator<Item = (&str, &str, &Site, &[String])> + '_ {

@@ -1,4 +1,4 @@
-//! Tests-first all-attempt preflight multiplicities, not serializer work.
+//! Conditional all-attempt preflight multiplicities, not serializer work.
 //!
 //! Native limits come only from the source-matched `AttemptContext`. Literal
 //! prefix witnesses below are independent source oracles, not a second walk.
@@ -31,13 +31,13 @@ use super::{AttemptContext, PrefixCounts, Refusal};
 // These are source multiplicities, not transitive helper costs or frame bytes.
 pub(super) fn attach_bounds(
     context: &AttemptContext<'_>,
-    _scalar: &ScalarData,
+    scalar: &ScalarData,
     counts: &mut PrefixCounts,
 ) -> Result<(), Refusal> {
-    // Tests-first bridge: the required DATA operand is not checked yet. The
-    // four scalar slots stay unknown until the new guards reach hosted RED.
     let limits = context.native_input_limits;
     let preflight_entries = counts.preflight_entries;
+    let scalar_bounds =
+        scalar::derive_prefix_sources(context, scalar, preflight_entries).map_err(scalar_error)?;
     let node_attempts = if preflight_entries == 0 {
         0
     } else {
@@ -73,15 +73,33 @@ pub(super) fn attach_bounds(
     counts.input_visit_nesting_upper = Some(visit_nesting);
     counts.input_iterator_nesting_upper = Some(iterator_nesting);
 
-    // These require the separately bound concrete serde/Write source lemmas.
-    // A precheck alone does not prove the summed raw-string budget, and a
-    // generic writer trait does not supply Counter's request protocol.
-    counts.input_raw_utf8_with_quotes_upper = None;
-    counts.input_counter_writes_per_nonempty_request_upper = None;
-    counts.input_counter_writes_per_empty_request_upper = None;
-    counts.input_counter_interrupted_retries_upper = None;
+    counts.input_raw_utf8_with_quotes_upper = Some(scalar_bounds.raw_utf8_with_quotes_upper);
+    counts.input_counter_writes_per_nonempty_request_upper =
+        Some(scalar_bounds.writes_per_nonempty_request_upper);
+    counts.input_counter_writes_per_empty_request_upper =
+        Some(scalar_bounds.writes_per_empty_request_upper);
+    counts.input_counter_interrupted_retries_upper = Some(scalar_bounds.interrupted_retries_upper);
     counts.input_tree_navigation_upper = None;
     Ok(())
+}
+
+fn scalar_error(error: ScalarRefusal) -> Refusal {
+    match error {
+        ScalarRefusal::Overflow => Refusal::Overflow,
+        other @ (ScalarRefusal::ContextSourceMismatch(_)
+        | ScalarRefusal::NativeLimitsMismatch
+        | ScalarRefusal::MissingSourceProof
+        | ScalarRefusal::MissingSource(_)
+        | ScalarRefusal::DuplicateSource(_)
+        | ScalarRefusal::SourcePath(_)
+        | ScalarRefusal::SourceChanged(_)
+        | ScalarRefusal::SourceShape(_)
+        | ScalarRefusal::MissingFeature(_)
+        | ScalarRefusal::FeatureMismatch(_)
+        | ScalarRefusal::MissingWidth
+        | ScalarRefusal::UnsupportedWidth(_)
+        | ScalarRefusal::UnsupportedDispatch) => Refusal::ScalarSource(other),
+    }
 }
 
 #[cfg(test)]

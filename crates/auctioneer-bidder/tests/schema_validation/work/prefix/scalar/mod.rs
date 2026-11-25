@@ -16,7 +16,7 @@
 use crate::schema_validation::operations::source_syntax::{
     ConstTraitImpl, literal_doc, parse_file, tokens,
 };
-use crate::schema_validation::work::SchemaInputLimits;
+use crate::schema_validation::work::{AttemptContext, SchemaInputLimits};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use sha2::{Digest as _, Sha256};
@@ -101,12 +101,12 @@ pub(in crate::schema_validation::work) struct ScalarData {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-struct ScalarContract {
-    raw_utf8_with_quotes_upper: u64,
+pub(super) struct ScalarContract {
+    pub(super) raw_utf8_with_quotes_upper: u64,
     string_virtual_bytes_upper: u64,
-    writes_per_nonempty_request_upper: u64,
-    writes_per_empty_request_upper: u64,
-    interrupted_retries_upper: u64,
+    pub(super) writes_per_nonempty_request_upper: u64,
+    pub(super) writes_per_empty_request_upper: u64,
+    pub(super) interrupted_retries_upper: u64,
     required_sources: BTreeSet<SourceUnit>,
     unresolved: Vec<&'static str>,
     library_artifact_binding: Option<String>,
@@ -138,14 +138,53 @@ fn derive_scalar_sources(
     limits: SchemaInputLimits,
     attempts: u64,
 ) -> Result<ScalarContract, Refusal> {
+    let sources = checked_sources(data)?;
+    let extracted = extract_native_limits(&sources)?;
+    if extracted != limits {
+        return Err(Refusal::SourceShape(SourceUnit::Native));
+    }
+    derive_checked_sources(&sources, extracted, attempts)
+}
+
+fn checked_sources(data: &ScalarData) -> Result<Sources<'_>, Refusal> {
     check_tuple(data)?;
-    let sources = Sources::check(data)?;
-    check_input_sources(&sources, limits)?;
-    serde_sources(&sources)?;
-    json_sources(&sources)?;
-    primitive_sources(&sources)?;
-    let lengths = string_sources(&sources)?;
-    let writes = writer_sources(&sources)?;
+    Sources::check(data)
+}
+
+// This joins conditional DATA only. The actual-source window and artifact
+// correspondence still belong to their existing owners.
+pub(super) fn derive_prefix_sources(
+    context: &AttemptContext<'_>,
+    data: &ScalarData,
+    attempts: u64,
+) -> Result<ScalarContract, Refusal> {
+    let sources = checked_sources(data)?;
+    for (unit, expected) in [
+        (SourceUnit::Native, context.sources.native),
+        (SourceUnit::Input, context.sources.input),
+        (SourceUnit::JsonSize, context.sources.json_size),
+    ] {
+        if sources.bytes(unit)? != expected {
+            return Err(Refusal::ContextSourceMismatch(unit));
+        }
+    }
+    let limits = extract_native_limits(&sources)?;
+    if limits != context.native_input_limits {
+        return Err(Refusal::NativeLimitsMismatch);
+    }
+    derive_checked_sources(&sources, limits, attempts)
+}
+
+fn derive_checked_sources(
+    sources: &Sources<'_>,
+    limits: SchemaInputLimits,
+    attempts: u64,
+) -> Result<ScalarContract, Refusal> {
+    serde_sources(sources)?;
+    json_sources(sources)?;
+    primitive_sources(sources)?;
+    let lengths = string_sources(sources)?;
+    let writes = writer_sources(sources)?;
     let raw_utf8_with_quotes_upper = attempts
         .checked_mul(limits.serialized_bytes)
         .ok_or(Refusal::Overflow)?;
@@ -584,7 +623,7 @@ fn project_method(mut method: syn::ImplItemFn) -> syn::ImplItemFn {
     method
 }
 
-fn check_input_sources(sources: &Sources<'_>, limits: SchemaInputLimits) -> Result<(), Refusal> {
+fn extract_native_limits(sources: &Sources<'_>) -> Result<SchemaInputLimits, Refusal> {
     use crate::schema_validation::work::{self, ContextSources, SourceRole};
     // Reuse the existing source-recipe owner, not a copied input recognizer.
     // Other fixed context operands remain conditional owner data; this opens
@@ -601,7 +640,7 @@ fn check_input_sources(sources: &Sources<'_>, limits: SchemaInputLimits) -> Resu
         dispatch_generator: work::DISPATCH_GENERATOR,
         formats: work::FORMATS,
     };
-    let extracted = work::context::check_sources(&context).map_err(|error| match error {
+    work::context::check_sources(&context).map_err(|error| match error {
         work::Refusal::SourceShape(SourceRole::Native) => Refusal::SourceShape(SourceUnit::Native),
         work::Refusal::SourceShape(SourceRole::Input) => Refusal::SourceShape(SourceUnit::Input),
         work::Refusal::SourceShape(SourceRole::JsonSize) => {
@@ -625,13 +664,7 @@ fn check_input_sources(sources: &Sources<'_>, limits: SchemaInputLimits) -> Resu
         | work::Refusal::InputRejected(_)
         | work::Refusal::Overflow
         | work::Refusal::ScalarSource(_) => Refusal::MissingSourceProof,
-    })?;
-    if (extracted.serialized_bytes, extracted.nodes, extracted.depth)
-        != (limits.serialized_bytes, limits.nodes, limits.depth)
-    {
-        return Err(Refusal::SourceShape(SourceUnit::Native));
-    }
-    Ok(())
+    })
 }
 
 fn check_root_attributes(file: &syn::File, unit: SourceUnit) -> Result<(), Refusal> {

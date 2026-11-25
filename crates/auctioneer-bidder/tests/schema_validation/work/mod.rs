@@ -25,7 +25,7 @@ mod caller;
 mod context;
 mod entropy;
 mod epsilon;
-mod partition;
+pub(super) mod partition;
 mod prefix;
 
 use super::operations::{self, Primitive, model::Recipe};

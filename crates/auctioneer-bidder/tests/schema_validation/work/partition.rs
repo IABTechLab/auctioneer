@@ -57,6 +57,104 @@ struct SourceBounds {
     required_sources: BTreeSet<SourceRequirement>,
 }
 
+// Supplied invocation ceilings, not an actual caller-population witness.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::schema_validation) struct CoupledPopulation {
+    pub(in crate::schema_validation) factories: u64,
+    pub(in crate::schema_validation) validations: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum CoupledDuty {
+    CallerPopulations,
+    SourceBinding,
+    ValidationTraversal,
+    SearchMultiplicity,
+    PrimitiveSourceCalls,
+    OrdinaryWork,
+    OrdinaryCleanup,
+    PartialConstructionCleanup,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct ConstantHelperBound {
+    site: Site,
+    target: usize,
+    upper: u64,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct OptionalCallbackBound {
+    site: Site,
+    minimum: u64,
+    maximum: u64,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct ProgramFactoryBound {
+    field: String,
+    program: String,
+    initializer_probe: Site,
+    constructor: Site,
+    completed_siblings: Vec<String>,
+    initializer_checks_upper: u64,
+    constructor_calls_upper: u64,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct ConstantFactoryBounds {
+    root: usize,
+    entries_upper: u64,
+    helpers: Vec<ConstantHelperBound>,
+    wrapper_map: OptionalCallbackBound,
+    // These are initializer probes, not all Lazy/Option helper work and not
+    // immutable regex reconstructions. Field as_ref setup remains a duty.
+    initializer_checks_upper: u64,
+    programs: Vec<ProgramFactoryBound>,
+    completed_prefixes: Vec<Vec<String>>,
+}
+
+/// Narrow factory/entry DATA only, never success for the whole input Recipe.
+/// Both original roots and initialization requirements must remain present.
+/// A missing input projection is not a zero traversal, search or helper cost.
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::schema_validation) struct CoupledFactoryBounds {
+    roots: Vec<usize>,
+    initialization: BTreeMap<String, Vec<String>>,
+    population: CoupledPopulation,
+    node_cap: u64,
+    root_entries_upper: u64,
+    validation_root: usize,
+    factory: ConstantFactoryBounds,
+    input_partition: Option<SourceBounds>,
+    required: BTreeSet<CoupledDuty>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::schema_validation) enum CoupledRefusal {
+    MissingSourceProof,
+    RootBinding,
+    OwnerBinding,
+    Initialization,
+    Initializer,
+    SourceCalls(Site),
+    Overflow,
+}
+
+// Tests-first: the existing owner validates factory structure. This separate
+// boundary must still derive the actual readiness/call multiplicities and
+// retain unclosed input/primitive duties. No bound implementation before RED.
+pub(in crate::schema_validation) fn coupled_factory_bounds(
+    _recipe: &Recipe,
+    _graph: &serde_json::Value,
+    _owner: &str,
+    _marker: &str,
+    _node_cap: u64,
+    _population: CoupledPopulation,
+) -> Result<CoupledFactoryBounds, CoupledRefusal> {
+    Err(CoupledRefusal::MissingSourceProof)
+}
+
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
     Source(operations::Refusal),
@@ -1862,5 +1960,636 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod coupled_tests {
+    use super::{
+        ConstantFactoryBounds, ConstantHelperBound, CoupledDuty, CoupledFactoryBounds,
+        CoupledPopulation, CoupledRefusal, Kind, NodeCapData, Op, OptionalCallbackBound, Origin,
+        Primitive, ProgramFactoryBound, Recipe, Refusal, Site, coupled_factory_bounds,
+        derive_source_bounds,
+    };
+    use crate::schema_validation::{operations, storage};
+    use auctioneer_bidder::schema::{SchemaInputLimits, measure_schema_input};
+    use quote::{ToTokens as _, quote};
+    use serde_json::{Value, json};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    const OWNER: &str = "fake_coupled_owner";
+    const MARKER: &str = "Coupled";
+    const INITIALIZER: &str = "__coupled_impl::initialize_regexes";
+    const FACTORY: &str = "__coupled_impl::new_search_cache";
+    const PUBLIC_FACTORY: &str = "Coupled::new_search_cache";
+    const PUBLIC_VALIDATION: &str = "Coupled::is_valid";
+
+    struct Fixture {
+        syntax: syn::File,
+        recipe: Recipe,
+        graph: Value,
+    }
+
+    fn programs(two: bool) -> Vec<String> {
+        if two {
+            vec![
+                "__coupled_impl::PATTERN_0_REGEX".to_owned(),
+                "__coupled_impl::PATTERN_1_REGEX".to_owned(),
+            ]
+        } else {
+            vec![]
+        }
+    }
+
+    fn program_tokens(two: bool) -> proc_macro2::TokenStream {
+        if !two {
+            return quote! {};
+        }
+        quote! {
+            static PATTERN_0_REGEX: __Lazy<Option<__ra::meta::Regex>> = __Lazy::new(|| {
+                __ra::meta::Regex::builder()
+                    .configure(__ra::meta::Regex::config()
+                        .match_kind(__ra::MatchKind::LeftmostFirst).utf8_empty(true)
+                        .nfa_size_limit(Some(65_536)).hybrid_cache_capacity(65_536).pool_capacity(1))
+                    .syntax(__ra::util::syntax::Config::default().utf8(true)).build("a").ok()
+            });
+            static PATTERN_1_REGEX: __Lazy<Option<__ra::meta::Regex>> = __Lazy::new(|| {
+                __ra::meta::Regex::builder()
+                    .configure(__ra::meta::Regex::config()
+                        .match_kind(__ra::MatchKind::LeftmostFirst).utf8_empty(true)
+                        .nfa_size_limit(Some(65_536)).hybrid_cache_capacity(65_536).pool_capacity(1))
+                    .syntax(__ra::util::syntax::Config::default().utf8(true)).build("b").ok()
+            });
+        }
+    }
+
+    fn coupled_syntax(two: bool) -> syn::File {
+        let statics = program_tokens(two);
+        let (fields, initializers, readiness) = if two {
+            (
+                quote! { pattern_0_cache: __ra::meta::Cache, pattern_1_cache: __ra::meta::Cache, },
+                quote! {
+                    pattern_0_cache: PATTERN_0_REGEX.as_ref()?.create_cache(),
+                    pattern_1_cache: PATTERN_1_REGEX.as_ref()?.create_cache(),
+                },
+                quote! {
+                    ready &= PATTERN_0_REGEX.as_ref().is_some();
+                    ready &= PATTERN_1_REGEX.as_ref().is_some();
+                },
+            )
+        } else {
+            (quote! {}, quote! {}, quote! {})
+        };
+        syn::parse2(quote! {
+            struct Coupled;
+            struct CoupledSearchCache { __inner: __coupled_impl::__SearchCache }
+            impl Coupled {
+                #[doc = " Initializes every generated pattern regex, including after a"]
+                #[doc = " failed constructor. Returns false if any cached construction"]
+                #[doc = " failed. Repeated calls do not reconstruct or retry regexes."]
+                #[doc = " This does not initialize custom formats or bound search caches."]
+                pub fn initialize_regexes() -> bool { __coupled_impl::initialize_regexes() }
+                pub fn new_search_cache() -> Option<CoupledSearchCache> {
+                    __coupled_impl::new_search_cache().map(|__inner| CoupledSearchCache { __inner })
+                }
+                pub fn is_valid(instance: &serde_json::Value, __cache: &mut CoupledSearchCache) -> bool {
+                    { __coupled_impl::entry_is_valid(instance, &mut __cache.__inner) }
+                }
+            }
+            #[doc(hidden)]
+            #[allow(non_snake_case, dead_code, unused_imports, unused_variables, unreachable_code, clippy::all)]
+            mod __coupled_impl {
+                use regex_automata as __ra;
+                use std::sync::LazyLock as __Lazy;
+                #statics
+                pub(super) struct __SearchCache { #fields }
+                impl __SearchCache { fn reset(&mut self) {} }
+                pub(super) fn initialize_regexes() -> bool {
+                    let mut ready = true;
+                    #readiness
+                    ready
+                }
+                pub(super) fn new_search_cache() -> Option<__SearchCache> {
+                    if !initialize_regexes() { return None; }
+                    Some(__SearchCache { #initializers })
+                }
+                pub(super) fn entry_is_valid(instance: &serde_json::Value, __cache: &mut __SearchCache) -> bool {
+                    __cache.reset();
+                    match instance {
+                        serde_json::Value::Array(arr) => arr.iter().all(|instance| leaf(instance, __cache)),
+                        _ => instance.is_boolean(),
+                    }
+                }
+                fn leaf(instance: &serde_json::Value, __cache: &mut __SearchCache) -> bool {
+                    instance.is_boolean()
+                }
+            }
+        }).unwrap()
+    }
+
+    fn graph() -> Value {
+        // Auxiliary DATA only, never a descriptor or source-authority constructor.
+        json!({"auxiliary":{
+            "dispatch_edges":[
+                {"from":"validate_native","to":"Coupled","role":"validation-call-cache-factory"},
+                {"from":"validate_native","to":"Coupled","role":"is-valid-with-call-cache"}
+            ],
+            "roots":[{"kind":"inline-retention-row",
+                "details":{"owner":OWNER,"marker":MARKER,"cache":"CoupledSearchCache"}}]
+        }})
+    }
+
+    fn fixture(two: bool) -> Fixture {
+        let syntax = coupled_syntax(two);
+        let classified = operations::classify_source_body(&syntax, &[], &[]);
+        assert!(
+            classified.is_ok(),
+            "canonical fixture classification: {classified:?}"
+        );
+        let recipe = classified.unwrap().recipe().clone();
+        let graph = graph();
+        let schedule = storage::owner_schedule_data(&recipe, &graph, OWNER, MARKER);
+        assert!(
+            schedule.is_ok(),
+            "existing factory owner setup: {schedule:?}"
+        );
+        let schedule = schedule.unwrap();
+        assert_eq!(
+            schedule.roots(),
+            (
+                function(&recipe, PUBLIC_FACTORY),
+                function(&recipe, PUBLIC_VALIDATION)
+            )
+        );
+        assert_eq!(
+            recipe.roots,
+            vec![
+                function(&recipe, PUBLIC_VALIDATION),
+                function(&recipe, PUBLIC_FACTORY)
+            ]
+        );
+        assert_eq!(
+            recipe.initialization,
+            BTreeMap::from([(INITIALIZER.to_owned(), programs(two))])
+        );
+        let fields: Vec<_> = schedule
+            .initializers()
+            .map(|(field, program, _, prior)| {
+                (field.to_owned(), program.to_owned(), prior.to_vec())
+            })
+            .collect();
+        let expected = if two {
+            vec![
+                (
+                    "pattern_0_cache".to_owned(),
+                    programs(true)[0].clone(),
+                    vec![],
+                ),
+                (
+                    "pattern_1_cache".to_owned(),
+                    programs(true)[1].clone(),
+                    vec!["pattern_0_cache".to_owned()],
+                ),
+            ]
+        } else {
+            vec![]
+        };
+        assert_eq!(fields, expected);
+        assert!(schedule.callbacks().next().is_none());
+        Fixture {
+            syntax,
+            recipe,
+            graph,
+        }
+    }
+
+    fn function(recipe: &Recipe, name: &str) -> usize {
+        let found: Vec<_> = recipe
+            .functions
+            .iter()
+            .filter(|(_, function)| function.identity == name)
+            .map(|(id, _)| *id)
+            .collect();
+        assert_eq!(found.len(), 1, "one fixture function: {name}");
+        found[0]
+    }
+
+    fn site(recipe: &Recipe, owner: &str, mut predicate: impl FnMut(&Op) -> bool) -> Site {
+        let mut found = Vec::new();
+        operations::model::walk(
+            &recipe.functions[&function(recipe, owner)].body,
+            &mut |op| {
+                if predicate(op) {
+                    found.push(op.site.clone());
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(found.len(), 1, "one independent source site in {owner}");
+        found.pop().unwrap()
+    }
+
+    fn helper(recipe: &Recipe, caller: &str, callee: &str, upper: u64) -> ConstantHelperBound {
+        let target = function(recipe, callee);
+        ConstantHelperBound {
+            site: site(
+                recipe,
+                caller,
+                |op| matches!(&op.kind, Kind::Call { target: id, .. } if *id == target),
+            ),
+            target,
+            upper,
+        }
+    }
+
+    fn program_bounds(recipe: &Recipe, two: bool, upper: u64) -> Vec<ProgramFactoryBound> {
+        programs(two)
+            .into_iter()
+            .enumerate()
+            .map(|(ordinal, program)| {
+                let from_program = |op: &Op, lemma, callee: &str| {
+                    matches!(&op.kind,
+                Kind::Primitive { lemma: actual, callee: name, receiver: Some(receiver), .. }
+                if *actual == lemma && name.ends_with(callee)
+                    && receiver.origin == Origin::Static(program.clone()))
+                };
+                ProgramFactoryBound {
+                    field: format!("pattern_{ordinal}_cache"),
+                    initializer_probe: site(recipe, INITIALIZER, |op| {
+                        from_program(op, Primitive::Readiness, "::as_ref")
+                    }),
+                    constructor: site(recipe, FACTORY, |op| {
+                        from_program(op, Primitive::CacheConstruction, "Regex::create_cache")
+                    }),
+                    completed_siblings: if ordinal == 0 {
+                        vec![]
+                    } else {
+                        vec!["pattern_0_cache".to_owned()]
+                    },
+                    program,
+                    initializer_checks_upper: upper,
+                    constructor_calls_upper: upper,
+                }
+            })
+            .collect()
+    }
+
+    fn duties() -> BTreeSet<CoupledDuty> {
+        BTreeSet::from([
+            CoupledDuty::CallerPopulations,
+            CoupledDuty::SourceBinding,
+            CoupledDuty::ValidationTraversal,
+            CoupledDuty::SearchMultiplicity,
+            CoupledDuty::PrimitiveSourceCalls,
+            CoupledDuty::OrdinaryWork,
+            CoupledDuty::OrdinaryCleanup,
+            CoupledDuty::PartialConstructionCleanup,
+        ])
+    }
+
+    fn expected(
+        fixture: &Fixture,
+        two: bool,
+        cap: u64,
+        population: CoupledPopulation,
+        root_total: u64,
+        readiness_total: u64,
+    ) -> CoupledFactoryBounds {
+        let recipe = &fixture.recipe;
+        let factory = population.factories;
+        CoupledFactoryBounds {
+            roots: recipe.roots.clone(),
+            initialization: recipe.initialization.clone(),
+            population,
+            node_cap: cap,
+            root_entries_upper: root_total,
+            validation_root: function(recipe, PUBLIC_VALIDATION),
+            factory: ConstantFactoryBounds {
+                root: function(recipe, PUBLIC_FACTORY),
+                entries_upper: factory,
+                helpers: vec![
+                    helper(recipe, PUBLIC_FACTORY, FACTORY, factory),
+                    helper(recipe, FACTORY, INITIALIZER, factory),
+                ],
+                wrapper_map: OptionalCallbackBound {
+                    site: site(recipe, PUBLIC_FACTORY, |op| {
+                        matches!(&op.kind,
+                        Kind::Callback { callee, .. } if callee == "Option::map")
+                    }),
+                    minimum: 0,
+                    maximum: factory,
+                },
+                initializer_checks_upper: readiness_total,
+                programs: program_bounds(recipe, two, factory),
+                completed_prefixes: if two {
+                    vec![
+                        vec![],
+                        vec!["pattern_0_cache".to_owned()],
+                        vec!["pattern_0_cache".to_owned(), "pattern_1_cache".to_owned()],
+                    ]
+                } else {
+                    vec![vec![]]
+                },
+            },
+            input_partition: None,
+            required: duties(),
+        }
+    }
+
+    fn derive(
+        fixture: &Fixture,
+        cap: u64,
+        population: CoupledPopulation,
+    ) -> Result<CoupledFactoryBounds, CoupledRefusal> {
+        coupled_factory_bounds(
+            &fixture.recipe,
+            &fixture.graph,
+            OWNER,
+            MARKER,
+            cap,
+            population,
+        )
+    }
+
+    #[test]
+    fn coupled_factories_keep_constant_work_separate_from_input_traversals() {
+        for (two, readiness) in [(false, 0), (true, 6)] {
+            let fixture = fixture(two);
+            let population = CoupledPopulation {
+                factories: 3,
+                validations: 2,
+            };
+            assert_eq!(
+                derive(&fixture, 7, population),
+                Ok(expected(&fixture, two, 7, population, 5, readiness))
+            );
+            let seven = derive(&fixture, 7, population).unwrap();
+            let eleven = derive(&fixture, 11, population).unwrap();
+            assert_eq!(seven.factory, eleven.factory);
+            assert_eq!((seven.node_cap, eleven.node_cap), (7, 11));
+            assert_eq!(seven.factory.entries_upper, 3);
+            assert_eq!(
+                seven
+                    .factory
+                    .helpers
+                    .iter()
+                    .map(|row| row.upper)
+                    .collect::<Vec<_>>(),
+                [3, 3]
+            );
+            assert_eq!(
+                (
+                    seven.factory.wrapper_map.minimum,
+                    seven.factory.wrapper_map.maximum
+                ),
+                (0, 3)
+            );
+            for row in &seven.factory.programs {
+                assert_eq!(
+                    (row.initializer_checks_upper, row.constructor_calls_upper),
+                    (3, 3)
+                );
+            }
+            let value = json!([true, true, true]);
+            let measured = measure_schema_input(
+                &value,
+                SchemaInputLimits {
+                    serialized_bytes: 65_536,
+                    nodes: 7,
+                    depth: 32,
+                },
+            )
+            .unwrap();
+            assert_eq!(measured.nodes, 4);
+            assert_eq!(value.as_array().unwrap().len(), 3);
+            assert_eq!(
+                (seven.input_partition, eleven.input_partition),
+                (None, None)
+            );
+            // The whole coupled input grammar is still unsupported, not a
+            // pruned validation-only success or a fallback to the old counter.
+            assert_eq!(
+                derive_source_bounds(&fixture.recipe, NodeCapData { nodes: 7 }, 2),
+                Err(Refusal::Source(operations::Refusal::UnsupportedSource))
+            );
+        }
+    }
+
+    #[test]
+    fn factory_readiness_prefixes_and_source_duties_survive_zero_entries() {
+        let fixture = fixture(true);
+        let population = CoupledPopulation {
+            factories: 3,
+            validations: 2,
+        };
+        assert_eq!(
+            derive(&fixture, 7, population),
+            Ok(expected(&fixture, true, 7, population, 5, 6))
+        );
+        let zero = CoupledPopulation {
+            factories: 0,
+            validations: 0,
+        };
+        assert_eq!(
+            derive(&fixture, 7, zero),
+            Ok(expected(&fixture, true, 7, zero, 0, 0))
+        );
+        let bounds = derive(&fixture, 7, zero).unwrap();
+        assert_eq!(bounds.factory.programs.len(), 2);
+        assert_eq!(
+            bounds.factory.completed_prefixes,
+            [
+                vec![],
+                vec!["pattern_0_cache".to_owned()],
+                vec!["pattern_0_cache".to_owned(), "pattern_1_cache".to_owned()]
+            ]
+        );
+        assert_eq!(bounds.required, duties());
+        assert_eq!(bounds.initialization, fixture.recipe.initialization);
+        assert_eq!(bounds.roots, fixture.recipe.roots);
+        assert_eq!(bounds.input_partition, None);
+        let mut unknown = fixture.recipe.clone();
+        let initializer = function(&unknown, INITIALIZER);
+        let Kind::Scope { steps, .. } =
+            &mut unknown.functions.get_mut(&initializer).unwrap().body.kind
+        else {
+            panic!("initializer block");
+        };
+        let Kind::Evaluate(_, operands) = &mut steps[1].kind else {
+            panic!("eager readiness assignment");
+        };
+        let Kind::Primitive { arguments, .. } = &mut operands[1].kind else {
+            panic!("is_some");
+        };
+        let probe = &mut arguments[0];
+        let anchor = probe.site.clone();
+        let mut unresolved = probe.clone();
+        unresolved.kind = Kind::Call {
+            target: usize::MAX,
+            arguments: vec![],
+            evaluation: vec![],
+        };
+        let Kind::Primitive { source_calls, .. } = &mut probe.kind else {
+            panic!("readiness source probe");
+        };
+        assert!(source_calls.is_empty());
+        source_calls.push(unresolved);
+        for entries in [zero, population] {
+            assert_eq!(
+                coupled_factory_bounds(&unknown, &fixture.graph, OWNER, MARKER, 7, entries),
+                Err(CoupledRefusal::SourceCalls(anchor.clone()))
+            );
+        }
+    }
+
+    fn short_circuit_initializer(fixture: &Fixture) -> Recipe {
+        let mut syntax = fixture.syntax.clone();
+        let module = syntax
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Mod(module) if module.ident == "__coupled_impl" => Some(module),
+                _ => None,
+            })
+            .unwrap();
+        let function = module
+            .content
+            .as_mut()
+            .unwrap()
+            .1
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Fn(function) if function.sig.ident == "initialize_regexes" => {
+                    Some(function)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let before: syn::Block = syn::parse_quote!({
+            let mut ready = true;
+            ready &= PATTERN_0_REGEX.as_ref().is_some();
+            ready &= PATTERN_1_REGEX.as_ref().is_some();
+            ready
+        });
+        assert_eq!(
+            function.block.to_token_stream().to_string(),
+            before.to_token_stream().to_string()
+        );
+        *function.block = syn::parse_quote!({
+            PATTERN_0_REGEX.as_ref().is_some() && PATTERN_1_REGEX.as_ref().is_some()
+        });
+        let classified = operations::classify_source_body(&syntax, &[], &[]).unwrap();
+        classified.recipe().clone()
+    }
+
+    fn assert_binding_mutants(fixture: &Fixture, population: CoupledPopulation) {
+        let mut missing = fixture.recipe.clone();
+        let factory = function(&missing, PUBLIC_FACTORY);
+        let position = missing.roots.iter().position(|id| *id == factory).unwrap();
+        assert_eq!(missing.roots.remove(position), factory);
+        assert_eq!(
+            coupled_factory_bounds(&missing, &fixture.graph, OWNER, MARKER, 7, population),
+            Err(CoupledRefusal::RootBinding)
+        );
+        let mut duplicate = fixture.recipe.clone();
+        duplicate.roots.push(factory);
+        assert_eq!(
+            coupled_factory_bounds(&duplicate, &fixture.graph, OWNER, MARKER, 7, population),
+            Err(CoupledRefusal::RootBinding)
+        );
+        let mut initialization = fixture.recipe.clone();
+        assert_eq!(
+            initialization.initialization.remove(INITIALIZER),
+            Some(programs(true))
+        );
+        assert_eq!(
+            coupled_factory_bounds(
+                &initialization,
+                &fixture.graph,
+                OWNER,
+                MARKER,
+                7,
+                population
+            ),
+            Err(CoupledRefusal::Initialization)
+        );
+        let mut duplicate_program = fixture.recipe.clone();
+        let programs = duplicate_program
+            .initialization
+            .get_mut(INITIALIZER)
+            .unwrap();
+        assert_eq!(programs.len(), 2);
+        programs.push(programs[0].clone());
+        assert_eq!(
+            coupled_factory_bounds(
+                &duplicate_program,
+                &fixture.graph,
+                OWNER,
+                MARKER,
+                7,
+                population
+            ),
+            Err(CoupledRefusal::Initialization)
+        );
+        let mut graph = fixture.graph.clone();
+        assert_eq!(
+            graph["auxiliary"]["roots"][0]["details"]["cache"],
+            "CoupledSearchCache"
+        );
+        graph["auxiliary"]["roots"][0]["details"]["cache"] = json!("OtherSearchCache");
+        assert_eq!(
+            coupled_factory_bounds(&fixture.recipe, &graph, OWNER, MARKER, 7, population),
+            Err(CoupledRefusal::OwnerBinding)
+        );
+        let changed = short_circuit_initializer(fixture);
+        assert!(storage::owner_schedule_data(&changed, &fixture.graph, OWNER, MARKER).is_ok());
+        assert_eq!(
+            coupled_factory_bounds(&changed, &fixture.graph, OWNER, MARKER, 7, population),
+            Err(CoupledRefusal::Initializer)
+        );
+    }
+
+    #[test]
+    fn coupled_factory_bindings_and_overflow_refuse_independently() {
+        let fixture = fixture(true);
+        let population = CoupledPopulation {
+            factories: 3,
+            validations: 2,
+        };
+        assert_eq!(
+            derive(&fixture, 7, population),
+            Ok(expected(&fixture, true, 7, population, 5, 6))
+        );
+        for entries in [
+            population,
+            CoupledPopulation {
+                factories: 0,
+                validations: 0,
+            },
+        ] {
+            assert_binding_mutants(&fixture, entries);
+        }
+        assert_eq!(u64::MAX.checked_mul(2), None);
+        assert_eq!(
+            derive(
+                &fixture,
+                7,
+                CoupledPopulation {
+                    factories: u64::MAX,
+                    validations: 0
+                }
+            ),
+            Err(CoupledRefusal::Overflow)
+        );
+        // Moving only validation entries must not change factory bounds.
+        let no_validation = CoupledPopulation {
+            factories: 3,
+            validations: 0,
+        };
+        assert_eq!(
+            derive(&fixture, 7, no_validation),
+            Ok(expected(&fixture, true, 7, no_validation, 3, 6))
+        );
     }
 }
