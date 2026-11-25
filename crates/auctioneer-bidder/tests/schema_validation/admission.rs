@@ -15,7 +15,6 @@
 //! coordinator-graph correspondence still require the parent's source join.
 
 use quote::ToTokens as _;
-use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Component {
@@ -75,8 +74,6 @@ enum Refusal {
     TargetBinding,
     HypotheticalFacts,
     NumericalPolicyNotEvaluated,
-    RetiredCandidate,
-    NonCanonicalField,
     Unsupported,
 }
 
@@ -610,28 +607,6 @@ fn qualification_refusal(
         Some(_) => Refusal::HypotheticalFacts,
         None => Refusal::NumericalPolicyNotEvaluated,
     }
-}
-
-// In-memory output field check only; this cannot read or return active costs.
-fn check_current_report_fields(report: &Value) -> Result<(), Refusal> {
-    let fields = report.as_object().ok_or(Refusal::NonCanonicalField)?;
-    if fields.contains_key("native_cache_heap_candidate")
-        || fields.get("kind").and_then(Value::as_str)
-            == Some("conditional_native_schema_cache_heap_candidate")
-    {
-        return Err(Refusal::RetiredCandidate);
-    }
-    if fields.len() != 3
-        || fields.get("kind").and_then(Value::as_str) != Some("conditional_source_shape")
-        || fields
-            .get("numeric_policy_adequacy")
-            .and_then(Value::as_str)
-            != Some("not_evaluated")
-        || fields.get("attempted_work_funding").and_then(Value::as_str) != Some("not_established")
-    {
-        return Err(Refusal::NonCanonicalField);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1248,33 +1223,82 @@ mod tests {
 
     #[test]
     fn retired_candidate_cannot_supply_costs() {
+        use crate::schema_validation::report::{Refusal as ReportRefusal, check_current_report};
+
+        // Authored output-format DATA, not a captured view or source receipt.
         let current = json!({
+            "schema_version":1_u8, "kind":"schema_validation_resources",
+            "binding":{"identity":"fake_format_only_binding"}, "status":"Incomplete",
+            "coverage":{
+                "programs":["fake_program"],
+                "children":[
+                    {"child":"fake_cache", "source_owner":"fake_program", "role":"cache"},
+                    {"child":"fake_scratch", "source_owner":"fake_program", "role":"mutable-scratch"},
+                    {"child":"fake_fallback", "source_owner":"fake_program", "role":"search-fallback"},
+                    {"child":"fake_declaration_stack", "source_owner":"fake_declaration", "role":"declaration-stack"},
+                    {"child":"fake_declaration_work", "source_owner":"fake_declaration", "role":"declaration-work"}
+                ],
+                "public_names":[{"name":"fake_public_name", "disposition":"schema_owner", "source_owner":"fake_declaration"}],
+                "contexts":[
+                    {"role":"input_measurement", "source_owner":"auctioneer_bidder::schema::measure_schema_input",
+                     "duties":["work","requested_storage","structural_stack","ordinary_cleanup","attempts"],
+                     "source_proof":"not_established"},
+                    {"role":"validation_coordination", "source_owner":"auctioneer_bidder::schema::validate_native_parameters",
+                     "duties":["work","requested_storage","structural_stack","ordinary_cleanup","attempts","external_services"],
+                     "source_proof":"not_established"}
+                ]
+            },
+            "premises":{
+                "input_caps":"caller_source_join_required", "fresh_serial_lifetime":"source_proof_required",
+                "allocation_success":"matched_allocator_and_artifact_fact_required"
+            },
+            "source_exclusions":[{"kind":"terminal_allocation_failure_diagnostics",
+                "conditional_on":"allocation_success", "ordinary_error_unwind_cleanup_excluded":false}],
+            "derivations":{
+                "storage":{"status":"Incomplete","reason":"storage_lifecycle_not_closed"},
+                "work":{"status":"Incomplete","reason":"ordinary_primitive_work_not_closed"},
+                "structural_stack":{"status":"Incomplete","reason":"primitive_stack_not_closed"},
+                "shape_correspondence":{"status":"Incomplete","reason":"source_affine_coefficients_not_closed"},
+                "attempted_work":{"status":"Incomplete","reason":"caller_attempt_closure_not_closed"}
+            },
+            "required_target_facts":["matched_artifact_layout_and_frames","allocator_allocation_success",
+                "clock_service_facts","entropy_service_facts","target_policy_and_funding_acceptance"],
+            "observations":{"status":"not_collected","scope":"non_qualifying","rows":[]},
+            "numeric_policy_adequacy":"not_evaluated", "attempted_work_funding":"not_established",
+            "target_status":"TargetIncomplete", "resource_qualification":false,
+            "physical_fit":false, "serving_permission":false
+        });
+        assert_eq!(check_current_report(&current), Ok(()));
+        let superseded = json!({
             "kind": "conditional_source_shape",
             "numeric_policy_adequacy": "not_evaluated",
             "attempted_work_funding": "not_established"
         });
-        assert_eq!(check_current_report_fields(&current), Ok(()));
+        assert_eq!(
+            check_current_report(&superseded),
+            Err(ReportRefusal::NonCanonicalField)
+        );
         let retired = json!({
             "kind": "conditional_native_schema_cache_heap_candidate",
             "native_cache_heap_candidate": {"requested_bytes": 7_u64}
         });
         assert_eq!(
-            check_current_report_fields(&retired),
-            Err(Refusal::RetiredCandidate)
+            check_current_report(&retired),
+            Err(ReportRefusal::RetiredCandidate)
         );
         let mut hybrid = current.clone();
         assert!(hybrid.get("native_cache_heap_candidate").is_none());
         hybrid["native_cache_heap_candidate"] = json!({"requested_bytes": 7_u64});
         assert_eq!(
-            check_current_report_fields(&hybrid),
-            Err(Refusal::RetiredCandidate)
+            check_current_report(&hybrid),
+            Err(ReportRefusal::RetiredCandidate)
         );
         let mut fallback = current;
         assert!(fallback.get("heuristic_fallback").is_none());
         fallback["heuristic_fallback"] = json!({"work_units": 1_024_u64});
         assert_eq!(
-            check_current_report_fields(&fallback),
-            Err(Refusal::NonCanonicalField)
+            check_current_report(&fallback),
+            Err(ReportRefusal::NonCanonicalField)
         );
     }
 

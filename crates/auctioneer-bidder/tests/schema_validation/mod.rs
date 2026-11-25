@@ -2,6 +2,8 @@
 
 mod admission;
 mod handoff;
+#[cfg(test)]
+mod observations;
 mod operations;
 mod public_names;
 mod report;
@@ -9,10 +11,15 @@ mod stack;
 mod storage;
 mod work;
 
+pub(crate) use observations::selected_cache_observations;
+pub(crate) use report::current_report;
+
 #[cfg(test)]
 mod tests {
     use super::{handoff, operations};
     use crate::schema_residency::with_current_descriptor;
+    use crate::schema_selection_source::{Lane, public_names};
+    use std::path::Path;
 
     #[test]
     fn current_body_shapes_have_declared_operation_obligations() {
@@ -48,6 +55,22 @@ mod tests {
             assert_eq!(bodies.recheck(view), Ok(()));
             // Declaring primitive obligations is not discharging their work,
             // storage or stack lemmas, nor does it issue completeness authority.
+            let lane = if cfg!(feature = "insecure-bidders") {
+                Lane::Development
+            } else {
+                Lane::Secure
+            };
+            let census = public_names::discover(Path::new(env!("CARGO_MANIFEST_DIR")), lane)?;
+            let report = super::current_report(seed, view, &census)?;
+            assert_eq!(super::report::check_current_report(&report), Ok(()));
+            assert_eq!(report["status"], "Incomplete");
+            for field in [
+                "resource_qualification",
+                "physical_fit",
+                "serving_permission",
+            ] {
+                assert_eq!(report[field], false);
+            }
             Ok(())
         })
         .unwrap();

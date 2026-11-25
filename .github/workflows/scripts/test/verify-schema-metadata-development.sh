@@ -35,6 +35,8 @@ validation_required=(
   schema_validation::report::tests::canonical_report_rejects_retired_and_hybrid_fields
   schema_validation::report::tests::retired_assembly_has_no_active_callers
   schema_validation::report::tests::unqualified_source_never_grants_serving_permission
+  schema_validation::observations::tests::fake_cache_phase_accounts_for_prior_storage_and_transient_growth_independently
+  schema_validation::observations::tests::fake_cache_population_covers_every_owner_input_verdict_and_release
   schema_validation::public_names::tests::every_public_name_has_exact_schema_disposition
   schema_validation::work::tests::dimensions_vary_independently
   schema_validation::work::tests::expiry_prefixes_bound_real_call_sites

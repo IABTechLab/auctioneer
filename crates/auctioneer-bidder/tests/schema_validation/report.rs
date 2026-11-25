@@ -1,4 +1,4 @@
-//! Tests-first canonical CURRENT report, not a completeness or serving receipt.
+//! Canonical CURRENT report, not a completeness or serving receipt.
 //!
 //! Only the sealed view and same-capture checked bodies supply source authority.
 //! Coverage candidates, caller-duty labels and rendered JSON remain DATA. Caller
@@ -6,11 +6,12 @@
 //! by listing them. Common derivations and matched target facts remain missing.
 //! No historical reader, component assembler, source loader or build is added.
 
-use super::{handoff, operations};
+use super::{handoff, operations, public_names};
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_residency::descriptor::{ValidationAssignment, ValidationView};
-use crate::schema_selection_source::public_names::PublicNameCensus;
-use serde_json::Value;
+use crate::schema_selection_source::public_names::{Disposition, PublicNameCensus};
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 
 type Bodies<'a> = handoff::CheckedBodies<
     'a,
@@ -21,7 +22,7 @@ type Bodies<'a> = handoff::CheckedBodies<
 >;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ContextRole {
+pub(super) enum ContextRole {
     InputMeasurement,
     ValidationCoordination,
 }
@@ -59,8 +60,7 @@ struct CurrentReport {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Refusal {
-    MissingSourceProof,
+pub(super) enum Refusal {
     Binding,
     ChildCoverage,
     ProgramCoverage,
@@ -71,26 +71,426 @@ enum Refusal {
     IncompleteSource,
 }
 
-// Refusal-only until all four cases reach hosted assertion RED. Later source
-// integration must reuse handoff/public_names and all real closing checks.
+impl ContextRole {
+    fn name(self) -> &'static str {
+        match self {
+            Self::InputMeasurement => "input_measurement",
+            Self::ValidationCoordination => "validation_coordination",
+        }
+    }
+
+    fn source_owner(self) -> &'static str {
+        match self {
+            Self::InputMeasurement => "auctioneer_bidder::schema::measure_schema_input",
+            Self::ValidationCoordination => "auctioneer_bidder::schema::validate_native_parameters",
+        }
+    }
+
+    fn duties(self) -> &'static [Duty] {
+        match self {
+            Self::InputMeasurement => &[
+                Duty::Work,
+                Duty::RequestedStorage,
+                Duty::StructuralStack,
+                Duty::OrdinaryCleanup,
+                Duty::Attempts,
+            ],
+            Self::ValidationCoordination => &[
+                Duty::Work,
+                Duty::RequestedStorage,
+                Duty::StructuralStack,
+                Duty::OrdinaryCleanup,
+                Duty::Attempts,
+                Duty::ExternalServices,
+            ],
+        }
+    }
+}
+
+impl Duty {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Work => "work",
+            Self::RequestedStorage => "requested_storage",
+            Self::StructuralStack => "structural_stack",
+            Self::OrdinaryCleanup => "ordinary_cleanup",
+            Self::Attempts => "attempts",
+            Self::ExternalServices => "external_services",
+        }
+    }
+}
+
+fn required_contexts() -> Vec<ContextDuty> {
+    [
+        ContextRole::InputMeasurement,
+        ContextRole::ValidationCoordination,
+    ]
+    .into_iter()
+    .map(|role| ContextDuty {
+        role,
+        source_owner: role.source_owner().to_owned(),
+        duties: role.duties().to_vec(),
+    })
+    .collect()
+}
+
+fn check_contexts(contexts: &[ContextDuty]) -> Result<(), Refusal> {
+    let expected = required_contexts();
+    if contexts.len() != expected.len() {
+        return Err(Refusal::ContextCoverage);
+    }
+    for required in expected {
+        let mut matching = contexts.iter().filter(|row| row.role == required.role);
+        let actual = matching.next().ok_or(Refusal::ContextCoverage)?;
+        if matching.next().is_some() || actual.source_owner != required.source_owner {
+            return Err(Refusal::ContextCoverage);
+        }
+        if actual.duties.len() != required.duties.len()
+            || required
+                .duties
+                .iter()
+                .any(|duty| !actual.duties.contains(duty))
+        {
+            return Err(Refusal::ContextDuties(required.role));
+        }
+    }
+    Ok(())
+}
+
+fn context_document() -> Vec<Value> {
+    required_contexts()
+        .into_iter()
+        .map(|context| {
+            let duties: Vec<_> = context.duties.into_iter().map(Duty::name).collect();
+            json!({
+                "role":context.role.name(), "source_owner":context.source_owner,
+                "duties":duties, "source_proof":"not_established"
+            })
+        })
+        .collect()
+}
+
+// Program identities are projected from the descriptor's owned cache duties,
+// not reconstructed from a selected cohort or a component heap observation.
+fn coverage_document(view: ValidationView<'_>, census: &PublicNameCensus) -> Value {
+    let programs: BTreeSet<_> = view
+        .assignments()
+        .iter()
+        .filter(|row| row.role == "cache")
+        .map(|row| row.source_owner.as_str())
+        .collect();
+    let children: Vec<_> = view
+        .assignments()
+        .iter()
+        .map(|row| json!({"child":row.child, "source_owner":row.source_owner, "role":row.role}))
+        .collect();
+    let names: Vec<_> = census
+        .names
+        .iter()
+        .map(|name| {
+            let (disposition, owner) = match &name.disposition {
+                Disposition::SchemaOwner(owner) => ("schema_owner", Some(owner)),
+                Disposition::LocalSchemaFree => ("local_schema_free", None),
+            };
+            json!({"name":name.name, "disposition":disposition, "source_owner":owner})
+        })
+        .collect();
+    json!({"programs":programs, "children":children, "public_names":names, "contexts":context_document()})
+}
+
+fn incomplete_document(binding: &Value, coverage: &Value) -> Value {
+    json!({
+        "schema_version":1_u8, "kind":"schema_validation_resources", "binding":binding,
+        "status":"Incomplete", "coverage":coverage,
+        "premises":{
+            "input_caps":"caller_source_join_required", "fresh_serial_lifetime":"source_proof_required",
+            "allocation_success":"matched_allocator_and_artifact_fact_required"
+        },
+        "source_exclusions":[{"kind":"terminal_allocation_failure_diagnostics",
+            "conditional_on":"allocation_success", "ordinary_error_unwind_cleanup_excluded":false}],
+        "derivations":{
+            "storage":{"status":"Incomplete","reason":"storage_lifecycle_not_closed"},
+            "work":{"status":"Incomplete","reason":"ordinary_primitive_work_not_closed"},
+            "structural_stack":{"status":"Incomplete","reason":"primitive_stack_not_closed"},
+            "shape_correspondence":{"status":"Incomplete","reason":"source_affine_coefficients_not_closed"},
+            "attempted_work":{"status":"Incomplete","reason":"caller_attempt_closure_not_closed"}
+        },
+        "required_target_facts":["matched_artifact_layout_and_frames","allocator_allocation_success",
+            "clock_service_facts","entropy_service_facts","target_policy_and_funding_acceptance"],
+        "observations":{"status":"not_collected","scope":"non_qualifying","rows":[]},
+        "numeric_policy_adequacy":"not_evaluated", "attempted_work_funding":"not_established",
+        "target_status":"TargetIncomplete", "resource_qualification":false,
+        "physical_fit":false, "serving_permission":false
+    })
+}
+
+fn recheck(
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    bodies: Option<&Bodies<'_>>,
+) -> Result<(), Refusal> {
+    // Run every closing check before selecting a refusal. Binding failures
+    // take precedence over provisional analysis, format or coverage results.
+    let seed_result = handoff::check_seed(seed, view);
+    let view_result = view.recheck();
+    let body_result = bodies.map(|checked| checked.recheck(view));
+    seed_result.map_err(|_error| Refusal::Binding)?;
+    view_result.map_err(|_error| Refusal::Binding)?;
+    if let Some(result) = body_result {
+        result.map_err(|_error| Refusal::Binding)?;
+    }
+    Ok(())
+}
+
 fn describe_validation(
-    _seed: &CapturedSeed,
-    _view: ValidationView<'_>,
-    _bodies: &Bodies<'_>,
-    _census: &PublicNameCensus,
-    _coverage: &CoverageData,
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    bodies: &Bodies<'_>,
+    census: &PublicNameCensus,
+    coverage: &CoverageData,
 ) -> Result<CurrentReport, Refusal> {
-    Err(Refusal::MissingSourceProof)
+    recheck(seed, view, Some(bodies))?;
+    let result = (|| {
+        if coverage.binding != *view.binding() {
+            return Err(Refusal::Binding);
+        }
+        view.check_handoff(&coverage.children)
+            .map_err(|_error| Refusal::ChildCoverage)?;
+        check_contexts(&coverage.contexts)?;
+        public_names::check_public_dispositions(seed, view, census)
+            .map_err(|_error| Refusal::Binding)?;
+        if bodies.analyses().iter().any(|(_, body)| body.is_err()) {
+            return Err(Refusal::IncompleteSource);
+        }
+        let document = incomplete_document(view.binding(), &coverage_document(view, census));
+        check_current_report(&document)?;
+        Ok(CurrentReport { document })
+    })();
+    recheck(seed, view, Some(bodies))?;
+    result
+}
+
+/// Describe the current capture without issuing completeness or qualification.
+///
+/// The census must come from the existing independent discovery owner for this
+/// capture's lane. It is checked against the sealed graph, not accepted as proof.
+///
+/// # Errors
+/// Refuses mismatched source/body/name coverage or a failed closing check.
+pub(crate) fn current_report(
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    census: &PublicNameCensus,
+) -> Result<Value, String> {
+    let describe = || {
+        recheck(seed, view, None)?;
+        let result = (|| {
+            let bodies = handoff::checked_bodies(seed, view, |body| {
+                Ok((
+                    body.owner.to_owned(),
+                    operations::classify_source_body(body.syntax, &[], &[]),
+                ))
+            })
+            .map_err(|_error| Refusal::Binding)?;
+            let coverage = CoverageData {
+                binding: view.binding().clone(),
+                children: view.assignments().to_vec(),
+                contexts: required_contexts(),
+            };
+            describe_validation(seed, view, &bodies, census, &coverage)
+                .map(|report| report.document)
+        })();
+        recheck(seed, view, None)?;
+        result
+    };
+    describe().map_err(|error| format!("canonical validation report refused: {error:?}"))
 }
 
 // An in-memory output-format check, never deserialization of source authority.
-fn check_current_report(_document: &Value) -> Result<(), Refusal> {
-    Err(Refusal::MissingSourceProof)
+pub(super) fn check_current_report(document: &Value) -> Result<(), Refusal> {
+    if document.get("native_cache_heap_candidate").is_some()
+        || document.get("kind").and_then(Value::as_str)
+            == Some("conditional_native_schema_cache_heap_candidate")
+    {
+        return Err(Refusal::RetiredCandidate);
+    }
+    exact_fields(
+        document,
+        &[
+            "schema_version",
+            "kind",
+            "binding",
+            "status",
+            "coverage",
+            "premises",
+            "source_exclusions",
+            "derivations",
+            "required_target_facts",
+            "observations",
+            "numeric_policy_adequacy",
+            "attempted_work_funding",
+            "target_status",
+            "resource_qualification",
+            "physical_fit",
+            "serving_permission",
+        ],
+        Refusal::NonCanonicalField,
+    )?;
+    let binding = document.get("binding").ok_or(Refusal::NonCanonicalField)?;
+    let coverage = document.get("coverage").ok_or(Refusal::NonCanonicalField)?;
+    if !binding.is_object() || document != &incomplete_document(binding, coverage) {
+        return Err(Refusal::NonCanonicalField);
+    }
+    exact_fields(
+        coverage,
+        &["programs", "children", "public_names", "contexts"],
+        Refusal::NonCanonicalField,
+    )?;
+    let program_owners = check_children(coverage.get("children").ok_or(Refusal::ChildCoverage)?)?;
+    let programs = coverage
+        .get("programs")
+        .and_then(Value::as_array)
+        .ok_or(Refusal::ProgramCoverage)?;
+    let mut identities = BTreeSet::new();
+    for program in programs {
+        let identity = program
+            .as_str()
+            .filter(|id| !id.is_empty())
+            .ok_or(Refusal::ProgramCoverage)?;
+        if !identities.insert(identity) {
+            return Err(Refusal::ProgramCoverage);
+        }
+    }
+    if identities.is_empty() || identities != program_owners {
+        return Err(Refusal::ProgramCoverage);
+    }
+    check_public_names(
+        coverage
+            .get("public_names")
+            .ok_or(Refusal::NonCanonicalField)?,
+    )?;
+    check_context_document(coverage.get("contexts").ok_or(Refusal::ContextCoverage)?)
+}
+
+fn exact_fields(value: &Value, expected: &[&str], refusal: Refusal) -> Result<(), Refusal> {
+    let fields = value.as_object().ok_or(refusal)?;
+    if fields.len() != expected.len() || expected.iter().any(|field| !fields.contains_key(*field)) {
+        return Err(refusal);
+    }
+    Ok(())
+}
+
+fn text<'a>(value: &'a Value, field: &str, refusal: Refusal) -> Result<&'a str, Refusal> {
+    value
+        .get(field)
+        .and_then(Value::as_str)
+        .filter(|text| !text.is_empty())
+        .ok_or(refusal)
+}
+
+fn check_children(value: &Value) -> Result<BTreeSet<&str>, Refusal> {
+    let children = value
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+        .ok_or(Refusal::ChildCoverage)?;
+    let mut identities = BTreeSet::new();
+    let mut owners = BTreeMap::<&str, BTreeSet<&str>>::new();
+    for row in children {
+        exact_fields(
+            row,
+            &["child", "source_owner", "role"],
+            Refusal::ChildCoverage,
+        )?;
+        let child = text(row, "child", Refusal::ChildCoverage)?;
+        let owner = text(row, "source_owner", Refusal::ChildCoverage)?;
+        let role = text(row, "role", Refusal::ChildCoverage)?;
+        if !identities.insert(child) || !owners.entry(owner).or_default().insert(role) {
+            return Err(Refusal::ChildCoverage);
+        }
+    }
+    let program_roles = BTreeSet::from(["cache", "mutable-scratch", "search-fallback"]);
+    let declaration_roles = BTreeSet::from(["declaration-stack", "declaration-work"]);
+    let callback_roles = BTreeSet::from(["callback-stack", "callback-work"]);
+    let mut programs = BTreeSet::new();
+    for (owner, roles) in owners {
+        if roles == program_roles {
+            programs.insert(owner);
+        } else if roles != declaration_roles && roles != callback_roles {
+            return Err(Refusal::ChildCoverage);
+        }
+    }
+    Ok(programs)
+}
+
+fn check_public_names(value: &Value) -> Result<(), Refusal> {
+    let names = value
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+        .ok_or(Refusal::NonCanonicalField)?;
+    let mut seen = BTreeSet::new();
+    for row in names {
+        exact_fields(
+            row,
+            &["name", "disposition", "source_owner"],
+            Refusal::NonCanonicalField,
+        )?;
+        if !seen.insert(text(row, "name", Refusal::NonCanonicalField)?) {
+            return Err(Refusal::NonCanonicalField);
+        }
+        match text(row, "disposition", Refusal::NonCanonicalField)? {
+            "schema_owner" => {
+                text(row, "source_owner", Refusal::NonCanonicalField)?;
+            }
+            "local_schema_free" if row.get("source_owner").is_some_and(Value::is_null) => {}
+            _ => return Err(Refusal::NonCanonicalField),
+        }
+    }
+    Ok(())
+}
+
+fn check_context_document(value: &Value) -> Result<(), Refusal> {
+    let rows = value.as_array().ok_or(Refusal::ContextCoverage)?;
+    let mut contexts = Vec::new();
+    for row in rows {
+        exact_fields(
+            row,
+            &["role", "source_owner", "duties", "source_proof"],
+            Refusal::ContextCoverage,
+        )?;
+        let role = match text(row, "role", Refusal::ContextCoverage)? {
+            "input_measurement" => ContextRole::InputMeasurement,
+            "validation_coordination" => ContextRole::ValidationCoordination,
+            _ => return Err(Refusal::ContextCoverage),
+        };
+        if row.get("source_proof").and_then(Value::as_str) != Some("not_established") {
+            return Err(Refusal::NonCanonicalField);
+        }
+        let duty_values = row
+            .get("duties")
+            .and_then(Value::as_array)
+            .ok_or(Refusal::ContextDuties(role))?;
+        let duties = duty_values
+            .iter()
+            .map(|duty| {
+                role.duties()
+                    .iter()
+                    .copied()
+                    .find(|required| Some(required.name()) == duty.as_str())
+                    .ok_or(Refusal::ContextDuties(role))
+            })
+            .collect::<Result<_, _>>()?;
+        contexts.push(ContextDuty {
+            role,
+            source_owner: text(row, "source_owner", Refusal::ContextCoverage)?.to_owned(),
+            duties,
+        });
+    }
+    check_contexts(&contexts)
 }
 
 // Only a refusal is representable; this cannot grant an installed cost/route.
 fn qualification_refusal(_report: &CurrentReport) -> Refusal {
-    Refusal::MissingSourceProof
+    Refusal::IncompleteSource
 }
 
 #[cfg(test)]

@@ -454,7 +454,13 @@ fn local<'a>(
         .enumerate()
         .filter_map(|(index, statement)| {
             if let syn::Stmt::Local(binding) = statement
-                && matches!(&binding.pat, syn::Pat::Ident(pattern) if pattern.ident == name)
+                && match &binding.pat {
+                    syn::Pat::Ident(pattern) => pattern.ident == name,
+                    syn::Pat::Type(typed) => {
+                        matches!(typed.pat.as_ref(), syn::Pat::Ident(pattern) if pattern.ident == name)
+                    }
+                    _ => false,
+                }
             {
                 Some((index, binding))
             } else {
