@@ -132,7 +132,6 @@ pub(in crate::schema_validation) struct CoupledFactoryBounds {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) enum CoupledRefusal {
-    MissingSourceProof,
     RootBinding,
     OwnerBinding,
     Initialization,
@@ -141,18 +140,427 @@ pub(in crate::schema_validation) enum CoupledRefusal {
     Overflow,
 }
 
-// Tests-first: the existing owner validates factory structure. This separate
-// boundary must still derive the actual readiness/call multiplicities and
-// retain unclosed input/primitive duties. No bound implementation before RED.
+// The storage owner checks factory/transfer structure. This consumer projects
+// its source sites and separately matches the initializer's executable probes.
+// Neither supplied populations nor this narrow result closes input/work duties.
 pub(in crate::schema_validation) fn coupled_factory_bounds(
-    _recipe: &Recipe,
-    _graph: &serde_json::Value,
-    _owner: &str,
-    _marker: &str,
-    _node_cap: u64,
-    _population: CoupledPopulation,
+    recipe: &Recipe,
+    graph: &serde_json::Value,
+    owner: &str,
+    marker: &str,
+    node_cap: u64,
+    population: CoupledPopulation,
 ) -> Result<CoupledFactoryBounds, CoupledRefusal> {
-    Err(CoupledRefusal::MissingSourceProof)
+    let (factory_root, validation_root) = coupled_roots(recipe, marker)?;
+    let (initializer, programs) = coupled_initialization(recipe, marker)?;
+    coupled_source_calls(recipe)?;
+    let schedule =
+        crate::schema_validation::storage::owner_schedule_data(recipe, graph, owner, marker)
+            .map_err(|_error| CoupledRefusal::OwnerBinding)?;
+    if schedule.roots() != (factory_root, validation_root) {
+        return Err(CoupledRefusal::OwnerBinding);
+    }
+    let projection = factory_projection(recipe, factory_root, initializer)?;
+    let probes = initializer_probes(recipe, initializer, programs)?;
+    let program_sites = factory_program_sites(&schedule, &probes)?;
+
+    // All source checks precede even zero-population arithmetic. F and V are
+    // independent supplied ceilings; no caller-lifetime relation is proved.
+    let root_entries_upper = population
+        .factories
+        .checked_add(population.validations)
+        .ok_or(CoupledRefusal::Overflow)?;
+    let probe_count = u64::try_from(probes.len()).map_err(|_error| CoupledRefusal::Overflow)?;
+    let initializer_checks_upper = population
+        .factories
+        .checked_mul(probe_count)
+        .ok_or(CoupledRefusal::Overflow)?;
+    let completed_prefixes = program_sites
+        .iter()
+        .map(|row| row.completed_siblings.clone())
+        .chain(std::iter::once(
+            program_sites.iter().map(|row| row.field.clone()).collect(),
+        ))
+        .collect();
+    let programs = program_sites
+        .into_iter()
+        .map(|row| ProgramFactoryBound {
+            field: row.field,
+            program: row.program,
+            initializer_probe: row.initializer_probe,
+            constructor: row.constructor,
+            completed_siblings: row.completed_siblings,
+            initializer_checks_upper: population.factories,
+            constructor_calls_upper: population.factories,
+        })
+        .collect();
+    Ok(CoupledFactoryBounds {
+        roots: recipe.roots.clone(),
+        initialization: recipe.initialization.clone(),
+        population,
+        node_cap,
+        root_entries_upper,
+        validation_root,
+        factory: ConstantFactoryBounds {
+            root: factory_root,
+            entries_upper: population.factories,
+            helpers: projection
+                .helpers
+                .into_iter()
+                .map(|(site, target)| ConstantHelperBound {
+                    site,
+                    target,
+                    upper: population.factories,
+                })
+                .collect(),
+            wrapper_map: OptionalCallbackBound {
+                site: projection.wrapper_map,
+                minimum: 0,
+                maximum: population.factories,
+            },
+            initializer_checks_upper,
+            programs,
+            completed_prefixes,
+        },
+        input_partition: None,
+        required: BTreeSet::from([
+            CoupledDuty::CallerPopulations,
+            CoupledDuty::SourceBinding,
+            CoupledDuty::ValidationTraversal,
+            CoupledDuty::SearchMultiplicity,
+            CoupledDuty::PrimitiveSourceCalls,
+            CoupledDuty::OrdinaryWork,
+            CoupledDuty::OrdinaryCleanup,
+            CoupledDuty::PartialConstructionCleanup,
+        ]),
+    })
+}
+
+fn coupled_function(recipe: &Recipe, identity: &str) -> Option<usize> {
+    let mut found = recipe
+        .functions
+        .iter()
+        .filter(|(_, function)| function.identity == identity);
+    let (id, _) = found.next()?;
+    found.next().is_none().then_some(*id)
+}
+
+fn coupled_roots(recipe: &Recipe, marker: &str) -> Result<(usize, usize), CoupledRefusal> {
+    let factory = coupled_function(recipe, &format!("{marker}::new_search_cache"))
+        .ok_or(CoupledRefusal::RootBinding)?;
+    let validation = coupled_function(recipe, &format!("{marker}::is_valid"))
+        .ok_or(CoupledRefusal::RootBinding)?;
+    if recipe.roots.len() != 2
+        || recipe.roots.iter().copied().collect::<BTreeSet<_>>()
+            != BTreeSet::from([factory, validation])
+    {
+        return Err(CoupledRefusal::RootBinding);
+    }
+    Ok((factory, validation))
+}
+
+fn coupled_initialization<'a>(
+    recipe: &'a Recipe,
+    marker: &str,
+) -> Result<(usize, &'a [String]), CoupledRefusal> {
+    let identity = format!("__{}_impl::initialize_regexes", marker.to_lowercase());
+    let initializer = coupled_function(recipe, &identity).ok_or(CoupledRefusal::Initialization)?;
+    let programs = recipe
+        .initialization
+        .get(&identity)
+        .ok_or(CoupledRefusal::Initialization)?;
+    if recipe.initialization.len() != 1
+        || programs.iter().any(String::is_empty)
+        || programs.iter().collect::<BTreeSet<_>>().len() != programs.len()
+    {
+        return Err(CoupledRefusal::Initialization);
+    }
+    Ok((initializer, programs))
+}
+
+fn coupled_source_calls(recipe: &Recipe) -> Result<(), CoupledRefusal> {
+    for function in recipe.functions.values() {
+        let mut first = None;
+        operations::model::walk(&function.body, &mut |op| {
+            if first.is_none()
+                && let Kind::Primitive { source_calls, .. } = &op.kind
+                && !source_calls.is_empty()
+            {
+                first = Some(op.site.clone());
+            }
+            Ok(())
+        })
+        .map_err(|_error| CoupledRefusal::OwnerBinding)?;
+        if let Some(site) = first {
+            return Err(CoupledRefusal::SourceCalls(site));
+        }
+    }
+    Ok(())
+}
+
+struct FactoryProjection {
+    helpers: Vec<(Site, usize)>,
+    wrapper_map: Site,
+}
+
+fn coupled_calls(recipe: &Recipe, id: usize) -> Result<Vec<(Site, usize)>, CoupledRefusal> {
+    let function = recipe
+        .functions
+        .get(&id)
+        .ok_or(CoupledRefusal::OwnerBinding)?;
+    let mut calls = Vec::new();
+    operations::model::walk(&function.body, &mut |op| {
+        if let Kind::Call { target, .. } = &op.kind {
+            if op.site.function != id || !recipe.functions.contains_key(target) {
+                return Err(operations::Refusal::UnclassifiedCall);
+            }
+            calls.push((op.site.clone(), *target));
+        }
+        Ok(())
+    })
+    .map_err(|_error| CoupledRefusal::OwnerBinding)?;
+    Ok(calls)
+}
+
+// Metadata projection only: wrapper/guard/constructor interpretation remains
+// in owner_schedule_data. The accepted wrapper and inner factory each call once.
+fn factory_projection(
+    recipe: &Recipe,
+    root: usize,
+    initializer: usize,
+) -> Result<FactoryProjection, CoupledRefusal> {
+    let outer = coupled_calls(recipe, root)?;
+    let [(outer_site, inner)] = outer.as_slice() else {
+        return Err(CoupledRefusal::OwnerBinding);
+    };
+    let calls = coupled_calls(recipe, *inner)?;
+    let [(initializer_site, target)] = calls.as_slice() else {
+        return Err(CoupledRefusal::OwnerBinding);
+    };
+    if *target != initializer {
+        return Err(CoupledRefusal::OwnerBinding);
+    }
+    let function = recipe
+        .functions
+        .get(&root)
+        .ok_or(CoupledRefusal::OwnerBinding)?;
+    let mut maps = Vec::new();
+    operations::model::walk(&function.body, &mut |op| {
+        if let Kind::Callback {
+            protocol: Primitive::ValueAccess,
+            callee,
+            ..
+        } = &op.kind
+            && callee == "Option::map"
+        {
+            maps.push(op.site.clone());
+        }
+        Ok(())
+    })
+    .map_err(|_error| CoupledRefusal::OwnerBinding)?;
+    let [wrapper_map] = maps.as_slice() else {
+        return Err(CoupledRefusal::OwnerBinding);
+    };
+    Ok(FactoryProjection {
+        helpers: vec![
+            (outer_site.clone(), *inner),
+            (initializer_site.clone(), *target),
+        ],
+        wrapper_map: wrapper_map.clone(),
+    })
+}
+
+fn coupled_child(site: &Site, ordinal: usize) -> Site {
+    let mut child = site.clone();
+    child.lexical.push(ordinal);
+    child
+}
+
+fn initializer_parts(function: &Function) -> Result<(&Binding, &[Op]), CoupledRefusal> {
+    let Kind::Scope {
+        label: None,
+        steps,
+        locals,
+    } = &function.body.kind
+    else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let Some((bind, tail)) = steps.split_first() else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let Some((returned, checks)) = tail.split_last() else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let Kind::Bind {
+        pattern: Pattern::Binding(name),
+        bindings,
+        value,
+    } = &bind.kind
+    else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let [ready] = bindings.as_slice() else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let mut expected = value.value.clone();
+    expected.place.clone_from(name);
+    expected.declaration = Some(bind.site.clone());
+    if !function.parameters.is_empty()
+        || function.result != Ty::Bool
+        || locals != bindings
+        || ready != &expected
+        || ready.ty != Ty::Bool
+        || ready.borrowed
+        || bind.value.ty != Ty::Unit
+        || !matches!(&value.kind, Kind::Value(Atom::Bool(true)))
+        || value.value.origin != Origin::Temporary(value.site.clone())
+        || value.value.declaration.is_some()
+        || bind.site != coupled_child(&function.body.site, 0)
+        || value.site != coupled_child(&bind.site, 0)
+        || returned.value != *ready
+        || !matches!(&returned.kind, Kind::Value(Atom::Place))
+        || returned.site
+            != coupled_child(
+                &function.body.site,
+                steps
+                    .len()
+                    .checked_sub(1)
+                    .ok_or(CoupledRefusal::Initializer)?,
+            )
+    {
+        return Err(CoupledRefusal::Initializer);
+    }
+    Ok((ready, checks))
+}
+
+fn readiness_probe(result: &Op) -> Result<(String, Site), CoupledRefusal> {
+    let Kind::Primitive {
+        lemma: Primitive::ValueAccess,
+        callee,
+        receiver: Some(optional),
+        arguments,
+        source_calls,
+    } = &result.kind
+    else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let [probe] = arguments.as_slice() else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let Kind::Primitive {
+        lemma: Primitive::Readiness,
+        callee: probe_callee,
+        receiver: Some(lazy),
+        arguments: inputs,
+        source_calls: probe_calls,
+    } = &probe.kind
+    else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let [place] = inputs.as_slice() else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let Ty::LazyRegex(program) = &lazy.ty else {
+        return Err(CoupledRefusal::Initializer);
+    };
+    let mut expected_probe = lazy.clone();
+    expected_probe.ty = Ty::Option(Box::new(Ty::Regex));
+    let mut expected_result = expected_probe.clone();
+    expected_result.ty = Ty::Bool;
+    expected_result.borrowed = false;
+    if callee != "Option(Regex)::is_some"
+        || probe_callee != &format!("{:?}::as_ref", lazy.ty)
+        || !source_calls.is_empty()
+        || !probe_calls.is_empty()
+        || !lazy.borrowed
+        || lazy.declaration.is_some()
+        || lazy.place != *program
+        || lazy.origin != Origin::Static(program.clone())
+        || place.value != *lazy
+        || !matches!(&place.kind, Kind::Value(Atom::Place))
+        || optional != &expected_probe
+        || probe.value != expected_probe
+        || result.value != expected_result
+        || probe.site != coupled_child(&result.site, 0)
+        || place.site != coupled_child(&probe.site, 0)
+    {
+        return Err(CoupledRefusal::Initializer);
+    }
+    Ok((program.clone(), probe.site.clone()))
+}
+
+fn initializer_probes(
+    recipe: &Recipe,
+    id: usize,
+    programs: &[String],
+) -> Result<BTreeMap<String, Site>, CoupledRefusal> {
+    let function = recipe
+        .functions
+        .get(&id)
+        .ok_or(CoupledRefusal::Initializer)?;
+    if function.body.site.function != id {
+        return Err(CoupledRefusal::Initializer);
+    }
+    let (ready, checks) = initializer_parts(function)?;
+    if checks.len() != programs.len() {
+        return Err(CoupledRefusal::Initializer);
+    }
+    let mut probes = BTreeMap::new();
+    for (ordinal, check) in checks.iter().enumerate() {
+        let Kind::Evaluate(Action::AndAssign(target), operands) = &check.kind else {
+            return Err(CoupledRefusal::Initializer);
+        };
+        let [left, right] = operands.as_slice() else {
+            return Err(CoupledRefusal::Initializer);
+        };
+        let index = ordinal.checked_add(1).ok_or(CoupledRefusal::Initializer)?;
+        if target != ready
+            || left.value != *ready
+            || check.value.ty != Ty::Unit
+            || !matches!(&left.kind, Kind::Value(Atom::Place))
+            || check.site != coupled_child(&function.body.site, index)
+            || left.site != coupled_child(&check.site, 0)
+            || right.site != coupled_child(&check.site, 1)
+        {
+            return Err(CoupledRefusal::Initializer);
+        }
+        let (program, site) = readiness_probe(right)?;
+        if !programs.contains(&program) || probes.insert(program, site).is_some() {
+            return Err(CoupledRefusal::Initializer);
+        }
+    }
+    // A bijection, not execution in the metadata map's sorted order. Each
+    // recorded lexical site preserves its actual eager-probe position.
+    Ok(probes)
+}
+
+struct FactoryProgramSites {
+    field: String,
+    program: String,
+    initializer_probe: Site,
+    constructor: Site,
+    completed_siblings: Vec<String>,
+}
+
+fn factory_program_sites(
+    schedule: &crate::schema_validation::storage::OwnerSchedule,
+    probes: &BTreeMap<String, Site>,
+) -> Result<Vec<FactoryProgramSites>, CoupledRefusal> {
+    schedule
+        .initializers()
+        .map(|(field, program, constructor, prior)| {
+            Ok(FactoryProgramSites {
+                field: field.to_owned(),
+                program: program.to_owned(),
+                initializer_probe: probes
+                    .get(program)
+                    .ok_or(CoupledRefusal::Initializer)?
+                    .clone(),
+                constructor: constructor.clone(),
+                completed_siblings: prior.to_vec(),
+            })
+        })
+        .collect()
 }
 
 #[derive(Debug, Eq, PartialEq)]

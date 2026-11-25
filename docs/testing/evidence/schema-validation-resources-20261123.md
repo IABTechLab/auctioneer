@@ -774,3 +774,27 @@ The same development roster gains these three names for 130 static required vali
 The reviewed prefix implementation parses one `Sources` collection, checks the exact triplet and all native limits, and shares the existing semantic/arithmetic kernel with standalone scalar controls. All source/premise checks run at zero attempts before arithmetic; every fallible count finishes before any destination field is written. Child overflow retains the existing parent refusal, other scalar refusals retain their typed cause, and per-request `(1,0,0)` does not scale with attempts. Navigation and unresolved work/cleanup obligations remain unknown. Both test modules are byte-unchanged. Separate static specification and quality reviews clear `prefix/mod.rs` SHA-256 `3da1ccc6d8769a04eb65d4373f71137a71107d6cc4b8abd1790c315de8c33c01` and `prefix/scalar/mod.rs` SHA-256 `330453c9828d44be7ed5f996cb30f3769ec35787093bcb4c3bbbc7283c1c3751`; hosted GREEN remains pending.
 
 Current qualification guidance now links the canonical Incomplete owner/evidence and separately labels the old cache-candidate description historical. Its anchor, original measurement figures and original qualification caveats remain; no pinned capture is rewritten. The resource index dates only its validation-row update and does not recertify earlier C/I/integration checkpoints. No local executable verification ran, and no current-head full acceptance, common completion or review readiness is claimed.
+
+### Source-Bound Prefix GREEN And Coupled-Factory RED
+
+At `3241de73320b7fde2056dd59102107d1bca6e415`, 24 hosted checks pass and only [compiler-schema](https://github.com/IABTechLab/auctioneer/actions/runs/45588687431/job/139116819860) fails. Actual secure source, development residency and development validation lines:
+
+```text
+test result: FAILED. 964 passed; 4 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1052.93s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 847 filtered out; finished in 58.73s
+test result: FAILED. 126 passed; 4 failed; 0 ignored; 0 measured; 844 filtered out; finished in 265.46s
+```
+
+The graph contains 974 cases; secure executes 968 with the unchanged six exclusions, and development validation executes all 130 selected cases. All seven prefix cases, all three scalar cases and all seven original partition cases report `ok` in both lanes. This is genuine prefix GREEN, including the source/premise refusal loops, raw-only overflow and transactional updates. The original numeric oracles remain unchanged. It does not prove ordinary serializer/primitive work, navigation, cleanup or actual compiler/artifact correspondence.
+
+Both lanes execute all three new coupled-factory positives with `Err(MissingSourceProof)` instead of their independent expected bounds. The existing actual-body case also reaches that same refusal after exact whole-roster classification, ownership setup, handoff closing checks and canonical Incomplete-report checks. Its first factory result fails; later factory-result assertions are not yet acceptance. These four valid missing-behavior REDs permit implementation of the narrow entry/factory boundary, not a pruned input proof or unclassified-call fallback.
+
+The source scripts retain exit 101 and the failed job; later compiler controls and explicit strict source-target Clippy remain not run. Broad Clippy, packaging and all four application-artifact owners pass at this head but do not substitute for those skipped commands or complete common derivations. No local executable verification, changed assertion, runtime behavior, workload limit, reservation or accounting change is introduced. #47 and full final-head acceptance remain open.
+
+### Reviewed Coupled Factory Derivation Awaits GREEN
+
+The replacement reuses `owner_schedule_data` once, checks the complete root/initialization metadata and all primitive source-call lists before arithmetic, then matches the executable eager initializer and exact program/binding/site correspondence. Probe lexical order is preserved separately from constructor-field order. Refusal precedence remains root binding, initialization, source calls, owner binding, initializer, then overflow. Checked F+V and F-times-probes arithmetic, per-program F ceilings, wrapper callback 0..F and ordered completed-field prefixes implement the frozen narrow contract.
+
+Both inline test modules and the existing actual-body oracle are byte-unchanged. Separate static specification and quality reviews clear `work/partition.rs` SHA-256 `e99baa591c09cf6cb06bec54752408e1e495645e7c7319e99ee486894a75cced`. Pinned rustfmt is editing only and whitespace checks are not executable proof. Hosted GREEN and reached strict source-target lint remain pending.
+
+The result still has `input_partition = None` and all eight explicit duties: caller populations, source binding, validation traversal, search multiplicity, primitive source calls, ordinary work, ordinary cleanup and partial-construction cleanup. It does not classify the whole generated-validator work closure, supply physical/callback facts, close #47 or grant serving/qualification. No fallback, filtered Recipe, additional capture/build, changed test, dependency, workload limit, reservation, accounting or production behavior is added.
