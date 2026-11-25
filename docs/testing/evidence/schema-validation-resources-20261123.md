@@ -896,3 +896,22 @@ error: could not compile `auctioneer-bidder` (test "schema_source_conformance") 
 ```
 
 The two diagnostics are `semicolon_inside_block` and `semicolon_if_nothing_returned` in `public_names.rs::tests::seed_with_routes`. Moving the semicolon had removed the preceding `semicolon_outside_block` diagnostic but exposed the other two; strict lint therefore remains failing, not waived. The other thirteen preceding diagnostics are absent from the reached command. The latest local correction removes only that redundant lexical block and retains the exact iterator, unique-function assertion, generated quote tokens, mutation and manifest digest update. Ordinary non-lexical borrow ending permits serialization after the last mutable use; no explicit drop, new helper, allowance or assertion change is introduced. Pinned formatting is editing only. The complete fixing-head hosted matrix remains required; prior-head unfinished development/artifact steps are not claimed as acceptance.
+
+### Lint Repair GREEN And Search Invocation Checkpoint
+
+The complete hosted matrix at `b78077dcc74970fae8999a9ea17bbba6523502d1` finishes with all 25 checks successful and none waived or pending. The [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45692534848/job/139481451963) records secure source, compiler controls, development residency and development validation, in order:
+
+```text
+test result: ok. 974 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1222.57s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 188.83s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 853 filtered out; finished in 66.20s
+test result: ok. 136 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 307.75s
+```
+
+Both explicit strict source-target Clippy commands complete with exit 0, as do normal/staged core and metadata checks. The final [CLI job](https://github.com/IABTechLab/auctioneer/actions/runs/45692534848/job/139481452989) also passes. This closes the lint repair, not the common work/byte/cleanup/stack proof or #47.
+
+The next tests-first checkpoint introduces explicit per-source-site and per-program invocation results, with `MissingSearchMultiplicity` after the already checked factory/input foundation rather than invented zero counts. Three new inline cases preserve prior factory/input oracles and independently vary F, V, declared caps and the J=5 witness. At the witness, direct/rescanned V=2 ceilings are 10/30/50; evaluating the same coefficients at declared caps seven/eleven instead yields 14/22/42/110. Neither is an observed exact search trace. One fixture reaches one static search site twice and another program once; another has eight distinct search sites. Unused programs and no-regex declarations retain source duties and require explicitly justified zero invocation results.
+
+Positive setup precedes engine-name and primitive-role corruptions at V=0/1. The unchanged storage owner must reject these as `OwnerBinding` before the new numeric projection; the test does not pretend to reach a later guard. Separate aggregate-overflow controls retain passing input-only arithmetic: at cap 2^62 and V=0, input `2+3*cap` fits while eight search sites overflow before multiplication by zero; at cap seven and V=2^59, input `23*V` fits while search `56*V` overflows. These literal source ceilings are test DATA, not installed workload limits.
+
+The existing whole-roster case buffers a new search result through the same closing source checks, owner census and canonical Incomplete-report assertions; no capture or build is added. All three exact names join the existing required development roster (expected 139 validation cases and 983 total source cases). Expected hosted RED is the explicit missing-search assertion in those cases and the whole-roster case, not compilation or failed setup. These expectations are not executed evidence. No local executable verification ran; pinned rustfmt is editing only. The eventual implementation must share the existing provenance walker, delete the interim missing-derivation stub, preserve source checks at zero workload, and keep haystack bytes, internal engine work, source/artifact authority, cleanup, stack and qualification separate.

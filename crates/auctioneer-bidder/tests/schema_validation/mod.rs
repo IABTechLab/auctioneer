@@ -31,6 +31,7 @@ mod tests {
         schedule: Option<Result<storage::OwnerSchedule, String>>,
         factory: Option<Result<partition::CoupledFactoryBounds, partition::CoupledRefusal>>,
         input: Option<Result<partition::CoupledFactoryBounds, partition::CoupledRefusal>>,
+        searches: Option<Result<partition::CoupledSearchBounds, partition::CoupledRefusal>>,
     }
 
     fn inspect_body(body: &DeclarationBody<'_>, view: ValidationView<'_>) -> BodyAnalysis {
@@ -71,6 +72,21 @@ mod tests {
                 },
             ))
         });
+        let searches = input.as_ref().and_then(|bounded| {
+            bounded.as_ref().ok()?;
+            let classified = operations.as_ref().ok()?;
+            Some(partition::coupled_search_bounds(
+                classified.recipe(),
+                view.graph(),
+                body.owner,
+                body.marker,
+                7,
+                partition::CoupledPopulation {
+                    factories: 3,
+                    validations: 2,
+                },
+            ))
+        });
         BodyAnalysis {
             owner: body.owner.to_owned(),
             marker: body.marker.to_owned(),
@@ -78,6 +94,7 @@ mod tests {
             schedule,
             factory,
             input,
+            searches,
         }
     }
 
@@ -180,6 +197,16 @@ mod tests {
                     input_result.as_ref().map(|_| ()),
                     Ok(()),
                     "coupled input frontier for {}::{}",
+                    row.owner,
+                    row.marker
+                );
+            }
+            for row in bodies.analyses() {
+                let search_result = row.searches.as_ref().expect("input setup checked");
+                assert_eq!(
+                    search_result.as_ref().map(|_| ()),
+                    Ok(()),
+                    "coupled search frontier for {}::{}",
                     row.owner,
                     row.marker
                 );

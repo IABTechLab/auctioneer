@@ -137,7 +137,34 @@ pub(in crate::schema_validation) struct CoupledFactoryBounds {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+struct SearchSiteBound {
+    site: Site,
+    per_validation: SourceBoundCoeff,
+    per_validation_upper: u64,
+    invocations_upper: u64,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct ProgramSearchBound {
+    program: String,
+    field: String,
+    sites: Vec<SearchSiteBound>,
+    per_validation_upper: u64,
+    invocations_upper: u64,
+}
+
+// Invocation DATA only: haystack bytes and engine work remain separate duties.
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::schema_validation) struct CoupledSearchBounds {
+    input: CoupledFactoryBounds,
+    programs: Vec<ProgramSearchBound>,
+    per_validation_upper: u64,
+    invocations_upper: u64,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) enum CoupledRefusal {
+    MissingSearchMultiplicity,
     RootBinding,
     OwnerBinding,
     Initialization,
@@ -271,6 +298,18 @@ pub(in crate::schema_validation) fn coupled_input_bounds(
     .map_err(|refusal| coupled_input_refusal(recipe, refusal, bounded.validation_root))?;
     bounded.input_partition = Some(projection);
     Ok(bounded)
+}
+
+pub(in crate::schema_validation) fn coupled_search_bounds(
+    recipe: &Recipe,
+    graph: &Value,
+    owner: &str,
+    marker: &str,
+    node_cap: u64,
+    population: CoupledPopulation,
+) -> Result<CoupledSearchBounds, CoupledRefusal> {
+    coupled_input_bounds(recipe, graph, owner, marker, node_cap, population)
+        .and(Err(CoupledRefusal::MissingSearchMultiplicity))
 }
 
 fn coupled_input_refusal(recipe: &Recipe, refusal: Refusal, root: usize) -> CoupledRefusal {
@@ -4277,6 +4316,460 @@ mod coupled_tests {
                 );
             }
             assert_key_only_protocol();
+        }
+
+        mod search_tests {
+            use super::super::super::{
+                CoupledSearchBounds, ProgramSearchBound, coupled_search_bounds,
+            };
+            use super::{
+                CoupledPopulation, CoupledRefusal, Fixture, MARKER, OWNER, Recipe, STRING_LEAF,
+                factory_fixture, function, input, operations, protocol_fixture, protocol_search,
+            };
+            use crate::schema_validation::operations::{
+                Primitive,
+                model::{Kind, Site},
+            };
+            use serde_json::json;
+
+            const FIRST: &str = "__coupled_impl::PATTERN_0_REGEX";
+            const SECOND: &str = "__coupled_impl::PATTERN_1_REGEX";
+            const OTHER: &str = "__coupled_impl::other_leaf";
+
+            fn searches(
+                fixture: &Fixture,
+                cap: u64,
+                population: CoupledPopulation,
+            ) -> Result<CoupledSearchBounds, CoupledRefusal> {
+                coupled_search_bounds(
+                    &fixture.recipe,
+                    &fixture.graph,
+                    OWNER,
+                    MARKER,
+                    cap,
+                    population,
+                )
+            }
+
+            fn source_sites(recipe: &Recipe, owner: &str, expected: usize) -> Vec<Site> {
+                let mut sites = Vec::new();
+                operations::model::walk(
+                    &recipe.functions[&function(recipe, owner)].body,
+                    &mut |op| {
+                        if let Kind::Primitive {
+                            lemma: Primitive::RegexSearch,
+                            callee,
+                            ..
+                        } = &op.kind
+                            && callee == "Regex::search_half_with"
+                        {
+                            sites.push(op.site.clone());
+                        }
+                        Ok(())
+                    },
+                )
+                .unwrap();
+                assert_eq!(sites.len(), expected, "independent lexical search census");
+                sites
+            }
+
+            fn assert_program(
+                row: &ProgramSearchBound,
+                program: &str,
+                field: &str,
+                sites: &[Site],
+                coefficient: (u64, u64),
+                maxima: (u64, u64),
+            ) {
+                assert_eq!(row.program, program);
+                assert_eq!(row.field, field);
+                assert_eq!(
+                    row.sites.iter().map(|site| &site.site).collect::<Vec<_>>(),
+                    sites.iter().collect::<Vec<_>>()
+                );
+                for site in &row.sites {
+                    assert_eq!(
+                        (site.per_validation.constant, site.per_validation.nodes),
+                        coefficient
+                    );
+                    assert_eq!((site.per_validation_upper, site.invocations_upper), maxima);
+                }
+            }
+
+            struct SingleSearchExpectation {
+                nodes: u64,
+                per_call: u64,
+                all_calls: u64,
+                witness_calls: u64,
+                roots: u64,
+                probes: u64,
+            }
+
+            fn assert_single_result(
+                bounds: &CoupledSearchBounds,
+                fixture: &Fixture,
+                population: CoupledPopulation,
+                wanted: &SingleSearchExpectation,
+            ) {
+                assert_eq!(bounds.input.root_entries_upper, wanted.roots);
+                assert_eq!(bounds.input.factory.initializer_checks_upper, wanted.probes);
+                assert_eq!(bounds.input.required, super::super::duties());
+                assert_eq!(bounds.input.roots, fixture.recipe.roots);
+                assert_eq!(bounds.input.initialization, fixture.recipe.initialization);
+                assert_eq!(bounds.programs.len(), 2);
+                assert_program(
+                    &bounds.programs[0],
+                    FIRST,
+                    "pattern_0_cache",
+                    &source_sites(&fixture.recipe, STRING_LEAF, 1),
+                    (0, wanted.nodes),
+                    (wanted.per_call, wanted.all_calls),
+                );
+                assert_program(
+                    &bounds.programs[1],
+                    SECOND,
+                    "pattern_1_cache",
+                    &[],
+                    (0, 0),
+                    (0, 0),
+                );
+                // The admitted witness is distinct from the declared cap.
+                let coefficient = bounds.programs[0].sites[0].per_validation;
+                assert_eq!(
+                    coefficient
+                        .nodes
+                        .checked_mul(5)
+                        .unwrap()
+                        .checked_add(coefficient.constant)
+                        .unwrap()
+                        .checked_mul(population.validations)
+                        .unwrap(),
+                    wanted.witness_calls
+                );
+                assert_eq!(
+                    (
+                        bounds.programs[0].per_validation_upper,
+                        bounds.programs[0].invocations_upper
+                    ),
+                    (wanted.per_call, wanted.all_calls)
+                );
+                assert_eq!(
+                    (
+                        bounds.programs[1].per_validation_upper,
+                        bounds.programs[1].invocations_upper
+                    ),
+                    (0, 0)
+                );
+                assert_eq!(
+                    (bounds.per_validation_upper, bounds.invocations_upper),
+                    (wanted.per_call, wanted.all_calls)
+                );
+            }
+
+            #[test]
+            fn search_sites_bind_programs_and_independent_populations() {
+                let witness = json!({"s": "x", "n": 1_u64});
+                for (
+                    rescan,
+                    cap,
+                    factories,
+                    validations,
+                    nodes,
+                    per_call,
+                    all_calls,
+                    witness_calls,
+                    roots,
+                    probes,
+                ) in [
+                    (false, 7, 3, 2, 1, 7, 14, 10, 5, 6),
+                    (false, 11, 3, 2, 1, 11, 22, 10, 5, 6),
+                    (true, 7, 3, 2, 3, 21, 42, 30, 5, 6),
+                    (true, 11, 3, 2, 5, 55, 110, 50, 5, 6),
+                    (false, 7, 9, 2, 1, 7, 14, 10, 11, 18),
+                    (true, 11, 3, 0, 5, 55, 0, 0, 3, 6),
+                ] {
+                    let fixture = protocol_fixture(rescan);
+                    let limits = super::SchemaInputLimits {
+                        serialized_bytes: 128,
+                        nodes: cap,
+                        depth: 4,
+                    };
+                    assert_eq!(
+                        super::measure_schema_input(&witness, limits).unwrap().nodes,
+                        5
+                    );
+                    let population = CoupledPopulation {
+                        factories,
+                        validations,
+                    };
+                    input(&fixture, cap, population).unwrap();
+                    let result = searches(&fixture, cap, population);
+                    assert!(result.is_ok(), "search invocation derivation: {result:?}");
+                    let bounds = result.unwrap();
+                    assert_single_result(
+                        &bounds,
+                        &fixture,
+                        population,
+                        &SingleSearchExpectation {
+                            nodes,
+                            per_call,
+                            all_calls,
+                            witness_calls,
+                            roots,
+                            probes,
+                        },
+                    );
+                }
+                let no_regex = factory_fixture(false);
+                let bounds = searches(
+                    &no_regex,
+                    7,
+                    CoupledPopulation {
+                        factories: 3,
+                        validations: 2,
+                    },
+                )
+                .unwrap();
+                assert!(bounds.programs.is_empty());
+                assert_eq!(
+                    (bounds.per_validation_upper, bounds.invocations_upper),
+                    (0, 0)
+                );
+                assert_eq!(bounds.input.required, super::super::duties());
+            }
+
+            fn items(fixture: &mut Fixture) -> &mut Vec<syn::Item> {
+                fixture
+                    .syntax
+                    .items
+                    .iter_mut()
+                    .find_map(|item| {
+                        if let syn::Item::Mod(module) = item
+                            && module.ident == "__coupled_impl"
+                        {
+                            Some(&mut module.content.as_mut().unwrap().1)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap()
+            }
+
+            fn function_mut<'a>(fixture: &'a mut Fixture, name: &str) -> &'a mut syn::ItemFn {
+                items(fixture)
+                    .iter_mut()
+                    .find_map(|item| {
+                        if let syn::Item::Fn(declaration) = item
+                            && declaration.sig.ident == name
+                        {
+                            Some(declaration)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap()
+            }
+
+            fn rebuild(fixture: &mut Fixture) {
+                fixture.recipe = operations::classify_source_body(&fixture.syntax, &[], &[])
+                    .unwrap()
+                    .recipe()
+                    .clone();
+                input(
+                    fixture,
+                    7,
+                    CoupledPopulation {
+                        factories: 3,
+                        validations: 2,
+                    },
+                )
+                .unwrap();
+            }
+
+            fn eight_site_fixture() -> Fixture {
+                let mut fixture = protocol_fixture(false);
+                let mut expression: syn::Expr = syn::parse_quote!(sentinel(subject, __cache));
+                for _ in 0..8_u8 {
+                    expression = syn::parse_quote!(#expression && regex.search_half_with(
+                        &mut __cache.pattern_0_cache,
+                        &__ra::Input::new(subject).earliest(true),
+                    ).is_some());
+                }
+                *function_mut(&mut fixture, "string_leaf").block = syn::parse_quote!({
+                    PATTERN_0_REGEX.as_ref().is_some_and(|regex| { #expression })
+                });
+                rebuild(&mut fixture);
+                fixture
+            }
+
+            fn repeated_helper_fixture() -> Fixture {
+                let mut fixture = protocol_fixture(false);
+                *function_mut(&mut fixture, "entry_is_valid").block = syn::parse_quote!({
+                    __cache.reset();
+                    match instance {
+                        serde_json::Value::Object(obj) => {
+                            obj.values().all(|instance| match instance {
+                                serde_json::Value::String(subject) => {
+                                    string_leaf(subject, __cache)
+                                        && string_leaf(subject, __cache)
+                                        && other_leaf(subject, __cache)
+                                }
+                                _ => true,
+                            })
+                        }
+                        _ => true,
+                    }
+                });
+                items(&mut fixture).push(syn::parse_quote! {
+                    fn other_leaf(subject: &str, __cache: &mut __SearchCache) -> bool {
+                        PATTERN_1_REGEX.as_ref().is_some_and(|regex| regex.search_half_with(
+                            &mut __cache.pattern_1_cache,
+                            &__ra::Input::new(subject).earliest(true),
+                        ).is_some())
+                    }
+                });
+                rebuild(&mut fixture);
+                fixture
+            }
+
+            #[test]
+            fn repeated_helpers_and_distinct_sites_preserve_search_multiplicity() {
+                let population = CoupledPopulation {
+                    factories: 3,
+                    validations: 2,
+                };
+                let fixture = repeated_helper_fixture();
+                let result = searches(&fixture, 7, population);
+                assert!(
+                    result.is_ok(),
+                    "repeated-helper search derivation: {result:?}"
+                );
+                let bounds = result.unwrap();
+                assert_eq!(bounds.programs.len(), 2);
+                assert_program(
+                    &bounds.programs[0],
+                    FIRST,
+                    "pattern_0_cache",
+                    &source_sites(&fixture.recipe, STRING_LEAF, 1),
+                    (0, 2),
+                    (14, 28),
+                );
+                assert_program(
+                    &bounds.programs[1],
+                    SECOND,
+                    "pattern_1_cache",
+                    &source_sites(&fixture.recipe, OTHER, 1),
+                    (0, 1),
+                    (7, 14),
+                );
+                assert_eq!(
+                    (
+                        bounds.programs[0].per_validation_upper,
+                        bounds.programs[0].invocations_upper
+                    ),
+                    (14, 28)
+                );
+                assert_eq!(
+                    (
+                        bounds.programs[1].per_validation_upper,
+                        bounds.programs[1].invocations_upper
+                    ),
+                    (7, 14)
+                );
+                assert_eq!(
+                    (bounds.per_validation_upper, bounds.invocations_upper),
+                    (21, 42)
+                );
+                let eight = eight_site_fixture();
+                let eight_bounds = searches(&eight, 7, population).unwrap();
+                assert_eq!(eight_bounds.programs.len(), 2);
+                assert_program(
+                    &eight_bounds.programs[0],
+                    FIRST,
+                    "pattern_0_cache",
+                    &source_sites(&eight.recipe, STRING_LEAF, 8),
+                    (0, 1),
+                    (7, 14),
+                );
+                assert_eq!(
+                    (
+                        eight_bounds.programs[0].per_validation_upper,
+                        eight_bounds.programs[0].invocations_upper
+                    ),
+                    (56, 112)
+                );
+                assert_program(
+                    &eight_bounds.programs[1],
+                    SECOND,
+                    "pattern_1_cache",
+                    &[],
+                    (0, 0),
+                    (0, 0),
+                );
+                assert_eq!(
+                    (
+                        eight_bounds.per_validation_upper,
+                        eight_bounds.invocations_upper
+                    ),
+                    (56, 112)
+                );
+            }
+
+            #[test]
+            fn search_refusals_and_overflow_survive_zero_workload() {
+                let fixture = protocol_fixture(false);
+                for validations in [0, 1] {
+                    let population = CoupledPopulation {
+                        factories: 3,
+                        validations,
+                    };
+                    let result = searches(&fixture, 7, population);
+                    assert!(result.is_ok(), "positive source setup: {result:?}");
+                    for change_lemma in [false, true] {
+                        let mut recipe = fixture.recipe.clone();
+                        let search = protocol_search(&mut recipe);
+                        let Kind::Primitive { lemma, callee, .. } = &mut search.kind else {
+                            panic!("search primitive");
+                        };
+                        assert_eq!(*lemma, Primitive::RegexSearch);
+                        assert_eq!(callee.as_str(), "Regex::search_half_with");
+                        if change_lemma {
+                            *lemma = Primitive::ValueAccess;
+                        } else {
+                            *callee = "Regex::search_with".to_owned();
+                        }
+                        assert_eq!(
+                            coupled_search_bounds(
+                                &recipe,
+                                &fixture.graph,
+                                OWNER,
+                                MARKER,
+                                7,
+                                population
+                            ),
+                            // The unchanged ownership foundation rejects the
+                            // malformed engine entry before numeric projection.
+                            Err(CoupledRefusal::OwnerBinding)
+                        );
+                    }
+                }
+                let aggregate = eight_site_fixture();
+                let zero = CoupledPopulation {
+                    factories: 0,
+                    validations: 0,
+                };
+                input(&aggregate, 0x4000_0000_0000_0000, zero).unwrap();
+                assert_eq!(
+                    searches(&aggregate, 0x4000_0000_0000_0000, zero),
+                    Err(CoupledRefusal::Overflow)
+                );
+                let many = CoupledPopulation {
+                    factories: 0,
+                    validations: 0x0800_0000_0000_0000,
+                };
+                input(&aggregate, 7, many).unwrap();
+                assert_eq!(searches(&aggregate, 7, many), Err(CoupledRefusal::Overflow));
+            }
         }
 
         fn protocol_callback(recipe: &mut Recipe) -> &mut Op {
