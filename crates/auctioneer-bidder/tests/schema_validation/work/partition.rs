@@ -1,7 +1,7 @@
 //! Traversal/affine caller-bound DATA, not source authority.
 //!
-//! Coefficients count existing helper entries and iterator callbacks per input
-//! and per attempt. They are not new work units or a closed `WorkLedger`. Actual
+//! Coefficients count existing helper entries, iterator callbacks and top-level
+//! regex invocations. They are not new work units or a closed `WorkLedger`. Actual
 //! use must obtain this same canonical `Recipe` from the sealed body handoff and
 //! bind the node cap to the existing caller context. Fixture caps are not
 //! installed limits. An origin spelling alone is never a partition witness.
@@ -164,7 +164,6 @@ pub(in crate::schema_validation) struct CoupledSearchBounds {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) enum CoupledRefusal {
-    MissingSearchMultiplicity,
     RootBinding,
     OwnerBinding,
     Initialization,
@@ -287,8 +286,22 @@ pub(in crate::schema_validation) fn coupled_input_bounds(
     node_cap: u64,
     population: CoupledPopulation,
 ) -> Result<CoupledFactoryBounds, CoupledRefusal> {
+    coupled_partition(recipe, graph, owner, marker, node_cap, population)
+        .map(|(input, _searches)| input)
+}
+
+// Component projections share this one analysis of the original Recipe. The
+// input-only result does not assert representability of search aggregates.
+fn coupled_partition(
+    recipe: &Recipe,
+    graph: &Value,
+    owner: &str,
+    marker: &str,
+    node_cap: u64,
+    population: CoupledPopulation,
+) -> Result<(CoupledFactoryBounds, Vec<SearchOccurrences>), CoupledRefusal> {
     let mut bounded = coupled_factory_bounds(recipe, graph, owner, marker, node_cap, population)?;
-    let projection = partition_roots(
+    let analysis = partition_analysis(
         recipe,
         from_ref(&bounded.validation_root),
         NodeCapData { nodes: node_cap },
@@ -296,8 +309,8 @@ pub(in crate::schema_validation) fn coupled_input_bounds(
         &bounded.factory.programs,
     )
     .map_err(|refusal| coupled_input_refusal(recipe, refusal, bounded.validation_root))?;
-    bounded.input_partition = Some(projection);
-    Ok(bounded)
+    bounded.input_partition = Some(analysis.input);
+    Ok((bounded, analysis.searches))
 }
 
 pub(in crate::schema_validation) fn coupled_search_bounds(
@@ -308,8 +321,76 @@ pub(in crate::schema_validation) fn coupled_search_bounds(
     node_cap: u64,
     population: CoupledPopulation,
 ) -> Result<CoupledSearchBounds, CoupledRefusal> {
-    coupled_input_bounds(recipe, graph, owner, marker, node_cap, population)
-        .and(Err(CoupledRefusal::MissingSearchMultiplicity))
+    let (input, searches) = coupled_partition(recipe, graph, owner, marker, node_cap, population)?;
+    search_projection(recipe, input, searches)
+}
+
+fn search_projection(
+    recipe: &Recipe,
+    input: CoupledFactoryBounds,
+    searches: Vec<SearchOccurrences>,
+) -> Result<CoupledSearchBounds, CoupledRefusal> {
+    let cap = NodeCapData {
+        nodes: input.node_cap,
+    };
+    let validations = input.population.validations;
+    let mut programs: Vec<_> = input
+        .factory
+        .programs
+        .iter()
+        .map(|program| ProgramSearchBound {
+            program: program.program.clone(),
+            field: program.field.clone(),
+            sites: Vec::new(),
+            per_validation_upper: 0,
+            invocations_upper: 0,
+        })
+        .collect();
+    for search in searches {
+        let row = programs
+            .iter_mut()
+            .find(|row| row.program == search.program && row.field == search.field)
+            .ok_or_else(|| CoupledRefusal::CallBinding(search.site.clone()))?;
+        let coefficient = search
+            .occurrences
+            .coefficient()
+            .map_err(|refusal| coupled_input_refusal(recipe, refusal, input.validation_root))?;
+        let per_validation_upper = checked_bound(coefficient, cap)
+            .map_err(|refusal| coupled_input_refusal(recipe, refusal, input.validation_root))?;
+        let invocations_upper = per_validation_upper
+            .checked_mul(validations)
+            .ok_or(CoupledRefusal::Overflow)?;
+        row.per_validation_upper = row
+            .per_validation_upper
+            .checked_add(per_validation_upper)
+            .ok_or(CoupledRefusal::Overflow)?;
+        row.sites.push(SearchSiteBound {
+            site: search.site,
+            per_validation: coefficient,
+            per_validation_upper,
+            invocations_upper,
+        });
+    }
+    let mut per_validation_upper = 0_u64;
+    for program in &mut programs {
+        program.invocations_upper = program
+            .per_validation_upper
+            .checked_mul(validations)
+            .ok_or(CoupledRefusal::Overflow)?;
+        per_validation_upper = per_validation_upper
+            .checked_add(program.per_validation_upper)
+            .ok_or(CoupledRefusal::Overflow)?;
+    }
+    // Even V=0 must retain per-program and whole-projection overflow checks.
+    let invocations_upper = per_validation_upper
+        .checked_mul(validations)
+        .ok_or(CoupledRefusal::Overflow)?;
+    Ok(CoupledSearchBounds {
+        input,
+        programs,
+        per_validation_upper,
+        invocations_upper,
+    })
 }
 
 fn coupled_input_refusal(recipe: &Recipe, refusal: Refusal, root: usize) -> CoupledRefusal {
@@ -753,6 +834,18 @@ struct CallOccurrences {
     occurrences: Occurrences,
 }
 
+struct SearchOccurrences {
+    site: Site,
+    program: String,
+    field: String,
+    occurrences: Occurrences,
+}
+
+struct PartitionAnalysis {
+    input: SourceBounds,
+    searches: Vec<SearchOccurrences>,
+}
+
 struct Deriver<'a> {
     recipe: &'a Recipe,
     programs: &'a [ProgramFactoryBound],
@@ -761,6 +854,7 @@ struct Deriver<'a> {
     active_members: Vec<MemberAxis>,
     next_member: usize,
     calls: Vec<CallOccurrences>,
+    searches: Vec<SearchOccurrences>,
     callbacks: Occurrences,
     labels: Vec<String>,
 }
@@ -1389,7 +1483,7 @@ impl Deriver<'_> {
         self.visit(body, &nested)
     }
 
-    fn regex_search(&self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+    fn regex_search(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
         let Kind::Primitive {
             receiver: Some(receiver),
             arguments,
@@ -1420,6 +1514,21 @@ impl Deriver<'_> {
             || !borrowed_search_input(input, bindings)
         {
             return Err(Refusal::CallBinding(op.site.clone()));
+        }
+        let field = row.field.clone();
+        let occurrences = self.occurrences()?;
+        if let Some(prior) = self.searches.iter_mut().find(|prior| prior.site == op.site) {
+            if prior.program != program || prior.field != field {
+                return Err(Refusal::CallBinding(op.site.clone()));
+            }
+            prior.occurrences.combine(occurrences)?;
+        } else {
+            self.searches.push(SearchOccurrences {
+                site: op.site.clone(),
+                program,
+                field,
+                occurrences,
+            });
         }
         Ok(())
     }
@@ -1976,7 +2085,7 @@ fn derive_source_bounds(
     partition_roots(recipe, &recipe.roots, cap, attempts, &[])
 }
 
-// Both entries share the same provenance/counting kernel and original Recipe.
+// All projections share one provenance/counting kernel and original Recipe.
 // Root selection is private: the coupled caller supplies its just-checked root,
 // while the standalone entry above retains its empty-initialization guard.
 fn partition_roots(
@@ -1986,6 +2095,16 @@ fn partition_roots(
     attempts: u64,
     programs: &[ProgramFactoryBound],
 ) -> Result<SourceBounds, Refusal> {
+    partition_analysis(recipe, roots, cap, attempts, programs).map(|analysis| analysis.input)
+}
+
+fn partition_analysis(
+    recipe: &Recipe,
+    roots: &[usize],
+    cap: NodeCapData,
+    attempts: u64,
+    programs: &[ProgramFactoryBound],
+) -> Result<PartitionAnalysis, Refusal> {
     let mut deriver = Deriver {
         recipe,
         programs,
@@ -1994,6 +2113,7 @@ fn partition_roots(
         active_members: Vec::new(),
         next_member: 0,
         calls: Vec::new(),
+        searches: Vec::new(),
         callbacks: Occurrences::default(),
         labels: Vec::new(),
     };
@@ -2019,7 +2139,7 @@ fn partition_roots(
         helper_calls.push(binding);
     }
     maximum.checked_mul(attempts).ok_or(Refusal::Overflow)?;
-    Ok(SourceBounds {
+    let input = SourceBounds {
         roots: roots.to_vec(),
         cap,
         attempts,
@@ -2032,6 +2152,10 @@ fn partition_roots(
             SourceRequirement::IteratorMemberProtocol,
             SourceRequirement::CallerNodeCap,
         ]),
+    };
+    Ok(PartitionAnalysis {
+        input,
+        searches: deriver.searches,
     })
 }
 
@@ -4536,6 +4660,7 @@ mod coupled_tests {
                     (0, 0)
                 );
                 assert_eq!(bounds.input.required, super::super::duties());
+                assert_constant_searches();
             }
 
             fn items(fixture: &mut Fixture) -> &mut Vec<syn::Item> {
@@ -4586,18 +4711,75 @@ mod coupled_tests {
                 .unwrap();
             }
 
-            fn eight_site_fixture() -> Fixture {
+            fn assert_constant_searches() {
                 let mut fixture = protocol_fixture(false);
+                *function_mut(&mut fixture, "entry_is_valid").block = syn::parse_quote!({
+                    __cache.reset();
+                    match instance {
+                        serde_json::Value::String(subject) => string_leaf(subject, __cache),
+                        _ => true,
+                    }
+                });
+                rebuild(&mut fixture);
+                for (cap, validations, total) in [(7, 2, 2), (11, 0, 0), (11, 5, 5)] {
+                    let bounds = searches(
+                        &fixture,
+                        cap,
+                        CoupledPopulation {
+                            factories: 3,
+                            validations,
+                        },
+                    )
+                    .unwrap();
+                    assert_eq!(bounds.programs.len(), 2);
+                    assert_program(
+                        &bounds.programs[0],
+                        FIRST,
+                        "pattern_0_cache",
+                        &source_sites(&fixture.recipe, STRING_LEAF, 1),
+                        (1, 0),
+                        (1, total),
+                    );
+                    assert_program(
+                        &bounds.programs[1],
+                        SECOND,
+                        "pattern_1_cache",
+                        &[],
+                        (0, 0),
+                        (0, 0),
+                    );
+                    assert_eq!(
+                        (
+                            bounds.programs[0].per_validation_upper,
+                            bounds.programs[0].invocations_upper
+                        ),
+                        (1, total)
+                    );
+                    assert_eq!(
+                        (bounds.per_validation_upper, bounds.invocations_upper),
+                        (1, total)
+                    );
+                    assert_eq!(bounds.input.required, super::super::duties());
+                }
+            }
+
+            fn eight_searches(program: &syn::Ident, field: &syn::Ident) -> syn::Block {
                 let mut expression: syn::Expr = syn::parse_quote!(sentinel(subject, __cache));
                 for _ in 0..8_u8 {
                     expression = syn::parse_quote!(#expression && regex.search_half_with(
-                        &mut __cache.pattern_0_cache,
+                        &mut __cache.#field,
                         &__ra::Input::new(subject).earliest(true),
                     ).is_some());
                 }
-                *function_mut(&mut fixture, "string_leaf").block = syn::parse_quote!({
-                    PATTERN_0_REGEX.as_ref().is_some_and(|regex| { #expression })
-                });
+                syn::parse_quote!({ #program.as_ref().is_some_and(|regex| { #expression }) })
+            }
+
+            fn eight_site_fixture() -> Fixture {
+                let mut fixture = protocol_fixture(false);
+                *function_mut(&mut fixture, "string_leaf").block = eight_searches(
+                    &syn::parse_quote!(PATTERN_0_REGEX),
+                    &syn::parse_quote!(pattern_0_cache),
+                );
                 rebuild(&mut fixture);
                 fixture
             }
@@ -4715,6 +4897,75 @@ mod coupled_tests {
                 );
             }
 
+            fn assert_cross_program_overflow() {
+                let mut fixture = repeated_helper_fixture();
+                *function_mut(&mut fixture, "string_leaf").block = eight_searches(
+                    &syn::parse_quote!(PATTERN_0_REGEX),
+                    &syn::parse_quote!(pattern_0_cache),
+                );
+                *function_mut(&mut fixture, "other_leaf").block = eight_searches(
+                    &syn::parse_quote!(PATTERN_1_REGEX),
+                    &syn::parse_quote!(pattern_1_cache),
+                );
+                rebuild(&mut fixture);
+                let bounds = searches(
+                    &fixture,
+                    7,
+                    CoupledPopulation {
+                        factories: 3,
+                        validations: 2,
+                    },
+                )
+                .unwrap();
+                assert_eq!(bounds.programs.len(), 2);
+                assert_program(
+                    &bounds.programs[0],
+                    FIRST,
+                    "pattern_0_cache",
+                    &source_sites(&fixture.recipe, STRING_LEAF, 8),
+                    (0, 2),
+                    (14, 28),
+                );
+                assert_program(
+                    &bounds.programs[1],
+                    SECOND,
+                    "pattern_1_cache",
+                    &source_sites(&fixture.recipe, OTHER, 8),
+                    (0, 1),
+                    (7, 14),
+                );
+                assert_eq!(
+                    (
+                        bounds.programs[0].per_validation_upper,
+                        bounds.programs[0].invocations_upper
+                    ),
+                    (112, 224)
+                );
+                assert_eq!(
+                    (
+                        bounds.programs[1].per_validation_upper,
+                        bounds.programs[1].invocations_upper
+                    ),
+                    (56, 112)
+                );
+                assert_eq!(
+                    (bounds.per_validation_upper, bounds.invocations_upper),
+                    (168, 336)
+                );
+                // Each program fits independently; only the whole sum fails.
+                for (cap, validations) in [(0x0C00_0000_0000_0000, 0), (7, 0x0200_0000_0000_0000)] {
+                    let population = CoupledPopulation {
+                        factories: 0,
+                        validations,
+                    };
+                    input(&fixture, cap, population).unwrap();
+                    assert_eq!(
+                        searches(&fixture, cap, population),
+                        Err(CoupledRefusal::Overflow)
+                    );
+                }
+            }
+
             #[test]
             fn search_refusals_and_overflow_survive_zero_workload() {
                 let fixture = protocol_fixture(false);
@@ -4769,6 +5020,7 @@ mod coupled_tests {
                 };
                 input(&aggregate, 7, many).unwrap();
                 assert_eq!(searches(&aggregate, 7, many), Err(CoupledRefusal::Overflow));
+                assert_cross_program_overflow();
             }
         }
 
