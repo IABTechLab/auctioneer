@@ -16,6 +16,13 @@
 //! other eleven units are not qualified here. Full byte extents and target
 //! frame values remain separate requirements; inline is not zero frame.
 //! `AllocationSuccess` excludes fatal OOM diagnostics, not returned/unwind cleanup.
+//!
+//! Actual use additionally requires the source owner to establish that the
+//! unqualified `assert!` in `SparseSet::insert` resolves to the pinned core
+//! builtin across crate roots, module ancestry and the selected prelude. The
+//! twelve supplied files cannot establish that binding; receiver/invariant
+//! strings and a matched local namespace do not discharge it. Intrinsic and
+//! builtin-derive identities likewise require the authentic parent handoff.
 
 use crate::schema_validation::operations::WorkLedger;
 use std::collections::{BTreeMap, BTreeSet};
@@ -181,6 +188,9 @@ enum Refusal {
     InvalidFacts(&'static str),
     Overflow,
 }
+
+mod events;
+mod source;
 
 #[cfg(test)]
 mod tests {
@@ -2038,6 +2048,122 @@ mod tests {
         assert_changed_index_receiver(&data, &expected, &premises);
         assert_changed_helper_bodies(&data, &expected, &premises);
         assert_changed_id_declarations(&data, &expected, &premises);
+        assert_changed_assert_resolution(&data, &expected, &premises);
+        assert_changed_const_qualifiers(&data, &expected, &premises);
+    }
+
+    fn assert_changed_assert_resolution(
+        data: &CapturedData,
+        expected: &CompilerData,
+        premises: &Premises,
+    ) {
+        assert_sparse_recipes(data);
+        for injected in [
+            syn::parse_quote!(
+                macro_rules! assert {
+                ($($argument:tt)*) => {{
+                    extra_work();
+                    core::assert!($($argument)*);
+                }};
+            }
+            ),
+            syn::parse_quote!(
+                use crate::workful_assert as assert;
+            ),
+            syn::parse_quote!(
+                use crate::workful_macros::*;
+            ),
+            syn::parse_quote!(
+                #[macro_use]
+                mod workful_macros;
+            ),
+        ] {
+            let mut namespace_capture = data.clone();
+            edit_source(&mut namespace_capture, SourceUnit::Sparse, |file| {
+                file.items.insert(0, injected);
+            });
+            // All four method bodies remain pristine, including the literal
+            // assert! call. The new scope must still invalidate the recipe.
+            assert_sparse_recipes(&namespace_capture);
+            assert_eq!(
+                source_contract(
+                    &namespace_capture,
+                    expected,
+                    Lemma::SparseSetInsert,
+                    sparse(),
+                    premises
+                ),
+                Err(Refusal::UnsupportedBody(SourceUnit::Sparse))
+            );
+        }
+    }
+
+    fn assert_changed_const_qualifiers(
+        data: &CapturedData,
+        expected: &CompilerData,
+        premises: &Premises,
+    ) {
+        use proc_macro2::TokenTree;
+
+        for (trait_name, replacement) in [
+            (
+                "Deref",
+                syn::parse_quote!(
+                    #[stable(feature = "rust1", since = "1.0.0")]
+                    #[rustc_const_unstable(feature = "const_convert", issue = "143773")]
+                    impl<T, A: Allocator> ops::Deref for Vec<T, A> {
+                        type Target = [T];
+                        #[inline]
+                        fn deref(&self) -> &[T] {
+                            self.as_slice()
+                        }
+                    }
+                ),
+            ),
+            (
+                "Index",
+                syn::Item::Verbatim(quote::quote!(
+                    #[stable(feature = "rust1", since = "1.0.0")]
+                    #[rustc_const_unstable(feature = "const_index", issue = "143775")]
+                    const impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
+                        type Output = I::Output;
+                        #[inline]
+                        fn index(&self, index: I) -> &Self::Output {
+                            Index::index(&**self, index)
+                        }
+                    }
+                )),
+            ),
+        ] {
+            let mut qualifier_capture = data.clone();
+            edit_source(&mut qualifier_capture, SourceUnit::Vec, |file| {
+                let mut matched = 0_usize;
+                for item in &mut file.items {
+                    let syn::Item::Verbatim(tokens) = item else {
+                        continue;
+                    };
+                    if tokens
+                        .clone()
+                        .into_iter()
+                        .any(|token| matches!(token, TokenTree::Ident(name) if name == trait_name))
+                    {
+                        *item = replacement.clone();
+                        matched = matched.checked_add(1).unwrap();
+                    }
+                }
+                assert_eq!(matched, 1, "one actual const trait impl before mutation");
+            });
+            assert_eq!(
+                source_contract(
+                    &qualifier_capture,
+                    expected,
+                    Lemma::SparseSetInsert,
+                    sparse(),
+                    premises
+                ),
+                Err(Refusal::UnsupportedBody(SourceUnit::Vec))
+            );
+        }
     }
 
     #[test]
@@ -2425,24 +2551,17 @@ mod tests {
     }
 }
 
-// Refusal-only until this revised roster reaches hosted assertion RED. Neither
-// source matching nor the supplied-facts/count evaluator is implemented here.
-// The reviewed acyclic source recipes give these source/control/scalar ceilings:
-// NFA: (111*(F+D)+14*F, 10*F, 9*F).
-// Sparse: (114*m+220*s+101*r, 3*m+s, m+r+2*s).
-// Coefficients are source-site/callee derivations, not file AST size or CPU
-// weights. The equality contribution is the pinned manual case above. Every
-// ordinary callee must match its supported source/receiver recipe or refuse;
-// a successful contract has no unresolved ordinary source-event helper cost.
-// All arithmetic is checked; remaining byte/frame duties do not become zero.
-// Actual-source use additionally requires captured-seed compiler identity and
-// rust-src rechecks bracketing interpretation, not just equal setup snapshots.
+// Conditional supplied-data interpretation only. Neither this entry nor its
+// private children mint a selected-source or completeness capability. Actual
+// use still needs captured-seed compiler identity and bounded rust-src reads
+// bracketing interpretation through the existing source owner.
 fn source_contract(
-    _data: &CapturedData,
-    _expected_compiler: &CompilerData,
-    _lemma: Lemma,
-    _calls: Calls,
-    _premises: &Premises,
+    data: &CapturedData,
+    expected_compiler: &CompilerData,
+    lemma: Lemma,
+    calls: Calls,
+    premises: &Premises,
 ) -> Result<LocalContract, Refusal> {
-    Err(Refusal::MissingSourceProof)
+    source::check(data, expected_compiler)?;
+    events::contract(data, lemma, calls, premises)
 }
