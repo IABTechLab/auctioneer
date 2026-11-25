@@ -360,3 +360,31 @@ error: warnings are denied by `build.warnings` configuration
 ```
 
 The outer module already provides the required trait scope; the child module's duplicate import is unused. The repair removes only that child import, retaining the outer import, every case, oracle, source recipe and the existing warning policy. These failed compilations produced no executed source-conformance result and establish no intended primitive/cache/entropy assertion RED. The checkpoint's new controls, lint repairs and unchanged full matrix still require hosted execution at the fixing head. This author-owned setup failure is not waived or relabelled as missing target evidence.
+
+### Primitive/Cache/Entropy Execution And Separate Fixture Failures
+
+At `50eca83fcb29d9899ece1e4f0a7b854eae200f1d`, the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45513485379/job/138867011966) compiled and executed the source target. The secure script `bash .github/workflows/scripts/test/verify-schema-compiler-conformance.sh schema` and development script `bash .github/workflows/scripts/test/verify-schema-metadata-development.sh` both returned 101. Actual secure source, development residency and development validation results:
+
+```text
+test result: FAILED. 912 passed; 17 failed; 0 ignored; 0 measured; 6 filtered out; finished in 731.73s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 808 filtered out; finished in 55.89s
+test result: FAILED. 72 passed; 17 failed; 0 ignored; 0 measured; 846 filtered out; finished in 45.04s
+```
+
+The graph contains 935 cases; secure executed 929 with the same six separately owned exclusions, and development validation executed all 89 required cases. Both lanes reached fourteen intended assertion failures: nine primitive cases returned `MissingSourceProof`, four cache-source cases rejected their positive schedules through the `NotDerived` stub, and the entropy case returned `ServiceLifetime(HostEntropy)` instead of accepting the combined process/thread contract. This establishes their missing-behavior RED, not completed source proofs or sensitivity of later negative assertions.
+
+The other three failures are author-owned fixture failures, not valid missing-behavior RED: `nfa_access_matches_pristine_recipes_and_literal_counts`, `sparse_insert_matches_pristine_recipes_and_branch_counts`, and `known_helper_semantic_changes_are_refused` fail in `assert_index_edges` at `primitives.rs:908`, with zero matching index-template items versus the required one, before reaching the evaluator. The exact independent macro-template oracle must be repaired and rerun; its count assertion, source census and supported semantics must not be weakened. Compiler controls and later strict-lint/core/staged acceptance were skipped after source failure, not passed. The prior warning repair compiled successfully, but the earlier 320 strict-lint repairs still lack a reached current-head lint result.
+
+Separately, the existing isolation target failed in all three full native lanes because the synthetic string `supplied-epsilon-owner` contains a real catalog identity. The guard reported only `tests/schema_validation/work/epsilon/primitives.rs` with identity `epsilon`. Actual secure, default-workspace and insecure-workspace result lines, respectively:
+
+```text
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.74s
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.47s
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.10s
+```
+
+The [secure](https://github.com/IABTechLab/auctioneer/actions/runs/45513485379/job/138867012149), [default](https://github.com/IABTechLab/auctioneer/actions/runs/45513485379/job/138867011907) and [insecure](https://github.com/IABTechLab/auctioneer/actions/runs/45513485379/job/138867012116) jobs returned 101; the two workspace commands retain `--no-fail-fast`. The repair changes only that synthetic label to `fake_closure_owner`, preserving all paired owner/epoch comparisons and the unchanged isolation guard. Source/protocol names remain genuine. Its hosted GREEN is pending; no test, warning or ownership policy is waived.
+
+The next narrow checkpoint also repairs the index-template oracle and implements the demonstrated entropy requirement. Source inspection of locked proc-macro2 1.0.107 and quote 1.0.47 establishes that the source lexer preserves the `<` before `$name` as joint punctuation, while a literal `<` emitted by `quote!` is alone. All four independent expected items now interpolate that single explicit joint punctuator. Actual tokens are not normalized; exact whole-item equality and count one remain mandatory, and mismatch diagnostics add the expected and actual items. The primitive evaluator remains a refusal stub until those three repaired cases execute genuine missing-behavior RED.
+
+For entropy, the lowerer now requires `ThreadAndProcess` and the separate `ProcessRetainedState` fact in addition to every prior host fact. The exact service entry, clock caller scope and cache-construction transient overlap remain unchanged. Static specification and quality reviews cleared both narrow deltas; only pinned rustfmt ran as an editing step. Their compilation, hosted GREEN/RED and strict-lint acceptance remain pending. Cache-source derivation is a separate in-progress implementation after its four executed REDs, not part of this narrow publication.

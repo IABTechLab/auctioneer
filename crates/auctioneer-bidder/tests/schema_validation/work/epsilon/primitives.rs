@@ -391,7 +391,7 @@ mod tests {
             .chain(helpers(Lemma::SparseSetInsert))
             .map(|binding| (binding.key.clone(), binding))
             .collect::<BTreeMap<_, _>>();
-        let owner = "supplied-epsilon-owner".to_owned();
+        let owner = "fake_closure_owner".to_owned();
         let epoch = 7;
         let premises = Premises {
             states: 4,
@@ -888,20 +888,26 @@ mod tests {
     }
 
     fn assert_index_edges(data: &CapturedData) {
+        use proc_macro2::{Punct, Spacing};
+
         let items = index_template(data);
+        // The source lexer joins '<' to the following '$' in <$name>;
+        // quote! emits a literal '<' alone. Pin that one boundary explicitly
+        // instead of normalizing punctuation or weakening whole-item equality.
+        let parameter_open = Punct::new('<', Spacing::Joint);
         for expected in [
-            quote::quote! { impl<T> core::ops::Index<$name> for [T] {
+            quote::quote! { impl<T> core::ops::Index #parameter_open $name> for [T] {
                 type Output = T;
                 #[inline] fn index(&self, index: $name) -> &T { &self[index.as_usize()] }
             } },
-            quote::quote! { impl<T> core::ops::IndexMut<$name> for [T] {
+            quote::quote! { impl<T> core::ops::IndexMut #parameter_open $name> for [T] {
                 #[inline] fn index_mut(&mut self, index: $name) -> &mut T { &mut self[index.as_usize()] }
             } },
-            quote::quote! { #[cfg(feature = "alloc")] impl<T> core::ops::Index<$name> for Vec<T> {
+            quote::quote! { #[cfg(feature = "alloc")] impl<T> core::ops::Index #parameter_open $name> for Vec<T> {
                 type Output = T;
                 #[inline] fn index(&self, index: $name) -> &T { &self[index.as_usize()] }
             } },
-            quote::quote! { #[cfg(feature = "alloc")] impl<T> core::ops::IndexMut<$name> for Vec<T> {
+            quote::quote! { #[cfg(feature = "alloc")] impl<T> core::ops::IndexMut #parameter_open $name> for Vec<T> {
                 #[inline] fn index_mut(&mut self, index: $name) -> &mut T { &mut self[index.as_usize()] }
             } },
         ] {
@@ -910,7 +916,10 @@ mod tests {
                     .iter()
                     .filter(|item| item.to_string() == expected.to_string())
                     .count(),
-                1
+                1,
+                "expected literal index item: {}; actual top-level macro items: {:?}",
+                expected,
+                items.iter().map(ToString::to_string).collect::<Vec<_>>()
             );
         }
     }

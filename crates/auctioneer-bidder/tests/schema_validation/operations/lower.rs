@@ -1403,7 +1403,7 @@ impl Lower<'_, '_> {
             ExternalService::HostEntropy => (
                 ENTROPY_ENTRY,
                 "std::hash::RandomState",
-                RetainedScope::Thread,
+                RetainedScope::ThreadAndProcess,
                 TemporaryScope::CacheConstruction,
             ),
         };
@@ -1421,7 +1421,9 @@ impl Lower<'_, '_> {
         ]
         .into_iter()
         .chain((service == ExternalService::HostEntropy).then_some(ServiceFact::ThreadMultiplicity))
-        {
+        .chain(
+            (service == ExternalService::HostEntropy).then_some(ServiceFact::ProcessRetainedState),
+        ) {
             if !binding.required_facts.contains(&fact) {
                 return Err(Refusal::MissingServiceFact(service, fact));
             }
