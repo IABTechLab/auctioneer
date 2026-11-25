@@ -388,3 +388,30 @@ The [secure](https://github.com/IABTechLab/auctioneer/actions/runs/45513485379/j
 The next narrow checkpoint also repairs the index-template oracle and implements the demonstrated entropy requirement. Source inspection of locked proc-macro2 1.0.107 and quote 1.0.47 establishes that the source lexer preserves the `<` before `$name` as joint punctuation, while a literal `<` emitted by `quote!` is alone. All four independent expected items now interpolate that single explicit joint punctuator. Actual tokens are not normalized; exact whole-item equality and count one remain mandatory, and mismatch diagnostics add the expected and actual items. The primitive evaluator remains a refusal stub until those three repaired cases execute genuine missing-behavior RED.
 
 For entropy, the lowerer now requires `ThreadAndProcess` and the separate `ProcessRetainedState` fact in addition to every prior host fact. The exact service entry, clock caller scope and cache-construction transient overlap remain unchanged. Static specification and quality reviews cleared both narrow deltas; only pinned rustfmt ran as an editing step. Their compilation, hosted GREEN/RED and strict-lint acceptance remain pending. Cache-source derivation is a separate in-progress implementation after its four executed REDs, not part of this narrow publication.
+
+### Entropy/Fixture GREEN And All Primitive Contracts Reach RED
+
+At `49882230f9804b073091e7f65cf1bc7e1c6532d0`, the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45517049524/job/138879199064) completed both source invocations without an index-oracle failure. Every one of the twelve primitive cases now reaches `assert_local` and returns `Err(MissingSourceProof)` instead of its finite independent contract. All four cache-source cases retain their intended `NotDerived` failures. The entropy case reports `ok` in both lanes, including its independent missing-process and thread-only refusals. Actual secure source, development residency and development validation lines:
+
+```text
+test result: FAILED. 913 passed; 16 failed; 0 ignored; 0 measured; 6 filtered out; finished in 681.40s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 808 filtered out; finished in 53.47s
+test result: FAILED. 73 passed; 16 failed; 0 ignored; 0 measured; 846 filtered out; finished in 44.25s
+```
+
+Both source scripts return 101. This establishes the repaired oracle's before-state checks and valid twelve-case missing-behavior RED, not primitive implementation or complete work bounds. The source-first secure failure skips compiler controls and later strict lint; development also stops before its strict-lint command. No new reached strict-lint success is claimed.
+
+The unchanged isolation guard passes after the synthetic-label correction. The complete [secure lane](https://github.com/IABTechLab/auctioneer/actions/runs/45517049524/job/138879199322) and [insecure workspace lane](https://github.com/IABTechLab/auctioneer/actions/runs/45517049524/job/138879198966) both returned zero; their actual isolation-target result lines are:
+
+```text
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.16s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.93s
+```
+
+At recording, the default-workspace and evidence-producer jobs were still running; those pending statuses are not passes. Every required final-head check remains mandatory. Cache-source implementation and new primitive implementations still require independent static review and their own hosted GREEN; actual common closure, canonical reporting and hard-cut retirement remain incomplete.
+
+### Cache-Source Derivation Awaiting Hosted GREEN
+
+After the four executed cache-source REDs, the next bounded implementation replaces `derive_owner`'s refusal stub. It consumes the existing typed operation recipe: exact factory/wrapper/validation linkage, complete unique initializer program identities in lexical order, preceding constructed-sibling prefixes, and validation-reachable hostname/UUID callbacks. Unknown cache-bearing callbacks, extra constructors, cache escape, state-changing reset, cloning and rebinding refuse. The selected source-empty reset is accepted only with its exact receiver identity and empty body, not by a name exemption or zero-cost assumption.
+
+The actual-source entry still performs fresh classification inside the sealed checked-bodies handoff; supplied or forged recipe data cannot become an actual-source receipt. All four unit cases, independent oracles, names and refusal variants remain unchanged. Separate static specification and quality reviews cleared this bounded implementation; source-file SHA-256 was `4f0881669f19a0bd7c230bc1c13af9001cde32cb692774ae64bc87d1dc60e8ec`. Pinned formatting was editing only. Compilation, the four-case GREEN, strict lint and full hosted acceptance remain pending. Ordered prefixes retain partial-failure cleanup obligations; they do not price or prove destructor work, release, complete heap bounds or target frames. Primitive implementation, logical stack/source closure and final integration continue separately.

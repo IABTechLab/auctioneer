@@ -8,10 +8,14 @@ use crate::schema_validation::{
     handoff::{self, CheckedBodies},
     operations::{
         self, BodyOperations, Primitive,
-        model::{Recipe, Site},
+        model::{
+            self, Action, Atom, Binding, Exit, Function, Kind, Op, Origin, Pattern, Recipe, Site,
+            Ty,
+        },
     },
 };
 use serde_json::Value;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct FieldInitializer {
@@ -117,10 +121,649 @@ fn native_roots(graph: &Value, owner: &str, marker: &str) -> NativeRoots {
     }
 }
 
-// Hosted RED must precede deriving these source facts. This stub does not
-// discharge ordinary release, partial-construction cleanup work or helper costs.
-fn derive_owner(_recipe: &Recipe, _roots: &NativeRoots) -> Result<OwnerSchedule, Refusal> {
-    Err(Refusal::NotDerived)
+fn root_id(recipe: &Recipe, identity: Option<&str>) -> Result<usize, Refusal> {
+    let name = identity.ok_or(Refusal::MissingRoot)?;
+    let mut matching = recipe
+        .functions
+        .iter()
+        .filter(|(_, function)| function.identity == name);
+    let (id, _) = matching.next().ok_or(Refusal::MissingRoot)?;
+    if matching.next().is_some() || recipe.roots.iter().filter(|root| *root == id).count() != 1 {
+        return Err(Refusal::MissingRoot);
+    }
+    Ok(*id)
+}
+
+// Keep the shared traversal, adapting only its cache-specific diagnostic channel.
+fn inspect(op: &Op, mut visit: impl FnMut(&Op) -> Result<(), Refusal>) -> Result<(), Refusal> {
+    let mut result = Ok(());
+    model::walk(op, &mut |node| {
+        if result.is_ok() {
+            result = visit(node);
+        }
+        Ok(())
+    })
+    .map_err(Refusal::Operations)?;
+    result
+}
+
+fn cache_type(ty: &Ty) -> bool {
+    match ty {
+        Ty::Cache(_) => true,
+        Ty::Option(inner) | Ty::Iterator(inner) => cache_type(inner),
+        Ty::Tuple(fields) => fields.iter().any(cache_type),
+        Ty::Value
+        | Ty::String
+        | Ty::Number
+        | Ty::Bool
+        | Ty::Scalar
+        | Ty::Map
+        | Ty::Array
+        | Ty::Regex
+        | Ty::Input
+        | Ty::LazyRegex(_)
+        | Ty::Callback(_)
+        | Ty::Named(_)
+        | Ty::Unit => false,
+    }
+}
+
+fn parameter_origin(origin: &Origin) -> Option<(usize, usize)> {
+    match origin {
+        Origin::Parameter { function, ordinal } => Some((*function, *ordinal)),
+        Origin::Projection { base, .. } => parameter_origin(base),
+        Origin::Static(_) | Origin::Temporary(_) => None,
+    }
+}
+
+fn cache_parameter(binding: &Binding, id: usize, function: &Function) -> bool {
+    parameter_origin(&binding.origin).is_some_and(|(owner, ordinal)| {
+        owner == id
+            && function
+                .parameters
+                .get(ordinal)
+                .is_some_and(|parameter| cache_type(&parameter.ty))
+    })
+}
+
+fn single_expression(mut op: &Op) -> Result<&Op, Refusal> {
+    while let Kind::Scope {
+        label,
+        steps,
+        locals,
+    } = &op.kind
+    {
+        let [expression] = steps.as_slice() else {
+            return Err(Refusal::NotDerived);
+        };
+        if label.is_some() || !locals.is_empty() {
+            return Err(Refusal::NotDerived);
+        }
+        op = expression;
+    }
+    Ok(op)
+}
+
+fn constructed_fields(op: &Op) -> Result<&[(String, Op)], Refusal> {
+    let Kind::Construct {
+        fields,
+        cleanup: Some(Primitive::Cleanup),
+    } = &op.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    Ok(fields)
+}
+
+fn factory_link<'a>(
+    recipe: &'a Recipe,
+    id: usize,
+    wrapper: &str,
+) -> Result<(usize, &'a str), Refusal> {
+    let factory = recipe.functions.get(&id).ok_or(Refusal::MissingRoot)?;
+    if !factory.parameters.is_empty()
+        || factory.result != Ty::Option(Box::new(Ty::Cache(wrapper.to_owned())))
+    {
+        return Err(Refusal::Constructor);
+    }
+    let mapped = single_expression(&factory.body)?;
+    let Kind::Callback {
+        protocol: Primitive::ValueAccess,
+        callee,
+        receiver,
+        parameters,
+        body,
+        evaluation,
+    } = &mapped.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    let [parameter] = parameters.as_slice() else {
+        return Err(Refusal::Constructor);
+    };
+    let Ty::Cache(inner) = &parameter.ty else {
+        return Err(Refusal::Constructor);
+    };
+    let Kind::Call {
+        target,
+        arguments,
+        evaluation: inputs,
+    } = &evaluation.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    let target_function = recipe.functions.get(target).ok_or(Refusal::Constructor)?;
+    let (module, name) = target_function
+        .identity
+        .rsplit_once("::")
+        .ok_or(Refusal::Constructor)?;
+    if callee != "Option::map"
+        || *receiver != evaluation.value
+        || parameter.borrowed
+        || !arguments.is_empty()
+        || !inputs.is_empty()
+        || !target_function.parameters.is_empty()
+        || name != "new_search_cache"
+        || *inner != format!("{module}::__SearchCache")
+        || target_function.result != Ty::Option(Box::new(parameter.ty.clone()))
+        || receiver.ty != target_function.result
+        || mapped.value.ty != factory.result
+        || parameter.origin
+            != (Origin::Projection {
+                base: Box::new(receiver.origin.clone()),
+                member: "Some".to_owned(),
+            })
+    {
+        return Err(Refusal::Constructor);
+    }
+    let transfer = single_expression(body)?;
+    let [(field, value)] = constructed_fields(transfer)? else {
+        return Err(Refusal::Constructor);
+    };
+    if transfer.value.ty != Ty::Cache(wrapper.to_owned())
+        || field != "__inner"
+        || value.value != *parameter
+        || !matches!(&value.kind, Kind::Value(Atom::Place))
+    {
+        return Err(Refusal::Constructor);
+    }
+    Ok((*target, inner))
+}
+
+fn readiness_guard(
+    recipe: &Recipe,
+    factory: &Function,
+    guard: &Op,
+    identity: &str,
+) -> Result<(), Refusal> {
+    let Kind::Choice { selector, arms } = &guard.kind else {
+        return Err(Refusal::Constructor);
+    };
+    let [yes, no] = arms.as_slice() else {
+        return Err(Refusal::Constructor);
+    };
+    let Kind::Evaluate(Action::Not, operands) = &selector.kind else {
+        return Err(Refusal::Constructor);
+    };
+    let [ready] = operands.as_slice() else {
+        return Err(Refusal::Constructor);
+    };
+    let Kind::Call {
+        target,
+        arguments,
+        evaluation,
+    } = &ready.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    let initializer = recipe.functions.get(target).ok_or(Refusal::Constructor)?;
+    let failure = single_expression(&yes.body)?;
+    let Kind::Exit(Exit::Return(exit), Some(value)) = &failure.kind else {
+        return Err(Refusal::Constructor);
+    };
+    if initializer.identity != identity
+        || initializer.result != Ty::Bool
+        || !initializer.parameters.is_empty()
+        || !arguments.is_empty()
+        || !evaluation.is_empty()
+        || yes.pattern != Pattern::Literal("true".to_owned())
+        || no.pattern != Pattern::Literal("false".to_owned())
+        || yes.guard.is_some()
+        || no.guard.is_some()
+        || *exit != factory.body.site
+        || !matches!(&value.kind, Kind::Value(Atom::None))
+        || !matches!(&no.body.kind, Kind::Value(Atom::Unit))
+    {
+        return Err(Refusal::Constructor);
+    }
+    Ok(())
+}
+
+fn initializer_program<'a>(value: &'a Op, exit: &Site) -> Result<&'a str, Refusal> {
+    let Origin::Static(program) = &value.value.origin else {
+        return Err(Refusal::Constructor);
+    };
+    let Kind::Primitive {
+        lemma: Primitive::CacheConstruction,
+        callee,
+        receiver: Some(regex),
+        arguments,
+        source_calls,
+    } = &value.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    let [ready] = arguments.as_slice() else {
+        return Err(Refusal::Constructor);
+    };
+    let Kind::Exit(Exit::TryNone(target), Some(optional)) = &ready.kind else {
+        return Err(Refusal::Constructor);
+    };
+    let Kind::Primitive {
+        lemma: Primitive::Readiness,
+        callee: accessor,
+        receiver: Some(lazy),
+        arguments: inputs,
+        source_calls: indirect,
+    } = &optional.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    let [source] = inputs.as_slice() else {
+        return Err(Refusal::Constructor);
+    };
+    if value.value.ty != Ty::Cache("regex_automata::meta::Cache".to_owned())
+        || value.value.borrowed
+        || callee != "Regex::create_cache"
+        || !source_calls.is_empty()
+        || regex.ty != Ty::Regex
+        || !regex.borrowed
+        || *regex != ready.value
+        || regex.origin != value.value.origin
+        || *target != *exit
+        || optional.value.ty != Ty::Option(Box::new(Ty::Regex))
+        || optional.value.origin != value.value.origin
+        || !optional.value.borrowed
+        || lazy.ty != Ty::LazyRegex(program.clone())
+        || lazy.origin != value.value.origin
+        || !lazy.borrowed
+        || accessor.as_str() != format!("{:?}::as_ref", lazy.ty)
+        || !indirect.is_empty()
+        || source.value != *lazy
+        || !matches!(&source.kind, Kind::Value(Atom::Place))
+    {
+        return Err(Refusal::Constructor);
+    }
+    Ok(program)
+}
+
+fn field_schedule(
+    recipe: &Recipe,
+    id: usize,
+    inner: &str,
+) -> Result<Vec<FieldInitializer>, Refusal> {
+    let factory = recipe.functions.get(&id).ok_or(Refusal::Constructor)?;
+    let (module, _) = factory
+        .identity
+        .rsplit_once("::")
+        .ok_or(Refusal::Constructor)?;
+    let initializer = format!("{module}::initialize_regexes");
+    let programs = recipe
+        .initialization
+        .get(&initializer)
+        .ok_or(Refusal::Constructor)?;
+    if recipe.initialization.len() != 1 {
+        return Err(Refusal::Constructor);
+    }
+    let expected: BTreeSet<_> = programs.iter().map(String::as_str).collect();
+    if expected.len() != programs.len() {
+        return Err(Refusal::Constructor);
+    }
+    let Kind::Scope {
+        label: None,
+        steps,
+        locals,
+    } = &factory.body.kind
+    else {
+        return Err(Refusal::Constructor);
+    };
+    let [guard, success] = steps.as_slice() else {
+        return Err(Refusal::Constructor);
+    };
+    if !locals.is_empty() {
+        return Err(Refusal::Constructor);
+    }
+    readiness_guard(recipe, factory, guard, &initializer)?;
+    let [(tag, cache)] = constructed_fields(success)? else {
+        return Err(Refusal::Constructor);
+    };
+    if tag != "Some"
+        || success.value.ty != factory.result
+        || cache.value.ty != Ty::Cache(inner.to_owned())
+    {
+        return Err(Refusal::Constructor);
+    }
+    let fields = constructed_fields(cache)?;
+    let mut seen_fields = BTreeSet::new();
+    let mut seen_programs = BTreeSet::new();
+    let mut completed = Vec::new();
+    let mut initializers = Vec::new();
+    for (ordinal, (field, value)) in fields.iter().enumerate() {
+        let program = initializer_program(value, &factory.body.site)?;
+        if !seen_fields.insert(field)
+            || !seen_programs.insert(program)
+            || !expected.contains(program)
+        {
+            return Err(Refusal::Constructor);
+        }
+        let mut lexical = cache.site.lexical.clone();
+        lexical.push(ordinal);
+        if value.site.function != id || value.site.lexical != lexical {
+            return Err(Refusal::InitializerOrder);
+        }
+        initializers.push(FieldInitializer {
+            field: field.clone(),
+            program: program.to_owned(),
+            site: value.site.clone(),
+            completed_siblings: completed.clone(),
+        });
+        completed.push(field.clone());
+    }
+    if seen_programs != expected {
+        return Err(Refusal::Constructor);
+    }
+    Ok(initializers)
+}
+
+fn validation_entry(
+    recipe: &Recipe,
+    id: usize,
+    wrapper: &str,
+    factory: usize,
+    inner: &str,
+) -> Result<(), Refusal> {
+    let function = recipe.functions.get(&id).ok_or(Refusal::MissingRoot)?;
+    let [instance, cache] = function.parameters.as_slice() else {
+        return Err(Refusal::CallbackOverlap);
+    };
+    if function.result != Ty::Bool
+        || instance.ty != Ty::Value
+        || !instance.borrowed
+        || cache.ty != Ty::Cache(wrapper.to_owned())
+        || !cache.borrowed
+    {
+        return Err(Refusal::CallbackOverlap);
+    }
+    let entry = single_expression(&function.body)?;
+    let Kind::Call {
+        target,
+        arguments,
+        evaluation,
+    } = &entry.kind
+    else {
+        return Err(Refusal::CallbackOverlap);
+    };
+    let [input, context] = arguments.as_slice() else {
+        return Err(Refusal::CallbackOverlap);
+    };
+    let target_function = recipe
+        .functions
+        .get(target)
+        .ok_or(Refusal::CallbackOverlap)?;
+    let factory_function = recipe.functions.get(&factory).ok_or(Refusal::Constructor)?;
+    let (module, _) = factory_function
+        .identity
+        .rsplit_once("::")
+        .ok_or(Refusal::Constructor)?;
+    if target_function.identity != format!("{module}::entry_is_valid")
+        || target_function.result != Ty::Bool
+        || input != instance
+        || !context.borrowed
+        || context.ty != Ty::Cache(inner.to_owned())
+        || context.origin
+            != (Origin::Projection {
+                base: Box::new(cache.origin.clone()),
+                member: "__inner".to_owned(),
+            })
+        || evaluation.len() != arguments.len()
+        || evaluation
+            .iter()
+            .zip(arguments)
+            .any(|(expression, binding)| expression.value != *binding)
+    {
+        return Err(Refusal::CallbackOverlap);
+    }
+    Ok(())
+}
+
+fn empty_reset(function: &Function) -> bool {
+    let [receiver] = function.parameters.as_slice() else {
+        return false;
+    };
+    let Ty::Cache(owner) = &receiver.ty else {
+        return false;
+    };
+    matches!(&function.body.kind, Kind::Scope { label: None, steps, locals } if steps.is_empty() && locals.is_empty())
+        && function.identity == format!("{owner}::reset")
+        && function.result == Ty::Unit
+        && receiver.borrowed
+}
+
+fn cache_call(
+    recipe: &Recipe,
+    id: usize,
+    function: &Function,
+    target: usize,
+    arguments: &[Binding],
+) -> Result<(), Refusal> {
+    let called = recipe.functions.get(&target).ok_or(Refusal::NotDerived)?;
+    if arguments.len() != called.parameters.len() {
+        return Err(Refusal::CacheEscape);
+    }
+    if cache_type(&called.result) {
+        return Err(Refusal::CacheRebind);
+    }
+    let has_cache_argument = arguments.iter().any(|binding| cache_type(&binding.ty));
+    let method = called.identity.rsplit("::").next();
+    if has_cache_argument && method == Some("clone") {
+        return Err(Refusal::CacheClone);
+    }
+    // The selected emitter calls a source-empty reset. Accept its matched body,
+    // not a reset name, and do not claim its entry/frame/work costs are zero.
+    if has_cache_argument && matches!(method, Some("reset" | "clear")) && !empty_reset(called) {
+        return Err(Refusal::CacheReset);
+    }
+    for (actual, parameter) in arguments.iter().zip(&called.parameters) {
+        if (cache_type(&actual.ty) || cache_type(&parameter.ty))
+            && (actual.ty != parameter.ty
+                || !actual.borrowed
+                || !parameter.borrowed
+                || !cache_parameter(actual, id, function))
+        {
+            return Err(Refusal::CacheEscape);
+        }
+    }
+    Ok(())
+}
+
+fn cache_effect(recipe: &Recipe, id: usize, function: &Function, op: &Op) -> Result<(), Refusal> {
+    if let Kind::Exit(_, Some(value)) = &op.kind
+        && cache_type(&value.value.ty)
+        && !matches!(&value.kind, Kind::Value(Atom::None))
+    {
+        return Err(Refusal::CacheEscape);
+    }
+    if let Kind::Evaluate(Action::Assign(target) | Action::AndAssign(target), _) = &op.kind
+        && (cache_type(&target.ty) || cache_parameter(target, id, function))
+    {
+        return Err(Refusal::CacheRebind);
+    }
+    if let Kind::Bind { bindings, .. } = &op.kind
+        && bindings.iter().any(|binding| cache_type(&binding.ty))
+    {
+        return Err(Refusal::CacheRebind);
+    }
+    if let Kind::Scope { locals, .. } = &op.kind
+        && locals
+            .iter()
+            .any(|binding| cache_type(&binding.ty) && !binding.borrowed)
+    {
+        return Err(Refusal::CacheRebind);
+    }
+    if let Kind::Construct { fields, .. } = &op.kind
+        && fields.iter().any(|(_, value)| cache_type(&value.value.ty))
+    {
+        return Err(Refusal::CacheEscape);
+    }
+    if let Kind::Iterate {
+        receiver,
+        parameters,
+        ..
+    }
+    | Kind::Callback {
+        receiver,
+        parameters,
+        ..
+    } = &op.kind
+        && (cache_type(&receiver.ty)
+            || parameters.iter().any(|parameter| cache_type(&parameter.ty)))
+    {
+        return Err(Refusal::NotDerived);
+    }
+    primitive_cache_effect(id, function, op)?;
+    if let Kind::Call {
+        target, arguments, ..
+    } = &op.kind
+    {
+        cache_call(recipe, id, function, *target, arguments)?;
+    }
+    if cache_type(&op.value.ty)
+        && !matches!(&op.kind, Kind::Value(Atom::None))
+        && (!op.value.borrowed || !cache_parameter(&op.value, id, function))
+    {
+        return Err(Refusal::CacheEscape);
+    }
+    Ok(())
+}
+
+fn primitive_cache_effect(id: usize, function: &Function, op: &Op) -> Result<(), Refusal> {
+    let Kind::Primitive {
+        lemma,
+        callee,
+        receiver,
+        arguments,
+        ..
+    } = &op.kind
+    else {
+        return Ok(());
+    };
+    let cache_input = receiver
+        .as_ref()
+        .is_some_and(|binding| cache_type(&binding.ty))
+        || arguments
+            .iter()
+            .any(|argument| cache_type(&argument.value.ty));
+    if cache_input {
+        match callee.rsplit("::").next() {
+            Some("reset" | "clear") => return Err(Refusal::CacheReset),
+            Some("clone") => return Err(Refusal::CacheClone),
+            Some(_) | None => {}
+        }
+        if *lemma != Primitive::RegexSearch
+            || callee != "Regex::search_half_with"
+            || arguments.iter().any(|argument| {
+                cache_type(&argument.value.ty)
+                    && (!argument.value.borrowed || !cache_parameter(&argument.value, id, function))
+            })
+        {
+            return Err(Refusal::NotDerived);
+        }
+    }
+    if *lemma == Primitive::CacheConstruction {
+        return Err(Refusal::CacheRebind);
+    }
+    Ok(())
+}
+
+fn validation_functions(
+    recipe: &Recipe,
+    root: usize,
+    wrapper: &str,
+    factory: usize,
+    inner: &str,
+) -> Result<BTreeSet<usize>, Refusal> {
+    validation_entry(recipe, root, wrapper, factory, inner)?;
+    // A source-coverage set only: neither visits nor invocation counts are work
+    // bounds. The classifier already owns call typing and cycle refusal.
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id) {
+            continue;
+        }
+        let function = recipe.functions.get(&id).ok_or(Refusal::NotDerived)?;
+        for parameter in &function.parameters {
+            if cache_type(&parameter.ty)
+                && (!parameter.borrowed
+                    || !matches!(&parameter.ty, Ty::Cache(owner) if owner == wrapper || owner == inner))
+            {
+                return Err(Refusal::CacheEscape);
+            }
+        }
+        inspect(&function.body, |op| {
+            cache_effect(recipe, id, function, op)?;
+            if let Kind::Call { target, .. } = &op.kind {
+                pending.push(*target);
+            }
+            Ok(())
+        })?;
+    }
+    Ok(visited)
+}
+
+fn callback_schedule(
+    recipe: &Recipe,
+    validation: &BTreeSet<usize>,
+    wrapper: &str,
+) -> Result<Vec<CallbackOverlap>, Refusal> {
+    let mut callbacks = Vec::new();
+    for (id, function) in &recipe.functions {
+        inspect(&function.body, |op| {
+            if let Kind::Primitive { lemma, .. } = &op.kind
+                && matches!(lemma, Primitive::HostnameFormat | Primitive::UuidFormat)
+            {
+                if !validation.contains(id) || op.site.function != *id {
+                    return Err(Refusal::CallbackOverlap);
+                }
+                callbacks.push(CallbackOverlap {
+                    site: op.site.clone(),
+                    helper: *lemma,
+                    wrapper: wrapper.to_owned(),
+                });
+            }
+            Ok(())
+        })?;
+    }
+    Ok(callbacks)
+}
+
+// Source schedules retain cleanup obligations; none of these matches prices or
+// discharges normal release, partial-prefix cleanup, library work or target frames.
+fn derive_owner(recipe: &Recipe, roots: &NativeRoots) -> Result<OwnerSchedule, Refusal> {
+    let factory_root = root_id(recipe, roots.factory.as_deref())?;
+    let validation_root = root_id(recipe, roots.validation.as_deref())?;
+    let wrapper = roots.wrapper.as_deref().ok_or(Refusal::CallbackOverlap)?;
+    let (factory, inner) = factory_link(recipe, factory_root, wrapper)?;
+    let initializers = field_schedule(recipe, factory, inner)?;
+    let validation = validation_functions(recipe, validation_root, wrapper, factory, inner)?;
+    let callbacks = callback_schedule(recipe, &validation, wrapper)?;
+    Ok(OwnerSchedule {
+        wrapper: wrapper.to_owned(),
+        factory_root,
+        validation_root,
+        initializers,
+        callbacks,
+    })
 }
 
 pub(super) fn check_sources<'a>(
