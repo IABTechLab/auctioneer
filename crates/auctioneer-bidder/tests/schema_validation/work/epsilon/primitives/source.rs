@@ -5,6 +5,7 @@
 //! test oracles.
 
 use super::{CapturedData, CompilerData, EQUALITY_COMPILER_COMMIT, Refusal, SourceUnit};
+use crate::schema_validation::handoff::SourceInputs;
 use crate::schema_validation::operations::source_syntax::ConstTraitImpl;
 use proc_macro2::{Delimiter, Group, Ident, Punct, Spacing, TokenStream, TokenTree};
 use quote::{ToTokens, quote};
@@ -52,19 +53,19 @@ const PATHS: [(SourceUnit, &str, bool); 12] = [
     (SourceUnit::Macros, "core/src/macros/mod.rs", true),
 ];
 
-fn capture(data: &CapturedData, expected: &CompilerData) -> Result<Sources, Refusal> {
-    let commits: Vec<&str> = expected
-        .verbose
+fn supported_compiler(executable: &Path, verbose: &str) -> bool {
+    let commits: Vec<&str> = verbose
         .lines()
         .filter_map(|line| line.strip_prefix("commit-hash: "))
         .collect();
+    commits == [EQUALITY_COMPILER_COMMIT]
+        && executable.file_name().is_some_and(|name| name == "rustc")
+        && executable.is_absolute()
+}
+
+fn capture(data: &CapturedData, expected: &CompilerData) -> Result<Sources, Refusal> {
     if data.compiler != *expected
-        || commits != [EQUALITY_COMPILER_COMMIT]
-        || expected
-            .executable
-            .file_name()
-            .is_none_or(|name| name != "rustc")
-        || !expected.executable.is_absolute()
+        || !supported_compiler(&expected.executable, &expected.verbose)
         || !data.workspace.is_absolute()
     {
         return Err(Refusal::CompilerMismatch);
@@ -95,12 +96,36 @@ fn capture(data: &CapturedData, expected: &CompilerData) -> Result<Sources, Refu
         {
             return Err(Refusal::SourceChanged(unit));
         }
-        let source = from_utf8(&record.before).map_err(|_error| Refusal::UnsupportedBody(unit))?;
-        let file = syn::parse_file(source).map_err(|_error| Refusal::UnsupportedBody(unit))?;
-        root_attributes(&file, unit)?;
-        files.insert(unit, file);
+        files.insert(unit, parse_source(unit, &record.before)?);
     }
     Ok(Sources(files))
+}
+
+fn parse_source(unit: SourceUnit, bytes: &[u8]) -> Result<syn::File, Refusal> {
+    let source = from_utf8(bytes).map_err(|_error| Refusal::UnsupportedBody(unit))?;
+    let file = syn::parse_file(source).map_err(|_error| Refusal::UnsupportedBody(unit))?;
+    root_attributes(&file, unit)?;
+    Ok(file)
+}
+
+// Borrow the bytes already consumed by the real fixed-roster window. This
+// performs no source I/O and does not use CapturedData's unrelated cost facts.
+pub(super) fn check_consumed_setup(inputs: &SourceInputs<'_>) -> Result<(), Refusal> {
+    let (executable, verbose) = inputs.compiler();
+    if !supported_compiler(executable, verbose) {
+        return Err(Refusal::CompilerMismatch);
+    }
+    if inputs.source_count() != PATHS.len() {
+        return Err(Refusal::InvalidFacts("source_roster"));
+    }
+    let mut files = BTreeMap::new();
+    for (unit, _, _) in PATHS {
+        let bytes = inputs
+            .source(&format!("{unit:?}"))
+            .ok_or(Refusal::MissingSource(unit))?;
+        files.insert(unit, parse_source(unit, bytes)?);
+    }
+    check_recipes(&Sources(files), |_name| {})
 }
 
 fn spelling(value: &impl ToTokens) -> String {
@@ -1470,28 +1495,32 @@ fn check_with_stages(
 ) -> Result<(), Refusal> {
     enter("capture");
     let sources = capture(data, expected)?;
+    check_recipes(&sources, enter)
+}
+
+fn check_recipes(sources: &Sources, mut enter: impl FnMut(&'static str)) -> Result<(), Refusal> {
     enter("vendor_declarations");
-    vendor_declarations(&sources)?;
+    vendor_declarations(sources)?;
     enter("imports");
-    imports(&sources)?;
+    imports(sources)?;
     enter("vendor_methods");
-    vendor_methods(&sources)?;
+    vendor_methods(sources)?;
     enter("id_limits");
-    id_limits(&sources)?;
+    id_limits(sources)?;
     enter("index_macro");
-    index_macro(&sources)?;
+    index_macro(sources)?;
     enter("standard_declarations");
-    standard_declarations(&sources)?;
+    standard_declarations(sources)?;
     enter("arc_methods");
-    arc_methods(&sources)?;
+    arc_methods(sources)?;
     enter("vector_methods");
-    vector_methods(&sources)?;
+    vector_methods(sources)?;
     enter("pointer_methods");
-    pointer_methods(&sources)?;
+    pointer_methods(sources)?;
     enter("slice_methods");
-    slice_methods(&sources)?;
+    slice_methods(sources)?;
     enter("intrinsic_boundaries");
-    intrinsic_boundaries(&sources)
+    intrinsic_boundaries(sources)
 }
 
 fn id_limits(sources: &Sources) -> Result<(), Refusal> {

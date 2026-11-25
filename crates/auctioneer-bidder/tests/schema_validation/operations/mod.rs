@@ -67,6 +67,26 @@ pub(in crate::schema_validation) struct WorkLedger {
 }
 
 impl WorkLedger {
+    // Read the actual partial ledger without reconstructing its event counts.
+    pub(in crate::schema_validation) const fn components(&self) -> [Option<u64>; 14] {
+        [
+            self.source_visits,
+            self.control_visits,
+            self.iterator_visits,
+            self.map_visits,
+            self.property_visits,
+            self.scalar_comparisons,
+            self.scanned_bytes,
+            self.copied_bytes,
+            self.equality_visits,
+            self.uniqueness_visits,
+            self.construction_visits,
+            self.relocated_bytes,
+            self.cleanup_visits,
+            self.search_transitions,
+        ]
+    }
+
     // Supplied partial event counts, not a source-proof constructor. Every
     // other component stays unproved rather than becoming an implicit zero.
     pub(in crate::schema_validation) fn source_events(

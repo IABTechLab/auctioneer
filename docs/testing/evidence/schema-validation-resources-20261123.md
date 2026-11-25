@@ -931,3 +931,28 @@ All four failures in each source lane are `MissingSearchMultiplicity`: the three
 The local implementation removes the missing-derivation variant/stub and records only top-level `Regex::search_half_with` after existing receiver/program/cache/input checks. It combines raw occurrences by exact source site before depth projection; distinct sites and programs then add. One `partition_analysis` supplies both input-only and search projections without cloning/filtering the original Recipe, deleting initialization, double-visiting operands or falling back to the coarse counter. Every factory program remains present, including source-proven unused programs. Site, program and whole-projection arithmetic is checked before multiplication by V; all eight unresolved duties remain present.
 
 Two additional controls are prepared for GREEN, not claimed executed: a root-string search has positive constant coefficient `(1,0)` at independent caps/validation populations; and a cross-program fixture has eight sites per program, with one helper reached twice. At cap seven/V=2 its program totals are 112/224 and 56/112, whole totals 168/336. Cap `3*2^58` with V=0 and cap seven with V=`2^57` keep input and each program independently representable while the whole search sum overflows. These are conditional invocation ceilings, not haystack-byte or internal-engine work proofs. Full hosted GREEN, reached compiler/lint commands and final-head checks remain pending; no serving, workload, dependency, reservation or accounting change is introduced.
+
+### Search Invocation GREEN
+
+At `c672fab2035138410379d1c65243a30f4598c8b7`, the completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45711302017/job/139546114589) succeeds. Actual secure-source, compiler-control, development-residency and development-validation lines, in that order:
+
+```text
+test result: ok. 977 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 836.89s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 140.15s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 55.75s
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 218.14s
+```
+
+All three new search cases, their later constant/cross-program controls and the whole-roster case pass in both source lanes. The 983-case graph retains the same six separately owned secure exclusions. Both explicit strict source-target Clippy commands complete with exit 0, as do normal/staged core and metadata checks. The complete current-head matrix finishes with all 25 checks successful, including the [evidence-producer job](https://github.com/IABTechLab/auctioneer/actions/runs/45711302017/job/139546114976); none is pending, skipped as a waiver or dismissed.
+
+This is executed GREEN for the conditional search-invocation projection, not the complete common work, byte-traffic, cleanup, storage, structural-stack, caller/source/artifact, numerical-policy or adapter proof. No local executable checks ran; pinned rustfmt remained editing only. #47 remains open and PR #268 draft.
+
+### Source-To-Helper-Cost Tests-First Checkpoint
+
+The next checkpoint extends the existing `handoff::source::tests::actual_sources_are_consumed_inside_the_bound_window`, without adding a case, target, source capture, build or required-roster change. A read-only consumed-input view exposes borrowed compiler/source data but no constructor, mutable access, path selection or I/O. The finite semantic recipes are shared with the supplied-data helper contract; the existing event evaluator gains a borrowed facts view instead of another cost table or fabricated source capture. The new join must return a projection retaining the actual private LocalContract, not a successful unit-valued source stamp.
+
+Explicit conditional hypotheses independently vary NFA roots and dispatches, with literal source/control/scalar triples `(125,10,9)`, `(250,20,18)` and `(236,10,9)`. Sparse attempts two, successes one and RHS one require `(549,7,5)` and symbolic writes of two StateID elements and one usize element. Both families retain zero-call positives. Expected ledger arrays read the actual fourteen components against literal `Some`/`None` values, independently of the constructor used by the evaluator; eleven fields stay unproved. Helper-call, frame, buffer and invariant obligations remain present, including at zero calls. These supplied facts do not establish actual caller populations or receiver/invariant authority.
+
+All original closing, compiler, seed/view and post-capture assertions finish before inspecting buffered cost results. An in-memory, self-consistently rehashed NFA semantic mutation must fail the cost join as `UnsupportedBody(Nfa)` while still completing the source-window closing trace; no vendor, standard-library or serving source is mutated. Separate controls require exact missing-invariant, wrong-receiver, wrong-epoch and overflow refusals. The interim API returns `MissingSourceJoin`; expected hosted RED is the first positive cost assertion after valid source and hypothesis setup, not compilation or a failed source stamp. Later negative variants are not yet executed acceptance.
+
+No local executable verification ran. Pinned formatting and static inspection are editing/review only. The source graph remains 983 cases, with the same six secure exclusions and 139 development validation cases. Hosted assertion RED is required before filling this integration; complete common work, byte traffic, cleanup, stack, numerical policy and target qualification remain unfinished.

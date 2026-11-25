@@ -13,6 +13,25 @@ use super::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+// Borrowed hypotheses shared by the original DATA contract and window join.
+// This view carries no compiler/source identity or actual caller authority.
+#[derive(Clone, Copy)]
+pub(super) struct HelperFacts<'a> {
+    pub owner: &'a str,
+    pub epoch: u64,
+    pub helpers: &'a [super::HelperData],
+}
+
+impl<'a> From<&'a CapturedData> for HelperFacts<'a> {
+    fn from(data: &'a CapturedData) -> Self {
+        Self {
+            owner: &data.owner,
+            epoch: data.epoch,
+            helpers: &data.helpers,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Site {
     State,
@@ -363,7 +382,7 @@ fn required_invariants(lemma: Lemma) -> BTreeSet<Invariant> {
 }
 
 fn bindings(
-    data: &CapturedData,
+    data: HelperFacts<'_>,
     rows: &BTreeMap<Site, Row>,
     required: &BTreeSet<Invariant>,
     premises: &Premises,
@@ -506,7 +525,7 @@ fn roots(lemma: Lemma, calls: Calls) -> Result<Vec<(Site, u64)>, Refusal> {
 }
 
 pub(super) fn contract(
-    data: &CapturedData,
+    data: HelperFacts<'_>,
     lemma: Lemma,
     calls: Calls,
     premises: &Premises,

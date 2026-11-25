@@ -24,6 +24,7 @@
 //! strings and a matched local namespace do not discharge it. Intrinsic and
 //! builtin-derive identities likewise require the authentic parent handoff.
 
+use crate::schema_validation::handoff::SourceInputs;
 use crate::schema_validation::operations::WorkLedger;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -53,7 +54,7 @@ enum Lemma {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum SourceUnit {
+pub(in crate::schema_validation) enum SourceUnit {
     Nfa,
     Sparse,
     Ids,
@@ -86,7 +87,7 @@ struct SourceData {
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct HelperKey {
+pub(in crate::schema_validation) struct HelperKey {
     unit: SourceUnit,
     owner: &'static str,
     method: &'static str,
@@ -111,7 +112,7 @@ struct CapturedData {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Invariant {
+pub(in crate::schema_validation) enum Invariant {
     InitializedBuffers,
     ValidIds,
     DenseDistinctBackMap,
@@ -140,7 +141,7 @@ struct Premises {
 
 // Supplied event hypotheses, never observed-max or engine-run proof.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Calls {
+pub(in crate::schema_validation) enum Calls {
     Nfa {
         roots: u64,
         dispatches: u64,
@@ -171,7 +172,7 @@ struct LocalContract {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(in crate::schema_validation) enum Refusal {
     MissingSourceProof,
     MissingSource(SourceUnit),
     DuplicateSource(SourceUnit),
@@ -192,6 +193,57 @@ enum Refusal {
 mod events;
 mod source;
 
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::schema_validation) enum HelperSourceJoinRefusal {
+    MissingSourceJoin,
+    SourceInterpretation(Refusal),
+}
+
+// All fields are supplied conditional DATA, never observed caller facts.
+#[derive(Clone, Debug)]
+pub(in crate::schema_validation) struct ConditionalHelperDemand {
+    lemma: Lemma,
+    calls: Calls,
+    owner: String,
+    epoch: u64,
+    helpers: Vec<HelperData>,
+    premises: Premises,
+}
+
+impl ConditionalHelperDemand {
+    fn facts(&self) -> events::HelperFacts<'_> {
+        events::HelperFacts {
+            owner: &self.owner,
+            epoch: self.epoch,
+            helpers: &self.helpers,
+        }
+    }
+}
+
+// Retain the real partial result, including unvalued frames/buffers/invariants.
+// No constructor grants actual-use or source-completeness authority.
+#[derive(Debug, Eq, PartialEq)]
+pub(in crate::schema_validation) struct ConditionalHelperCostProjection {
+    contract: LocalContract,
+}
+
+// Positive source setup only: no receiver, epoch, invocation or invariant
+// facts are synthesized, and the event-cost interpreter is not invoked.
+pub(in crate::schema_validation) fn check_consumed_source_setup(
+    inputs: &SourceInputs<'_>,
+) -> Result<(), HelperSourceJoinRefusal> {
+    source::check_consumed_setup(inputs).map_err(HelperSourceJoinRefusal::SourceInterpretation)
+}
+
+// Tests-first actual join. No completed source/cost result exists until this
+// deliberately missing integration has an independently observed hosted RED.
+pub(in crate::schema_validation) fn join_consumed_helper_costs(
+    _inputs: &SourceInputs<'_>,
+    _demand: &ConditionalHelperDemand,
+) -> Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal> {
+    Err(HelperSourceJoinRefusal::MissingSourceJoin)
+}
+
 // Conditional supplied-data interpretation only. Neither this entry nor its
 // private children mint a selected-source or completeness capability. Actual
 // use still needs captured-seed compiler identity and bounded rust-src reads
@@ -204,23 +256,331 @@ fn source_contract(
     premises: &Premises,
 ) -> Result<LocalContract, Refusal> {
     source::check(data, expected_compiler)?;
-    events::contract(data, lemma, calls, premises)
+    events::contract(events::HelperFacts::from(data), lemma, calls, premises)
 }
 
 #[cfg(test)]
-mod tests {
+pub(in crate::schema_validation) mod conditional_fixture {
     use super::*;
-    use crate::schema_build::selected::probe_compiler;
-    use crate::schema_residency::read_regular;
-    use proc_macro2::TokenStream;
-    use quote::ToTokens as _;
-    use sha2::{Digest as _, Sha256};
-    use std::mem;
-    use std::path::Path;
-    use std::str::from_utf8;
-    use syn::punctuated::Punctuated;
 
-    fn key(
+    // Fourteen literal components in WorkLedger declaration order. In
+    // particular, a constructor mutation cannot change these expected values.
+    const EXPECTED_LEDGERS: [[Option<u64>; 14]; 6] = [
+        [
+            Some(125),
+            Some(10),
+            None,
+            None,
+            None,
+            Some(9),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            Some(250),
+            Some(20),
+            None,
+            None,
+            None,
+            Some(18),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            Some(236),
+            Some(10),
+            None,
+            None,
+            None,
+            Some(9),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            Some(549),
+            Some(7),
+            None,
+            None,
+            None,
+            Some(5),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            Some(0),
+            Some(0),
+            None,
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            Some(0),
+            Some(0),
+            None,
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+    ];
+    const EXPECTED_CALLS: [&[u64]; 6] = [
+        &[1, 1, 1],
+        &[2, 2, 2],
+        &[2, 2, 1],
+        &[2, 2, 3, 1, 1, 3, 2, 7],
+        &[0, 0, 0],
+        &[0, 0, 0, 0, 0, 0, 0, 0],
+    ];
+    const EXPECTED_WRITES: [[u64; 2]; 6] = [[0, 0], [0, 0], [0, 0], [2, 1], [0, 0], [0, 0]];
+
+    // Fictional invocation/receiver/invariant hypotheses only. No facts are
+    // inferred from a live validator, caller, allocation, receiver or epoch.
+    fn demand(calls: Calls) -> ConditionalHelperDemand {
+        let lemma = match calls {
+            Calls::Nfa { .. } => Lemma::NfaStateAccess,
+            Calls::Sparse { .. } => Lemma::SparseSetInsert,
+        };
+        let owner = "conditional_window_owner".to_owned();
+        let epoch = 7;
+        ConditionalHelperDemand {
+            lemma,
+            calls,
+            owner: owner.clone(),
+            epoch,
+            helpers: helpers(lemma),
+            premises: Premises {
+                states: 4,
+                epochs: 1,
+                dense_len: 4,
+                sparse_len: 4,
+                entry_len: 0,
+                max_id: 3,
+                bindings: invariants(lemma)
+                    .into_iter()
+                    .map(|invariant| InvariantData {
+                        invariant,
+                        owner: owner.clone(),
+                        epoch,
+                    })
+                    .collect(),
+            },
+        }
+    }
+
+    pub(in crate::schema_validation) fn conditional_demands() -> Vec<ConditionalHelperDemand> {
+        [
+            Calls::Nfa {
+                roots: 1,
+                dispatches: 0,
+            },
+            Calls::Nfa {
+                roots: 2,
+                dispatches: 0,
+            },
+            Calls::Nfa {
+                roots: 1,
+                dispatches: 1,
+            },
+            Calls::Sparse {
+                attempts: 2,
+                successes: 1,
+                rhs: 1,
+            },
+            Calls::Nfa {
+                roots: 0,
+                dispatches: 0,
+            },
+            Calls::Sparse {
+                attempts: 0,
+                successes: 0,
+                rhs: 0,
+            },
+        ]
+        .into_iter()
+        .map(demand)
+        .collect()
+    }
+
+    fn projected_keys(lemma: Lemma) -> Vec<HelperKey> {
+        match lemma {
+            Lemma::NfaStateAccess => vec![
+                key(SourceUnit::Nfa, "NFA", "state", "&NFA"),
+                key(SourceUnit::Nfa, "NFA", "states", "&NFA"),
+                key(SourceUnit::Nfa, "State", "is_epsilon", "&State"),
+            ],
+            Lemma::SparseSetInsert => vec![
+                key(SourceUnit::Sparse, "SparseSet", "insert", "&mut SparseSet"),
+                key(SourceUnit::Sparse, "SparseSet", "contains", "&SparseSet"),
+                key(SourceUnit::Sparse, "SparseSet", "len", "&SparseSet"),
+                key(SourceUnit::Sparse, "SparseSet", "capacity", "&SparseSet"),
+                key(SourceUnit::Ids, "StateID", "new_unchecked", "usize"),
+                key(SourceUnit::Ids, "Vec<T>", "index<StateID>", "&Vec<StateID>"),
+                key(
+                    SourceUnit::Ids,
+                    "Vec<T>",
+                    "index_mut<StateID>",
+                    "&mut Vec<StateID>",
+                ),
+                key(SourceUnit::Ids, "StateID", "as_usize", "&StateID"),
+            ],
+        }
+    }
+
+    fn assert_projection(index: usize, demand: &ConditionalHelperDemand, actual: &LocalContract) {
+        assert_eq!(actual.ledger.components(), EXPECTED_LEDGERS[index]);
+        let keys = projected_keys(demand.lemma);
+        assert_eq!(keys.len(), EXPECTED_CALLS[index].len());
+        let expected_calls: BTreeMap<_, _> = keys
+            .into_iter()
+            .zip(EXPECTED_CALLS[index].iter().copied())
+            .collect();
+        assert_eq!(actual.calls, expected_calls);
+        assert_eq!(
+            [
+                actual.writes.state_id_elements,
+                actual.writes.usize_elements
+            ],
+            EXPECTED_WRITES[index]
+        );
+        let expected_frames: BTreeSet<_> = helpers(demand.lemma)
+            .into_iter()
+            .map(|binding| binding.key)
+            .collect();
+        assert_eq!(actual.required_frames, expected_frames);
+        assert!(actual.unresolved_ordinary_helpers.is_empty());
+        assert_eq!(
+            actual.required_buffer_bounds,
+            BTreeSet::from(["scanned_bytes", "copied_bytes"])
+        );
+        assert_eq!(actual.required_invariants, invariants(demand.lemma));
+    }
+
+    // Verify that supplied hypotheses are valid independently of the missing
+    // source/cost join, using exactly the already established event evaluator.
+    pub(in crate::schema_validation) fn assert_demand_setup(demands: &[ConditionalHelperDemand]) {
+        assert_eq!(demands.len(), 6);
+        for (index, demand) in demands.iter().enumerate() {
+            let local =
+                events::contract(demand.facts(), demand.lemma, demand.calls, &demand.premises)
+                    .expect("explicit conditional hypotheses are valid DATA");
+            assert_projection(index, demand, &local);
+        }
+    }
+
+    pub(in crate::schema_validation) fn assert_cost_projections(
+        demands: &[ConditionalHelperDemand],
+        results: &[Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal>],
+    ) {
+        assert_eq!(demands.len(), 6);
+        assert_eq!(results.len(), demands.len());
+        for (index, (demand, actual)) in demands.iter().zip(results).enumerate() {
+            assert!(
+                actual.is_ok(),
+                "conditional helper cost join {index}: {actual:?}"
+            );
+            let projection = actual.as_ref().unwrap();
+            assert_projection(index, demand, &projection.contract);
+        }
+    }
+
+    pub(in crate::schema_validation) fn conditional_controls()
+    -> Vec<(ConditionalHelperDemand, HelperSourceJoinRefusal)> {
+        let zero = demand(Calls::Nfa {
+            roots: 0,
+            dispatches: 0,
+        });
+        let mut missing = zero.clone();
+        assert!(
+            missing
+                .premises
+                .bindings
+                .iter()
+                .any(|binding| binding.invariant == Invariant::ValidIds)
+        );
+        missing
+            .premises
+            .bindings
+            .retain(|binding| binding.invariant != Invariant::ValidIds);
+        let mut receiver = zero.clone();
+        let helper = receiver.helpers.first_mut().unwrap();
+        assert_eq!(helper.receiver, helper.key.receiver);
+        let receiver_key = helper.key.clone();
+        helper.receiver = "&unrelated_receiver".to_owned();
+        let mut epoch = zero;
+        let binding = epoch
+            .premises
+            .bindings
+            .iter_mut()
+            .find(|binding| binding.invariant == Invariant::ValidIds)
+            .unwrap();
+        assert_eq!(binding.epoch, 7);
+        binding.epoch = 8;
+        let overflow = demand(Calls::Nfa {
+            roots: u64::MAX,
+            dispatches: 0,
+        });
+        let controls = vec![
+            (missing, Refusal::MissingInvariant(Invariant::ValidIds)),
+            (receiver, Refusal::ReceiverMismatch(receiver_key)),
+            (epoch, Refusal::InvariantMismatch(Invariant::ValidIds)),
+            (overflow, Refusal::Overflow),
+        ];
+        controls
+            .into_iter()
+            .map(|(demand, expected)| {
+                let observed =
+                    events::contract(demand.facts(), demand.lemma, demand.calls, &demand.premises);
+                assert_eq!(observed.as_ref().err(), Some(&expected));
+                // Retain the independently authored refusal, not the evaluator's.
+                (
+                    demand,
+                    HelperSourceJoinRefusal::SourceInterpretation(expected),
+                )
+            })
+            .collect()
+    }
+
+    pub(super) fn key(
         unit: SourceUnit,
         owner: &'static str,
         method: &'static str,
@@ -236,7 +596,7 @@ mod tests {
 
     // Fixed concrete helper/frame census, not an AST evaluator. Source-event
     // costs must close; these same frame slots remain unvalued target duties.
-    fn helpers(lemma: Lemma) -> Vec<HelperData> {
+    pub(super) fn helpers(lemma: Lemma) -> Vec<HelperData> {
         use SourceUnit::*;
         let mut keys = vec![
             key(Ids, "StateID", "as_usize", "&StateID"),
@@ -323,7 +683,7 @@ mod tests {
             .collect()
     }
 
-    fn invariants(lemma: Lemma) -> BTreeSet<Invariant> {
+    pub(super) fn invariants(lemma: Lemma) -> BTreeSet<Invariant> {
         let mut required = BTreeSet::from([
             Invariant::ValidIds,
             Invariant::ExclusiveStable,
@@ -338,6 +698,21 @@ mod tests {
         }
         required
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::conditional_fixture::{helpers, invariants, key};
+    use super::*;
+    use crate::schema_build::selected::probe_compiler;
+    use crate::schema_residency::read_regular;
+    use proc_macro2::TokenStream;
+    use quote::ToTokens as _;
+    use sha2::{Digest as _, Sha256};
+    use std::mem;
+    use std::path::Path;
+    use std::str::from_utf8;
+    use syn::punctuated::Punctuated;
 
     fn digest(bytes: &[u8]) -> String {
         hex::encode(Sha256::digest(bytes))

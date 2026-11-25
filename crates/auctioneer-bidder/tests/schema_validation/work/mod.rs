@@ -27,7 +27,17 @@ mod entropy;
 mod epsilon;
 pub(super) mod partition;
 mod prefix;
+use epsilon::primitives;
+#[cfg(test)]
+pub(super) use primitives::conditional_fixture::{
+    assert_cost_projections, assert_demand_setup, conditional_controls, conditional_demands,
+};
+pub(super) use primitives::{
+    ConditionalHelperCostProjection, ConditionalHelperDemand, HelperSourceJoinRefusal,
+    Refusal as HelperInterpretationRefusal, SourceUnit as HelperSourceUnit,
+};
 
+use super::handoff::SourceInputs;
 use super::operations::{self, Primitive, model::Recipe};
 use auctioneer_bidder::schema::{
     SchemaEvaluationError, SchemaInputError, SchemaInputLimits, SchemaInputStats,
@@ -202,6 +212,21 @@ struct RecipeCounts {
     cache_drop_entries: u64,
     seed_invocations: Option<u64>,
     unresolved: Vec<Primitive>,
+}
+
+// Conformance-only seam: matching helper bytes is not receiver/invariant,
+// invocation, source-completeness or numeric work authority.
+pub(super) fn check_helper_source_setup(
+    inputs: &SourceInputs<'_>,
+) -> Result<(), HelperSourceJoinRefusal> {
+    primitives::check_consumed_source_setup(inputs)
+}
+
+pub(super) fn join_helper_costs(
+    inputs: &SourceInputs<'_>,
+    demand: &ConditionalHelperDemand,
+) -> Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal> {
+    primitives::join_consumed_helper_costs(inputs, demand)
 }
 
 // This validates conditional source data, not a sealed descriptor capability.

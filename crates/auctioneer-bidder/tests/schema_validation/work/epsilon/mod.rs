@@ -8,7 +8,7 @@
 //! The parent must join these facts to their owners.
 //! Site ceilings count entries/decisions, not the work inside called primitives.
 
-mod primitives;
+pub(super) mod primitives;
 
 use quote::ToTokens as _;
 use std::collections::BTreeSet;

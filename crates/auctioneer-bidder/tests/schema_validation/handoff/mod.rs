@@ -1,6 +1,7 @@
 //! Exact child and caller-context correspondence, not numeric proof authority.
 
 mod source;
+pub(super) use source::SourceInputs;
 
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_residency::descriptor::{

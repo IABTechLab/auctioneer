@@ -122,9 +122,28 @@ struct SourceData {
     sha256: String,
 }
 
-struct SourceInputs<'a> {
+pub(in crate::schema_validation) struct SourceInputs<'a> {
     compiler: &'a CompilerData,
     sources: &'a [SourceData],
+}
+
+// Borrowed consumed DATA only. There is no constructor, mutable access or
+// filesystem selection here; the existing window owns its fixed roster.
+impl SourceInputs<'_> {
+    pub(in crate::schema_validation) fn compiler(&self) -> (&Path, &str) {
+        (&self.compiler.executable, &self.compiler.verbose)
+    }
+
+    pub(in crate::schema_validation) fn source_count(&self) -> usize {
+        self.sources.len()
+    }
+
+    pub(in crate::schema_validation) fn source(&self, unit: &str) -> Option<&[u8]> {
+        self.sources
+            .iter()
+            .find(|source| source.unit == unit)
+            .map(|source| source.bytes.as_slice())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -366,11 +385,17 @@ mod tests {
         descriptor::ValidationView, read_regular, with_current_descriptor,
     };
     use crate::schema_validation::handoff;
+    use crate::schema_validation::work::{
+        self, ConditionalHelperCostProjection, HelperInterpretationRefusal,
+        HelperSourceJoinRefusal, HelperSourceUnit,
+    };
+    use quote::ToTokens as _;
     use serde_json::Value;
     use sha2::{Digest as _, Sha256};
     use std::fs::{self, File, OpenOptions};
     use std::io::{self, Seek as _, Write as _};
     use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::str::from_utf8;
     use std::{cell::RefCell, path::Path, rc::Rc};
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -732,8 +757,29 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             assert_roster();
+            // Explicit fictional invocation/receiver/invariant DATA, not
+            // evidence of actual caller counts, buffers, ownership or epochs.
+            let demands = work::conditional_demands();
+            let controls = work::conditional_controls();
+            let mut semantic_setup = None;
+            let mut helper_costs = None;
+            let mut refused_costs = None;
             let actual = with_current_sources(seed, view, |inputs| {
-                Ok::<_, ConsumerError>(inspect_inputs(inputs, &data))
+                let count = inspect_inputs(inputs, &data);
+                semantic_setup = Some(work::check_helper_source_setup(inputs));
+                helper_costs = Some(
+                    demands
+                        .iter()
+                        .map(|demand| work::join_helper_costs(inputs, demand))
+                        .collect::<Vec<_>>(),
+                );
+                refused_costs = Some(
+                    controls
+                        .iter()
+                        .map(|(demand, _)| work::join_helper_costs(inputs, demand))
+                        .collect::<Vec<_>>(),
+                );
+                Ok::<_, ConsumerError>(count)
             });
             assert_eq!(actual, Ok(12));
             let mut reads = replay(&data);
@@ -754,9 +800,110 @@ mod tests {
                     panic!("binding drift must precede interpretation")
                 });
             assert_eq!(refused, Err(SourceError::Binding));
+            // Only inspect semantic/join results after all prior real source,
+            // compiler, seed/view checks and their existing controls complete.
+            assert_eq!(semantic_setup, Some(Ok(())));
+            let semantic_refusal = assert_semantic_source_control(seed, view, &data);
+            work::assert_demand_setup(&demands);
+            work::assert_cost_projections(&demands, helper_costs.as_ref().unwrap());
+            let checked_refusals = refused_costs.as_ref().unwrap();
+            assert_eq!(checked_refusals.len(), controls.len());
+            for (observed_cost, (_, expected)) in checked_refusals.iter().zip(&controls) {
+                assert_eq!(observed_cost.as_ref().err(), Some(expected));
+            }
+            assert_eq!(
+                semantic_refusal,
+                Err(HelperSourceJoinRefusal::SourceInterpretation(
+                    HelperInterpretationRefusal::UnsupportedBody(HelperSourceUnit::Nfa)
+                ))
+            );
             Ok(())
         })
         .unwrap();
+    }
+
+    fn semantic_source_drift(data: &Fixture) -> Fixture {
+        let mut changed = Fixture {
+            expected: data.expected.clone(),
+            observed: data.observed.clone(),
+            sources: data.sources.clone(),
+        };
+        let record = changed
+            .sources
+            .iter_mut()
+            .find(|source| source.unit == "Nfa")
+            .unwrap();
+        let mut syntax = syn::parse_file(from_utf8(&record.bytes).unwrap()).unwrap();
+        let mut hits = 0_usize;
+        for item in &mut syntax.items {
+            let syn::Item::Impl(implementation) = item else {
+                continue;
+            };
+            if implementation.self_ty.to_token_stream().to_string() != "State" {
+                continue;
+            }
+            for member in &mut implementation.items {
+                let syn::ImplItem::Fn(method) = member else {
+                    continue;
+                };
+                if method.sig.ident != "is_epsilon" {
+                    continue;
+                }
+                let [syn::Stmt::Expr(syn::Expr::Match(decision), None)] =
+                    method.block.stmts.as_mut_slice()
+                else {
+                    panic!("actual State::is_epsilon match before-state");
+                };
+                assert_eq!(decision.arms.len(), 2);
+                let syn::Expr::Lit(literal) = decision.arms[0].body.as_mut() else {
+                    panic!("actual non-epsilon false arm");
+                };
+                assert!(matches!(&literal.lit, syn::Lit::Bool(value) if !value.value));
+                literal.lit = syn::parse_quote!(true);
+                hits = hits.checked_add(1).unwrap();
+            }
+        }
+        assert_eq!(hits, 1);
+        let original = record.bytes.clone();
+        record.bytes = syntax.to_token_stream().to_string().into_bytes();
+        assert_ne!(record.bytes, original);
+        record.sha256 = hex::encode(Sha256::digest(&record.bytes));
+        changed
+    }
+
+    fn assert_semantic_source_control(
+        seed: &CapturedSeed,
+        view: ValidationView<'_>,
+        data: &Fixture,
+    ) -> Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal> {
+        // Only owned replay bytes change. No vendor/std/build source is written.
+        let changed = semantic_source_drift(data);
+        let mut reads = replay(&changed);
+        let events = Rc::clone(&reads.events);
+        let interpreted = Rc::clone(&reads.events);
+        let demands = work::conditional_demands();
+        let mut cost_result = None;
+        let refused = with_source_data(
+            seed,
+            view,
+            &mut reads,
+            |phase| events.borrow_mut().push(Event::Check(phase)),
+            |inputs| {
+                interpreted.borrow_mut().push(Event::Interpret);
+                cost_result = Some(work::join_helper_costs(inputs, &demands[0]));
+                work::check_helper_source_setup(inputs)
+            },
+        );
+        assert_eq!(
+            refused,
+            Err(SourceError::Interpretation(
+                HelperSourceJoinRefusal::SourceInterpretation(
+                    HelperInterpretationRefusal::UnsupportedBody(HelperSourceUnit::Nfa)
+                )
+            ))
+        );
+        assert_eq!(*reads.events.borrow(), expected_events());
+        cost_result.unwrap()
     }
 
     #[test]
