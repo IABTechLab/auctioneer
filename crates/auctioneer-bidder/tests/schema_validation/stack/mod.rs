@@ -2,6 +2,8 @@
 //! Path witnesses, identities and numeric facts here carry no source authority.
 //! The authenticated operation-graph/source join remains a separate obligation.
 
+mod source;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FrameBytes(u64);
 

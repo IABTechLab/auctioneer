@@ -156,6 +156,24 @@ pub(super) struct ServiceBinding {
     required_facts: BTreeSet<ServiceFact>,
 }
 
+// Conformance fixture DATA, not a service proof or a production constructor.
+#[cfg(test)]
+pub(super) fn clock_binding_fixture() -> ServiceBinding {
+    ServiceBinding {
+        service: ExternalService::Clock,
+        entry: "fixture::RequestClock::expired",
+        receiver: "fixture::RequestClock",
+        retained: RetainedScope::Caller,
+        temporary: TemporaryScope::OutsideCache,
+        required_facts: BTreeSet::from([
+            ServiceFact::Work,
+            ServiceFact::TemporaryStorage,
+            ServiceFact::RetainedState,
+            ServiceFact::Stack,
+        ]),
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 struct ServiceRequirement {
     binding: ServiceBinding,

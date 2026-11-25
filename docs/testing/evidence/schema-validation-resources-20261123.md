@@ -415,3 +415,23 @@ At recording, the default-workspace and evidence-producer jobs were still runnin
 After the four executed cache-source REDs, the next bounded implementation replaces `derive_owner`'s refusal stub. It consumes the existing typed operation recipe: exact factory/wrapper/validation linkage, complete unique initializer program identities in lexical order, preceding constructed-sibling prefixes, and validation-reachable hostname/UUID callbacks. Unknown cache-bearing callbacks, extra constructors, cache escape, state-changing reset, cloning and rebinding refuse. The selected source-empty reset is accepted only with its exact receiver identity and empty body, not by a name exemption or zero-cost assumption.
 
 The actual-source entry still performs fresh classification inside the sealed checked-bodies handoff; supplied or forged recipe data cannot become an actual-source receipt. All four unit cases, independent oracles, names and refusal variants remain unchanged. Separate static specification and quality reviews cleared this bounded implementation; source-file SHA-256 was `4f0881669f19a0bd7c230bc1c13af9001cde32cb692774ae64bc87d1dc60e8ec`. Pinned formatting was editing only. Compilation, the four-case GREEN, strict lint and full hosted acceptance remain pending. Ordered prefixes retain partial-failure cleanup obligations; they do not price or prove destructor work, release, complete heap bounds or target frames. Primitive implementation, logical stack/source closure and final integration continue separately.
+
+### Cache-Source Contracts GREEN In Both Lanes
+
+At `ad62c936b9c38f8cb3d31b0ae9b7d898cae6da4a`, the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45520296628/job/138890145161) reports all four `storage::source` cases `ok` in both source lanes, including actual discovered owners, initializer ordering/partial prefixes, cache-effect refusals and zero-cache wrapper/callback duties. Actual secure source, development residency and development validation result lines:
+
+```text
+test result: FAILED. 917 passed; 12 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1050.06s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 808 filtered out; finished in 87.99s
+test result: FAILED. 77 passed; 12 failed; 0 ignored; 0 measured; 846 filtered out; finished in 77.38s
+```
+
+Both source commands still return 101 because the twelve primitive evaluators retain their intended refusal stub. No other source case fails. The four cache-source REDs therefore have executed two-lane GREEN; this is schedule/correspondence evidence, not complete heap, destructor work or common-source completion. Compiler controls and later strict-lint/core/staged commands skipped after source failure remain not run, not passed. Full final-head acceptance remains mandatory.
+
+### Captured Logical-Stack Tests-First Contract
+
+The next checkpoint retains all nine original stack cases and adds four `stack::source` cases under the existing target. The exact required validation roster retains all prior 89 names and adds these four, for a minimum of 93 names; this is a static roster size, not an executed count. `stack.rs` moves to the ordinary directory `stack/mod.rs` with the same namespace and only a new `mod source;` declaration.
+
+The new contract consumes the sealed body handoff and existing Recipe without another parser. Independent oracles require complete source-anchored path/duty coverage, exact roots/call sites, argument evaluation before callee entry, nested versus serial/alternative paths, callback versus inline-loop boundaries, and distinct source-cycle/missing-callee versus target-frame failures. Omitted-path/duty, unattached-cleanup and wrong-active-caller controls guard the oracle itself. A positively classified clock case requires exact service binding, site and active-path retention. Its operations-owned `#[cfg(test)]` fixture produces data only, preserves private service fields and does not supply host facts or source authority.
+
+Separate static specification and quality reviews cleared the repaired contract after finding and correcting missing path-coverage and service-positive controls. All original cases/formulas/refusals remain unchanged, every frame-byte slot stays unknown, and helper/protocol/cleanup closure remains unproved. The new shape deriver deliberately remains `Err(NotDerived)` until genuine hosted assertion RED. No job, target, exclusion, command, source population, resource limit or runtime behavior changes. Compilation, dispatch, intended RED, subsequent implementation and strict lint remain pending; pinned rustfmt was editing only.

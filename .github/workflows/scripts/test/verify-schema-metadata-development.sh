@@ -87,6 +87,10 @@ validation_required=(
   schema_validation::stack::tests::expiry_callback_facts_are_nonzero_and_identity_bound
   schema_validation::stack::tests::expiry_work_storage_and_frame_dimensions_vary_independently
   schema_validation::stack::tests::checked_overflow_refuses_instead_of_wrapping
+  schema_validation::stack::source::tests::actual_stack_roots_and_call_sites_match_the_capture
+  schema_validation::stack::source::tests::stack_paths_separate_calls_arguments_and_alternatives
+  schema_validation::stack::source::tests::callbacks_and_opaque_stack_duties_are_not_inline_loops
+  schema_validation::stack::source::tests::source_cycles_and_missing_callees_are_not_target_frame_gaps
   schema_validation::admission::tests::missing_common_proof_cannot_complete
   schema_validation::admission::tests::hypothetical_facts_cannot_qualify
   schema_validation::admission::tests::component_ratios_are_not_cpu_weights
