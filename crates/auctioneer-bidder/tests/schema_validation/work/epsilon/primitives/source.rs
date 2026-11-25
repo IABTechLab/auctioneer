@@ -13,7 +13,7 @@ use std::path::Path;
 use std::str::from_utf8;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::visit::{self, Visit};
+use syn::visit_mut::{self, VisitMut};
 
 struct Sources(BTreeMap<SourceUnit, syn::File>);
 
@@ -441,8 +441,8 @@ fn unknown_call(unit: SourceUnit, method: &syn::ImplItemFn) -> Option<Refusal> {
     struct Calls {
         name: Option<String>,
     }
-    impl<'ast> Visit<'ast> for Calls {
-        fn visit_expr_call(&mut self, i: &'ast syn::ExprCall) {
+    impl VisitMut for Calls {
+        fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
             if let syn::Expr::Path(path) = i.func.as_ref() {
                 if let Some(segment) = path.path.segments.last() {
                     let name = segment.ident.to_string();
@@ -462,11 +462,11 @@ fn unknown_call(unit: SourceUnit, method: &syn::ImplItemFn) -> Option<Refusal> {
                     }
                 }
             }
-            visit::visit_expr_call(self, i);
+            visit_mut::visit_expr_call_mut(self, i);
         }
     }
     let mut calls = Calls { name: None };
-    calls.visit_impl_item_fn(method);
+    calls.visit_impl_item_fn_mut(&mut method.clone());
     calls
         .name
         .map(|callee| Refusal::UnknownCall { unit, callee })

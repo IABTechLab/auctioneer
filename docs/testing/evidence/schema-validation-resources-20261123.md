@@ -479,3 +479,16 @@ The rejected-prefix contract keeps every new bound slot explicitly unknown until
 The entropy contract separately requires the constructor/default/std-import chain and ordered forward/reverse seed sites, eager inactive siblings, guarded hostname creation, supported strategy scope, zero-invocation obligations and checked overflow. Literal potential prefixes are `0/1/2` then `2/3/4`; two generated cache creations plus three hostname cache creations give a seed-entry ceiling of `10`. The counted entry is the whole `std::hash::RandomState::new`, not OS calls; existing operations-owned whole-service/lifetime tests are not duplicated. Ordinary map setup, hashing, growth and cleanup remain open. Branch labels, feature/compiler records, hashes and supplied Recipe/schedule data grant no actual-source authority. Every ledger component remains unknown here.
 
 The source-window and entropy evaluators remain refusal stubs; prefix attachment is a no-op retaining `None` rather than inventing zeros. Static reviews identified and strengthened probe-error, hash-only, genuine post-capture/error-path checks and the raw-quota scope before publication. Pinned rustfmt is editing only. Compilation, all eleven intended assertion REDs, later derivations/GREEN, strict target lint and full final-head acceptance remain unexecuted at preparation. No complete common proof, numerical policy adequacy, target qualification, serving activation, review readiness or issue closure is claimed.
+
+### Shared Compilation Failure Before New Assertion Execution
+
+At `825bd50fe89576c550e8e0b70f395e68afaf3755`, the [private-layout job](https://github.com/IABTechLab/auctioneer/actions/runs/45531081376/job/138926248122) and [Axum artifact job](https://github.com/IABTechLab/auctioneer/actions/runs/45531081376/job/138926247874) independently failed compiling the shared source target with exit 101:
+
+```text
+error[E0432]: unresolved import `syn::visit`
+--> crates/auctioneer-bidder/tests/schema_validation/work/epsilon/primitives/source.rs:16:10
+the item is gated behind the `visit` feature
+error: could not compile `auctioneer-bidder` (test "schema_source_conformance") due to 1 previous error
+```
+
+The root workspace enables Syn's `full` feature and bidder dev dependencies already enable `visit-mut`, not `visit`. The new primitive diagnostic walker incorrectly selected the unavailable API. The narrow repair uses the existing `VisitMut` API over a private AST clone; it changes only unknown-call diagnostic traversal, not supported source recognition, event arithmetic, assertions, features or dependencies. This is an author-owned compilation failure, not intended tests-first RED. The eleven new controls, primitive/stack implementations, strict lint and full acceptance still require hosted execution at the fixing head. No local executable check was run or acceptance waived.
