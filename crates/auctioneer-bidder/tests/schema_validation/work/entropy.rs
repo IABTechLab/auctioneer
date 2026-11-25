@@ -2292,25 +2292,24 @@ mod source {
         if value.value() != pattern || !expression.attrs.is_empty() {
             return Err(Refusal::SourceShape(unit));
         }
-        nested.exact(
-            unit,
-            &quote!(
-                static HOSTNAME_PATTERN: LazyLock<Option<Regex>> = LazyLock::new(|| {
-                    Regex::builder()
-                        .configure(
-                            Regex::config()
-                                .match_kind(MatchKind::LeftmostFirst)
-                                .utf8_empty(true)
-                                .nfa_size_limit(Some(0x0001_0000))
-                                .hybrid_cache_capacity(0x0001_0000)
-                                .pool_capacity(1),
-                        )
-                        .syntax(syntax::Config::default().utf8(true))
-                        .build(HOSTNAME_SOURCE)
-                        .ok()
-                });
-            ),
-        )
+        let expected: syn::ItemStatic = syn::parse2(quote!(
+            static HOSTNAME_PATTERN: LazyLock<Option<Regex>> = LazyLock::new(|| {
+                Regex::builder()
+                    .configure(
+                        Regex::config()
+                            .match_kind(MatchKind::LeftmostFirst)
+                            .utf8_empty(true)
+                            .nfa_size_limit(Some(0x0001_0000))
+                            .hybrid_cache_capacity(0x0001_0000)
+                            .pool_capacity(1),
+                    )
+                    .syntax(syntax::Config::default().utf8(true))
+                    .build(HOSTNAME_SOURCE)
+                    .ok()
+            });
+        ))
+        .map_err(|_| Refusal::SourceShape(unit))?;
+        nested.exact(unit, &quote!(#expected))
     }
 
     fn hostname_function(items: &[syn::Item]) -> Result<u64, Refusal> {

@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(super) enum Refusal {
     Binding,
     MissingName(String),
     UnexpectedName(String),
@@ -18,7 +18,7 @@ enum Refusal {
     Disposition(String),
 }
 
-fn check_public_dispositions(
+pub(super) fn check_public_dispositions(
     seed: &CapturedSeed,
     view: ValidationView<'_>,
     census: &PublicNameCensus,

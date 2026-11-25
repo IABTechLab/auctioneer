@@ -7,10 +7,9 @@
 //! ordinary returned errors, partial construction and unwind are not excluded.
 
 use super::{ContextBinding, ContextSources, Refusal, SourceRole};
+use crate::schema_validation::operations::source_syntax::{parse_file, tokens, without_docs};
 use auctioneer_bidder::schema::SchemaInputLimits;
-use quote::ToTokens;
 use serde_json::Value;
-use std::str::from_utf8;
 use syn::visit_mut::{self, VisitMut};
 
 pub(super) fn check(
@@ -25,6 +24,11 @@ pub(super) fn check(
         return Err(Refusal::UnsupportedContext);
     }
 
+    check_sources(sources)
+}
+
+// Source correspondence only; this deliberately accepts no JSON binding.
+pub(super) fn check_sources(sources: &ContextSources<'_>) -> Result<SchemaInputLimits, Refusal> {
     // Do not derive supported recipes from the same include_bytes! identities.
     // In particular, updating source and its capture cannot bless a new schedule.
     let mut native = parse(sources.native, SourceRole::Native)?;
@@ -114,44 +118,7 @@ fn nonempty_collection(value: &Value) -> bool {
 }
 
 fn parse(source: &[u8], role: SourceRole) -> Result<syn::File, Refusal> {
-    let text = from_utf8(source).map_err(|_error| Refusal::SourceShape(role))?;
-    syn::parse_file(text).map_err(|_error| Refusal::SourceShape(role))
-}
-
-fn tokens(value: &impl ToTokens) -> String {
-    value.to_token_stream().to_string()
-}
-
-fn literal_doc(attribute: &syn::Attribute) -> bool {
-    if !matches!(&attribute.style, syn::AttrStyle::Outer) || !attribute.path().is_ident("doc") {
-        return false;
-    }
-    let syn::Meta::NameValue(meta) = &attribute.meta else {
-        return false;
-    };
-    matches!(&meta.value, syn::Expr::Lit(value) if matches!(&value.lit, syn::Lit::Str(_)))
-}
-
-fn without_docs(mut item: syn::Item) -> syn::Item {
-    if let syn::Item::Fn(function) = &mut item {
-        function.attrs.retain(|attribute| !literal_doc(attribute));
-        return item;
-    }
-    if let syn::Item::Const(constant) = &mut item {
-        constant.attrs.retain(|attribute| !literal_doc(attribute));
-        return item;
-    }
-    if let syn::Item::Impl(implementation) = &mut item {
-        implementation
-            .attrs
-            .retain(|attribute| !literal_doc(attribute));
-        for member in &mut implementation.items {
-            if let syn::ImplItem::Fn(function) = member {
-                function.attrs.retain(|attribute| !literal_doc(attribute));
-            }
-        }
-    }
-    item
+    parse_file(source).map_err(|()| Refusal::SourceShape(role))
 }
 
 // Only selected top-level definitions count. A test or unused nested helper

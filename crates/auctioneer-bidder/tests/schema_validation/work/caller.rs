@@ -1,4 +1,4 @@
-//! Tests-first caller-cap expressions and scope duties, never source authority.
+//! Caller-cap expressions and scope duties, never source authority.
 //!
 //! The fixed workspace bytes below are DATA. The existing context recipe check
 //! remains conditional data validation, not a sealed caller or artifact join.
@@ -10,6 +10,11 @@
 //! independent test-side source assertions as its implementation.
 
 use super::ContextSources;
+use crate::schema_validation::operations::source_syntax::{
+    literal_doc, parse_file, tokens, without_docs,
+};
+use quote::{ToTokens, quote};
+use sha2::{Digest as _, Sha256};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CallerUnit {
@@ -22,6 +27,11 @@ enum CallerUnit {
     ImplicitFill,
     ExchangeContext,
     RuntimeBudget,
+    CoreAuctionRoot,
+    CoreConfigRoot,
+    OpenRtbRoot,
+    RuntimeRoot,
+    ExchangeRoot,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,6 +112,7 @@ struct CallerContract {
     source_chain: Vec<SourceAnchor>,
     scope_guards: Vec<GuardSource>,
     cleanup_duties: Vec<CleanupDuty>,
+    unresolved_helpers: Vec<&'static str>,
     panic_unwinds: Option<bool>,
     cleanup_work: Option<u64>,
     tree_navigation_work: Option<u64>,
@@ -110,21 +121,1684 @@ struct CallerContract {
 
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
-    MissingCallerSourceProof,
     MissingSource(CallerUnit),
     SourceShape(CallerUnit),
     Context(super::Refusal),
 }
 
-// Attempts are a diagnostic hypothesis only, never a source for a caller cap.
-// Zero attempts must not bypass source recognition or erase missing duties.
-// No parser, cap model or authority constructor is implemented before hosted RED.
+const CALLER_PATHS: [(CallerUnit, &str); 14] = [
+    (
+        CallerUnit::CorePrepare,
+        "crates/auctioneer-core/src/auction/prepare.rs",
+    ),
+    (
+        CallerUnit::CoreServices,
+        "crates/auctioneer-core/src/auction/services.rs",
+    ),
+    (
+        CallerUnit::CoreOperation,
+        "crates/auctioneer-core/src/auction/operation.rs",
+    ),
+    (
+        CallerUnit::PolicyHost,
+        "crates/auctioneer-core/src/config/policy_host.rs",
+    ),
+    (
+        CallerUnit::PolicyResolve,
+        "crates/auctioneer-core/src/config/resolve.rs",
+    ),
+    (
+        CallerUnit::NormalizedPrepare,
+        "crates/auctioneer-openrtb/src/prepare/mod.rs",
+    ),
+    (
+        CallerUnit::ImplicitFill,
+        "crates/auctioneer-openrtb/src/prepare/implicit_fill.rs",
+    ),
+    (
+        CallerUnit::ExchangeContext,
+        "crates/auctioneer-exchange/src/context.rs",
+    ),
+    (
+        CallerUnit::RuntimeBudget,
+        "crates/auctioneer-runtime/src/budget.rs",
+    ),
+    (
+        CallerUnit::CoreAuctionRoot,
+        "crates/auctioneer-core/src/auction/mod.rs",
+    ),
+    (
+        CallerUnit::CoreConfigRoot,
+        "crates/auctioneer-core/src/config/mod.rs",
+    ),
+    (
+        CallerUnit::OpenRtbRoot,
+        "crates/auctioneer-openrtb/src/lib.rs",
+    ),
+    (
+        CallerUnit::RuntimeRoot,
+        "crates/auctioneer-runtime/src/lib.rs",
+    ),
+    (
+        CallerUnit::ExchangeRoot,
+        "crates/auctioneer-exchange/src/lib.rs",
+    ),
+];
+
+struct ParsedSources {
+    files: Vec<(Owner, syn::File)>,
+}
+
+fn shape(owner: Owner) -> Refusal {
+    match owner {
+        Owner::Caller(unit) => Refusal::SourceShape(unit),
+        Owner::Context(role) => Refusal::Context(super::Refusal::SourceShape(role)),
+    }
+}
+
+fn same(owner: Owner, actual: &impl ToTokens, supported: &impl ToTokens) -> Result<(), Refusal> {
+    if tokens(actual) == tokens(supported) {
+        Ok(())
+    } else {
+        Err(shape(owner))
+    }
+}
+
+fn root_attributes(file: &syn::File) -> bool {
+    file.shebang.is_none()
+        && file.attrs.iter().all(|attribute| {
+            matches!(&attribute.meta, syn::Meta::NameValue(meta)
+            if attribute.path().is_ident("doc")
+            && matches!(&meta.value, syn::Expr::Lit(value)
+                if matches!(&value.lit, syn::Lit::Str(_))))
+        })
+}
+
+impl ParsedSources {
+    fn new(context: &ContextSources<'_>, sources: &[CallerSource]) -> Result<Self, Refusal> {
+        let mut files = Vec::new();
+        for (unit, path) in CALLER_PATHS {
+            let owner = Owner::Caller(unit);
+            let mut matching = sources.iter().filter(|source| source.unit == unit);
+            let source = matching.next().ok_or(Refusal::MissingSource(unit))?;
+            if matching.next().is_some()
+                || source.path != path
+                || source.sha256 != hex::encode(Sha256::digest(&source.bytes))
+            {
+                return Err(shape(owner));
+            }
+            let file = parse_file(&source.bytes).map_err(|()| shape(owner))?;
+            if !root_attributes(&file) {
+                return Err(shape(owner));
+            }
+            files.push((owner, file));
+        }
+        if sources.len() != CALLER_PATHS.len() {
+            return Err(Refusal::SourceShape(CallerUnit::CorePrepare));
+        }
+        for (role, bytes) in [
+            (super::SourceRole::ExchangeRun, context.exchange_run),
+            (super::SourceRole::ExchangeLimits, context.exchange_limits),
+            (super::SourceRole::ExchangeSplit, context.exchange_split),
+            (super::SourceRole::ExchangeSchema, context.exchange_schema),
+        ] {
+            let owner = Owner::Context(role);
+            let file = parse_file(bytes).map_err(|()| shape(owner))?;
+            if !root_attributes(&file) {
+                return Err(shape(owner));
+            }
+            files.push((owner, file));
+        }
+        Ok(Self { files })
+    }
+
+    fn file(&self, owner: Owner) -> Result<&syn::File, Refusal> {
+        self.files
+            .iter()
+            .find(|(key, _)| *key == owner)
+            .map(|(_, file)| file)
+            .ok_or_else(|| shape(owner))
+    }
+}
+
+fn caller_anchor(unit: CallerUnit, item: &'static str) -> SourceAnchor {
+    SourceAnchor {
+        owner: Owner::Caller(unit),
+        item,
+    }
+}
+
+fn context_anchor(role: super::SourceRole, item: &'static str) -> SourceAnchor {
+    SourceAnchor {
+        owner: Owner::Context(role),
+        item,
+    }
+}
+
+enum Declaration {
+    Free(syn::ItemFn),
+    Method(syn::ItemImpl),
+}
+
+struct Rule {
+    anchor: SourceAnchor,
+    declaration: Declaration,
+}
+
+fn free_rule(anchor: SourceAnchor, declaration: syn::ItemFn) -> Rule {
+    Rule {
+        anchor,
+        declaration: Declaration::Free(declaration),
+    }
+}
+
+fn method_rule(anchor: SourceAnchor, declaration: syn::ItemImpl) -> Rule {
+    Rule {
+        anchor,
+        declaration: Declaration::Method(declaration),
+    }
+}
+
+struct Matched {
+    anchor: SourceAnchor,
+    body: syn::Block,
+}
+
+fn only<'a, T: 'a>(mut items: impl Iterator<Item = &'a T>, owner: Owner) -> Result<&'a T, Refusal> {
+    let first = items.next().ok_or_else(|| shape(owner))?;
+    if items.next().is_some() {
+        return Err(shape(owner));
+    }
+    Ok(first)
+}
+
+fn match_free(
+    file: &syn::File,
+    rule: &Rule,
+    expected: &syn::ItemFn,
+) -> Result<syn::Block, Refusal> {
+    let actual = only(
+        file.items.iter().filter_map(|item| {
+            if let syn::Item::Fn(function) = item
+                && function.sig.ident == rule.anchor.item
+            {
+                Some(function)
+            } else {
+                None
+            }
+        }),
+        rule.anchor.owner,
+    )?;
+    let mut header = actual.clone();
+    header.block.stmts.clear();
+    normalize_signature(&mut header.sig);
+    let mut wanted = expected.clone();
+    normalize_signature(&mut wanted.sig);
+    same(
+        rule.anchor.owner,
+        &without_docs(syn::Item::Fn(header)),
+        &without_docs(syn::Item::Fn(wanted)),
+    )?;
+    Ok(actual.block.as_ref().clone())
+}
+
+fn match_method(
+    file: &syn::File,
+    rule: &Rule,
+    expected: &syn::ItemImpl,
+) -> Result<syn::Block, Refusal> {
+    let actual = only(
+        file.items.iter().filter_map(|item| {
+            if let syn::Item::Impl(implementation) = item
+                && tokens(&implementation.self_ty) == tokens(&expected.self_ty)
+            {
+                Some(implementation)
+            } else {
+                None
+            }
+        }),
+        rule.anchor.owner,
+    )?;
+    let mut actual_header = actual.clone();
+    actual_header.items.clear();
+    let mut expected_header = expected.clone();
+    expected_header.items.clear();
+    same(
+        rule.anchor.owner,
+        &without_docs(syn::Item::Impl(actual_header)),
+        &without_docs(syn::Item::Impl(expected_header)),
+    )?;
+    let wanted = only(
+        expected.items.iter().filter_map(|member| {
+            if let syn::ImplItem::Fn(method) = member {
+                Some(method)
+            } else {
+                None
+            }
+        }),
+        rule.anchor.owner,
+    )?;
+    let method = only(
+        actual.items.iter().filter_map(|member| {
+            if let syn::ImplItem::Fn(method) = member
+                && method.sig.ident == wanted.sig.ident
+            {
+                Some(method)
+            } else {
+                None
+            }
+        }),
+        rule.anchor.owner,
+    )?;
+    let mut header = method.clone();
+    header.attrs.retain(|attribute| !literal_doc(attribute));
+    header.block.stmts.clear();
+    normalize_signature(&mut header.sig);
+    let mut wanted_header = wanted.clone();
+    normalize_signature(&mut wanted_header.sig);
+    same(rule.anchor.owner, &header, &wanted_header)?;
+    Ok(method.block.clone())
+}
+
+fn match_rules(sources: &ParsedSources) -> Result<Vec<Matched>, Refusal> {
+    let rules = core_rules()
+        .into_iter()
+        .chain(policy_rules())
+        .chain(operation_rules())
+        .chain(exchange_rules());
+    let mut matched: Vec<Matched> = Vec::new();
+    for rule in rules {
+        if matched.iter().any(|prior| prior.anchor == rule.anchor) {
+            return Err(shape(rule.anchor.owner));
+        }
+        let file = sources.file(rule.anchor.owner)?;
+        let body = match &rule.declaration {
+            Declaration::Free(expected) => match_free(file, &rule, expected)?,
+            Declaration::Method(expected) => match_method(file, &rule, expected)?,
+        };
+        matched.push(Matched {
+            anchor: rule.anchor,
+            body,
+        });
+    }
+    Ok(matched)
+}
+
+fn body(matched: &[Matched], anchor: SourceAnchor) -> Result<&syn::Block, Refusal> {
+    matched
+        .iter()
+        .find(|function| function.anchor == anchor)
+        .map(|function| &function.body)
+        .ok_or_else(|| shape(anchor.owner))
+}
+
+fn local<'a>(
+    block: &'a syn::Block,
+    anchor: SourceAnchor,
+    name: &str,
+) -> Result<(usize, &'a syn::Local), Refusal> {
+    let mut found = block
+        .stmts
+        .iter()
+        .enumerate()
+        .filter_map(|(index, statement)| {
+            if let syn::Stmt::Local(binding) = statement
+                && matches!(&binding.pat, syn::Pat::Ident(pattern) if pattern.ident == name)
+            {
+                Some((index, binding))
+            } else {
+                None
+            }
+        });
+    let first = found.next().ok_or_else(|| shape(anchor.owner))?;
+    if found.next().is_some() {
+        return Err(shape(anchor.owner));
+    }
+    Ok(first)
+}
+
+fn statement(
+    block: &syn::Block,
+    anchor: SourceAnchor,
+    ordinal: usize,
+    expected: syn::Stmt,
+) -> Result<(), Refusal> {
+    same(
+        anchor.owner,
+        block
+            .stmts
+            .get(ordinal)
+            .ok_or_else(|| shape(anchor.owner))?,
+        &expected,
+    )
+}
+
+fn exact_body(
+    matched: &[Matched],
+    anchor: SourceAnchor,
+    supported: syn::Block,
+) -> Result<(), Refusal> {
+    same(anchor.owner, body(matched, anchor)?, &supported)
+}
+
+fn constant(
+    sources: &ParsedSources,
+    unit: CallerUnit,
+    supported: syn::ItemConst,
+) -> Result<u64, Refusal> {
+    let owner = Owner::Caller(unit);
+    let actual = only(
+        sources.file(owner)?.items.iter().filter_map(|item| {
+            if let syn::Item::Const(value) = item
+                && value.ident == supported.ident
+            {
+                Some(value)
+            } else {
+                None
+            }
+        }),
+        owner,
+    )?;
+    same(
+        owner,
+        &without_docs(syn::Item::Const(actual.clone())),
+        &syn::Item::Const(supported),
+    )?;
+    let syn::Expr::Lit(value) = actual.expr.as_ref() else {
+        return Err(shape(owner));
+    };
+    let syn::Lit::Int(integer) = &value.lit else {
+        return Err(shape(owner));
+    };
+    integer.base10_parse().map_err(|_error| shape(owner))
+}
+
+// This is only a lexical import-binding projection for the finite caller
+// recipes, not general Rust resolution. The target modules are matched below.
+fn import_leaves(tree: &syn::UseTree, prefix: &str, leaves: &mut Vec<(String, String)>) {
+    let join = |name: &str| {
+        if prefix.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{prefix}::{name}")
+        }
+    };
+    match tree {
+        syn::UseTree::Path(path) => {
+            import_leaves(&path.tree, &join(&path.ident.to_string()), leaves)
+        }
+        syn::UseTree::Group(group) => {
+            for item in &group.items {
+                import_leaves(item, prefix, leaves);
+            }
+        }
+        syn::UseTree::Name(name) => {
+            leaves.push((name.ident.to_string(), join(&name.ident.to_string())))
+        }
+        syn::UseTree::Rename(rename) => {
+            leaves.push((rename.rename.to_string(), join(&rename.ident.to_string())))
+        }
+        syn::UseTree::Glob(_) => leaves.push(("*".into(), join("*"))),
+    }
+}
+
+fn imports(sources: &ParsedSources, owner: Owner, wanted: &[(&str, &str)]) -> Result<(), Refusal> {
+    let file = sources.file(owner)?;
+    for (name, target) in wanted {
+        let mut found = Vec::new();
+        for item in &file.items {
+            let syn::Item::Use(import) = item else {
+                continue;
+            };
+            let mut leaves = Vec::new();
+            import_leaves(&import.tree, "", &mut leaves);
+            for (local, destination) in leaves {
+                if local == *name {
+                    let public = matches!(
+                        owner,
+                        Owner::Caller(
+                            CallerUnit::CoreAuctionRoot
+                                | CallerUnit::OpenRtbRoot
+                                | CallerUnit::RuntimeRoot
+                                | CallerUnit::ExchangeRoot
+                        )
+                    );
+                    let visibility_matches = if public {
+                        matches!(import.vis, syn::Visibility::Public(_))
+                    } else {
+                        matches!(import.vis, syn::Visibility::Inherited)
+                    };
+                    if import.leading_colon.is_some()
+                        || !import.attrs.is_empty()
+                        || !visibility_matches
+                    {
+                        return Err(shape(owner));
+                    }
+                    found.push(destination);
+                }
+                if local == "*" && destination != "auctioneer_config::source::*" {
+                    return Err(shape(owner));
+                }
+            }
+        }
+        if found != [target.to_string()] {
+            return Err(shape(owner));
+        }
+        // A local definition cannot redirect an explicitly bound recipe name.
+        if file.items.iter().any(|item| match item {
+            syn::Item::Fn(value) => value.sig.ident == *name,
+            syn::Item::Type(value) => value.ident == *name,
+            syn::Item::Struct(value) => value.ident == *name,
+            syn::Item::Enum(value) => value.ident == *name,
+            syn::Item::Const(value) => value.ident == *name,
+            syn::Item::Static(value) => value.ident == *name,
+            syn::Item::Mod(value) => {
+                value.ident == *name
+                    && !(owner == Owner::Caller(CallerUnit::OpenRtbRoot) && *name == "prepare")
+            }
+            _ => false,
+        }) {
+            return Err(shape(owner));
+        }
+    }
+    Ok(())
+}
+
+fn module(
+    sources: &ParsedSources,
+    unit: CallerUnit,
+    expected: syn::ItemMod,
+) -> Result<(), Refusal> {
+    let owner = Owner::Caller(unit);
+    let actual = only(
+        sources.file(owner)?.items.iter().filter_map(|item| {
+            if let syn::Item::Mod(module) = item
+                && module.ident == expected.ident
+            {
+                Some(module)
+            } else {
+                None
+            }
+        }),
+        owner,
+    )?;
+    same(owner, actual, &expected)
+}
+
+fn core_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
+    use CallerUnit::{CoreOperation, CorePrepare, CoreServices};
+    imports(
+        sources,
+        Owner::Caller(CorePrepare),
+        &[
+            ("PreparedAuction", "super::operation::PreparedAuction"),
+            ("PreparedState", "super::operation::PreparedState"),
+            ("AuctionFunding", "super::AuctionFunding"),
+            ("AuctionServices", "super::AuctionServices"),
+            ("AuctioneerAppConfig", "crate::config::AuctioneerAppConfig"),
+            (
+                "resolve_policy_host",
+                "crate::config::policy_host::resolve_policy_host",
+            ),
+            ("prepare", "auctioneer_openrtb::prepare"),
+            ("PrepareLimits", "auctioneer_openrtb::PrepareLimits"),
+            ("preflight", "auctioneer_runtime::json_preflight::preflight"),
+            ("bounded_json", "auctioneer_runtime::bounded_json"),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Caller(CoreServices),
+        &[
+            (
+                "NORMALIZATION_IMPLICIT_NODES",
+                "auctioneer_runtime::budget::NORMALIZATION_IMPLICIT_NODES",
+            ),
+            (
+                "RequestConstructionLimits",
+                "auctioneer_exchange::context::RequestConstructionLimits",
+            ),
+            (
+                "ResolvedIsolateLimits",
+                "auctioneer_runtime::ResolvedIsolateLimits",
+            ),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Caller(CoreOperation),
+        &[
+            ("run_auction", "auctioneer_exchange::run_auction"),
+            ("AuctionContext", "auctioneer_exchange::AuctionContext"),
+            (
+                "NormalizedBidRequest",
+                "auctioneer_openrtb::NormalizedBidRequest",
+            ),
+            ("AuctionServices", "super::AuctionServices"),
+        ],
+    )?;
+    core_module_bindings(sources)
+}
+
+fn core_module_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
+    use CallerUnit::{CoreAuctionRoot, CoreConfigRoot};
+    imports(
+        sources,
+        Owner::Caller(CoreAuctionRoot),
+        &[
+            ("AuctionServices", "services::AuctionServices"),
+            ("AuctionFunding", "services::AuctionFunding"),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Caller(CoreConfigRoot),
+        &[
+            (
+                "SharedAppConfig",
+                "auctioneer_config::policy::OperatorPolicy",
+            ),
+            ("BidderSettings", "auctioneer_bidder::BidderSettings"),
+        ],
+    )?;
+    for expected in [
+        syn::parse_quote!(
+            mod prepare;
+        ),
+        syn::parse_quote!(
+            mod services;
+        ),
+        syn::parse_quote!(
+            mod operation;
+        ),
+    ] {
+        module(sources, CoreAuctionRoot, expected)?;
+    }
+    for expected in [
+        syn::parse_quote!(
+            pub mod policy_host;
+        ),
+        syn::parse_quote!(
+            pub mod resolve;
+        ),
+    ] {
+        module(sources, CoreConfigRoot, expected)?;
+    }
+    let file = sources.file(Owner::Caller(CoreConfigRoot))?;
+    let alias = only(
+        file.items.iter().filter_map(|item| {
+            if let syn::Item::Type(alias) = item
+                && alias.ident == "AuctioneerAppConfig"
+            {
+                Some(alias)
+            } else {
+                None
+            }
+        }),
+        Owner::Caller(CoreConfigRoot),
+    )?;
+    let mut declaration = alias.clone();
+    declaration
+        .attrs
+        .retain(|attribute| !literal_doc(attribute));
+    let supported: syn::ItemType = syn::parse_quote! {
+        pub type AuctioneerAppConfig = SharedAppConfig<BidderSettings>;
+    };
+    same(Owner::Caller(CoreConfigRoot), &declaration, &supported)
+}
+
+fn runtime_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
+    use CallerUnit::{ExchangeRoot, OpenRtbRoot, RuntimeRoot};
+    imports(
+        sources,
+        Owner::Caller(OpenRtbRoot),
+        &[
+            ("prepare", "prepare::prepare"),
+            ("PrepareLimits", "prepare::PrepareLimits"),
+            ("NormalizedBidRequest", "normalized::NormalizedBidRequest"),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Caller(RuntimeRoot),
+        &[
+            ("ResolvedIsolateLimits", "budget::ResolvedIsolateLimits"),
+            (
+                "RequestConstructionCosts",
+                "budget::RequestConstructionCosts",
+            ),
+            ("ResourceError", "auction_budget::ResourceError"),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Caller(ExchangeRoot),
+        &[
+            ("run_auction", "run::run_auction"),
+            ("AuctionContext", "context::AuctionContext"),
+        ],
+    )?;
+    module(
+        sources,
+        OpenRtbRoot,
+        syn::parse_quote!(
+            pub mod prepare;
+        ),
+    )?;
+    module(
+        sources,
+        OpenRtbRoot,
+        syn::parse_quote!(
+            mod normalized;
+        ),
+    )?;
+    module(
+        sources,
+        RuntimeRoot,
+        syn::parse_quote!(
+            pub mod budget;
+        ),
+    )?;
+    module(
+        sources,
+        ExchangeRoot,
+        syn::parse_quote!(
+            pub mod context;
+        ),
+    )?;
+    module(
+        sources,
+        ExchangeRoot,
+        syn::parse_quote!(
+            pub mod run;
+        ),
+    )?;
+    runtime_leaf_bindings(sources)
+}
+
+fn runtime_leaf_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
+    imports(
+        sources,
+        Owner::Caller(CallerUnit::PolicyHost),
+        &[
+            ("clamp_host_to_boot", "super::resolve::clamp_host_to_boot"),
+            (
+                "apply_resource_overrides",
+                "super::resolve::apply_resource_overrides",
+            ),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Caller(CallerUnit::NormalizedPrepare),
+        &[
+            ("BidRequest", "crate::types::bid_request::BidRequest"),
+            (
+                "NormalizedBidRequest",
+                "crate::normalized::NormalizedBidRequest",
+            ),
+        ],
+    )?;
+    imports(
+        sources,
+        Owner::Context(super::SourceRole::ExchangeRun),
+        &[
+            (
+                "apply_max_bidder_names",
+                "crate::limits::apply_max_bidder_names",
+            ),
+            (
+                "materialize_per_bidder",
+                "crate::split::materialize_per_bidder",
+            ),
+            ("group_by_bidder", "crate::split::group_by_bidder"),
+            (
+                "RequestConstructionLimits",
+                "crate::context::RequestConstructionLimits",
+            ),
+        ],
+    )
+}
+
+fn core_rules() -> Vec<Rule> {
+    use CallerUnit::{CorePrepare, CoreServices, ImplicitFill, NormalizedPrepare};
+    vec![
+        free_rule(
+            caller_anchor(CorePrepare, "prepare_auction"),
+            syn::parse_quote! {
+                pub fn prepare_auction<'host>(
+                    settings: &AuctioneerAppConfig, input: AuctionInput<'_>,
+                    host: AuctionServices<'host>, funding: AuctionFunding,
+                ) -> Result<PreparedAuction<'host>, AuctionFailure> {}
+            },
+        ),
+        free_rule(
+            caller_anchor(CorePrepare, "prepare_state"),
+            syn::parse_quote! {
+                fn prepare_state(
+                    settings: &AuctioneerAppConfig, input: AuctionInput<'_>,
+                    services: &AuctionServices<'_>, funding: &AuctionFunding,
+                    debug_requested: &mut bool,
+                ) -> Result<PreparedState, AuctionFailureReason> {}
+            },
+        ),
+        free_rule(
+            caller_anchor(CorePrepare, "admit_input"),
+            syn::parse_quote! {
+                fn admit_input<'input>(
+                    settings: &AuctioneerAppConfig, input: AuctionInput<'input>,
+                    host: &HostConfig, services: &AuctionServices<'_>,
+                ) -> Result<AdmittedInput<'input>, AuctionFailureReason> {}
+            },
+        ),
+        free_rule(
+            caller_anchor(CorePrepare, "normalization_limits"),
+            syn::parse_quote! {
+                fn normalization_limits(limits: &auctioneer_runtime::ResolvedIsolateLimits) -> PrepareLimits {}
+            },
+        ),
+        free_rule(
+            caller_anchor(NormalizedPrepare, "prepare"),
+            syn::parse_quote! {
+                #[inline]
+                pub fn prepare(mut req: BidRequest, headers: &RequestHeaders<'_>, limits: &PrepareLimits)
+                    -> Result<NormalizedBidRequest, ValidationError> {}
+            },
+        ),
+        free_rule(
+            caller_anchor(ImplicitFill, "run"),
+            syn::parse_quote! {
+                pub(super) fn run(req: &mut BidRequest, headers: &RequestHeaders<'_>, max_copied_header_bytes: u32) {}
+            },
+        ),
+        method_rule(
+            caller_anchor(CoreServices, "AuctionFunding::ensure"),
+            syn::parse_quote! {
+                impl AuctionFunding {
+                    pub(crate) fn ensure(&self, profile: &AuctionResourceProfile) -> Result<(), ResourceError> {}
+                }
+            },
+        ),
+        method_rule(
+            caller_anchor(CoreServices, "AuctionResourceProfile::construction_limits"),
+            syn::parse_quote! {
+                impl AuctionResourceProfile {
+                    pub(crate) fn construction_limits(&self) -> Result<RequestConstructionLimits, ResourceError> {}
+                }
+            },
+        ),
+        free_rule(
+            caller_anchor(CoreServices, "normalized_construction_limits"),
+            syn::parse_quote! {
+                fn normalized_construction_limits(
+                    input_nodes: u64, inbound_bytes: u64, copied_header_bytes: u64,
+                    costs: RequestConstructionCosts,
+                ) -> Result<RequestConstructionLimits, ResourceError> {}
+            },
+        ),
+    ]
+}
+
+fn policy_rules() -> Vec<Rule> {
+    vec![
+        free_rule(
+            caller_anchor(CallerUnit::PolicyHost, "resolve_policy_host"),
+            syn::parse_quote! {
+                #[must_use]
+                pub fn resolve_policy_host(product: &HostConfig, policy: &OperatorPolicy, funded: &ResolvedIsolateLimits)
+                    -> HostConfig {}
+            },
+        ),
+        free_rule(
+            caller_anchor(CallerUnit::PolicyHost, "requested_policy_host"),
+            syn::parse_quote! {
+                pub(super) fn requested_policy_host(product: &HostConfig, overlay: &HostPolicy) -> HostConfig {}
+            },
+        ),
+        free_rule(
+            caller_anchor(CallerUnit::PolicyResolve, "apply_resource_overrides"),
+            syn::parse_quote! {
+                pub(super) fn apply_resource_overrides(base: &mut ResourceLimits, requested: &AuctionConfig) {}
+            },
+        ),
+        free_rule(
+            caller_anchor(CallerUnit::PolicyResolve, "clamp_host_to_boot"),
+            syn::parse_quote! {
+                pub(crate) fn clamp_host_to_boot(host: &mut HostConfig, boot: &auctioneer_runtime::ResolvedIsolateLimits) {}
+            },
+        ),
+    ]
+}
+
+fn operation_rules() -> Vec<Rule> {
+    use super::SourceRole::ExchangeRun;
+    vec![
+        method_rule(
+            caller_anchor(CallerUnit::CoreOperation, "PreparedAuction::run"),
+            syn::parse_quote! {
+                impl<'host> PreparedAuction<'host> {
+                    pub async fn run(mut self) -> Result<CompletedAuction, AuctionFailure> {}
+                }
+            },
+        ),
+        method_rule(
+            caller_anchor(
+                CallerUnit::ExchangeContext,
+                "RequestConstructionLimits::ensure",
+            ),
+            syn::parse_quote! {
+                impl RequestConstructionLimits {
+                    pub fn ensure(&self, request: &BidRequest) -> Result<(), crate::AuctionError> {}
+                }
+            },
+        ),
+        method_rule(
+            caller_anchor(
+                CallerUnit::ExchangeContext,
+                "RequestConstructionLimits::with_supplement",
+            ),
+            syn::parse_quote! {
+                impl RequestConstructionLimits {
+                    pub(crate) fn with_supplement(self, nodes: u32, bytes: u64) -> Result<Self, crate::AuctionError> {}
+                }
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeRun, "scrub_bidder_requests"),
+            syn::parse_quote! {
+                fn scrub_bidder_requests(
+                    per_bidder: &mut [PerBidderRequest], decisions: &BTreeMap<BidderName, BidderDecision>,
+                    keep_bits: IpKeepBits, audit: &mut DisclosureAudit, limits: Option<RequestConstructionLimits>,
+                    clock: &dyn auctioneer_runtime::Clock, deadline_at: auctioneer_runtime::MonotonicInstant,
+                ) -> Result<bool, AuctionError> {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeRun, "run_auction"),
+            syn::parse_quote! {
+                #[expect(
+                    clippy::too_many_lines,
+                    reason = "auction driver walks the fixed step sequence; helpers are already extracted"
+                )]
+                pub async fn run_auction(
+                    req: &NormalizedBidRequest, ctx: &AuctionContext<'_>, plan: &AuctionPlan,
+                    audit: &mut DisclosureAudit,
+                ) -> Result<AuctionOutcome, AuctionError> {}
+            },
+        ),
+    ]
+}
+
+fn exchange_rules() -> Vec<Rule> {
+    use super::SourceRole::{ExchangeLimits, ExchangeRun, ExchangeSchema, ExchangeSplit};
+    vec![
+        free_rule(
+            context_anchor(ExchangeLimits, "apply_max_bidder_names"),
+            syn::parse_quote! {
+                pub(crate) fn apply_max_bidder_names(names: Vec<BidderName>, cap: usize)
+                    -> (Vec<BidderName>, Vec<BidderCapDrop>) {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeLimits, "cap_entries"),
+            syn::parse_quote! {
+                fn cap_entries<T>(mut per_bidder: Vec<T>, cap: usize, bidder: impl Fn(T) -> BidderName)
+                    -> (Vec<T>, Vec<BidderCapDrop>) {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeSplit, "group_by_bidder"),
+            syn::parse_quote! {
+                pub fn group_by_bidder(
+                    req: &BidRequest, aliases: &AliasMap, registry: &BidderRegistry,
+                    disabled: &BTreeSet<BidderName>, dropped_alias_names: &BTreeSet<BidderName>,
+                ) -> Result<GroupedBidders, AuctionError> {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeSplit, "group_one_imp"),
+            syn::parse_quote! {
+                fn group_one_imp(
+                    imp_idx: usize, imp: &Value, inputs: &SplitInputs<'_>,
+                    disabled: &BTreeSet<BidderName>,
+                    per_bidder_imps: &mut BTreeMap<BidderName, Vec<usize>>,
+                    disabled_bidder_warnings: &mut Vec<(BidderName, ErrorEntry)>,
+                ) -> Result<(), AuctionError> {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeSplit, "materialize_per_bidder"),
+            syn::parse_quote! {
+                pub fn materialize_per_bidder(
+                    grouped: &GroupedBidders, survivors: &[BidderName], aliases: &AliasMap,
+                    registry: &BidderRegistry, dropped_alias_names: &BTreeSet<BidderName>,
+                ) -> Result<Vec<PerBidderRequest>, AuctionError> {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeRun, "run_make_requests"),
+            syn::parse_quote! {
+                async fn run_make_requests(
+                    ctx: &AuctionContext<'_>, underlying: &BidRequest, pbr: &mut PerBidderRequest,
+                    gpc: Option<&str>, tmax: &TmaxResolution, projection: LegacyProjection<'_>,
+                    out: &mut MakeRequestsOutput,
+                ) {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeSchema, "admit"),
+            syn::parse_quote! {
+                pub(super) fn admit(ctx: &AuctionContext<'_>, pbr: &mut PerBidderRequest,
+                    tmax: &TmaxResolution, out: &mut MakeRequestsOutput) -> bool {}
+            },
+        ),
+        free_rule(
+            context_anchor(ExchangeSchema, "retain_valid"),
+            syn::parse_quote! {
+                fn retain_valid<F>(request: &mut BidRequest, errors: &mut Vec<ErrorEntry>, mut validate: F)
+                where F: FnMut(&Value) -> Result<(), NativeSchemaError>, {}
+            },
+        ),
+    ]
+}
+
+fn normalize_signature(signature: &mut syn::Signature) {
+    signature.inputs = std::mem::take(&mut signature.inputs).into_iter().collect();
+    signature.generics.params = std::mem::take(&mut signature.generics.params)
+        .into_iter()
+        .collect();
+    if let Some(clause) = &mut signature.generics.where_clause {
+        clause.predicates = std::mem::take(&mut clause.predicates).into_iter().collect();
+    }
+}
+
+fn prepare_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let mut debug_requested = host.debug_requested;
+        let state = match prepare_state(settings, input, &host, &funding, &mut debug_requested) {
+            Ok(state) => state,
+            Err(reason) => {
+                return Err(AuctionFailure::new(reason, funding).with_debug_requested(debug_requested));
+            }
+        };
+        Ok(PreparedAuction::new(state, host, funding))
+    }}
+}
+
+fn admission_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let body_cap = services.resources.inputs().limits.inbound_request_bytes
+            .min(u64::try_from(MAX_AUCTION_BODY).unwrap_or(u64::MAX));
+        let max_nodes = host.resource_limits.max_parsed_nodes;
+        match input {
+            AuctionInput::Json { bytes, headers } => {
+                if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > body_cap {
+                    return Err(AuctionFailureReason::invalid(&"request body too large"));
+                }
+                let (_, original_ext) = bounded_json::count_json_nodes_with_field(bytes, max_nodes, "ext")
+                    .map_err(node_error)?;
+                let account = resolve::resolve_account(bytes, settings, services.product_account, max_nodes)
+                    .map_err(AuctionFailureReason::Engine)?;
+                let raw = serde_json::from_slice(bytes)
+                    .map_err(|error| AuctionFailureReason::invalid(&error))?;
+                Ok(AdmittedInput { raw, account, original_ext, headers, })
+            }
+            AuctionInput::Typed { request, headers } => {
+                preflight(request, u64::from(max_nodes), MAX_CONSTRUCTION_DEPTH)
+                    .map_err(|error| AuctionFailureReason::invalid(&error))?;
+                let bytes = serialized_json_bytes(request)
+                    .map_err(|error| AuctionFailureReason::invalid(&error))?;
+                if bytes > body_cap {
+                    return Err(AuctionFailureReason::invalid(&"request body too large"));
+                }
+                let account = resolve::resolve_account_from_request(request, settings, services.product_account)
+                    .map_err(AuctionFailureReason::Engine)?;
+                Ok(AdmittedInput {
+                    raw: request.clone(), account,
+                    original_ext: bounded_json::JsonFieldShape::Unavailable, headers,
+                })
+            }
+        }
+    }}
+}
+
+fn normalization_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let got = u32::try_from(req.imp.len()).unwrap_or(u32::MAX);
+        if got > limits.max_impressions {
+            return Err(ValidationError::TooManyImpressions { got, max: limits.max_impressions, });
+        }
+        implicit_fill::run(&mut req, headers, limits.max_copied_header_bytes);
+        req.validate()?;
+        checks::reject_legacy_25_privacy(&req)?;
+        checks::reject_empty_channel_name(&req)?;
+        Ok(NormalizedBidRequest { inner: req, warnings: Vec::new(), })
+    }}
+}
+
+fn implicit_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let combined = usize::try_from(max_copied_header_bytes).unwrap_or(usize::MAX);
+        let per_field = combined.div_euclid(2);
+        let mut page_budget = per_field;
+        let mut ua_budget = combined.saturating_sub(per_field);
+        site_default(req, headers, &mut page_budget, combined);
+        fill_device(req, headers, &mut ua_budget);
+        fill_at(req);
+        fill_channel(req);
+        ios_lmt_override(req);
+        gpc(req, headers);
+    }}
+}
+
+fn prefix(block: &syn::Block, anchor: SourceAnchor, supported: syn::Block) -> Result<(), Refusal> {
+    for (ordinal, expected) in supported.stmts.into_iter().enumerate() {
+        statement(block, anchor, ordinal, expected)?;
+    }
+    Ok(())
+}
+
+fn core_gates(matched: &[Matched]) -> Result<(), Refusal> {
+    use CallerUnit::{CorePrepare, ImplicitFill, NormalizedPrepare};
+    exact_body(
+        matched,
+        caller_anchor(CorePrepare, "prepare_auction"),
+        prepare_gate(),
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(CorePrepare, "admit_input"),
+        admission_gate(),
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(NormalizedPrepare, "prepare"),
+        normalization_gate(),
+    )?;
+    exact_body(matched, caller_anchor(ImplicitFill, "run"), implicit_gate())?;
+    let anchor = caller_anchor(CorePrepare, "prepare_state");
+    prefix(
+        body(matched, anchor)?,
+        anchor,
+        syn::parse_quote! {{
+            funding.ensure(services.resources).map_err(AuctionFailureReason::Resource)?;
+            if services.deadline_spent() { return Err(AuctionFailureReason::Deadline); }
+            if !services.bindings_match() {
+                return Err(AuctionFailureReason::Unavailable(
+                    "bidder implementation bindings do not match registry",
+                ));
+            }
+            let limits = &services.resources.inputs().limits;
+            let host = resolve_policy_host(services.product_host, settings, limits);
+            let AdmittedInput { raw, account, original_ext, headers, } =
+                admit_input(settings, input, &host, services)?;
+            let request = prepare(raw, &headers, &normalization_limits(limits))
+                .map_err(|error| AuctionFailureReason::invalid(&error))?;
+        }},
+    )
+}
+
+fn normalization_limits_gate() -> syn::Block {
+    syn::parse_quote! {{
+        PrepareLimits {
+            max_impressions: u32::from(
+                limits.max_impressions_per_auction.min(MAX_AUCTION_IMPRESSIONS),
+            ),
+            max_copied_header_bytes: limits.max_copied_header_bytes,
+        }
+    }}
+}
+
+fn construction_limits_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let limits = &self.inputs.limits;
+        normalized_construction_limits(
+            u64::from(limits.max_parsed_nodes),
+            limits.inbound_request_bytes,
+            u64::from(limits.max_copied_header_bytes),
+            self.inputs.construction_costs,
+        )
+    }}
+}
+
+fn normalized_construction_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let max_nodes = input_nodes.checked_add(NORMALIZATION_IMPLICIT_NODES)
+            .ok_or(ResourceError::CapacityOverflow)?;
+        let max_serialized_bytes =
+            normalization_wire_allowance(inbound_bytes, copied_header_bytes, input_nodes)
+                .map_err(|_error| ResourceError::CapacityOverflow)?;
+        Ok(RequestConstructionLimits {
+            max_nodes, max_serialized_bytes,
+            reusable_scratch_bytes: costs.reusable_scratch_bytes,
+            retained_per_scope_bytes: costs.retained_per_scope_bytes,
+        })
+    }}
+}
+
+fn scoped_construction_gate() -> syn::Block {
+    syn::parse_quote! {{
+        Ok(Self {
+            max_nodes: self.max_nodes.checked_add(u64::from(nodes))
+                .ok_or(auctioneer_runtime::ResourceError::CapacityOverflow)?,
+            max_serialized_bytes: self.max_serialized_bytes.checked_add(bytes)
+                .ok_or(auctioneer_runtime::ResourceError::CapacityOverflow)?,
+            reusable_scratch_bytes: self.reusable_scratch_bytes,
+            retained_per_scope_bytes: self.retained_per_scope_bytes,
+        })
+    }}
+}
+
+fn scoped_ensure_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let refuse = || crate::AuctionError::Internal("request construction limit exceeded".into());
+        preflight(request, self.max_nodes, MAX_CONSTRUCTION_DEPTH).map_err(|_error| refuse())?;
+        let bytes = serialized_json_bytes(request).map_err(|_error| refuse())?;
+        if bytes > self.max_serialized_bytes { return Err(refuse()); }
+        Ok(())
+    }}
+}
+
+fn storage_gates(matched: &[Matched]) -> Result<(), Refusal> {
+    use CallerUnit::{CoreServices, ExchangeContext};
+    exact_body(
+        matched,
+        caller_anchor(CoreServices, "AuctionResourceProfile::construction_limits"),
+        construction_limits_gate(),
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(CoreServices, "normalized_construction_limits"),
+        normalized_construction_gate(),
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(
+            ExchangeContext,
+            "RequestConstructionLimits::with_supplement",
+        ),
+        scoped_construction_gate(),
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(ExchangeContext, "RequestConstructionLimits::ensure"),
+        scoped_ensure_gate(),
+    )
+}
+
+fn clamp_gate() -> syn::Block {
+    syn::parse_quote! {{
+        let limits = &mut host.resource_limits;
+        limits.max_bidders_per_auction = limits.max_bidders_per_auction
+            .min(usize::try_from(boot.max_bidders_per_auction).unwrap_or(usize::MAX));
+        limits.max_outbound_requests = limits.max_outbound_requests
+            .min(usize::try_from(boot.max_outbound_requests).unwrap_or(usize::MAX));
+        limits.max_bidder_response_bytes = limits.max_bidder_response_bytes
+            .min(usize::try_from(boot.max_decoded_bytes).unwrap_or(usize::MAX));
+        limits.max_outbound_raw_bytes = limits.max_outbound_raw_bytes.min(boot.max_outbound_raw_bytes);
+        limits.max_outbound_request_bytes = limits.max_outbound_request_bytes.min(boot.max_outbound_request_bytes);
+        limits.max_transport_bytes = limits.max_transport_bytes.min(boot.max_transport_bytes);
+        limits.max_decoded_bytes = limits.max_decoded_bytes.min(boot.max_decoded_bytes);
+        limits.max_parsed_nodes = limits.max_parsed_nodes.min(boot.max_parsed_nodes);
+    }}
+}
+
+fn policy_gates(matched: &[Matched]) -> Result<(), Refusal> {
+    exact_body(
+        matched,
+        caller_anchor(CallerUnit::PolicyResolve, "clamp_host_to_boot"),
+        clamp_gate(),
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(CallerUnit::PolicyHost, "resolve_policy_host"),
+        syn::parse_quote! {{
+            let mut host = requested_policy_host(product, &policy.host);
+            clamp_host_to_boot(&mut host, funded);
+            host
+        }},
+    )?;
+    let anchor = caller_anchor(CallerUnit::PolicyHost, "requested_policy_host");
+    let block = body(matched, anchor)?;
+    prefix(
+        block,
+        anchor,
+        syn::parse_quote! {{
+            let mut host = product.clone();
+            apply_resource_overrides(&mut host.resource_limits, &overlay.resource_limits);
+        }},
+    )?;
+    let expected: syn::Stmt = syn::parse_quote!(host);
+    same(
+        anchor.owner,
+        block.stmts.last().ok_or_else(|| shape(anchor.owner))?,
+        &expected,
+    )
+}
+
+fn cap_gate() -> syn::Block {
+    syn::parse_quote! {{
+        if cap == 0 || per_bidder.len() <= cap { return (per_bidder, vec![]); }
+        let dropped = per_bidder.split_off(cap);
+        let drops = dropped.into_iter().map(|entry| BidderCapDrop {
+            bidder: bidder(entry), cap,
+        }).collect();
+        (per_bidder, drops)
+    }}
+}
+
+fn scope_gate() -> syn::Block {
+    syn::parse_quote! {{
+        for pbr in per_bidder {
+            if clock.now_monotonic() >= deadline_at { return Ok(false); }
+            if let Some(scope_limits) = limits
+                && let Err(error) = scope_limits.ensure(&pbr.request)
+            {
+                audit.start_scope();
+                audit.fail_scope();
+                return Err(error);
+            }
+            let decision = decisions.get(&pbr.bidder)
+                .ok_or_else(|| AuctionError::Internal("missing survivor privacy decision".into()))?;
+            let (pass_id, pass_geo) = match decision.gdpr {
+                AuctionPermissions::AllowAll => (true, true),
+                AuctionPermissions::Partial { pass_id, pass_geo, .. } => (pass_id, pass_geo),
+                AuctionPermissions::DenyBidRequest => (false, false),
+            };
+            let disclosure = ScrubDecisions {
+                pass_id: pass_id && decision.allow_host_ids, pass_geo,
+                transmit_ufpd: decision.transmit_ufpd,
+                transmit_precise_geo: decision.transmit_precise_geo,
+                transmit_tid: decision.transmit_tid, ccpa: decision.ccpa,
+                lmt: decision.lmt, coppa: decision.coppa,
+            };
+            match limits {
+                Some(scope_limits) => apply_classified_with_limits(
+                    &mut pbr.request, disclosure, keep_bits, audit,
+                    scope_limits.max_nodes, MAX_CONSTRUCTION_DEPTH,
+                )?,
+                None => apply_classified(&mut pbr.request, disclosure, keep_bits, audit)?,
+            }
+        }
+        Ok(clock.now_monotonic() < deadline_at)
+    }}
+}
+
+fn run_locals(matched: &[Matched]) -> Result<(), Refusal> {
+    use super::SourceRole::ExchangeRun;
+    let anchor = context_anchor(ExchangeRun, "run_auction");
+    let block = body(matched, anchor)?;
+    let (cap_at, cap) = local(block, anchor, "cap")?;
+    let wanted_cap: syn::Stmt = syn::parse_quote! {
+        let cap = ctx.host.resource_limits.max_bidders_per_auction.max(1);
+    };
+    same(anchor.owner, cap, &wanted_cap)?;
+    let (capped_at, capped) = local(block, anchor, "capped")?;
+    let wanted_capped: syn::Stmt = syn::parse_quote! {
+        let mut capped = materialize_per_bidder(
+            &grouped, &survivors, aliases, ctx.bidders, &plan.aliases.dropped_alias_names,
+        )?;
+    };
+    same(anchor.owner, capped, &wanted_capped)?;
+    let survivor_pattern: syn::Pat = syn::parse_quote!((survivors, bidder_cap_drops));
+    let mut survivor_position = None;
+    for (ordinal, statement) in block.stmts.iter().enumerate() {
+        if let syn::Stmt::Local(binding) = statement
+            && tokens(&binding.pat) == tokens(&survivor_pattern)
+        {
+            if survivor_position.is_some() {
+                return Err(shape(anchor.owner));
+            }
+            let supported_survivors: syn::Stmt = syn::parse_quote! {
+                let (survivors, bidder_cap_drops) = apply_max_bidder_names(sampled, cap);
+            };
+            same(anchor.owner, binding, &supported_survivors)?;
+            survivor_position = Some(ordinal);
+        }
+    }
+    let survivor_at = survivor_position.ok_or_else(|| shape(anchor.owner))?;
+    if cap_at >= survivor_at || survivor_at >= capped_at {
+        return Err(shape(anchor.owner));
+    }
+    let (scoped_at, scoped) = local(block, anchor, "scoped_limits")?;
+    let supported_scoped: syn::Stmt = syn::parse_quote! {
+        let scoped_limits = ctx.construction_limits.map(|limits| {
+            limits.with_supplement(
+                ctx.host.resource_limits.max_parsed_nodes,
+                ctx.host.resource_limits.max_outbound_raw_bytes,
+            )
+        }).transpose()?;
+    };
+    same(anchor.owner, scoped, &supported_scoped)?;
+    if capped_at >= scoped_at {
+        return Err(shape(anchor.owner));
+    }
+    let loops: Vec<_> = block
+        .stmts
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, statement)| {
+            if let syn::Stmt::Expr(syn::Expr::ForLoop(loop_), None) = statement
+                && tokens(&loop_.pat) == "pbr"
+            {
+                Some((ordinal, statement))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let [(loop_at, loop_statement)] = loops.as_slice() else {
+        return Err(shape(anchor.owner));
+    };
+    let supported_loop: syn::Stmt = syn::parse_quote! {
+        for pbr in &mut capped {
+            if ctx.clock.now_monotonic() >= deadline.deadline_at { break; }
+            run_make_requests(
+                ctx, underlying, pbr, gpc, &resolved, projection, &mut make_requests_output,
+            ).await;
+        }
+    };
+    same(anchor.owner, *loop_statement, &supported_loop)?;
+    if scoped_at >= *loop_at {
+        return Err(shape(anchor.owner));
+    }
+    Ok(())
+}
+
+fn schema_scope_gates(matched: &[Matched]) -> Result<Vec<GuardSource>, Refusal> {
+    use super::SourceRole::{ExchangeRun, ExchangeSchema};
+    let anchor = context_anchor(ExchangeRun, "run_make_requests");
+    let block = body(matched, anchor)?;
+    statement(
+        block,
+        anchor,
+        1,
+        syn::parse_quote! {
+            let Some((info, adapter)) = ctx.bidders.get(pbr.base.as_str()) else { return; };
+        },
+    )?;
+    let (configuration_at, configuration) = local(block, anchor, "has_configured_endpoint")?;
+    let expected: syn::Stmt = syn::parse_quote! {
+        let has_configured_endpoint = match bind_bidder_configuration(ctx, pbr, adapter, &mut info_for_adapter) {
+            Ok(selected) => selected,
+            Err(error) => {
+                out.bidder_pre_errors.entry(pbr.bidder.clone()).or_default()
+                    .push(ErrorEntry { code: error.code, message: error.message, });
+                return;
+            }
+        };
+    };
+    same(anchor.owner, configuration, &expected)?;
+    statement(
+        block,
+        anchor,
+        configuration_at
+            .checked_add(3)
+            .ok_or_else(|| shape(anchor.owner))?,
+        syn::parse_quote! { if !schema::admit(ctx, pbr, tmax, out) { return; } },
+    )?;
+    let admit = context_anchor(ExchangeSchema, "admit");
+    statement(
+        body(matched, admit)?,
+        admit,
+        2,
+        syn::parse_quote! {
+            if !mandatory && !funded_legacy { return true; }
+        },
+    )?;
+    statement(
+        body(matched, admit)?,
+        admit,
+        4,
+        syn::parse_quote! {
+            if ctx.schema_scratch_bytes < NATIVE_SCHEMA_SCRATCH_BYTES || ctx.projection_reservation.is_none() {
+                errors.push(error(NativeSchemaError::Unavailable));
+                return false;
+            }
+        },
+    )?;
+    let returned: syn::Stmt = syn::parse_quote!(!pbr.request.imp.is_empty());
+    same(
+        admit.owner,
+        body(matched, admit)?
+            .stmts
+            .last()
+            .ok_or_else(|| shape(admit.owner))?,
+        &returned,
+    )?;
+    Ok(vec![
+        GuardSource {
+            guard: ScopeGuard::DeadlineBeforeScope,
+            source: context_anchor(ExchangeRun, "run_auction"),
+        },
+        GuardSource {
+            guard: ScopeGuard::RegistryBeforeSchema,
+            source: anchor,
+        },
+        GuardSource {
+            guard: ScopeGuard::ConfigurationBeforeSchema,
+            source: anchor,
+        },
+        GuardSource {
+            guard: ScopeGuard::OptionalSchemaBypass,
+            source: admit,
+        },
+        GuardSource {
+            guard: ScopeGuard::FundingAndProjectionBeforeRetain,
+            source: admit,
+        },
+        GuardSource {
+            guard: ScopeGuard::WholeScopedRequestBeforeScrub,
+            source: context_anchor(ExchangeRun, "scrub_bidder_requests"),
+        },
+        GuardSource {
+            guard: ScopeGuard::RetainedNonemptyResult,
+            source: admit,
+        },
+    ])
+}
+
+fn split_gates(matched: &[Matched]) -> Result<(), Refusal> {
+    use super::SourceRole::{ExchangeLimits, ExchangeSplit};
+    exact_body(
+        matched,
+        context_anchor(ExchangeLimits, "cap_entries"),
+        cap_gate(),
+    )?;
+    exact_body(
+        matched,
+        context_anchor(ExchangeLimits, "apply_max_bidder_names"),
+        syn::parse_quote! {{
+            cap_entries(names, cap, |name| name)
+        }},
+    )?;
+    let grouping = context_anchor(ExchangeSplit, "group_one_imp");
+    let grouping_body = body(matched, grouping)?;
+    let (_, names) = local(grouping_body, grouping, "bidders_on_imp")?;
+    let expected_membership: syn::Stmt = syn::parse_quote! {
+        let mut bidders_on_imp: BTreeSet<&str> = BTreeSet::new();
+    };
+    same(grouping.owner, names, &expected_membership)?;
+    let materialization = context_anchor(ExchangeSplit, "materialize_per_bidder");
+    let materialization_body = body(matched, materialization)?;
+    let (_, output) = local(materialization_body, materialization, "out")?;
+    let expected_capacity: syn::Stmt =
+        syn::parse_quote!(let mut out = Vec::with_capacity(survivors.len()););
+    same(materialization.owner, output, &expected_capacity)?;
+    Ok(())
+}
+
+fn operation_gates(matched: &[Matched]) -> Result<(), Refusal> {
+    let anchor = caller_anchor(CallerUnit::CoreOperation, "PreparedAuction::run");
+    let block = body(matched, anchor)?;
+    let (_, construction) = local(block, anchor, "construction")?;
+    let expected: syn::Stmt = syn::parse_quote! {
+        let construction = match services.resources.construction_limits() {
+            Ok(limits) => limits,
+            Err(error) => {
+                return Err(AuctionFailure::new(AuctionFailureReason::Resource(error), self.funding,));
+            }
+        };
+    };
+    same(anchor.owner, construction, &expected)?;
+    let (_, result) = local(block, anchor, "result")?;
+    let initial = result.init.as_ref().ok_or_else(|| shape(anchor.owner))?;
+    let syn::Expr::Block(scope) = initial.expr.as_ref() else {
+        return Err(shape(anchor.owner));
+    };
+    let position = scope
+        .block
+        .stmts
+        .iter()
+        .position(|statement| {
+            tokens(statement) == tokens(&quote!(context.construction_limits = Some(construction);))
+        })
+        .ok_or_else(|| shape(anchor.owner))?;
+    let final_call: syn::Stmt = syn::parse_quote! {
+        run_auction(&state.request, &context, &state.plan, audit).await
+    };
+    same(
+        anchor.owner,
+        scope
+            .block
+            .stmts
+            .last()
+            .ok_or_else(|| shape(anchor.owner))?,
+        &final_call,
+    )?;
+    if position.checked_add(1) != Some(scope.block.stmts.len().saturating_sub(1)) {
+        return Err(shape(anchor.owner));
+    }
+    Ok(())
+}
+
+fn expressions(
+    sources: &ParsedSources,
+    matched: &[Matched],
+) -> Result<(CapExpression, CapExpression, CapExpression), Refusal> {
+    let impression_ceiling = constant(
+        sources,
+        CallerUnit::CorePrepare,
+        syn::parse_quote! {
+            pub(crate) const MAX_AUCTION_IMPRESSIONS: u16 = 100;
+        },
+    )?;
+    let implicit_nodes = constant(
+        sources,
+        CallerUnit::RuntimeBudget,
+        syn::parse_quote! {
+            pub const NORMALIZATION_IMPLICIT_NODES: u64 = 30;
+        },
+    )?;
+    exact_body(
+        matched,
+        caller_anchor(CallerUnit::CorePrepare, "normalization_limits"),
+        normalization_limits_gate(),
+    )?;
+    let run = context_anchor(super::SourceRole::ExchangeRun, "run_auction");
+    let (_, cap) = local(body(matched, run)?, run, "cap")?;
+    let initial = cap.init.as_ref().ok_or_else(|| shape(run.owner))?;
+    let syn::Expr::MethodCall(maximum) = initial.expr.as_ref() else {
+        return Err(shape(run.owner));
+    };
+    if maximum.args.len() != 1 {
+        return Err(shape(run.owner));
+    }
+    let Some(syn::Expr::Lit(literal)) = maximum.args.first() else {
+        return Err(shape(run.owner));
+    };
+    let syn::Lit::Int(integer) = &literal.lit else {
+        return Err(shape(run.owner));
+    };
+    let floor = integer
+        .base10_parse::<u64>()
+        .map_err(|_error| shape(run.owner))?;
+    Ok((
+        CapExpression::Min(
+            Box::new(CapExpression::Field(CapField::ResourceImpressions)),
+            Box::new(CapExpression::Literal {
+                source: caller_anchor(CallerUnit::CorePrepare, "MAX_AUCTION_IMPRESSIONS"),
+                value: impression_ceiling,
+            }),
+        ),
+        CapExpression::Max(
+            Box::new(CapExpression::Min(
+                Box::new(CapExpression::Field(CapField::RequestedHostBidders)),
+                Box::new(CapExpression::Field(CapField::FundedBidders)),
+            )),
+            Box::new(CapExpression::Literal {
+                source: run,
+                value: floor,
+            }),
+        ),
+        CapExpression::Add(
+            Box::new(CapExpression::Add(
+                Box::new(CapExpression::Field(CapField::CoreInputNodes)),
+                Box::new(CapExpression::Literal {
+                    source: caller_anchor(
+                        CallerUnit::RuntimeBudget,
+                        "NORMALIZATION_IMPLICIT_NODES",
+                    ),
+                    value: implicit_nodes,
+                }),
+            )),
+            Box::new(CapExpression::Field(CapField::HostParsedNodes)),
+        ),
+    ))
+}
+
+// Known local source shapes produce DATA, conditional on the named helper
+// semantics below. They do not close an actual caller/artifact or cost proof.
 fn derive_caller_sources(
-    _context: &ContextSources<'_>,
-    _sources: &[CallerSource],
+    context: &ContextSources<'_>,
+    sources: &[CallerSource],
     _attempts: u64,
 ) -> Result<CallerContract, Refusal> {
-    Err(Refusal::MissingCallerSourceProof)
+    super::context::check_sources(context).map_err(Refusal::Context)?;
+    let parsed = ParsedSources::new(context, sources)?;
+    core_bindings(&parsed)?;
+    runtime_bindings(&parsed)?;
+    let matched = match_rules(&parsed)?;
+    core_gates(&matched)?;
+    policy_gates(&matched)?;
+    storage_gates(&matched)?;
+    operation_gates(&matched)?;
+    split_gates(&matched)?;
+    run_locals(&matched)?;
+    exact_body(
+        &matched,
+        context_anchor(super::SourceRole::ExchangeRun, "scrub_bidder_requests"),
+        scope_gate(),
+    )?;
+    let scope_guards = schema_scope_gates(&matched)?;
+    let (original_impressions_upper, effective_bidder_cap, scoped_nodes_upper) =
+        expressions(&parsed, &matched)?;
+    Ok(CallerContract {
+        original_impressions_upper,
+        effective_bidder_cap,
+        scoped_nodes_upper,
+        required_borrow: BorrowDuty::UnchangedBidderParametersFromScopedEnsure,
+        parameter_borrow_preserved: None,
+        source_chain: matched.iter().map(|function| function.anchor).collect(),
+        scope_guards,
+        cleanup_duties: vec![
+            CleanupDuty::RejectedImpression,
+            CleanupDuty::RetainErrorAndUnwind,
+            CleanupDuty::ScopedRequestRelease,
+            CleanupDuty::PartialMaterialization,
+        ],
+        unresolved_helpers: vec![
+            "authentic parent and remaining type ancestry",
+            "integer ordering/conversion semantics and costs",
+            "typed JSON and normalization impression preservation",
+            "Vec/BTreeSet/BTreeMap cardinality and iterator protocols",
+            "scoped parameter preservation after ensure",
+        ],
+        panic_unwinds: None,
+        cleanup_work: None,
+        tree_navigation_work: None,
+        compiled_artifact_binding: None,
+    })
 }
 
 #[cfg(test)]
@@ -143,7 +1817,7 @@ mod tests {
     use sha2::{Digest as _, Sha256};
     use std::str::from_utf8;
 
-    const CALLER_SOURCES: [(CallerUnit, &str, &[u8]); 9] = [
+    const CALLER_SOURCES: [(CallerUnit, &str, &[u8]); 14] = [
         (
             CallerUnit::CorePrepare,
             "crates/auctioneer-core/src/auction/prepare.rs",
@@ -188,6 +1862,31 @@ mod tests {
             CallerUnit::RuntimeBudget,
             "crates/auctioneer-runtime/src/budget.rs",
             include_bytes!("../../../../auctioneer-runtime/src/budget.rs"),
+        ),
+        (
+            CallerUnit::CoreAuctionRoot,
+            "crates/auctioneer-core/src/auction/mod.rs",
+            include_bytes!("../../../../auctioneer-core/src/auction/mod.rs"),
+        ),
+        (
+            CallerUnit::CoreConfigRoot,
+            "crates/auctioneer-core/src/config/mod.rs",
+            include_bytes!("../../../../auctioneer-core/src/config/mod.rs"),
+        ),
+        (
+            CallerUnit::OpenRtbRoot,
+            "crates/auctioneer-openrtb/src/lib.rs",
+            include_bytes!("../../../../auctioneer-openrtb/src/lib.rs"),
+        ),
+        (
+            CallerUnit::RuntimeRoot,
+            "crates/auctioneer-runtime/src/lib.rs",
+            include_bytes!("../../../../auctioneer-runtime/src/lib.rs"),
+        ),
+        (
+            CallerUnit::ExchangeRoot,
+            "crates/auctioneer-exchange/src/lib.rs",
+            include_bytes!("../../../../auctioneer-exchange/src/lib.rs"),
         ),
     ];
 
@@ -351,6 +2050,13 @@ mod tests {
                 CleanupDuty::ScopedRequestRelease,
                 CleanupDuty::PartialMaterialization,
             ],
+            unresolved_helpers: vec![
+                "authentic parent and remaining type ancestry",
+                "integer ordering/conversion semantics and costs",
+                "typed JSON and normalization impression preservation",
+                "Vec/BTreeSet/BTreeMap cardinality and iterator protocols",
+                "scoped parameter preservation after ensure",
+            ],
             panic_unwinds: None,
             cleanup_work: None,
             tree_navigation_work: None,
@@ -454,7 +2160,7 @@ mod tests {
             compiled_sources: &census,
         };
         assert_eq!(bind_attempt_context(&binding, context).map(|_| ()), Ok(()));
-        assert_eq!(rows.len(), 9);
+        assert_eq!(rows.len(), 14);
         for (unit, path, bytes) in CALLER_SOURCES {
             let matching: Vec<_> = rows.iter().filter(|row| row.unit == unit).collect();
             assert_eq!(matching.len(), 1);
@@ -531,6 +2237,16 @@ mod tests {
     }
 
     fn pending(contract: &CallerContract) {
+        assert_eq!(
+            contract.unresolved_helpers,
+            [
+                "authentic parent and remaining type ancestry",
+                "integer ordering/conversion semantics and costs",
+                "typed JSON and normalization impression preservation",
+                "Vec/BTreeSet/BTreeMap cardinality and iterator protocols",
+                "scoped parameter preservation after ensure",
+            ]
+        );
         assert_eq!(contract.panic_unwinds, None);
         assert_eq!(contract.cleanup_work, None);
         assert_eq!(contract.tree_navigation_work, None);
@@ -1036,6 +2752,51 @@ mod tests {
         }
     }
 
+    fn assert_rehashed_import_redirects(context: &ContextSources<'_>, rows: &[CallerSource]) {
+        for (unit, prefix, binding) in [
+            (CallerUnit::CoreAuctionRoot, "services", "AuctionServices"),
+            (
+                CallerUnit::CoreConfigRoot,
+                "auctioneer_config",
+                "SharedAppConfig",
+            ),
+            (CallerUnit::OpenRtbRoot, "prepare", "PrepareLimits"),
+            (CallerUnit::RuntimeRoot, "budget", "ResolvedIsolateLimits"),
+            (CallerUnit::ExchangeRoot, "run", "run_auction"),
+        ] {
+            let mut redirected = rows.to_vec();
+            let row = redirected
+                .iter_mut()
+                .find(|source| source.unit == unit)
+                .unwrap();
+            let before = row.bytes.clone();
+            let mut file = syntax(&row.bytes);
+            let mut hits = 0_usize;
+            for item in &mut file.items {
+                if let syn::Item::Use(import) = item
+                    && import.to_token_stream().to_string().contains(binding)
+                    && let syn::UseTree::Path(path) = &mut import.tree
+                    && path.ident == prefix
+                {
+                    assert_eq!(path.ident, prefix);
+                    path.ident = syn::parse_quote!(fake_caller_module);
+                    hits = hits.checked_add(1).unwrap();
+                }
+            }
+            assert_eq!(hits, 1);
+            row.bytes = file.to_token_stream().to_string().into_bytes();
+            row.sha256 = digest(&row.bytes);
+            assert_eq!(row.sha256, digest(&row.bytes));
+            assert_ne!(row.bytes, before);
+            for attempts in [1, 0] {
+                assert_eq!(
+                    derive_caller_sources(context, &redirected, attempts),
+                    Err(Refusal::SourceShape(unit))
+                );
+            }
+        }
+    }
+
     #[test]
     fn missing_and_rehashed_caller_sources_refuse_at_zero_attempts() {
         let context = context();
@@ -1046,5 +2807,6 @@ mod tests {
         assert_rehashed_caller_constants(&context, &rows);
         assert_rehashed_bidder_clamp(&context, &rows);
         assert_changed_effective_floor(&context, &rows);
+        assert_rehashed_import_redirects(&context, &rows);
     }
 }

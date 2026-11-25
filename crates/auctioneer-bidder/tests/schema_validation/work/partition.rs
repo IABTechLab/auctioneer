@@ -974,4 +974,707 @@ mod tests {
             }
         }
     }
+
+    // Generated-ABI-shaped DATA fixtures only: no factory root, source window,
+    // selected-owner receipt or installed cap is manufactured by these tests.
+    #[derive(Clone, Copy)]
+    enum ParameterFixture {
+        Boolean,
+        ObjectChildren,
+        ObjectAncestor,
+    }
+
+    fn parameterized_fixture(shape: ParameterFixture) -> Recipe {
+        let objects = !matches!(shape, ParameterFixture::Boolean);
+        let argument: syn::Expr = if matches!(shape, ParameterFixture::ObjectAncestor) {
+            syn::parse_quote!(instance)
+        } else {
+            syn::parse_quote!(member)
+        };
+        let entry: syn::Block = if objects {
+            syn::parse_quote!({
+                __cache.reset();
+                match instance {
+                    serde_json::Value::Object(obj) =>
+                        obj.iter().all(|(key, member)| middle(#argument, __cache)),
+                    _ => false,
+                }
+            })
+        } else {
+            syn::parse_quote!({
+                __cache.reset();
+                leaf(instance, __cache)
+            })
+        };
+        let middle: Option<syn::ItemFn> = objects.then(|| {
+            syn::parse_quote! {
+                fn middle(instance: &serde_json::Value, __cache: &mut InnerCache) -> bool {
+                    match instance {
+                        serde_json::Value::Object(obj) =>
+                            obj.iter().all(|(key, member)| leaf(member, __cache)),
+                        _ => false,
+                    }
+                }
+            }
+        });
+        let syntax: syn::File = syn::parse_quote! {
+            struct InnerCache {}
+            struct OuterCache { __inner: InnerCache }
+            impl InnerCache { fn reset(&mut self) {} }
+            fn is_valid(instance: &serde_json::Value, __cache: &mut OuterCache) -> bool {
+                entry_is_valid(instance, &mut __cache.__inner)
+            }
+            fn entry_is_valid(instance: &serde_json::Value, __cache: &mut InnerCache) -> bool #entry
+            #middle
+            fn leaf(instance: &serde_json::Value, __cache: &mut InnerCache) -> bool {
+                instance.is_boolean()
+            }
+        };
+        let recipe = operations::classify_source_body(&syntax, &[], &[])
+            .expect("ABI-shaped fixture passes the existing classifier")
+            .recipe()
+            .clone();
+        assert_eq!(recipe.roots, vec![function(&recipe, "is_valid")]);
+        assert!(recipe.initialization.is_empty());
+        assert_eq!(recipe.functions.len(), if objects { 5 } else { 4 });
+        recipe
+    }
+
+    struct FixtureCall {
+        bound: CallBound,
+        arguments: Vec<Binding>,
+    }
+
+    fn parameter_call(
+        recipe: &Recipe,
+        caller: &str,
+        callee: &str,
+        per_attempt: SourceBoundCoeff,
+    ) -> FixtureCall {
+        let caller_id = function(recipe, caller);
+        let target = function(recipe, callee);
+        let parameters = &recipe.functions[&target].parameters;
+        let mut found = Vec::new();
+        model::walk(&recipe.functions[&caller_id].body, &mut |op| {
+            if let Kind::Call {
+                target: actual,
+                arguments,
+                evaluation,
+            } = &op.kind
+                && *actual == target
+            {
+                assert_eq!(op.site.function, caller_id);
+                assert_eq!(arguments.len(), parameters.len());
+                assert_eq!(evaluation.len(), parameters.len());
+                for (ordinal, ((argument, expression), formal)) in
+                    arguments.iter().zip(evaluation).zip(parameters).enumerate()
+                {
+                    assert_eq!(argument, &expression.value);
+                    assert_eq!(argument.ty, formal.ty);
+                    assert!(argument.borrowed && formal.borrowed);
+                    assert_eq!(
+                        formal.origin,
+                        Origin::Parameter {
+                            function: target,
+                            ordinal
+                        }
+                    );
+                    assert!(formal.declaration.is_none());
+                }
+                found.push(FixtureCall {
+                    bound: CallBound {
+                        site: op.site.clone(),
+                        target,
+                        formal_ordinal: 0,
+                        formal: parameters[0].clone(),
+                        actual: arguments[0].clone(),
+                        per_attempt,
+                    },
+                    arguments: arguments.clone(),
+                });
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(found.len(), 1);
+        found.pop().unwrap()
+    }
+
+    fn assert_parameter_signature(recipe: &Recipe, name: &str, cache: &str) {
+        let id = function(recipe, name);
+        let function = &recipe.functions[&id];
+        assert_eq!(function.result, Ty::Bool);
+        assert_eq!(function.parameters.len(), 2);
+        for (ordinal, ty) in [Ty::Value, Ty::Cache(cache.to_owned())]
+            .into_iter()
+            .enumerate()
+        {
+            let parameter = &function.parameters[ordinal];
+            assert_eq!(parameter.ty, ty);
+            assert!(parameter.borrowed);
+            assert!(parameter.declaration.is_none());
+            assert_eq!(
+                parameter.origin,
+                Origin::Parameter {
+                    function: id,
+                    ordinal
+                }
+            );
+        }
+    }
+
+    fn assert_wrapper_borrow(recipe: &Recipe) {
+        let root = function(recipe, "is_valid");
+        let entry = function(recipe, "entry_is_valid");
+        let cache = &recipe.functions[&root].parameters[1];
+        let mut visits = 0_u64;
+        model::walk(&recipe.functions[&root].body, &mut |op| {
+            if let Kind::Call {
+                target, evaluation, ..
+            } = &op.kind
+                && *target == entry
+            {
+                visits = visits.checked_add(1).unwrap();
+                let Kind::Evaluate(model::Action::Borrow { mutable: true }, borrowed) =
+                    &evaluation[1].kind
+                else {
+                    panic!("mutable wrapper cache borrow");
+                };
+                assert_eq!(borrowed.len(), 1);
+                let Kind::Evaluate(model::Action::Field(field), base) = &borrowed[0].kind else {
+                    panic!("wrapper cache field projection");
+                };
+                assert_eq!(field, "__inner");
+                assert_eq!(base.len(), 1);
+                assert_eq!(&base[0].value, cache);
+                assert!(matches!(&base[0].kind, Kind::Value(model::Atom::Place)));
+                assert_eq!(evaluation[1].value, borrowed[0].value);
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(visits, 1);
+    }
+
+    struct ObjectIteration {
+        site: Site,
+        collection: Binding,
+        parameters: Vec<Binding>,
+    }
+
+    fn object_iteration(recipe: &Recipe, owner: &str) -> ObjectIteration {
+        let id = function(recipe, owner);
+        let mut found = Vec::new();
+        model::walk(&recipe.functions[&id].body, &mut |op| {
+            if let Kind::Iterate {
+                protocol,
+                callee,
+                stop,
+                none_on_exhaustion,
+                bound,
+                receiver,
+                parameters,
+                body,
+                evaluation,
+            } = &op.kind
+            {
+                assert_eq!(*protocol, operations::Primitive::IteratorProtocol);
+                assert_eq!(callee, "Iterator::all");
+                assert_eq!(*stop, StopRule::FirstFalseOrExhaustion);
+                assert!(*none_on_exhaustion);
+                assert_eq!(bound.collection.ty, Ty::Map);
+                assert!(bound.collection.borrowed);
+                assert_eq!(bound.element, Ty::Tuple(vec![Ty::String, Ty::Value]));
+                assert_eq!(receiver, &evaluation.value);
+                let Kind::Primitive {
+                    callee: iterator,
+                    receiver: Some(collection),
+                    arguments,
+                    source_calls,
+                    ..
+                } = &evaluation.kind
+                else {
+                    panic!("map iterator receiver");
+                };
+                assert_eq!(iterator, "Map::iter");
+                assert_eq!(collection, &bound.collection);
+                assert_eq!(arguments.len(), 1);
+                assert_eq!(arguments[0].value, *collection);
+                assert!(source_calls.is_empty());
+                assert_eq!(parameters.len(), 2);
+                for (ordinal, (parameter, ty)) in
+                    parameters.iter().zip([Ty::String, Ty::Value]).enumerate()
+                {
+                    assert_eq!(parameter.ty, ty);
+                    assert!(parameter.borrowed);
+                    let mut declaration = body.site.clone();
+                    declaration.lexical.push(ordinal);
+                    assert_eq!(parameter.declaration.as_ref(), Some(&declaration));
+                    assert_eq!(
+                        parameter.origin,
+                        Origin::Projection {
+                            base: Box::new(Origin::Projection {
+                                base: Box::new(collection.origin.clone()),
+                                member: "member".to_owned(),
+                            }),
+                            member: ordinal.to_string(),
+                        }
+                    );
+                }
+                found.push(ObjectIteration {
+                    site: op.site.clone(),
+                    collection: collection.clone(),
+                    parameters: parameters.clone(),
+                });
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(found.len(), 1);
+        found.pop().unwrap()
+    }
+
+    fn assert_parameter_bindings(recipe: &Recipe, shape: ParameterFixture) {
+        let objects = !matches!(shape, ParameterFixture::Boolean);
+        for name in ["entry_is_valid", "leaf"] {
+            assert_parameter_signature(recipe, name, "InnerCache");
+        }
+        assert_parameter_signature(recipe, "is_valid", "OuterCache");
+        assert_wrapper_borrow(recipe);
+        let root = function(recipe, "is_valid");
+        let entry = function(recipe, "entry_is_valid");
+        let root_parameters = &recipe.functions[&root].parameters;
+        let entry_parameters = &recipe.functions[&entry].parameters;
+        let constant = SourceBoundCoeff {
+            constant: 1,
+            nodes: 0,
+        };
+        let wrapper = parameter_call(recipe, "is_valid", "entry_is_valid", constant);
+        assert_eq!(
+            wrapper.arguments,
+            vec![
+                root_parameters[0].clone(),
+                Binding {
+                    ty: Ty::Cache("InnerCache".to_owned()),
+                    place: "__cache.__inner".to_owned(),
+                    borrowed: true,
+                    origin: Origin::Projection {
+                        base: Box::new(root_parameters[1].origin.clone()),
+                        member: "__inner".to_owned()
+                    },
+                    declaration: None,
+                }
+            ]
+        );
+        let reset = parameter_call(recipe, "entry_is_valid", "InnerCache::reset", constant);
+        assert_eq!(reset.arguments, vec![entry_parameters[1].clone()]);
+        assert_eq!(reset.bound.formal.ty, Ty::Cache("InnerCache".to_owned()));
+        assert_eq!(recipe.functions[&reset.bound.target].result, Ty::Unit);
+        if objects {
+            assert_object_bindings(recipe, shape);
+        } else {
+            assert_eq!(
+                parameter_call(recipe, "entry_is_valid", "leaf", constant).arguments,
+                vec![entry_parameters[0].clone(), entry_parameters[1].clone()]
+            );
+        }
+    }
+
+    fn assert_object_bindings(recipe: &Recipe, shape: ParameterFixture) {
+        assert_parameter_signature(recipe, "middle", "InnerCache");
+        let upper = object_iteration(recipe, "entry_is_valid");
+        let lower = object_iteration(recipe, "middle");
+        for (owner, iteration) in [("entry_is_valid", &upper), ("middle", &lower)] {
+            let id = function(recipe, owner);
+            assert_eq!(
+                iteration.collection.origin,
+                Origin::Projection {
+                    base: Box::new(recipe.functions[&id].parameters[0].origin.clone()),
+                    member: "serde_json::Value::Object".to_owned(),
+                }
+            );
+        }
+        let entry = function(recipe, "entry_is_valid");
+        let middle = function(recipe, "middle");
+        let entry_parameters = &recipe.functions[&entry].parameters;
+        let middle_parameters = &recipe.functions[&middle].parameters;
+        let selected = if matches!(shape, ParameterFixture::ObjectAncestor) {
+            entry_parameters[0].clone()
+        } else {
+            upper.parameters[1].clone()
+        };
+        let linear = SourceBoundCoeff {
+            constant: 0,
+            nodes: 1,
+        };
+        assert_eq!(
+            parameter_call(recipe, "entry_is_valid", "middle", linear).arguments,
+            vec![selected, entry_parameters[1].clone()]
+        );
+        assert_eq!(
+            parameter_call(recipe, "middle", "leaf", linear).arguments,
+            vec![lower.parameters[1].clone(), middle_parameters[1].clone()]
+        );
+        assert_ne!(upper.parameters[0].ty, upper.parameters[1].ty);
+    }
+
+    // Expected coefficients are literal inputs. Only identities/bindings are
+    // projected from Recipe; no expected coefficient calls the deriver.
+    fn parameterized_expected(
+        recipe: &Recipe,
+        cap: NodeCapData,
+        attempts: u64,
+        object_coefficients: Option<(u64, u64)>,
+    ) -> SourceBounds {
+        let constant = SourceBoundCoeff {
+            constant: 1,
+            nodes: 0,
+        };
+        let mut calls = vec![
+            parameter_call(recipe, "is_valid", "entry_is_valid", constant).bound,
+            parameter_call(recipe, "entry_is_valid", "InnerCache::reset", constant).bound,
+        ];
+        let callbacks = if let Some((leaf_nodes, callback_nodes)) = object_coefficients {
+            calls.push(
+                parameter_call(
+                    recipe,
+                    "entry_is_valid",
+                    "middle",
+                    SourceBoundCoeff {
+                        constant: 0,
+                        nodes: 1,
+                    },
+                )
+                .bound,
+            );
+            calls.push(
+                parameter_call(
+                    recipe,
+                    "middle",
+                    "leaf",
+                    SourceBoundCoeff {
+                        constant: 0,
+                        nodes: leaf_nodes,
+                    },
+                )
+                .bound,
+            );
+            SourceBoundCoeff {
+                constant: 0,
+                nodes: callback_nodes,
+            }
+        } else {
+            calls.push(parameter_call(recipe, "entry_is_valid", "leaf", constant).bound);
+            SourceBoundCoeff {
+                constant: 0,
+                nodes: 0,
+            }
+        };
+        SourceBounds {
+            roots: recipe.roots.clone(),
+            cap,
+            attempts,
+            helper_calls: calls,
+            iterator_callbacks_per_attempt: callbacks,
+            required_sources: requirements(),
+        }
+    }
+
+    #[test]
+    fn parameterized_calls_preserve_instance_and_cache_bindings() {
+        let recipe = parameterized_fixture(ParameterFixture::Boolean);
+        assert_parameter_bindings(&recipe, ParameterFixture::Boolean);
+        let cap = NodeCapData { nodes: 7 };
+        assert_eq!(measured_nodes(&json!(true), cap), 1);
+        let literal = parameterized_expected(&recipe, cap, 1, None);
+        assert_eq!(literal.helper_calls.len(), 3);
+        assert_eq!(
+            literal
+                .helper_calls
+                .iter()
+                .map(|call| call.per_attempt)
+                .collect::<Vec<_>>(),
+            vec![
+                SourceBoundCoeff {
+                    constant: 1,
+                    nodes: 0
+                };
+                3
+            ]
+        );
+        assert_eq!(
+            literal.iterator_callbacks_per_attempt,
+            SourceBoundCoeff {
+                constant: 0,
+                nodes: 0
+            }
+        );
+        assert_eq!(derive_source_bounds(&recipe, cap, 1), Ok(literal));
+        assert_eq!(
+            derive_source_bounds(&recipe, cap, 0),
+            Ok(parameterized_expected(&recipe, cap, 0, None))
+        );
+    }
+
+    #[test]
+    fn object_entry_values_partition_across_parameterized_helpers() {
+        let recipe = parameterized_fixture(ParameterFixture::ObjectChildren);
+        assert_parameter_bindings(&recipe, ParameterFixture::ObjectChildren);
+        let cap = NodeCapData { nodes: 17 };
+        let witness = json!({"a": {"x": true, "y": true}, "b": {"z": true}});
+        let nodes = measured_nodes(&witness, cap);
+        assert_eq!(nodes, 11);
+        let rows = witness.as_object().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows["a"].as_object().unwrap().len(), 2);
+        assert_eq!(rows["b"].as_object().unwrap().len(), 1);
+        assert_eq!(
+            rows["a"]
+                .as_object()
+                .unwrap()
+                .len()
+                .checked_add(rows["b"].as_object().unwrap().len()),
+            Some(3)
+        );
+        assert_eq!(rows.len().checked_add(3), Some(5));
+        let literal = parameterized_expected(&recipe, cap, 1, Some((1, 1)));
+        assert_eq!(literal.helper_calls.len(), 4);
+        assert_eq!(at_nodes(literal.helper_calls[2].per_attempt, nodes), 11);
+        assert_eq!(at_nodes(literal.helper_calls[3].per_attempt, nodes), 11);
+        assert_eq!(at_nodes(literal.iterator_callbacks_per_attempt, nodes), 11);
+        // Actual 2/3 helper entries and five callbacks are below these ceilings;
+        // the two wrapper/reset entries remain separate constant occurrences.
+        assert_eq!(derive_source_bounds(&recipe, cap, 1), Ok(literal));
+        assert_eq!(
+            derive_source_bounds(&recipe, cap, 0),
+            Ok(parameterized_expected(&recipe, cap, 0, Some((1, 1))))
+        );
+    }
+
+    #[test]
+    fn object_ancestor_rescans_require_key_funded_cap_lifting() {
+        let recipe = parameterized_fixture(ParameterFixture::ObjectAncestor);
+        assert_parameter_bindings(&recipe, ParameterFixture::ObjectAncestor);
+        let cap = NodeCapData { nodes: 13 };
+        let witness = json!({"a": true, "b": true, "c": true});
+        let nodes = measured_nodes(&witness, cap);
+        assert_eq!((cap.nodes, nodes), (13, 7));
+        let members = u64::try_from(witness.as_object().unwrap().len()).unwrap();
+        assert_eq!(members, 3);
+        assert_eq!(members.checked_mul(members), Some(9));
+        assert_eq!(members.checked_add(9), Some(12));
+        assert!(9 > nodes);
+        // Each map member funds a key and a value. M(13)=6, M(19)=9.
+        // n*n <= M(C)*J; n+n*n <= (1+M(C))*J, not exact witness counts.
+        let literal = parameterized_expected(&recipe, cap, 1, Some((6, 7)));
+        assert_eq!(at_nodes(literal.helper_calls[3].per_attempt, nodes), 42);
+        assert_eq!(at_nodes(literal.iterator_callbacks_per_attempt, nodes), 49);
+        assert_eq!(derive_source_bounds(&recipe, cap, 1), Ok(literal));
+        let larger = NodeCapData { nodes: 19 };
+        assert_eq!(measured_nodes(&witness, larger), 7);
+        let larger_literal = parameterized_expected(&recipe, larger, 1, Some((9, 10)));
+        assert_eq!(
+            at_nodes(larger_literal.helper_calls[3].per_attempt, nodes),
+            63
+        );
+        assert_eq!(
+            at_nodes(larger_literal.iterator_callbacks_per_attempt, nodes),
+            70
+        );
+        assert_eq!(derive_source_bounds(&recipe, larger, 1), Ok(larger_literal));
+        assert_eq!(
+            derive_source_bounds(&recipe, cap, 0),
+            Ok(parameterized_expected(&recipe, cap, 0, Some((6, 7))))
+        );
+        for attempts in [1, 0] {
+            assert_eq!(
+                derive_source_bounds(&recipe, NodeCapData { nodes: u64::MAX }, attempts),
+                Err(Refusal::Overflow)
+            );
+        }
+    }
+
+    // These are fixture-shape accessors, never a second source recognizer.
+    fn wrapper_call_mut(recipe: &mut Recipe) -> &mut Op {
+        let id = function(recipe, "is_valid");
+        let Kind::Scope { steps, .. } = &mut recipe.functions.get_mut(&id).unwrap().body.kind
+        else {
+            panic!("fixture wrapper scope");
+        };
+        assert_eq!(steps.len(), 1);
+        assert!(matches!(&steps[0].kind, Kind::Call { .. }));
+        &mut steps[0]
+    }
+
+    fn object_iteration_mut(recipe: &mut Recipe) -> &mut Op {
+        let id = function(recipe, "entry_is_valid");
+        let Kind::Scope { steps, .. } = &mut recipe.functions.get_mut(&id).unwrap().body.kind
+        else {
+            panic!("fixture entry scope");
+        };
+        assert_eq!(steps.len(), 2);
+        let Kind::Choice { arms, .. } = &mut steps[1].kind else {
+            panic!("fixture object match");
+        };
+        assert_eq!(arms.len(), 2);
+        assert!(matches!(&arms[0].body.kind, Kind::Iterate { .. }));
+        &mut arms[0].body
+    }
+
+    #[derive(Clone, Copy)]
+    enum CacheDrift {
+        ArgumentOnly,
+        InventedOrigin,
+        FormalOrigin,
+    }
+
+    fn cache_mutant(recipe: &Recipe, drift: CacheDrift, site: &Site) -> Recipe {
+        let mut changed = recipe.clone();
+        if matches!(drift, CacheDrift::FormalOrigin) {
+            let id = function(&changed, "entry_is_valid");
+            let formal = &mut changed.functions.get_mut(&id).unwrap().parameters[1];
+            assert_eq!(
+                formal.origin,
+                Origin::Parameter {
+                    function: id,
+                    ordinal: 1
+                }
+            );
+            formal.origin = Origin::Temporary(site.clone());
+        } else {
+            let Kind::Call {
+                arguments,
+                evaluation,
+                ..
+            } = &mut wrapper_call_mut(&mut changed).kind
+            else {
+                panic!("fixture wrapper call");
+            };
+            assert_eq!(arguments.len(), 2);
+            assert_eq!(arguments[1], evaluation[1].value);
+            assert!(
+                matches!(&arguments[1].origin, Origin::Projection { member, .. } if member == "__inner")
+            );
+            arguments[1].origin = Origin::Temporary(site.clone());
+            if matches!(drift, CacheDrift::InventedOrigin) {
+                evaluation[1].value = arguments[1].clone();
+                assert_eq!(arguments[1], evaluation[1].value);
+            } else {
+                assert_ne!(arguments[1], evaluation[1].value);
+            }
+        }
+        changed
+    }
+
+    #[derive(Clone, Copy)]
+    enum ObjectDrift {
+        KeySlot,
+        ValueSlot,
+        Declaration,
+        Unborrowed,
+        Protocol,
+    }
+
+    fn object_mutant(recipe: &Recipe, drift: ObjectDrift) -> Recipe {
+        let mut changed = recipe.clone();
+        let Kind::Iterate {
+            bound,
+            parameters,
+            callee,
+            body,
+            ..
+        } = &mut object_iteration_mut(&mut changed).kind
+        else {
+            panic!("fixture object iterator");
+        };
+        assert_eq!(parameters.len(), 2);
+        match drift {
+            ObjectDrift::KeySlot | ObjectDrift::ValueSlot => {
+                let (ordinal, before, after) = if matches!(drift, ObjectDrift::KeySlot) {
+                    (0, "0", "1")
+                } else {
+                    (1, "1", "0")
+                };
+                let Kind::Call { .. } = &body.kind else {
+                    panic!("fixture member call");
+                };
+                let Origin::Projection { member, .. } = &mut parameters[ordinal].origin else {
+                    panic!("fixture tuple member origin");
+                };
+                assert_eq!(member.as_str(), before);
+                *member = after.to_owned();
+                assert_eq!(parameters[0].ty, Ty::String);
+                assert_eq!(parameters[1].ty, Ty::Value);
+            }
+            ObjectDrift::Declaration => {
+                let mut before = body.site.clone();
+                before.lexical.push(1);
+                assert_eq!(parameters[1].declaration.as_ref(), Some(&before));
+                parameters[1].declaration = Some(Site {
+                    function: before.function,
+                    lexical: vec![999],
+                });
+            }
+            ObjectDrift::Unborrowed => {
+                assert!(bound.collection.borrowed);
+                bound.collection.borrowed = false;
+            }
+            ObjectDrift::Protocol => {
+                assert_eq!(callee.as_str(), "Iterator::all");
+                *callee = "Iterator::any".to_owned();
+            }
+        }
+        changed
+    }
+
+    #[test]
+    fn cache_and_object_binder_drift_are_independently_refused() {
+        let recipe = parameterized_fixture(ParameterFixture::ObjectChildren);
+        assert_parameter_bindings(&recipe, ParameterFixture::ObjectChildren);
+        let cap = NodeCapData { nodes: 17 };
+        assert_eq!(
+            derive_source_bounds(&recipe, cap, 1),
+            Ok(parameterized_expected(&recipe, cap, 1, Some((1, 1))))
+        );
+        let wrapper = parameter_call(
+            &recipe,
+            "is_valid",
+            "entry_is_valid",
+            SourceBoundCoeff {
+                constant: 1,
+                nodes: 0,
+            },
+        )
+        .bound
+        .site;
+        for drift in [
+            CacheDrift::ArgumentOnly,
+            CacheDrift::InventedOrigin,
+            CacheDrift::FormalOrigin,
+        ] {
+            let changed = cache_mutant(&recipe, drift, &wrapper);
+            for attempts in [1, 0] {
+                assert_eq!(
+                    derive_source_bounds(&changed, cap, attempts),
+                    Err(Refusal::CallBinding(wrapper.clone()))
+                );
+            }
+        }
+        let site = object_iteration(&recipe, "entry_is_valid").site;
+        for drift in [
+            ObjectDrift::KeySlot,
+            ObjectDrift::ValueSlot,
+            ObjectDrift::Declaration,
+            ObjectDrift::Unborrowed,
+            ObjectDrift::Protocol,
+        ] {
+            let changed = object_mutant(&recipe, drift);
+            for attempts in [1, 0] {
+                assert_eq!(
+                    derive_source_bounds(&changed, cap, attempts),
+                    Err(Refusal::IterationBinding(site.clone()))
+                );
+            }
+        }
+    }
 }

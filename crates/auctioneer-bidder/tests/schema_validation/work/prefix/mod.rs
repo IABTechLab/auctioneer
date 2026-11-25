@@ -10,6 +10,8 @@
 //! `Counter`'s request protocol does not prove serde's number of requests. Map
 //! height/navigation and ordinary error/unwind cleanup remain named missing.
 
+mod scalar;
+
 use super::{PrefixCounts, Refusal, SchemaInputLimits};
 
 // The parent supplies limits only after matching the native/input recipes.

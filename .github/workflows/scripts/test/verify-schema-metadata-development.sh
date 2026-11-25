@@ -31,6 +31,10 @@ validation_required=(
   schema_validation::operations::tests::new_nested_literal_owner_requires_a_supported_proof
   schema_validation::operations::tests::cold_entropy_has_exact_identity_lifetime_and_nonfree_obligations
   schema_validation::tests::current_body_shapes_have_declared_operation_obligations
+  schema_validation::report::tests::current_source_covers_every_discovered_owner
+  schema_validation::report::tests::canonical_report_rejects_retired_and_hybrid_fields
+  schema_validation::report::tests::retired_assembly_has_no_active_callers
+  schema_validation::report::tests::unqualified_source_never_grants_serving_permission
   schema_validation::public_names::tests::every_public_name_has_exact_schema_disposition
   schema_validation::work::tests::dimensions_vary_independently
   schema_validation::work::tests::expiry_prefixes_bound_real_call_sites
@@ -45,10 +49,17 @@ validation_required=(
   schema_validation::work::partition::tests::disjoint_children_across_helpers_have_linear_coefficients
   schema_validation::work::partition::tests::ancestor_rescans_require_source_bound_cap_lifting
   schema_validation::work::partition::tests::changed_iteration_and_call_bindings_are_refused
+  schema_validation::work::partition::tests::parameterized_calls_preserve_instance_and_cache_bindings
+  schema_validation::work::partition::tests::object_entry_values_partition_across_parameterized_helpers
+  schema_validation::work::partition::tests::object_ancestor_rescans_require_key_funded_cap_lifting
+  schema_validation::work::partition::tests::cache_and_object_binder_drift_are_independently_refused
   schema_validation::work::prefix::tests::rejected_preflight_prefixes_remain_charged
   schema_validation::work::prefix::tests::keys_and_string_prechecks_bound_partial_prefixes
   schema_validation::work::prefix::tests::iterator_population_and_recursion_axes_remain_distinct
   schema_validation::work::prefix::tests::counter_protocol_source_drift_and_overflow_refuse
+  schema_validation::work::prefix::scalar::tests::string_framing_bounds_rejected_prefixes
+  schema_validation::work::prefix::scalar::tests::concrete_counter_protocol_requires_scalar_dispatch
+  schema_validation::work::prefix::scalar::tests::missing_and_rehashed_scalar_sources_refuse_at_zero_attempts
   schema_validation::work::entropy::tests::constructor_default_and_std_identity_are_required
   schema_validation::work::entropy::tests::ordered_seed_prefixes_include_eager_inactive_siblings
   schema_validation::work::entropy::tests::hostname_seed_work_accumulates_and_overflow_refuses

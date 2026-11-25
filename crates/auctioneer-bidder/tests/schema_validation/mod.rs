@@ -4,6 +4,7 @@ mod admission;
 mod handoff;
 mod operations;
 mod public_names;
+mod report;
 mod stack;
 mod storage;
 mod work;
