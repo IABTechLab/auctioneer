@@ -606,3 +606,19 @@ Reviewed source SHA-256 values at preparation:
 | `report.rs` | `08a62db6fe68bc31b4e42a15c0c9074689b6d9d97ed55b18fed5845b98cdff89` |
 
 Pinned rustfmt was editing only, and `git diff --check` supplies whitespace evidence only. Hosted compilation, the eleven intended assertion REDs, caller/entropy GREEN, reached strict target lint and complete final-head acceptance are pending. No local build, test, Clippy, proof, parser-control or mutation execution ran. Source-first order, commands/checkers, six exclusions, feature lanes, jobs, timeouts, assertions, serving behavior, resource limits, reservations and accounting remain unchanged. No common completion, qualification, activation, review readiness or issue closure is claimed.
+
+### Caller Import Ownership Error Before Assertion Execution
+
+At `4d7b8310f6a8089eca81efb317f38ba0a28f5b48`, both source lanes in the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45555104818/job/139005160572) returned 101 during compilation. The independent [Fastly artifact job](https://github.com/IABTechLab/auctioneer/actions/runs/45555104818/job/139005160448) reports the same shared source-target failure:
+
+```text
+error[E0382]: borrow of moved value: `destination`
+--> crates/auctioneer-bidder/tests/schema_validation/work/caller.rs:579:36
+577 |                     found.push(destination);
+    |                                ----------- value moved here
+579 |                 if local == "*" && destination != "auctioneer_config::source::*" {
+    |                                    ^^^^^^^^^^^ value borrowed here after move
+error: could not compile `auctioneer-bidder` (test "schema_source_conformance") due to 1 previous error
+```
+
+The import matcher moves an owned destination into its result before the later glob-refusal check borrows it. The repair evaluates that unchanged refusal before the possible move, preserving the owned result, visibility/attribute checks and exact supported-import rule without cloning. This is an author-owned compilation defect, not tests-first RED, a source/target prerequisite or a runtime behavior change. Static review did not establish compilation. None of the eleven new assertion contracts ran, and caller/entropy GREEN is not established by this head. Hosted compilation, exact dispatch, later strict lint and full acceptance remain required at the repairing head; no assertion, check or limit is waived.

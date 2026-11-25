@@ -553,6 +553,9 @@ fn imports(sources: &ParsedSources, owner: Owner, wanted: &[(&str, &str)]) -> Re
             let mut leaves = Vec::new();
             import_leaves(&import.tree, "", &mut leaves);
             for (local, destination) in leaves {
+                if local == "*" && destination != "auctioneer_config::source::*" {
+                    return Err(shape(owner));
+                }
                 if local == *name {
                     let public = matches!(
                         owner,
@@ -575,9 +578,6 @@ fn imports(sources: &ParsedSources, owner: Owner, wanted: &[(&str, &str)]) -> Re
                         return Err(shape(owner));
                     }
                     found.push(destination);
-                }
-                if local == "*" && destination != "auctioneer_config::source::*" {
-                    return Err(shape(owner));
                 }
             }
         }
