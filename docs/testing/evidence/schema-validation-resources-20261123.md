@@ -445,3 +445,25 @@ The implementation follows the selected NFA/SparseSet helpers through their conc
 Static specification review found two material issues before publication: locked Syn preserves const trait impls as `Item::Verbatim`, and local macros can shadow the assumed builtin `assert!`. The repaired recognizer uses a narrow fallible token projection retaining const/unsafe qualifiers, generic bounds, where clauses and selected typed members; it does not erase const syntax to manufacture an ItemImpl. The local macro/import scope refuses the reported shadowing shapes. Broader crate/prelude resolution is explicitly still required from the actual source owner. Independent specification re-review and quality review found no further concrete defects in this bounded implementation. Those are static reviews, not executed checks; pinned rustfmt was editing only.
 
 Compilation, the twelve-case GREEN, reached strict source-target Clippy and complete final-head acceptance remain pending. The four stack-source controls published at `4e0d72d` are a separate tests-first contract, not an implemented stack proof. No dependency, job, target, ignored case, assertion, resource limit, engine, serving path or accounting equation changes in this primitive checkpoint.
+
+### Four Stack-Source Contracts Reach Assertion RED
+
+At `4e0d72dc778acb40f50c2176fe83fe564156a8f5`, the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45523986811/job/138902757730) compiled and executed all four new stack-source cases in both feature lanes. Each fails its intended positive comparison with `Err(NotDerived)`, at `stack/source.rs:580`, `:809`, `:984` and `:740` respectively, rather than a setup, source-classification or compilation failure. The other twelve failures are the still-published primitive `MissingSourceProof` stubs. Actual secure source, development residency and development validation result lines:
+
+```text
+test result: FAILED. 917 passed; 16 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1053.26s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 812 filtered out; finished in 90.45s
+test result: FAILED. 77 passed; 16 failed; 0 ignored; 0 measured; 846 filtered out; finished in 83.92s
+```
+
+The graph contains 939 cases. Secure source executed 933 with the same six exclusions; development validation executed all 93 required names and filtered the other 846. Both source scripts returned 101. Compiler controls and explicit strict source-target lint were skipped after secure source failure; development lint was also not reached. Later success-gated core/staged steps were skipped, not passed. At recording, the evidence-producer job was still running; every other hosted check except compiler-schema had passed. No final-matrix success is claimed.
+
+This genuine four-case RED permits implementing the finite logical source-shape derivation. It does not establish later negative-control sensitivity, helper closure, target frame bytes or complete stack bounds. The separately reviewed primitive implementation and the stack implementation still need their own hosted GREEN and the unchanged complete final-head acceptance matrix.
+
+### Captured Stack-Path Derivation Awaiting Hosted GREEN
+
+The next bounded implementation replaces `stack::source::derive_shape`'s refusal stub using the canonical Recipe. It inventories function/callback frame owners, call sites and primitive/service/cleanup duties; separately checks missing callees and cycles; and derives complete active-path data. Arguments are evaluated before callee entry, alternatives and serial calls retain separate activations, and callback protocols remain active through their body and cleanup rather than being treated as inline loops. Opaque helper obligations remain open and every physical frame-byte slot stays `None`.
+
+All four source-stack test/oracle blocks are byte-identical to the tests-first head, and the nine prior stack cases/formulas remain unchanged. Separate static specification and quality reviews found no concrete defects in this finite shape implementation, whose source SHA-256 is `45ca64af7cd46248739ae4dc5a4bd8c5c2f33df3c74c207447530cd5eb66e4d7`. Pinned rustfmt was editing only. This is not transitive helper closure, target-frame evaluation or source-completeness authority. Compilation, four-case GREEN, strict target lint and complete final-head acceptance remain pending.
+
+The `4e0d72d` hosted matrix subsequently settled with 24 successful checks and only compiler-schema failing on the sixteen recorded intended assertions. Those results belong to that predecessor, not the new implementation head.

@@ -9,9 +9,10 @@ use crate::schema_validation::{
     handoff::{self, CheckedBodies},
     operations::{
         self, BodyOperations, Primitive, ServiceBinding,
-        model::{Recipe, Site},
+        model::{self, Kind, Op, Recipe, Site},
     },
 };
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum FrameKey {
@@ -65,7 +66,6 @@ struct StackShape {
 
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
-    NotDerived,
     MissingCallee(usize),
     Cycle(usize),
 }
@@ -77,10 +77,324 @@ struct OwnerAnalysis {
     shape: Result<StackShape, Refusal>,
 }
 
-// Hosted assertion RED must precede deriving any source shape. No target
-// facts, decreasing witnesses or common-source capability can be supplied.
-fn derive_shape(_recipe: &Recipe) -> Result<StackShape, Refusal> {
-    Err(Refusal::NotDerived)
+// The sole input is the checked body's canonical Recipe. These projections
+// retain unresolved helper/unwind duties and cannot complete a source proof.
+fn derive_shape(recipe: &Recipe) -> Result<StackShape, Refusal> {
+    for root in &recipe.roots {
+        if !recipe.functions.contains_key(root) {
+            return Err(Refusal::MissingCallee(*root));
+        }
+    }
+    let mut shape = StackShape {
+        roots: recipe.roots.clone(),
+        frames: recipe
+            .functions
+            .keys()
+            .map(|id| FrameSlot {
+                key: FrameKey::Function(*id),
+                bytes: None,
+            })
+            .collect(),
+        calls: Vec::new(),
+        paths: Vec::new(),
+        duties: Vec::new(),
+    };
+    let graph = inventory(recipe, &mut shape)?;
+    check_cycles(recipe, &graph)?;
+    shape.paths = activation_paths(recipe)?;
+    Ok(shape)
+}
+
+fn children(op: &Op) -> Vec<&Op> {
+    match &op.kind {
+        Kind::Scope { steps, .. }
+        | Kind::Evaluate(_, steps)
+        | Kind::ScalarTest(_, steps)
+        | Kind::ShortCircuit(_, steps) => steps.iter().collect(),
+        Kind::Bind { value, .. } | Kind::Exit(_, Some(value)) => vec![value.as_ref()],
+        Kind::Choice { selector, arms } => {
+            let mut nodes = vec![selector.as_ref()];
+            for arm in arms {
+                nodes.extend(arm.guard.iter());
+                nodes.push(&arm.body);
+            }
+            nodes
+        }
+        Kind::Call { evaluation, .. } => evaluation.iter().collect(),
+        Kind::Primitive {
+            arguments,
+            source_calls,
+            ..
+        } => arguments.iter().chain(source_calls).collect(),
+        Kind::Iterate {
+            evaluation, body, ..
+        }
+        | Kind::Callback {
+            evaluation, body, ..
+        } => vec![evaluation.as_ref(), body.as_ref()],
+        Kind::Construct { fields, .. } => fields.iter().map(|(_, value)| value).collect(),
+        Kind::Value(_) | Kind::Service(_) | Kind::Exit(_, None) => Vec::new(),
+    }
+}
+
+fn duty(op: &Op, kind: DutyKind) -> StackDuty {
+    StackDuty {
+        site: op.site.clone(),
+        kind,
+    }
+}
+
+fn local_duties(op: &Op) -> Vec<StackDuty> {
+    let kinds = match &op.kind {
+        Kind::Primitive { lemma, callee, .. } => vec![DutyKind::Primitive(*lemma, callee.clone())],
+        Kind::Service(binding) => vec![DutyKind::Service(binding.clone())],
+        Kind::Iterate {
+            protocol,
+            callee,
+            parameters,
+            ..
+        }
+        | Kind::Callback {
+            protocol,
+            callee,
+            parameters,
+            ..
+        } => {
+            let mut result = vec![DutyKind::Primitive(*protocol, callee.clone())];
+            if parameters.iter().any(model::needs_cleanup) {
+                result.push(DutyKind::Cleanup);
+            }
+            result
+        }
+        Kind::Scope { locals, .. } if locals.iter().any(model::needs_cleanup) => {
+            vec![DutyKind::Cleanup]
+        }
+        Kind::Construct {
+            cleanup: Some(_), ..
+        } => vec![DutyKind::Cleanup],
+        Kind::Value(_)
+        | Kind::Scope { .. }
+        | Kind::Bind { .. }
+        | Kind::Evaluate(_, _)
+        | Kind::ScalarTest(_, _)
+        | Kind::Choice { .. }
+        | Kind::ShortCircuit(_, _)
+        | Kind::Call { .. }
+        | Kind::Construct { cleanup: None, .. }
+        | Kind::Exit(_, _) => Vec::new(),
+    };
+    kinds.into_iter().map(|kind| duty(op, kind)).collect()
+}
+
+fn inventory(
+    recipe: &Recipe,
+    shape: &mut StackShape,
+) -> Result<BTreeMap<usize, Vec<usize>>, Refusal> {
+    let mut graph = BTreeMap::new();
+    for (id, function) in &recipe.functions {
+        let mut targets = Vec::new();
+        let mut pending = vec![&function.body];
+        while let Some(op) = pending.pop() {
+            if let Kind::Call { target, .. } = &op.kind {
+                if !recipe.functions.contains_key(target) {
+                    return Err(Refusal::MissingCallee(*target));
+                }
+                targets.push(*target);
+                shape.calls.push(CallEdge {
+                    site: op.site.clone(),
+                    target: *target,
+                });
+            }
+            if matches!(&op.kind, Kind::Callback { .. })
+                || matches!(&op.kind, Kind::Iterate { callee, .. } if callee == "Iterator::all")
+            {
+                shape.frames.push(FrameSlot {
+                    key: FrameKey::Callback(op.site.clone()),
+                    bytes: None,
+                });
+            }
+            shape.duties.extend(local_duties(op));
+            pending.extend(children(op).into_iter().rev());
+        }
+        graph.insert(*id, targets);
+    }
+    Ok(graph)
+}
+
+enum GraphVisit {
+    Open(usize),
+    Close(usize),
+}
+
+fn check_cycles(recipe: &Recipe, graph: &BTreeMap<usize, Vec<usize>>) -> Result<(), Refusal> {
+    let mut active = BTreeSet::new();
+    let mut finished = BTreeSet::new();
+    for root in recipe.roots.iter().chain(recipe.functions.keys()) {
+        let mut pending = vec![GraphVisit::Open(*root)];
+        while let Some(visit) = pending.pop() {
+            match visit {
+                GraphVisit::Open(id) => {
+                    if finished.contains(&id) {
+                        continue;
+                    }
+                    if !active.insert(id) {
+                        return Err(Refusal::Cycle(id));
+                    }
+                    let targets = graph.get(&id).ok_or(Refusal::MissingCallee(id))?;
+                    pending.push(GraphVisit::Close(id));
+                    pending.extend(targets.iter().rev().map(|target| GraphVisit::Open(*target)));
+                }
+                GraphVisit::Close(id) => {
+                    active.remove(&id);
+                    finished.insert(id);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+enum Activation<'a> {
+    Function(usize, ActivePath),
+    Operation(&'a Op, ActivePath),
+    Observe(ActivePath),
+}
+
+fn operations_at<'a>(
+    nodes: impl IntoIterator<Item = &'a Op>,
+    path: &ActivePath,
+) -> Vec<Activation<'a>> {
+    nodes
+        .into_iter()
+        .map(|op| Activation::Operation(op, path.clone()))
+        .collect()
+}
+
+fn retaining(path: &ActivePath, boundary: StackDuty) -> ActivePath {
+    let mut extended = path.clone();
+    extended.duties.push(boundary);
+    extended
+}
+
+fn protocol_activations<'a>(op: &'a Op, path: &ActivePath) -> Option<Vec<Activation<'a>>> {
+    let (Kind::Iterate {
+        protocol,
+        callee,
+        parameters,
+        body,
+        evaluation,
+        ..
+    }
+    | Kind::Callback {
+        protocol,
+        callee,
+        parameters,
+        body,
+        evaluation,
+        ..
+    }) = &op.kind
+    else {
+        return None;
+    };
+    let boundary = duty(op, DutyKind::Primitive(*protocol, callee.clone()));
+    let inside = retaining(path, boundary);
+    let mut scheduled = vec![
+        Activation::Operation(evaluation, path.clone()),
+        Activation::Observe(inside.clone()),
+    ];
+    let mut callback_path = path.clone();
+    if matches!(&op.kind, Kind::Callback { .. }) || callee == "Iterator::all" {
+        callback_path = inside;
+        callback_path
+            .frames
+            .push(FrameKey::Callback(op.site.clone()));
+        callback_path.calls.push(op.site.clone());
+        scheduled.push(Activation::Observe(callback_path.clone()));
+    }
+    // A for/next call has returned before its inline body. Callback protocols
+    // instead remain outstanding while the callback and its cleanup execute.
+    scheduled.push(Activation::Operation(body, callback_path.clone()));
+    if parameters.iter().any(model::needs_cleanup) {
+        scheduled.push(Activation::Observe(retaining(
+            &callback_path,
+            duty(op, DutyKind::Cleanup),
+        )));
+    }
+    Some(scheduled)
+}
+
+fn schedule<'a>(op: &'a Op, path: &ActivePath) -> Vec<Activation<'a>> {
+    if let Some(protocol) = protocol_activations(op, path) {
+        return protocol;
+    }
+    if let Kind::Call {
+        target, evaluation, ..
+    } = &op.kind
+    {
+        let mut scheduled = operations_at(evaluation, path);
+        let mut callee_path = path.clone();
+        callee_path.frames.push(FrameKey::Function(*target));
+        callee_path.calls.push(op.site.clone());
+        scheduled.push(Activation::Function(*target, callee_path));
+        return scheduled;
+    }
+    if let Kind::Primitive {
+        lemma,
+        callee,
+        arguments,
+        source_calls,
+        ..
+    } = &op.kind
+    {
+        let mut scheduled = operations_at(arguments, path);
+        let inside = retaining(path, duty(op, DutyKind::Primitive(*lemma, callee.clone())));
+        scheduled.push(Activation::Observe(inside.clone()));
+        scheduled.extend(operations_at(source_calls, &inside));
+        return scheduled;
+    }
+    let mut scheduled = operations_at(children(op), path);
+    scheduled.extend(
+        local_duties(op)
+            .into_iter()
+            .map(|boundary| Activation::Observe(retaining(path, boundary))),
+    );
+    scheduled
+}
+
+fn activation_paths(recipe: &Recipe) -> Result<Vec<ActivePath>, Refusal> {
+    let mut pending: Vec<_> = recipe
+        .roots
+        .iter()
+        .rev()
+        .map(|id| {
+            Activation::Function(
+                *id,
+                ActivePath {
+                    frames: vec![FrameKey::Function(*id)],
+                    calls: Vec::new(),
+                    duties: Vec::new(),
+                },
+            )
+        })
+        .collect();
+    let mut paths = Vec::new();
+    while let Some(activation) = pending.pop() {
+        match activation {
+            Activation::Function(id, path) => {
+                let function = recipe
+                    .functions
+                    .get(&id)
+                    .ok_or(Refusal::MissingCallee(id))?;
+                paths.push(path.clone());
+                pending.push(Activation::Operation(&function.body, path));
+            }
+            Activation::Operation(op, path) => {
+                pending.extend(schedule(op, &path).into_iter().rev())
+            }
+            Activation::Observe(path) => paths.push(path),
+        }
+    }
+    Ok(paths)
 }
 
 fn check_sources<'a>(
