@@ -11,8 +11,8 @@
 use crate::schema_validation::operations::{
     self, Primitive,
     model::{
-        Arm, Atom, Binding, Comparison, Function, Kind, Op, Origin, Pattern, Recipe, Site,
-        StopRule, Ty,
+        Action, Arm, Atom, Binding, Comparison, Function, IterationBound, Kind, Op, Origin,
+        Pattern, Recipe, Site, StopRule, Ty,
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -78,7 +78,19 @@ struct InputNode {
     members: Vec<usize>,
 }
 
-type ProvenanceBindings = [(Binding, InputNode)];
+#[derive(Clone)]
+enum Provenance {
+    Input(InputNode),
+    Cache(Origin),
+}
+
+type ProvenanceBindings = [(Binding, Provenance)];
+
+struct MemberAxis {
+    identity: usize,
+    node: InputNode,
+    cap: u64,
+}
 
 #[derive(Default)]
 struct Occurrences {
@@ -126,37 +138,149 @@ struct Deriver<'a> {
     recipe: &'a Recipe,
     child_cap: u64,
     active_functions: BTreeSet<usize>,
-    active_members: Vec<InputNode>,
+    active_members: Vec<MemberAxis>,
     next_member: usize,
     calls: Vec<CallOccurrences>,
     callbacks: Occurrences,
 }
 
-fn formal<'a>(function: &'a Function, id: usize, site: &Site) -> Result<&'a Binding, Refusal> {
-    let [parameter] = function.parameters.as_slice() else {
-        return Err(Refusal::CallBinding(site.clone()));
+fn parameters<'a>(
+    function: &'a Function,
+    id: usize,
+    site: &Site,
+) -> Result<&'a [Binding], Refusal> {
+    let supported = match (function.parameters.as_slice(), &function.result) {
+        ([input], Ty::Bool) => input.ty == Ty::Value,
+        ([input, cache], Ty::Bool) => input.ty == Ty::Value && matches!(&cache.ty, Ty::Cache(_)),
+        ([cache], Ty::Unit) => matches!(&cache.ty, Ty::Cache(_)),
+        _ => false,
     };
-    if parameter.ty != Ty::Value
-        || !parameter.borrowed
-        || parameter.declaration.is_some()
-        || parameter.origin
-            != (Origin::Parameter {
-                function: id,
-                ordinal: 0,
-            })
-        || function.result != Ty::Bool
-        || function.body.site.function != id
-    {
+    if !supported || function.body.site.function != id {
         return Err(Refusal::CallBinding(site.clone()));
     }
-    Ok(parameter)
+    for (ordinal, parameter) in function.parameters.iter().enumerate() {
+        if !parameter.borrowed
+            || parameter.declaration.is_some()
+            || parameter.origin
+                != (Origin::Parameter {
+                    function: id,
+                    ordinal,
+                })
+        {
+            return Err(Refusal::CallBinding(site.clone()));
+        }
+    }
+    Ok(&function.parameters)
 }
 
-fn input_node(bindings: &ProvenanceBindings, binding: &Binding) -> Option<InputNode> {
+fn bound_value(bindings: &ProvenanceBindings, binding: &Binding) -> Option<Provenance> {
     bindings
         .iter()
         .rev()
-        .find_map(|(known, node)| (known == binding).then(|| node.clone()))
+        .find_map(|(known, value)| (known == binding).then(|| value.clone()))
+}
+
+fn input_node(bindings: &ProvenanceBindings, binding: &Binding) -> Option<InputNode> {
+    match bound_value(bindings, binding)? {
+        Provenance::Input(node) => Some(node),
+        Provenance::Cache(_) => None,
+    }
+}
+
+// Field types come from the canonical lowerer's declaration lookup. Here the
+// entire evaluated place must agree with the caller's already-bound lineage.
+// Cache fields and borrows never introduce an input-tree member.
+fn argument_value(op: &Op, bindings: &ProvenanceBindings) -> Option<Provenance> {
+    match &op.kind {
+        Kind::Value(Atom::Place) => bound_value(bindings, &op.value),
+        Kind::Evaluate(Action::Borrow { mutable: true }, values) => {
+            let [value] = values.as_slice() else {
+                return None;
+            };
+            let mut expected = value.value.clone();
+            expected.borrowed = true;
+            if op.value != expected || !matches!(&op.value.ty, Ty::Cache(_)) {
+                return None;
+            }
+            match argument_value(value, bindings)? {
+                Provenance::Cache(origin) => Some(Provenance::Cache(origin)),
+                Provenance::Input(_) => None,
+            }
+        }
+        Kind::Evaluate(Action::Field(member), values) => {
+            let [base] = values.as_slice() else {
+                return None;
+            };
+            if !matches!(&base.value.ty, Ty::Cache(_)) || !matches!(&op.value.ty, Ty::Cache(_)) {
+                return None;
+            }
+            let expected = Binding {
+                ty: op.value.ty.clone(),
+                place: format!("{}.{member}", base.value.place),
+                borrowed: base.value.borrowed,
+                origin: Origin::Projection {
+                    base: Box::new(base.value.origin.clone()),
+                    member: member.clone(),
+                },
+                declaration: None,
+            };
+            if op.value != expected {
+                return None;
+            }
+            let Provenance::Cache(origin) = argument_value(base, bindings)? else {
+                return None;
+            };
+            Some(Provenance::Cache(Origin::Projection {
+                base: Box::new(origin),
+                member: member.clone(),
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn evaluated_arguments(
+    parameters: &[Binding],
+    arguments: &[Binding],
+    evaluation: &[Op],
+    bindings: &ProvenanceBindings,
+) -> Option<Vec<Provenance>> {
+    if arguments.len() != parameters.len() || evaluation.len() != parameters.len() {
+        return None;
+    }
+    let mut values = Vec::new();
+    for ((formal, argument), expression) in parameters.iter().zip(arguments).zip(evaluation) {
+        if argument != &expression.value || argument.ty != formal.ty || !argument.borrowed {
+            return None;
+        }
+        let value = argument_value(expression, bindings)?;
+        if !matches!(
+            (&formal.ty, &value),
+            (Ty::Value, Provenance::Input(_)) | (Ty::Cache(_), Provenance::Cache(_))
+        ) {
+            return None;
+        }
+        values.push(value);
+    }
+    Some(values)
+}
+
+fn root_values(recipe: &Recipe, root: usize, site: &Site) -> Result<Vec<Provenance>, Refusal> {
+    let function = recipe
+        .functions
+        .get(&root)
+        .ok_or(operations::Refusal::UnclassifiedCall)?;
+    parameters(function, root, site)?
+        .iter()
+        .map(|parameter| match &parameter.ty {
+            Ty::Value => Ok(Provenance::Input(InputNode {
+                root,
+                members: Vec::new(),
+            })),
+            Ty::Cache(_) => Ok(Provenance::Cache(parameter.origin.clone())),
+            _ => Err(Refusal::CallBinding(site.clone())),
+        })
+        .collect()
 }
 
 struct Traversal<'a> {
@@ -164,9 +288,16 @@ struct Traversal<'a> {
     evaluation: &'a Op,
     body: &'a Op,
     parent: InputNode,
+    collection: &'a Binding,
 }
 
-fn iterator_matches(evaluation: &Op, collection: &Binding, receiver: &Binding) -> bool {
+fn iterator_matches(evaluation: &Op, bound: &IterationBound, receiver: &Binding) -> bool {
+    let (expected, element) = match &bound.collection.ty {
+        Ty::Array => ("Array::iter", Ty::Value),
+        Ty::Map => ("Map::iter", Ty::Tuple(vec![Ty::String, Ty::Value])),
+        _ => return false,
+    };
+    let collection = &bound.collection;
     let Kind::Primitive {
         lemma,
         callee,
@@ -181,17 +312,60 @@ fn iterator_matches(evaluation: &Op, collection: &Binding, receiver: &Binding) -
         return false;
     };
     *lemma == Primitive::IteratorProtocol
-        && callee == "Array::iter"
+        && callee == expected
+        && bound.element == element
         && source_calls.is_empty()
         && actual == collection
         && argument.value == *collection
         && matches!(&argument.kind, Kind::Value(Atom::Place))
         && receiver == &evaluation.value
-        && receiver.ty == Ty::Iterator(Box::new(Ty::Value))
+        && receiver.ty == Ty::Iterator(Box::new(element))
         && receiver.borrowed
         && receiver.origin == collection.origin
         && receiver.place == collection.place
         && receiver.declaration.is_none()
+}
+
+fn member_matches(parameter: &Binding, ty: &Ty, origin: &Origin, declaration: &Site) -> bool {
+    parameter.ty == *ty
+        && parameter.borrowed
+        && parameter.declaration.as_ref() == Some(declaration)
+        && parameter.origin == *origin
+}
+
+fn value_parameter<'a>(
+    parameters: &'a [Binding],
+    body: &Op,
+    collection: &Binding,
+) -> Option<&'a Binding> {
+    let member = Origin::Projection {
+        base: Box::new(collection.origin.clone()),
+        member: "member".to_owned(),
+    };
+    match (&collection.ty, parameters) {
+        (Ty::Array, [value]) if member_matches(value, &Ty::Value, &member, &body.site) => {
+            Some(value)
+        }
+        (Ty::Map, [key, value]) => {
+            let mut key_site = body.site.clone();
+            key_site.lexical.push(0);
+            let mut value_site = body.site.clone();
+            value_site.lexical.push(1);
+            let key_origin = Origin::Projection {
+                base: Box::new(member.clone()),
+                member: "0".to_owned(),
+            };
+            let value_origin = Origin::Projection {
+                base: Box::new(member),
+                member: "1".to_owned(),
+            };
+            // The key is checked, but only the Value slot acquires tree provenance.
+            (member_matches(key, &Ty::String, &key_origin, &key_site)
+                && member_matches(value, &Ty::Value, &value_origin, &value_site))
+            .then_some(value)
+        }
+        _ => None,
+    }
 }
 
 fn traversal<'a>(op: &'a Op, bindings: &ProvenanceBindings) -> Result<Traversal<'a>, Refusal> {
@@ -210,37 +384,26 @@ fn traversal<'a>(op: &'a Op, bindings: &ProvenanceBindings) -> Result<Traversal<
         return Err(operations::Refusal::UnsupportedSource.into());
     };
     let refusal = || Refusal::IterationBinding(op.site.clone());
-    let [parameter] = parameters.as_slice() else {
-        return Err(refusal());
-    };
     let mut body_site = op.site.clone();
     body_site.lexical.push(1);
     if *protocol != Primitive::IteratorProtocol
         || callee != "Iterator::all"
         || *stop != StopRule::FirstFalseOrExhaustion
         || !*none_on_exhaustion
-        || bound.collection.ty != Ty::Array
         || !bound.collection.borrowed
-        || bound.element != Ty::Value
-        || !iterator_matches(evaluation, &bound.collection, receiver)
+        || !iterator_matches(evaluation, bound, receiver)
         || body.site != body_site
-        || parameter.ty != Ty::Value
-        || !parameter.borrowed
-        || parameter.declaration.as_ref() != Some(&body.site)
-        || parameter.origin
-            != (Origin::Projection {
-                base: Box::new(bound.collection.origin.clone()),
-                member: "member".to_owned(),
-            })
     {
         return Err(refusal());
     }
+    let parameter = value_parameter(parameters, body, &bound.collection).ok_or_else(refusal)?;
     let parent = input_node(bindings, &bound.collection).ok_or_else(refusal)?;
     Ok(Traversal {
         parameter,
         evaluation,
         body,
         parent,
+        collection: &bound.collection,
     })
 }
 
@@ -249,43 +412,47 @@ impl Deriver<'_> {
         let Some(deepest) = self
             .active_members
             .iter()
-            .max_by_key(|node| node.members.len())
+            .max_by_key(|axis| axis.node.members.len())
         else {
             return Ok(Occurrences {
                 constant: 1,
                 ..Occurrences::default()
             });
         };
-        // The selected node determines every ancestor member index in its
-        // path. Each remaining active rescan index has at most cap-1 choices.
-        let extra = self
-            .active_members
-            .len()
-            .checked_sub(deepest.members.len())
-            .ok_or(Refusal::Overflow)?;
+        // The selected node fixes the indices on its path. Only other active
+        // axes rescan: each retains its own array or key-funded map ceiling.
         let mut multiplicity = 1_u64;
-        for _ in 0..extra {
-            multiplicity = multiplicity
-                .checked_mul(self.child_cap)
-                .ok_or(Refusal::Overflow)?;
+        for axis in &self.active_members {
+            if !deepest.node.members.contains(&axis.identity) {
+                multiplicity = multiplicity
+                    .checked_mul(axis.cap)
+                    .ok_or(Refusal::Overflow)?;
+            }
         }
         Ok(Occurrences {
             constant: 0,
-            by_depth: BTreeMap::from([((deepest.root, deepest.members.len()), multiplicity)]),
+            by_depth: BTreeMap::from([(
+                (deepest.node.root, deepest.node.members.len()),
+                multiplicity,
+            )]),
         })
     }
 
-    fn enter(&mut self, id: usize, node: InputNode, site: &Site) -> Result<(), Refusal> {
+    fn enter(&mut self, id: usize, values: Vec<Provenance>, site: &Site) -> Result<(), Refusal> {
         let recipe = self.recipe;
         let function = recipe
             .functions
             .get(&id)
             .ok_or(operations::Refusal::UnclassifiedCall)?;
-        let parameter = formal(function, id, site)?;
+        let parameters = parameters(function, id, site)?;
+        if parameters.len() != values.len() {
+            return Err(Refusal::CallBinding(site.clone()));
+        }
+        let bindings: Vec<_> = parameters.iter().cloned().zip(values).collect();
         if !self.active_functions.insert(id) {
             return Err(operations::Refusal::MissingDecreasingMeasure.into());
         }
-        let result = self.visit(&function.body, &[(parameter.clone(), node)]);
+        let result = self.visit(&function.body, &bindings);
         self.active_functions.remove(&id);
         result
     }
@@ -304,20 +471,19 @@ impl Deriver<'_> {
             .functions
             .get(target)
             .ok_or(operations::Refusal::UnclassifiedCall)?;
-        let parameter = formal(function, *target, &op.site)?;
-        let ([argument], [evaluated]) = (arguments.as_slice(), evaluation.as_slice()) else {
-            return Err(Refusal::CallBinding(op.site.clone()));
-        };
-        if argument != &evaluated.value
-            || argument.ty != parameter.ty
-            || !argument.borrowed
-            || !matches!(&evaluated.kind, Kind::Value(Atom::Place))
-        {
-            return Err(Refusal::CallBinding(op.site.clone()));
+        let parameters = parameters(function, *target, &op.site)?;
+        let values = evaluated_arguments(parameters, arguments, evaluation, bindings)
+            .ok_or_else(|| Refusal::CallBinding(op.site.clone()))?;
+        for expression in evaluation {
+            self.visit(expression, bindings)?;
         }
-        let node =
-            input_node(bindings, argument).ok_or_else(|| Refusal::CallBinding(op.site.clone()))?;
-        self.visit(evaluated, bindings)?;
+        let parameter = parameters
+            .first()
+            .ok_or_else(|| Refusal::CallBinding(op.site.clone()))?;
+        let argument = arguments
+            .first()
+            .ok_or_else(|| Refusal::CallBinding(op.site.clone()))?;
+        // One row counts this call site; every formal ordinal was checked above.
         let binding = CallBound {
             site: op.site.clone(),
             target: *target,
@@ -345,7 +511,7 @@ impl Deriver<'_> {
                 occurrences,
             });
         }
-        self.enter(*target, node, &op.site)
+        self.enter(*target, values, &op.site)
     }
 
     fn choice(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
@@ -356,14 +522,8 @@ impl Deriver<'_> {
         for (ordinal, arm) in arms.iter().enumerate() {
             let mut branch = bindings.to_vec();
             match &arm.pattern {
-                Pattern::Variant(name, fields)
-                    if matches!(
-                        name.as_str(),
-                        "serde_json::Value::Array"
-                            | "jsonschema::__private::serde_json::Value::Array"
-                    ) =>
-                {
-                    branch.push(array_binding(
+                Pattern::Variant(name, fields) if container_type(name).is_some() => {
+                    branch.push(container_binding(
                         op, selector, arm, ordinal, bindings, name, fields,
                     )?);
                 }
@@ -384,16 +544,27 @@ impl Deriver<'_> {
             evaluation,
             body,
             parent: mut node,
+            collection,
         } = traversal(op, bindings)?;
         self.visit(evaluation, bindings)?;
         let member = self.next_member;
         self.next_member = member.checked_add(1).ok_or(Refusal::Overflow)?;
         node.members.push(member);
-        self.active_members.push(node.clone());
+        // Object entries fund both a key and a value in the existing J count.
+        let cap = match &collection.ty {
+            Ty::Array => self.child_cap,
+            Ty::Map => self.child_cap.checked_div(2).ok_or(Refusal::Overflow)?,
+            _ => return Err(Refusal::IterationBinding(op.site.clone())),
+        };
+        self.active_members.push(MemberAxis {
+            identity: member,
+            node: node.clone(),
+            cap,
+        });
         let occurrences = self.occurrences()?;
         self.callbacks.combine(occurrences)?;
         let mut nested = bindings.to_vec();
-        nested.push((parameter.clone(), node));
+        nested.push((parameter.clone(), Provenance::Input(node)));
         let result = self.visit(body, &nested);
         self.active_members.pop();
         result
@@ -409,6 +580,14 @@ impl Deriver<'_> {
                 Ok(())
             }
             Kind::ScalarTest(_, values) | Kind::ShortCircuit(_, values) => {
+                for value in values {
+                    self.visit(value, bindings)?;
+                }
+                Ok(())
+            }
+            Kind::Evaluate(Action::Borrow { mutable: true } | Action::Field(_), values)
+                if matches!(argument_value(op, bindings), Some(Provenance::Cache(_))) =>
+            {
                 for value in values {
                     self.visit(value, bindings)?;
                 }
@@ -438,10 +617,22 @@ impl Deriver<'_> {
     }
 }
 
+fn container_type(name: &str) -> Option<Ty> {
+    match name {
+        "serde_json::Value::Array" | "jsonschema::__private::serde_json::Value::Array" => {
+            Some(Ty::Array)
+        }
+        "serde_json::Value::Object" | "jsonschema::__private::serde_json::Value::Object" => {
+            Some(Ty::Map)
+        }
+        _ => None,
+    }
+}
+
 // Payload provenance comes from the actual typed match arm and selector, then
 // the iterator checks its exact receiver and binder sites. The spelling of a
 // Projection alone cannot introduce either a container or a member.
-fn array_binding(
+fn container_binding(
     op: &Op,
     selector: &Op,
     arm: &Arm,
@@ -449,7 +640,7 @@ fn array_binding(
     bindings: &ProvenanceBindings,
     name: &str,
     fields: &[Pattern],
-) -> Result<(Binding, InputNode), Refusal> {
+) -> Result<(Binding, Provenance), Refusal> {
     let refusal = || Refusal::IterationBinding(op.site.clone());
     let Kind::ScalarTest(Comparison::TypeDiscriminant, values) = &selector.kind else {
         return Err(refusal());
@@ -476,7 +667,7 @@ fn array_binding(
     anchor.lexical.push(0);
     Ok((
         Binding {
-            ty: Ty::Array,
+            ty: container_type(name).ok_or_else(refusal)?,
             place: place.clone(),
             borrowed: true,
             origin: Origin::Projection {
@@ -485,7 +676,7 @@ fn array_binding(
             },
             declaration: Some(anchor),
         },
-        node,
+        Provenance::Input(node),
     ))
 }
 
@@ -497,8 +688,9 @@ fn checked_bound(coefficient: SourceBoundCoeff, cap: NodeCapData) -> Result<u64,
         .ok_or(Refusal::Overflow)
 }
 
-// Only borrowed unary Value functions and the canonical array/all protocol are
-// supported here. Other grammar refuses; no coarse counter is a fallback.
+// Supported signatures carry a borrowed Value, optionally its ancillary cache,
+// or a cache-only Unit helper. Array/map members use the canonical all protocol.
+// Other grammar refuses; no coarse counter is a fallback.
 // All source checks and per-attempt duties survive zero execution attempts.
 fn derive_source_bounds(
     recipe: &Recipe,
@@ -521,17 +713,11 @@ fn derive_source_bounds(
         callbacks: Occurrences::default(),
     };
     for &root in &recipe.roots {
-        deriver.enter(
-            root,
-            InputNode {
-                root,
-                members: Vec::new(),
-            },
-            &Site {
-                function: root,
-                lexical: Vec::new(),
-            },
-        )?;
+        let site = Site {
+            function: root,
+            lexical: Vec::new(),
+        };
+        deriver.enter(root, root_values(recipe, root, &site)?, &site)?;
     }
     let callbacks = deriver.callbacks.coefficient()?;
     let mut maximum = checked_bound(callbacks, cap)?;

@@ -1379,7 +1379,7 @@ fn policy_gates(matched: &[Matched]) -> Result<(), Refusal> {
             apply_resource_overrides(&mut host.resource_limits, &overlay.resource_limits);
         }},
     )?;
-    let expected: syn::Stmt = syn::parse_quote!(host);
+    let expected = syn::Stmt::Expr(syn::parse_quote!(host), None);
     same(
         anchor.owner,
         block.stmts.last().ok_or_else(|| shape(anchor.owner))?,
@@ -1568,7 +1568,7 @@ fn schema_scope_gates(matched: &[Matched]) -> Result<Vec<GuardSource>, Refusal> 
             }
         },
     )?;
-    let returned: syn::Stmt = syn::parse_quote!(!pbr.request.imp.is_empty());
+    let returned = syn::Stmt::Expr(syn::parse_quote!(!pbr.request.imp.is_empty()), None);
     same(
         admit.owner,
         body(matched, admit)?
@@ -1665,9 +1665,12 @@ fn operation_gates(matched: &[Matched]) -> Result<(), Refusal> {
             tokens(statement) == tokens(&quote!(context.construction_limits = Some(construction);))
         })
         .ok_or_else(|| shape(anchor.owner))?;
-    let final_call: syn::Stmt = syn::parse_quote! {
-        run_auction(&state.request, &context, &state.plan, audit).await
-    };
+    let final_call = syn::Stmt::Expr(
+        syn::parse_quote! {
+            run_auction(&state.request, &context, &state.plan, audit).await
+        },
+        None,
+    );
     same(
         anchor.owner,
         scope
