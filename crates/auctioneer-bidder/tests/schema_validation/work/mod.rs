@@ -22,7 +22,9 @@
 //! never ordinary returned-error, partial-construction or unwind cleanup.
 
 mod context;
+mod entropy;
 mod epsilon;
+mod prefix;
 
 use super::operations::{self, Primitive, model::Recipe};
 use auctioneer_bidder::schema::{
@@ -163,6 +165,28 @@ struct PrefixCounts {
     cache_drop_entries: u64,
     seed_invocations: Option<u64>,
     unresolved: Vec<Primitive>,
+    // All-attempt source-prefix ceilings, not observed counts or helper costs.
+    // None remains unknown, including zero-attempt cases, until hosted RED.
+    input_node_attempts_upper: Option<u64>,
+    input_charged_nodes_upper: Option<u64>,
+    input_container_entries_upper: Option<u64>,
+    input_scalar_serializations_upper: Option<u64>,
+    input_string_prechecks_upper: Option<u64>,
+    input_byte_charge_calls_upper: Option<u64>,
+    input_iterator_some_upper: Option<u64>,
+    input_iterator_none_upper: Option<u64>,
+    // Sum raw UTF-8 length + two quotes only for strings/keys passing the
+    // precheck and reaching serialization, including a final serialization
+    // whose byte charge fails. Exclude rejected precheck operands.
+    input_raw_utf8_with_quotes_upper: Option<u64>,
+    input_visit_nesting_upper: Option<u64>,
+    input_iterator_nesting_upper: Option<u64>,
+    input_counter_writes_per_nonempty_request_upper: Option<u64>,
+    input_counter_writes_per_empty_request_upper: Option<u64>,
+    input_counter_interrupted_retries_upper: Option<u64>,
+    // Native B/J/D do not bound the caller-owned map's unvisited population.
+    input_tree_navigation_upper: Option<u64>,
+    input_unresolved_calls: Vec<&'static str>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -239,7 +263,7 @@ fn input_counts(
 }
 
 fn prefix_counts(
-    _context: &AttemptContext<'_>,
+    context: &AttemptContext<'_>,
     facts: CallerFacts,
     population: Population,
 ) -> Result<PrefixCounts, Refusal> {
@@ -268,7 +292,67 @@ fn prefix_counts(
     if population.scopes_entered != 0 && population.retain_visits == 0 {
         return Err(Refusal::MissingCallerFact(CallerFact::ScopeGate));
     }
-    let (preflight, budget, charged, post, failed) = match population.native_path {
+    let (preflight, budget, charged, post, failed) = native_prefix_path(facts, population)?;
+    let native = population.native_attempts;
+    let preflight_entries = if preflight { native } else { 0 };
+    let budget_entries = if budget { native } else { 0 };
+    let debit_events = if charged { native } else { 0 };
+    let post_evaluate_checks = if post { native } else { 0 };
+    let native_clock_calls = native
+        .checked_add(budget_entries)
+        .and_then(|count| count.checked_add(post_evaluate_checks))
+        .ok_or(Refusal::Overflow)?;
+    let error_rows = population
+        .missing_parameters
+        .checked_add(if failed { native } else { 0 })
+        .ok_or(Refusal::Overflow)?;
+    let mut counts = PrefixCounts {
+        outer_scopes: population.scopes_entered,
+        retain_visits: population.retain_visits,
+        missing_parameter_errors: population.missing_parameters,
+        error_rows,
+        removed_impressions: error_rows,
+        native_entries: native,
+        preflight_entries,
+        budget_entries,
+        debit_events,
+        post_evaluate_checks,
+        native_clock_calls,
+        fresh_cache_calls: debit_events,
+        cache_drop_entries: debit_events,
+        seed_invocations: None,
+        unresolved: vec![Primitive::CacheConstruction, Primitive::Cleanup],
+        input_node_attempts_upper: None,
+        input_charged_nodes_upper: None,
+        input_container_entries_upper: None,
+        input_scalar_serializations_upper: None,
+        input_string_prechecks_upper: None,
+        input_byte_charge_calls_upper: None,
+        input_iterator_some_upper: None,
+        input_iterator_none_upper: None,
+        input_raw_utf8_with_quotes_upper: None,
+        input_visit_nesting_upper: None,
+        input_iterator_nesting_upper: None,
+        input_counter_writes_per_nonempty_request_upper: None,
+        input_counter_writes_per_empty_request_upper: None,
+        input_counter_interrupted_retries_upper: None,
+        input_tree_navigation_upper: None,
+        input_unresolved_calls: vec![
+            "serde_json::to_writer",
+            "IteratorProtocol",
+            "caller-owned BTreeMap height/navigation",
+            "ordinary preflight error/unwind cleanup",
+        ],
+    };
+    prefix::attach_bounds(context.native_input_limits, preflight_entries, &mut counts);
+    Ok(counts)
+}
+
+fn native_prefix_path(
+    facts: CallerFacts,
+    population: Population,
+) -> Result<(bool, bool, bool, bool, bool), Refusal> {
+    let shape = match population.native_path {
         None => (false, false, false, false, false),
         Some(NativePath::EntryExpired | NativePath::Unavailable) => {
             (false, false, false, false, true)
@@ -304,36 +388,7 @@ fn prefix_counts(
             (true, true, true, false, false)
         }
     };
-    let native = population.native_attempts;
-    let preflight_entries = if preflight { native } else { 0 };
-    let budget_entries = if budget { native } else { 0 };
-    let debit_events = if charged { native } else { 0 };
-    let post_evaluate_checks = if post { native } else { 0 };
-    let native_clock_calls = native
-        .checked_add(budget_entries)
-        .and_then(|count| count.checked_add(post_evaluate_checks))
-        .ok_or(Refusal::Overflow)?;
-    let error_rows = population
-        .missing_parameters
-        .checked_add(if failed { native } else { 0 })
-        .ok_or(Refusal::Overflow)?;
-    Ok(PrefixCounts {
-        outer_scopes: population.scopes_entered,
-        retain_visits: population.retain_visits,
-        missing_parameter_errors: population.missing_parameters,
-        error_rows,
-        removed_impressions: error_rows,
-        native_entries: native,
-        preflight_entries,
-        budget_entries,
-        debit_events,
-        post_evaluate_checks,
-        native_clock_calls,
-        fresh_cache_calls: debit_events,
-        cache_drop_entries: debit_events,
-        seed_invocations: None,
-        unresolved: vec![Primitive::CacheConstruction, Primitive::Cleanup],
-    })
+    Ok(shape)
 }
 
 fn recipe_counts(

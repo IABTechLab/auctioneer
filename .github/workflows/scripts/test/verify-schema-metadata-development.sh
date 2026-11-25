@@ -17,6 +17,10 @@ validation_required=(
   schema_validation::handoff::tests::body_receipts_reject_changed_owner_and_expansion
   schema_validation::handoff::tests::seed_and_options_drift_cannot_reuse_body_authority
   schema_validation::handoff::tests::unrelated_nonempty_syntax_cannot_replace_pristine_body
+  schema_validation::handoff::source::tests::actual_sources_are_consumed_inside_the_bound_window
+  schema_validation::handoff::source::tests::compiler_identity_must_match_the_sealed_seed
+  schema_validation::handoff::source::tests::source_roster_and_consumed_bytes_refuse_drift
+  schema_validation::handoff::source::tests::interpretation_errors_still_close_the_source_window
   schema_validation::operations::tests::unclassified_call_refuses_completion
   schema_validation::operations::tests::changed_branch_multiplicity_changes_the_recipe
   schema_validation::operations::tests::deep_boolean_source_preserves_every_occurrence
@@ -34,6 +38,13 @@ validation_required=(
   schema_validation::work::tests::branches_and_callbacks_have_source_derived_multiplicity
   schema_validation::work::tests::late_failure_includes_cleanup
   schema_validation::work::tests::overflow_refuses
+  schema_validation::work::prefix::tests::rejected_preflight_prefixes_remain_charged
+  schema_validation::work::prefix::tests::keys_and_string_prechecks_bound_partial_prefixes
+  schema_validation::work::prefix::tests::iterator_population_and_recursion_axes_remain_distinct
+  schema_validation::work::prefix::tests::counter_protocol_source_drift_and_overflow_refuse
+  schema_validation::work::entropy::tests::constructor_default_and_std_identity_are_required
+  schema_validation::work::entropy::tests::ordered_seed_prefixes_include_eager_inactive_siblings
+  schema_validation::work::entropy::tests::hostname_seed_work_accumulates_and_overflow_refuses
   schema_validation::work::epsilon::tests::pristine_body_matches_the_independent_recipe
   schema_validation::work::epsilon::tests::capture_self_loop_has_literal_site_ceilings
   schema_validation::work::epsilon::tests::duplicate_union_alternatives_have_a_conservative_ceiling
