@@ -10,15 +10,67 @@
 //! `Counter`'s request protocol does not prove serde's number of requests. Map
 //! height/navigation and ordinary error/unwind cleanup remain named missing.
 
-use super::{PrefixCounts, SchemaInputLimits};
+use super::{PrefixCounts, Refusal, SchemaInputLimits};
 
-// Refusal-free attachment preserves the parent's existing behavior only.
-// It derives nothing: every input bound remains None until hosted RED.
+// The parent supplies limits only after matching the native/input recipes.
+// Each value and key first charges the same monotone node counter. At most J
+// charges succeed, and the first failed charge ends that attempt immediately.
+// Containers, scalar serializations and string prechecks require a paid node.
+// Each Some reaches a child/key charge except a possible final comma failure;
+// accounting for the already paid root still gives at most J Some results.
+// Each entered loop contributes at most one final None. Container/scalar byte
+// charges together, commas, and key colons each have ceiling J, giving 3J.
+// Visit nesting is D+1; only D successful containers can retain iterators.
+// These are source multiplicities, not transitive helper costs or frame bytes.
 pub(super) fn attach_bounds(
-    _limits: SchemaInputLimits,
-    _preflight_entries: u64,
-    _counts: &mut PrefixCounts,
-) {
+    limits: SchemaInputLimits,
+    preflight_entries: u64,
+    counts: &mut PrefixCounts,
+) -> Result<(), Refusal> {
+    let node_attempts = if preflight_entries == 0 {
+        0
+    } else {
+        limits
+            .nodes
+            .checked_add(1)
+            .and_then(|per_attempt| preflight_entries.checked_mul(per_attempt))
+            .ok_or(Refusal::Overflow)?
+    };
+    let charged_nodes = preflight_entries
+        .checked_mul(limits.nodes)
+        .ok_or(Refusal::Overflow)?;
+    let byte_charges = charged_nodes.checked_mul(3).ok_or(Refusal::Overflow)?;
+    let (visit_nesting, iterator_nesting) = if preflight_entries == 0 {
+        (0, 0)
+    } else {
+        let containers = u64::from(limits.depth);
+        (
+            containers.checked_add(1).ok_or(Refusal::Overflow)?,
+            containers,
+        )
+    };
+
+    // Commit only after every supported arithmetic check succeeds.
+    counts.input_node_attempts_upper = Some(node_attempts);
+    counts.input_charged_nodes_upper = Some(charged_nodes);
+    counts.input_container_entries_upper = Some(charged_nodes);
+    counts.input_scalar_serializations_upper = Some(charged_nodes);
+    counts.input_string_prechecks_upper = Some(charged_nodes);
+    counts.input_byte_charge_calls_upper = Some(byte_charges);
+    counts.input_iterator_some_upper = Some(charged_nodes);
+    counts.input_iterator_none_upper = Some(charged_nodes);
+    counts.input_visit_nesting_upper = Some(visit_nesting);
+    counts.input_iterator_nesting_upper = Some(iterator_nesting);
+
+    // These require the separately bound concrete serde/Write source lemmas.
+    // A precheck alone does not prove the summed raw-string budget, and a
+    // generic writer trait does not supply Counter's request protocol.
+    counts.input_raw_utf8_with_quotes_upper = None;
+    counts.input_counter_writes_per_nonempty_request_upper = None;
+    counts.input_counter_writes_per_empty_request_upper = None;
+    counts.input_counter_interrupted_retries_upper = None;
+    counts.input_tree_navigation_upper = None;
+    Ok(())
 }
 
 #[cfg(test)]

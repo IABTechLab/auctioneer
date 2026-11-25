@@ -38,6 +38,9 @@ validation_required=(
   schema_validation::work::tests::branches_and_callbacks_have_source_derived_multiplicity
   schema_validation::work::tests::late_failure_includes_cleanup
   schema_validation::work::tests::overflow_refuses
+  schema_validation::work::partition::tests::disjoint_children_across_helpers_have_linear_coefficients
+  schema_validation::work::partition::tests::ancestor_rescans_require_source_bound_cap_lifting
+  schema_validation::work::partition::tests::changed_iteration_and_call_bindings_are_refused
   schema_validation::work::prefix::tests::rejected_preflight_prefixes_remain_charged
   schema_validation::work::prefix::tests::keys_and_string_prechecks_bound_partial_prefixes
   schema_validation::work::prefix::tests::iterator_population_and_recursion_axes_remain_distinct

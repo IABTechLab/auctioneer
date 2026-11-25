@@ -24,6 +24,7 @@
 mod context;
 mod entropy;
 mod epsilon;
+mod partition;
 mod prefix;
 
 use super::operations::{self, Primitive, model::Recipe};
@@ -166,7 +167,7 @@ struct PrefixCounts {
     seed_invocations: Option<u64>,
     unresolved: Vec<Primitive>,
     // All-attempt source-prefix ceilings, not observed counts or helper costs.
-    // None remains unknown, including zero-attempt cases, until hosted RED.
+    // None remains unproved; zero calls do not discharge helper-source duties.
     input_node_attempts_upper: Option<u64>,
     input_charged_nodes_upper: Option<u64>,
     input_container_entries_upper: Option<u64>,
@@ -344,7 +345,7 @@ fn prefix_counts(
             "ordinary preflight error/unwind cleanup",
         ],
     };
-    prefix::attach_bounds(context.native_input_limits, preflight_entries, &mut counts);
+    prefix::attach_bounds(context.native_input_limits, preflight_entries, &mut counts)?;
     Ok(counts)
 }
 

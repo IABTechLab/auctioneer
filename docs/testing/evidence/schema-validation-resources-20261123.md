@@ -504,3 +504,27 @@ error: could not compile `auctioneer-bidder` (test "schema_source_conformance") 
 ```
 
 The visitor import failure no longer appears; compilation reaches the synthetic file used to inspect the index-macro implementation. The one-line repair initializes `frontmatter: None`, matching locked Syn 3.0.10's own `Parse for File`. Its current `parse_file` handles BOM/shebang then delegates to that parser; the empty non-exhaustive frontmatter marker is not populated by this source path. No source header is erased or newly accepted, and no unsafe or fabricated frontmatter fixture is added. Source inspection found only this new File struct literal in the validation owner. Recognition, event arithmetic, source populations, assertions, dependency features and limits are unchanged. This second author-owned compile failure establishes no new assertion RED or implementation GREEN; all required hosted execution remains pending at the fixing head.
+
+### Logical Stack GREEN And Eleven New Contracts Reach RED
+
+At `6c482079103b02144e77cc8a1ced358f8e191174`, the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45532522843/job/138931211680) compiled and completed both source lanes. The approved source-first ordering is in effect. Both scripts returned 101; actual secure source, development residency and development validation result lines are:
+
+```text
+test result: FAILED. 921 passed; 23 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1065.14s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 823 filtered out; finished in 88.65s
+test result: FAILED. 81 passed; 23 failed; 0 ignored; 0 measured; 846 filtered out; finished in 113.66s
+```
+
+The target graph contains 950 cases: secure source executed 944 with the unchanged six separately owned exclusions; development executed all 104 validation cases. All four `stack::source` cases report `ok` in both lanes. This establishes their tests-first RED-to-GREEN progression, not complete transitive helper/frame closure. All eleven new cases reach intended positive assertion failures in both lanes: four source-window and three entropy cases return `MissingSourceProof`; four prefix cases retain `None` rather than their independent literal bounds. Their positive setup compiled and executed. Later negative assertions are not yet sensitivity evidence.
+
+The remaining twelve failures are an implementation defect, not intended stub RED: all primitive cases return `UnsupportedBody(Nfa)` at their positive supported-source comparison. Static diagnosis locates an asymmetric optional-trailing-comma projection in `state_variants`: actual enum/field lists are rebuilt without trailing punctuation, while the expected recipe retains it. The repair must apply the same documented syntactic policy to both sides, preserve semantic matching and all independent event oracles, and obtain hosted GREEN; this diagnosis is not an executed repair result.
+
+All 24 other hosted checks completed successfully at this exact head. The failed source step still skips compiler controls and strict source-target Clippy, and the development failure skips its strict lint and later normal/staged checks. Those skipped commands remain not run, never passes. Full final-head acceptance and a reached strict-lint result remain mandatory. Source-window, prefix and entropy implementation, complete work/storage/stack closure, canonical reporting and hard-cut retirement remain unfinished; the PR stays draft and #47 open.
+
+### Next Bounded Implementation And Traversal Contract
+
+After the executed source-window REDs, the real-I/O facade and shared private kernel now bracket interpretation with compiler, fixed-source, seed and runtime checks, including returned interpretation/read/probe errors. Integrity refusals precede consumer errors; a composite source-read/compiler failure control pins compiler precedence. Source identity still supplies no semantic/cost or completion authority. Hosted four-case GREEN and strict lint remain pending.
+
+The primitive repair applies the documented declaration-list punctuation policy symmetrically to the actual and expected State enum. Three additional expected helper recipes now use the exact pinned Vec/Unique body punctuation, without adding global method-token normalization. Semantic matching, all twelve case names and independent event-count oracles remain unchanged. Supported prefix arithmetic now fills ten node/iterator/byte-charge/nesting ceilings using checked calculations; raw-string, Counter-protocol and tree-navigation slots stay unknown. All four prefix oracle blocks remain unchanged, so this partial derivation is not a claim of their GREEN or complete serializer/cleanup work.
+
+Three reviewed tests-first traversal cases join the existing target and minimum development roster, retaining all prior 104 names for 107 static required names. They distinguish disjoint borrowed-child traversal across helper arguments from ancestor rescanning, vary cap seven to eleven while observed `J` remains four, and reject changed source bindings at both one and zero attempts. Literal coefficient/witness and overflow controls remain independent of the deriver. The new deriver deliberately returns `NotDerived` until genuine hosted assertion RED. No old counter is exposed as a fallback. Static review and pinned formatting do not substitute for compilation, executed RED/GREEN, strict lint or the unchanged full hosted acceptance matrix; none is claimed for this checkpoint at preparation.

@@ -1,4 +1,4 @@
-//! Tests-first current-source consumption window, not semantic/cost authority.
+//! Current-source consumption window, not semantic/cost authority.
 //!
 //! The sealed seed/view supply the expected compiler identity. Probe results,
 //! paths, bytes and digests are data, not permission to approve changed bodies.
@@ -8,8 +8,12 @@
 //! bounds, target facts, cleanup or qualification. No serving API is introduced.
 
 use crate::schema_build::application::CapturedSeed;
+use crate::schema_build::selected::probe_compiler;
 use crate::schema_residency::descriptor::ValidationView;
-use std::path::PathBuf;
+use crate::schema_residency::read_regular;
+use serde_json::Value;
+use sha2::{Digest as _, Sha256};
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SourceUnit {
@@ -138,7 +142,6 @@ trait SourceReads {
 
 #[derive(Debug, Eq, PartialEq)]
 enum SourceError<E> {
-    MissingSourceProof,
     Binding,
     CompilerBinding,
     SourceCoverage,
@@ -148,28 +151,208 @@ enum SourceError<E> {
     Interpretation(E),
 }
 
-// Both entrypoints remain explicit refusal stubs until executed hosted RED.
-// Later GREEN must use probe_compiler/read_regular, not another loader/build.
-// The actual facade must delegate to the same kernel below with real I/O.
+fn binding_is_current(seed: &CapturedSeed, view: ValidationView<'_>) -> bool {
+    let seed_check = super::check_seed(seed, view);
+    let runtime_check = view.recheck();
+    seed_check.is_ok() && runtime_check.is_ok()
+}
+
+fn expected_compiler(seed: &CapturedSeed) -> Result<CompilerData, ()> {
+    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes).map_err(|_error| ())?;
+    let executable = manifest
+        .pointer("/build_environment/RUSTC")
+        .and_then(Value::as_str)
+        .filter(|path| !path.is_empty())
+        .ok_or(())?;
+    let verbose = manifest
+        .pointer("/build/compiler_verbose")
+        .and_then(Value::as_str)
+        .filter(|version| !version.is_empty())
+        .ok_or(())?;
+    if !Path::new(executable).is_absolute() {
+        return Err(());
+    }
+    Ok(CompilerData {
+        executable: executable.into(),
+        verbose: verbose.to_owned(),
+    })
+}
+
+fn source_paths(compiler: &CompilerData) -> Result<[PathBuf; ROSTER.len()], ()> {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .ok_or(())?;
+    let library = compiler
+        .executable
+        .parent()
+        .and_then(Path::parent)
+        .ok_or(())?
+        .join("lib/rustlib/src/rust/library");
+    Ok(ROSTER.map(|spec| match spec.root {
+        SourceRoot::Workspace => workspace.join(spec.relative),
+        SourceRoot::RustLibrary => library.join(spec.relative),
+    }))
+}
+
+fn source_digest(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
+}
+
+struct CurrentSources {
+    paths: [PathBuf; ROSTER.len()],
+}
+
+impl SourceReads for CurrentSources {
+    fn compiler(&mut self, _phase: Phase) -> Result<CompilerData, ()> {
+        probe_compiler()
+            .map(|(executable, verbose)| CompilerData {
+                executable,
+                verbose,
+            })
+            .map_err(|_error| ())
+    }
+
+    fn sources(&mut self, _phase: Phase) -> Result<Vec<SourceData>, SourceUnit> {
+        let mut sources = Vec::with_capacity(ROSTER.len());
+        let mut first_error = None;
+        for (spec, path) in ROSTER.iter().zip(&self.paths) {
+            match read_regular(path) {
+                Ok(bytes) => sources.push(SourceData {
+                    unit: format!("{:?}", spec.unit),
+                    path: path.clone(),
+                    sha256: source_digest(&bytes),
+                    bytes,
+                }),
+                Err(_error) => {
+                    if first_error.is_none() {
+                        first_error = Some(spec.unit);
+                    }
+                }
+            }
+        }
+        match first_error {
+            Some(unit) => Err(unit),
+            None => Ok(sources),
+        }
+    }
+}
+
+fn source_row(sources: &[SourceData], unit: SourceUnit) -> Option<&SourceData> {
+    let name = format!("{unit:?}");
+    sources.iter().find(|source| source.unit == name)
+}
+
+fn checked_sources<'a, E>(
+    records: &'a Result<Vec<SourceData>, SourceUnit>,
+    paths: &[PathBuf; ROSTER.len()],
+) -> Result<&'a [SourceData], SourceError<E>> {
+    let sources = records
+        .as_ref()
+        .map_err(|unit| SourceError::SourceRead(*unit))?;
+    if sources.len() != ROSTER.len()
+        || ROSTER.iter().any(|spec| {
+            let name = format!("{:?}", spec.unit);
+            sources.iter().filter(|source| source.unit == name).count() != 1
+        })
+    {
+        return Err(SourceError::SourceCoverage);
+    }
+    for (spec, path) in ROSTER.iter().zip(paths) {
+        let source = source_row(sources, spec.unit).ok_or(SourceError::SourceCoverage)?;
+        if source.path != *path {
+            return Err(SourceError::SourcePath(spec.unit));
+        }
+    }
+    for spec in &ROSTER {
+        let source = source_row(sources, spec.unit).ok_or(SourceError::SourceCoverage)?;
+        if source.sha256 != source_digest(&source.bytes) {
+            return Err(SourceError::SourceChanged(spec.unit));
+        }
+    }
+    Ok(sources)
+}
+
+// The facade only supplies real I/O to the same kernel as the private data seam.
 fn with_current_sources<T, E>(
-    _seed: &CapturedSeed,
-    _view: ValidationView<'_>,
-    _interpret: impl FnOnce(&SourceInputs<'_>) -> Result<T, E>,
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    interpret: impl FnOnce(&SourceInputs<'_>) -> Result<T, E>,
 ) -> Result<T, SourceError<E>> {
-    Err(SourceError::MissingSourceProof)
+    // Bind before deriving paths; the kernel rechecks at the actual opening.
+    if !binding_is_current(seed, view) {
+        return Err(SourceError::Binding);
+    }
+    let expected = expected_compiler(seed).map_err(|()| SourceError::CompilerBinding)?;
+    let paths = source_paths(&expected).map_err(|()| SourceError::CompilerBinding)?;
+    with_source_data(
+        seed,
+        view,
+        &mut CurrentSources { paths },
+        |_phase| {},
+        interpret,
+    )
 }
 
 // The observer reports completed real seed/view/runtime checks; it supplies no
 // approval or replacement recheck result. Returned interpretation errors must
 // still close the window. Integrity refusals take precedence over that error.
 fn with_source_data<T, E>(
-    _seed: &CapturedSeed,
-    _view: ValidationView<'_>,
-    _reads: &mut impl SourceReads,
-    _observe_check: impl FnMut(Phase),
-    _interpret: impl FnOnce(&SourceInputs<'_>) -> Result<T, E>,
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    reads: &mut impl SourceReads,
+    mut observe_check: impl FnMut(Phase),
+    interpret: impl FnOnce(&SourceInputs<'_>) -> Result<T, E>,
 ) -> Result<T, SourceError<E>> {
-    Err(SourceError::MissingSourceProof)
+    let opening_binding = binding_is_current(seed, view);
+    observe_check(Phase::Before);
+    if !opening_binding {
+        return Err(SourceError::Binding);
+    }
+    let expected = expected_compiler(seed).map_err(|()| SourceError::CompilerBinding)?;
+    let paths = source_paths(&expected).map_err(|()| SourceError::CompilerBinding)?;
+    let compiler_before = reads.compiler(Phase::Before);
+    let sources_before = reads.sources(Phase::Before);
+    let before_check = checked_sources(&sources_before, &paths);
+    let provisional = if compiler_before.as_ref() != Ok(&expected) {
+        Err(SourceError::CompilerBinding)
+    } else {
+        before_check.map(|sources| {
+            interpret(&SourceInputs {
+                compiler: &expected,
+                sources,
+            })
+        })
+    };
+
+    // No returned read/probe/consumer error may skip another closing check.
+    let sources_after = reads.sources(Phase::After);
+    let after_check = checked_sources(&sources_after, &paths);
+    let compiler_after = reads.compiler(Phase::After);
+    let closing_binding = binding_is_current(seed, view);
+    observe_check(Phase::After);
+
+    // Local priority: binding, either compiler, Before/After source refusals,
+    // then consumer refusal. This ordering grants no semantic/cost authority.
+    if !closing_binding {
+        return Err(SourceError::Binding);
+    }
+    if compiler_before.as_ref() != Ok(&expected) || compiler_after.as_ref() != Ok(&expected) {
+        return Err(SourceError::CompilerBinding);
+    }
+    let interpreted = provisional?;
+    let after = after_check?;
+    let before = sources_before
+        .as_ref()
+        .map_err(|unit| SourceError::SourceRead(*unit))?;
+    for spec in &ROSTER {
+        let prior = source_row(before, spec.unit).ok_or(SourceError::SourceCoverage)?;
+        let current = source_row(after, spec.unit).ok_or(SourceError::SourceCoverage)?;
+        if prior != current {
+            return Err(SourceError::SourceChanged(spec.unit));
+        }
+    }
+    interpreted.map_err(SourceError::Interpretation)
 }
 
 #[cfg(test)]
@@ -838,6 +1021,16 @@ mod tests {
                 Err(SourceError::CompilerBinding)
             );
             assert_eq!(*stale_compiler.events.borrow(), expected_events());
+            let mut simultaneous = replay(&data);
+            assert_eq!(simultaneous.after.compiler, Ok(data.expected.clone()));
+            assert_eq!(simultaneous.after.sources, Ok(data.sources.clone()));
+            simultaneous.after.sources = Err(SourceUnit::Nfa);
+            simultaneous.after.compiler = Err(());
+            assert_eq!(
+                run_data(seed, view, &data, &mut simultaneous, true),
+                Err(SourceError::CompilerBinding)
+            );
+            assert_eq!(*simultaneous.events.borrow(), expected_events());
             Ok(())
         })
         .unwrap();

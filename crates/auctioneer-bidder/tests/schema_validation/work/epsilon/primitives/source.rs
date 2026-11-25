@@ -1,7 +1,8 @@
 //! Fallible, finite AST recipes. Supplied captures are data, never authority.
-//! Only literal outer documentation and optional list trailing commas are
-//! ignored. Executable attributes, signatures, impl headers and bodies match
-//! independently of receipt hashes and independently of the test oracles.
+//! Only literal outer documentation and optional trailing commas in supported
+//! declaration lists are ignored. Executable attributes, signatures, impl headers
+//! and bodies match independently of receipt hashes and independently of the
+//! test oracles.
 
 use super::{CapturedData, CompilerData, EQUALITY_COMPILER_COMMIT, Refusal, SourceUnit};
 use proc_macro2::{Delimiter, Group, Ident, Punct, Spacing, TokenStream, TokenTree};
@@ -628,18 +629,7 @@ fn state_variants(sources: &Sources) -> Result<(), Refusal> {
         return Err(Refusal::UnsupportedBody(unit));
     }
     let mut normalized = actual.clone();
-    attributes(&mut normalized.attrs, unit)?;
-    for variant in &mut normalized.variants {
-        attributes(&mut variant.attrs, unit)?;
-        for field in &mut variant.fields {
-            attributes(&mut field.attrs, unit)?;
-        }
-        if let syn::Fields::Named(fields) = &mut variant.fields {
-            fields.named = mem::take(&mut fields.named).into_iter().collect();
-        }
-    }
-    normalized.variants = normalized.variants.into_iter().collect();
-    let expected: syn::ItemEnum = syn::parse_quote!(
+    let mut expected: syn::ItemEnum = syn::parse_quote!(
         #[derive(Clone, Eq, PartialEq)]
         pub enum State {
             ByteRange {
@@ -670,6 +660,19 @@ fn state_variants(sources: &Sources) -> Result<(), Refusal> {
             },
         }
     );
+    for declaration in [&mut normalized, &mut expected] {
+        attributes(&mut declaration.attrs, unit)?;
+        for variant in &mut declaration.variants {
+            attributes(&mut variant.attrs, unit)?;
+            for field in &mut variant.fields {
+                attributes(&mut field.attrs, unit)?;
+            }
+            if let syn::Fields::Named(fields) = &mut variant.fields {
+                fields.named = mem::take(&mut fields.named).into_iter().collect();
+            }
+        }
+        declaration.variants = mem::take(&mut declaration.variants).into_iter().collect();
+    }
     if spelling(&normalized) != spelling(&expected) {
         return Err(Refusal::UnsupportedBody(unit));
     }
@@ -1053,7 +1056,7 @@ fn vector_methods(sources: &Sources) -> Result<(), Refusal> {
                     unsafe {
                         &*core::intrinsics::aggregate_raw_ptr::<*const [T], _, _>(
                             self.as_ptr(),
-                            self.len,
+                            self.len
                         )
                     }
                 }
@@ -1065,7 +1068,7 @@ fn vector_methods(sources: &Sources) -> Result<(), Refusal> {
                     unsafe {
                         &mut *core::intrinsics::aggregate_raw_ptr::<*mut [T], _, _>(
                             self.as_mut_ptr(),
-                            self.len,
+                            self.len
                         )
                     }
                 }
@@ -1194,7 +1197,7 @@ fn pointer_methods(sources: &Sources) -> Result<(), Refusal> {
                 pub const fn cast<U>(self) -> Unique<U> {
                     Unique {
                         pointer: self.pointer.cast(),
-                        _marker: PhantomData,
+                        _marker: PhantomData
                     }
                 }
                 #[must_use = "`self` will be dropped if the result is not used"]
