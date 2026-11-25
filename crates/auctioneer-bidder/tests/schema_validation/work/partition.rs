@@ -21,6 +21,7 @@ use crate::schema_validation::{
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::once;
+use std::slice::from_ref;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct NodeCapData {
@@ -142,9 +143,14 @@ pub(in crate::schema_validation) enum CoupledRefusal {
     Initialization,
     Initializer,
     SourceCalls(Site),
-    MissingTraversal,
     LocalBinding(Site),
     CallBinding(Site),
+    IterationBinding(Site),
+    SourceRefusal {
+        function: Option<String>,
+        site: Site,
+        cause: operations::Refusal,
+    },
     Overflow,
 }
 
@@ -243,9 +249,9 @@ pub(in crate::schema_validation) fn coupled_factory_bounds(
     })
 }
 
-// Tests-first input projection: keep the complete factory/source foundation.
-// The future shared partition kernel must borrow this original Recipe and
-// select only the validation root established above, never a filtered clone.
+// The factory owner establishes the selected validation root in this same
+// Recipe. Only invocation DATA is projected; both original roots, all program
+// requirements and the unresolved ordinary work/cleanup duties remain intact.
 pub(in crate::schema_validation) fn coupled_input_bounds(
     recipe: &Recipe,
     graph: &Value,
@@ -254,8 +260,45 @@ pub(in crate::schema_validation) fn coupled_input_bounds(
     node_cap: u64,
     population: CoupledPopulation,
 ) -> Result<CoupledFactoryBounds, CoupledRefusal> {
-    coupled_factory_bounds(recipe, graph, owner, marker, node_cap, population)?;
-    Err(CoupledRefusal::MissingTraversal)
+    let mut bounded = coupled_factory_bounds(recipe, graph, owner, marker, node_cap, population)?;
+    let projection = partition_roots(
+        recipe,
+        from_ref(&bounded.validation_root),
+        NodeCapData { nodes: node_cap },
+        population.validations,
+        &bounded.factory.programs,
+    )
+    .map_err(|refusal| coupled_input_refusal(recipe, refusal, bounded.validation_root))?;
+    bounded.input_partition = Some(projection);
+    Ok(bounded)
+}
+
+fn coupled_input_refusal(recipe: &Recipe, refusal: Refusal, root: usize) -> CoupledRefusal {
+    match refusal {
+        Refusal::LocalBinding(site) => CoupledRefusal::LocalBinding(site),
+        Refusal::CallBinding(site) => CoupledRefusal::CallBinding(site),
+        Refusal::IterationBinding(site) => CoupledRefusal::IterationBinding(site),
+        Refusal::AtSource { site, cause } => CoupledRefusal::SourceRefusal {
+            function: recipe
+                .functions
+                .get(&site.function)
+                .map(|function| function.identity.clone()),
+            site,
+            cause,
+        },
+        Refusal::Source(cause) => CoupledRefusal::SourceRefusal {
+            function: recipe
+                .functions
+                .get(&root)
+                .map(|function| function.identity.clone()),
+            site: Site {
+                function: root,
+                lexical: Vec::new(),
+            },
+            cause,
+        },
+        Refusal::Overflow => CoupledRefusal::Overflow,
+    }
 }
 
 fn coupled_function(recipe: &Recipe, identity: &str) -> Option<usize> {
@@ -588,6 +631,11 @@ fn factory_program_sites(
 #[derive(Debug, Eq, PartialEq)]
 enum Refusal {
     Source(operations::Refusal),
+    AtSource {
+        site: Site,
+        cause: operations::Refusal,
+    },
+    LocalBinding(Site),
     IterationBinding(Site),
     CallBinding(Site),
     Overflow,
@@ -599,17 +647,21 @@ impl From<operations::Refusal> for Refusal {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 struct InputNode {
     root: usize,
     // Each entry is one authenticated child iteration, not an origin label.
     members: Vec<usize>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 enum Provenance {
     Input(InputNode),
     Cache(Origin),
+    Boolean,
+    // Payloads and keys are authenticated borrows, never Value children.
+    Scalar,
+    Regex(String),
 }
 
 type ProvenanceBindings = [(Binding, Provenance)];
@@ -664,12 +716,14 @@ struct CallOccurrences {
 
 struct Deriver<'a> {
     recipe: &'a Recipe,
+    programs: &'a [ProgramFactoryBound],
     child_cap: u64,
     active_functions: BTreeSet<usize>,
     active_members: Vec<MemberAxis>,
     next_member: usize,
     calls: Vec<CallOccurrences>,
     callbacks: Occurrences,
+    labels: Vec<String>,
 }
 
 fn parameters<'a>(
@@ -679,11 +733,19 @@ fn parameters<'a>(
 ) -> Result<&'a [Binding], Refusal> {
     let supported = match (function.parameters.as_slice(), &function.result) {
         ([input], Ty::Bool) => input.ty == Ty::Value,
-        ([input, cache], Ty::Bool) => input.ty == Ty::Value && matches!(&cache.ty, Ty::Cache(_)),
+        ([input, cache], Ty::Bool) => {
+            matches!(input.ty, Ty::Value | Ty::String) && matches!(&cache.ty, Ty::Cache(_))
+        }
         ([cache], Ty::Unit) => matches!(&cache.ty, Ty::Cache(_)),
         _ => false,
     };
-    if !supported || function.body.site.function != id {
+    if !supported
+        || function.body.site
+            != (Site {
+                function: id,
+                lexical: vec![0],
+            })
+    {
         return Err(Refusal::CallBinding(site.clone()));
     }
     for (ordinal, parameter) in function.parameters.iter().enumerate() {
@@ -705,13 +767,16 @@ fn bound_value(bindings: &ProvenanceBindings, binding: &Binding) -> Option<Prove
     bindings
         .iter()
         .rev()
-        .find_map(|(known, value)| (known == binding).then(|| value.clone()))
+        .find(|(known, _)| known.place == binding.place)
+        .and_then(|(known, value)| (known == binding).then(|| value.clone()))
 }
 
 fn input_node(bindings: &ProvenanceBindings, binding: &Binding) -> Option<InputNode> {
     match bound_value(bindings, binding)? {
         Provenance::Input(node) => Some(node),
-        Provenance::Cache(_) => None,
+        Provenance::Cache(_) | Provenance::Boolean | Provenance::Scalar | Provenance::Regex(_) => {
+            None
+        }
     }
 }
 
@@ -732,7 +797,10 @@ fn argument_value(op: &Op, bindings: &ProvenanceBindings) -> Option<Provenance> 
             }
             match argument_value(value, bindings)? {
                 Provenance::Cache(origin) => Some(Provenance::Cache(origin)),
-                Provenance::Input(_) => None,
+                Provenance::Input(_)
+                | Provenance::Boolean
+                | Provenance::Scalar
+                | Provenance::Regex(_) => None,
             }
         }
         Kind::Evaluate(Action::Field(member), values) => {
@@ -771,16 +839,37 @@ fn argument_value(op: &Op, bindings: &ProvenanceBindings) -> Option<Provenance> 
         | Kind::Choice { .. }
         | Kind::ShortCircuit(_, _)
         | Kind::Call { .. }
-        | Kind::Primitive { .. }
         | Kind::Service(_)
         | Kind::Iterate { .. }
         | Kind::Callback { .. }
         | Kind::Construct { .. }
         | Kind::Exit(_, _) => None,
+        Kind::Primitive {
+            lemma,
+            callee,
+            receiver: Some(receiver),
+            arguments,
+            source_calls,
+        } if *lemma == Primitive::StringAccess
+            && callee == "String::as_str"
+            && source_calls.is_empty() =>
+        {
+            let [argument] = arguments.as_slice() else {
+                return None;
+            };
+            let mut expected = receiver.clone();
+            expected.declaration = None;
+            (argument.value == *receiver
+                && op.value == expected
+                && argument_value(argument, bindings) == Some(Provenance::Scalar))
+            .then_some(Provenance::Scalar)
+        }
+        Kind::Primitive { .. } => None,
     }
 }
 
 fn evaluated_arguments(
+    site: &Site,
     parameters: &[Binding],
     arguments: &[Binding],
     evaluation: &[Op],
@@ -790,14 +879,22 @@ fn evaluated_arguments(
         return None;
     }
     let mut values = Vec::new();
-    for ((formal, argument), expression) in parameters.iter().zip(arguments).zip(evaluation) {
-        if argument != &expression.value || argument.ty != formal.ty || !argument.borrowed {
+    for (ordinal, ((formal, argument), expression)) in
+        parameters.iter().zip(arguments).zip(evaluation).enumerate()
+    {
+        if expression.site != coupled_child(site, ordinal)
+            || argument != &expression.value
+            || argument.ty != formal.ty
+            || !argument.borrowed
+        {
             return None;
         }
         let value = argument_value(expression, bindings)?;
         if !matches!(
             (&formal.ty, &value),
-            (Ty::Value, Provenance::Input(_)) | (Ty::Cache(_), Provenance::Cache(_))
+            (Ty::Value, Provenance::Input(_))
+                | (Ty::Cache(_), Provenance::Cache(_))
+                | (Ty::String, Provenance::Scalar)
         ) {
             return None;
         }
@@ -810,7 +907,10 @@ fn root_values(recipe: &Recipe, root: usize, site: &Site) -> Result<Vec<Provenan
     let function = recipe
         .functions
         .get(&root)
-        .ok_or(operations::Refusal::UnclassifiedCall)?;
+        .ok_or_else(|| Refusal::AtSource {
+            site: site.clone(),
+            cause: operations::Refusal::UnclassifiedCall,
+        })?;
     parameters(function, root, site)?
         .iter()
         .map(|parameter| match &parameter.ty {
@@ -839,7 +939,7 @@ fn root_values(recipe: &Recipe, root: usize, site: &Site) -> Result<Vec<Provenan
 }
 
 struct Traversal<'a> {
-    parameter: &'a Binding,
+    parameters: &'a [Binding],
     evaluation: &'a Op,
     body: &'a Op,
     parent: InputNode,
@@ -847,24 +947,14 @@ struct Traversal<'a> {
 }
 
 fn iterator_matches(evaluation: &Op, bound: &IterationBound, receiver: &Binding) -> bool {
-    let (expected, element) = match &bound.collection.ty {
-        Ty::Array => ("Array::iter", Ty::Value),
-        Ty::Map => ("Map::iter", Ty::Tuple(vec![Ty::String, Ty::Value])),
-        Ty::Value
-        | Ty::String
-        | Ty::Number
-        | Ty::Bool
-        | Ty::Scalar
-        | Ty::Regex
-        | Ty::Input
-        | Ty::Cache(_)
-        | Ty::LazyRegex(_)
-        | Ty::Option(_)
-        | Ty::Iterator(_)
-        | Ty::Tuple(_)
-        | Ty::Callback(_)
-        | Ty::Named(_)
-        | Ty::Unit => return false,
+    let (expected, element) = match (&bound.collection.ty, &bound.element) {
+        (Ty::Array, Ty::Value) => ("Array::iter", Ty::Value),
+        (Ty::Map, Ty::Value) => ("Map::values", Ty::Value),
+        (Ty::Map, Ty::String) => ("Map::keys", Ty::String),
+        (Ty::Map, Ty::Tuple(types)) if types == &[Ty::String, Ty::Value] => {
+            ("Map::iter", Ty::Tuple(vec![Ty::String, Ty::Value]))
+        }
+        _ => return false,
     };
     let collection = &bound.collection;
     let Kind::Primitive {
@@ -912,9 +1002,12 @@ fn value_parameter<'a>(
         member: "member".to_owned(),
     };
     match (&collection.ty, parameters) {
-        (Ty::Array, [value]) if member_matches(value, &Ty::Value, &member, &body.site) => {
+        (Ty::Array | Ty::Map, [value])
+            if member_matches(value, &Ty::Value, &member, &body.site) =>
+        {
             Some(value)
         }
+        (Ty::Map, [key]) if member_matches(key, &Ty::String, &member, &body.site) => Some(key),
         (Ty::Map, [key, value]) => {
             let mut key_site = body.site.clone();
             key_site.lexical.push(0);
@@ -950,14 +1043,17 @@ fn traversal<'a>(op: &'a Op, bindings: &ProvenanceBindings) -> Result<Traversal<
         evaluation,
     } = &op.kind
     else {
-        return Err(operations::Refusal::UnsupportedSource.into());
+        return Err(unsupported(op));
     };
     let refusal = || Refusal::IterationBinding(op.site.clone());
     let mut body_site = op.site.clone();
     body_site.lexical.push(1);
     if *protocol != Primitive::IteratorProtocol
-        || callee != "Iterator::all"
-        || *stop != StopRule::FirstFalseOrExhaustion
+        || !matches!(
+            (callee.as_str(), stop, &op.value.ty),
+            ("Iterator::all", StopRule::FirstFalseOrExhaustion, Ty::Bool)
+                | ("Iterator::next/for", StopRule::BreakOrExhaustion, Ty::Unit)
+        )
         || !*none_on_exhaustion
         || !bound.collection.borrowed
         || !iterator_matches(evaluation, bound, receiver)
@@ -965,10 +1061,10 @@ fn traversal<'a>(op: &'a Op, bindings: &ProvenanceBindings) -> Result<Traversal<
     {
         return Err(refusal());
     }
-    let parameter = value_parameter(parameters, body, &bound.collection).ok_or_else(refusal)?;
+    value_parameter(parameters, body, &bound.collection).ok_or_else(refusal)?;
     let parent = input_node(bindings, &bound.collection).ok_or_else(refusal)?;
     Ok(Traversal {
-        parameter,
+        parameters,
         evaluation,
         body,
         parent,
@@ -1009,17 +1105,20 @@ impl Deriver<'_> {
 
     fn enter(&mut self, id: usize, values: Vec<Provenance>, site: &Site) -> Result<(), Refusal> {
         let recipe = self.recipe;
-        let function = recipe
-            .functions
-            .get(&id)
-            .ok_or(operations::Refusal::UnclassifiedCall)?;
+        let function = recipe.functions.get(&id).ok_or_else(|| Refusal::AtSource {
+            site: site.clone(),
+            cause: operations::Refusal::UnclassifiedCall,
+        })?;
         let parameters = parameters(function, id, site)?;
         if parameters.len() != values.len() {
             return Err(Refusal::CallBinding(site.clone()));
         }
         let bindings: Vec<_> = parameters.iter().cloned().zip(values).collect();
         if !self.active_functions.insert(id) {
-            return Err(operations::Refusal::MissingDecreasingMeasure.into());
+            return Err(Refusal::AtSource {
+                site: site.clone(),
+                cause: operations::Refusal::MissingDecreasingMeasure,
+            });
         }
         let result = self.visit(&function.body, &bindings);
         self.active_functions.remove(&id);
@@ -1033,15 +1132,18 @@ impl Deriver<'_> {
             evaluation,
         } = &op.kind
         else {
-            return Err(operations::Refusal::UnsupportedSource.into());
+            return Err(unsupported(op));
         };
         let recipe = self.recipe;
         let function = recipe
             .functions
             .get(target)
-            .ok_or(operations::Refusal::UnclassifiedCall)?;
+            .ok_or_else(|| Refusal::AtSource {
+                site: op.site.clone(),
+                cause: operations::Refusal::UnclassifiedCall,
+            })?;
         let parameters = parameters(function, *target, &op.site)?;
-        let values = evaluated_arguments(parameters, arguments, evaluation, bindings)
+        let values = evaluated_arguments(&op.site, parameters, arguments, evaluation, bindings)
             .ok_or_else(|| Refusal::CallBinding(op.site.clone()))?;
         for expression in evaluation {
             self.visit(expression, bindings)?;
@@ -1085,22 +1187,26 @@ impl Deriver<'_> {
 
     fn choice(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
         let Kind::Choice { selector, arms } = &op.kind else {
-            return Err(operations::Refusal::UnsupportedSource.into());
+            return Err(unsupported(op));
         };
         self.visit(selector, bindings)?;
         for (ordinal, arm) in arms.iter().enumerate() {
             let mut branch = bindings.to_vec();
             match &arm.pattern {
-                Pattern::Variant(name, fields) if container_type(name).is_some() => {
+                Pattern::Variant(name, fields)
+                    if payload_type(name).is_some()
+                        && matches!(fields.as_slice(), [Pattern::Binding(_)]) =>
+                {
                     branch.push(container_binding(
                         op, selector, arm, ordinal, bindings, name, fields,
                     )?);
                 }
-                Pattern::Wild | Pattern::Literal(_) => {}
+                pattern if nonbinding_pattern(pattern, selector) => {}
+                Pattern::Wild | Pattern::Literal(_) => return Err(unsupported(op)),
                 Pattern::Binding(_)
                 | Pattern::Variant(_, _)
                 | Pattern::Tuple(_)
-                | Pattern::Or(_) => return Err(operations::Refusal::UnsupportedSource.into()),
+                | Pattern::Or(_) => return Err(unsupported(op)),
             }
             if let Some(guard) = &arm.guard {
                 self.visit(guard, &branch)?;
@@ -1112,7 +1218,7 @@ impl Deriver<'_> {
 
     fn iteration(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
         let Traversal {
-            parameter,
+            parameters,
             evaluation,
             body,
             parent: mut node,
@@ -1150,63 +1256,488 @@ impl Deriver<'_> {
         let occurrences = self.occurrences()?;
         self.callbacks.combine(occurrences)?;
         let mut nested = bindings.to_vec();
-        nested.push((parameter.clone(), Provenance::Input(node)));
+        for parameter in parameters {
+            let provenance = if parameter.ty == Ty::Value {
+                Provenance::Input(node.clone())
+            } else {
+                Provenance::Scalar
+            };
+            nested.push((parameter.clone(), provenance));
+        }
         let result = self.visit(body, &nested);
         self.active_members.pop();
         result
     }
 
-    fn visit(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
-        match &op.kind {
-            Kind::Value(_) => Ok(()),
-            Kind::Scope { steps, locals, .. } if locals.is_empty() => {
-                for step in steps {
-                    self.visit(step, bindings)?;
+    fn sequence(&mut self, values: &[Op], bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        for value in values {
+            self.visit(value, bindings)?;
+        }
+        Ok(())
+    }
+
+    // This is a 0/1 callback under the existing occurrence, not a JSON child
+    // iterator. Its protocol/search work is still an outstanding duty.
+    fn regex_callback(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Kind::Callback {
+            protocol: Primitive::ValueAccess,
+            callee,
+            receiver,
+            parameters,
+            body,
+            evaluation,
+        } = &op.kind
+        else {
+            return Err(unsupported(op));
+        };
+        let Kind::Primitive {
+            lemma: Primitive::Readiness,
+            callee: readiness,
+            receiver: Some(storage),
+            arguments,
+            source_calls,
+        } = &evaluation.kind
+        else {
+            return Err(unsupported(op));
+        };
+        let (Ty::LazyRegex(program), [parameter], [argument]) =
+            (&storage.ty, parameters.as_slice(), arguments.as_slice())
+        else {
+            return Err(unsupported(op));
+        };
+        let expected_storage = Binding {
+            ty: Ty::LazyRegex(program.clone()),
+            place: program.clone(),
+            borrowed: true,
+            origin: Origin::Static(program.clone()),
+            declaration: None,
+        };
+        let expected_receiver = Binding {
+            ty: Ty::Option(Box::new(Ty::Regex)),
+            ..expected_storage.clone()
+        };
+        let expected_parameter = Binding {
+            ty: Ty::Regex,
+            place: parameter.place.clone(),
+            borrowed: true,
+            origin: Origin::Projection {
+                base: Box::new(expected_storage.origin.clone()),
+                member: "Some".to_owned(),
+            },
+            declaration: Some(body.site.clone()),
+        };
+        if callee != "Option::is_some_and"
+            || readiness != &format!("{:?}::as_ref", storage.ty)
+            || !source_calls.is_empty()
+            || !self.programs.iter().any(|row| row.program == *program)
+            || *storage != expected_storage
+            || argument.value != expected_storage
+            || !matches!(&argument.kind, Kind::Value(Atom::Place))
+            || argument.site != coupled_child(&evaluation.site, 0)
+            || *receiver != expected_receiver
+            || evaluation.value != expected_receiver
+            || *parameter != expected_parameter
+            || parameter.place.is_empty()
+            || evaluation.site != coupled_child(&op.site, 0)
+            || body.site != coupled_child(&op.site, 1)
+        {
+            return Err(Refusal::CallBinding(op.site.clone()));
+        }
+        self.visit(evaluation, bindings)?;
+        let mut nested = bindings.to_vec();
+        nested.push((parameter.clone(), Provenance::Regex(program.clone())));
+        self.visit(body, &nested)
+    }
+
+    fn regex_search(&self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Kind::Primitive {
+            receiver: Some(receiver),
+            arguments,
+            ..
+        } = &op.kind
+        else {
+            return Err(unsupported(op));
+        };
+        let Some(Provenance::Regex(program)) = bound_value(bindings, receiver) else {
+            return Err(unsupported(op));
+        };
+        let [regex, cache, input] = arguments.as_slice() else {
+            return Err(unsupported(op));
+        };
+        let Some(row) = self.programs.iter().find(|row| row.program == program) else {
+            return Err(unsupported(op));
+        };
+        let Some(Provenance::Cache(Origin::Projection { member, .. })) =
+            argument_value(cache, bindings)
+        else {
+            return Err(Refusal::CallBinding(op.site.clone()));
+        };
+        if regex.value != *receiver
+            || regex.site != coupled_child(&op.site, 0)
+            || cache.site != coupled_child(&op.site, 1)
+            || input.site != coupled_child(&op.site, 2)
+            || member != row.field
+            || !borrowed_search_input(input, bindings)
+        {
+            return Err(Refusal::CallBinding(op.site.clone()));
+        }
+        Ok(())
+    }
+
+    fn scope(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Kind::Scope {
+            label: scope_label,
+            steps,
+            locals,
+        } = &op.kind
+        else {
+            return Err(unsupported(op));
+        };
+        if let Some(active_label) = scope_label
+            && (active_label.is_empty()
+                || self.labels.contains(active_label)
+                || op.value.ty != Ty::Bool)
+        {
+            return Err(unsupported(op));
+        }
+        let declared: Vec<_> = steps
+            .iter()
+            .filter_map(|step| {
+                if let Kind::Bind {
+                    bindings: declared_bindings,
+                    ..
+                } = &step.kind
+                {
+                    Some(declared_bindings.as_slice())
+                } else {
+                    None
                 }
-                Ok(())
+            })
+            .flatten()
+            .collect();
+        if !declared.iter().copied().eq(locals) || !scope_sites(op, steps) {
+            return Err(Refusal::LocalBinding(op.site.clone()));
+        }
+        if op.value.ty == Ty::Bool && steps.last().is_none_or(|tail| tail.value.ty != Ty::Bool) {
+            return Err(Refusal::LocalBinding(op.site.clone()));
+        }
+        let mut nested = bindings.to_vec();
+        if let Some(active_label) = scope_label {
+            self.labels.push(active_label.clone());
+        }
+        for step in steps {
+            if matches!(&step.kind, Kind::Bind { .. }) {
+                self.bind_local(step, &mut nested)?;
+            } else {
+                self.visit(step, &nested)?;
             }
-            Kind::ScalarTest(_, values) | Kind::ShortCircuit(_, values) => {
-                for value in values {
-                    self.visit(value, bindings)?;
+        }
+        if scope_label.is_some() {
+            self.labels.pop();
+        }
+        Ok(())
+    }
+
+    fn bind_local(
+        &mut self,
+        op: &Op,
+        active: &mut Vec<(Binding, Provenance)>,
+    ) -> Result<(), Refusal> {
+        let Kind::Bind {
+            pattern,
+            bindings,
+            value,
+        } = &op.kind
+        else {
+            return Err(unsupported(op));
+        };
+        let (Pattern::Binding(name), [binding]) = (pattern, bindings.as_slice()) else {
+            return Err(unsupported(op));
+        };
+        if binding.ty != value.value.ty || !matches!(binding.ty, Ty::Bool | Ty::String) {
+            return Err(unsupported(op));
+        }
+        let mut expected = value.value.clone();
+        expected.place.clone_from(name);
+        expected.declaration = Some(op.site.clone());
+        if binding != &expected
+            || (binding.ty == Ty::Bool && binding.borrowed)
+            || name.is_empty()
+            || value.site != coupled_child(&op.site, 0)
+            || !temporary(op, &Ty::Unit)
+        {
+            return Err(Refusal::LocalBinding(op.site.clone()));
+        }
+        self.visit(value, active)?;
+        let provenance = if binding.ty == Ty::Bool {
+            Provenance::Boolean
+        } else {
+            argument_value(value, active).ok_or_else(|| Refusal::LocalBinding(op.site.clone()))?
+        };
+        active.push((binding.clone(), provenance));
+        Ok(())
+    }
+
+    fn evaluate(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        let Kind::Evaluate(action, values) = &op.kind else {
+            return Err(unsupported(op));
+        };
+        match action {
+            Action::Not => {
+                let [value] = values.as_slice() else {
+                    return Err(Refusal::LocalBinding(op.site.clone()));
+                };
+                if !temporary(op, &Ty::Bool)
+                    || value.value.ty != Ty::Bool
+                    || value.site != coupled_child(&op.site, 0)
+                {
+                    return Err(Refusal::LocalBinding(op.site.clone()));
                 }
-                Ok(())
+                self.visit(value, bindings)
             }
-            Kind::Evaluate(Action::Borrow { mutable: true } | Action::Field(_), values)
+            Action::Assign(target) => {
+                let [left, right] = values.as_slice() else {
+                    return Err(Refusal::LocalBinding(op.site.clone()));
+                };
+                if !bound_boolean(bindings, target)
+                    || left.value != *target
+                    || !matches!(&left.kind, Kind::Value(Atom::Place))
+                    || right.value.ty != Ty::Bool
+                    || left.site != coupled_child(&op.site, 0)
+                    || right.site != coupled_child(&op.site, 1)
+                    || !temporary(op, &Ty::Unit)
+                {
+                    return Err(Refusal::LocalBinding(op.site.clone()));
+                }
+                self.sequence(values, bindings)
+            }
+            Action::Borrow { mutable: true } | Action::Field(_)
                 if matches!(argument_value(op, bindings), Some(Provenance::Cache(_))) =>
             {
-                for value in values {
-                    self.visit(value, bindings)?;
-                }
-                Ok(())
+                self.sequence(values, bindings)
             }
+            Action::Dereference
+                if values.len() == 1
+                    && values[0].value.ty == Ty::Bool
+                    && values[0].value.borrowed
+                    && temporary(op, &Ty::Bool)
+                    && bound_boolean(bindings, &values[0].value) =>
+            {
+                self.sequence(values, bindings)
+            }
+            Action::Borrow { mutable: false } if borrowed_search_input(op, bindings) => {
+                self.sequence(values, bindings)
+            }
+            Action::Borrow { .. }
+            | Action::Field(_)
+            | Action::Negate
+            | Action::Dereference
+            | Action::AndAssign(_)
+            | Action::CastScalar => Err(unsupported(op)),
+        }
+    }
+
+    fn visit(&mut self, op: &Op, bindings: &ProvenanceBindings) -> Result<(), Refusal> {
+        if op.value.ty == Ty::Bool && !boolean_result(op, bindings) {
+            return Err(Refusal::LocalBinding(op.site.clone()));
+        }
+        match &op.kind {
+            Kind::Value(_) => Ok(()),
+            Kind::Scope { .. } => self.scope(op, bindings),
+            Kind::ScalarTest(_, values) | Kind::ShortCircuit(_, values) => {
+                self.sequence(values, bindings)
+            }
+            Kind::Evaluate(_, _) => self.evaluate(op, bindings),
             Kind::Choice { .. } => self.choice(op, bindings),
             Kind::Call { .. } => self.call(op, bindings),
             Kind::Iterate { .. } => self.iteration(op, bindings),
+            Kind::Callback { .. } => self.regex_callback(op, bindings),
             Kind::Primitive {
+                lemma,
+                callee,
                 arguments,
                 source_calls,
                 ..
             } if source_calls.is_empty() => {
-                for argument in arguments {
-                    self.visit(argument, bindings)?;
+                if *lemma == Primitive::RegexSearch && callee == "Regex::search_half_with" {
+                    self.regex_search(op, bindings)?;
                 }
-                Ok(())
+                self.sequence(arguments, bindings)
             }
-            Kind::Exit(_, result) => {
+            Kind::Exit(exit, result) => {
+                if let operations::model::Exit::Break(label) = exit
+                    && (label.is_empty() || !self.labels.contains(label))
+                {
+                    return Err(unsupported(op));
+                }
                 if let Some(value) = result {
                     self.visit(value, bindings)?;
                 }
                 Ok(())
             }
-            Kind::Scope { .. }
-            | Kind::Bind { .. }
-            | Kind::Evaluate(_, _)
+            Kind::Bind { .. }
             | Kind::Primitive { .. }
             | Kind::Service(_)
-            | Kind::Callback { .. }
-            | Kind::Construct { .. } => Err(operations::Refusal::UnsupportedSource.into()),
+            | Kind::Construct { .. } => Err(unsupported(op)),
         }
     }
+}
+
+fn unsupported(op: &Op) -> Refusal {
+    Refusal::AtSource {
+        site: op.site.clone(),
+        cause: operations::Refusal::UnsupportedSource,
+    }
+}
+
+fn borrowed_search_input(op: &Op, bindings: &ProvenanceBindings) -> bool {
+    let Kind::Evaluate(Action::Borrow { mutable: false }, values) = &op.kind else {
+        return false;
+    };
+    let [earliest] = values.as_slice() else {
+        return false;
+    };
+    let Kind::Primitive {
+        lemma: Primitive::RegexSearch,
+        callee,
+        receiver: Some(receiver),
+        arguments,
+        source_calls,
+    } = &earliest.kind
+    else {
+        return false;
+    };
+    let [new, flag] = arguments.as_slice() else {
+        return false;
+    };
+    let mut borrowed = earliest.value.clone();
+    borrowed.borrowed = true;
+    if callee != "Input::earliest"
+        || !source_calls.is_empty()
+        || op.value != borrowed
+        || earliest.site != coupled_child(&op.site, 0)
+        || new.site != coupled_child(&earliest.site, 0)
+        || flag.site != coupled_child(&earliest.site, 1)
+        || !matches!(&flag.kind, Kind::Value(Atom::Bool(true)))
+        || flag.value.ty != Ty::Bool
+        || *receiver != new.value
+        || earliest.value != new.value
+    {
+        return false;
+    }
+    let Kind::Primitive {
+        lemma: Primitive::RegexSearch,
+        callee: constructor_callee,
+        receiver: None,
+        arguments: constructor_arguments,
+        source_calls: constructor_source_calls,
+    } = &new.kind
+    else {
+        return false;
+    };
+    let [subject] = constructor_arguments.as_slice() else {
+        return false;
+    };
+    constructor_callee == "regex_automata::Input::new"
+        && constructor_source_calls.is_empty()
+        && temporary(new, &Ty::Input)
+        && subject.site == coupled_child(&new.site, 0)
+        && subject.value.ty == Ty::String
+        && subject.value.borrowed
+        && argument_value(subject, bindings) == Some(Provenance::Scalar)
+}
+
+fn temporary(op: &Op, ty: &Ty) -> bool {
+    op.value.ty == *ty
+        && op.value.place.is_empty()
+        && !op.value.borrowed
+        && op.value.declaration.is_none()
+        && op.value.origin == Origin::Temporary(op.site.clone())
+}
+
+fn bound_boolean(bindings: &ProvenanceBindings, binding: &Binding) -> bool {
+    bindings
+        .iter()
+        .rev()
+        .find(|(known, _)| known.place == binding.place)
+        .is_some_and(|(known, provenance)| {
+            known == binding && matches!(provenance, Provenance::Boolean)
+        })
+}
+
+fn boolean_result(op: &Op, bindings: &ProvenanceBindings) -> bool {
+    match &op.kind {
+        Kind::Value(Atom::Place) => bound_boolean(bindings, &op.value),
+        Kind::Value(Atom::Bool(_)) => temporary(op, &Ty::Bool),
+        Kind::Value(Atom::Scalar(_) | Atom::String(_) | Atom::None | Atom::Unit) => false,
+        Kind::Primitive { .. } => boolean_primitive(op),
+        Kind::Scope { .. }
+        | Kind::Bind { .. }
+        | Kind::Evaluate(_, _)
+        | Kind::ScalarTest(_, _)
+        | Kind::Choice { .. }
+        | Kind::ShortCircuit(_, _)
+        | Kind::Call { .. }
+        | Kind::Service(_)
+        | Kind::Iterate { .. }
+        | Kind::Callback { .. }
+        | Kind::Construct { .. }
+        | Kind::Exit(_, _) => temporary(op, &Ty::Bool),
+    }
+}
+
+// Primitive method results retain the evaluated receiver's place/origin in
+// the canonical lowerer. Its synthetic string-pattern selector is a temporary.
+// This correspondence does not discharge the primitive's source/work lemma.
+fn boolean_primitive(op: &Op) -> bool {
+    let Kind::Primitive {
+        lemma,
+        callee,
+        receiver,
+        arguments,
+        ..
+    } = &op.kind
+    else {
+        return false;
+    };
+    let Some(receiver) = receiver else {
+        return temporary(op, &Ty::Bool);
+    };
+    let Some(argument) = arguments.first() else {
+        return false;
+    };
+    if argument.value != *receiver {
+        return false;
+    }
+    if *lemma == Primitive::StringAccess && callee == "str::pattern_decision" {
+        return argument.site == op.site && temporary(op, &Ty::Bool);
+    }
+    argument.site == coupled_child(&op.site, 0)
+        && op.value
+            == (Binding {
+                ty: Ty::Bool,
+                place: receiver.place.clone(),
+                borrowed: false,
+                origin: receiver.origin.clone(),
+                declaration: None,
+            })
+}
+
+fn scope_sites(op: &Op, steps: &[Op]) -> bool {
+    let mut previous = None;
+    for step in steps {
+        let Some((ordinal, prefix)) = step.site.lexical.split_last() else {
+            return false;
+        };
+        if step.site.function != op.site.function
+            || prefix != op.site.lexical.as_slice()
+            || previous.is_some_and(|prior| prior >= *ordinal)
+        {
+            return false;
+        }
+        previous = Some(*ordinal);
+    }
+    true
 }
 
 fn container_type(name: &str) -> Option<Ty> {
@@ -1218,6 +1749,60 @@ fn container_type(name: &str) -> Option<Ty> {
             Some(Ty::Map)
         }
         _ => None,
+    }
+}
+
+fn payload_type(name: &str) -> Option<Ty> {
+    container_type(name).or_else(|| match name {
+        "serde_json::Value::String" | "jsonschema::__private::serde_json::Value::String" => {
+            Some(Ty::String)
+        }
+        "serde_json::Value::Number" | "jsonschema::__private::serde_json::Value::Number" => {
+            Some(Ty::Number)
+        }
+        "serde_json::Value::Bool" | "jsonschema::__private::serde_json::Value::Bool" => {
+            Some(Ty::Bool)
+        }
+        _ => None,
+    })
+}
+
+fn selected_type(selector: &Op) -> Option<&Ty> {
+    if let Kind::ScalarTest(Comparison::TypeDiscriminant, values) = &selector.kind {
+        return values.first().map(|value| &value.value.ty);
+    }
+    if let Kind::Primitive {
+        lemma: Primitive::StringAccess,
+        callee,
+        arguments,
+        source_calls,
+        ..
+    } = &selector.kind
+        && callee == "str::pattern_decision"
+        && source_calls.is_empty()
+    {
+        return arguments.first().map(|value| &value.value.ty);
+    }
+    (selector.value.ty == Ty::Bool).then_some(&selector.value.ty)
+}
+
+fn nonbinding_pattern(pattern: &Pattern, selector: &Op) -> bool {
+    match pattern {
+        Pattern::Wild => true,
+        Pattern::Literal(tokens) => matches!(
+            (selected_type(selector), syn::parse_str::<syn::Lit>(tokens)),
+            (Some(Ty::String), Ok(syn::Lit::Str(_)))
+                | (Some(Ty::Bool), Ok(syn::Lit::Bool(_)))
+                | (Some(Ty::Scalar), Ok(syn::Lit::Int(_)))
+        ),
+        Pattern::Or(patterns) => {
+            !patterns.is_empty() && patterns.iter().all(|p| nonbinding_pattern(p, selector))
+        }
+        Pattern::Variant(name, fields) if selected_type(selector) == Some(&Ty::Value) => {
+            (payload_type(name).is_some() && fields == &[Pattern::Wild])
+                || (name == "Value::Null" && fields.is_empty())
+        }
+        Pattern::Binding(_) | Pattern::Variant(_, _) | Pattern::Tuple(_) => false,
     }
 }
 
@@ -1259,7 +1844,7 @@ fn container_binding(
     anchor.lexical.push(0);
     Ok((
         Binding {
-            ty: container_type(name).ok_or_else(refusal)?,
+            ty: payload_type(name).ok_or_else(refusal)?,
             place: place.clone(),
             borrowed: true,
             origin: Origin::Projection {
@@ -1268,7 +1853,23 @@ fn container_binding(
             },
             declaration: Some(anchor),
         },
-        Provenance::Input(node),
+        match payload_type(name).ok_or_else(refusal)? {
+            Ty::Array | Ty::Map => Provenance::Input(node),
+            Ty::Bool => Provenance::Boolean,
+            Ty::String | Ty::Number => Provenance::Scalar,
+            Ty::Value
+            | Ty::Scalar
+            | Ty::Regex
+            | Ty::Input
+            | Ty::Cache(_)
+            | Ty::LazyRegex(_)
+            | Ty::Option(_)
+            | Ty::Iterator(_)
+            | Ty::Tuple(_)
+            | Ty::Callback(_)
+            | Ty::Named(_)
+            | Ty::Unit => return Err(refusal()),
+        },
     ))
 }
 
@@ -1295,16 +1896,31 @@ fn derive_source_bounds(
     {
         return Err(operations::Refusal::UnsupportedSource.into());
     }
+    partition_roots(recipe, &recipe.roots, cap, attempts, &[])
+}
+
+// Both entries share the same provenance/counting kernel and original Recipe.
+// Root selection is private: the coupled caller supplies its just-checked root,
+// while the standalone entry above retains its empty-initialization guard.
+fn partition_roots(
+    recipe: &Recipe,
+    roots: &[usize],
+    cap: NodeCapData,
+    attempts: u64,
+    programs: &[ProgramFactoryBound],
+) -> Result<SourceBounds, Refusal> {
     let mut deriver = Deriver {
         recipe,
+        programs,
         child_cap: cap.nodes.checked_sub(1).ok_or(Refusal::Overflow)?,
         active_functions: BTreeSet::new(),
         active_members: Vec::new(),
         next_member: 0,
         calls: Vec::new(),
         callbacks: Occurrences::default(),
+        labels: Vec::new(),
     };
-    for &root in &recipe.roots {
+    for &root in roots {
         let site = Site {
             function: root,
             lexical: Vec::new(),
@@ -1327,7 +1943,7 @@ fn derive_source_bounds(
     }
     maximum.checked_mul(attempts).ok_or(Refusal::Overflow)?;
     Ok(SourceBounds {
-        roots: recipe.roots.clone(),
+        roots: roots.to_vec(),
         cap,
         attempts,
         helper_calls,
@@ -3123,6 +3739,9 @@ mod coupled_tests {
         use serde_json::json;
         use std::collections::BTreeSet;
 
+        const STRING_LEAF: &str = "__coupled_impl::string_leaf";
+        const SENTINEL: &str = "__coupled_impl::sentinel";
+        const KEY_LEAF: &str = "__coupled_impl::key_leaf";
         const ENTRY: &str = "__coupled_impl::entry_is_valid";
         const RESET: &str = "__coupled_impl::__SearchCache::reset";
         const LEAF: &str = "__coupled_impl::leaf";
@@ -3309,6 +3928,391 @@ mod coupled_tests {
                 Ok(expected(&fixture, true, 7, population, 5, 6))
             );
             fixture
+        }
+
+        fn protocol_fixture(rescan: bool) -> Fixture {
+            let mut fixture = factory_fixture(true);
+            let items = fixture
+                .syntax
+                .items
+                .iter_mut()
+                .find_map(|item| {
+                    if let syn::Item::Mod(module) = item
+                        && module.ident == "__coupled_impl"
+                    {
+                        Some(&mut module.content.as_mut().unwrap().1)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let entry = items
+                .iter_mut()
+                .find_map(|item| {
+                    if let syn::Item::Fn(function) = item
+                        && function.sig.ident == "entry_is_valid"
+                    {
+                        Some(function)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let values = quote::quote! {
+                obj.values().all(|instance| match instance {
+                    serde_json::Value::String(s) => string_leaf(s, __cache),
+                    serde_json::Value::Number(n) => jsonschema::__private::types::is_integer_draft4(n),
+                    serde_json::Value::Bool(b) => *b,
+                    _ => true,
+                })
+            };
+            let object = if rescan {
+                quote::quote! { 'pass: {
+                    for (key, instance) in obj.iter() {
+                        let key_str = key.as_str();
+                        if !key_leaf(key_str, __cache) { break 'pass false; }
+                        if !(#values) { break 'pass false; }
+                    }
+                    true
+                } }
+            } else {
+                values
+            };
+            *entry.block = syn::parse2(quote::quote!({
+                __cache.reset();
+                match instance {
+                    serde_json::Value::Object(obj) => #object,
+                    _ => true,
+                }
+            }))
+            .unwrap();
+            items.push(syn::parse_quote! {
+                fn string_leaf(subject: &str, __cache: &mut __SearchCache) -> bool {
+                    PATTERN_0_REGEX.as_ref().is_some_and(|regex| {
+                        sentinel(subject, __cache) && regex.search_half_with(
+                            &mut __cache.pattern_0_cache,
+                            &__ra::Input::new(subject).earliest(true),
+                        ).is_some()
+                    })
+                }
+            });
+            items.push(syn::parse_quote! {
+                fn sentinel(subject: &str, __cache: &mut __SearchCache) -> bool {
+                    matches!(subject, "x" | "y")
+                }
+            });
+            items.push(syn::parse_quote! {
+                fn key_leaf(subject: &str, __cache: &mut __SearchCache) -> bool {
+                    matches!(subject, "s" | "n")
+                }
+            });
+            fixture.recipe = operations::classify_source_body(&fixture.syntax, &[], &[])
+                .unwrap()
+                .recipe()
+                .clone();
+            coupled_factory_bounds(
+                &fixture.recipe,
+                &fixture.graph,
+                OWNER,
+                MARKER,
+                7,
+                CoupledPopulation {
+                    factories: 3,
+                    validations: 2,
+                },
+            )
+            .unwrap();
+            fixture
+        }
+
+        fn helper_coefficients(
+            bounds: &CoupledFactoryBounds,
+            recipe: &Recipe,
+            name: &str,
+        ) -> Vec<(u64, u64)> {
+            // The canonical recipe contains only reachable functions. The
+            // positive rows below still require every expected helper once.
+            let targets: Vec<_> = recipe
+                .functions
+                .iter()
+                .filter(|(_, function)| function.identity == name)
+                .map(|(id, _)| *id)
+                .collect();
+            assert!(targets.len() <= 1);
+            let Some(target) = targets.first() else {
+                return vec![];
+            };
+            bounds
+                .input_partition
+                .as_ref()
+                .unwrap()
+                .helper_calls
+                .iter()
+                .filter(|row| row.target == *target)
+                .map(|row| (row.per_attempt.constant, row.per_attempt.nodes))
+                .collect()
+        }
+
+        fn assert_key_only_protocol() {
+            let mut fixture = protocol_fixture(false);
+            let entry = fixture
+                .syntax
+                .items
+                .iter_mut()
+                .find_map(|item| {
+                    let syn::Item::Mod(module) = item else {
+                        return None;
+                    };
+                    module.content.as_mut()?.1.iter_mut().find_map(|item| {
+                        if let syn::Item::Fn(function) = item
+                            && function.sig.ident == "entry_is_valid"
+                        {
+                            Some(function)
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap();
+            *entry.block = syn::parse_quote!({
+                __cache.reset();
+                match instance {
+                    serde_json::Value::Object(obj) => {
+                        obj.keys().all(|key| key_leaf(key.as_str(), __cache))
+                    }
+                    _ => true,
+                }
+            });
+            fixture.recipe = operations::classify_source_body(&fixture.syntax, &[], &[])
+                .unwrap()
+                .recipe()
+                .clone();
+            for cap in [7, 11] {
+                let bounds = input(
+                    &fixture,
+                    cap,
+                    CoupledPopulation {
+                        factories: 3,
+                        validations: 2,
+                    },
+                )
+                .unwrap();
+                assert_eq!(
+                    helper_coefficients(&bounds, &fixture.recipe, KEY_LEAF),
+                    vec![(0, 1)]
+                );
+                assert!(helper_coefficients(&bounds, &fixture.recipe, STRING_LEAF).is_empty());
+                let projection = bounds.input_partition.unwrap();
+                assert_eq!(projection.helper_calls.len(), 3);
+                assert_eq!(
+                    projection.iterator_callbacks_per_attempt,
+                    SourceBoundCoeff {
+                        constant: 0,
+                        nodes: 1
+                    }
+                );
+            }
+        }
+
+        #[test]
+        fn emitted_protocols_keep_scalar_and_optional_callback_coefficients() {
+            let witness = json!({"s":"x", "n":1});
+            for (rescan, cap, string_nodes, callback_nodes) in [
+                (false, 7, 1, 1),
+                (false, 11, 1, 1),
+                (true, 7, 3, 4),
+                (true, 11, 5, 6),
+            ] {
+                let fixture = protocol_fixture(rescan);
+                let limits = SchemaInputLimits {
+                    serialized_bytes: 128,
+                    nodes: cap,
+                    depth: 4,
+                };
+                assert_eq!(measure_schema_input(&witness, limits).unwrap().nodes, 5);
+                let bounds = input(
+                    &fixture,
+                    cap,
+                    CoupledPopulation {
+                        factories: 3,
+                        validations: 2,
+                    },
+                )
+                .unwrap();
+                assert_eq!(bounds.root_entries_upper, 5);
+                assert_eq!(bounds.factory.initializer_checks_upper, 6);
+                assert_eq!(bounds.required, super::duties());
+                assert_eq!(
+                    helper_coefficients(&bounds, &fixture.recipe, STRING_LEAF),
+                    vec![(0, string_nodes)]
+                );
+                assert_eq!(
+                    helper_coefficients(&bounds, &fixture.recipe, SENTINEL),
+                    vec![(0, string_nodes)]
+                );
+                assert_eq!(
+                    helper_coefficients(&bounds, &fixture.recipe, ENTRY),
+                    vec![(1, 0)]
+                );
+                assert_eq!(
+                    helper_coefficients(&bounds, &fixture.recipe, RESET),
+                    vec![(1, 0)]
+                );
+                assert_eq!(
+                    helper_coefficients(&bounds, &fixture.recipe, KEY_LEAF),
+                    if rescan { vec![(0, 1)] } else { vec![] }
+                );
+                let projection = bounds.input_partition.unwrap();
+                assert_eq!(projection.helper_calls.len(), if rescan { 5 } else { 4 });
+                assert_eq!(
+                    projection.iterator_callbacks_per_attempt,
+                    SourceBoundCoeff {
+                        constant: 0,
+                        nodes: callback_nodes
+                    }
+                );
+            }
+            assert_key_only_protocol();
+        }
+
+        fn protocol_callback(recipe: &mut Recipe) -> &mut Op {
+            let id = function(recipe, STRING_LEAF);
+            let Kind::Scope { steps, .. } = &mut recipe.functions.get_mut(&id).unwrap().body.kind
+            else {
+                panic!("string helper scope");
+            };
+            assert_eq!(steps.len(), 1);
+            assert!(matches!(&steps[0].kind, Kind::Callback { .. }));
+            &mut steps[0]
+        }
+
+        fn protocol_search(recipe: &mut Recipe) -> &mut Op {
+            let Kind::Callback { body, .. } = &mut protocol_callback(recipe).kind else {
+                panic!("optional regex callback");
+            };
+            let Kind::Scope { steps, .. } = &mut body.kind else {
+                panic!("regex callback scope");
+            };
+            let Kind::ShortCircuit(_, values) = &mut steps[0].kind else {
+                panic!("sentinel/search conjunction");
+            };
+            let Kind::Primitive { arguments, .. } = &mut values[1].kind else {
+                panic!("search is_some");
+            };
+            assert_eq!(arguments.len(), 1);
+            &mut arguments[0]
+        }
+
+        fn assert_search_binding_mutants(fixture: &Fixture, population: CoupledPopulation) {
+            for change_input in [false, true] {
+                let mut recipe = fixture.recipe.clone();
+                let search = protocol_search(&mut recipe);
+                let anchor = search.site.clone();
+                let Kind::Primitive { arguments, .. } = &mut search.kind else {
+                    panic!("regex search primitive");
+                };
+                assert_eq!(arguments.len(), 3);
+                let index = if change_input { 2 } else { 1 };
+                let Kind::Evaluate(Action::Borrow { .. }, values) = &mut arguments[index].kind
+                else {
+                    panic!("borrowed search operand");
+                };
+                if change_input {
+                    let Kind::Primitive {
+                        arguments: input_arguments,
+                        ..
+                    } = &mut values[0].kind
+                    else {
+                        panic!("earliest input");
+                    };
+                    assert!(matches!(
+                        &input_arguments[1].kind,
+                        Kind::Value(super::super::Atom::Bool(true))
+                    ));
+                    input_arguments[1].kind = Kind::Value(super::super::Atom::Bool(false));
+                } else {
+                    let Kind::Evaluate(Action::Field(field), _) = &mut values[0].kind else {
+                        panic!("search cache field");
+                    };
+                    assert_eq!(field.as_str(), "pattern_0_cache");
+                    *field = "pattern_1_cache".to_owned();
+                }
+                assert_eq!(
+                    coupled_input_bounds(&recipe, &fixture.graph, OWNER, MARKER, 11, population),
+                    Err(CoupledRefusal::CallBinding(anchor))
+                );
+            }
+        }
+
+        #[test]
+        fn emitted_protocol_bindings_refuse_at_zero_validations() {
+            let fixture = protocol_fixture(true);
+            for validations in [0, 1] {
+                let population = CoupledPopulation {
+                    factories: 3,
+                    validations,
+                };
+                input(&fixture, 11, population).unwrap();
+                assert_search_binding_mutants(&fixture, population);
+                let mut formal = fixture.recipe.clone();
+                let target = function(&formal, STRING_LEAF);
+                let anchor = super::site(
+                    &formal,
+                    ENTRY,
+                    |op| matches!(&op.kind, Kind::Call { target: id, .. } if *id == target),
+                );
+                let parameter = &mut formal.functions.get_mut(&target).unwrap().parameters[0];
+                assert!(matches!(
+                    &parameter.origin,
+                    Origin::Parameter { ordinal: 0, .. }
+                ));
+                parameter.origin = Origin::Parameter {
+                    function: target,
+                    ordinal: 7,
+                };
+                assert_eq!(
+                    coupled_input_bounds(&formal, &fixture.graph, OWNER, MARKER, 11, population),
+                    Err(CoupledRefusal::CallBinding(anchor))
+                );
+                let mut callback = fixture.recipe.clone();
+                let op = protocol_callback(&mut callback);
+                let callback_site = op.site.clone();
+                let Kind::Callback { parameters, .. } = &mut op.kind else {
+                    panic!("optional regex callback parameters");
+                };
+                assert!(parameters[0].declaration.is_some());
+                parameters[0].declaration = None;
+                assert_eq!(
+                    coupled_input_bounds(&callback, &fixture.graph, OWNER, MARKER, 11, population),
+                    Err(CoupledRefusal::CallBinding(callback_site))
+                );
+                let mut labelled = fixture.recipe.clone();
+                let mut anchors = Vec::new();
+                operations::model::walk(
+                    &labelled.functions[&function(&labelled, ENTRY)].body,
+                    &mut |op| {
+                        if matches!(&op.kind, Kind::Exit(operations::model::Exit::Break(_), _)) {
+                            anchors.push(op.site.clone());
+                        }
+                        Ok(())
+                    },
+                )
+                .unwrap();
+                assert_eq!(anchors.len(), 2);
+                let Kind::Scope { label, .. } = &mut object_scope(&mut labelled).kind else {
+                    panic!("labelled pass scope");
+                };
+                assert_eq!(label.as_deref(), Some("pass"));
+                *label = Some("wrong".to_owned());
+                assert_eq!(
+                    coupled_input_bounds(&labelled, &fixture.graph, OWNER, MARKER, 11, population),
+                    Err(CoupledRefusal::SourceRefusal {
+                        function: Some(ENTRY.to_owned()),
+                        site: anchors[0].clone(),
+                        cause: operations::Refusal::UnsupportedSource,
+                    })
+                );
+            }
         }
 
         fn object_scope(recipe: &mut Recipe) -> &mut Op {
