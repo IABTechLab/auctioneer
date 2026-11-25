@@ -12,7 +12,12 @@
 
 mod scalar;
 
-use super::{PrefixCounts, Refusal, SchemaInputLimits};
+pub(in crate::schema_validation) use scalar::Refusal as ScalarRefusal;
+pub(super) use scalar::ScalarData;
+#[cfg(test)]
+pub(super) use scalar::fixture as scalar_fixture;
+
+use super::{AttemptContext, PrefixCounts, Refusal};
 
 // The parent supplies limits only after matching the native/input recipes.
 // Each value and key first charges the same monotone node counter. At most J
@@ -25,10 +30,14 @@ use super::{PrefixCounts, Refusal, SchemaInputLimits};
 // Visit nesting is D+1; only D successful containers can retain iterators.
 // These are source multiplicities, not transitive helper costs or frame bytes.
 pub(super) fn attach_bounds(
-    limits: SchemaInputLimits,
-    preflight_entries: u64,
+    context: &AttemptContext<'_>,
+    _scalar: &ScalarData,
     counts: &mut PrefixCounts,
 ) -> Result<(), Refusal> {
+    // Tests-first bridge: the required DATA operand is not checked yet. The
+    // four scalar slots stay unknown until the new guards reach hosted RED.
+    let limits = context.native_input_limits;
+    let preflight_entries = counts.preflight_entries;
     let node_attempts = if preflight_entries == 0 {
         0
     } else {
@@ -83,13 +92,18 @@ mod tests {
         NATIVE, NativePath, Population, PrefixCounts, Refusal, SchemaInputError, SchemaInputStats,
         SourceRole, bind_attempt_context, measure_schema_input, prefix_counts,
     };
+    use super::scalar::{
+        Dispatch as ScalarDispatch, FeatureClause as ScalarFeatureClause,
+        SourceUnit as ScalarSourceUnit,
+    };
+    use super::{ScalarData, ScalarRefusal, attach_bounds, scalar_fixture};
     use auctioneer_runtime::serialized_json_bytes;
     use quote::ToTokens as _;
     use serde_json::{Map, Value, json};
     use std::str::from_utf8;
     use syn::visit_mut::{self, VisitMut};
 
-    fn with_context(run: impl FnOnce(&AttemptContext<'_>)) {
+    fn with_context(run: impl FnOnce(&AttemptContext<'_>, &ScalarData)) {
         let descriptor = json!({"identity":"fake_prefix_capture"});
         let roots = json!({"fixture":"fake_caller_roots"});
         let census = json!({"fixture":"fake_compiled_source_census"});
@@ -118,17 +132,21 @@ mod tests {
         assert_eq!(context.native_input_limits.serialized_bytes, 65_536);
         assert_eq!(context.native_input_limits.nodes, 4_096);
         assert_eq!(context.native_input_limits.depth, 32);
-        run(&context);
+        let (scalar, scalar_limits) = scalar_fixture::fixture();
+        assert_eq!(scalar_limits, context.native_input_limits);
+        run(&context, &scalar);
     }
 
     // Conditional caller data, not an authentic ingress/caller-cap witness.
     fn prefix_result(
         context: &AttemptContext<'_>,
+        scalar: &ScalarData,
         attempts: u64,
         path: NativePath,
     ) -> Result<PrefixCounts, Refusal> {
         prefix_counts(
             context,
+            scalar,
             CallerFacts {
                 original_impressions: Some(attempts),
                 configured_bidder_cap: Some(1),
@@ -146,10 +164,11 @@ mod tests {
 
     fn rejected(
         context: &AttemptContext<'_>,
+        scalar: &ScalarData,
         attempts: u64,
         error: SchemaInputError,
     ) -> PrefixCounts {
-        let checked = prefix_result(context, attempts, NativePath::InputRejected(error));
+        let checked = prefix_result(context, scalar, attempts, NativePath::InputRejected(error));
         assert_eq!(checked.as_ref().map(|_| ()), Ok(()));
         let counts = checked.unwrap();
         assert_eq!(counts.preflight_entries, attempts);
@@ -191,8 +210,8 @@ mod tests {
 
     #[test]
     fn rejected_preflight_prefixes_remain_charged() {
-        with_context(|context| {
-            let counts = rejected(context, 3, SchemaInputError::Nodes);
+        with_context(|context, scalar| {
+            let counts = rejected(context, scalar, 3, SchemaInputError::Nodes);
             // First normative assertion must fail on the missing bound, not setup.
             assert_eq!(counts.input_node_attempts_upper, Some(12_291));
             assert_eq!(
@@ -211,7 +230,7 @@ mod tests {
                     Some(32),
                 ]
             );
-            let once = rejected(context, 1, SchemaInputError::Nodes);
+            let once = rejected(context, scalar, 1, SchemaInputError::Nodes);
             assert_eq!(
                 multiplicities(&once),
                 [
@@ -228,7 +247,7 @@ mod tests {
                     Some(32),
                 ]
             );
-            let empty = rejected(context, 0, SchemaInputError::Nodes);
+            let empty = rejected(context, scalar, 0, SchemaInputError::Nodes);
             assert_eq!(multiplicities(&empty), [Some(0); 11]);
             missing_costs(&counts);
             assert_node_prefixes(context, &once);
@@ -257,8 +276,8 @@ mod tests {
 
     #[test]
     fn keys_and_string_prechecks_bound_partial_prefixes() {
-        with_context(|context| {
-            let counts = rejected(context, 1, SchemaInputError::Bytes);
+        with_context(|context, scalar| {
+            let counts = rejected(context, scalar, 1, SchemaInputError::Bytes);
             assert_eq!(counts.input_raw_utf8_with_quotes_upper, Some(65_536));
             assert_eq!(counts.input_string_prechecks_upper, Some(4_096));
             assert_eq!(counts.input_scalar_serializations_upper, Some(4_096));
@@ -342,8 +361,8 @@ mod tests {
 
     #[test]
     fn iterator_population_and_recursion_axes_remain_distinct() {
-        with_context(|context| {
-            let counts = rejected(context, 1, SchemaInputError::Depth);
+        with_context(|context, scalar| {
+            let counts = rejected(context, scalar, 1, SchemaInputError::Depth);
             assert_eq!(counts.input_visit_nesting_upper, Some(33));
             assert_eq!(counts.input_iterator_nesting_upper, Some(32));
             assert_eq!(counts.input_iterator_some_upper, Some(4_096));
@@ -365,7 +384,7 @@ mod tests {
                     })
                 );
             }
-            let serial = rejected(context, 3, SchemaInputError::Depth);
+            let serial = rejected(context, scalar, 3, SchemaInputError::Depth);
             assert_eq!(serial.input_visit_nesting_upper, Some(33));
             assert_eq!(serial.input_iterator_nesting_upper, Some(32));
             assert_eq!(serial.input_iterator_some_upper, Some(12_288));
@@ -394,8 +413,8 @@ mod tests {
 
     #[test]
     fn counter_protocol_source_drift_and_overflow_refuse() {
-        with_context(|context| {
-            let counts = rejected(context, 1, SchemaInputError::Bytes);
+        with_context(|context, scalar| {
+            let counts = rejected(context, scalar, 1, SchemaInputError::Bytes);
             assert_eq!(
                 counts.input_counter_writes_per_nonempty_request_upper,
                 Some(1)
@@ -407,11 +426,288 @@ mod tests {
             assert_eq!(
                 prefix_result(
                     context,
+                    scalar,
                     u64::MAX,
                     NativePath::InputRejected(SchemaInputError::Nodes)
                 ),
                 Err(Refusal::Overflow)
             );
+        });
+    }
+
+    fn assert_bridge_setup(context: &AttemptContext<'_>, scalar: &ScalarData) {
+        scalar_fixture::assert_pristine(scalar, context.native_input_limits);
+        for attempts in [0_u64, 1_u64] {
+            let result = prefix_result(
+                context,
+                scalar,
+                attempts,
+                NativePath::InputRejected(SchemaInputError::Nodes),
+            );
+            assert_eq!(result.as_ref().map(|_| ()), Ok(()));
+            let counts = result.unwrap();
+            assert_eq!(counts.preflight_entries, attempts);
+            assert_eq!(counts.native_entries, attempts);
+            assert_eq!(
+                counts.input_node_attempts_upper,
+                Some(if attempts == 0 { 0 } else { 4_097 })
+            );
+            missing_costs(&counts);
+        }
+    }
+
+    fn assert_bridge_refusal(
+        context: &AttemptContext<'_>,
+        scalar: &ScalarData,
+        attempts: u64,
+        expected: ScalarRefusal,
+    ) {
+        assert_eq!(
+            prefix_result(
+                context,
+                scalar,
+                attempts,
+                NativePath::InputRejected(SchemaInputError::Nodes),
+            ),
+            Err(Refusal::ScalarSource(expected))
+        );
+    }
+
+    fn assert_input_links(context: &AttemptContext<'_>, scalar: &ScalarData, attempts: u64) {
+        for unit in [
+            ScalarSourceUnit::Native,
+            ScalarSourceUnit::Input,
+            ScalarSourceUnit::JsonSize,
+        ] {
+            // Same parsed source semantics/path, different bytes in both
+            // synthetic snapshots with a new digest: byte links must still fail.
+            let changed = scalar_fixture::different_input_bytes(scalar, unit);
+            assert_bridge_refusal(
+                context,
+                &changed,
+                attempts,
+                ScalarRefusal::ContextSourceMismatch(unit),
+            );
+        }
+    }
+
+    fn assert_limit_links(context: &AttemptContext<'_>, scalar: &ScalarData, attempts: u64) {
+        let original = context.native_input_limits;
+        let mut bytes = original;
+        bytes.serialized_bytes = bytes.serialized_bytes.checked_sub(1).unwrap();
+        let mut nodes = original;
+        nodes.nodes = nodes.nodes.checked_sub(1).unwrap();
+        let mut depth = original;
+        depth.depth = depth.depth.checked_sub(1).unwrap();
+        for changed in [bytes, nodes, depth] {
+            assert_ne!(changed, original);
+            // Explicit conditional context DATA mutation, not a successfully
+            // rebound context or an actual descriptor/source-window witness.
+            let wrong_limits = AttemptContext {
+                binding: context.binding,
+                sources: context.sources,
+                native_input_limits: changed,
+            };
+            assert_bridge_refusal(
+                &wrong_limits,
+                scalar,
+                attempts,
+                ScalarRefusal::NativeLimitsMismatch,
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_input_links_are_required_at_zero_and_one_preflights() {
+        with_context(|context, scalar| {
+            assert_bridge_setup(context, scalar);
+            for attempts in [0_u64, 1_u64] {
+                assert_input_links(context, scalar, attempts);
+                assert_limit_links(context, scalar, attempts);
+            }
+        });
+    }
+
+    fn assert_scalar_duties(context: &AttemptContext<'_>, scalar: &ScalarData) {
+        let units = scalar_fixture::units();
+        assert_eq!(units.len(), 20);
+        for unit in units {
+            let missing = scalar_fixture::without_source(scalar, unit);
+            assert_bridge_refusal(context, &missing, 0, ScalarRefusal::MissingSource(unit));
+            let duplicate = scalar_fixture::duplicate_source(scalar, unit);
+            assert_bridge_refusal(context, &duplicate, 0, ScalarRefusal::DuplicateSource(unit));
+        }
+        let drift = scalar_fixture::changed_record(scalar, ScalarSourceUnit::IoWrite);
+        assert_bridge_refusal(
+            context,
+            &drift,
+            0,
+            ScalarRefusal::SourceChanged(ScalarSourceUnit::IoWrite),
+        );
+        let retargeted = scalar_fixture::wrong_path(scalar, ScalarSourceUnit::SerdeStr);
+        assert_bridge_refusal(
+            context,
+            &retargeted,
+            0,
+            ScalarRefusal::SourcePath(ScalarSourceUnit::SerdeStr),
+        );
+        let framing = scalar_fixture::missing_string_framing(scalar);
+        assert_bridge_refusal(
+            context,
+            &framing,
+            0,
+            ScalarRefusal::SourceShape(ScalarSourceUnit::JsonSerializer),
+        );
+        let loop_skipped = scalar_fixture::skipped_write_loop(scalar);
+        assert_bridge_refusal(
+            context,
+            &loop_skipped,
+            0,
+            ScalarRefusal::SourceShape(ScalarSourceUnit::IoWrite),
+        );
+    }
+
+    fn assert_scalar_premises(context: &AttemptContext<'_>, scalar: &ScalarData) {
+        for (clause, supported) in [
+            (ScalarFeatureClause::SerdeStd, true),
+            (ScalarFeatureClause::SerdeCoreStd, true),
+            (ScalarFeatureClause::JsonStd, true),
+            (ScalarFeatureClause::ArbitraryPrecision, false),
+            (ScalarFeatureClause::Docsrs, false),
+        ] {
+            let absent = scalar_fixture::feature_value(scalar, clause, None);
+            assert_bridge_refusal(context, &absent, 0, ScalarRefusal::MissingFeature(clause));
+            let opposite = scalar_fixture::feature_value(scalar, clause, Some(!supported));
+            assert_bridge_refusal(
+                context,
+                &opposite,
+                0,
+                ScalarRefusal::FeatureMismatch(clause),
+            );
+        }
+        let absent_width = scalar_fixture::width_value(scalar, None);
+        assert_bridge_refusal(context, &absent_width, 0, ScalarRefusal::MissingWidth);
+        let wrong_width = scalar_fixture::width_value(scalar, Some(128));
+        assert_bridge_refusal(
+            context,
+            &wrong_width,
+            0,
+            ScalarRefusal::UnsupportedWidth(128),
+        );
+        for dispatch in [
+            ScalarDispatch::GenericSerialize,
+            ScalarDispatch::OtherWriter,
+            ScalarDispatch::PrettyFormatter,
+        ] {
+            let wrong_dispatch = scalar_fixture::dispatch_value(scalar, dispatch);
+            assert_bridge_refusal(
+                context,
+                &wrong_dispatch,
+                0,
+                ScalarRefusal::UnsupportedDispatch,
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_source_refusals_survive_zero_preflights() {
+        with_context(|context, scalar| {
+            assert_bridge_setup(context, scalar);
+            assert_scalar_duties(context, scalar);
+            assert_scalar_premises(context, scalar);
+            let counts = prefix_result(
+                context,
+                scalar,
+                0,
+                NativePath::InputRejected(SchemaInputError::Nodes),
+            )
+            .unwrap();
+            assert_eq!(counts.input_raw_utf8_with_quotes_upper, Some(0));
+            // These are conditional per-request ceilings, not zero invocations.
+            assert_eq!(
+                counts.input_counter_writes_per_nonempty_request_upper,
+                Some(1)
+            );
+            assert_eq!(counts.input_counter_writes_per_empty_request_upper, Some(0));
+            assert_eq!(counts.input_counter_interrupted_retries_upper, Some(0));
+            missing_costs(&counts);
+            let narrower = scalar_fixture::width_value(scalar, Some(32));
+            let result = prefix_result(
+                context,
+                &narrower,
+                0,
+                NativePath::InputRejected(SchemaInputError::Nodes),
+            );
+            assert_eq!(result.as_ref().map(|_| ()), Ok(()));
+        });
+    }
+
+    fn destination(
+        context: &AttemptContext<'_>,
+        scalar: &ScalarData,
+        attempts: u64,
+    ) -> PrefixCounts {
+        let mut counts = prefix_result(
+            context,
+            scalar,
+            1,
+            NativePath::InputRejected(SchemaInputError::Nodes),
+        )
+        .unwrap();
+        assert_eq!(counts.preflight_entries, 1);
+        assert_eq!(counts.native_entries, 1);
+        counts.preflight_entries = attempts;
+        // Snapshot sentinels are DATA, never supplied bounds or certificates.
+        // A intentionally differs from native_entries to guard its exact field.
+        counts.input_node_attempts_upper = Some(17);
+        counts.input_raw_utf8_with_quotes_upper = Some(19);
+        counts.input_counter_writes_per_nonempty_request_upper = Some(23);
+        counts.input_counter_writes_per_empty_request_upper = Some(29);
+        counts.input_counter_interrupted_retries_upper = Some(31);
+        counts
+    }
+
+    fn assert_source_failure_is_atomic(
+        context: &AttemptContext<'_>,
+        scalar: &ScalarData,
+        attempts: u64,
+    ) {
+        let mut counts = destination(context, scalar, attempts);
+        let before = destination(context, scalar, attempts);
+        assert_eq!(counts, before);
+        let missing = scalar_fixture::without_source(scalar, ScalarSourceUnit::IoWrite);
+        assert_eq!(
+            attach_bounds(context, &missing, &mut counts),
+            Err(Refusal::ScalarSource(ScalarRefusal::MissingSource(
+                ScalarSourceUnit::IoWrite
+            )))
+        );
+        assert_eq!(counts, before);
+    }
+
+    #[test]
+    fn scalar_prefix_failures_preserve_counts_transactionally() {
+        with_context(|context, scalar| {
+            assert_bridge_setup(context, scalar);
+            let attempts = 281_474_976_710_656_u64;
+            assert_eq!(attempts.checked_mul(4_096), Some(1_152_921_504_606_846_976));
+            assert_eq!(
+                attempts.checked_mul(12_288),
+                Some(3_458_764_513_820_540_928)
+            );
+            assert_eq!(attempts.checked_mul(65_536), None);
+            let mut counts = destination(context, scalar, attempts);
+            let before = destination(context, scalar, attempts);
+            assert_eq!(counts, before);
+            // Old J/3J bounds fit: only the newly required A*B overflows.
+            assert_eq!(
+                attach_bounds(context, scalar, &mut counts),
+                Err(Refusal::Overflow)
+            );
+            assert_eq!(counts, before);
+            for source_attempts in [0_u64, 1_u64] {
+                assert_source_failure_is_atomic(context, scalar, source_attempts);
+            }
         });
     }
 

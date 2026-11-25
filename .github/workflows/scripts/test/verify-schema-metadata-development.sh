@@ -59,6 +59,9 @@ validation_required=(
   schema_validation::work::prefix::tests::keys_and_string_prechecks_bound_partial_prefixes
   schema_validation::work::prefix::tests::iterator_population_and_recursion_axes_remain_distinct
   schema_validation::work::prefix::tests::counter_protocol_source_drift_and_overflow_refuse
+  schema_validation::work::prefix::tests::scalar_input_links_are_required_at_zero_and_one_preflights
+  schema_validation::work::prefix::tests::scalar_source_refusals_survive_zero_preflights
+  schema_validation::work::prefix::tests::scalar_prefix_failures_preserve_counts_transactionally
   schema_validation::work::prefix::scalar::tests::string_framing_bounds_rejected_prefixes
   schema_validation::work::prefix::scalar::tests::concrete_counter_protocol_requires_scalar_dispatch
   schema_validation::work::prefix::scalar::tests::missing_and_rehashed_scalar_sources_refuse_at_zero_attempts

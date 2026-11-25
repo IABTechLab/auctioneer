@@ -715,3 +715,36 @@ Each existing application capture calls the canonical producer while its seed/gr
 Caller diagnosis also pins the current `ExchangeSplit` refusal: local-variable lookup accepts only `Pat::Ident`, while the real `bidders_on_imp: BTreeSet<&str>` is `Pat::Type`. The narrow repair admits one typed-identifier wrapper but returns the original Local, preserving full type/statement equality, attributes and duplicate rejection. All four caller oracles remain unchanged. Independent static specification/quality review clears SHA-256 `1e16864b91eea726a0162e320712a4c06d83db3479843c1fa7d36b8954737db4`. Hosted caller GREEN remains pending.
 
 No local executable verification ran. Pinned formatting and whitespace checks are not tests. Actual retirement/canonical-report GREEN, both-lane dispatch, reached strict source-target lint and full final-head hosted acceptance remain required. Missing common ordinary work, typed byte traffic, cleanup, prefix integration, complete storage/stack and source/feature correspondence are still unfinished, not target facts or zero costs. No common-source completion, review readiness, qualification, activation, issue closure or merge is claimed.
+
+### Canonical Report, Retirement And Caller GREEN
+
+At `e799ecda70662415f7c6a8811c03ffefd3b036fc`, all 24 other hosted checks succeed and [compiler-schema](https://github.com/IABTechLab/auctioneer/actions/runs/45571808445/job/139060148777) fails only the three older preflight-prefix cases. Actual secure source, development residency and development validation result lines:
+
+```text
+test result: FAILED. 959 passed; 3 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1107.93s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 841 filtered out; finished in 94.30s
+test result: FAILED. 121 passed; 3 failed; 0 ignored; 0 measured; 844 filtered out; finished in 298.40s
+```
+
+Both feature lanes execute all four canonical-report/retirement cases, all four caller cases and both relocated observation controls successfully. The development validation prefix executes all 124 required names, with the unchanged 968-case graph and same six secure exclusions. The three failures remain the independently authored raw-quota and Counter-protocol expectations: `None` instead of `Some(196_608)`, `Some(65_536)` and `Some(1)`. Their conditional scalar lemmas already pass separately; the source/limit-bound prefix integration remains missing. No expectation was relaxed.
+
+The same head's four actual application owners all pass the new report-attachment assertions:
+
+| Existing owner | Executed result |
+| --- | --- |
+| [Axum](https://github.com/IABTechLab/auctioneer/actions/runs/45571808445/job/139060148865) | `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 967 filtered out; finished in 385.70s` |
+| [Cloudflare](https://github.com/IABTechLab/auctioneer/actions/runs/45571808445/job/139060148834) | `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 967 filtered out; finished in 330.99s` |
+| [Fastly](https://github.com/IABTechLab/auctioneer/actions/runs/45571808445/job/139060148942) | `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 967 filtered out; finished in 318.84s` |
+| [Spin](https://github.com/IABTechLab/auctioneer/actions/runs/45571808445/job/139060148884) | `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 967 filtered out; finished in 255.05s` |
+
+Each application log explicitly records both secure and development capture labels, so both iterations executed at GREEN. The current report remains Incomplete and non-qualifying; those passes establish attachment and binding, not completed work, storage, stack, policy or target proofs.
+
+The approved source-first order is exercised with unchanged commands, checkers, exclusions, jobs, timeouts and limits. The later compiler-control target and explicit strict source-target Clippy are not reached after source failure; the passing broad Clippy check does not select this `test = false` target. Full current-head acceptance, the remaining common derivations and independent whole-PR review remain required. PR #268 stays draft and #47 open. All executable evidence here comes from GitHub Actions; no local executable verification ran.
+
+### Prefix/Scalar Bridge Tests-First Contract
+
+The next checkpoint makes conditional `ScalarData` mandatory in the two private prefix entrypoints; no optional operand, default loader or old-signature fallback remains. The existing scalar fixture moves to its owning ordinary module so both consumers reuse setup without importing a private `tests` module or compiling handwritten source includes. The three scalar test bodies and four prefix numeric oracles are preserved; other callers receive the explicit operand mechanically. This is test-only DATA, not registry/compiler/feature/artifact authority.
+
+Three new inline cases require exact native/input/json-size byte correspondence, all B/J/D limit links, every scalar source and feature/width/dispatch premise at zero attempts, and transactional count updates. A raw-quota-only overflow uses `A = 281_474_976_710_656`: `A*4_096 = 1_152_921_504_606_846_976` and `A*12_288 = 3_458_764_513_820_540_928` fit while `A*65_536` does not. This distinguishes the new bound from the old node arithmetic. A deliberately different `native_entries` value guards use of `preflight_entries`, not proportional test inputs.
+
+The existing development required roster gains these three exact names, retaining all prior names for 127 static required validation cases. No target, job, limit, timeout or exclusion is added or removed. The bridge still ignores its new DATA operand and leaves all four scalar slots unknown until the new guards reach genuine hosted assertion RED. Expected failures are accepted mismatched tuples and the missing raw-overflow refusal; compilation/setup failure is not RED. These expectations are not executed evidence. Tree navigation, numeric formatter work, ordinary cleanup, actual source-window binding and all other unfinished common/target duties remain unproved. Static review, pinned editing and whitespace inspection do not establish compilation or readiness.

@@ -103,6 +103,7 @@ pub(super) enum CallerFact {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) enum Refusal {
+    ScalarSource(prefix::ScalarRefusal),
     UnsupportedContext,
     SourceShape(SourceRole),
     BindingMismatch,
@@ -266,6 +267,7 @@ fn input_counts(
 
 fn prefix_counts(
     context: &AttemptContext<'_>,
+    scalar: &prefix::ScalarData,
     facts: CallerFacts,
     population: Population,
 ) -> Result<PrefixCounts, Refusal> {
@@ -346,7 +348,7 @@ fn prefix_counts(
             "ordinary preflight error/unwind cleanup",
         ],
     };
-    prefix::attach_bounds(context.native_input_limits, preflight_entries, &mut counts)?;
+    prefix::attach_bounds(context, scalar, &mut counts)?;
     Ok(counts)
 }
 
@@ -888,8 +890,13 @@ mod tests {
         }
     }
 
-    fn assert_native_prefix(context: &AttemptContext<'_>, path: NativePath, expected: [u64; 9]) {
-        let counts = successful(prefix_counts(context, facts(), population(path)));
+    fn assert_native_prefix(
+        context: &AttemptContext<'_>,
+        scalar: &prefix::ScalarData,
+        path: NativePath,
+        expected: [u64; 9],
+    ) {
+        let counts = successful(prefix_counts(context, scalar, facts(), population(path)));
         assert_eq!(counts.outer_scopes, 1);
         assert_eq!(counts.retain_visits, 1);
         assert_eq!(counts.missing_parameter_errors, 0);
@@ -1113,43 +1120,53 @@ mod tests {
         };
         let sources = sources();
         let context = context(&binding, &sources);
+        let (scalar, scalar_limits) = prefix::scalar_fixture::fixture();
+        assert_eq!(scalar_limits, context.native_input_limits);
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::EntryExpired,
             [0, 0, 0, 0, 1, 0, 0, 1, 1],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::Unavailable,
             [0, 0, 0, 0, 1, 0, 0, 1, 1],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::InputRejected(SchemaInputError::Bytes),
             [1, 0, 0, 0, 1, 0, 0, 1, 1],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::BudgetRejected(SchemaEvaluationError::Deadline),
             [1, 1, 0, 0, 2, 0, 0, 1, 1],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::BudgetRejected(SchemaEvaluationError::AggregateWork),
             [1, 1, 0, 0, 2, 0, 0, 1, 1],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::Returned { valid: true },
             [1, 1, 1, 1, 3, 1, 1, 0, 0],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::Returned { valid: false },
             [1, 1, 1, 1, 3, 1, 1, 1, 1],
         );
         assert_native_prefix(
             &context,
+            &scalar,
             NativePath::ValidatorPanicked,
             [1, 1, 1, 0, 2, 1, 1, 0, 0],
         );
@@ -1188,7 +1205,7 @@ mod tests {
         );
     }
 
-    fn assert_preflight_refusals(context: &AttemptContext<'_>) {
+    fn assert_preflight_refusals(context: &AttemptContext<'_>, scalar: &prefix::ScalarData) {
         for reason in [
             SchemaInputError::Bytes,
             SchemaInputError::Nodes,
@@ -1200,7 +1217,7 @@ mod tests {
                 retain_visits: 3,
                 ..population(NativePath::InputRejected(reason))
             };
-            let counts = successful(prefix_counts(context, facts(), attempts));
+            let counts = successful(prefix_counts(context, scalar, facts(), attempts));
             assert_eq!(
                 (
                     counts.native_entries,
@@ -1271,8 +1288,10 @@ mod tests {
         };
         let sources = sources();
         let context = context(&binding, &sources);
+        let (scalar, scalar_limits) = prefix::scalar_fixture::fixture();
+        assert_eq!(scalar_limits, context.native_input_limits);
         let mut outer_only = population(NativePath::Returned { valid: true });
-        let before = successful(prefix_counts(&context, facts(), outer_only));
+        let before = successful(prefix_counts(&context, &scalar, facts(), outer_only));
         assert_eq!((before.native_entries, before.debit_events), (1, 1));
         assert_eq!(outer_only.scopes_entered, 1);
         assert_eq!(outer_only.retain_visits, 1);
@@ -1285,7 +1304,7 @@ mod tests {
             outer_only.native_path.take(),
             Some(NativePath::Returned { valid: true })
         );
-        let counts = successful(prefix_counts(&context, facts(), outer_only));
+        let counts = successful(prefix_counts(&context, &scalar, facts(), outer_only));
         assert_eq!(
             (
                 counts.outer_scopes,
@@ -1308,7 +1327,7 @@ mod tests {
             (0, 0, 0, 0, 0, 0)
         );
         assert!(counts.unresolved.contains(&Primitive::Cleanup));
-        assert_preflight_refusals(&context);
+        assert_preflight_refusals(&context, &scalar);
         // These generic API errors cannot arise from native's fixed, positive,
         // bounded projection. Do not manufacture additional native paths.
         for path in [
@@ -1317,20 +1336,20 @@ mod tests {
             NativePath::BudgetRejected(SchemaEvaluationError::CostOverflow),
         ] {
             assert_eq!(
-                prefix_counts(&context, facts(), population(path)),
+                prefix_counts(&context, &scalar, facts(), population(path)),
                 Err(Refusal::UnsupportedNativePath)
             );
         }
         let mut missing = facts();
         assert_eq!(missing.original_impressions.take(), Some(3));
         assert_eq!(
-            prefix_counts(&context, missing, outer_only),
+            prefix_counts(&context, &scalar, missing, outer_only),
             Err(Refusal::MissingCallerFact(CallerFact::OriginalImpressions))
         );
         let mut missing_cap = facts();
         assert_eq!(missing_cap.configured_bidder_cap.take(), Some(2));
         assert_eq!(
-            prefix_counts(&context, missing_cap, outer_only),
+            prefix_counts(&context, &scalar, missing_cap, outer_only),
             Err(Refusal::MissingCallerFact(CallerFact::BidderCap))
         );
         assert_caller_source_binding(&binding, sources);
@@ -1660,11 +1679,13 @@ mod tests {
         };
         let sources = sources();
         let context = context(&binding, &sources);
+        let (scalar, scalar_limits) = prefix::scalar_fixture::fixture();
+        assert_eq!(scalar_limits, context.native_input_limits);
         for path in [
             NativePath::Returned { valid: false },
             NativePath::ValidatorPanicked,
         ] {
-            let counts = successful(prefix_counts(&context, facts(), population(path)));
+            let counts = successful(prefix_counts(&context, &scalar, facts(), population(path)));
             assert_eq!(counts.debit_events, 1);
             assert_eq!(counts.fresh_cache_calls, 1);
             assert_eq!(counts.cache_drop_entries, 1);
@@ -1675,7 +1696,12 @@ mod tests {
         let mut missing = facts();
         assert_eq!(missing.panic_unwinds.take(), Some(true));
         assert_eq!(
-            prefix_counts(&context, missing, population(NativePath::ValidatorPanicked)),
+            prefix_counts(
+                &context,
+                &scalar,
+                missing,
+                population(NativePath::ValidatorPanicked)
+            ),
             Err(Refusal::MissingCallerFact(CallerFact::PanicUnwind))
         );
         let operations = classified(&callback_body());
@@ -1742,6 +1768,8 @@ mod tests {
             recipe_counts(&context, operations.recipe(), dimensions, u64::MAX),
             Err(Refusal::Overflow)
         );
+        let (scalar, scalar_limits) = prefix::scalar_fixture::fixture();
+        assert_eq!(scalar_limits, context.native_input_limits);
         let mut caller = facts();
         assert_eq!(caller.original_impressions.replace(u64::MAX), Some(3));
         let many = Population {
@@ -1750,7 +1778,7 @@ mod tests {
             ..population(NativePath::Returned { valid: true })
         };
         assert_eq!(
-            prefix_counts(&context, caller, many),
+            prefix_counts(&context, &scalar, caller, many),
             Err(Refusal::Overflow)
         );
     }
