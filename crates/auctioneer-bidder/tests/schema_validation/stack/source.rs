@@ -389,7 +389,7 @@ fn activation_paths(recipe: &Recipe) -> Result<Vec<ActivePath>, Refusal> {
                 pending.push(Activation::Operation(&function.body, path));
             }
             Activation::Operation(op, path) => {
-                pending.extend(schedule(op, &path).into_iter().rev())
+                pending.extend(schedule(op, &path).into_iter().rev());
             }
             Activation::Observe(path) => paths.push(path),
         }
@@ -495,7 +495,7 @@ mod tests {
             result.push(StackDuty {
                 site: op.site.clone(),
                 kind,
-            })
+            });
         };
         if let Kind::Primitive { lemma, callee, .. } = &op.kind {
             push(DutyKind::Primitive(*lemma, callee.clone()));
@@ -563,8 +563,8 @@ mod tests {
                     let mut found = false;
                     for row in recipe.functions.values() {
                         model::walk(&row.body, &mut |op| {
-                            if let Kind::Service(expected) = &op.kind {
-                                found |= op.site == duty.site && expected == binding;
+                            if let Kind::Service(actual_binding) = &op.kind {
+                                found |= op.site == duty.site && actual_binding == binding;
                             }
                             Ok(())
                         })
@@ -741,7 +741,7 @@ mod tests {
                     pending.push(SourceTask::Visit(&row.body, path));
                 }
                 SourceTask::Visit(op, path) => {
-                    operation_tasks(&mut pending, op, &path, &mut required)
+                    operation_tasks(&mut pending, op, &path, &mut required);
                 }
             }
         }
@@ -917,10 +917,10 @@ mod tests {
         })
     }
 
-    fn sites(recipe: &Recipe, caller: usize, callee: usize) -> Vec<Site> {
+    fn sites(recipe: &Recipe, caller: usize, target: usize) -> Vec<Site> {
         expected_calls(recipe)
             .into_iter()
-            .filter(|edge| edge.site.function == caller && edge.target == callee)
+            .filter(|edge| edge.site.function == caller && edge.target == target)
             .map(|edge| edge.site)
             .collect()
     }

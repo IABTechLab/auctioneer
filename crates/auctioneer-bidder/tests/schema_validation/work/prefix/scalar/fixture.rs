@@ -250,7 +250,7 @@ fn native_limits() -> SchemaInputLimits {
         formats: FORMATS,
     };
     let limits = check_sources(&sources).expect("existing source-only recipes");
-    assert_eq!(limits.serialized_bytes, 65_536);
+    assert_eq!(limits.serialized_bytes, 0x0001_0000);
     assert_eq!(limits.nodes, 4_096);
     assert_eq!(limits.depth, 32);
     limits

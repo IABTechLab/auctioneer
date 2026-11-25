@@ -73,12 +73,13 @@ pub(super) fn attach_bounds(
     counts.input_visit_nesting_upper = Some(visit_nesting);
     counts.input_iterator_nesting_upper = Some(iterator_nesting);
 
-    counts.input_raw_utf8_with_quotes_upper = Some(scalar_bounds.raw_utf8_with_quotes_upper);
+    counts.input_raw_utf8_with_quotes_upper = Some(scalar_bounds.raw_utf8_with_quotes_upper());
     counts.input_counter_writes_per_nonempty_request_upper =
-        Some(scalar_bounds.writes_per_nonempty_request_upper);
+        Some(scalar_bounds.writes_per_nonempty_request_upper());
     counts.input_counter_writes_per_empty_request_upper =
-        Some(scalar_bounds.writes_per_empty_request_upper);
-    counts.input_counter_interrupted_retries_upper = Some(scalar_bounds.interrupted_retries_upper);
+        Some(scalar_bounds.writes_per_empty_request_upper());
+    counts.input_counter_interrupted_retries_upper =
+        Some(scalar_bounds.interrupted_retries_upper());
     counts.input_tree_navigation_upper = None;
     Ok(())
 }
@@ -147,7 +148,7 @@ mod tests {
         assert_eq!(checked.as_ref().map(|_| ()), Ok(()));
         let context = checked.unwrap();
         assert_eq!(context.sources, &sources);
-        assert_eq!(context.native_input_limits.serialized_bytes, 65_536);
+        assert_eq!(context.native_input_limits.serialized_bytes, 0x0001_0000);
         assert_eq!(context.native_input_limits.nodes, 4_096);
         assert_eq!(context.native_input_limits.depth, 32);
         let (scalar, scalar_limits) = scalar_fixture::fixture();
@@ -260,7 +261,7 @@ mod tests {
                     Some(12_288),
                     Some(4_096),
                     Some(4_096),
-                    Some(65_536),
+                    Some(0x0001_0000),
                     Some(33),
                     Some(32),
                 ]
@@ -296,7 +297,7 @@ mod tests {
     fn keys_and_string_prechecks_bound_partial_prefixes() {
         with_context(|context, scalar| {
             let counts = rejected(context, scalar, 1, SchemaInputError::Bytes);
-            assert_eq!(counts.input_raw_utf8_with_quotes_upper, Some(65_536));
+            assert_eq!(counts.input_raw_utf8_with_quotes_upper, Some(0x0001_0000));
             assert_eq!(counts.input_string_prechecks_upper, Some(4_096));
             assert_eq!(counts.input_scalar_serializations_upper, Some(4_096));
             missing_costs(&counts);
@@ -340,24 +341,24 @@ mod tests {
         // Raw 65535 + two quotes = 65537: this rejected precheck operand
         // never reaches serialization and is excluded from the raw sum.
         let too_long = "a".repeat(cap.checked_sub(1).unwrap());
-        assert_eq!(too_long.len(), 65_535);
+        assert_eq!(too_long.len(), 0xFFFF);
         assert_eq!(
             measure_schema_input(&Value::String(too_long), context.native_input_limits),
             Err(SchemaInputError::Bytes)
         );
         let quoted_len = cap.checked_sub(2).unwrap();
         let admitted = "a".repeat(quoted_len);
-        assert_eq!(admitted.len(), 65_534);
+        assert_eq!(admitted.len(), 0xFFFE);
         assert_eq!(
             measure_schema_input(&Value::String(admitted), context.native_input_limits),
             Ok(SchemaInputStats {
-                serialized_bytes: 65_536,
+                serialized_bytes: 0x0001_0000,
                 nodes: 1,
                 max_depth: 0
             })
         );
         let escaped = "\0".repeat(quoted_len);
-        assert_eq!(escaped.len(), 65_534);
+        assert_eq!(escaped.len(), 0xFFFE);
         // This precheck passes: raw 65534 + two quotes = 65536 belongs to
         // the sum even though charging its expanded serialization fails.
         // This is virtual emitted length only: no scanned/copied-byte lemma.
@@ -707,13 +708,13 @@ mod tests {
     fn scalar_prefix_failures_preserve_counts_transactionally() {
         with_context(|context, scalar| {
             assert_bridge_setup(context, scalar);
-            let attempts = 281_474_976_710_656_u64;
-            assert_eq!(attempts.checked_mul(4_096), Some(1_152_921_504_606_846_976));
+            let attempts = 0x0001_0000_0000_0000_u64;
+            assert_eq!(attempts.checked_mul(4_096), Some(0x1000_0000_0000_0000));
             assert_eq!(
                 attempts.checked_mul(12_288),
                 Some(3_458_764_513_820_540_928)
             );
-            assert_eq!(attempts.checked_mul(65_536), None);
+            assert_eq!(attempts.checked_mul(0x0001_0000), None);
             let mut counts = destination(context, scalar, attempts);
             let before = destination(context, scalar, attempts);
             assert_eq!(counts, before);
@@ -875,7 +876,7 @@ mod tests {
                 if depth > self.limits.depth { return Err(SchemaInputError::Depth); }
             };
             assert_eq!(
-                body.stmts.get(1).unwrap().to_token_stream().to_string(),
+                body.stmts[1].to_token_stream().to_string(),
                 expected.to_token_stream().to_string()
             );
             body.stmts.remove(1);

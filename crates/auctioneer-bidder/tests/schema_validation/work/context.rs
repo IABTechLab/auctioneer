@@ -93,7 +93,10 @@ pub(super) fn check_sources(sources: &ContextSources<'_>) -> Result<SchemaInputL
         }
     }
 
-    let mut extraction = NativeLimits::default();
+    let mut extraction = NativeLimits {
+        hits: Some(0),
+        limits: None,
+    };
     for item in &mut native.items {
         if let syn::Item::Fn(function) = item
             && function.sig.ident == "validate_native_parameters"
@@ -101,7 +104,7 @@ pub(super) fn check_sources(sources: &ContextSources<'_>) -> Result<SchemaInputL
             extraction.visit_block_mut(&mut function.block);
         }
     }
-    if extraction.hits != 1 {
+    if extraction.hits != Some(1) {
         return Err(Refusal::SourceShape(SourceRole::Native));
     }
     extraction
@@ -152,16 +155,15 @@ fn require_recipe(
     Ok(())
 }
 
-#[derive(Default)]
 struct NativeLimits {
-    hits: usize,
+    hits: Option<usize>,
     limits: Option<SchemaInputLimits>,
 }
 
 impl VisitMut for NativeLimits {
     fn visit_expr_struct_mut(&mut self, i: &mut syn::ExprStruct) {
         if i.qself.is_none() && i.path.is_ident("SchemaInputLimits") {
-            self.hits = self.hits.checked_add(1).expect("bounded AST literal count");
+            self.hits = self.hits.and_then(|hits| hits.checked_add(1));
             let field = |name: &str| -> Option<u64> {
                 let member = i.fields.iter().find(
                     |field| matches!(&field.member, syn::Member::Named(ident) if ident == name),

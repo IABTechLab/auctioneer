@@ -192,9 +192,27 @@ enum Refusal {
 mod events;
 mod source;
 
+// Conditional supplied-data interpretation only. Neither this entry nor its
+// private children mint a selected-source or completeness capability. Actual
+// use still needs captured-seed compiler identity and bounded rust-src reads
+// bracketing interpretation through the existing source owner.
+fn source_contract(
+    data: &CapturedData,
+    expected_compiler: &CompilerData,
+    lemma: Lemma,
+    calls: Calls,
+    premises: &Premises,
+) -> Result<LocalContract, Refusal> {
+    source::check(data, expected_compiler)?;
+    events::contract(data, lemma, calls, premises)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema_build::selected::probe_compiler;
+    use crate::schema_residency::read_regular;
+    use proc_macro2::TokenStream;
     use quote::ToTokens as _;
     use sha2::{Digest as _, Sha256};
     use std::mem;
@@ -334,8 +352,8 @@ mod tests {
     // the parent capture does not cover external rust-src. No replacement
     // loader or new capture protocol is introduced here.
     fn capture() -> (CapturedData, CompilerData, Premises) {
-        let (executable, verbose) = crate::schema_build::selected::probe_compiler()
-            .expect("existing bounded compiler capture succeeds");
+        let (executable, verbose) =
+            probe_compiler().expect("existing bounded compiler capture succeeds");
         let compiler = CompilerData {
             executable,
             verbose,
@@ -383,9 +401,9 @@ mod tests {
             } else {
                 workspace.join(relative)
             };
-            let before = crate::schema_residency::read_regular(&path)
+            let before = read_regular(&path)
                 .expect("required captured source is regular and bounded; no fallback");
-            let after = crate::schema_residency::read_regular(&path)
+            let after = read_regular(&path)
                 .expect("required source can be re-read through its existing owner");
             assert_eq!(before, after);
             sources.push(SourceData {
@@ -564,7 +582,7 @@ mod tests {
         unit: SourceUnit,
         owner: &str,
         member: &str,
-        expected: syn::Type,
+        expected: &syn::Type,
     ) {
         let source = syntax(data, unit);
         let declaration = source
@@ -588,20 +606,16 @@ mod tests {
         );
     }
 
-    fn assert_import(data: &CapturedData, unit: SourceUnit, name: &str, expected: syn::Path) {
-        fn leaves(
-            tree: &syn::UseTree,
-            prefix: proc_macro2::TokenStream,
-            result: &mut Vec<(String, String)>,
-        ) {
+    fn assert_import(data: &CapturedData, unit: SourceUnit, name: &str, expected: &syn::Path) {
+        fn leaves(tree: &syn::UseTree, prefix: &TokenStream, result: &mut Vec<(String, String)>) {
             match tree {
                 syn::UseTree::Path(path) => {
                     let ident = &path.ident;
-                    leaves(&path.tree, quote::quote!(#prefix #ident ::), result);
+                    leaves(&path.tree, &quote::quote!(#prefix #ident ::), result);
                 }
                 syn::UseTree::Group(group) => {
                     for item in &group.items {
-                        leaves(item, prefix.clone(), result);
+                        leaves(item, prefix, result);
                     }
                 }
                 syn::UseTree::Name(item) => {
@@ -622,7 +636,7 @@ mod tests {
         for item in syntax(data, unit).items {
             if let syn::Item::Use(import) = item {
                 let mut bindings = Vec::new();
-                leaves(&import.tree, proc_macro2::TokenStream::new(), &mut bindings);
+                leaves(&import.tree, &TokenStream::new(), &mut bindings);
                 if bindings.iter().any(|(local, _)| local == name) {
                     let expected_attributes = if unit == SourceUnit::Ids {
                         quote::quote!(#[cfg(feature = "alloc")])
@@ -766,7 +780,7 @@ mod tests {
                 syn::parse_quote!(crate::ptr::NonNull),
             ),
         ] {
-            assert_import(data, unit, name, expected);
+            assert_import(data, unit, name, &expected);
         }
     }
 
@@ -811,7 +825,7 @@ mod tests {
                 syn::parse_quote!(crate::pattern_type!(*const T is !null)),
             ),
         ] {
-            assert_field_type(data, unit, owner, member, expected);
+            assert_field_type(data, unit, owner, member, &expected);
         }
     }
 
@@ -934,7 +948,7 @@ mod tests {
         }
     }
 
-    fn assert_body(data: &CapturedData, unit: SourceUnit, owner: &str, expected: syn::ImplItemFn) {
+    fn assert_body(data: &CapturedData, unit: SourceUnit, owner: &str, expected: &syn::ImplItemFn) {
         let source = data
             .sources
             .iter()
@@ -1143,7 +1157,7 @@ mod tests {
             &data,
             SourceUnit::Nfa,
             "NFA",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub fn state(&self, id: StateID) -> &State { &self.states()[id] }
             },
         );
@@ -1151,7 +1165,7 @@ mod tests {
             &data,
             SourceUnit::Nfa,
             "NFA",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub fn states(&self) -> &[State] { &self.0.states }
             },
         );
@@ -1159,7 +1173,7 @@ mod tests {
             &data,
             SourceUnit::Nfa,
             "State",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub fn is_epsilon(&self) -> bool {
                     match *self {
                         State::ByteRange { .. } | State::Sparse { .. } | State::Dense { .. }
@@ -1172,7 +1186,7 @@ mod tests {
         );
         let calls = nfa();
         let Calls::Nfa { roots, dispatches } = calls else {
-            unreachable!()
+            panic!("NFA fixture call population")
         };
         assert_eq!((roots, dispatches), (1, 1));
         assert_local(
@@ -1224,7 +1238,7 @@ mod tests {
             data,
             SourceUnit::Sparse,
             "SparseSet",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub(crate) fn insert(&mut self, id: StateID) -> bool {
                     if self.contains(id) { return false; }
                     let i = self.len();
@@ -1241,7 +1255,7 @@ mod tests {
             data,
             SourceUnit::Sparse,
             "SparseSet",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub(crate) fn contains(&self, id: StateID) -> bool {
                     let index = self.sparse[id];
                     index.as_usize() < self.len() && self.dense[index] == id
@@ -1252,7 +1266,7 @@ mod tests {
             data,
             SourceUnit::Sparse,
             "SparseSet",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub(crate) fn len(&self) -> usize { self.len }
             },
         );
@@ -1260,7 +1274,7 @@ mod tests {
             data,
             SourceUnit::Sparse,
             "SparseSet",
-            syn::parse_quote! {
+            &syn::parse_quote! {
                 pub(crate) fn capacity(&self) -> usize { self.dense.len() }
             },
         );
@@ -1278,7 +1292,7 @@ mod tests {
             rhs,
         } = sparse()
         else {
-            unreachable!()
+            panic!("sparse fixture call population")
         };
         assert_eq!((attempts, successes, rhs), (2, 1, 1));
         assert_local(
@@ -1714,11 +1728,8 @@ mod tests {
                     let syn::Item::Use(item) = entry else {
                         return None;
                     };
-                    if matches!(&item.tree, syn::UseTree::Path(path) if path.ident == "alloc") {
-                        Some(item)
-                    } else {
-                        None
-                    }
+                    matches!(&item.tree, syn::UseTree::Path(path) if path.ident == "alloc")
+                        .then_some(item)
                 })
                 .expect("actual allocation import exists");
             import.tree = syn::parse_quote!(alloc::{boxed::Box, format, string::String, rc::Rc as Arc, vec, vec::Vec});
@@ -2551,19 +2562,4 @@ mod tests {
             Err(Refusal::Overflow)
         );
     }
-}
-
-// Conditional supplied-data interpretation only. Neither this entry nor its
-// private children mint a selected-source or completeness capability. Actual
-// use still needs captured-seed compiler identity and bounded rust-src reads
-// bracketing interpretation through the existing source owner.
-fn source_contract(
-    data: &CapturedData,
-    expected_compiler: &CompilerData,
-    lemma: Lemma,
-    calls: Calls,
-    premises: &Premises,
-) -> Result<LocalContract, Refusal> {
-    source::check(data, expected_compiler)?;
-    events::contract(data, lemma, calls, premises)
 }

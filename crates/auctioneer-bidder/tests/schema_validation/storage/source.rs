@@ -19,26 +19,26 @@ use std::collections::BTreeSet;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct FieldInitializer {
-    pub(super) field: String,
-    pub(super) program: String,
-    pub(super) site: Site,
-    pub(super) completed_siblings: Vec<String>,
+    field: String,
+    program: String,
+    site: Site,
+    completed_siblings: Vec<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct CallbackOverlap {
-    pub(super) site: Site,
-    pub(super) helper: Primitive,
-    pub(super) wrapper: String,
+    site: Site,
+    helper: Primitive,
+    wrapper: String,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) struct OwnerSchedule {
-    pub(super) wrapper: String,
-    pub(super) factory_root: usize,
-    pub(super) validation_root: usize,
-    pub(super) initializers: Vec<FieldInitializer>,
-    pub(super) callbacks: Vec<CallbackOverlap>,
+    wrapper: String,
+    factory_root: usize,
+    validation_root: usize,
+    initializers: Vec<FieldInitializer>,
+    callbacks: Vec<CallbackOverlap>,
 }
 
 impl OwnerSchedule {
@@ -70,10 +70,10 @@ impl OwnerSchedule {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct OwnerAnalysis {
-    pub(super) owner: String,
-    pub(super) marker: String,
-    pub(super) operations: BodyOperations,
-    pub(super) schedule: OwnerSchedule,
+    owner: String,
+    marker: String,
+    operations: BodyOperations,
+    schedule: OwnerSchedule,
 }
 
 // Projections of the already classified C/I auxiliary rows, not capabilities.
@@ -1284,7 +1284,7 @@ mod tests {
             .iter_mut()
             .find(|(_, function)| function.identity == "__fakemarker_impl::entry_is_valid")
             .unwrap();
-        let parameter = function.parameters.get(1).unwrap().clone();
+        let parameter = function.parameters[1].clone();
         assert!(parameter.borrowed);
         let cache_type = parameter.ty.clone();
         let Kind::Scope { steps, .. } = &mut function.body.kind else {

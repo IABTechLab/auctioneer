@@ -50,9 +50,30 @@ pub(in crate::schema_validation) fn without_docs(mut item: syn::Item) -> syn::It
 // narrow projection retains the const token, unsafe qualifier, all generic
 // bounds and the where clause. It never turns const syntax into ItemImpl.
 pub(in crate::schema_validation) struct ConstTraitImpl {
-    pub(in crate::schema_validation) attrs: Vec<syn::Attribute>,
-    pub(in crate::schema_validation) header: TokenStream,
-    pub(in crate::schema_validation) items: Vec<syn::ImplItem>,
+    attrs: Vec<syn::Attribute>,
+    header: TokenStream,
+    items: Vec<syn::ImplItem>,
+}
+
+impl ConstTraitImpl {
+    pub(in crate::schema_validation) fn attrs(&self) -> &[syn::Attribute] {
+        &self.attrs
+    }
+    pub(in crate::schema_validation) fn attrs_mut(&mut self) -> &mut Vec<syn::Attribute> {
+        &mut self.attrs
+    }
+    pub(in crate::schema_validation) fn header_tokens(&self) -> &TokenStream {
+        &self.header
+    }
+    pub(in crate::schema_validation) fn items(&self) -> &[syn::ImplItem] {
+        &self.items
+    }
+    pub(in crate::schema_validation) fn items_mut(&mut self) -> &mut [syn::ImplItem] {
+        &mut self.items
+    }
+    pub(in crate::schema_validation) fn into_items(self) -> Vec<syn::ImplItem> {
+        self.items
+    }
 }
 
 impl Parse for ConstTraitImpl {

@@ -655,12 +655,16 @@ fn wrapper_target(block: &syn::Block, target: &str, found: &mut bool) {
     fn expr(value: &syn::Expr, target: &str, found: &mut bool) {
         if let syn::Expr::Block(block) = value {
             wrapper_target(&block.block, target, found);
-        } else if let syn::Expr::Call(call) = value {
+            return;
+        }
+        if let syn::Expr::Call(call) = value {
             if matches!(call.func.as_ref(), syn::Expr::Path(callee) if path(&callee.path) == target)
             {
                 *found = true;
             }
-        } else if let syn::Expr::MethodCall(call) = value
+            return;
+        }
+        if let syn::Expr::MethodCall(call) = value
             && call.method == "map"
         {
             expr(&call.receiver, target, found);

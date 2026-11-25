@@ -798,3 +798,35 @@ The replacement reuses `owner_schedule_data` once, checks the complete root/init
 Both inline test modules and the existing actual-body oracle are byte-unchanged. Separate static specification and quality reviews clear `work/partition.rs` SHA-256 `e99baa591c09cf6cb06bec54752408e1e495645e7c7319e99ee486894a75cced`. Pinned rustfmt is editing only and whitespace checks are not executable proof. Hosted GREEN and reached strict source-target lint remain pending.
 
 The result still has `input_partition = None` and all eight explicit duties: caller populations, source binding, validation traversal, search multiplicity, primitive source calls, ordinary work, ordinary cleanup and partial-construction cleanup. It does not classify the whole generated-validator work closure, supply physical/callback facts, close #47 or grant serving/qualification. No fallback, filtered Recipe, additional capture/build, changed test, dependency, workload limit, reservation, accounting or production behavior is added.
+
+### Coupled Input Traversal Tests-First Checkpoint
+
+The next three inline cases borrow the complete coupled Recipe through its existing factory/owner foundation, then require a separate validation-root partition. Their fixture populations remain F=3/V=2; caps seven and eleven vary independently of the four-node array witness. An emitted-style object pass adds required/covered Bool locals, an `__object_pass` binding and two distinct leaf-call sites. Literal per-attempt coefficients remain separate from factory counts. Declaration, assignment-target and actual/formal-binding drift must refuse at both zero and one validation; source/initializer obligations and per-invocation arithmetic also survive zero workload.
+
+The new entrypoint currently returns `MissingTraversal` after the factory foundation succeeds. The existing actual-body test buffers that new result until its original source/body closing checks, exact owner census, factory-positive checks and canonical Incomplete-report assertions complete. Expected RED is the missing traversal result, not compilation or failed setup. These expectations are not executed evidence. The future kernel must borrow the original Recipe and its checked validation root, without a caller-selected root, filtered clone, erased initializer map or coarse-counter fallback. All ten prior numeric and refusal contracts are retained; syntax-only lint repairs may rename locals or spell the same integer in hexadecimal.
+
+The existing development minimum roster adds the three exact names for 133 required validation cases; its dispatch/result checkers, source-first ordering, six secure exclusions, jobs, timeouts and limits stay unchanged. Static review also identifies an unrelated local-name shadow in the preceding factory implementation; renaming the result to `bounded_programs` changes no behavior or test. Hosted strict lint remains required, not inferred from that edit. The prior `9b65ff2` full matrix was still running when this checkpoint was prepared; its completed results follow. No local executable verification, complete common proof, qualification or review readiness is claimed.
+
+### Factory GREEN And First Executed Strict Source Lint
+
+At `9b65ff2fa658936bb7288c2b4eb3574fbddf8549`, the completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45596200006/job/139142800882) executes source conformance before compiler controls, then reaches the explicit strict source-target lint. Actual secure source, compiler-control, development residency and development validation result lines, in that order:
+
+```text
+test result: ok. 968 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1133.61s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 175.23s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 847 filtered out; finished in 96.20s
+test result: ok. 130 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 322.72s
+```
+
+All three coupled-factory cases and the existing whole-roster actual-body case report `ok` in both feature lanes. The original traversal, prefix, scalar, caller, report and observation controls also pass. The narrow factory derivation therefore has genuine GREEN against its earlier four assertion REDs; input partitioning and ordinary primitive/work/cleanup proofs are still unfinished, not implied by those passes.
+
+Both explicit source-target Clippy invocations then fail with the same result:
+
+```text
+error: could not compile `auctioneer-bidder` (test "schema_source_conformance") due to 199 previous errors
+##[error]Process completed with exit code 101.
+```
+
+These are authored failures across the newly selected conformance code: visibility/import style, explicit enum-refusal arms, unused-value ownership, parameter/local names, literal notation and other strict lints. Broad Clippy had not selected this `test = false` target. The full matrix finishes with 24 successful checks and compiler-schema failed; no lint allowance, skipped command or passing full-matrix claim is justified. Repair the code while preserving all values, assertions, source-refusal predicates and limits, then execute the unchanged hosted checks again. All executable evidence is hosted; pinned formatting remains editing only.
+
+The next checkpoint repairs those diagnostics in the conformance code without adding allowances or changing serving behavior. Private projection fields gain owner-local accessors where required; enum-refusal predicates, source-template tokens, formulas, numeric values and assertion contracts are preserved. The existing source-context counter now propagates overflow into its typed source refusal instead of panicking. Separate static specification and quality reviews clear the frozen code, including the three new input controls and intentional `MissingTraversal` stub. Whitespace inspection returns zero and pinned rustfmt remains editing only. Hosted compilation, strict lint and intended assertion RED are still pending; neither static review nor the previous head's GREEN is current-head acceptance.

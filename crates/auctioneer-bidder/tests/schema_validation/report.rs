@@ -415,7 +415,9 @@ fn check_children(value: &Value) -> Result<BTreeSet<&str>, Refusal> {
     for (owner, roles) in owners {
         if roles == program_roles {
             programs.insert(owner);
-        } else if roles != declaration_roles && roles != callback_roles {
+            continue;
+        }
+        if roles != declaration_roles && roles != callback_roles {
             return Err(Refusal::ChildCoverage);
         }
     }
@@ -778,8 +780,7 @@ mod tests {
             let mut duplicate = coverage.clone();
             duplicate.contexts.push(original.clone());
             let mut misowned = coverage.clone();
-            misowned.contexts.get_mut(index).unwrap().source_owner =
-                "fake_misowned_context".to_owned();
+            misowned.contexts[index].source_owner = "fake_misowned_context".to_owned();
             for changed in [&missing, &duplicate, &misowned] {
                 assert_ne!(changed.contexts, coverage.contexts);
                 assert_eq!(
@@ -789,17 +790,9 @@ mod tests {
             }
             for (duty_index, duty) in original.duties.iter().enumerate() {
                 let mut absent = coverage.clone();
-                assert_eq!(
-                    absent
-                        .contexts
-                        .get_mut(index)
-                        .unwrap()
-                        .duties
-                        .remove(duty_index),
-                    *duty
-                );
+                assert_eq!(absent.contexts[index].duties.remove(duty_index), *duty);
                 let mut repeated = coverage.clone();
-                repeated.contexts.get_mut(index).unwrap().duties.push(*duty);
+                repeated.contexts[index].duties.push(*duty);
                 for changed in [&absent, &repeated] {
                     assert_eq!(
                         describe_validation(seed, view, bodies, census, changed),
@@ -1024,10 +1017,10 @@ mod tests {
     fn assigned_retired_kind(expression: &syn::Expr) -> Option<String> {
         let kind = match expression {
             syn::Expr::Lit(value) => {
-                let syn::Lit::Str(value) = &value.lit else {
+                let syn::Lit::Str(literal) = &value.lit else {
                     return None;
                 };
-                value.value()
+                literal.value()
             }
             syn::Expr::Macro(value)
                 if value
@@ -1041,21 +1034,60 @@ mod tests {
                     .ok()?
                     .value()
             }
-            _ => return None,
+            syn::Expr::Array(_)
+            | syn::Expr::Assign(_)
+            | syn::Expr::Async(_)
+            | syn::Expr::Await(_)
+            | syn::Expr::Binary(_)
+            | syn::Expr::Block(_)
+            | syn::Expr::Break(_)
+            | syn::Expr::Call(_)
+            | syn::Expr::Cast(_)
+            | syn::Expr::Closure(_)
+            | syn::Expr::Const(_)
+            | syn::Expr::Continue(_)
+            | syn::Expr::Field(_)
+            | syn::Expr::ForLoop(_)
+            | syn::Expr::Group(_)
+            | syn::Expr::If(_)
+            | syn::Expr::Index(_)
+            | syn::Expr::Infer(_)
+            | syn::Expr::Let(_)
+            | syn::Expr::Loop(_)
+            | syn::Expr::Macro(_)
+            | syn::Expr::Match(_)
+            | syn::Expr::MethodCall(_)
+            | syn::Expr::Paren(_)
+            | syn::Expr::Path(_)
+            | syn::Expr::Range(_)
+            | syn::Expr::RawAddr(_)
+            | syn::Expr::Reference(_)
+            | syn::Expr::Repeat(_)
+            | syn::Expr::Return(_)
+            | syn::Expr::Struct(_)
+            | syn::Expr::Try(_)
+            | syn::Expr::TryBlock(_)
+            | syn::Expr::Tuple(_)
+            | syn::Expr::Unary(_)
+            | syn::Expr::Unsafe(_)
+            | syn::Expr::Verbatim(_)
+            | syn::Expr::While(_)
+            | syn::Expr::Yield(_)
+            | _ => return None,
         };
         retired_kind(&kind).then_some(kind)
     }
 
-    fn retired_json(tokens: TokenStream) -> (bool, BTreeSet<String>) {
-        let tokens: Vec<_> = tokens.into_iter().collect();
+    fn retired_json(stream: TokenStream) -> (bool, BTreeSet<String>) {
+        let tokens: Vec<_> = stream.into_iter().collect();
         let mut field = false;
         let mut kinds = BTreeSet::new();
         for window in tokens.windows(2) {
-            let [TokenTree::Literal(key), TokenTree::Punct(colon)] = window else {
+            let [TokenTree::Literal(key_token), TokenTree::Punct(colon)] = window else {
                 continue;
             };
             if let Ok(key) =
-                syn::parse2::<syn::LitStr>(TokenStream::from(TokenTree::Literal(key.clone())))
+                syn::parse2::<syn::LitStr>(TokenStream::from(TokenTree::Literal(key_token.clone())))
                 && colon.as_char() == ':'
                 && key.value() == "native_cache_heap_candidate"
             {
@@ -1064,16 +1096,20 @@ mod tests {
         }
         for window in tokens.windows(3) {
             let [
-                TokenTree::Literal(key),
+                TokenTree::Literal(key_token),
                 TokenTree::Punct(colon),
-                TokenTree::Literal(value),
+                TokenTree::Literal(value_token),
             ] = window
             else {
                 continue;
             };
             let (Ok(key), Ok(value)) = (
-                syn::parse2::<syn::LitStr>(TokenStream::from(TokenTree::Literal(key.clone()))),
-                syn::parse2::<syn::LitStr>(TokenStream::from(TokenTree::Literal(value.clone()))),
+                syn::parse2::<syn::LitStr>(TokenStream::from(TokenTree::Literal(
+                    key_token.clone(),
+                ))),
+                syn::parse2::<syn::LitStr>(TokenStream::from(TokenTree::Literal(
+                    value_token.clone(),
+                ))),
             ) else {
                 continue;
             };
@@ -1157,78 +1193,76 @@ mod tests {
         function: Option<String>,
     }
     impl VisitMut for Inventory {
-        fn visit_item_mod_mut(&mut self, module: &mut syn::ItemMod) {
+        fn visit_item_mod_mut(&mut self, i: &mut syn::ItemMod) {
             let previous_writers = self.writers;
             let previous_unit = self.private_unit;
             let depth = self.modules.len();
-            self.private_unit = self.modules.is_empty() && private_unit_module(module);
-            self.modules.push(module.ident.unraw().to_string());
+            self.private_unit = self.modules.is_empty() && private_unit_module(i);
+            self.modules.push(i.ident.unraw().to_string());
             self.writers = true;
-            visit_mut::visit_item_mod_mut(self, module);
+            visit_mut::visit_item_mod_mut(self, i);
             self.writers = previous_writers;
             self.private_unit = previous_unit;
             self.modules.truncate(depth);
         }
-        fn visit_item_fn_mut(&mut self, function: &mut syn::ItemFn) {
-            let name = function.sig.ident.to_string();
+        fn visit_item_fn_mut(&mut self, i: &mut syn::ItemFn) {
+            let name = i.sig.ident.to_string();
             let previous_writers = self.writers;
             let ancestor = self.function.replace(name.clone());
-            self.writers = !(ancestor.is_none()
-                && self.private_unit
-                && negative_fixture(self.owner, function));
+            self.writers =
+                !(ancestor.is_none() && self.private_unit && negative_fixture(self.owner, i));
             if retired_function(&name) {
                 self.sites.declarations.insert(name);
             }
-            visit_mut::visit_item_fn_mut(self, function);
+            visit_mut::visit_item_fn_mut(self, i);
             self.writers = previous_writers;
             self.function = ancestor;
         }
-        fn visit_expr_path_mut(&mut self, path: &mut syn::ExprPath) {
-            if let Some(segment) = path.path.segments.last()
+        fn visit_expr_path_mut(&mut self, i: &mut syn::ExprPath) {
+            if let Some(segment) = i.path.segments.last()
                 && retired_function(&segment.ident.to_string())
             {
                 self.sites.references.insert(segment.ident.to_string());
             }
-            visit_mut::visit_expr_path_mut(self, path);
+            visit_mut::visit_expr_path_mut(self, i);
         }
-        fn visit_expr_call_mut(&mut self, call: &mut syn::ExprCall) {
-            if let syn::Expr::Path(path) = call.func.as_ref()
+        fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
+            if let syn::Expr::Path(path) = i.func.as_ref()
                 && let Some(segment) = path.path.segments.last()
                 && retired_function(&segment.ident.to_string())
             {
                 self.sites.calls.insert(segment.ident.to_string());
             }
-            visit_mut::visit_expr_call_mut(self, call);
+            visit_mut::visit_expr_call_mut(self, i);
         }
-        fn visit_expr_assign_mut(&mut self, assign: &mut syn::ExprAssign) {
+        fn visit_expr_assign_mut(&mut self, i: &mut syn::ExprAssign) {
             if self.writers
-                && let syn::Expr::Index(index) = assign.left.as_ref()
-                && let syn::Expr::Lit(key) = index.index.as_ref()
-                && let syn::Lit::Str(key) = &key.lit
+                && let syn::Expr::Index(index) = i.left.as_ref()
+                && let syn::Expr::Lit(key_expression) = index.index.as_ref()
+                && let syn::Lit::Str(key) = &key_expression.lit
             {
                 match key.value().as_str() {
                     "native_cache_heap_candidate" => {
                         self.sites.fields.insert(key.value());
                     }
                     "kind" => {
-                        if let Some(kind) = assigned_retired_kind(assign.right.as_ref()) {
+                        if let Some(kind) = assigned_retired_kind(i.right.as_ref()) {
                             self.sites.kinds.insert(kind);
                         }
                     }
                     _ => {}
                 }
             }
-            visit_mut::visit_expr_assign_mut(self, assign);
+            visit_mut::visit_expr_assign_mut(self, i);
         }
-        fn visit_macro_mut(&mut self, mac: &mut syn::Macro) {
+        fn visit_macro_mut(&mut self, i: &mut syn::Macro) {
             if self.writers
-                && mac
-                    .path
+                && i.path
                     .segments
                     .last()
                     .is_some_and(|segment| segment.ident == "json")
             {
-                let (field, kinds) = retired_json(mac.tokens.clone());
+                let (field, kinds) = retired_json(i.tokens.clone());
                 if field {
                     self.sites
                         .fields
@@ -1236,7 +1270,7 @@ mod tests {
                 }
                 self.sites.kinds.extend(kinds);
             }
-            visit_mut::visit_macro_mut(self, mac);
+            visit_mut::visit_macro_mut(self, i);
         }
     }
     fn census_with(syntax: &mut syn::File, owner: FixtureOwner) -> RetiredSites {
@@ -1305,15 +1339,15 @@ mod tests {
             overridden: bool,
         }
         impl VisitMut for Modules {
-            fn visit_item_mod_mut(&mut self, module: &mut syn::ItemMod) {
-                self.overridden |= module.attrs.iter().any(|attribute| {
+            fn visit_item_mod_mut(&mut self, i: &mut syn::ItemMod) {
+                self.overridden |= i.attrs.iter().any(|attribute| {
                     attribute.path().is_ident("path") || matches!(&attribute.meta,
                         syn::Meta::List(list) if list.path.is_ident("cfg_attr") && path_token(list.tokens.clone()))
                 });
-                let name = module.ident.unraw().to_string();
-                if module.content.is_some() {
+                let name = i.ident.unraw().to_string();
+                if i.content.is_some() {
                     self.directory.push(&name);
-                    visit_mut::visit_item_mod_mut(self, module);
+                    visit_mut::visit_item_mod_mut(self, i);
                     self.directory.pop();
                 } else {
                     self.requests.push((self.directory.clone(), name));
@@ -1330,18 +1364,18 @@ mod tests {
         if modules.overridden {
             return Err(CensusRefusal::ModuleCoverage);
         }
-        for (directory, name) in modules.requests {
-            let (path, mut child) = resolve(&directory, &name)?;
-            let owner = fixture_owner(&path);
+        for (child_directory, name) in modules.requests {
+            let (path, mut child) = resolve(&child_directory, &name)?;
+            let child_owner = fixture_owner(&path);
             if !seen.insert(path) {
                 return Err(CensusRefusal::ModuleCoverage);
             }
             result.combine(module_census(
                 &mut child,
-                &directory.join(name),
+                &child_directory.join(name),
                 seen,
                 resolve,
-                owner,
+                child_owner,
             )?);
         }
         Ok(result)

@@ -21,8 +21,10 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use std::mem;
 use std::path::PathBuf;
 use syn::parse::{Parse, ParseStream, Parser as _};
+use syn::punctuated::Punctuated;
 use syn::visit_mut::{self, VisitMut};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -102,14 +104,29 @@ pub(in crate::schema_validation::work) struct ScalarData {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct ScalarContract {
-    pub(super) raw_utf8_with_quotes_upper: u64,
+    raw_utf8_with_quotes_upper: u64,
     string_virtual_bytes_upper: u64,
-    pub(super) writes_per_nonempty_request_upper: u64,
-    pub(super) writes_per_empty_request_upper: u64,
-    pub(super) interrupted_retries_upper: u64,
+    writes_per_nonempty_request_upper: u64,
+    writes_per_empty_request_upper: u64,
+    interrupted_retries_upper: u64,
     required_sources: BTreeSet<SourceUnit>,
     unresolved: Vec<&'static str>,
     library_artifact_binding: Option<String>,
+}
+
+impl ScalarContract {
+    pub(super) fn raw_utf8_with_quotes_upper(&self) -> u64 {
+        self.raw_utf8_with_quotes_upper
+    }
+    pub(super) fn writes_per_nonempty_request_upper(&self) -> u64 {
+        self.writes_per_nonempty_request_upper
+    }
+    pub(super) fn writes_per_empty_request_upper(&self) -> u64 {
+        self.writes_per_empty_request_upper
+    }
+    pub(super) fn interrupted_retries_upper(&self) -> u64 {
+        self.interrupted_retries_upper
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -530,7 +547,21 @@ fn item_configuration(item: &syn::Item) -> String {
     match item {
         syn::Item::Mod(value) => configuration(&value.attrs),
         syn::Item::Use(value) => configuration(&value.attrs),
-        _ => String::new(),
+        syn::Item::Const(_)
+        | syn::Item::Enum(_)
+        | syn::Item::ExternCrate(_)
+        | syn::Item::Fn(_)
+        | syn::Item::ForeignMod(_)
+        | syn::Item::Impl(_)
+        | syn::Item::Macro(_)
+        | syn::Item::Static(_)
+        | syn::Item::Struct(_)
+        | syn::Item::Trait(_)
+        | syn::Item::TraitAlias(_)
+        | syn::Item::Type(_)
+        | syn::Item::Union(_)
+        | syn::Item::Verbatim(_)
+        | _ => String::new(),
     }
 }
 
@@ -565,19 +596,24 @@ fn item_identity(item: &syn::Item) -> Option<(u8, String)> {
         syn::Item::ExternCrate(value) => Some((8, value.ident.to_string())),
         syn::Item::Trait(value) => Some((9, value.ident.to_string())),
         syn::Item::Type(value) => Some((10, value.ident.to_string())),
-        _ => None,
+        syn::Item::ForeignMod(_)
+        | syn::Item::Impl(_)
+        | syn::Item::TraitAlias(_)
+        | syn::Item::Union(_)
+        | syn::Item::Verbatim(_)
+        | _ => None,
     }
 }
 
 // Only literal outer documentation and signature-list trailing punctuation
 // are projected. Attributes, expression syntax and bodies otherwise survive.
 fn signature_lists(signature: &mut syn::Signature) {
-    signature.inputs = std::mem::take(&mut signature.inputs).into_iter().collect();
-    signature.generics.params = std::mem::take(&mut signature.generics.params)
+    signature.inputs = mem::take(&mut signature.inputs).into_iter().collect();
+    signature.generics.params = mem::take(&mut signature.generics.params)
         .into_iter()
         .collect();
     if let Some(clause) = &mut signature.generics.where_clause {
-        clause.predicates = std::mem::take(&mut clause.predicates).into_iter().collect();
+        clause.predicates = mem::take(&mut clause.predicates).into_iter().collect();
     }
 }
 
@@ -585,9 +621,9 @@ struct Documentation;
 
 macro_rules! documentation_nodes {
     ($($method:ident, $ty:ty;)+) => {$(
-        fn $method(&mut self, node: &mut $ty) {
-            node.attrs.retain(|attribute| !supported_doc(attribute));
-            visit_mut::$method(self, node);
+        fn $method(&mut self, i: &mut $ty) {
+            i.attrs.retain(|attribute| !supported_doc(attribute));
+            visit_mut::$method(self, i);
         }
     )+};
 }
@@ -607,9 +643,9 @@ impl VisitMut for Documentation {
         visit_variant_mut, syn::Variant;
     }
 
-    fn visit_signature_mut(&mut self, signature: &mut syn::Signature) {
-        signature_lists(signature);
-        visit_mut::visit_signature_mut(self, signature);
+    fn visit_signature_mut(&mut self, i: &mut syn::Signature) {
+        signature_lists(i);
+        visit_mut::visit_signature_mut(self, i);
     }
 }
 
@@ -822,7 +858,7 @@ impl Parse for CrateRoot {
 fn crate_root(
     sources: &Sources<'_>,
     unit: SourceUnit,
-    attrs: TokenStream,
+    attrs: &TokenStream,
 ) -> Result<syn::File, Refusal> {
     let mut definitions = sources.file(unit)?.items.iter().filter_map(|item| {
         if let syn::Item::Macro(macro_) = item
@@ -839,7 +875,7 @@ fn crate_root(
     });
     let definition = unique(&mut definitions, unit)?;
     let actual_attrs = &definition.attrs;
-    same(unit, &quote!(#(#actual_attrs)*), &attrs)?;
+    same(unit, &quote!(#(#actual_attrs)*), attrs)?;
     let CrateRoot(file) =
         syn::parse2(definition.mac.tokens.clone()).map_err(|_error| Refusal::SourceShape(unit))?;
     Ok(file)
@@ -875,7 +911,7 @@ fn macro_call(
 
 fn serde_sources(sources: &Sources<'_>) -> Result<(), Refusal> {
     let facade = SourceUnit::SerdeFacade;
-    let exports = crate_root(sources, facade, quote!(#[cfg(not(docsrs))]))?;
+    let exports = crate_root(sources, facade, &quote!(#[cfg(not(docsrs))]))?;
     file_exact(
         &exports,
         facade,
@@ -904,7 +940,7 @@ fn serde_sources(sources: &Sources<'_>) -> Result<(), Refusal> {
         &syn::parse_quote!(crate_root!();),
     )?;
     let exported = SourceUnit::SerdeCoreExports;
-    let core_exports = crate_root(sources, exported, quote!())?;
+    let core_exports = crate_root(sources, exported, &quote!())?;
     file_exact(
         &core_exports,
         exported,
@@ -1160,7 +1196,7 @@ fn json_construction(sources: &Sources<'_>) -> Result<(), Refusal> {
 // comma. Set only the expected AST punctuation, independently of rustfmt.
 fn terminated_expected_impl(mut expected: syn::ItemImpl) -> syn::ItemImpl {
     if let Some(clause) = &mut expected.generics.where_clause {
-        let predicates: &mut syn::punctuated::Punctuated<syn::WherePredicate, syn::Token![,]> =
+        let predicates: &mut Punctuated<syn::WherePredicate, syn::Token![,]> =
             &mut clause.predicates;
         if !predicates.is_empty() && !predicates.trailing_punct() {
             predicates.push_punct(<syn::Token![,]>::default());
@@ -1425,20 +1461,20 @@ struct RequestWidths {
 }
 
 impl VisitMut for RequestWidths {
-    fn visit_lit_byte_str_mut(&mut self, literal: &mut syn::LitByteStr) {
-        self.byte_strings.push(literal.value().len());
+    fn visit_lit_byte_str_mut(&mut self, i: &mut syn::LitByteStr) {
+        self.byte_strings.push(i.value().len());
     }
 
-    fn visit_expr_array_mut(&mut self, array: &mut syn::ExprArray) {
-        self.arrays.push(array.elems.len());
-        visit_mut::visit_expr_array_mut(self, array);
+    fn visit_expr_array_mut(&mut self, i: &mut syn::ExprArray) {
+        self.arrays.push(i.elems.len());
+        visit_mut::visit_expr_array_mut(self, i);
     }
 
-    fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
-        if call.method == "write" {
-            self.writes.push(call.method.clone());
+    fn visit_expr_method_call_mut(&mut self, i: &mut syn::ExprMethodCall) {
+        if i.method == "write" {
+            self.writes.push(i.method.clone());
         }
-        visit_mut::visit_expr_method_call_mut(self, call);
+        visit_mut::visit_expr_method_call_mut(self, i);
     }
 }
 
@@ -1754,24 +1790,24 @@ fn constant_implementation(sources: &Sources<'_>, recipe: TokenStream) -> Result
         let Ok(mut candidate) = syn::parse2::<ConstTraitImpl>(body.clone()) else {
             continue;
         };
-        if tokens(&candidate.header) != tokens(&supported.header) {
+        if tokens(candidate.header_tokens()) != tokens(supported.header_tokens()) {
             continue;
         }
         candidate
-            .attrs
+            .attrs_mut()
             .retain(|attribute| !supported_doc(attribute));
-        let attrs = &candidate.attrs;
-        let expected_attrs = &supported.attrs;
+        let attrs = candidate.attrs();
+        let expected_attrs = supported.attrs();
         same(unit, &quote!(#(#attrs)*), &quote!(#(#expected_attrs)*))?;
         found.push(candidate);
     }
     let [actual] = found.as_slice() else {
         return Err(Refusal::SourceShape(unit));
     };
-    for member in supported.items {
+    for member in supported.into_items() {
         match member {
             syn::ImplItem::Fn(expected) => {
-                let mut methods = actual.items.iter().filter_map(|item| {
+                let mut methods = actual.items().iter().filter_map(|item| {
                     if let syn::ImplItem::Fn(method) = item
                         && method.sig.ident == expected.sig.ident
                     {
@@ -1787,7 +1823,7 @@ fn constant_implementation(sources: &Sources<'_>, recipe: TokenStream) -> Result
                 )?;
             }
             syn::ImplItem::Type(expected) => {
-                let mut types = actual.items.iter().filter_map(|item| {
+                let mut types = actual.items().iter().filter_map(|item| {
                     if let syn::ImplItem::Type(associated) = item
                         && associated.ident == expected.ident
                     {
@@ -1798,7 +1834,9 @@ fn constant_implementation(sources: &Sources<'_>, recipe: TokenStream) -> Result
                 });
                 same(unit, unique(&mut types, unit)?, &expected)?;
             }
-            _ => return Err(Refusal::SourceShape(unit)),
+            syn::ImplItem::Const(_) | syn::ImplItem::Macro(_) | syn::ImplItem::Verbatim(_) | _ => {
+                return Err(Refusal::SourceShape(unit));
+            }
         }
     }
     Ok(())
@@ -1868,11 +1906,7 @@ fn default_zero(sources: &Sources<'_>) -> Result<(), Refusal> {
             return None;
         }
         let first = invocation.mac.tokens.clone().into_iter().next()?;
-        if matches!(first, proc_macro2::TokenTree::Ident(name) if name == "u64") {
-            Some(invocation)
-        } else {
-            None
-        }
+        matches!(first, proc_macro2::TokenTree::Ident(name) if name == "u64").then_some(invocation)
     });
     same(unit, unique(&mut invocations, unit)?, &expected)?;
     default_trait(sources)
@@ -2130,16 +2164,16 @@ mod tests {
     }
 
     fn assert_string_witnesses(limits: SchemaInputLimits) {
-        let raw = "a".repeat(65_535);
-        assert_eq!(raw.len(), 65_535);
+        let raw = "a".repeat(0xFFFF);
+        assert_eq!(raw.len(), 0xFFFF);
         assert_eq!(
             measure_schema_input(&Value::String(raw), limits),
             Err(SchemaInputError::Bytes)
         );
-        let ascii = "a".repeat(65_534);
-        assert_eq!(serialized_json_bytes(ascii.as_str()).unwrap(), 65_536);
-        let nul = "\0".repeat(65_534);
-        assert_eq!(nul.len(), 65_534);
+        let ascii = "a".repeat(0xFFFE);
+        assert_eq!(serialized_json_bytes(ascii.as_str()).unwrap(), 0x0001_0000);
+        let nul = "\0".repeat(0xFFFE);
+        assert_eq!(nul.len(), 0xFFFE);
         assert_eq!(serialized_json_bytes(nul.as_str()).unwrap(), 393_206);
         // Virtual bytes only; neither this witness nor the contract prices scans.
         assert_eq!(
@@ -2172,7 +2206,7 @@ mod tests {
         pending(&contract);
         assert_eq!(
             derive_scalar_sources(&data, limits, 1),
-            Ok(expected(65_536))
+            Ok(expected(0x0001_0000))
         );
         assert_eq!(derive_scalar_sources(&data, limits, 0), Ok(expected(0)));
         assert_string_witnesses(limits);
@@ -2251,7 +2285,7 @@ mod tests {
                 repeated.cond.to_token_stream().to_string(),
                 quote!(!buf.is_empty()).to_string()
             );
-            repeated.cond = Box::new(syn::parse_quote!(false));
+            *repeated.cond = syn::parse_quote!(false);
         });
         refuse_shape(&skipped, limits, SourceUnit::IoWrite);
         let short = changed(data, SourceUnit::JsonSize, |file| {
@@ -2282,7 +2316,7 @@ mod tests {
         let (data, limits) = fixture();
         before(&data);
         let result = derive_scalar_sources(&data, limits, 1);
-        assert_eq!(result, Ok(expected(65_536)));
+        assert_eq!(result, Ok(expected(0x0001_0000)));
         let contract = result.unwrap();
         assert_eq!(contract.writes_per_nonempty_request_upper, 1);
         assert_eq!(contract.writes_per_empty_request_upper, 0);
@@ -2292,7 +2326,7 @@ mod tests {
         assert_eq!(width_32.pointer_width.replace(32), Some(64));
         assert_eq!(
             derive_scalar_sources(&width_32, limits, 1),
-            Ok(expected(65_536))
+            Ok(expected(0x0001_0000))
         );
         // The protocol theorem still needs its source duties when no request
         // occurs; 1/0/0 is per request, not the zero-attempt aggregate.
@@ -2313,13 +2347,13 @@ mod tests {
             let mut duplicate = data.clone();
             duplicate.sources.push(row(data, unit).clone());
             let mut drift = data.clone();
-            let source = drift
+            let changed_source = drift
                 .sources
                 .iter_mut()
                 .find(|source| source.unit == unit)
                 .unwrap();
-            source.after.push(b'\n');
-            assert_ne!(source.before, source.after);
+            changed_source.after.push(b'\n');
+            assert_ne!(changed_source.before, changed_source.after);
             let mut retargeted = data.clone();
             let target = retargeted
                 .sources

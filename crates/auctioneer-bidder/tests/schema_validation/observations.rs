@@ -4,7 +4,11 @@
 //! authenticate a validation capture or close work, frames, cleanup, or target
 //! obligations.
 
-use crate::schema_build::Catalog;
+use crate::schema_build::{CacheLayout, CacheLayouts, Catalog, workload_data_for};
+use crate::schema_bundle_heap::{CacheBundleHeap, format_peak};
+use crate::schema_meta_heap::MetaCacheHeap;
+use crate::schema_qualification::SchemaInventory;
+use crate::schema_reference::{Corpus, captured};
 use crate::schema_resource_layout::Identity;
 use crate::schema_selection_source::SelectedCohort;
 use serde_json::{Value, json};
@@ -29,8 +33,8 @@ pub(crate) fn selected_cache_observations(
     let observed = catalog.native_allocations("explicit-caches").unwrap();
     let observations = observed["schemas"].as_array().unwrap();
     assert_eq!(observations.len(), cohort.schemas.len());
-    let corpus = crate::schema_reference::captured().unwrap();
-    let authored = crate::schema_build::workload_data_for(&cohort.root, &cohort.schemas).unwrap();
+    let corpus = captured().unwrap();
+    let authored = workload_data_for(&cohort.root, &cohort.schemas).unwrap();
     let mut rows = Vec::new();
     let mut maximum_bundle = 0_usize;
     let mut maximum_observed = 0_usize;
@@ -110,13 +114,11 @@ pub(crate) fn selected_cache_observations(
 }
 
 fn component_cache_bundle(
-    schema: &crate::schema_qualification::SchemaInventory,
+    schema: &SchemaInventory,
     binding: &Value,
-    layout: &crate::schema_build::CacheLayout,
-    layouts: &crate::schema_build::CacheLayouts,
-) -> (crate::schema_bundle_heap::CacheBundleHeap, Vec<Value>) {
-    use crate::schema_bundle_heap::{CacheBundleHeap, format_peak};
-    use crate::schema_meta_heap::MetaCacheHeap;
+    layout: &CacheLayout,
+    layouts: &CacheLayouts,
+) -> (CacheBundleHeap, Vec<Value>) {
     let patterns: Vec<(String, String)> =
         serde_json::from_value(binding["generated_helpers"].clone()).unwrap();
     assert_eq!(
@@ -159,11 +161,7 @@ struct CacheInputs {
     authored: usize,
 }
 
-fn selected_cache_inputs(
-    name: &str,
-    corpus: &crate::schema_reference::Corpus,
-    authored: Option<&Value>,
-) -> CacheInputs {
+fn selected_cache_inputs(name: &str, corpus: &Corpus, authored: Option<&Value>) -> CacheInputs {
     let mut inputs = CacheInputs {
         expected: vec![("empty".to_owned(), None)],
         input_bytes: vec![Some(2_usize)],
@@ -266,7 +264,7 @@ fn assert_cache_workloads(
 }
 
 fn assert_hostname_cache_observations(observed: &Value) {
-    let callback = crate::schema_bundle_heap::format_peak(["hostname"]).unwrap();
+    let callback = format_peak(["hostname"]).unwrap();
     let hostname = observed["hostname"]["searches"].as_array().unwrap();
     assert_eq!(hostname.len(), 5);
     for row in hostname {

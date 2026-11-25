@@ -314,15 +314,15 @@ fn with_source_data<T, E>(
     let compiler_before = reads.compiler(Phase::Before);
     let sources_before = reads.sources(Phase::Before);
     let before_check = checked_sources(&sources_before, &paths);
-    let provisional = if compiler_before.as_ref() != Ok(&expected) {
-        Err(SourceError::CompilerBinding)
-    } else {
+    let provisional = if compiler_before.as_ref() == Ok(&expected) {
         before_check.map(|sources| {
             interpret(&SourceInputs {
                 compiler: &expected,
                 sources,
             })
         })
+    } else {
+        Err(SourceError::CompilerBinding)
     };
 
     // No returned read/probe/consumer error may skip another closing check.
@@ -672,7 +672,8 @@ mod tests {
             assert!(path.starts_with(&output));
             assert_eq!(path.canonicalize().unwrap(), path);
             let metadata = fs::symlink_metadata(&path).unwrap();
-            assert!(metadata.file_type().is_file());
+            let is_regular_file = metadata.file_type().is_file();
+            assert!(is_regular_file);
             assert_eq!(metadata.nlink(), 1);
             let original = read_regular(&path).unwrap();
             assert_eq!(original, snapshot.bytes);
@@ -886,7 +887,7 @@ mod tests {
                     Phase::After => &mut reads.after,
                 };
                 let source = round.sources.as_mut().unwrap().get_mut(index).unwrap();
-                let original = data.sources.get(index).unwrap();
+                let original = &data.sources[index];
                 assert_eq!(*source, *original);
                 assert_eq!(source.sha256, digest(&source.bytes));
                 assert_eq!(read_regular(&source.path).unwrap(), original.bytes);
@@ -926,7 +927,7 @@ mod tests {
                     };
                     let source = round.sources.as_mut().unwrap().get_mut(index).unwrap();
                     source.path = source.path.with_file_name("unmatched-source.rs");
-                    assert_ne!(source.path, data.sources.get(index).unwrap().path);
+                    assert_ne!(source.path, data.sources[index].path);
                     assert_eq!(
                         run_data(seed, view, &data, &mut reads, false),
                         Err(SourceError::SourcePath(spec.unit))
@@ -942,7 +943,7 @@ mod tests {
                     .unwrap();
                 changed.bytes.push(b' ');
                 changed.sha256 = digest(&changed.bytes);
-                assert_ne!(changed.bytes, data.sources.get(index).unwrap().bytes);
+                assert_ne!(changed.bytes, data.sources[index].bytes);
                 assert_eq!(
                     changed.sha256,
                     digest(&changed.bytes),

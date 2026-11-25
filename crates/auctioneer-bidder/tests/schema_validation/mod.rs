@@ -30,9 +30,10 @@ mod tests {
         operations: Result<operations::BodyOperations, operations::Refusal>,
         schedule: Option<Result<storage::OwnerSchedule, String>>,
         factory: Option<Result<partition::CoupledFactoryBounds, partition::CoupledRefusal>>,
+        input: Option<Result<partition::CoupledFactoryBounds, partition::CoupledRefusal>>,
     }
 
-    fn inspect_body(body: DeclarationBody<'_>, view: ValidationView<'_>) -> BodyAnalysis {
+    fn inspect_body(body: &DeclarationBody<'_>, view: ValidationView<'_>) -> BodyAnalysis {
         let operations = operations::classify_source_body(body.syntax, &[], &[]);
         let schedule = operations.as_ref().ok().map(|classified| {
             storage::owner_schedule_data(classified.recipe(), view.graph(), body.owner, body.marker)
@@ -55,12 +56,28 @@ mod tests {
                 },
             ))
         });
+        let input = factory.as_ref().and_then(|bounded| {
+            bounded.as_ref().ok()?;
+            let classified = operations.as_ref().ok()?;
+            Some(partition::coupled_input_bounds(
+                classified.recipe(),
+                view.graph(),
+                body.owner,
+                body.marker,
+                7,
+                partition::CoupledPopulation {
+                    factories: 3,
+                    validations: 2,
+                },
+            ))
+        });
         BodyAnalysis {
             owner: body.owner.to_owned(),
             marker: body.marker.to_owned(),
             operations,
             schedule,
             factory,
+            input,
         }
     }
 
@@ -114,7 +131,7 @@ mod tests {
     fn current_body_shapes_have_declared_operation_obligations() {
         with_current_descriptor(|seed, descriptor| {
             let view = descriptor.validation_view().unwrap();
-            let result = handoff::checked_bodies(seed, view, |body| Ok(inspect_body(body, view)));
+            let result = handoff::checked_bodies(seed, view, |body| Ok(inspect_body(&body, view)));
             assert!(
                 result.is_ok(),
                 "source bodies must first pass the sealed join"
@@ -148,11 +165,21 @@ mod tests {
             // The new factory result is buffered through the same closing
             // checks. Its success will not close input grammar or source work.
             for row in bodies.analyses() {
-                let result = row.factory.as_ref().expect("factory owner setup checked");
+                let factory_result = row.factory.as_ref().expect("factory owner setup checked");
                 assert_eq!(
-                    result.as_ref().map(|_| ()),
+                    factory_result.as_ref().map(|_| ()),
                     Ok(()),
                     "coupled factory frontier for {}::{}",
+                    row.owner,
+                    row.marker
+                );
+            }
+            for row in bodies.analyses() {
+                let input_result = row.input.as_ref().expect("coupled factory setup checked");
+                assert_eq!(
+                    input_result.as_ref().map(|_| ()),
+                    Ok(()),
+                    "coupled input frontier for {}::{}",
                     row.owner,
                     row.marker
                 );

@@ -841,6 +841,17 @@ mod tests {
         .unwrap();
     }
 
+    fn assert_actual_validation_attachment(graph: &Value, binding: &Value) {
+        let validation = &graph["validation_resources"];
+        assert!(validation.is_object());
+        assert_eq!(validation["kind"], "schema_validation_resources");
+        assert_eq!(validation["status"], "Incomplete");
+        assert_eq!(validation["resource_qualification"], false);
+        assert_eq!(validation["physical_fit"], false);
+        assert_eq!(validation["serving_permission"], false);
+        assert_eq!(&validation["binding"], binding);
+    }
+
     fn assert_actual_application_report(
         report: &Value,
         package: &str,
@@ -870,14 +881,7 @@ mod tests {
             binding["identity"],
             report["applications"][0]["identity_sha256"]
         );
-        let validation = &graph["validation_resources"];
-        assert!(validation.is_object());
-        assert_eq!(validation["kind"], "schema_validation_resources");
-        assert_eq!(validation["status"], "Incomplete");
-        assert_eq!(validation["resource_qualification"], false);
-        assert_eq!(validation["physical_fit"], false);
-        assert_eq!(validation["serving_permission"], false);
-        assert_eq!(&validation["binding"], binding);
+        assert_actual_validation_attachment(graph, binding);
         let programs = descriptor["programs_in_initialization_order"]
             .as_array()
             .unwrap();

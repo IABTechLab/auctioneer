@@ -21,6 +21,7 @@ use crate::schema_validation::operations::{
     Primitive, WorkLedger,
     model::{Recipe, Site},
 };
+use crate::schema_validation::storage::{OwnerSchedule, owner_schedule_data};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -161,6 +162,9 @@ enum Refusal {
 mod tests {
     use super::*;
     use crate::schema_build::schema_regex_vendor::FEATURES;
+    use crate::schema_build::selected::probe_compiler;
+    use crate::schema_formats::HOSTNAME_SOURCE;
+    use crate::schema_residency::read_regular;
     use crate::schema_validation::operations::{
         self,
         model::{self, Kind, Origin},
@@ -204,8 +208,7 @@ mod tests {
     // expected compiler and FEATURES constant are not the actual manifest join.
     // No source is silently optional and no private file loader is introduced.
     fn capture() -> ConstructionData {
-        let (executable, verbose) = crate::schema_build::selected::probe_compiler()
-            .expect("existing bounded compiler capture");
+        let (executable, verbose) = probe_compiler().expect("existing bounded compiler capture");
         let library = executable
             .parent()
             .and_then(Path::parent)
@@ -262,10 +265,8 @@ mod tests {
             } else {
                 workspace.join(relative)
             };
-            let before = crate::schema_residency::read_regular(&path)
-                .expect("existing regular bounded source read");
-            let after = crate::schema_residency::read_regular(&path)
-                .expect("existing regular bounded source reread");
+            let before = read_regular(&path).expect("existing regular bounded source read");
+            let after = read_regular(&path).expect("existing regular bounded source reread");
             assert_eq!(before, after);
             sources.push(SourceData {
                 unit,
@@ -289,7 +290,7 @@ mod tests {
                     function: 0,
                     lexical: Vec::new(),
                 },
-                pattern: crate::schema_formats::HOSTNAME_SOURCE.to_owned(),
+                pattern: HOSTNAME_SOURCE.to_owned(),
                 scope: Some(PatternScope::SelectedAnchoredOrEndAnchored),
                 branch: Some(CacheBranch::PairedHybrid),
                 guarded_creation: Some(true),
@@ -441,10 +442,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["^[0-9]+$", r"\.[a-zA-Z]{2,3}$"]
         );
-        assert_eq!(
-            data.hostname.pattern,
-            crate::schema_formats::HOSTNAME_SOURCE
-        );
+        assert_eq!(data.hostname.pattern, HOSTNAME_SOURCE);
         assert_eq!(
             data.hostname.scope,
             Some(PatternScope::SelectedAnchoredOrEndAnchored)
@@ -691,9 +689,7 @@ mod tests {
                     && alias.ty.to_token_stream().to_string()
                         == quote!(std::collections::HashMap<State, LazyStateID>).to_string()
                 {
-                    alias.ty = Box::new(
-                        syn::parse_quote!(std::collections::HashMap<State, LazyStateID, ChangedHasher>),
-                    );
+                    *alias.ty = syn::parse_quote!(std::collections::HashMap<State, LazyStateID, ChangedHasher>);
                     matched = matched.checked_add(1).unwrap();
                 }
             }
@@ -1041,7 +1037,7 @@ mod tests {
                     continue;
                 }
                 for member in &mut declaration.fields {
-                    if !member.ident.as_ref().is_some_and(|ident| ident == field) {
+                    if member.ident.as_ref().is_none_or(|ident| ident != field) {
                         continue;
                     }
                     assert!(
@@ -1090,14 +1086,14 @@ fn source_contract(
     let prefixes = prefixes(&schedule, &counts)?;
     let (generated_cache_calls, hostname_cache_calls) = invocation_counts(data, invocations)?;
     let per_cache = counts
-        .forward
-        .checked_add(counts.reverse)
+        .forward()
+        .checked_add(counts.reverse())
         .ok_or(Refusal::Overflow)?;
     let generated_entries = generated_cache_calls
         .checked_mul(per_cache)
         .ok_or(Refusal::Overflow)?;
     let hostname_entries = hostname_cache_calls
-        .checked_mul(counts.hostname_caches)
+        .checked_mul(counts.hostname_caches())
         .and_then(|calls| calls.checked_mul(per_cache))
         .ok_or(Refusal::Overflow)?;
     let seed_entries = generated_entries
@@ -1161,9 +1157,7 @@ fn directions(found: &[Direction]) -> Result<(), Refusal> {
     Ok(())
 }
 
-fn owner_schedule(
-    recipe: &Recipe,
-) -> Result<crate::schema_validation::storage::OwnerSchedule, Refusal> {
+fn owner_schedule(recipe: &Recipe) -> Result<OwnerSchedule, Refusal> {
     use crate::schema_validation::operations::model::Ty;
     let mut factories = recipe
         .roots
@@ -1197,14 +1191,10 @@ fn owner_schedule(
             }}]
         }
     });
-    crate::schema_validation::storage::owner_schedule_data(recipe, &graph, marker, marker)
-        .map_err(|_| Refusal::Schedule)
+    owner_schedule_data(recipe, &graph, marker, marker).map_err(|_error| Refusal::Schedule)
 }
 
-fn check_schedule(
-    schedule: &crate::schema_validation::storage::OwnerSchedule,
-    data: &ConstructionData,
-) -> Result<(), Refusal> {
+fn check_schedule(schedule: &OwnerSchedule, data: &ConstructionData) -> Result<(), Refusal> {
     let rows: Vec<_> = schedule.initializers().collect();
     if rows.len() != data.constructors.len() {
         return Err(Refusal::Schedule);
@@ -1231,18 +1221,15 @@ fn check_schedule(
     Ok(())
 }
 
-fn prefixes(
-    schedule: &crate::schema_validation::storage::OwnerSchedule,
-    counts: &source::Counts,
-) -> Result<Vec<[u64; 3]>, Refusal> {
+fn prefixes(schedule: &OwnerSchedule, counts: &source::Counts) -> Result<Vec<[u64; 3]>, Refusal> {
     let mut completed = 0_u64;
     let mut result = Vec::new();
     for _ in schedule.initializers() {
         let forward = completed
-            .checked_add(counts.forward)
+            .checked_add(counts.forward())
             .ok_or(Refusal::Overflow)?;
         let reverse = forward
-            .checked_add(counts.reverse)
+            .checked_add(counts.reverse())
             .ok_or(Refusal::Overflow)?;
         result.push([completed, forward, reverse]);
         completed = reverse;
@@ -1275,6 +1262,7 @@ fn invocation_counts(
 
 mod source {
     use super::{CompilerData, ConstructionData, Refusal, SourceUnit};
+    use crate::schema_build::schema_regex_vendor::FEATURES;
     use crate::schema_validation::operations::source_syntax::ConstTraitImpl;
     use proc_macro2::TokenStream;
     use quote::{ToTokens, quote};
@@ -1327,9 +1315,21 @@ mod source {
     ];
 
     pub(super) struct Counts {
-        pub(super) forward: u64,
-        pub(super) reverse: u64,
-        pub(super) hostname_caches: u64,
+        forward: u64,
+        reverse: u64,
+        hostname_caches: u64,
+    }
+
+    impl Counts {
+        pub(super) fn forward(&self) -> u64 {
+            self.forward
+        }
+        pub(super) fn reverse(&self) -> u64 {
+            self.reverse
+        }
+        pub(super) fn hostname_caches(&self) -> u64 {
+            self.hostname_caches
+        }
     }
 
     struct Sources(BTreeMap<SourceUnit, syn::File>);
@@ -1364,10 +1364,7 @@ mod source {
         }
         // Expected compiler/features must come from the same selected manifest
         // at actual use. Fixture equality is not that authentic binding.
-        let features: BTreeSet<String> = crate::schema_build::schema_regex_vendor::FEATURES
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
+        let features: BTreeSet<String> = FEATURES.into_iter().map(str::to_owned).collect();
         if data.features != features {
             return Err(Refusal::FeatureMismatch);
         }
@@ -1397,9 +1394,10 @@ mod source {
             {
                 return Err(Refusal::SourceChanged(unit));
             }
-            let file =
-                syn::parse_file(from_utf8(&record.before).map_err(|_| Refusal::SourceShape(unit))?)
-                    .map_err(|_| Refusal::SourceShape(unit))?;
+            let file = syn::parse_file(
+                from_utf8(&record.before).map_err(|_error| Refusal::SourceShape(unit))?,
+            )
+            .map_err(|_error| Refusal::SourceShape(unit))?;
             let attrs: Vec<_> = file.attrs.iter().filter(|attribute| {
                 !matches!(&attribute.meta, syn::Meta::NameValue(meta)
                     if attribute.path().is_ident("doc")
@@ -1435,7 +1433,7 @@ mod source {
             wanted: TokenStream,
         ) -> Result<Vec<syn::ImplItemFn>, Refusal> {
             let mut expected: syn::ItemImpl =
-                syn::parse2(wanted).map_err(|_| Refusal::SourceShape(unit))?;
+                syn::parse2(wanted).map_err(|_error| Refusal::SourceShape(unit))?;
             let members = mem::take(&mut expected.items);
             strip_docs(&mut expected.attrs);
             let mut result = Vec::new();
@@ -1493,8 +1491,8 @@ mod source {
                     }
                 }
             ))
-            .map_err(|_| Refusal::SourceShape(unit))?;
-            strip_docs(&mut expected.attrs);
+            .map_err(|_error| Refusal::SourceShape(unit))?;
+            strip_docs(expected.attrs_mut());
             let mut matching = Vec::new();
             for item in self.items(unit)? {
                 let syn::Item::Verbatim(tokens) = item else {
@@ -1503,11 +1501,11 @@ mod source {
                 let Ok(mut actual) = syn::parse2::<ConstTraitImpl>(tokens.clone()) else {
                     continue;
                 };
-                strip_docs(&mut actual.attrs);
-                if spelling(&actual.header) != spelling(&expected.header) {
+                strip_docs(actual.attrs_mut());
+                if spelling(actual.header_tokens()) != spelling(expected.header_tokens()) {
                     continue;
                 }
-                for member in &mut actual.items {
+                for member in actual.items_mut() {
                     let syn::ImplItem::Fn(method) = member else {
                         return Err(Refusal::SourceShape(unit));
                     };
@@ -1518,16 +1516,16 @@ mod source {
             let [actual] = matching.as_slice() else {
                 return Err(Refusal::SourceShape(unit));
             };
-            let actual_attrs = &actual.attrs;
-            let expected_attrs = &expected.attrs;
-            let actual_items = &actual.items;
-            let expected_items = &expected.items;
+            let actual_attrs = actual.attrs();
+            let expected_attrs = expected.attrs();
+            let actual_items = actual.items();
+            let expected_items = expected.items();
             if spelling(&quote!(#(#actual_attrs)* #(#actual_items)*))
                 != spelling(&quote!(#(#expected_attrs)* #(#expected_items)*))
             {
                 return Err(Refusal::SourceShape(unit));
             }
-            let [syn::ImplItem::Fn(method)] = actual.items.as_slice() else {
+            let [syn::ImplItem::Fn(method)] = actual.items() else {
                 return Err(Refusal::SourceShape(unit));
             };
             Ok(method.clone())
@@ -1535,10 +1533,26 @@ mod source {
 
         fn structure(&self, unit: SourceUnit, wanted: TokenStream) -> Result<(), Refusal> {
             let mut expected: syn::ItemStruct =
-                syn::parse2(wanted).map_err(|_| Refusal::SourceShape(unit))?;
+                syn::parse2(wanted).map_err(|_error| Refusal::SourceShape(unit))?;
             let mut found = self.items(unit)?.iter().filter_map(|item| match item {
                 syn::Item::Struct(value) if value.ident == expected.ident => Some(value),
-                _ => None,
+                syn::Item::Const(_)
+                | syn::Item::Enum(_)
+                | syn::Item::ExternCrate(_)
+                | syn::Item::Fn(_)
+                | syn::Item::ForeignMod(_)
+                | syn::Item::Impl(_)
+                | syn::Item::Macro(_)
+                | syn::Item::Mod(_)
+                | syn::Item::Static(_)
+                | syn::Item::Struct(_)
+                | syn::Item::Trait(_)
+                | syn::Item::TraitAlias(_)
+                | syn::Item::Type(_)
+                | syn::Item::Union(_)
+                | syn::Item::Use(_)
+                | syn::Item::Verbatim(_)
+                | _ => None,
             });
             let mut actual = found.next().cloned().ok_or(Refusal::SourceShape(unit))?;
             if found.next().is_some() {
@@ -1562,10 +1576,10 @@ mod source {
                     .collect();
                 match &mut declaration.fields {
                     syn::Fields::Named(fields) => {
-                        fields.named = mem::take(&mut fields.named).into_iter().collect()
+                        fields.named = mem::take(&mut fields.named).into_iter().collect();
                     }
                     syn::Fields::Unnamed(fields) => {
-                        fields.unnamed = mem::take(&mut fields.unnamed).into_iter().collect()
+                        fields.unnamed = mem::take(&mut fields.unnamed).into_iter().collect();
                     }
                     syn::Fields::Unit => {}
                 }
@@ -1588,7 +1602,18 @@ mod source {
                         syn::Item::Static(value) => strip_docs(&mut value.attrs),
                         syn::Item::Const(value) => strip_docs(&mut value.attrs),
                         syn::Item::Mod(value) => strip_docs(&mut value.attrs),
-                        _ => return false,
+                        syn::Item::Enum(_)
+                        | syn::Item::ExternCrate(_)
+                        | syn::Item::Fn(_)
+                        | syn::Item::ForeignMod(_)
+                        | syn::Item::Impl(_)
+                        | syn::Item::Macro(_)
+                        | syn::Item::Struct(_)
+                        | syn::Item::Trait(_)
+                        | syn::Item::TraitAlias(_)
+                        | syn::Item::Union(_)
+                        | syn::Item::Verbatim(_)
+                        | _ => return false,
                     }
                     spelling(&actual) == spelling(wanted)
                 })
@@ -1674,11 +1699,11 @@ mod source {
             count: Option<u64>,
         }
         impl VisitMut for Count {
-            fn visit_expr_call_mut(&mut self, call: &mut syn::ExprCall) {
-                if spelling(&call.func) == self.callee || spelling(call) == self.callee {
+            fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
+                if spelling(&i.func) == self.callee || spelling(i) == self.callee {
                     self.count = self.count.and_then(|count| count.checked_add(1));
                 }
-                visit_mut::visit_expr_call_mut(self, call);
+                visit_mut::visit_expr_call_mut(self, i);
             }
         }
         let mut count = Count {
@@ -1776,9 +1801,13 @@ mod source {
                 syn::Item::TraitAlias(value) => Some(&value.ident),
                 syn::Item::Type(value) => Some(&value.ident),
                 syn::Item::Union(value) => Some(&value.ident),
-                _ => None,
+                syn::Item::ForeignMod(_)
+                | syn::Item::Impl(_)
+                | syn::Item::Use(_)
+                | syn::Item::Verbatim(_)
+                | _ => None,
             };
-            if ident.is_some_and(|ident| ident == name) {
+            if ident.is_some_and(|candidate| candidate == name) {
                 return Err(Refusal::SourceShape(unit));
             }
             if let syn::Item::Use(import) = item {
@@ -2216,7 +2245,23 @@ mod source {
         let unit = SourceUnit::Hostname;
         let mut modules = sources.items(unit)?.iter().filter_map(|item| match item {
             syn::Item::Mod(module) if module.ident == "formats" => Some(module),
-            _ => None,
+            syn::Item::Const(_)
+            | syn::Item::Enum(_)
+            | syn::Item::ExternCrate(_)
+            | syn::Item::Fn(_)
+            | syn::Item::ForeignMod(_)
+            | syn::Item::Impl(_)
+            | syn::Item::Macro(_)
+            | syn::Item::Mod(_)
+            | syn::Item::Static(_)
+            | syn::Item::Struct(_)
+            | syn::Item::Trait(_)
+            | syn::Item::TraitAlias(_)
+            | syn::Item::Type(_)
+            | syn::Item::Union(_)
+            | syn::Item::Use(_)
+            | syn::Item::Verbatim(_)
+            | _ => None,
         });
         let module = modules.next().ok_or(Refusal::SourceShape(unit))?;
         if modules.next().is_some() {
@@ -2273,7 +2318,23 @@ mod source {
         let unit = SourceUnit::Hostname;
         let mut literals = items.iter().filter_map(|item| match item {
             syn::Item::Const(value) if value.ident == "HOSTNAME_SOURCE" => Some(value),
-            _ => None,
+            syn::Item::Const(_)
+            | syn::Item::Enum(_)
+            | syn::Item::ExternCrate(_)
+            | syn::Item::Fn(_)
+            | syn::Item::ForeignMod(_)
+            | syn::Item::Impl(_)
+            | syn::Item::Macro(_)
+            | syn::Item::Mod(_)
+            | syn::Item::Static(_)
+            | syn::Item::Struct(_)
+            | syn::Item::Trait(_)
+            | syn::Item::TraitAlias(_)
+            | syn::Item::Type(_)
+            | syn::Item::Union(_)
+            | syn::Item::Use(_)
+            | syn::Item::Verbatim(_)
+            | _ => None,
         });
         let literal = literals.next().ok_or(Refusal::SourceShape(unit))?;
         if literals.next().is_some()
@@ -2308,11 +2369,22 @@ mod source {
                     .ok()
             });
         ))
-        .map_err(|_| Refusal::SourceShape(unit))?;
+        .map_err(|_error| Refusal::SourceShape(unit))?;
         nested.exact(unit, &quote!(#expected))
     }
 
     fn hostname_function(items: &[syn::Item]) -> Result<u64, Refusal> {
+        struct Caches {
+            count: Option<u64>,
+        }
+        impl VisitMut for Caches {
+            fn visit_expr_method_call_mut(&mut self, i: &mut syn::ExprMethodCall) {
+                if i.method == "create_cache" {
+                    self.count = self.count.and_then(|count| count.checked_add(1));
+                }
+                visit_mut::visit_expr_method_call_mut(self, i);
+            }
+        }
         let unit = SourceUnit::Hostname;
         let expected: syn::ItemFn = syn::parse2(quote!(
             pub(super) fn hostname(value: &str) -> bool {
@@ -2325,10 +2397,26 @@ mod source {
                     })
             }
         ))
-        .map_err(|_| Refusal::SourceShape(unit))?;
+        .map_err(|_error| Refusal::SourceShape(unit))?;
         let mut functions = items.iter().filter_map(|item| match item {
             syn::Item::Fn(function) if function.sig.ident == "hostname" => Some(function),
-            _ => None,
+            syn::Item::Const(_)
+            | syn::Item::Enum(_)
+            | syn::Item::ExternCrate(_)
+            | syn::Item::Fn(_)
+            | syn::Item::ForeignMod(_)
+            | syn::Item::Impl(_)
+            | syn::Item::Macro(_)
+            | syn::Item::Mod(_)
+            | syn::Item::Static(_)
+            | syn::Item::Struct(_)
+            | syn::Item::Trait(_)
+            | syn::Item::TraitAlias(_)
+            | syn::Item::Type(_)
+            | syn::Item::Union(_)
+            | syn::Item::Use(_)
+            | syn::Item::Verbatim(_)
+            | _ => None,
         });
         let mut function = functions
             .next()
@@ -2340,17 +2428,6 @@ mod source {
         strip_docs(&mut function.attrs);
         if spelling(&function) != spelling(&expected) {
             return Err(Refusal::SourceShape(unit));
-        }
-        struct Caches {
-            count: Option<u64>,
-        }
-        impl VisitMut for Caches {
-            fn visit_expr_method_call_mut(&mut self, call: &mut syn::ExprMethodCall) {
-                if call.method == "create_cache" {
-                    self.count = self.count.and_then(|count| count.checked_add(1));
-                }
-                visit_mut::visit_expr_method_call_mut(self, call);
-            }
         }
         let mut caches = Caches { count: Some(0) };
         caches.visit_item_fn_mut(&mut function);

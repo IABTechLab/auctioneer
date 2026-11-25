@@ -476,7 +476,7 @@ mod tests {
                     ..
                 } = &op.kind
                 {
-                    iteration_sites += 1;
+                    iteration_sites = iteration_sites.checked_add(1).unwrap();
                     assert_eq!(callee, "Iterator::all");
                     assert_eq!(*stop, super::model::StopRule::FirstFalseOrExhaustion);
                     assert!(*none_on_exhaustion);
@@ -728,7 +728,9 @@ mod tests {
         for function in classified.recipe().functions.values() {
             super::model::walk(&function.body, &mut |op| {
                 if let super::model::Kind::Choice { arms, .. } = &op.kind {
-                    guards += arms.iter().filter(|arm| arm.guard.is_some()).count();
+                    guards = guards
+                        .checked_add(arms.iter().filter(|arm| arm.guard.is_some()).count())
+                        .unwrap();
                 }
                 if let super::model::Kind::Value(super::model::Atom::Bool(value)) = &op.kind {
                     booleans.insert(*value);

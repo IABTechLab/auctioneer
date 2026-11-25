@@ -20,9 +20,9 @@ struct Sources(BTreeMap<SourceUnit, syn::File>);
 
 impl ConstTraitImpl {
     fn header(&mut self, unit: SourceUnit) -> Result<String, Refusal> {
-        attributes(&mut self.attrs, unit)?;
-        let attrs = &self.attrs;
-        let header = &self.header;
+        attributes(self.attrs_mut(), unit)?;
+        let attrs = self.attrs();
+        let header = self.header_tokens();
         Ok(spelling(&quote!(#(#attrs)* #header)))
     }
 }
@@ -97,8 +97,8 @@ fn capture(data: &CapturedData, expected: &CompilerData) -> Result<Sources, Refu
         {
             return Err(Refusal::SourceChanged(unit));
         }
-        let source = from_utf8(&record.before).map_err(|_| Refusal::UnsupportedBody(unit))?;
-        let file = syn::parse_file(source).map_err(|_| Refusal::UnsupportedBody(unit))?;
+        let source = from_utf8(&record.before).map_err(|_error| Refusal::UnsupportedBody(unit))?;
+        let file = syn::parse_file(source).map_err(|_error| Refusal::UnsupportedBody(unit))?;
         root_attributes(&file, unit)?;
         files.insert(unit, file);
     }
@@ -155,7 +155,7 @@ fn attributes(attributes: &mut Vec<syn::Attribute>, unit: SourceUnit) -> Result<
         if attribute.path().is_ident("derive") {
             let paths = attribute
                 .parse_args_with(Punctuated::<syn::Path, syn::Token![,]>::parse_terminated)
-                .map_err(|_| Refusal::UnsupportedBody(unit))?;
+                .map_err(|_error| Refusal::UnsupportedBody(unit))?;
             let normalized: Punctuated<syn::Path, syn::Token![,]> = paths.into_iter().collect();
             let syn::Meta::List(list) = &mut attribute.meta else {
                 return Err(Refusal::UnsupportedBody(unit));
@@ -262,7 +262,7 @@ impl Sources {
         Ok(())
     }
 
-    fn import(&self, unit: SourceUnit, name: &str, expected: syn::Path) -> Result<(), Refusal> {
+    fn import(&self, unit: SourceUnit, name: &str, expected: &syn::Path) -> Result<(), Refusal> {
         let mut matches = Vec::new();
         for item in &self.file(unit)?.items {
             let syn::Item::Use(import) = item else {
@@ -289,7 +289,7 @@ impl Sources {
                 matches.push(path);
             }
         }
-        if matches != [spelling(&expected)] {
+        if matches != [spelling(expected)] {
             return Err(Refusal::UnsupportedBody(unit));
         }
         Ok(())
@@ -300,8 +300,8 @@ impl Sources {
         unit: SourceUnit,
         expected: TokenStream,
     ) -> Result<(), Refusal> {
-        let mut recipe =
-            syn::parse2::<ConstTraitImpl>(expected).map_err(|_| Refusal::UnsupportedBody(unit))?;
+        let mut recipe = syn::parse2::<ConstTraitImpl>(expected)
+            .map_err(|_error| Refusal::UnsupportedBody(unit))?;
         let header = recipe.header(unit)?;
         let mut found = Vec::new();
         for item in &self.file(unit)?.items {
@@ -312,13 +312,13 @@ impl Sources {
                 continue;
             };
             if candidate.header(unit)? == header {
-                found.push(candidate.items);
+                found.push(candidate.into_items());
             }
         }
         let [actual] = found.as_slice() else {
             return Err(Refusal::UnsupportedBody(unit));
         };
-        constant_members(unit, actual, recipe.items)
+        constant_members(unit, actual, recipe.into_items())
     }
 }
 
@@ -410,23 +410,23 @@ fn unknown_call(unit: SourceUnit, method: &syn::ImplItemFn) -> Option<Refusal> {
     }
     impl VisitMut for Calls {
         fn visit_expr_call_mut(&mut self, i: &mut syn::ExprCall) {
-            if let syn::Expr::Path(path) = i.func.as_ref() {
-                if let Some(segment) = path.path.segments.last() {
-                    let name = segment.ident.to_string();
-                    if ![
-                        "new_unchecked",
-                        "SmallIndex",
-                        "StateID",
-                        "transmute",
-                        "aggregate_raw_ptr",
-                        "assume",
-                        "index",
-                        "index_mut",
-                    ]
-                    .contains(&name.as_str())
-                    {
-                        self.name.get_or_insert(name);
-                    }
+            if let syn::Expr::Path(path) = i.func.as_ref()
+                && let Some(segment) = path.path.segments.last()
+            {
+                let name = segment.ident.to_string();
+                if ![
+                    "new_unchecked",
+                    "SmallIndex",
+                    "StateID",
+                    "transmute",
+                    "aggregate_raw_ptr",
+                    "assume",
+                    "index",
+                    "index_mut",
+                ]
+                .contains(&name.as_str())
+                {
+                    self.name.get_or_insert(name);
                 }
             }
             visit_mut::visit_expr_call_mut(self, i);
@@ -695,7 +695,7 @@ fn imports(sources: &Sources) -> Result<(), Refusal> {
         ),
         (NonNull, "mem", syn::parse_quote!(crate::mem)),
     ] {
-        sources.import(unit, name, path)?;
+        sources.import(unit, name, &path)?;
     }
     allocator_imports(sources)
 }
@@ -705,18 +705,22 @@ fn allocator_imports(sources: &Sources) -> Result<(), Refusal> {
         sources.import(
             unit,
             "Allocator",
-            syn::parse_quote!(crate::alloc::Allocator),
+            &syn::parse_quote!(crate::alloc::Allocator),
         )?;
-        sources.import(unit, "Global", syn::parse_quote!(crate::alloc::Global))?;
+        sources.import(unit, "Global", &syn::parse_quote!(crate::alloc::Global))?;
     }
     for unit in [SourceUnit::Unique, SourceUnit::NonNull, SourceUnit::MutPtr] {
         sources.import(
             unit,
             "PointeeSized",
-            syn::parse_quote!(crate::marker::PointeeSized),
+            &syn::parse_quote!(crate::marker::PointeeSized),
         )?;
     }
-    sources.import(SourceUnit::Intrinsics, "ptr", syn::parse_quote!(crate::ptr))
+    sources.import(
+        SourceUnit::Intrinsics,
+        "ptr",
+        &syn::parse_quote!(crate::ptr),
+    )
 }
 
 fn template_items(sources: &Sources) -> Result<Vec<TokenStream>, Refusal> {
@@ -870,7 +874,7 @@ fn macro_id_methods(items: &[TokenStream]) -> Result<(), Refusal> {
             continue;
         }
         let implementation = syn::parse2::<syn::Item>(substitute(item.clone())?)
-            .map_err(|_| Refusal::UnsupportedBody(SourceUnit::Ids))?;
+            .map_err(|_error| Refusal::UnsupportedBody(SourceUnit::Ids))?;
         implementations.push(implementation);
     }
     if implementations.len() != 1 {
@@ -1405,19 +1409,18 @@ fn intrinsic_boundaries(sources: &Sources) -> Result<(), Refusal> {
 fn assert_macro(sources: &Sources) -> Result<(), Refusal> {
     fn collect(items: &[syn::Item], found: &mut Vec<syn::ItemMacro>) {
         for item in items {
-            if let syn::Item::Macro(definition) = item {
-                if definition
+            if let syn::Item::Macro(definition) = item
+                && definition
                     .ident
                     .as_ref()
                     .is_some_and(|name| name == "assert")
-                {
-                    found.push(definition.clone());
-                }
+            {
+                found.push(definition.clone());
             }
-            if let syn::Item::Mod(module) = item {
-                if let Some((_, children)) = &module.content {
-                    collect(children, found);
-                }
+            if let syn::Item::Mod(module) = item
+                && let Some((_, children)) = &module.content
+            {
+                collect(children, found);
             }
         }
     }

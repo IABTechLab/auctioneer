@@ -15,6 +15,7 @@ use crate::schema_validation::operations::source_syntax::{
 };
 use quote::{ToTokens, quote};
 use sha2::{Digest as _, Sha256};
+use std::mem;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CallerUnit {
@@ -459,7 +460,10 @@ fn local<'a>(
                     syn::Pat::Type(typed) => {
                         matches!(typed.pat.as_ref(), syn::Pat::Ident(pattern) if pattern.ident == name)
                     }
-                    _ => false,
+                    syn::Pat::Const(_) | syn::Pat::Guard(_) | syn::Pat::Lit(_) | syn::Pat::Macro(_)
+                    | syn::Pat::Or(_) | syn::Pat::Paren(_) | syn::Pat::Path(_) | syn::Pat::Range(_)
+                    | syn::Pat::Reference(_) | syn::Pat::Rest(_) | syn::Pat::Slice(_) | syn::Pat::Struct(_)
+                    | syn::Pat::Tuple(_) | syn::Pat::TupleStruct(_) | syn::Pat::Verbatim(_) | syn::Pat::Wild(_) | _ => false,
                 }
             {
                 Some((index, binding))
@@ -478,7 +482,7 @@ fn statement(
     block: &syn::Block,
     anchor: SourceAnchor,
     ordinal: usize,
-    expected: syn::Stmt,
+    expected: &syn::Stmt,
 ) -> Result<(), Refusal> {
     same(
         anchor.owner,
@@ -486,16 +490,16 @@ fn statement(
             .stmts
             .get(ordinal)
             .ok_or_else(|| shape(anchor.owner))?,
-        &expected,
+        expected,
     )
 }
 
 fn exact_body(
     matched: &[Matched],
     anchor: SourceAnchor,
-    supported: syn::Block,
+    supported: &syn::Block,
 ) -> Result<(), Refusal> {
-    same(anchor.owner, body(matched, anchor)?, &supported)
+    same(anchor.owner, body(matched, anchor)?, supported)
 }
 
 fn constant(
@@ -542,7 +546,7 @@ fn import_leaves(tree: &syn::UseTree, prefix: &str, leaves: &mut Vec<(String, St
     };
     match tree {
         syn::UseTree::Path(path) => {
-            import_leaves(&path.tree, &join(&path.ident.to_string()), leaves)
+            import_leaves(&path.tree, &join(&path.ident.to_string()), leaves);
         }
         syn::UseTree::Group(group) => {
             for item in &group.items {
@@ -550,10 +554,10 @@ fn import_leaves(tree: &syn::UseTree, prefix: &str, leaves: &mut Vec<(String, St
             }
         }
         syn::UseTree::Name(name) => {
-            leaves.push((name.ident.to_string(), join(&name.ident.to_string())))
+            leaves.push((name.ident.to_string(), join(&name.ident.to_string())));
         }
         syn::UseTree::Rename(rename) => {
-            leaves.push((rename.rename.to_string(), join(&rename.ident.to_string())))
+            leaves.push((rename.rename.to_string(), join(&rename.ident.to_string())));
         }
         syn::UseTree::Glob(_) => leaves.push(("*".into(), join("*"))),
     }
@@ -613,7 +617,16 @@ fn imports(sources: &ParsedSources, owner: Owner, wanted: &[(&str, &str)]) -> Re
                 value.ident == *name
                     && !(owner == Owner::Caller(CallerUnit::OpenRtbRoot) && *name == "prepare")
             }
-            _ => false,
+            syn::Item::ExternCrate(_)
+            | syn::Item::ForeignMod(_)
+            | syn::Item::Impl(_)
+            | syn::Item::Macro(_)
+            | syn::Item::Trait(_)
+            | syn::Item::TraitAlias(_)
+            | syn::Item::Union(_)
+            | syn::Item::Use(_)
+            | syn::Item::Verbatim(_)
+            | _ => false,
         }) {
             return Err(shape(owner));
         }
@@ -624,7 +637,7 @@ fn imports(sources: &ParsedSources, owner: Owner, wanted: &[(&str, &str)]) -> Re
 fn module(
     sources: &ParsedSources,
     unit: CallerUnit,
-    expected: syn::ItemMod,
+    expected: &syn::ItemMod,
 ) -> Result<(), Refusal> {
     let owner = Owner::Caller(unit);
     let actual = only(
@@ -639,7 +652,7 @@ fn module(
         }),
         owner,
     )?;
-    same(owner, actual, &expected)
+    same(owner, actual, expected)
 }
 
 fn core_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
@@ -729,7 +742,7 @@ fn core_module_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
             mod operation;
         ),
     ] {
-        module(sources, CoreAuctionRoot, expected)?;
+        module(sources, CoreAuctionRoot, &expected)?;
     }
     for expected in [
         syn::parse_quote!(
@@ -739,7 +752,7 @@ fn core_module_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
             pub mod resolve;
         ),
     ] {
-        module(sources, CoreConfigRoot, expected)?;
+        module(sources, CoreConfigRoot, &expected)?;
     }
     let file = sources.file(Owner::Caller(CoreConfigRoot))?;
     let alias = only(
@@ -798,35 +811,35 @@ fn runtime_bindings(sources: &ParsedSources) -> Result<(), Refusal> {
     module(
         sources,
         OpenRtbRoot,
-        syn::parse_quote!(
+        &syn::parse_quote!(
             pub mod prepare;
         ),
     )?;
     module(
         sources,
         OpenRtbRoot,
-        syn::parse_quote!(
+        &syn::parse_quote!(
             mod normalized;
         ),
     )?;
     module(
         sources,
         RuntimeRoot,
-        syn::parse_quote!(
+        &syn::parse_quote!(
             pub mod budget;
         ),
     )?;
     module(
         sources,
         ExchangeRoot,
-        syn::parse_quote!(
+        &syn::parse_quote!(
             pub mod context;
         ),
     )?;
     module(
         sources,
         ExchangeRoot,
-        syn::parse_quote!(
+        &syn::parse_quote!(
             pub mod run;
         ),
     )?;
@@ -1120,12 +1133,12 @@ fn exchange_rules() -> Vec<Rule> {
 }
 
 fn normalize_signature(signature: &mut syn::Signature) {
-    signature.inputs = std::mem::take(&mut signature.inputs).into_iter().collect();
-    signature.generics.params = std::mem::take(&mut signature.generics.params)
+    signature.inputs = mem::take(&mut signature.inputs).into_iter().collect();
+    signature.generics.params = mem::take(&mut signature.generics.params)
         .into_iter()
         .collect();
     if let Some(clause) = &mut signature.generics.where_clause {
-        clause.predicates = std::mem::take(&mut clause.predicates).into_iter().collect();
+        clause.predicates = mem::take(&mut clause.predicates).into_iter().collect();
     }
 }
 
@@ -1210,7 +1223,7 @@ fn implicit_gate() -> syn::Block {
 
 fn prefix(block: &syn::Block, anchor: SourceAnchor, supported: syn::Block) -> Result<(), Refusal> {
     for (ordinal, expected) in supported.stmts.into_iter().enumerate() {
-        statement(block, anchor, ordinal, expected)?;
+        statement(block, anchor, ordinal, &expected)?;
     }
     Ok(())
 }
@@ -1220,19 +1233,23 @@ fn core_gates(matched: &[Matched]) -> Result<(), Refusal> {
     exact_body(
         matched,
         caller_anchor(CorePrepare, "prepare_auction"),
-        prepare_gate(),
+        &prepare_gate(),
     )?;
     exact_body(
         matched,
         caller_anchor(CorePrepare, "admit_input"),
-        admission_gate(),
+        &admission_gate(),
     )?;
     exact_body(
         matched,
         caller_anchor(NormalizedPrepare, "prepare"),
-        normalization_gate(),
+        &normalization_gate(),
     )?;
-    exact_body(matched, caller_anchor(ImplicitFill, "run"), implicit_gate())?;
+    exact_body(
+        matched,
+        caller_anchor(ImplicitFill, "run"),
+        &implicit_gate(),
+    )?;
     let anchor = caller_anchor(CorePrepare, "prepare_state");
     prefix(
         body(matched, anchor)?,
@@ -1321,12 +1338,12 @@ fn storage_gates(matched: &[Matched]) -> Result<(), Refusal> {
     exact_body(
         matched,
         caller_anchor(CoreServices, "AuctionResourceProfile::construction_limits"),
-        construction_limits_gate(),
+        &construction_limits_gate(),
     )?;
     exact_body(
         matched,
         caller_anchor(CoreServices, "normalized_construction_limits"),
-        normalized_construction_gate(),
+        &normalized_construction_gate(),
     )?;
     exact_body(
         matched,
@@ -1334,12 +1351,12 @@ fn storage_gates(matched: &[Matched]) -> Result<(), Refusal> {
             ExchangeContext,
             "RequestConstructionLimits::with_supplement",
         ),
-        scoped_construction_gate(),
+        &scoped_construction_gate(),
     )?;
     exact_body(
         matched,
         caller_anchor(ExchangeContext, "RequestConstructionLimits::ensure"),
-        scoped_ensure_gate(),
+        &scoped_ensure_gate(),
     )
 }
 
@@ -1364,12 +1381,12 @@ fn policy_gates(matched: &[Matched]) -> Result<(), Refusal> {
     exact_body(
         matched,
         caller_anchor(CallerUnit::PolicyResolve, "clamp_host_to_boot"),
-        clamp_gate(),
+        &clamp_gate(),
     )?;
     exact_body(
         matched,
         caller_anchor(CallerUnit::PolicyHost, "resolve_policy_host"),
-        syn::parse_quote! {{
+        &syn::parse_quote! {{
             let mut host = requested_policy_host(product, &policy.host);
             clamp_host_to_boot(&mut host, funded);
             host
@@ -1530,7 +1547,7 @@ fn schema_scope_gates(matched: &[Matched]) -> Result<Vec<GuardSource>, Refusal> 
         block,
         anchor,
         1,
-        syn::parse_quote! {
+        &syn::parse_quote! {
             let Some((info, adapter)) = ctx.bidders.get(pbr.base.as_str()) else { return; };
         },
     )?;
@@ -1552,14 +1569,14 @@ fn schema_scope_gates(matched: &[Matched]) -> Result<Vec<GuardSource>, Refusal> 
         configuration_at
             .checked_add(3)
             .ok_or_else(|| shape(anchor.owner))?,
-        syn::parse_quote! { if !schema::admit(ctx, pbr, tmax, out) { return; } },
+        &syn::parse_quote! { if !schema::admit(ctx, pbr, tmax, out) { return; } },
     )?;
     let admit = context_anchor(ExchangeSchema, "admit");
     statement(
         body(matched, admit)?,
         admit,
         2,
-        syn::parse_quote! {
+        &syn::parse_quote! {
             if !mandatory && !funded_legacy { return true; }
         },
     )?;
@@ -1567,7 +1584,7 @@ fn schema_scope_gates(matched: &[Matched]) -> Result<Vec<GuardSource>, Refusal> 
         body(matched, admit)?,
         admit,
         4,
-        syn::parse_quote! {
+        &syn::parse_quote! {
             if ctx.schema_scratch_bytes < NATIVE_SCHEMA_SCRATCH_BYTES || ctx.projection_reservation.is_none() {
                 errors.push(error(NativeSchemaError::Unavailable));
                 return false;
@@ -1620,12 +1637,12 @@ fn split_gates(matched: &[Matched]) -> Result<(), Refusal> {
     exact_body(
         matched,
         context_anchor(ExchangeLimits, "cap_entries"),
-        cap_gate(),
+        &cap_gate(),
     )?;
     exact_body(
         matched,
         context_anchor(ExchangeLimits, "apply_max_bidder_names"),
-        syn::parse_quote! {{
+        &syn::parse_quote! {{
             cap_entries(names, cap, |name| name)
         }},
     )?;
@@ -1713,7 +1730,7 @@ fn expressions(
     exact_body(
         matched,
         caller_anchor(CallerUnit::CorePrepare, "normalization_limits"),
-        normalization_limits_gate(),
+        &normalization_limits_gate(),
     )?;
     let run = context_anchor(super::SourceRole::ExchangeRun, "run_auction");
     let (_, cap) = local(body(matched, run)?, run, "cap")?;
@@ -1788,7 +1805,7 @@ fn derive_caller_sources(
     exact_body(
         &matched,
         context_anchor(super::SourceRole::ExchangeRun, "scrub_bidder_requests"),
-        scope_gate(),
+        &scope_gate(),
     )?;
     let scope_guards = schema_scope_gates(&matched)?;
     let (original_impressions_upper, effective_bidder_cap, scoped_nodes_upper) =
@@ -2670,7 +2687,7 @@ mod tests {
                     && value.ident == name
                 {
                     assert_eq!(value.expr.to_token_stream().to_string(), literal);
-                    value.expr = Box::new(replacement.clone());
+                    *value.expr = replacement.clone();
                     hits = hits.checked_add(1).unwrap();
                 }
             }
@@ -2748,9 +2765,9 @@ mod tests {
                             initial.to_token_stream().to_string(),
                             expected.to_token_stream().to_string()
                         );
-                        *initial = Box::new(syn::parse_quote!(
+                        **initial = syn::parse_quote!(
                             ctx.host.resource_limits.max_bidders_per_auction.max(0)
-                        ));
+                        );
                         hits = hits.checked_add(1).unwrap();
                     }
                 }
