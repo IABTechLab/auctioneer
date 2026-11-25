@@ -297,20 +297,18 @@ mod tests {
             .iter()
             .map(|row| row["owner"].as_str().unwrap())
             .collect::<Vec<_>>();
-        {
-            let mut functions = syntax.items.iter_mut().filter_map(|item| {
-                if let syn::Item::Fn(function) = item {
-                    (function.sig.ident == "native_owner").then_some(function)
-                } else {
-                    None
-                }
-            });
-            let function = functions.next().expect("captured native_owner function");
-            assert!(functions.next().is_none());
-            *function.block = syn::parse_quote!({
-                match name { #(#names => Some(#owners),)* _ => None }
-            })
-        };
+        let mut functions = syntax.items.iter_mut().filter_map(|item| {
+            if let syn::Item::Fn(function) = item {
+                (function.sig.ident == "native_owner").then_some(function)
+            } else {
+                None
+            }
+        });
+        let function = functions.next().expect("captured native_owner function");
+        assert!(functions.next().is_none());
+        *function.block = syn::parse_quote!({
+            match name { #(#names => Some(#owners),)* _ => None }
+        });
         changed.rust = syntax.to_token_stream().to_string().into_bytes();
         let mut manifest: Value = serde_json::from_slice(&changed.manifest_bytes).unwrap();
         manifest["emitted_rust_sha256"] = json!(hex::encode(Sha256::digest(&changed.rust)));

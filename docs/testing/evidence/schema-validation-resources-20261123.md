@@ -883,3 +883,16 @@ test result: ok. 136 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; 
 The 980-case graph retains all six separately owned secure exclusions. Both explicit strict source-target Clippy commands are reached and fail with `could not compile ... due to 14 previous errors`, exit 101. These are regular-file assertion spelling, block-semicolon placement, identical match arms, guarded indexing, shadowed names, an unnecessary lazy closure, one fixture integer's type fallback and a consumer-local inherent extension on the shared const-impl syntax type. The complete matrix has 24 successful checks and compiler-schema failed, not a full passing result.
 
 The next repair uses equivalent `Metadata::is_file()` (never `!is_dir()`), merges identical arms without moving their guards, retains exact one-element dereference checks through `first()`, makes the same JSON integer explicitly `u64`, and turns the consumer-specific const-header method into a free helper with the same attribute/token checks. Other changes rename locals or move an equivalent semicolon. Static specification and quality reviews find no semantic, guard, source-token or oracle change. No allowances, removed assertions, rewritten captures, runtime changes or relaxed limits are introduced. Pinned rustfmt remains editing only; the next full hosted matrix and reached strict lint remain mandatory. These GREEN inputs still do not close ordinary work, bytes, source/artifact authority, cleanup, stack, numerical policy or target qualification.
+
+### Redundant Fixture Scope Reaches Strict Lint
+
+At `8c52e4fdd7f871a23e1a52e8d96fe7baf35b3975`, the [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45686428242/job/139460124063) records these secure-source and compiler-control results before reaching strict source-target Clippy:
+
+```text
+test result: ok. 974 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1264.99s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 188.64s
+error: could not compile `auctioneer-bidder` (test "schema_source_conformance") due to 2 previous errors
+##[error]Process completed with exit code 101.
+```
+
+The two diagnostics are `semicolon_inside_block` and `semicolon_if_nothing_returned` in `public_names.rs::tests::seed_with_routes`. Moving the semicolon had removed the preceding `semicolon_outside_block` diagnostic but exposed the other two; strict lint therefore remains failing, not waived. The other thirteen preceding diagnostics are absent from the reached command. The latest local correction removes only that redundant lexical block and retains the exact iterator, unique-function assertion, generated quote tokens, mutation and manifest digest update. Ordinary non-lexical borrow ending permits serialization after the last mutable use; no explicit drop, new helper, allowance or assertion change is introduced. Pinned formatting is editing only. The complete fixing-head hosted matrix remains required; prior-head unfinished development/artifact steps are not claimed as acceptance.
