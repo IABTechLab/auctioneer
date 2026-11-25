@@ -670,3 +670,23 @@ Static review catches three authored scalar defects before publication: an unava
 Caller expected syntax now constructs `Stmt::Expr(expr, None)` at all three semicolon-free tail sites rather than parsing each as a standalone statement. The source expressions and all four caller test/oracle blocks remain unchanged. Independent static specification/quality review clears SHA-256 `61f3997567405619ba8be5edf41602fa92080ffbafeee53a1f66b551a04c4798`; it is not an executed caller GREEN result.
 
 Pinned rustfmt is editing only, and whitespace checking is not compilation. Hosted implementation GREEN, reached strict source-target lint and the unchanged full final-head matrix are pending. The canonical report remains a refusal stub in this checkpoint; its independently gated hard cut is separate unfinished work. No component review grants source completeness, numerical policy/funding, target facts, serving permission, review readiness or issue closure.
+
+### Object Traversal And Conditional Scalar GREEN
+
+At `aabe6b45f4681a080213296c5b95c65f640f85af`, 24 hosted checks pass and only [compiler-schema](https://github.com/IABTechLab/auctioneer/actions/runs/45564634292/job/139036348984) fails. Actual secure source, development residency and development validation lines:
+
+```text
+test result: FAILED. 951 passed; 11 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1306.38s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 841 filtered out; finished in 90.68s
+test result: FAILED. 111 passed; 11 failed; 0 ignored; 0 measured; 846 filtered out; finished in 337.68s
+```
+
+All seven traversal cases and all three conditional scalar cases report `ok` in both lanes, including their existing independent source-drift, zero-attempt and overflow controls. All 122 required development validation cases execute; the graph remains 968 cases with the same six secure exclusions. This is GREEN for the supported conditional contracts, not complete ordinary primitive work or artifact/source authority.
+
+The four caller cases no longer panic while parsing tail statements. Their positive comparisons now return `Err(Context(SourceShape(ExchangeSplit)))`, requiring a precise supported-source diagnosis. This remains an authored recognizer failure, not caller GREEN, intended missing-behavior RED or a target fact. The other seven failures are the four canonical-report/retirement cases and three older prefix cases. Strict source-target Clippy and compiler controls remain not reached; no full acceptance or common completion is claimed.
+
+### Application Attachment Oracle: Tests-First Checkpoint
+
+Static review of the unpublished atomic report cutover identifies a missing integration oracle: the four real application tests do not inspect the new `validation_resources` attachment. The next checkpoint adds only a twenty-line assertion hunk to their existing shared report helper. Positive descriptor/handoff binding and identity checks precede the required validation object, exact kind, Incomplete status, three false permission/qualification flags and same-capture binding equality. It invokes no unpublished API and adds no test target, case, job or build.
+
+Separate static specification and quality reviews clear this assertion hunk. The frozen full-worktree root hash is `f22120ea7eddd03dadcb981f95d0063c0ebeacf10571216c9440275fa90ee822`; removing only the hunk reproduces the earlier frozen root `0950cc037c500fd163406c766938104b8616d9983f9eb9e4b90a792de4490c15`. Only the assertion hunk is staged against the committed baseline, which has no report attachment. The cutover, moved observations, canonical checker and required-roster additions remain unpublished until this integration oracle reaches hosted assertion RED. Expected failure is the missing validation object, not a failed binding setup; this expectation is not yet executed evidence. No local executable verification ran and no assertion or limit was weakened.

@@ -847,6 +847,26 @@ mod tests {
         let graph = &report["expanded_schema_graph"];
         let descriptor = &graph["source_descriptor"];
         assert_actual_source_projection(descriptor, package, &report["lane"]);
+        let binding = &descriptor["validation_handoff"]["binding"];
+        assert!(binding.as_object().is_some_and(|fields| !fields.is_empty()));
+        assert_eq!(binding, &descriptor["binding"]);
+        assert!(
+            binding["identity"]
+                .as_str()
+                .is_some_and(|identity| !identity.is_empty())
+        );
+        assert_eq!(
+            binding["identity"],
+            report["applications"][0]["identity_sha256"]
+        );
+        let validation = &graph["validation_resources"];
+        assert!(validation.is_object());
+        assert_eq!(validation["kind"], "schema_validation_resources");
+        assert_eq!(validation["status"], "Incomplete");
+        assert_eq!(validation["resource_qualification"], false);
+        assert_eq!(validation["physical_fit"], false);
+        assert_eq!(validation["serving_permission"], false);
+        assert_eq!(&validation["binding"], binding);
         let programs = descriptor["programs_in_initialization_order"]
             .as_array()
             .unwrap();
