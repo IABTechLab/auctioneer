@@ -342,6 +342,16 @@ fn match_free(
     Ok(actual.block.as_ref().clone())
 }
 
+fn same_impl_kind(actual: &syn::ItemImpl, expected: &syn::ItemImpl) -> bool {
+    match (&actual.trait_, &expected.trait_) {
+        (None, None) => true,
+        (Some((actual_path, _)), Some((expected_path, _))) => {
+            tokens(actual_path) == tokens(expected_path)
+        }
+        (None, Some(_)) | (Some(_), None) => false,
+    }
+}
+
 fn match_method(
     file: &syn::File,
     rule: &Rule,
@@ -351,6 +361,7 @@ fn match_method(
         file.items.iter().filter_map(|item| {
             if let syn::Item::Impl(implementation) = item
                 && tokens(&implementation.self_ty) == tokens(&expected.self_ty)
+                && same_impl_kind(implementation, expected)
             {
                 Some(implementation)
             } else {
@@ -1805,7 +1816,8 @@ fn derive_caller_sources(
 mod tests {
     use super::{
         BorrowDuty, CallerContract, CallerSource, CallerUnit, CapExpression, CapField, CleanupDuty,
-        GuardSource, Owner, Refusal, ScopeGuard, SourceAnchor, derive_caller_sources,
+        GuardSource, Owner, Refusal, ScopeGuard, SourceAnchor, derive_caller_sources, match_method,
+        method_rule,
     };
     use crate::schema_validation::work::{
         BUDGET, ContextBinding, ContextSources, DISPATCH_GENERATOR, EXCHANGE_LIMITS, EXCHANGE_RUN,
@@ -2797,6 +2809,58 @@ mod tests {
         }
     }
 
+    // Selector DATA only: these ASTs cannot establish a caller/source binding.
+    fn assert_impl_kind_selection() {
+        let expected: syn::ItemImpl = syn::parse_quote! {
+            impl FakeMethodOwner {
+                fn selected(&self) -> u64 {}
+            }
+        };
+        let rule = method_rule(
+            caller(CallerUnit::CoreServices, "FakeMethodOwner::selected"),
+            expected.clone(),
+        );
+        let actual: syn::File = syn::parse_quote! {
+            impl FakeMethodOwner {
+                fn selected(&self) -> u64 { 7 }
+            }
+            impl FakeUnrelatedTrait for FakeMethodOwner {
+                fn selected(&self) -> u64 { 19 }
+            }
+        };
+        assert_eq!(actual.items.len(), 2);
+        let selected: syn::Block = syn::parse_quote!({ 7 });
+        assert_eq!(
+            match_method(&actual, &rule, &expected)
+                .map(|block| block.to_token_stream().to_string()),
+            Ok(selected.to_token_stream().to_string())
+        );
+        let mut duplicate = actual.clone();
+        let syn::Item::Impl(inherent) = actual.items.first().unwrap() else {
+            panic!("inherent selector before-state");
+        };
+        assert!(inherent.trait_.is_none());
+        duplicate.items.push(syn::Item::Impl(inherent.clone()));
+        assert_eq!(
+            match_method(&duplicate, &rule, &expected).map(|_| ()),
+            Err(Refusal::SourceShape(CallerUnit::CoreServices))
+        );
+        let mut wrong_trait = actual.clone();
+        assert!(matches!(
+            wrong_trait.items.first(),
+            Some(syn::Item::Impl(implementation)) if implementation.trait_.is_none()
+        ));
+        *wrong_trait.items.first_mut().unwrap() = syn::parse_quote! {
+            impl FakeRedirectedTrait for FakeMethodOwner {
+                fn selected(&self) -> u64 { 7 }
+            }
+        };
+        assert_eq!(
+            match_method(&wrong_trait, &rule, &expected).map(|_| ()),
+            Err(Refusal::SourceShape(CallerUnit::CoreServices))
+        );
+    }
+
     #[test]
     fn missing_and_rehashed_caller_sources_refuse_at_zero_attempts() {
         let context = context();
@@ -2808,5 +2872,6 @@ mod tests {
         assert_rehashed_bidder_clamp(&context, &rows);
         assert_changed_effective_floor(&context, &rows);
         assert_rehashed_import_redirects(&context, &rows);
+        assert_impl_kind_selection();
     }
 }

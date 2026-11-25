@@ -820,16 +820,15 @@ mod tests {
             }
             visit_mut::visit_expr_assign_mut(self, assign);
         }
-        fn visit_expr_macro_mut(&mut self, expression: &mut syn::ExprMacro) {
+        fn visit_macro_mut(&mut self, mac: &mut syn::Macro) {
             if self.writers
-                && expression
-                    .mac
+                && mac
                     .path
                     .segments
                     .last()
                     .is_some_and(|segment| segment.ident == "json")
             {
-                let (field, kinds) = retired_json(expression.mac.tokens.clone());
+                let (field, kinds) = retired_json(mac.tokens.clone());
                 if field {
                     self.sites
                         .fields
@@ -837,7 +836,7 @@ mod tests {
                 }
                 self.sites.kinds.extend(kinds);
             }
-            visit_mut::visit_expr_macro_mut(self, expression);
+            visit_mut::visit_macro_mut(self, mac);
         }
     }
     fn census_with(syntax: &mut syn::File, owner: FixtureOwner) -> RetiredSites {

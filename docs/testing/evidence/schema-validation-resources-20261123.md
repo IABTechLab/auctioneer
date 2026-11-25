@@ -622,3 +622,23 @@ error: could not compile `auctioneer-bidder` (test "schema_source_conformance") 
 ```
 
 The import matcher moves an owned destination into its result before the later glob-refusal check borrows it. The repair evaluates that unchanged refusal before the possible move, preserving the owned result, visibility/attribute checks and exact supported-import rule without cloning. This is an author-owned compilation defect, not tests-first RED, a source/target prerequisite or a runtime behavior change. Static review did not establish compilation. None of the eleven new assertion contracts ran, and caller/entropy GREEN is not established by this head. Hosted compilation, exact dispatch, later strict lint and full acceptance remain required at the repairing head; no assertion, check or limit is waived.
+
+### New Traversal And Scalar Contracts Reach Assertion RED
+
+At `a3c2f2c25e92751d87d47343ff7dab5f7ba770f2`, the completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45556166479/job/139008731306) compiles the source target and executes both feature lanes. Both source scripts return 101. Actual secure source, development residency and development validation result lines:
+
+```text
+test result: FAILED. 944 passed; 18 failed; 0 ignored; 0 measured; 6 filtered out; finished in 870.21s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 841 filtered out; finished in 51.47s
+test result: FAILED. 104 passed; 18 failed; 0 ignored; 0 measured; 846 filtered out; finished in 174.93s
+```
+
+The graph contains 968 cases. Secure executes 962 with the same six separately owned exclusions, and development executes all 122 validation cases. All three entropy cases now report `ok` in both lanes, alongside the twelve primitive and three original traversal cases. These are bounded component results, not complete common work or source authority for target artifacts.
+
+The four new traversal cases reach positive comparisons with `Err(CallBinding(Site { function: 1, lexical: [] }))`; the three new scalar cases reach positive comparisons with `Err(MissingSourceProof)`. Both feature lanes execute these intended missing-behavior failures. Their independent numeric expectations remain unchanged. This permits implementation of the supported parameter/cache/object grammar and conditional scalar bounds, not filling unrelated unknown work, cleanup or artifact slots.
+
+Three report cases reach their intended `MissingSourceProof` comparisons. The fourth, `retired_assembly_has_no_active_callers`, fails its own positive census fixture before the actual retirement comparison: the visitor reports no field for a semicolon-terminated `json!` statement expected to contain `native_cache_heap_candidate`. Syn represents this as a statement macro, outside the expression-only hook. The narrow repair uses the shared generic macro visitor while keeping the `json` filter, exact fixture exemptions and all expectations unchanged. Canonical report implementation and hard cut remain gated on this case reaching the actual retirement assertion in both lanes.
+
+All four caller cases instead reach `Err(SourceShape(CoreServices))`. Static diagnosis finds that method selection counts both an inherent `AuctionFunding` implementation and its distinct `Debug` trait implementation because it filters only by self type. The repair distinguishes the expected trait kind/path before uniqueness, then retains the full existing header comparison. Synthetic controls independently retain unrelated trait methods, duplicate the inherent implementation and replace it with a trait implementation. These are author-owned supported-source setup defects, not valid tests-first RED, target prerequisites or permission to relax an oracle.
+
+The full hosted matrix completes with 24 successful checks and one failure, compiler-schema. Explicit strict source-target Clippy and compiler controls remain not run after the source failure. The source-first ordering is exercised; it does not waive later commands on a passing head. No local executable verification, changed assertion, new target/job, resource-limit change, serving change or accounting change is introduced. Full final-head acceptance, report retirement and complete common derivations remain required; this is not review readiness or issue closure.
