@@ -803,7 +803,7 @@ mod tests {
             // Only inspect semantic/join results after all prior real source,
             // compiler, seed/view checks and their existing controls complete.
             assert_eq!(semantic_setup, Some(Ok(())));
-            let semantic_refusal = assert_semantic_source_control(seed, view, &data);
+            let semantic_refusals = assert_semantic_source_control(seed, view, &data);
             work::assert_demand_setup(&demands);
             work::assert_cost_projections(&demands, helper_costs.as_ref().unwrap());
             let checked_refusals = refused_costs.as_ref().unwrap();
@@ -811,12 +811,14 @@ mod tests {
             for (observed_cost, (_, expected)) in checked_refusals.iter().zip(&controls) {
                 assert_eq!(observed_cost.as_ref().err(), Some(expected));
             }
-            assert_eq!(
-                semantic_refusal,
-                Err(HelperSourceJoinRefusal::SourceInterpretation(
-                    HelperInterpretationRefusal::UnsupportedBody(HelperSourceUnit::Nfa)
-                ))
-            );
+            for semantic_refusal in semantic_refusals {
+                assert_eq!(
+                    semantic_refusal,
+                    Err(HelperSourceJoinRefusal::SourceInterpretation(
+                        HelperInterpretationRefusal::UnsupportedBody(HelperSourceUnit::Nfa)
+                    ))
+                );
+            }
             Ok(())
         })
         .unwrap();
@@ -875,14 +877,14 @@ mod tests {
         seed: &CapturedSeed,
         view: ValidationView<'_>,
         data: &Fixture,
-    ) -> Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal> {
+    ) -> [Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal>; 2] {
         // Only owned replay bytes change. No vendor/std/build source is written.
         let changed = semantic_source_drift(data);
         let mut reads = replay(&changed);
         let events = Rc::clone(&reads.events);
         let interpreted = Rc::clone(&reads.events);
         let demands = work::conditional_demands();
-        let mut cost_result = None;
+        let mut cost_results = None;
         let refused = with_source_data(
             seed,
             view,
@@ -890,7 +892,10 @@ mod tests {
             |phase| events.borrow_mut().push(Event::Check(phase)),
             |inputs| {
                 interpreted.borrow_mut().push(Event::Interpret);
-                cost_result = Some(work::join_helper_costs(inputs, &demands[0]));
+                cost_results = Some([
+                    work::join_helper_costs(inputs, &demands[0]),
+                    work::join_helper_costs(inputs, &demands[4]),
+                ]);
                 work::check_helper_source_setup(inputs)
             },
         );
@@ -903,7 +908,7 @@ mod tests {
             ))
         );
         assert_eq!(*reads.events.borrow(), expected_events());
-        cost_result.unwrap()
+        cost_results.unwrap()
     }
 
     #[test]
