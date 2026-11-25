@@ -492,3 +492,15 @@ error: could not compile `auctioneer-bidder` (test "schema_source_conformance") 
 ```
 
 The root workspace enables Syn's `full` feature and bidder dev dependencies already enable `visit-mut`, not `visit`. The new primitive diagnostic walker incorrectly selected the unavailable API. The narrow repair uses the existing `VisitMut` API over a private AST clone; it changes only unknown-call diagnostic traversal, not supported source recognition, event arithmetic, assertions, features or dependencies. This is an author-owned compilation failure, not intended tests-first RED. The eleven new controls, primitive/stack implementations, strict lint and full acceptance still require hosted execution at the fixing head. No local executable check was run or acceptance waived.
+
+### Synthetic Syn File Constructor Requires Its Current Field
+
+At `185f8cb3bddffb931ce8c2887188926b7de617f0`, the [Spin artifact job](https://github.com/IABTechLab/auctioneer/actions/runs/45531703509/job/138928472001) and [selected-source job](https://github.com/IABTechLab/auctioneer/actions/runs/45531703509/job/138928472020) independently failed compilation with exit 101:
+
+```text
+error[E0063]: missing field `frontmatter` in initializer of `syn::File`
+--> crates/auctioneer-bidder/tests/schema_validation/work/epsilon/primitives/source.rs:910:16
+error: could not compile `auctioneer-bidder` (test "schema_source_conformance") due to 1 previous error
+```
+
+The visitor import failure no longer appears; compilation reaches the synthetic file used to inspect the index-macro implementation. The one-line repair initializes `frontmatter: None`, matching locked Syn 3.0.10's own `Parse for File`. Its current `parse_file` handles BOM/shebang then delegates to that parser; the empty non-exhaustive frontmatter marker is not populated by this source path. No source header is erased or newly accepted, and no unsafe or fabricated frontmatter fixture is added. Source inspection found only this new File struct literal in the validation owner. Recognition, event arithmetic, source populations, assertions, dependency features and limits are unchanged. This second author-owned compile failure establishes no new assertion RED or implementation GREEN; all required hosted execution remains pending at the fixing head.

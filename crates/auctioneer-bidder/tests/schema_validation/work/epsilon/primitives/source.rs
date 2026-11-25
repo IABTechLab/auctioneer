@@ -909,6 +909,7 @@ fn macro_id_methods(items: &[TokenStream]) -> Result<(), Refusal> {
     }
     let file = syn::File {
         shebang: None,
+        frontmatter: None,
         attrs: Vec::new(),
         items: implementations,
     };
