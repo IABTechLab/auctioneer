@@ -1192,3 +1192,30 @@ The actual-source case completes all six import controls and twelve positive/zer
 The next tests-first checkpoint makes the existing current-source report case invoke the real `current_report` entrypoint after its original diagnostic, coverage and refusal controls. It requires `CommonSourceComplete` and complete storage, work, structural-stack, shape-correspondence and attempted-work derivations. It still requires `TargetIncomplete`, unevaluated numerical policy, unestablished attempted-work funding and false qualification/fit/serving flags. The existing current-body and actual-application attachment expectations are reconciled to the same canonical completion contract; no-proof diagnostic and forged/hybrid refusals remain separate and unchanged.
 
 This deliberately removes the false completion signal from a suite whose real-source assertions accepted an incomplete diagnostic. It adds no test case, capture, source reader, build, target, job, limit, dependency or serving path. Existing GitHub owners must execute the semantic RED and then the complete implementation's GREEN. No local executable verification is run. At preparation, expected RED is the existing canonical reporter returning `Incomplete`, not a compiler/setup error or zero-test selection. It is not executed evidence until the hosted logs confirm it. Later completion assertions are not credited until reached. A status-only change cannot satisfy the required underlying source derivations, and no missing common proof may be moved to a target-fact placeholder.
+
+### Refreshed Archive Reaches The Whole-Feature Assertion
+
+The first whole-feature checkpoint at `aa8f5182f1f786a403d236fe7e6a66ddd632cb2a` cannot reach source tests: the baked GCL expires before compilation. The [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45889238565/job/140147510968) reports `baked GCL is stale: expired 2026-11-26 16:01:09.631887112 +00:00:00`, with exit 101. That is a prerequisite failure, not semantic RED.
+
+The maintainer merged #269 into main as `7f0ee8a97dab947cf9c75024a47a980fb8411262`. A normal main merge integrates its four archive-file changes without conflicts into `e03d90c8cdb88bd7128422ad82ace50bb86a119c`. `git diff HEAD^ --check` returns exit 0. No freshness override, test, timeout, workload or resource policy changes.
+
+The completed [Axum application job](https://github.com/IABTechLab/auctioneer/actions/runs/45891310955/job/140154411686) now builds and executes the real application attachment case. Its log, downloaded with `gh api --allow-escape-sequences repos/IABTechLab/auctioneer/actions/jobs/140154411686/logs` (exit 0), records:
+
+```text
+thread 'tests::actual_application_artifacts_axum_retain_every_selected_validator_in_both_feature_lanes' (5572) panicked at crates/auctioneer-bidder/tests/schema_source_conformance.rs:848:9:
+assertion `left == right` failed
+  left: String("Incomplete")
+ right: "CommonSourceComplete"
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 982 filtered out; finished in 187.85s
+Process completed with exit code 101.
+```
+
+The source-projection output precedes that assertion; this is the intended missing common-completion behavior, not compilation, stale-input or zero-test failure. The first failing feature lane aborts that case; later lane assertions are not credited. Other current-run jobs remain pending at this recording, so this is not a full-matrix result. #47 and the draft PR remain incomplete.
+
+### Helper Logical Paths Prepared For Hosted RED
+
+The next tests-first checkpoint extends the existing conditional helper contract, not another source reader or stack evaluator. The original matched-callee event rows already own the concrete helper frames and sequential calls. Ordered simultaneous root-to-leaf alternatives are still missing, so the seam deliberately returns `None` until its semantic assertion RED is observed. The final successful contract must always carry the derived paths; the missing-path seam is not a fallback to retain.
+
+Independent hand-authored oracles require eight NFA paths and sixteen sparse-insert paths, exact frame union and unit-weight peaks eleven/thirteen. Changing the Arc and Vec frame weights independently proves sequential alternatives, not simultaneous summation. Sparse equality weights thirteen/eleven force peak twenty-six and retain the live Insert/Contains ancestors around the frameless RHS fragment. Zero demand retains every structural obligation. Private row corruptions cover missing/cyclic/unreachable nodes, an ordinary frame disappearing and a fragment acquiring an invented frame. These are source/path controls and fictional algebra, never physical frame facts or a target qualifier.
+
+All prior helper counts, three partial work components, symbolic writes, required buffers, invariant/source/window controls and test identities remain. The existing actual-source projection oracle checks paths only after its earlier assertions; no test case, reader, capture, build, target, job, dependency, limit or serving behavior is added. This local lemma does not complete common storage, work, stack, attempt or token correspondence. Fresh hosted helper-path RED and subsequent implementation/GREEN remain required; no local executable verification runs.

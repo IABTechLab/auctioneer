@@ -168,6 +168,9 @@ struct LocalContract {
     writes: SymbolicWrites,
     ledger: WorkLedger,
     required_frames: BTreeSet<HelperKey>,
+    // Logical root-to-leaf alternatives only; None means not yet derived.
+    // These are not target frame sizes, byte endpoints or actual-use authority.
+    simultaneous_frame_paths: Option<BTreeSet<Vec<HelperKey>>>,
     unresolved_ordinary_helpers: BTreeSet<HelperKey>,
     // Existing WorkLedger unit names: no new units and no total-copy claim.
     required_buffer_bounds: BTreeSet<&'static str>,
@@ -230,6 +233,14 @@ impl ConditionalHelperDemand {
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) struct ConditionalHelperCostProjection {
     contract: LocalContract,
+}
+
+impl ConditionalHelperCostProjection {
+    pub(in crate::schema_validation) fn simultaneous_frame_paths(
+        &self,
+    ) -> Option<&BTreeSet<Vec<HelperKey>>> {
+        self.contract.simultaneous_frame_paths.as_ref()
+    }
 }
 
 // Positive source setup only: no receiver, epoch, invocation or invariant
@@ -529,6 +540,308 @@ pub(in crate::schema_validation) mod conditional_fixture {
             let projection = actual.as_ref().unwrap();
             assert_projection(index, demand, &projection.contract);
         }
+        // All old cost/binding/write/premise assertions above run first. This
+        // oracle also runs after the actual source window in both feature lanes.
+        for (demand, actual) in demands.iter().zip(results) {
+            let projection = actual.as_ref().unwrap();
+            assert_frame_paths(
+                demand.lemma,
+                projection.simultaneous_frame_paths(),
+                &projection.contract.required_frames,
+            );
+        }
+    }
+
+    fn path(prefix: &[HelperKey], suffix: &[HelperKey]) -> Vec<HelperKey> {
+        prefix.iter().chain(suffix).cloned().collect()
+    }
+
+    // Hand-authored source chains, not traversal of events::rows or a helper
+    // census. The three pointer leaves return separately beneath RawVecInner::ptr.
+    fn pointer_paths(prefix: &[HelperKey], lemma: Lemma) -> Vec<Vec<HelperKey>> {
+        use SourceUnit::*;
+        let [
+            raw,
+            ptr,
+            non_null,
+            cast,
+            unique_ptr,
+            non_null_cast,
+            element_ptr,
+        ] = match lemma {
+            Lemma::NfaStateAccess => [
+                key(RawVec, "RawVec<T>", "ptr", "&RawVec<State>"),
+                key(RawVec, "RawVecInner", "ptr::<State>", "&RawVecInner"),
+                key(RawVec, "RawVecInner", "non_null::<State>", "&RawVecInner"),
+                key(Unique, "Unique<T>", "cast::<State>", "Unique<u8>"),
+                key(Unique, "Unique<T>", "as_non_null_ptr", "Unique<State>"),
+                key(NonNull, "NonNull<T>", "cast::<State>", "NonNull<u8>"),
+                key(NonNull, "NonNull<T>", "as_ptr", "NonNull<State>"),
+            ],
+            Lemma::SparseSetInsert => [
+                key(RawVec, "RawVec<T>", "ptr", "&RawVec<StateID>"),
+                key(RawVec, "RawVecInner", "ptr::<StateID>", "&RawVecInner"),
+                key(RawVec, "RawVecInner", "non_null::<StateID>", "&RawVecInner"),
+                key(Unique, "Unique<T>", "cast::<StateID>", "Unique<u8>"),
+                key(Unique, "Unique<T>", "as_non_null_ptr", "Unique<StateID>"),
+                key(NonNull, "NonNull<T>", "cast::<StateID>", "NonNull<u8>"),
+                key(NonNull, "NonNull<T>", "as_ptr", "NonNull<StateID>"),
+            ],
+        };
+        let prefix = path(prefix, &[raw, ptr]);
+        vec![
+            path(
+                &prefix,
+                &[
+                    non_null.clone(),
+                    cast,
+                    non_null_cast,
+                    key(NonNull, "NonNull<T>", "as_ptr", "NonNull<u8>"),
+                ],
+            ),
+            path(&prefix, &[non_null, unique_ptr]),
+            path(&prefix, &[element_ptr]),
+        ]
+    }
+
+    pub(super) fn expected_frame_paths(lemma: Lemma) -> BTreeSet<Vec<HelperKey>> {
+        use SourceUnit::*;
+        let paths = match lemma {
+            Lemma::NfaStateAccess => {
+                let state = key(Nfa, "NFA", "state", "&NFA");
+                let states = vec![state.clone(), key(Nfa, "NFA", "states", "&NFA")];
+                let arc = path(
+                    &states,
+                    &[
+                        key(Arc, "Arc<T>", "deref", "&Arc<nfa::Inner>"),
+                        key(Arc, "Arc<T>", "inner", "&Arc<nfa::Inner>"),
+                        key(
+                            NonNull,
+                            "NonNull<T>",
+                            "as_ref",
+                            "&NonNull<ArcInner<nfa::Inner>>",
+                        ),
+                    ],
+                );
+                let mut result = vec![
+                    path(
+                        &arc,
+                        &[key(
+                            NonNull,
+                            "NonNull<T>",
+                            "as_ptr",
+                            "NonNull<ArcInner<nfa::Inner>>",
+                        )],
+                    ),
+                    path(
+                        &arc,
+                        &[key(
+                            MutPtr,
+                            "*mut T",
+                            "cast_const",
+                            "*mut ArcInner<nfa::Inner>",
+                        )],
+                    ),
+                    vec![
+                        state.clone(),
+                        key(Ids, "[T]", "index<StateID>", "&[State]"),
+                        key(Ids, "StateID", "as_usize", "&StateID"),
+                        key(Ids, "SmallIndex", "as_usize", "&SmallIndex"),
+                    ],
+                    vec![
+                        state,
+                        key(Ids, "[T]", "index<StateID>", "&[State]"),
+                        key(SliceIndex, "[T]", "index<usize>", "&[State]"),
+                        key(SliceIndex, "usize", "index", "&[State]"),
+                    ],
+                    vec![key(Nfa, "State", "is_epsilon", "&State")],
+                ];
+                // Arc dereference has returned before this Vec subtree starts.
+                result.extend(pointer_paths(
+                    &path(
+                        &states,
+                        &[
+                            key(Vec, "Vec<T>", "deref", "&Vec<State>"),
+                            key(Vec, "Vec<T>", "as_slice", "&Vec<State>"),
+                            key(Vec, "Vec<T>", "as_ptr", "&Vec<State>"),
+                        ],
+                    ),
+                    lemma,
+                ));
+                result
+            }
+            Lemma::SparseSetInsert => {
+                let insert = vec![key(Sparse, "SparseSet", "insert", "&mut SparseSet")];
+                let contains = path(
+                    &insert,
+                    &[key(Sparse, "SparseSet", "contains", "&SparseSet")],
+                );
+                let read_index = path(
+                    &contains,
+                    &[key(Ids, "Vec<T>", "index<StateID>", "&Vec<StateID>")],
+                );
+                let read_vec = path(
+                    &read_index,
+                    &[key(Vec, "Vec<T>", "index<usize>", "&Vec<StateID>")],
+                );
+                let write_index = path(
+                    &insert,
+                    &[key(
+                        Ids,
+                        "Vec<T>",
+                        "index_mut<StateID>",
+                        "&mut Vec<StateID>",
+                    )],
+                );
+                let write_vec = path(
+                    &write_index,
+                    &[key(Vec, "Vec<T>", "index_mut<usize>", "&mut Vec<StateID>")],
+                );
+                let conversion = [
+                    key(Ids, "StateID", "as_usize", "&StateID"),
+                    key(Ids, "SmallIndex", "as_usize", "&SmallIndex"),
+                ];
+                let mut result = vec![
+                    path(&read_index, &conversion),
+                    path(
+                        &read_vec,
+                        &[
+                            key(SliceIndex, "[T]", "index<usize>", "&[StateID]"),
+                            key(SliceIndex, "usize", "index", "&[StateID]"),
+                        ],
+                    ),
+                    path(&contains, &conversion),
+                    path(&contains, &[key(Sparse, "SparseSet", "len", "&SparseSet")]),
+                    // ContainsRhs has no frame; both callers are still active.
+                    path(
+                        &contains,
+                        &[
+                            key(Ids, "StateID", "eq", "&StateID"),
+                            key(Ids, "SmallIndex", "eq", "&SmallIndex"),
+                        ],
+                    ),
+                    // InsertSuccess has no frame, but insert has not returned.
+                    path(&insert, &[key(Sparse, "SparseSet", "len", "&SparseSet")]),
+                    path(
+                        &insert,
+                        &[
+                            key(Sparse, "SparseSet", "capacity", "&SparseSet"),
+                            key(Vec, "Vec<T>", "len", "&Vec<StateID>"),
+                        ],
+                    ),
+                    path(
+                        &insert,
+                        &[
+                            key(Ids, "StateID", "new_unchecked", "usize"),
+                            key(Ids, "SmallIndex", "new_unchecked", "usize"),
+                        ],
+                    ),
+                    path(&write_index, &conversion),
+                    path(
+                        &write_vec,
+                        &[
+                            key(SliceIndex, "[T]", "index_mut<usize>", "&mut [StateID]"),
+                            key(SliceIndex, "usize", "index_mut", "&mut [StateID]"),
+                        ],
+                    ),
+                ];
+                result.extend(pointer_paths(
+                    &path(
+                        &read_vec,
+                        &[
+                            key(Vec, "Vec<T>", "deref", "&Vec<StateID>"),
+                            key(Vec, "Vec<T>", "as_slice", "&Vec<StateID>"),
+                            key(Vec, "Vec<T>", "as_ptr", "&Vec<StateID>"),
+                        ],
+                    ),
+                    lemma,
+                ));
+                result.extend(pointer_paths(
+                    &path(
+                        &write_vec,
+                        &[
+                            key(Vec, "Vec<T>", "deref_mut", "&mut Vec<StateID>"),
+                            key(Vec, "Vec<T>", "as_mut_slice", "&mut Vec<StateID>"),
+                            key(Vec, "Vec<T>", "as_mut_ptr", "&mut Vec<StateID>"),
+                        ],
+                    ),
+                    lemma,
+                ));
+                // The RHS read duplicates the first read's complete paths;
+                // the two writes also share complete paths, not just frames.
+                result
+            }
+        };
+        let expected_len = match lemma {
+            Lemma::NfaStateAccess => 8,
+            Lemma::SparseSetInsert => 16,
+        };
+        assert_eq!(paths.len(), expected_len, "literal oracle path census");
+        let paths: BTreeSet<_> = paths.into_iter().collect();
+        assert_eq!(
+            paths.len(),
+            expected_len,
+            "oracle has no duplicate full path"
+        );
+        paths
+    }
+
+    // Illustrative test arithmetic only, never a target-fact/stack evaluator.
+    fn illustrative_peak(paths: &BTreeSet<Vec<HelperKey>>, overrides: &[(HelperKey, u64)]) -> u64 {
+        paths
+            .iter()
+            .map(|path| {
+                path.iter()
+                    .map(|frame| {
+                        overrides
+                            .iter()
+                            .find(|(key, _)| key == frame)
+                            .map_or(1, |(_, weight)| *weight)
+                    })
+                    .sum::<u64>()
+            })
+            .max()
+            .unwrap()
+    }
+
+    fn assert_frame_paths(
+        lemma: Lemma,
+        actual: Option<&BTreeSet<Vec<HelperKey>>>,
+        required_frames: &BTreeSet<HelperKey>,
+    ) {
+        use SourceUnit::*;
+        let actual = actual.expect("matched helpers still lack simultaneous frame paths");
+        assert_eq!(
+            actual,
+            &expected_frame_paths(lemma),
+            "exact rooted helper alternatives"
+        );
+        // No unused required slot, omitted reachable slot or set-of-frames
+        // replacement for ordered full paths can satisfy both equalities.
+        let reached = actual.iter().flatten().cloned().collect::<BTreeSet<_>>();
+        assert_eq!(&reached, required_frames, "exact reachable frame union");
+        match lemma {
+            Lemma::NfaStateAccess => {
+                // state/states/deref/as_slice/as_ptr/RawVec::ptr/inner::ptr/
+                // non_null/Unique::cast/NonNull::cast/NonNull<u8>::as_ptr.
+                assert_eq!(illustrative_peak(actual, &[]), 11);
+                let arc = key(Arc, "Arc<T>", "deref", "&Arc<nfa::Inner>");
+                let vector = key(Vec, "Vec<T>", "deref", "&Vec<State>");
+                assert_eq!(illustrative_peak(actual, &[(arc.clone(), 17)]), 22);
+                assert_eq!(illustrative_peak(actual, &[(vector.clone(), 19)]), 29);
+                assert_eq!(illustrative_peak(actual, &[(arc, 17), (vector, 19)]), 29);
+            }
+            Lemma::SparseSetInsert => {
+                // insert/contains/ID index/Vec index/deref/as_slice/as_ptr/
+                // RawVec::ptr/inner::ptr/non_null/Unique::cast/NonNull::cast/as_ptr.
+                assert_eq!(illustrative_peak(actual, &[]), 13);
+                let small = key(Ids, "SmallIndex", "eq", "&SmallIndex");
+                let id = key(Ids, "StateID", "eq", "&StateID");
+                assert_eq!(illustrative_peak(actual, &[(small.clone(), 13)]), 16);
+                assert_eq!(illustrative_peak(actual, &[(id.clone(), 11)]), 14);
+                assert_eq!(illustrative_peak(actual, &[(small, 13), (id, 11)]), 26);
+            }
+        }
     }
 
     pub(in crate::schema_validation) fn conditional_controls()
@@ -710,7 +1023,7 @@ pub(in crate::schema_validation) mod conditional_fixture {
 
 #[cfg(test)]
 mod tests {
-    use super::conditional_fixture::{helpers, invariants, key};
+    use super::conditional_fixture::{expected_frame_paths, helpers, invariants, key};
     use super::*;
     use crate::schema_build::selected::probe_compiler;
     use crate::schema_residency::read_regular;
@@ -1398,6 +1711,7 @@ mod tests {
             required_buffer_bounds: BTreeSet::from(["scanned_bytes", "copied_bytes"]),
             required_frames,
             required_invariants: invariants(lemma),
+            simultaneous_frame_paths: Some(expected_frame_paths(lemma)),
         };
         let view = |local: LocalContract| {
             (
@@ -1408,6 +1722,7 @@ mod tests {
                 local.unresolved_ordinary_helpers,
                 local.required_buffer_bounds,
                 local.required_invariants,
+                local.simultaneous_frame_paths,
             )
         };
         assert_eq!(
@@ -1792,6 +2107,8 @@ mod tests {
                 usize_elements: 0,
             },
         );
+        // Zero demand does not excuse malformed local path recipes either.
+        events::assert_frame_path_recipe_refusals();
     }
 
     #[test]

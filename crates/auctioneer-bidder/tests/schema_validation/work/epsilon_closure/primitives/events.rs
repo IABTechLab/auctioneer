@@ -524,6 +524,88 @@ fn roots(lemma: Lemma, calls: Calls) -> Result<Vec<(Site, u64)>, Refusal> {
     }
 }
 
+// Tests-first seam over the existing body-checked rows. Rooted paths must
+// retain Insert across InsertSuccess and Insert/Contains across ContainsRhs.
+// None is intentionally not a derivation; target frame facts remain absent.
+fn simultaneous_frame_paths(
+    _lemma: Lemma,
+    _table: &BTreeMap<Site, Row>,
+) -> Result<Option<BTreeSet<Vec<HelperKey>>>, Refusal> {
+    Ok(None)
+}
+
+#[cfg(test)]
+pub(super) fn assert_frame_path_recipe_refusals() {
+    for lemma in [Lemma::NfaStateAccess, Lemma::SparseSetInsert] {
+        let table = rows(lemma).unwrap();
+        assert!(simultaneous_frame_paths(lemma, &table).unwrap().is_some());
+        // This is private recipe DATA corruption, not source authority. Every
+        // present node (including frameless fragments) must stay reachable.
+        for omitted in table.keys() {
+            let mut changed = rows(lemma).unwrap();
+            assert!(changed.remove(omitted).is_some());
+            assert_eq!(
+                simultaneous_frame_paths(lemma, &changed),
+                Err(Refusal::MissingSourceProof),
+                "missing {lemma:?} row {omitted:?}",
+            );
+        }
+    }
+    let cycles: [(Lemma, Site, &'static [Site]); 3] = [
+        (Lemma::NfaStateAccess, Site::BytePointer, &[Site::States]),
+        (Lemma::SparseSetInsert, Site::InsertSuccess, &[Site::Insert]),
+        (Lemma::SparseSetInsert, Site::ContainsRhs, &[Site::Contains]),
+    ];
+    for (lemma, site, callees) in cycles {
+        let mut changed = rows(lemma).unwrap();
+        let row = changed.get_mut(&site).unwrap();
+        assert_ne!(row.callees, callees);
+        row.callees = callees;
+        assert_eq!(
+            simultaneous_frame_paths(lemma, &changed),
+            Err(Refusal::MissingSourceProof),
+            "cycle through {site:?}",
+        );
+    }
+    let mut frameless = rows(Lemma::SparseSetInsert).unwrap();
+    let len = frameless.get_mut(&Site::Len).unwrap();
+    assert!(len.frame.take().is_some());
+    assert_eq!(
+        simultaneous_frame_paths(Lemma::SparseSetInsert, &frameless),
+        Err(Refusal::MissingSourceProof),
+        "ordinary helper cannot silently become frameless",
+    );
+    for site in [Site::InsertSuccess, Site::ContainsRhs] {
+        let mut invented = rows(Lemma::SparseSetInsert).unwrap();
+        let row = invented.get_mut(&site).unwrap();
+        assert!(row.frame.is_none());
+        row.frame = Some(key(SourceUnit::Sparse, "fragment", "invented", "&fragment"));
+        assert_eq!(
+            simultaneous_frame_paths(Lemma::SparseSetInsert, &invented),
+            Err(Refusal::MissingSourceProof),
+            "fragment {site:?} must not acquire a frame",
+        );
+    }
+    let mut unused = rows(Lemma::SparseSetInsert).unwrap();
+    assert!(
+        unused
+            .insert(
+                Site::Epsilon,
+                Row {
+                    frame: Some(key(SourceUnit::Nfa, "State", "is_epsilon", "&State")),
+                    local: [7, 3, 1],
+                    callees: &[],
+                }
+            )
+            .is_none()
+    );
+    assert_eq!(
+        simultaneous_frame_paths(Lemma::SparseSetInsert, &unused),
+        Err(Refusal::MissingSourceProof),
+        "unused required frame cannot masquerade as reachable",
+    );
+}
+
 pub(super) fn contract(
     data: HelperFacts<'_>,
     lemma: Lemma,
@@ -531,6 +613,7 @@ pub(super) fn contract(
     premises: &Premises,
 ) -> Result<LocalContract, Refusal> {
     let table = rows(lemma)?;
+    let simultaneous_frame_paths = simultaneous_frame_paths(lemma, &table)?;
     let required = required_invariants(lemma);
     let required_frames = bindings(data, &table, &required, premises)?;
     dimensions(premises, calls)?;
@@ -587,6 +670,7 @@ pub(super) fn contract(
         writes,
         ledger: WorkLedger::source_events(source, control, scalar),
         required_frames,
+        simultaneous_frame_paths,
         unresolved_ordinary_helpers: BTreeSet::new(),
         required_buffer_bounds: BTreeSet::from(["scanned_bytes", "copied_bytes"]),
         required_invariants: required,
