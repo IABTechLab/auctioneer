@@ -677,8 +677,44 @@ fn state_variants(sources: &Sources) -> Result<(), Refusal> {
     Ok(())
 }
 
+fn ids_imports(sources: &Sources) -> Result<(), Refusal> {
+    // Conditional import-shape recognition only, not builtin-derive resolution.
+    // Custom macro/attribute producers and actual derive/source/caller/cfg/artifact
+    // authority remain unproved; this adds no qualification.
+    let unit = SourceUnit::Ids;
+    let mut actual = Vec::new();
+    for item in &sources.file(unit)?.items {
+        let syn::Item::Use(import) = item else {
+            continue;
+        };
+        let mut normalized = import.clone();
+        attributes(&mut normalized.attrs, unit)?;
+        actual.push(spelling(&normalized));
+    }
+    let expected: [syn::ItemUse; 3] = [
+        syn::parse_quote!(
+            use core::num::NonZeroUsize;
+        ),
+        syn::parse_quote!(
+            #[cfg(feature = "alloc")]
+            use alloc::vec::Vec;
+        ),
+        syn::parse_quote!(
+            use crate::util::int::{Usize, U16, U32, U64};
+        ),
+    ];
+    let mut wanted: Vec<String> = expected.iter().map(spelling).collect();
+    actual.sort();
+    wanted.sort();
+    if actual != wanted {
+        return Err(Refusal::UnsupportedBody(unit));
+    }
+    Ok(())
+}
+
 fn imports(sources: &Sources) -> Result<(), Refusal> {
     use SourceUnit::{Arc, Ids, Nfa, NonNull, RawVec, Sparse, Unique, Vec as VecUnit};
+    ids_imports(sources)?;
     for (unit, name, path) in [
         (Nfa, "Arc", syn::parse_quote!(alloc::sync::Arc)),
         (Nfa, "Vec", syn::parse_quote!(alloc::vec::Vec)),
