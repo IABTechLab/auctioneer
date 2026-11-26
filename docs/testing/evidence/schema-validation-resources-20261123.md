@@ -1027,3 +1027,19 @@ The existing four source-window cases retain their assertions and now use indepe
 The helper's required twelve files and all literal cost, refusal and duty oracles remain unchanged. Its existing whole-window `source_count == PATHS.len()` guard is deliberately retained for hosted RED. The expected failure is the actual-source case's positive helper setup: a valid sixteen-file window produces `InvalidFacts("source_roster")` instead of success, after the preceding opening/closing and coverage controls. That is the unsupported consumer/global-set distinction, not a new missing-result stub or a cost proof for the added files. Expected RED is not executed evidence; it must be confirmed before removing that coupling. The eventual fix may require every explicit helper dependency, but must not weaken global coverage or substitute `>=12`.
 
 These new source bytes are DATA only. In particular, the current core root also has later `#[macro_use]` providers `internal_macros` and `num`; merely loading the four preparation files cannot prove absence of namespace shadowing or close Option or builtin assert semantics. Those source/cost/namespace obligations remain unfinished. No local executable verification ran; pinned formatting and source review are not hosted RED/GREEN. Test names, the 983-case graph, six secure exclusions and 139 development validation cases remain unchanged.
+
+### Shared Dependency Boundary Reaches Hosted RED
+
+At `65857d0f3499806cffe08463384519373f6cfa92`, the completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45732868213/job/139618894759) records secure-source, development-residency and development-validation results:
+
+```text
+test result: FAILED. 976 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1250.73s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 66.26s
+test result: FAILED. 138 passed; 1 failed; 0 ignored; 0 measured; 844 filtered out; finished in 341.25s
+```
+
+Both source failures are the actual-source case's positive helper setup: `Some(Err(SourceInterpretation(InvalidFacts("source_roster"))))` instead of `Some(Ok(()))`. The new global sixteen-file roster/count controls, unused-CoreOption opening refusal, prior closing/compiler/seed/view checks and post-capture control finish first. All three other source-window cases pass, including their extended sixteen-file read/path/hash/drift loops. This is intended consumer/global-count coupling RED, not compilation, missing-file setup, a zero-test filter or a semantic-proof claim for the new files. Later helper-cost/semantic variants within that failed case are not yet executed acceptance.
+
+The complete matrix has 24 successful checks and only this expected schema failure. Compiler controls, explicit strict source-target Clippy and later staged checks are not reached after source failure; none is waived. The local correction removes only the helper's whole-window count equality. Its pinned-compiler checks, explicit twelve required dependency lookups, parse/root-attribute gates and shared semantic recipes remain unchanged. The owner still validates exact global sixteen-file coverage, paths, digests, opening/closing compiler/source/seed checks and all closing bytes before returning a result. No `>=12` replacement, optional dependency, alternate reader, fabricated inputs, fallback, test/oracle/filter change or authority conversion is introduced.
+
+Pinned formatting and static review remain editing/review only. Full fixing-head hosted GREEN and reached strict lint are pending; all eleven unknown helper units and the remaining common/namespace/caller/target duties remain explicit. #47 stays open and PR #268 draft.

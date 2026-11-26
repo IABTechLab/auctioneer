@@ -115,9 +115,8 @@ pub(super) fn check_consumed_setup(inputs: &SourceInputs<'_>) -> Result<(), Refu
     if !supported_compiler(executable, verbose) {
         return Err(Refusal::CompilerMismatch);
     }
-    if inputs.source_count() != PATHS.len() {
-        return Err(Refusal::InvalidFacts("source_roster"));
-    }
+    // The window owner checks exact global coverage. This consumer requires
+    // each named dependency without interpreting unrelated source records.
     let mut files = BTreeMap::new();
     for (unit, _, _) in PATHS {
         let bytes = inputs
