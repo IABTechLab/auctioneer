@@ -1,16 +1,16 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-11-19T16:37:08.273200992Z",
+  "generated_at": "2026-11-26T16:37:31.314482162Z",
   "retention": {
     "max_age_days": 180
   },
   "oversize_bundle_ack": false,
   "gcl": {
     "path": "gcl.json",
-    "sha256": "f42ecfe6df85244d41bd211d04226aa5603c978d39cc59de9e837d814a9cf55f",
-    "last_updated": "2026-11-19T16:00:27Z",
-    "fetched_at": "2026-11-19T16:37:04.631887112Z",
-    "cache_max_age_secs": 602645
+    "sha256": "fa4c198fbec9a3cdb64aac400863e4c79323922cac162ad21b379de37b56f2be",
+    "last_updated": "2026-11-26T16:00:22Z",
+    "fetched_at": "2026-11-26T16:37:28.642102993Z",
+    "cache_max_age_secs": 603520
   },
   "entries": [
     {
@@ -23,13 +23,21 @@
     },
     {
       "spec": 3,
+      "vendor_list_version": 187,
+      "tcf_policy_version": 5,
+      "last_updated": "2026-11-26T16:00:19Z",
+      "path": "spec3/vendor-list-v187.json",
+      "sha256": "cdb1026586b226635760507b516a5f62e6d559f111ff20dfcbdce28ff496b2a0",
+      "fetched_at": "2026-11-26T16:37:28.361939328Z",
+      "cache_max_age_secs": 602610
+    },
+    {
+      "spec": 3,
       "vendor_list_version": 186,
       "tcf_policy_version": 5,
       "last_updated": "2026-11-19T16:00:24Z",
       "path": "spec3/vendor-list-v186.json",
-      "sha256": "acd3455a5397d0288047c6cc906180823ed3d7bdee4069f4033eed65faad22a1",
-      "fetched_at": "2026-11-19T16:37:04.23621949Z",
-      "cache_max_age_secs": 602634
+      "sha256": "acd3455a5397d0288047c6cc906180823ed3d7bdee4069f4033eed65faad22a1"
     },
     {
       "spec": 3,
@@ -190,14 +198,6 @@
       "last_updated": "2026-07-02T16:00:18Z",
       "path": "spec3/vendor-list-v166.json",
       "sha256": "c950f41f5f35fcf42592df4edca4079f6462b14e82d7dc48addf2b05d58fe566"
-    },
-    {
-      "spec": 3,
-      "vendor_list_version": 165,
-      "tcf_policy_version": 5,
-      "last_updated": "2026-06-25T16:00:18Z",
-      "path": "spec3/vendor-list-v165.json",
-      "sha256": "06ddb5d70f59e9f53f545181aec833f344042c75bfffd8433255e31493ff60b2"
     }
   ]
 }
