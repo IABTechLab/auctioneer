@@ -168,9 +168,9 @@ struct LocalContract {
     writes: SymbolicWrites,
     ledger: WorkLedger,
     required_frames: BTreeSet<HelperKey>,
-    // Logical root-to-leaf alternatives only; None means not yet derived.
+    // Complete logical root-to-leaf alternatives for this local contract.
     // These are not target frame sizes, byte endpoints or actual-use authority.
-    simultaneous_frame_paths: Option<BTreeSet<Vec<HelperKey>>>,
+    simultaneous_frame_paths: BTreeSet<Vec<HelperKey>>,
     unresolved_ordinary_helpers: BTreeSet<HelperKey>,
     // Existing WorkLedger unit names: no new units and no total-copy claim.
     required_buffer_bounds: BTreeSet<&'static str>,
@@ -238,8 +238,8 @@ pub(in crate::schema_validation) struct ConditionalHelperCostProjection {
 impl ConditionalHelperCostProjection {
     pub(in crate::schema_validation) fn simultaneous_frame_paths(
         &self,
-    ) -> Option<&BTreeSet<Vec<HelperKey>>> {
-        self.contract.simultaneous_frame_paths.as_ref()
+    ) -> &BTreeSet<Vec<HelperKey>> {
+        &self.contract.simultaneous_frame_paths
     }
 }
 
@@ -806,11 +806,10 @@ pub(in crate::schema_validation) mod conditional_fixture {
 
     fn assert_frame_paths(
         lemma: Lemma,
-        actual: Option<&BTreeSet<Vec<HelperKey>>>,
+        actual: &BTreeSet<Vec<HelperKey>>,
         required_frames: &BTreeSet<HelperKey>,
     ) {
         use SourceUnit::*;
-        let actual = actual.expect("matched helpers still lack simultaneous frame paths");
         assert_eq!(
             actual,
             &expected_frame_paths(lemma),
@@ -1711,7 +1710,7 @@ mod tests {
             required_buffer_bounds: BTreeSet::from(["scanned_bytes", "copied_bytes"]),
             required_frames,
             required_invariants: invariants(lemma),
-            simultaneous_frame_paths: Some(expected_frame_paths(lemma)),
+            simultaneous_frame_paths: expected_frame_paths(lemma),
         };
         let view = |local: LocalContract| {
             (

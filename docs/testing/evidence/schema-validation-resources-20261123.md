@@ -1219,3 +1219,30 @@ The next tests-first checkpoint extends the existing conditional helper contract
 Independent hand-authored oracles require eight NFA paths and sixteen sparse-insert paths, exact frame union and unit-weight peaks eleven/thirteen. Changing the Arc and Vec frame weights independently proves sequential alternatives, not simultaneous summation. Sparse equality weights thirteen/eleven force peak twenty-six and retain the live Insert/Contains ancestors around the frameless RHS fragment. Zero demand retains every structural obligation. Private row corruptions cover missing/cyclic/unreachable nodes, an ordinary frame disappearing and a fragment acquiring an invented frame. These are source/path controls and fictional algebra, never physical frame facts or a target qualifier.
 
 All prior helper counts, three partial work components, symbolic writes, required buffers, invariant/source/window controls and test identities remain. The existing actual-source projection oracle checks paths only after its earlier assertions; no test case, reader, capture, build, target, job, dependency, limit or serving behavior is added. This local lemma does not complete common storage, work, stack, attempt or token correspondence. Fresh hosted helper-path RED and subsequent implementation/GREEN remain required; no local executable verification runs.
+
+### Helper Logical Paths Reach Hosted RED
+
+At `8305f69061244612c74e9e428482bf27957f4a39`, the existing [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45893630821/job/140162180276) builds and executes the source suite. Its emitted log is downloaded through `gh api --allow-escape-sequences repos/IABTechLab/auctioneer/actions/jobs/140162180276/logs` (fetch exit 0). The completed secure source invocation records:
+
+```text
+thread 'schema_validation::handoff::source::tests::actual_sources_are_consumed_inside_the_bound_window' (34128) panicked at crates/auctioneer-bidder/tests/schema_validation/work/epsilon_closure/primitives/mod.rs:813:29:
+matched helpers still lack simultaneous frame paths
+test result: FAILED. 962 passed; 15 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1238.59s
+Process completed with exit code 101.
+```
+
+The existing NFA, sparse-insert, zero-invocation and positive-first refusal controls also fail their extended `assert_local` equality at line 1728: the contract returns `None`, not the independently expected paths. Twelve primitive cases and the actual-source case expose that missing local feature; the two canonical-report/body cases retain their separate `Incomplete` versus `CommonSourceComplete` failures. This is semantic RED after compilation and the earlier per-case assertions, not a source/path/setup error.
+
+The job subsequently completes with failure. Its final log records development residency, followed by development validation:
+
+```text
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 90.81s
+test result: FAILED. 124 passed; 15 failed; 0 ignored; 0 measured; 844 filtered out; finished in 296.20s
+Process completed with exit code 101.
+```
+
+Both source lanes reach the same missing-path assertion and the separate whole-feature failures. Compiler controls and explicit strict source-target lint are not reached after source failure. Normal/staged secure core, secure metadata and development core stages are skipped; they are not passing evidence. No failing check is dismissed and no requirement is weakened.
+
+The final same-head check readback reports twenty successful and five failed checks, all completed: the source/compiler owner and the four real-application attachment owners fail. No cancelled or pending check is counted as passing. The later correcting-head test and lint results remain required, independently of these predecessor results.
+
+The narrow implementation now replaces the missing-path seam with a checked walk over the original row table, retaining parent frames across each nested alternative and attaching only the two source-bound frameless fragments. Successful contracts must carry concrete paths; the temporary `Option`/`None` state is removed rather than kept as a compatibility fallback. Work dimensions and remaining source/target obligations are not changed. Static review, full fixing-head assertions and strict lint remain required; no local executable verification runs.

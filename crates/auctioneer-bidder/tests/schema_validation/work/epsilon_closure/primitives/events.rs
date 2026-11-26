@@ -524,21 +524,98 @@ fn roots(lemma: Lemma, calls: Calls) -> Result<Vec<(Site, u64)>, Refusal> {
     }
 }
 
-// Tests-first seam over the existing body-checked rows. Rooted paths must
-// retain Insert across InsertSuccess and Insert/Contains across ContainsRhs.
-// None is intentionally not a derivation; target frame facts remain absent.
+// Use the same matched rows as work accumulation, but not its counted roots:
+// fragments execute beneath their enclosing helper, never as stack roots.
+// Invocation counts cannot remove any local structural obligation.
 fn simultaneous_frame_paths(
-    _lemma: Lemma,
-    _table: &BTreeMap<Site, Row>,
-) -> Result<Option<BTreeSet<Vec<HelperKey>>>, Refusal> {
-    Ok(None)
+    lemma: Lemma,
+    table: &BTreeMap<Site, Row>,
+) -> Result<BTreeSet<Vec<HelperKey>>, Refusal> {
+    for (site, row) in table {
+        let expected_frame = shared_frame(*site, lemma).or_else(|| specific_frame(*site));
+        if row.frame != expected_frame
+            || (row.frame.is_none() && !matches!(site, Site::InsertSuccess | Site::ContainsRhs))
+            || row
+                .callees
+                .iter()
+                .any(|callee| matches!(callee, Site::InsertSuccess | Site::ContainsRhs))
+        {
+            return Err(Refusal::MissingSourceProof);
+        }
+    }
+    let roots: &[Site] = match lemma {
+        Lemma::NfaStateAccess => &[Site::State, Site::Epsilon],
+        Lemma::SparseSetInsert => &[Site::Insert],
+    };
+    let mut active = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut prefix = Vec::new();
+    let mut paths = BTreeSet::new();
+    for root in roots {
+        collect_frame_paths(
+            *root,
+            table,
+            &mut active,
+            &mut visited,
+            &mut prefix,
+            &mut paths,
+        )?;
+    }
+    // Shared callees are visited for every prefix. The census is an audit,
+    // not memoization that would discard another caller's complete path.
+    if visited.len() != table.len() {
+        return Err(Refusal::MissingSourceProof);
+    }
+    let required_frames: BTreeSet<_> = table.values().filter_map(|row| row.frame.clone()).collect();
+    let reached_frames = paths.iter().flatten().cloned().collect::<BTreeSet<_>>();
+    if reached_frames != required_frames {
+        return Err(Refusal::MissingSourceProof);
+    }
+    Ok(paths)
+}
+
+fn collect_frame_paths(
+    site: Site,
+    table: &BTreeMap<Site, Row>,
+    active: &mut BTreeSet<Site>,
+    visited: &mut BTreeSet<Site>,
+    prefix: &mut Vec<HelperKey>,
+    paths: &mut BTreeSet<Vec<HelperKey>>,
+) -> Result<(), Refusal> {
+    let row = table.get(&site).ok_or(Refusal::MissingSourceProof)?;
+    if !active.insert(site) {
+        return Err(Refusal::MissingSourceProof);
+    }
+    visited.insert(site);
+    let caller_depth = prefix.len();
+    if let Some(frame) = &row.frame {
+        prefix.push(frame.clone());
+    }
+    // These are lexical portions of the already matched insert/contains
+    // bodies, not ordinary callees. Their enclosing caller stays active.
+    let fragments: &[Site] = match site {
+        Site::Insert => &[Site::InsertSuccess],
+        Site::Contains => &[Site::ContainsRhs],
+        _ => &[],
+    };
+    if row.callees.is_empty() && fragments.is_empty() {
+        paths.insert(prefix.clone());
+    }
+    for callee in row.callees.iter().chain(fragments) {
+        collect_frame_paths(*callee, table, active, visited, prefix, paths)?;
+    }
+    // Each child returns to precisely this caller prefix before its sibling
+    // starts. Only identical full paths deduplicate in the output set.
+    prefix.truncate(caller_depth);
+    active.remove(&site);
+    Ok(())
 }
 
 #[cfg(test)]
 pub(super) fn assert_frame_path_recipe_refusals() {
     for lemma in [Lemma::NfaStateAccess, Lemma::SparseSetInsert] {
         let table = rows(lemma).unwrap();
-        assert!(simultaneous_frame_paths(lemma, &table).unwrap().is_some());
+        assert!(!simultaneous_frame_paths(lemma, &table).unwrap().is_empty());
         // This is private recipe DATA corruption, not source authority. Every
         // present node (including frameless fragments) must stay reachable.
         for omitted in table.keys() {
