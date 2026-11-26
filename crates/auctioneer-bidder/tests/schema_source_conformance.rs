@@ -845,7 +845,7 @@ mod tests {
         let validation = &graph["validation_resources"];
         assert!(validation.is_object());
         assert_eq!(validation["kind"], "schema_validation_resources");
-        assert_eq!(validation["status"], "Incomplete");
+        assert_eq!(validation["status"], "CommonSourceComplete");
         assert_eq!(validation["resource_qualification"], false);
         assert_eq!(validation["physical_fit"], false);
         assert_eq!(validation["serving_permission"], false);

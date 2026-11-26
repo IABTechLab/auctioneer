@@ -1173,3 +1173,22 @@ Both failures are `assertion left == right failed: Named` in `handoff/source/tes
 The full matrix must still be completed and re-read before its final result is reported. No failing check is dismissed. The narrow correction now matches the complete supported ID-source import set through the existing shared recipe path. It compares whole imports after the existing supported literal-documentation normalization; sorting preserves duplicates while ignoring use-item order. Both supplied-data and consumed-source paths reach it before conditional work interpretation, including at zero demand. The original direct required-`Vec` import check, Sparse gate, helper/body recipes and all tests/oracles are byte-identical. No second evaluator, source reader, capture, build or cost unit is introduced.
 
 Static spec and quality reviews find no concrete issue in the 36-line code change; pinned rustfmt is editing only. Full fixing-head hosted GREEN, both strict lint lanes and later normal/staged acceptance remain required and unexecuted at this checkpoint. The import projection supplies no actual builtin-derive or source/caller/cfg/artifact authority, ordinary cleanup bound, common completeness, physical fit or serving permission. #47 and the draft PR remain incomplete.
+
+### ID Import Projection Passes The Full Hosted Matrix
+
+At `c8be05b8dc6aaba1c3d0037e1a45bde4b73d18cc`, all twenty-five hosted checks pass. The completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45793901843/job/139819522420), downloaded with `gh run view 45793901843 --job 139819522420 --repo IABTechLab/auctioneer --log`, records secure source, compiler controls, development residency and development validation:
+
+```text
+test result: ok. 977 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1051.92s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 163.12s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 55.09s
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 287.22s
+```
+
+The actual-source case completes all six import controls and twelve positive/zero-demand refusals in both lanes, after every earlier source/cost/window control. Both explicit strict source-target Clippy invocations pass. Secure/development normal/staged core checks each execute four cases and metadata checks each execute two. The last development staged result is `2 passed; 0 failed; 0 ignored; 0 measured; 976 filtered out; finished in 1.85s`. Every Run Tests, formatting/lint and provider check succeeds at that exact head. This is full hosted acceptance of that partial implementation, not completion of #47; its canonical report still says `Incomplete`.
+
+### Whole-Feature Completion Gate Prepared For Hosted RED
+
+The next tests-first checkpoint makes the existing current-source report case invoke the real `current_report` entrypoint after its original diagnostic, coverage and refusal controls. It requires `CommonSourceComplete` and complete storage, work, structural-stack, shape-correspondence and attempted-work derivations. It still requires `TargetIncomplete`, unevaluated numerical policy, unestablished attempted-work funding and false qualification/fit/serving flags. The existing current-body and actual-application attachment expectations are reconciled to the same canonical completion contract; no-proof diagnostic and forged/hybrid refusals remain separate and unchanged.
+
+This deliberately removes the false completion signal from a suite whose real-source assertions accepted an incomplete diagnostic. It adds no test case, capture, source reader, build, target, job, limit, dependency or serving path. Existing GitHub owners must execute the semantic RED and then the complete implementation's GREEN. No local executable verification is run. At preparation, expected RED is the existing canonical reporter returning `Incomplete`, not a compiler/setup error or zero-test selection. It is not executed evidence until the hosted logs confirm it. Later completion assertions are not credited until reached. A status-only change cannot satisfy the required underlying source derivations, and no missing common proof may be moved to a target-fact placeholder.

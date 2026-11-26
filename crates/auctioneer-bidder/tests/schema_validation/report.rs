@@ -499,7 +499,7 @@ fn qualification_refusal(_report: &CurrentReport) -> Refusal {
 mod tests {
     use super::{
         Bodies, ContextDuty, ContextRole, CoverageData, Duty, Refusal, check_current_report,
-        describe_validation, qualification_refusal,
+        current_report, describe_validation, qualification_refusal,
     };
     use crate::schema_build::application::CapturedSeed;
     use crate::schema_residency::{
@@ -813,6 +813,37 @@ mod tests {
             );
             assert_children_refuse(seed, view, bodies, census, coverage);
             assert_contexts_refuse(seed, view, bodies, census, coverage);
+            let report = current_report(seed, view, census).unwrap();
+            assert_eq!(report["binding"], *view.binding());
+            assert_eq!(check_current_report(&report), Ok(()));
+            // The diagnostic above is not delivery. The real source entrypoint
+            // must finish every common derivation without inventing target facts.
+            assert_eq!(
+                report["status"], "CommonSourceComplete",
+                "the current-source completion gate cannot accept an incomplete diagnostic"
+            );
+            for derivation in [
+                "storage",
+                "work",
+                "structural_stack",
+                "shape_correspondence",
+                "attempted_work",
+            ] {
+                assert_eq!(
+                    report["derivations"][derivation]["status"], "Complete",
+                    "missing common derivation: {derivation}"
+                );
+            }
+            assert_eq!(report["numeric_policy_adequacy"], "not_evaluated");
+            assert_eq!(report["attempted_work_funding"], "not_established");
+            assert_eq!(report["target_status"], "TargetIncomplete");
+            for flag in [
+                "resource_qualification",
+                "physical_fit",
+                "serving_permission",
+            ] {
+                assert_eq!(report[flag], false, "common proof cannot grant {flag}");
+            }
         });
     }
 

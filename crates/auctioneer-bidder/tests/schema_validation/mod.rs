@@ -171,7 +171,7 @@ mod tests {
             let census = public_names::discover(Path::new(env!("CARGO_MANIFEST_DIR")), lane)?;
             let report = super::current_report(seed, view, &census)?;
             assert_eq!(super::report::check_current_report(&report), Ok(()));
-            assert_eq!(report["status"], "Incomplete");
+            assert_eq!(report["status"], "CommonSourceComplete");
             for field in [
                 "resource_qualification",
                 "physical_fit",
