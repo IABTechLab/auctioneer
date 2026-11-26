@@ -29,6 +29,10 @@ enum SourceUnit {
     MutPtr,
     Intrinsics,
     Macros,
+    CoreOption,
+    CoreLib,
+    CorePrelude,
+    CorePreludeV1,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,7 +48,7 @@ struct SourceSpec {
 }
 
 // These are source identities, not workload limits or a discovered owner census.
-const ROSTER: [SourceSpec; 12] = [
+const ROSTER: [SourceSpec; 16] = [
     SourceSpec {
         unit: SourceUnit::Nfa,
         root: SourceRoot::Workspace,
@@ -104,6 +108,28 @@ const ROSTER: [SourceSpec; 12] = [
         unit: SourceUnit::Macros,
         root: SourceRoot::RustLibrary,
         relative: "core/src/macros/mod.rs",
+    },
+    // These four records are preparation DATA only, not Option-cost or
+    // complete namespace-resolution authority.
+    SourceSpec {
+        unit: SourceUnit::CoreOption,
+        root: SourceRoot::RustLibrary,
+        relative: "core/src/option.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::CoreLib,
+        root: SourceRoot::RustLibrary,
+        relative: "core/src/lib.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::CorePrelude,
+        root: SourceRoot::RustLibrary,
+        relative: "core/src/prelude/mod.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::CorePreludeV1,
+        root: SourceRoot::RustLibrary,
+        relative: "core/src/prelude/v1.rs",
     },
 ];
 
@@ -554,13 +580,14 @@ mod tests {
     fn inspect_inputs(inputs: &SourceInputs<'_>, data: &Fixture) -> usize {
         assert_eq!(inputs.compiler, &data.expected);
         assert_eq!(inputs.sources, data.sources.as_slice());
+        assert_eq!(inputs.source_count(), 16);
         for (source, spec) in inputs.sources.iter().zip(&ROSTER) {
             assert_eq!(source.unit, format!("{:?}", spec.unit));
             assert!(source.path.is_absolute());
             assert!(source.path.ends_with(spec.relative));
             assert_eq!(source.sha256, digest(&source.bytes));
         }
-        inputs.sources.len()
+        inputs.source_count()
     }
 
     fn run_data(
@@ -602,7 +629,7 @@ mod tests {
     }
 
     fn assert_roster() {
-        let independent = [
+        let independent: [(SourceUnit, SourceRoot, &str); 16] = [
             (
                 SourceUnit::Nfa,
                 SourceRoot::Workspace,
@@ -662,6 +689,26 @@ mod tests {
                 SourceUnit::Macros,
                 SourceRoot::RustLibrary,
                 "core/src/macros/mod.rs",
+            ),
+            (
+                SourceUnit::CoreOption,
+                SourceRoot::RustLibrary,
+                "core/src/option.rs",
+            ),
+            (
+                SourceUnit::CoreLib,
+                SourceRoot::RustLibrary,
+                "core/src/lib.rs",
+            ),
+            (
+                SourceUnit::CorePrelude,
+                SourceRoot::RustLibrary,
+                "core/src/prelude/mod.rs",
+            ),
+            (
+                SourceUnit::CorePreludeV1,
+                SourceRoot::RustLibrary,
+                "core/src/prelude/v1.rs",
             ),
         ];
         assert_eq!(
@@ -781,10 +828,35 @@ mod tests {
                 );
                 Ok::<_, ConsumerError>(count)
             });
-            assert_eq!(actual, Ok(12));
+            assert_eq!(actual, Ok(16));
             let mut reads = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut reads, false), Ok(12));
+            assert_eq!(run_data(seed, view, &data, &mut reads, false), Ok(16));
             assert_eq!(*reads.events.borrow(), expected_events());
+            // CoreOption is not a helper dependency; global coverage still
+            // gates consumer entry and retains every closing check.
+            let mut missing = replay(&data);
+            let sources = missing.before.sources.as_mut().unwrap();
+            let option = sources
+                .iter()
+                .position(|source| source.unit == "CoreOption")
+                .expect("CoreOption present before independent opening coverage control");
+            assert_eq!(sources[option], data.sources[option]);
+            assert_eq!(sources.remove(option), data.sources[option]);
+            assert_eq!(
+                run_data(seed, view, &data, &mut missing, false),
+                Err(SourceError::SourceCoverage)
+            );
+            assert_eq!(
+                *missing.events.borrow(),
+                vec![
+                    Event::Check(Phase::Before),
+                    Event::Compiler(Phase::Before),
+                    Event::Sources(Phase::Before),
+                    Event::Sources(Phase::After),
+                    Event::Compiler(Phase::After),
+                    Event::Check(Phase::After),
+                ]
+            );
             assert_postcapture_control(seed, view, &data);
             let changed = CapturedSeed {
                 identity_sha256: seed.identity_sha256.clone(),
@@ -917,7 +989,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut valid = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(12));
+            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(16));
             for phase in [Phase::Before, Phase::After] {
                 for change_path in [true, false] {
                     let mut reads = replay(&data);
@@ -1067,7 +1139,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut valid = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(12));
+            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(16));
             assert_coverage_controls(seed, view, &data);
             assert_hash_controls(seed, view, &data);
             for (index, spec) in ROSTER.iter().enumerate() {
@@ -1129,7 +1201,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut positive = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut positive, false), Ok(12));
+            assert_eq!(run_data(seed, view, &data, &mut positive, false), Ok(16));
             assert_eq!(*positive.events.borrow(), expected_events());
             let mut refused = replay(&data);
             assert_eq!(

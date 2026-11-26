@@ -994,3 +994,36 @@ Both source failures are the existing actual-source-window case's first positive
 The complete matrix has 21 successful checks and four failures: this intended schema failure plus the three native isolation failures documented above. None is dismissed. The local fix now checks consumed source semantics before every conditional demand, invokes the same borrowed-facts event evaluator as the original component contract, propagates its exact typed refusal and retains its real LocalContract in the result. The missing-join variant and stub are removed, not kept as a fallback. Zero calls cannot bypass source or invariant checks; all eleven unknown units and required frame/buffer/invariant duties remain unchanged.
 
 The naming repair moves the same four files to `epsilon_closure`; only the primitive module's narrow join implementation changes their contents. All 25 required case-prefix changes preserve names below that module and the dispatch counts. No assertions, independent oracles, checker logic, exclusions, source captures, builds, workflow jobs, timeouts, dependencies, serving paths, reservations or limits are weakened or added. Pinned formatting and static review remain non-executable editing/review. Full fixing-head hosted GREEN and reached strict lint remain pending; this does not close #47 or make PR #268 ready for review.
+
+### Consumed Source Cost Join And Isolation GREEN
+
+At `627e4ca1e16a646abda7fd764c1df70c6d2f4a95`, all 25 hosted checks finish successfully, with no pending, dismissed or waived result. The completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45726730189/job/139598356678) records secure source, compiler controls, development residency and development validation, in that order:
+
+```text
+test result: ok. 977 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1163.23s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 179.28s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 96.34s
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 329.15s
+```
+
+The actual-source-window case reports `ok` in both source lanes, including the later ledger/call/write, zero-call source-drift and exact refusal assertions. All 25 renamed required cases execute under `epsilon_closure`; the graph remains 983 cases, with six secure exclusions and 139 development validation cases. Both explicit strict source-target Clippy commands complete successfully: secure at `00:35:54Z` and development at `00:47:43Z` on 2026-11-26 UTC. Normal/staged core and metadata checks also pass.
+
+The unchanged isolation owner executes all sixteen cases in [secure](https://github.com/IABTechLab/auctioneer/actions/runs/45726730189/job/139598356703), [default](https://github.com/IABTechLab/auctioneer/actions/runs/45726730189/job/139598356873) and [insecure](https://github.com/IABTechLab/auctioneer/actions/runs/45726730189/job/139598356742) lanes. Their result lines, respectively:
+
+```text
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.44s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.63s
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.84s
+```
+
+This is executed GREEN for the consumed-source-to-conditional-helper-cost bridge and the naming repair. It does not close the remaining common work/byte/cleanup/storage/stack, caller/invariant/namespace, numerical-policy or target obligations. Eleven helper units remain unproved, and all actual-use duties remain explicit. No local executable verification ran; pinned rustfmt was editing only. #47 remains open and PR #268 draft.
+
+### Shared Source Coverage And Consumer Dependencies
+
+The next tests-first slice prepares ordinary-library interpretation by extending the same matched source window from twelve to sixteen fixed files: `core/src/option.rs`, `core/src/lib.rs`, `core/src/prelude/mod.rs` and `core/src/prelude/v1.rs` join the existing twelve. It reuses the same bounded reader, descriptor capture and compiler/source/seed opening/closing checks; no loader, build, probe, target, capture or test case is added. Global coverage remains exact, not a minimum: each declared unit once, exact paths, valid digests, no extras and unchanged closing bytes.
+
+The existing four source-window cases retain their assertions and now use independent literal-sixteen roster/count oracles. Their path/hash/read-error/closing-drift loops also cover the new files. A separate replay removes a present `CoreOption` record, which the NFA/Sparse helper does not consume. The owner must refuse it as exact `SourceCoverage`, run no consumer event and retain the closing trace. This guards global completeness independently of a consumer's narrower dependencies.
+
+The helper's required twelve files and all literal cost, refusal and duty oracles remain unchanged. Its existing whole-window `source_count == PATHS.len()` guard is deliberately retained for hosted RED. The expected failure is the actual-source case's positive helper setup: a valid sixteen-file window produces `InvalidFacts("source_roster")` instead of success, after the preceding opening/closing and coverage controls. That is the unsupported consumer/global-set distinction, not a new missing-result stub or a cost proof for the added files. Expected RED is not executed evidence; it must be confirmed before removing that coupling. The eventual fix may require every explicit helper dependency, but must not weaken global coverage or substitute `>=12`.
+
+These new source bytes are DATA only. In particular, the current core root also has later `#[macro_use]` providers `internal_macros` and `num`; merely loading the four preparation files cannot prove absence of namespace shadowing or close Option or builtin assert semantics. Those source/cost/namespace obligations remain unfinished. No local executable verification ran; pinned formatting and source review are not hosted RED/GREEN. Test names, the 983-case graph, six secure exclusions and 139 development validation cases remain unchanged.
