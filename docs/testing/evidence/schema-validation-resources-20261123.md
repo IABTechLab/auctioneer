@@ -1095,3 +1095,28 @@ The actual-source case passes in both lanes, including all eleven vendor mutatio
 The lint repair preserves the accepted four item classes and rejection of every other current/future item, using explicit `if let` branches and distinct names. The independent twenty-entry roster remains literal and separate from the implementation roster, now in a private test constant. The two before-state mutation operations are extracted without removing their assertions; the manifest-field mapping is exhaustive; checked arithmetic retains exact removal and 22-execution assertions. All eleven mutation identities, expected outcomes, test names, source reads, costs and limits remain unchanged. No lint allowance, test removal, compatibility path or workflow change is added.
 
 Full hosted tests and strict lint on the repairing head remain pending. These passing ancestry assertions close no core/prelude/cfg/artifact or remaining work/storage/stack obligation; #47 stays incomplete and the PR stays draft.
+
+### Vendor Ancestry And Strict Lint Reach Full Hosted GREEN
+
+At `ec302cf91cdfb0991bd0f4e75847ab122e688c64`, all twenty-five hosted checks pass. The completed [compiler-schema rerun](https://github.com/IABTechLab/auctioneer/actions/runs/45759128227/job/139721386288) executes the existing source/compiler scripts and every normal/staged secure/development artifact stage. Actual principal result lines, secure source, compiler controls, development residency and development validation:
+
+```text
+test result: ok. 977 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1231.85s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 183.81s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 95.03s
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 356.63s
+```
+
+Both actual-source executions complete every earlier assertion, all eleven vendor mutations and all twenty-two positive/zero-demand refusal assertions. Both explicit strict source-target Clippy invocations pass; secure/development normal/staged core checks each execute four cases, and normal/staged metadata checks each execute two. The final development staged result is `2 passed; 0 failed; 0 ignored; 0 measured; 976 filtered out; finished in 3.09s`. The rerun completes in 40 minutes 21 seconds. The twenty Run Tests jobs succeed, as do the five same-head formatting/Clippy/provider checks. Completed logs and exact-head checks were downloaded/read back; no local executable verification ran.
+
+The [first attempt](https://github.com/IABTechLab/auctioneer/actions/runs/45759128227/job/139704697824) at that same head exceeded the unchanged forty-five-minute deadline during the final development staged compilation. It is cancelled, not passed or waived. That attempt's principal results were secure source `977/0` in 1378.06 seconds, compiler controls `337/0` in 199.18 seconds, development residency `127/0` in 91.85 seconds and development validation `139/0` in 430.17 seconds. Both strict source-target lint invocations completed before cancellation. No command, assertion, exclusion, timeout, limit, reservation or workflow changed between attempts. A successful rerun is not evidence of a performance improvement or a reproduced-base finding about the timeout's cause.
+
+This completes the supported vendor-ancestry substep only. Core/prelude/builtin routes, ordinary helper semantics, actual cfg/source/artifact/caller correspondence and the remaining work/storage/stack derivations are not supplied by that GREEN.
+
+### Core Assert-Route Controls Prepared For Hosted RED
+
+The next tests-first checkpoint adds fourteen independent core-route changes to the same actual-source case, after all existing assertions. It reuses the same descriptor, twenty source records, bounded source reader, compiler probe, replay/closing kernel and conditional cost evaluator. There is no new source/capture/build/test target or actual test case; the full graph remains 983 cases and development validation remains 139. New conformance-support helpers use ordinary child modules, not handwritten source imports.
+
+The controls independently redirect or disable the core root's prelude and macro-provider modules; redirect or disable the v1 prelude file; disable or reroute the 2021 prelude; alter each relevant root's cfg; alias the explicit assert import; disable the builtin module; and relocate its direct assert child below another inline module. Only owned replay bytes change and are rehashed consistently. Each control preserves NFA/Sparse/ID bodies, checks exact closing events, and expects one fixed source-specific `CoreAncestry` refusal plus the same refusal at positive and zero sparse demands. The exact per-demand assertion count is twenty-eight. Every earlier literal helper-cost, invariant, buffer, frame and closing oracle remains.
+
+No core-route implementation is present at preparation: intended RED is the old checker returning `Ok(())` for an altered route, not a compile/setup error or an unused test. The finite routing lemma will remain conditional on successful compilation of the same supported core source by the pinned compiler. It will not prove that compilation/source/artifact premise, vendor-leaf name lookup, actual invocation/receiver/cfg identity, builtin expansion costs, ordinary cleanup or qualification. Unsupported or missing common semantics stay incomplete, not zero or new host services. The canonical report remains `Incomplete`; #47 stays open and PR #268 stays draft.
