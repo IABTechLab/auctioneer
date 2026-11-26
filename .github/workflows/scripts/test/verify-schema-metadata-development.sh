@@ -80,31 +80,31 @@ validation_required=(
   schema_validation::work::entropy::tests::constructor_default_and_std_identity_are_required
   schema_validation::work::entropy::tests::ordered_seed_prefixes_include_eager_inactive_siblings
   schema_validation::work::entropy::tests::hostname_seed_work_accumulates_and_overflow_refuses
-  schema_validation::work::epsilon::tests::pristine_body_matches_the_independent_recipe
-  schema_validation::work::epsilon::tests::capture_self_loop_has_literal_site_ceilings
-  schema_validation::work::epsilon::tests::duplicate_union_alternatives_have_a_conservative_ceiling
-  schema_validation::work::epsilon::tests::roots_vary_without_multiplying_epoch_dispatches
-  schema_validation::work::epsilon::tests::epochs_vary_independently_of_root_calls
-  schema_validation::work::epsilon::tests::nfa_states_vary_independently_of_branches
-  schema_validation::work::epsilon::tests::branches_vary_independently_of_nfa_states
-  schema_validation::work::epsilon::tests::empty_local_execution_does_not_discharge_primitive_lemmas
-  schema_validation::work::epsilon::tests::reverse_tail_counts_the_final_none
-  schema_validation::work::epsilon::tests::changed_known_source_is_not_approved_by_its_identity
-  schema_validation::work::epsilon::tests::unknown_source_call_is_refused_not_assigned_zero_work
-  schema_validation::work::epsilon::tests::malformed_epoch_hypotheses_are_refused
-  schema_validation::work::epsilon::tests::overflow_is_refused_for_each_independent_formula_axis
-  schema_validation::work::epsilon::primitives::tests::nfa_access_matches_pristine_recipes_and_literal_counts
-  schema_validation::work::epsilon::primitives::tests::sparse_insert_matches_pristine_recipes_and_branch_counts
-  schema_validation::work::epsilon::primitives::tests::zero_invocations_keep_required_helper_slots_and_premises
-  schema_validation::work::epsilon::primitives::tests::helper_receipts_require_exact_concrete_receivers
-  schema_validation::work::epsilon::primitives::tests::missing_duplicate_or_changed_source_receipts_are_refused
-  schema_validation::work::epsilon::primitives::tests::compiler_source_identity_mismatch_is_refused
-  schema_validation::work::epsilon::primitives::tests::known_helper_semantic_changes_are_refused
-  schema_validation::work::epsilon::primitives::tests::unknown_helper_calls_are_not_zero_work
-  schema_validation::work::epsilon::primitives::tests::unapproved_helper_attributes_are_refused
-  schema_validation::work::epsilon::primitives::tests::sparse_invariants_require_matching_owner_and_epoch
-  schema_validation::work::epsilon::primitives::tests::invalid_sparse_dimensions_and_ids_are_refused
-  schema_validation::work::epsilon::primitives::tests::primitive_count_overflow_is_refused
+  schema_validation::work::epsilon_closure::tests::pristine_body_matches_the_independent_recipe
+  schema_validation::work::epsilon_closure::tests::capture_self_loop_has_literal_site_ceilings
+  schema_validation::work::epsilon_closure::tests::duplicate_union_alternatives_have_a_conservative_ceiling
+  schema_validation::work::epsilon_closure::tests::roots_vary_without_multiplying_epoch_dispatches
+  schema_validation::work::epsilon_closure::tests::epochs_vary_independently_of_root_calls
+  schema_validation::work::epsilon_closure::tests::nfa_states_vary_independently_of_branches
+  schema_validation::work::epsilon_closure::tests::branches_vary_independently_of_nfa_states
+  schema_validation::work::epsilon_closure::tests::empty_local_execution_does_not_discharge_primitive_lemmas
+  schema_validation::work::epsilon_closure::tests::reverse_tail_counts_the_final_none
+  schema_validation::work::epsilon_closure::tests::changed_known_source_is_not_approved_by_its_identity
+  schema_validation::work::epsilon_closure::tests::unknown_source_call_is_refused_not_assigned_zero_work
+  schema_validation::work::epsilon_closure::tests::malformed_epoch_hypotheses_are_refused
+  schema_validation::work::epsilon_closure::tests::overflow_is_refused_for_each_independent_formula_axis
+  schema_validation::work::epsilon_closure::primitives::tests::nfa_access_matches_pristine_recipes_and_literal_counts
+  schema_validation::work::epsilon_closure::primitives::tests::sparse_insert_matches_pristine_recipes_and_branch_counts
+  schema_validation::work::epsilon_closure::primitives::tests::zero_invocations_keep_required_helper_slots_and_premises
+  schema_validation::work::epsilon_closure::primitives::tests::helper_receipts_require_exact_concrete_receivers
+  schema_validation::work::epsilon_closure::primitives::tests::missing_duplicate_or_changed_source_receipts_are_refused
+  schema_validation::work::epsilon_closure::primitives::tests::compiler_source_identity_mismatch_is_refused
+  schema_validation::work::epsilon_closure::primitives::tests::known_helper_semantic_changes_are_refused
+  schema_validation::work::epsilon_closure::primitives::tests::unknown_helper_calls_are_not_zero_work
+  schema_validation::work::epsilon_closure::primitives::tests::unapproved_helper_attributes_are_refused
+  schema_validation::work::epsilon_closure::primitives::tests::sparse_invariants_require_matching_owner_and_epoch
+  schema_validation::work::epsilon_closure::primitives::tests::invalid_sparse_dimensions_and_ids_are_refused
+  schema_validation::work::epsilon_closure::primitives::tests::primitive_count_overflow_is_refused
   schema_validation::storage::source::tests::actual_cache_lifetimes_cover_discovered_owners
   schema_validation::storage::source::tests::initializer_order_preserves_complete_sibling_prefixes
   schema_validation::storage::source::tests::cache_escape_reset_clone_and_rebind_are_refused

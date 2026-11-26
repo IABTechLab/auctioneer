@@ -195,7 +195,6 @@ mod source;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) enum HelperSourceJoinRefusal {
-    MissingSourceJoin,
     SourceInterpretation(Refusal),
 }
 
@@ -235,13 +234,16 @@ pub(in crate::schema_validation) fn check_consumed_source_setup(
     source::check_consumed_setup(inputs).map_err(HelperSourceJoinRefusal::SourceInterpretation)
 }
 
-// Tests-first actual join. No completed source/cost result exists until this
-// deliberately missing integration has an independently observed hosted RED.
+// Source checks precede conditional cost interpretation, including at zero
+// invocations. Retain the actual partial result and all outstanding duties.
 pub(in crate::schema_validation) fn join_consumed_helper_costs(
-    _inputs: &SourceInputs<'_>,
-    _demand: &ConditionalHelperDemand,
+    inputs: &SourceInputs<'_>,
+    demand: &ConditionalHelperDemand,
 ) -> Result<ConditionalHelperCostProjection, HelperSourceJoinRefusal> {
-    Err(HelperSourceJoinRefusal::MissingSourceJoin)
+    check_consumed_source_setup(inputs)?;
+    let contract = events::contract(demand.facts(), demand.lemma, demand.calls, &demand.premises)
+        .map_err(HelperSourceJoinRefusal::SourceInterpretation)?;
+    Ok(ConditionalHelperCostProjection { contract })
 }
 
 // Conditional supplied-data interpretation only. Neither this entry nor its

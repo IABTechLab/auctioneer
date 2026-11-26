@@ -33,7 +33,7 @@ All paths below are repository-relative. `T` abbreviates `crates/auctioneer-bidd
 | `T/schema_validation/work/prefix/mod.rs` | All-attempt input-prefix multiplicities, including failures before debit; serializer/navigation/cleanup costs remain separate. |
 | `T/schema_validation/work/prefix/scalar.rs` | Conditional concrete scalar-serialization and Counter source lemmas, distinct from registry/artifact authority and ordinary formatter work. |
 | `T/schema_validation/work/entropy.rs` | Source-bound seed-constructor ordering and multiplicity contract, distinct from whole-service host facts and ordinary map work. |
-| `T/schema_validation/work/epsilon/mod.rs` and `T/schema_validation/work/epsilon/primitives/{mod,source,events}.rs` | Epsilon-site contracts, finite transitive helper source recognition and the independent matched-callee event table, with separate byte/frame obligations. |
+| `T/schema_validation/work/epsilon_closure/mod.rs` and `T/schema_validation/work/epsilon_closure/primitives/{mod,source,events}.rs` | Epsilon-site contracts, finite transitive helper source recognition and the independent matched-callee event table, with separate byte/frame obligations. |
 | `T/schema_validation/storage/mod.rs` | Per-call disjoint lifetimes, cache construction/growth/drop and callback overlap. |
 | `T/schema_validation/storage/source.rs` | Exact cache initializer, coupled wrapper and callback source-lifetime correspondence. |
 | `T/schema_validation/stack/mod.rs` | Logical call-path composition and required target-specific frame facts. |

@@ -24,10 +24,10 @@
 mod caller;
 mod context;
 mod entropy;
-mod epsilon;
+mod epsilon_closure;
 pub(super) mod partition;
 mod prefix;
-use epsilon::primitives;
+use epsilon_closure::primitives;
 #[cfg(test)]
 pub(super) use primitives::conditional_fixture::{
     assert_cost_projections, assert_demand_setup, conditional_controls, conditional_demands,

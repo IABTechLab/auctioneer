@@ -956,3 +956,41 @@ Explicit conditional hypotheses independently vary NFA roots and dispatches, wit
 All original closing, compiler, seed/view and post-capture assertions finish before inspecting buffered cost results. An in-memory, self-consistently rehashed NFA semantic mutation must fail the cost join as `UnsupportedBody(Nfa)` for both active and zero-call demands while still completing the same source-window closing trace; no vendor, standard-library or serving source is mutated. Separate controls require exact missing-invariant, wrong-receiver, wrong-epoch and overflow refusals. The interim API returns `MissingSourceJoin`; expected hosted RED is the first positive cost assertion after valid source and hypothesis setup, not compilation or a failed source stamp. Later negative variants are not yet executed acceptance.
 
 No local executable verification ran. Pinned formatting and static inspection are editing/review only. The source graph remains 983 cases, with the same six secure exclusions and 139 development validation cases. Hosted assertion RED is required before filling this integration; complete common work, byte traffic, cleanup, stack, numerical policy and target qualification remain unfinished.
+
+### Imported Math Module Collides With A Catalog Identity
+
+At `6e3e293ea021095b82a3bd390410437b67efdcbe`, the [secure native job](https://github.com/IABTechLab/auctioneer/actions/runs/45720734385/job/139578236984) fails the unchanged `test_isolation` owner:
+
+```text
+test tests::shared_test_sources_use_synthetic_bidder_inputs ... FAILED
+production coupling in shared tests: [("tests/schema_validation/work/mod.rs", {"epsilon"})]
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.06s
+error: test failed, to rerun pass `-p auctioneer-bidder --test test_isolation`
+```
+
+The complete [default-workspace log](https://github.com/IABTechLab/auctioneer/actions/runs/45720734385/job/139578236780) and [insecure-workspace log](https://github.com/IABTechLab/auctioneer/actions/runs/45720734385/job/139578236935) identify the same sole failed target and the same import path. Their actual isolation result lines, in that order:
+
+```text
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.90s
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.30s
+```
+
+The new ordinary `use epsilon::primitives` import triggers the lexical bidder-identity guard, even though it selects the local mathematical helper module. Qualifying it through `self::` would still contain the guarded path segment. The local repair renames that module/directory to `epsilon_closure`, preserves all four moved Rust files byte-for-byte, and updates its 25 exact development-case prefixes and current plan paths. No checker exception, source import trick, alias, test-body change, excluded case, relaxed assertion or count change is introduced. Historical evidence keeps the paths and result text actually observed at its recorded heads.
+
+This is an authored integration failure, not the desired positive-assertion `MissingSourceJoin` RED. The source-cost job is still pending when this repair is prepared; it must independently establish that assertion in both source lanes. The fixing head must then execute the full unchanged matrix, including the isolation owner and all checks skipped after failures. Static review and byte-identical moves are not hosted GREEN.
+
+### Consumed Source Cost Join Reaches Hosted RED
+
+The completed [compiler-schema job at 6e3e293](https://github.com/IABTechLab/auctioneer/actions/runs/45720734385/job/139578237017) records these secure-source, development-residency and development-validation result lines:
+
+```text
+test result: FAILED. 976 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1347.16s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 91.75s
+test result: FAILED. 138 passed; 1 failed; 0 ignored; 0 measured; 844 filtered out; finished in 393.20s
+```
+
+Both source failures are the existing actual-source-window case's first positive cost assertion: `conditional helper cost join 0: Err(MissingSourceJoin)`. All original closing/compiler/seed/view controls, semantic setup and independently checked conditional demand setup finish first. This is intended missing-behavior RED, not compilation, source setup, a unit-valued stamp or a zero-test filter. Later variants in that failed case are not yet executed acceptance. The graph remains 983 cases with the same six secure exclusions and 139 development validation cases. Compiler controls, explicit strict source-target Clippy and later staged checks are not reached after source failure and remain required on the fixing head.
+
+The complete matrix has 21 successful checks and four failures: this intended schema failure plus the three native isolation failures documented above. None is dismissed. The local fix now checks consumed source semantics before every conditional demand, invokes the same borrowed-facts event evaluator as the original component contract, propagates its exact typed refusal and retains its real LocalContract in the result. The missing-join variant and stub are removed, not kept as a fallback. Zero calls cannot bypass source or invariant checks; all eleven unknown units and required frame/buffer/invariant duties remain unchanged.
+
+The naming repair moves the same four files to `epsilon_closure`; only the primitive module's narrow join implementation changes their contents. All 25 required case-prefix changes preserve names below that module and the dispatch counts. No assertions, independent oracles, checker logic, exclusions, source captures, builds, workflow jobs, timeouts, dependencies, serving paths, reservations or limits are weakened or added. Pinned formatting and static review remain non-executable editing/review. Full fixing-head hosted GREEN and reached strict lint remain pending; this does not close #47 or make PR #268 ready for review.
