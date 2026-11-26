@@ -21,8 +21,10 @@
 //! unqualified `assert!` in `SparseSet::insert` resolves to the pinned core
 //! builtin across crate roots, module ancestry and the selected prelude. The
 //! twelve supplied files cannot establish that binding; receiver/invariant
-//! strings and a matched local namespace do not discharge it. Intrinsic and
-//! builtin-derive identities likewise require the authentic parent handoff.
+//! strings and a matched local namespace do not discharge it. The actual
+//! source window additionally recognizes the supported vendor ancestry;
+//! it does not certify core exports, prelude resolution or effective cfgs.
+//! Intrinsic and builtin-derive identities still need the authentic handoff.
 
 use crate::schema_validation::handoff::SourceInputs;
 use crate::schema_validation::operations::WorkLedger;
@@ -191,6 +193,7 @@ pub(in crate::schema_validation) enum Refusal {
     Overflow,
 }
 
+mod ancestry;
 mod events;
 mod source;
 

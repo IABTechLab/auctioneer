@@ -124,7 +124,8 @@ pub(super) fn check_consumed_setup(inputs: &SourceInputs<'_>) -> Result<(), Refu
             .ok_or(Refusal::MissingSource(unit))?;
         files.insert(unit, parse_source(unit, bytes)?);
     }
-    check_recipes(&Sources(files), |_name| {})
+    check_recipes(&Sources(files), |_name| {})?;
+    super::ancestry::check_vendor_ancestry(inputs)
 }
 
 fn spelling(value: &impl ToTokens) -> String {
@@ -572,7 +573,7 @@ fn vendor_methods(sources: &Sources) -> Result<(), Refusal> {
 }
 
 fn sparse_macro_scope(sources: &Sources) -> Result<(), Refusal> {
-    // These local gates do not resolve macros inherited from a parent module,
+    // These local gates alone do not resolve macros inherited from a parent module,
     // crate root or prelude. Actual use requires the source owner's independent
     // builtin-assert binding premise across those scopes; DATA is not a witness.
     let unit = SourceUnit::Sparse;

@@ -1062,3 +1062,19 @@ Both explicit strict source-target Clippy invocations and the unchanged normal/s
 The next controls extend the same window to twenty exact files with the vendored regex manifest, crate root, macro provider and util module. They retain all original coverage/path/digest/closing checks and the conditional helper-cost oracles. Owned replay mutations change these scopes and recompute their digests; no vendor, standard-library or build source is changed. The current helper ignores ancestor scope changes, so expected RED is a completed assertion accepting altered data where a fixed source-specific refusal is required, not a compilation or setup failure. Those expected failures are not executed evidence until hosted logs confirm them.
 
 The supported vendor-scope recipe does not establish the remaining core export/prelude/builtin, selected cfg/artifact or actual caller/invariant facts. Complete validation work, byte traffic, cleanup, storage and stack remain incomplete. No cost field becomes zero, no serving flag changes, #47 remains open and PR #268 remains draft.
+
+### Vendor Macro-Scope Controls Reach Hosted RED
+
+At `9ed897dfb502ab0369c012bc1ba68bc537575b2d`, the completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45751111108/job/139678838452) records secure source, development residency and development validation:
+
+```text
+test result: FAILED. 976 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1103.30s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 60.76s
+test result: FAILED. 138 passed; 1 failed; 0 ignored; 0 measured; 844 filtered out; finished in 289.86s
+```
+
+Both failures are the new `RootShadow` assertion: `Ok(())` instead of `Err(Interpretation(SourceInterpretation(VendorAncestry("RegexRoot"))))`. The existing actual-source case reaches this assertion after its original source/compiler/seed/closing checks, literal cost/refusal oracles and zero-call duties. The twenty-file opening and the three other source-window cases pass. This is missing ancestor-recognition RED, not compilation, unavailable data or a new stub. The remaining ten mutation rows and all 22 per-demand cost-refusal assertions are not executed acceptance until fixing-head GREEN. Compiler controls, explicit strict source-target lint and later staged checks are also not reached after source failure.
+
+The fixing implementation adds one finite vendor-ancestry recognizer to the same existing helper-setup path before conditional cost evaluation. It borrows four already consumed records, uses the existing TOML parser for the edition/library-path fields, and compares ordered typed root/macro-provider/util syntax with independently written supported recipes. Only literal documentation is ignored; executable attributes, import/module order, paths and macro bodies remain checked. No filesystem reader, cost evaluator, capture, build, case, target, workflow change, dependency or serving behavior is introduced. All tests and literal oracles from RED remain unchanged.
+
+Static spec and quality reviews find no concrete blocker; pinned rustfmt is editing only. Fixing-head hosted GREEN, explicit strict lint and the full matrix remain pending. The recognizer does not resolve core exports/preludes/builtins or establish the regex compilation unit's effective cfg/mode; in particular the preserved doctest invocation is not proved inactive by a bidder build-script environment or resolved-feature list. Those facts and all remaining common derivations stay open, not zero costs or qualification credit.
