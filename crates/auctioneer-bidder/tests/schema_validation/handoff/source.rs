@@ -33,6 +33,10 @@ enum SourceUnit {
     CoreLib,
     CorePrelude,
     CorePreludeV1,
+    RegexRoot,
+    RegexMacros,
+    RegexUtil,
+    RegexManifest,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,7 +52,7 @@ struct SourceSpec {
 }
 
 // These are source identities, not workload limits or a discovered owner census.
-const ROSTER: [SourceSpec; 16] = [
+const ROSTER: [SourceSpec; 20] = [
     SourceSpec {
         unit: SourceUnit::Nfa,
         root: SourceRoot::Workspace,
@@ -130,6 +134,26 @@ const ROSTER: [SourceSpec; 16] = [
         unit: SourceUnit::CorePreludeV1,
         root: SourceRoot::RustLibrary,
         relative: "core/src/prelude/v1.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::RegexRoot,
+        root: SourceRoot::Workspace,
+        relative: "vendor/regex-automata/src/lib.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::RegexMacros,
+        root: SourceRoot::Workspace,
+        relative: "vendor/regex-automata/src/macros.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::RegexUtil,
+        root: SourceRoot::Workspace,
+        relative: "vendor/regex-automata/src/util/mod.rs",
+    },
+    SourceSpec {
+        unit: SourceUnit::RegexManifest,
+        root: SourceRoot::Workspace,
+        relative: "vendor/regex-automata/Cargo.toml",
     },
 ];
 
@@ -580,7 +604,7 @@ mod tests {
     fn inspect_inputs(inputs: &SourceInputs<'_>, data: &Fixture) -> usize {
         assert_eq!(inputs.compiler, &data.expected);
         assert_eq!(inputs.sources, data.sources.as_slice());
-        assert_eq!(inputs.source_count(), 16);
+        assert_eq!(inputs.source_count(), 20);
         for (source, spec) in inputs.sources.iter().zip(&ROSTER) {
             assert_eq!(source.unit, format!("{:?}", spec.unit));
             assert!(source.path.is_absolute());
@@ -629,7 +653,7 @@ mod tests {
     }
 
     fn assert_roster() {
-        let independent: [(SourceUnit, SourceRoot, &str); 16] = [
+        let independent: [(SourceUnit, SourceRoot, &str); 20] = [
             (
                 SourceUnit::Nfa,
                 SourceRoot::Workspace,
@@ -709,6 +733,26 @@ mod tests {
                 SourceUnit::CorePreludeV1,
                 SourceRoot::RustLibrary,
                 "core/src/prelude/v1.rs",
+            ),
+            (
+                SourceUnit::RegexRoot,
+                SourceRoot::Workspace,
+                "vendor/regex-automata/src/lib.rs",
+            ),
+            (
+                SourceUnit::RegexMacros,
+                SourceRoot::Workspace,
+                "vendor/regex-automata/src/macros.rs",
+            ),
+            (
+                SourceUnit::RegexUtil,
+                SourceRoot::Workspace,
+                "vendor/regex-automata/src/util/mod.rs",
+            ),
+            (
+                SourceUnit::RegexManifest,
+                SourceRoot::Workspace,
+                "vendor/regex-automata/Cargo.toml",
             ),
         ];
         assert_eq!(
@@ -828,9 +872,9 @@ mod tests {
                 );
                 Ok::<_, ConsumerError>(count)
             });
-            assert_eq!(actual, Ok(16));
+            assert_eq!(actual, Ok(20));
             let mut reads = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut reads, false), Ok(16));
+            assert_eq!(run_data(seed, view, &data, &mut reads, false), Ok(20));
             assert_eq!(*reads.events.borrow(), expected_events());
             // CoreOption is not a helper dependency; global coverage still
             // gates consumer entry and retains every closing check.
@@ -891,9 +935,261 @@ mod tests {
                     ))
                 );
             }
+            assert_vendor_ancestry_controls(seed, view, &data);
             Ok(())
         })
         .unwrap();
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum VendorDrift {
+        RootShadow,
+        ExternMacros,
+        ProviderPath,
+        ProviderShadow,
+        ProviderBody,
+        UtilShadow,
+        SparsePath,
+        Edition,
+        LibraryPath,
+        NoStd,
+        ImplicitPrelude,
+    }
+
+    impl VendorDrift {
+        fn unit(self) -> &'static str {
+            match self {
+                Self::RootShadow
+                | Self::ExternMacros
+                | Self::ProviderPath
+                | Self::NoStd
+                | Self::ImplicitPrelude => "RegexRoot",
+                Self::ProviderShadow | Self::ProviderBody => "RegexMacros",
+                Self::UtilShadow | Self::SparsePath => "RegexUtil",
+                Self::Edition | Self::LibraryPath => "RegexManifest",
+            }
+        }
+    }
+
+    fn module_mut<'a>(file: &'a mut syn::File, name: &str) -> &'a mut syn::ItemMod {
+        assert_eq!(
+            file.items
+                .iter()
+                .filter(|item| matches!(item,
+            syn::Item::Mod(module) if module.ident == name))
+                .count(),
+            1
+        );
+        file.items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Mod(module) if module.ident == name => Some(module),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    fn vendor_source_drift(data: &Fixture, change: VendorDrift) -> Fixture {
+        let mut changed = Fixture {
+            expected: data.expected.clone(),
+            observed: data.observed.clone(),
+            sources: data.sources.clone(),
+        };
+        let record = changed
+            .sources
+            .iter_mut()
+            .find(|record| record.unit == change.unit())
+            .unwrap();
+        let original = record.bytes.clone();
+        if matches!(change, VendorDrift::Edition | VendorDrift::LibraryPath) {
+            let mut manifest: toml::Value = toml::from_str(from_utf8(&original).unwrap()).unwrap();
+            let (section, field, before, after) = match change {
+                VendorDrift::Edition => ("package", "edition", "2021", "2024"),
+                VendorDrift::LibraryPath => ("lib", "path", "src/lib.rs", "src/fake_lib.rs"),
+                _ => unreachable!(),
+            };
+            assert_eq!(manifest[section][field].as_str(), Some(before));
+            manifest[section][field] = toml::Value::String(after.to_owned());
+            record.bytes = toml::to_string(&manifest).unwrap().into_bytes();
+        } else {
+            let mut syntax = syn::parse_file(from_utf8(&original).unwrap()).unwrap();
+            match change {
+                VendorDrift::RootShadow | VendorDrift::UtilShadow | VendorDrift::ProviderShadow => {
+                    syntax.items.insert(
+                        0,
+                        syn::parse_quote!(
+                            macro_rules! assert {
+                                ($($argument:tt)*) => {
+                                    fake_extra_work();
+                                };
+                            }
+                        ),
+                    );
+                }
+                VendorDrift::ExternMacros => {
+                    let externs: Vec<_> = syntax
+                        .items
+                        .iter_mut()
+                        .filter_map(|item| match item {
+                            syn::Item::ExternCrate(external) if external.ident == "std" => {
+                                Some(external)
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    assert_eq!(externs.len(), 1);
+                    for external in externs {
+                        assert!(
+                            !external
+                                .attrs
+                                .iter()
+                                .any(|attribute| attribute.path().is_ident("macro_use"))
+                        );
+                        external.attrs.push(syn::parse_quote!(#[macro_use]));
+                    }
+                }
+                VendorDrift::ProviderPath | VendorDrift::SparsePath => {
+                    let name = if matches!(change, VendorDrift::ProviderPath) {
+                        "macros"
+                    } else {
+                        "sparse_set"
+                    };
+                    let module = module_mut(&mut syntax, name);
+                    assert!(
+                        !module
+                            .attrs
+                            .iter()
+                            .any(|attribute| attribute.path().is_ident("path"))
+                    );
+                    module
+                        .attrs
+                        .push(syn::parse_quote!(#[path = "fake_provider.rs"]));
+                }
+                VendorDrift::ProviderBody => {
+                    let definitions: Vec<_> = syntax
+                        .items
+                        .iter_mut()
+                        .filter_map(|item| match item {
+                            syn::Item::Macro(definition)
+                                if definition.ident.as_ref().is_some_and(|name| name == "log") =>
+                            {
+                                Some(definition)
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    assert_eq!(definitions.len(), 1);
+                    for definition in definitions {
+                        let before = definition.mac.tokens.clone();
+                        definition.mac.tokens = quote::quote! {
+                            ($($tt:tt)*) => { fake_extra_work(); $($tt)* }
+                        };
+                        assert_ne!(before.to_string(), definition.mac.tokens.to_string());
+                    }
+                }
+                VendorDrift::NoStd => {
+                    let before = syntax.attrs.len();
+                    syntax
+                        .attrs
+                        .retain(|attribute| !attribute.path().is_ident("no_std"));
+                    assert_eq!(syntax.attrs.len() + 1, before);
+                }
+                VendorDrift::ImplicitPrelude => {
+                    assert!(
+                        !syntax
+                            .attrs
+                            .iter()
+                            .any(|attribute| attribute.path().is_ident("no_implicit_prelude"))
+                    );
+                    syntax
+                        .attrs
+                        .push(syn::parse_quote!(#![no_implicit_prelude]));
+                }
+                VendorDrift::Edition | VendorDrift::LibraryPath => unreachable!(),
+            }
+            record.bytes = syntax.to_token_stream().to_string().into_bytes();
+        }
+        assert_ne!(
+            record.bytes, original,
+            "{change:?} changes source before rehashing"
+        );
+        record.sha256 = digest(&record.bytes);
+        for unit in ["Nfa", "Sparse", "Ids"] {
+            assert_eq!(
+                changed.sources.iter().find(|row| row.unit == unit),
+                data.sources.iter().find(|row| row.unit == unit),
+                "helper bodies stay unchanged"
+            );
+        }
+        changed
+    }
+
+    fn assert_vendor_ancestry_controls(
+        seed: &CapturedSeed,
+        view: ValidationView<'_>,
+        data: &Fixture,
+    ) {
+        let demands = work::conditional_demands();
+        work::assert_demand_setup(&demands);
+        let mut checked = 0_usize;
+        for change in [
+            VendorDrift::RootShadow,
+            VendorDrift::ExternMacros,
+            VendorDrift::ProviderPath,
+            VendorDrift::ProviderShadow,
+            VendorDrift::ProviderBody,
+            VendorDrift::UtilShadow,
+            VendorDrift::SparsePath,
+            VendorDrift::Edition,
+            VendorDrift::LibraryPath,
+            VendorDrift::NoStd,
+            VendorDrift::ImplicitPrelude,
+        ] {
+            let changed = vendor_source_drift(data, change);
+            let mut reads = replay(&changed);
+            let checks = Rc::clone(&reads.events);
+            let interpretation = Rc::clone(&reads.events);
+            let mut costs = None;
+            let actual = with_source_data(
+                seed,
+                view,
+                &mut reads,
+                |phase| checks.borrow_mut().push(Event::Check(phase)),
+                |inputs| {
+                    interpretation.borrow_mut().push(Event::Interpret);
+                    // Positive and zero sparse invocations have the same source duties.
+                    costs = Some([
+                        work::join_helper_costs(inputs, &demands[3]),
+                        work::join_helper_costs(inputs, &demands[5]),
+                    ]);
+                    work::check_helper_source_setup(inputs)
+                },
+            );
+            let expected = HelperSourceJoinRefusal::SourceInterpretation(
+                HelperInterpretationRefusal::VendorAncestry(change.unit()),
+            );
+            assert_eq!(
+                *reads.events.borrow(),
+                expected_events(),
+                "{change:?}: close on every refusal"
+            );
+            assert_eq!(
+                actual,
+                Err(SourceError::Interpretation(expected)),
+                "{change:?}"
+            );
+            for cost in costs.unwrap() {
+                assert_eq!(
+                    cost,
+                    Err(HelperSourceJoinRefusal::SourceInterpretation(
+                        HelperInterpretationRefusal::VendorAncestry(change.unit())
+                    )),
+                    "{change:?}"
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 22);
     }
 
     fn semantic_source_drift(data: &Fixture) -> Fixture {
@@ -989,7 +1285,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut valid = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(16));
+            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(20));
             for phase in [Phase::Before, Phase::After] {
                 for change_path in [true, false] {
                     let mut reads = replay(&data);
@@ -1139,7 +1435,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut valid = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(16));
+            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(20));
             assert_coverage_controls(seed, view, &data);
             assert_hash_controls(seed, view, &data);
             for (index, spec) in ROSTER.iter().enumerate() {
@@ -1201,7 +1497,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut positive = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut positive, false), Ok(16));
+            assert_eq!(run_data(seed, view, &data, &mut positive, false), Ok(20));
             assert_eq!(*positive.events.borrow(), expected_events());
             let mut refused = replay(&data);
             assert_eq!(

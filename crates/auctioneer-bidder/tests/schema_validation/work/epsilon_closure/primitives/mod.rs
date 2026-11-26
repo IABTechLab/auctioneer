@@ -178,6 +178,7 @@ pub(in crate::schema_validation) enum Refusal {
     DuplicateSource(SourceUnit),
     SourceChanged(SourceUnit),
     UnsupportedBody(SourceUnit),
+    VendorAncestry(&'static str),
     CompilerMismatch,
     SourcePath(SourceUnit),
     MissingHelper(HelperKey),

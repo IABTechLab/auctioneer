@@ -1043,3 +1043,22 @@ Both source failures are the actual-source case's positive helper setup: `Some(E
 The complete matrix has 24 successful checks and only this expected schema failure. Compiler controls, explicit strict source-target Clippy and later staged checks are not reached after source failure; none is waived. The local correction removes only the helper's whole-window count equality. Its pinned-compiler checks, explicit twelve required dependency lookups, parse/root-attribute gates and shared semantic recipes remain unchanged. The owner still validates exact global sixteen-file coverage, paths, digests, opening/closing compiler/source/seed checks and all closing bytes before returning a result. No `>=12` replacement, optional dependency, alternate reader, fabricated inputs, fallback, test/oracle/filter change or authority conversion is introduced.
 
 Pinned formatting and static review remain editing/review only. Full fixing-head hosted GREEN and reached strict lint are pending; all eleven unknown helper units and the remaining common/namespace/caller/target duties remain explicit. #47 stays open and PR #268 draft.
+
+### Shared Dependency Boundary Reaches Hosted GREEN
+
+At `a16d0276484b0e64924bbb60ba174591e74fcf91`, all 25 checks pass. The completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45737038146/job/139632661949) records secure source, compiler controls, development residency and development validation, respectively:
+
+```text
+test result: ok. 977 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 948.61s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 146.39s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 54.42s
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 243.13s
+```
+
+Both explicit strict source-target Clippy invocations and the unchanged normal/staged checks finish successfully. This completes the shared-coverage/dependency distinction only; the added standard-library files are not yet namespace or ordinary-helper proofs.
+
+### Vendor Macro-Scope Controls Prepared For Hosted RED
+
+The next controls extend the same window to twenty exact files with the vendored regex manifest, crate root, macro provider and util module. They retain all original coverage/path/digest/closing checks and the conditional helper-cost oracles. Owned replay mutations change these scopes and recompute their digests; no vendor, standard-library or build source is changed. The current helper ignores ancestor scope changes, so expected RED is a completed assertion accepting altered data where a fixed source-specific refusal is required, not a compilation or setup failure. Those expected failures are not executed evidence until hosted logs confirm them.
+
+The supported vendor-scope recipe does not establish the remaining core export/prelude/builtin, selected cfg/artifact or actual caller/invariant facts. Complete validation work, byte traffic, cleanup, storage and stack remain incomplete. No cost field becomes zero, no serving flag changes, #47 remains open and PR #268 remains draft.
