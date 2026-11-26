@@ -1078,3 +1078,20 @@ Both failures are the new `RootShadow` assertion: `Ok(())` instead of `Err(Inter
 The fixing implementation adds one finite vendor-ancestry recognizer to the same existing helper-setup path before conditional cost evaluation. It borrows four already consumed records, uses the existing TOML parser for the edition/library-path fields, and compares ordered typed root/macro-provider/util syntax with independently written supported recipes. Only literal documentation is ignored; executable attributes, import/module order, paths and macro bodies remain checked. No filesystem reader, cost evaluator, capture, build, case, target, workflow change, dependency or serving behavior is introduced. All tests and literal oracles from RED remain unchanged.
 
 Static spec and quality reviews find no concrete blocker; pinned rustfmt is editing only. Fixing-head hosted GREEN, explicit strict lint and the full matrix remain pending. The recognizer does not resolve core exports/preludes/builtins or establish the regex compilation unit's effective cfg/mode; in particular the preserved doctest invocation is not proved inactive by a bidder build-script environment or resolved-feature list. Those facts and all remaining common derivations stay open, not zero costs or qualification credit.
+
+### Vendor Ancestry Assertions Pass; Strict Lint Refuses
+
+At `8a54ea38fad17acd5290ee8151fd849d6aefed16`, the completed [compiler-schema job](https://github.com/IABTechLab/auctioneer/actions/runs/45754375576/job/139689522940) records secure source, compiler controls, development residency and development validation:
+
+```text
+test result: ok. 977 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1179.06s
+test result: ok. 337 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 174.46s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 95.88s
+test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 844 filtered out; finished in 347.52s
+```
+
+The actual-source case passes in both lanes, including all eleven vendor mutations, all 22 positive/zero-demand cost-refusal assertions, exact closing traces and earlier cost/window oracles. However, both explicit strict source-target Clippy invocations fail with 15 diagnostics each: two oversized fixture functions, five wildcard enum matches, two `unreachable!` uses, two unchecked arithmetic sites and four shadowed names. Those are real failed checks, not successful verification. The completed matrix is 24 successful checks and this one failed schema check; no result is waived. Later staged acceptance after the lint failure is not reached.
+
+The lint repair preserves the accepted four item classes and rejection of every other current/future item, using explicit `if let` branches and distinct names. The independent twenty-entry roster remains literal and separate from the implementation roster, now in a private test constant. The two before-state mutation operations are extracted without removing their assertions; the manifest-field mapping is exhaustive; checked arithmetic retains exact removal and 22-execution assertions. All eleven mutation identities, expected outcomes, test names, source reads, costs and limits remain unchanged. No lint allowance, test removal, compatibility path or workflow change is added.
+
+Full hosted tests and strict lint on the repairing head remain pending. These passing ancestry assertions close no core/prelude/cfg/artifact or remaining work/storage/stack obligation; #47 stays incomplete and the PR stays draft.

@@ -652,115 +652,116 @@ mod tests {
         ]
     }
 
+    const INDEPENDENT_SOURCE_ROSTER: [(SourceUnit, SourceRoot, &str); 20] = [
+        (
+            SourceUnit::Nfa,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/src/nfa/thompson/nfa.rs",
+        ),
+        (
+            SourceUnit::Sparse,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/src/util/sparse_set.rs",
+        ),
+        (
+            SourceUnit::Ids,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/src/util/primitives.rs",
+        ),
+        (
+            SourceUnit::Arc,
+            SourceRoot::RustLibrary,
+            "alloc/src/sync.rs",
+        ),
+        (
+            SourceUnit::Vec,
+            SourceRoot::RustLibrary,
+            "alloc/src/vec/mod.rs",
+        ),
+        (
+            SourceUnit::RawVec,
+            SourceRoot::RustLibrary,
+            "alloc/src/raw_vec/mod.rs",
+        ),
+        (
+            SourceUnit::SliceIndex,
+            SourceRoot::RustLibrary,
+            "core/src/slice/index.rs",
+        ),
+        (
+            SourceUnit::NonNull,
+            SourceRoot::RustLibrary,
+            "core/src/ptr/non_null.rs",
+        ),
+        (
+            SourceUnit::Unique,
+            SourceRoot::RustLibrary,
+            "core/src/ptr/unique.rs",
+        ),
+        (
+            SourceUnit::MutPtr,
+            SourceRoot::RustLibrary,
+            "core/src/ptr/mut_ptr.rs",
+        ),
+        (
+            SourceUnit::Intrinsics,
+            SourceRoot::RustLibrary,
+            "core/src/intrinsics/mod.rs",
+        ),
+        (
+            SourceUnit::Macros,
+            SourceRoot::RustLibrary,
+            "core/src/macros/mod.rs",
+        ),
+        (
+            SourceUnit::CoreOption,
+            SourceRoot::RustLibrary,
+            "core/src/option.rs",
+        ),
+        (
+            SourceUnit::CoreLib,
+            SourceRoot::RustLibrary,
+            "core/src/lib.rs",
+        ),
+        (
+            SourceUnit::CorePrelude,
+            SourceRoot::RustLibrary,
+            "core/src/prelude/mod.rs",
+        ),
+        (
+            SourceUnit::CorePreludeV1,
+            SourceRoot::RustLibrary,
+            "core/src/prelude/v1.rs",
+        ),
+        (
+            SourceUnit::RegexRoot,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/src/lib.rs",
+        ),
+        (
+            SourceUnit::RegexMacros,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/src/macros.rs",
+        ),
+        (
+            SourceUnit::RegexUtil,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/src/util/mod.rs",
+        ),
+        (
+            SourceUnit::RegexManifest,
+            SourceRoot::Workspace,
+            "vendor/regex-automata/Cargo.toml",
+        ),
+    ];
+
     fn assert_roster() {
-        let independent: [(SourceUnit, SourceRoot, &str); 20] = [
-            (
-                SourceUnit::Nfa,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/src/nfa/thompson/nfa.rs",
-            ),
-            (
-                SourceUnit::Sparse,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/src/util/sparse_set.rs",
-            ),
-            (
-                SourceUnit::Ids,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/src/util/primitives.rs",
-            ),
-            (
-                SourceUnit::Arc,
-                SourceRoot::RustLibrary,
-                "alloc/src/sync.rs",
-            ),
-            (
-                SourceUnit::Vec,
-                SourceRoot::RustLibrary,
-                "alloc/src/vec/mod.rs",
-            ),
-            (
-                SourceUnit::RawVec,
-                SourceRoot::RustLibrary,
-                "alloc/src/raw_vec/mod.rs",
-            ),
-            (
-                SourceUnit::SliceIndex,
-                SourceRoot::RustLibrary,
-                "core/src/slice/index.rs",
-            ),
-            (
-                SourceUnit::NonNull,
-                SourceRoot::RustLibrary,
-                "core/src/ptr/non_null.rs",
-            ),
-            (
-                SourceUnit::Unique,
-                SourceRoot::RustLibrary,
-                "core/src/ptr/unique.rs",
-            ),
-            (
-                SourceUnit::MutPtr,
-                SourceRoot::RustLibrary,
-                "core/src/ptr/mut_ptr.rs",
-            ),
-            (
-                SourceUnit::Intrinsics,
-                SourceRoot::RustLibrary,
-                "core/src/intrinsics/mod.rs",
-            ),
-            (
-                SourceUnit::Macros,
-                SourceRoot::RustLibrary,
-                "core/src/macros/mod.rs",
-            ),
-            (
-                SourceUnit::CoreOption,
-                SourceRoot::RustLibrary,
-                "core/src/option.rs",
-            ),
-            (
-                SourceUnit::CoreLib,
-                SourceRoot::RustLibrary,
-                "core/src/lib.rs",
-            ),
-            (
-                SourceUnit::CorePrelude,
-                SourceRoot::RustLibrary,
-                "core/src/prelude/mod.rs",
-            ),
-            (
-                SourceUnit::CorePreludeV1,
-                SourceRoot::RustLibrary,
-                "core/src/prelude/v1.rs",
-            ),
-            (
-                SourceUnit::RegexRoot,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/src/lib.rs",
-            ),
-            (
-                SourceUnit::RegexMacros,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/src/macros.rs",
-            ),
-            (
-                SourceUnit::RegexUtil,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/src/util/mod.rs",
-            ),
-            (
-                SourceUnit::RegexManifest,
-                SourceRoot::Workspace,
-                "vendor/regex-automata/Cargo.toml",
-            ),
-        ];
         assert_eq!(
             ROSTER
                 .iter()
                 .map(|spec| (spec.unit, spec.root, spec.relative))
                 .collect::<Vec<_>>(),
-            independent
+            INDEPENDENT_SOURCE_ROSTER
         );
     }
 
@@ -969,6 +970,24 @@ mod tests {
                 Self::Edition | Self::LibraryPath => "RegexManifest",
             }
         }
+
+        fn manifest_fields(
+            self,
+        ) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
+            match self {
+                Self::Edition => Some(("package", "edition", "2021", "2024")),
+                Self::LibraryPath => Some(("lib", "path", "src/lib.rs", "src/fake_lib.rs")),
+                Self::RootShadow
+                | Self::ExternMacros
+                | Self::ProviderPath
+                | Self::ProviderShadow
+                | Self::ProviderBody
+                | Self::UtilShadow
+                | Self::SparsePath
+                | Self::NoStd
+                | Self::ImplicitPrelude => None,
+            }
+        }
     }
 
     fn module_mut<'a>(file: &'a mut syn::File, name: &str) -> &'a mut syn::ItemMod {
@@ -982,11 +1001,61 @@ mod tests {
         );
         file.items
             .iter_mut()
-            .find_map(|item| match item {
-                syn::Item::Mod(module) if module.ident == name => Some(module),
-                _ => None,
+            .find_map(|item| {
+                let syn::Item::Mod(module) = item else {
+                    return None;
+                };
+                (module.ident == name).then_some(module)
             })
             .unwrap()
+    }
+
+    fn import_std_macros(syntax: &mut syn::File) {
+        let externs: Vec<_> = syntax
+            .items
+            .iter_mut()
+            .filter_map(|item| {
+                let syn::Item::ExternCrate(external) = item else {
+                    return None;
+                };
+                (external.ident == "std").then_some(external)
+            })
+            .collect();
+        assert_eq!(externs.len(), 1);
+        for external in externs {
+            assert!(
+                !external
+                    .attrs
+                    .iter()
+                    .any(|attribute| attribute.path().is_ident("macro_use"))
+            );
+            external.attrs.push(syn::parse_quote!(#[macro_use]));
+        }
+    }
+
+    fn change_log_provider(syntax: &mut syn::File) {
+        let definitions: Vec<_> = syntax
+            .items
+            .iter_mut()
+            .filter_map(|item| {
+                let syn::Item::Macro(definition) = item else {
+                    return None;
+                };
+                definition
+                    .ident
+                    .as_ref()
+                    .is_some_and(|name| name == "log")
+                    .then_some(definition)
+            })
+            .collect();
+        assert_eq!(definitions.len(), 1);
+        for definition in definitions {
+            let before = definition.mac.tokens.clone();
+            definition.mac.tokens = quote::quote! {
+                ($($tt:tt)*) => { fake_extra_work(); $($tt)* }
+            };
+            assert_ne!(before.to_string(), definition.mac.tokens.to_string());
+        }
     }
 
     fn vendor_source_drift(data: &Fixture, change: VendorDrift) -> Fixture {
@@ -1001,13 +1070,8 @@ mod tests {
             .find(|record| record.unit == change.unit())
             .unwrap();
         let original = record.bytes.clone();
-        if matches!(change, VendorDrift::Edition | VendorDrift::LibraryPath) {
+        if let Some((section, field, before, after)) = change.manifest_fields() {
             let mut manifest: toml::Value = toml::from_str(from_utf8(&original).unwrap()).unwrap();
-            let (section, field, before, after) = match change {
-                VendorDrift::Edition => ("package", "edition", "2021", "2024"),
-                VendorDrift::LibraryPath => ("lib", "path", "src/lib.rs", "src/fake_lib.rs"),
-                _ => unreachable!(),
-            };
             assert_eq!(manifest[section][field].as_str(), Some(before));
             manifest[section][field] = toml::Value::String(after.to_owned());
             record.bytes = toml::to_string(&manifest).unwrap().into_bytes();
@@ -1026,28 +1090,7 @@ mod tests {
                         ),
                     );
                 }
-                VendorDrift::ExternMacros => {
-                    let externs: Vec<_> = syntax
-                        .items
-                        .iter_mut()
-                        .filter_map(|item| match item {
-                            syn::Item::ExternCrate(external) if external.ident == "std" => {
-                                Some(external)
-                            }
-                            _ => None,
-                        })
-                        .collect();
-                    assert_eq!(externs.len(), 1);
-                    for external in externs {
-                        assert!(
-                            !external
-                                .attrs
-                                .iter()
-                                .any(|attribute| attribute.path().is_ident("macro_use"))
-                        );
-                        external.attrs.push(syn::parse_quote!(#[macro_use]));
-                    }
-                }
+                VendorDrift::ExternMacros => import_std_macros(&mut syntax),
                 VendorDrift::ProviderPath | VendorDrift::SparsePath => {
                     let name = if matches!(change, VendorDrift::ProviderPath) {
                         "macros"
@@ -1065,34 +1108,13 @@ mod tests {
                         .attrs
                         .push(syn::parse_quote!(#[path = "fake_provider.rs"]));
                 }
-                VendorDrift::ProviderBody => {
-                    let definitions: Vec<_> = syntax
-                        .items
-                        .iter_mut()
-                        .filter_map(|item| match item {
-                            syn::Item::Macro(definition)
-                                if definition.ident.as_ref().is_some_and(|name| name == "log") =>
-                            {
-                                Some(definition)
-                            }
-                            _ => None,
-                        })
-                        .collect();
-                    assert_eq!(definitions.len(), 1);
-                    for definition in definitions {
-                        let before = definition.mac.tokens.clone();
-                        definition.mac.tokens = quote::quote! {
-                            ($($tt:tt)*) => { fake_extra_work(); $($tt)* }
-                        };
-                        assert_ne!(before.to_string(), definition.mac.tokens.to_string());
-                    }
-                }
+                VendorDrift::ProviderBody => change_log_provider(&mut syntax),
                 VendorDrift::NoStd => {
                     let before = syntax.attrs.len();
                     syntax
                         .attrs
                         .retain(|attribute| !attribute.path().is_ident("no_std"));
-                    assert_eq!(syntax.attrs.len() + 1, before);
+                    assert_eq!(syntax.attrs.len().checked_add(1), Some(before));
                 }
                 VendorDrift::ImplicitPrelude => {
                     assert!(
@@ -1105,7 +1127,9 @@ mod tests {
                         .attrs
                         .push(syn::parse_quote!(#![no_implicit_prelude]));
                 }
-                VendorDrift::Edition | VendorDrift::LibraryPath => unreachable!(),
+                VendorDrift::Edition | VendorDrift::LibraryPath => {
+                    panic!("manifest changes use TOML, not the Rust syntax control")
+                }
             }
             record.bytes = syntax.to_token_stream().to_string().into_bytes();
         }
@@ -1186,7 +1210,7 @@ mod tests {
                     )),
                     "{change:?}"
                 );
-                checked += 1;
+                checked = checked.checked_add(1).unwrap();
             }
         }
         assert_eq!(checked, 22);

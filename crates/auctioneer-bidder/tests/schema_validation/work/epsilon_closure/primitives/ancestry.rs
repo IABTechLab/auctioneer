@@ -29,14 +29,17 @@ fn recipe(mut file: syn::File, unit: &'static str) -> Result<String, Refusal> {
     }
     literal_docs(&mut file.attrs);
     for item in &mut file.items {
-        let attributes = match item {
-            syn::Item::ExternCrate(item) => &mut item.attrs,
-            syn::Item::Macro(item) => &mut item.attrs,
-            syn::Item::Mod(item) => &mut item.attrs,
-            syn::Item::Use(item) => &mut item.attrs,
-            _ => return Err(Refusal::VendorAncestry(unit)),
-        };
-        literal_docs(attributes);
+        if let syn::Item::ExternCrate(external) = item {
+            literal_docs(&mut external.attrs);
+        } else if let syn::Item::Macro(definition) = item {
+            literal_docs(&mut definition.attrs);
+        } else if let syn::Item::Mod(module) = item {
+            literal_docs(&mut module.attrs);
+        } else if let syn::Item::Use(import) = item {
+            literal_docs(&mut import.attrs);
+        } else {
+            return Err(Refusal::VendorAncestry(unit));
+        }
     }
     Ok(file.to_token_stream().to_string())
 }
