@@ -17,6 +17,8 @@ use std::str::from_utf8;
 use syn::punctuated::Punctuated;
 use syn::visit_mut::{self, VisitMut};
 
+mod core_routes;
+
 struct Sources(BTreeMap<SourceUnit, syn::File>);
 
 fn const_header(implementation: &mut ConstTraitImpl, unit: SourceUnit) -> Result<String, Refusal> {
@@ -124,8 +126,15 @@ pub(super) fn check_consumed_setup(inputs: &SourceInputs<'_>) -> Result<(), Refu
             .ok_or(Refusal::MissingSource(unit))?;
         files.insert(unit, parse_source(unit, bytes)?);
     }
-    check_recipes(&Sources(files), |_name| {})?;
-    super::ancestry::check_vendor_ancestry(inputs)
+    let mut sources = Sources(files);
+    check_recipes(&sources, |_name| {})?;
+    super::ancestry::check_vendor_ancestry(inputs)?;
+    // Reuse the already body-checked file, not another parse or assert recipe.
+    let macros = sources
+        .0
+        .remove(&SourceUnit::Macros)
+        .ok_or(Refusal::MissingSource(SourceUnit::Macros))?;
+    core_routes::check(inputs, macros)
 }
 
 fn spelling(value: &impl ToTokens) -> String {

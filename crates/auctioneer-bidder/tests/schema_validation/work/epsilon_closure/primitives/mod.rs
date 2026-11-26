@@ -22,8 +22,9 @@
 //! builtin across crate roots, module ancestry and the selected prelude. The
 //! twelve supplied files cannot establish that binding; receiver/invariant
 //! strings and a matched local namespace do not discharge it. The actual
-//! source window additionally recognizes the supported vendor ancestry;
-//! it does not certify core exports, prelude resolution or effective cfgs.
+//! source window additionally recognizes supported vendor ancestry and
+//! conditional explicit core routes. Neither supplies actual compilation,
+//! vendor-leaf lookup, caller binding or effective-cfg authority.
 //! Intrinsic and builtin-derive identities still need the authentic handoff.
 
 use crate::schema_validation::handoff::SourceInputs;

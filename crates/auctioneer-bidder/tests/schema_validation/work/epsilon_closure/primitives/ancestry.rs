@@ -4,7 +4,7 @@
 //! executable attributes match; only literal documentation is ignored. This
 //! does not interpret cfgs or macro expansions. In particular the preserved
 //! doctest invocation still needs its actual compilation-context witness.
-//! Core export/prelude/builtin and actual caller/artifact duties remain open.
+//! Actual core/prelude/builtin correspondence and caller/artifact duties remain open.
 
 use super::Refusal;
 use crate::schema_validation::handoff::SourceInputs;
@@ -15,7 +15,7 @@ fn bytes<'a>(inputs: &'a SourceInputs<'_>, unit: &'static str) -> Result<&'a [u8
     inputs.source(unit).ok_or(Refusal::VendorAncestry(unit))
 }
 
-fn literal_docs(attributes: &mut Vec<syn::Attribute>) {
+pub(super) fn literal_docs(attributes: &mut Vec<syn::Attribute>) {
     attributes.retain(|attribute| {
         !matches!(&attribute.meta, syn::Meta::NameValue(meta)
             if attribute.path().is_ident("doc")
