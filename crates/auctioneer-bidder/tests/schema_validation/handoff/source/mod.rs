@@ -427,6 +427,7 @@ fn with_source_data<T, E>(
 #[cfg(test)]
 mod tests {
     mod core_routes;
+    mod leaf_imports;
 
     use super::{
         CompilerData, Phase, ROSTER, SourceData, SourceError, SourceInputs, SourceReads,
@@ -940,6 +941,7 @@ mod tests {
             }
             assert_vendor_ancestry_controls(seed, view, &data);
             core_routes::assert_controls(seed, view, &data);
+            leaf_imports::assert_controls(seed, view, &data);
             Ok(())
         })
         .unwrap();

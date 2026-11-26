@@ -13,7 +13,7 @@
 //! vendor-leaf name lookup, derive/intrinsic identities or builtin expansion
 //! costs. Existing work/frame/buffer duties and incompleteness remain.
 //! <https://doc.rust-lang.org/reference/macros-by-example.html#path-based-scope>
-//! <https://doc.rust-lang.org/reference/items/use-declarations.html#glob-imports>
+//! <https://doc.rust-lang.org/reference/items/use-declarations.html#glob-imports>.
 
 mod root_attributes;
 
