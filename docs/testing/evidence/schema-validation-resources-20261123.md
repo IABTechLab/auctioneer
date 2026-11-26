@@ -1246,3 +1246,24 @@ Both source lanes reach the same missing-path assertion and the separate whole-f
 The final same-head check readback reports twenty successful and five failed checks, all completed: the source/compiler owner and the four real-application attachment owners fail. No cancelled or pending check is counted as passing. The later correcting-head test and lint results remain required, independently of these predecessor results.
 
 The narrow implementation now replaces the missing-path seam with a checked walk over the original row table, retaining parent frames across each nested alternative and attaching only the two source-bound frameless fragments. Successful contracts must carry concrete paths; the temporary `Option`/`None` state is removed rather than kept as a compatibility fallback. Work dimensions and remaining source/target obligations are not changed. Static review, full fixing-head assertions and strict lint remain required; no local executable verification runs.
+
+### EdgeZero PR 275 Refresh, 2026-11-26
+
+The maintainer requests the current EdgeZero PR #275 in this implementation PR, without another specification or plan. The official GitHub PR API reports head `0e2a58ae54860842c3490ff2ad2d79897bb06b37`, fourteen commits ahead of `ea2549fb13728debf5afc34da2e70593061aa05f`. The compare API confirms ancestry and the changed source files. All six workspace SDK requirements, eight locked SDK packages, active identity fixtures, resource-profile identity, provider verifier, CI SDK lookup and current documentation move together. Historical evidence and captures retain their original pins and bytes.
+
+The new SDK requires Fastly 0.13.3 and URL 2.5.9. The direct Fastly requirement is aligned; the dependency resolver updates the five Fastly packages and URL, adds `wasip2 2.0.1+wasi-0.2.12`, and replaces the obsolete wit-bindgen 0.51 entry with the required 0.62 entry while retaining the other required versions. Cargo runs only for lockfile authoring, not compilation or verification:
+
+```text
+cargo update -p edgezero-core --precise 0e2a58ae54860842c3490ff2ad2d79897bb06b37
+exit code: 0
+Updating fastly v0.13.1 -> v0.13.3
+Updating url v2.5.8 -> v2.5.9
+Adding wasip2 v2.0.1+wasi-0.2.12
+Updating wit-bindgen v0.51.0 -> v0.62.0
+```
+
+The resulting `Cargo.lock` SHA-256 is `0533475871e6376150c6a7b85a36389b728b15c83b3d02deecb91199b7d0ed1f`. Fastly CLI 17.2.0 and Viceroy 0.22.0 follow upstream's tool pins; both Linux installer checksums are read from their official release assets and remain enforced. Rust stays 1.98.1. The decoder/HTTP tuple, workload limits, resource ceilings and accounting equation are unchanged by this adoption.
+
+Source inspection retains outbound scope/cancellation ownership. Fastly now preserves typed Image Optimizer unavailability under its new SDK instead of an ordinary-origin fallback. Axum's ingress shutdown adds declared-upload discard-draining, upload state, a boxed timer and 8-KiB scratch, with a two-second overall/250-ms idle bound. Those are changed source/storage lifetimes, not a newly proved physical bound; the existing resource-ownership index keeps their #50/#72 correspondence explicitly unproved. No new reserve, serving activation or target readiness is inferred.
+
+`git diff --check` returns exit 0. No local build, test, Clippy, proof, parser-control or mutation execution runs. All executable verification belongs to the unchanged hosted matrix on the new head. The existing whole-feature `Incomplete` versus `CommonSourceComplete` failures remain separate #47 implementation work, not acceptance of this SDK change or a waived check. No new specification, plan, PR, test target or job is created.

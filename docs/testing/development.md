@@ -27,7 +27,7 @@ their diagnostics include standard-library source excerpts. CI installs the same
 component; do not regenerate snapshots to compensate for missing Rust sources.
 
 The current EdgeZero dependency is the immutable PR #275 integration revision
-`ea2549fb13728debf5afc34da2e70593061aa05f`, not a moving branch selector.
+`0e2a58ae54860842c3490ff2ad2d79897bb06b37`, not a moving branch selector.
 Acquisition requires that upstream Git object to remain available. A missing
 object is a source-availability failure, not a failed runtime test; do not
 silently select another revision. Resolve the actual fetched checkout for
@@ -35,7 +35,7 @@ SDK-dependent tests rather than guessing Cargo's cache directory:
 
 ```sh
 set -euo pipefail
-pin=ea2549fb13728debf5afc34da2e70593061aa05f
+pin=0e2a58ae54860842c3490ff2ad2d79897bb06b37
 metadata=$(mktemp)
 cargo metadata --locked --offline --format-version 1 > "$metadata"
 manifest=$(jq -er --arg source "git+https://github.com/IABTechLab/edgezero.git?rev=$pin#$pin" '
@@ -153,9 +153,9 @@ fastly compute build --package-name auctioneer
 fastly compute serve
 ```
 
-The package is `pkg/auctioneer.tar.gz`. Fastly CLI 16.0.0 fails to read inherited
-package metadata when invoked in the adapter directory; root invocation retains
-Cargo workspace inheritance without bypassing the vendor packager.
+The package is `pkg/auctioneer.tar.gz`. Root invocation retains Cargo workspace
+inheritance without bypassing the vendor packager. The selected Fastly CLI and
+Viceroy versions come from `.tool-versions`; CI verifies their release checksums.
 
 Read `required-features` before selecting conformance: Cargo can silently
 skip a target without them. Core's full conformance checkpoint includes:
