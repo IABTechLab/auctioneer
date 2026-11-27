@@ -131,18 +131,18 @@ impl HybridHeap {
         })
     }
 
-    /// Internally binds the same fixed DFA's graph to its conditional heap model.
+    /// Projects the same fixed DFA's graph using the supplied conditional layout.
+    /// This does not establish a compiled target's layout or physical memory fit.
     pub(crate) fn from_complete_dfa(
         dfa: &DFA,
-        _layout: HeapLayout,
+        layout: HeapLayout,
     ) -> Result<Option<Self>, CompleteHeapError> {
-        let Some(coarse) = HybridPopulation::from_dfa(dfa, size_of::<usize>())? else {
+        let Some(coarse) = HybridPopulation::from_dfa(dfa, layout.word_bytes())? else {
             return Ok(None);
         };
         let storage = HybridDimensions::from_dfa(dfa)?;
         let graph = certify(dfa, QUALIFICATION_BUDGET)?;
         let population = Self::closed_population(&storage, &coarse, graph.ordinary_states)?;
-        let layout = HeapLayout::new(size_of::<usize>(), 16).map_err(BoundsError::from)?;
         Ok(Some(Self::project(&storage, &population, layout)?))
     }
 
@@ -614,7 +614,7 @@ mod tests {
         assert!(complete.peak < coarse.peak);
         // One identical logical graph, with independent width and hash-group
         // inputs. Native graph exploration is not guest-artifact qualification.
-        for (word, group, live, overlap, peak) in [
+        for (word, group, live, overlap, expected_peak) in [
             (4, 4, 644, 56, 700),
             (4, 8, 648, 60, 708),
             (4, 16, 656, 68, 724),
@@ -626,7 +626,7 @@ mod tests {
                 Ok(Some(HybridHeap {
                     live_envelope: live,
                     growth_overlap: overlap,
-                    peak,
+                    peak: expected_peak,
                 })),
                 "word={word} group={group}"
             );
