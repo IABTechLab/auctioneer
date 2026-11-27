@@ -155,7 +155,8 @@ fn selected_topology(
                 look: Look::Start | Look::End,
                 ..
             }
-            | State::BinaryUnion { .. } => {}
+            | State::BinaryUnion { .. }
+            | State::Fail => {}
             State::Capture {
                 pattern_id,
                 group_index,
@@ -165,7 +166,6 @@ fn selected_topology(
                 && group_index.as_usize() < group_info.groups
                 && slot.as_usize() < nfa.group_info().slot_len() => {}
             State::Match { pattern_id } if *pattern_id == PatternID::ZERO => {}
-            State::Fail => {}
             State::ByteRange { .. }
             | State::Dense(_)
             | State::Look { .. }

@@ -61,8 +61,8 @@ fn check_roots(
     if anchored.as_usize() >= states_len || unanchored.as_usize() >= states_len {
         return Err(LogicalNfaError::StateId);
     }
-    for root in pattern_roots {
-        let root = root.ok_or(LogicalNfaError::MissingPattern)?;
+    for pattern_root in pattern_roots {
+        let root = pattern_root.ok_or(LogicalNfaError::MissingPattern)?;
         if root.as_usize() >= states_len {
             return Err(LogicalNfaError::StateId);
         }

@@ -1343,3 +1343,23 @@ Secure source also reaches the two earlier logical-kernel unit failures; the rep
 The completed default-workspace and development-workspace logs (`140301800284` and `140301800345`, each fetched through the job-log API with exit 0) independently show only the same two `schema_cache_bounds` assertion failures. Their result lines are respectively `test result: FAILED. 258 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s` and `test result: FAILED. 258 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s`.
 
 All twenty-five same-head checks complete: sixteen pass and nine fail (format/lint, three native feature owners, source/compiler and four application attachments). None is cancelled, pending, waived or treated as GREEN. The checker implementation and lint repair are prepared from the executed kernel RED, then held until this run completes. The correcting checkpoint additionally places the unchanged qualification/fit/serving flag assertions before the final completion assertion. Its whole common-source completion requirement remains last and unchanged. Full correcting-head execution remains required; #47 and the draft PR stay incomplete.
+
+### Logical Topology Assertions Pass; Two Further Lints Refuse
+
+At `9304463308c8f3ef591941071145d4bd93dacca8`, all twenty-five hosted checks complete: nineteen pass and six fail. The completed [source/compiler job](https://github.com/IABTechLab/auctioneer/actions/runs/45940594701/job/140313751949) log is downloaded with the job-log API (fetch exit 0). Secure source, development residency and development validation record:
+
+```text
+test result: FAILED. 975 passed; 2 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1007.02s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 55.12s
+test result: FAILED. 137 passed; 2 failed; 0 ignored; 0 measured; 844 filtered out; finished in 279.80s
+```
+
+The two logical NFA unit cases pass, including the full root/successor boundary matrices, dimension literals, overflow and target-shape controls. Both source lanes' current-body case passes every original factory/input/search result check, exact graph-plus-hostname membership/direction/borrow check, every logical result and final view recheck, the canonical checker and all three false qualification/fit/serving flags. It then reaches the unchanged final `CommonSourceComplete` assertion at `schema_validation/mod.rs:315`, receiving `Incomplete`. The report case retains its separate same-status failure. These two failures are not waived or hidden; scoped assertion acceptance does not complete the common proof. Compiler controls and explicit strict source-target lint remain unreached after source failure.
+
+All three normal native feature owners pass. The completed [secure-feature log](https://github.com/IABTechLab/auctioneer/actions/runs/45940594701/job/140313751924), fetched through the same API with exit 0, includes both formerly failing case names as `ok` and:
+
+```text
+test result: ok. 260 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+```
+
+The [formatting/lint job](https://github.com/IABTechLab/auctioneer/actions/runs/45940594694/job/140313751568) still fails, exit 101. Its complete log reports only two new diagnostics in the kernel: `clippy::shadow_reuse` for unwrapping `root` into the same name, and `clippy::match_same_arms` for the identical unguarded look/binary-union and fail arms. The prior absolute-path, function-size and complexity diagnostics are absent. The narrow repair names the optional item `pattern_root` and joins the identical `State::Fail` arm. No checker logic, bound, assertion, test case, guard, lint rule or limit changes. Full repairing-head hosted lint and acceptance remain required; no local executable verification runs.
