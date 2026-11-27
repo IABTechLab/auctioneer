@@ -1302,3 +1302,26 @@ The NFA owner reuses `NfaDimensions::from_nfa`; the new logical-root/successor c
 Expected RED is the logical checker refusing valid graphs, after successful compilation and the original assertions, not a missing symbol, setup failure or zero-test selection. Those expectations are not execution evidence before hosted results. After observed RED, one shared ID checker must replace the refusal seam, with target reuse preserving every other shape/layout guard and refusal order. The temporary missing-proof variant must be removed rather than retained as another path.
 
 No case, target, source reader, program reconstruction, dependency, engine, workload, ceiling or serving path is added. Native NFA topology remains structural data, not target ABI proof. Sparse initialization, epochs, cache-start/search invocation, caller/cleanup and whole common completion remain unproved. All original source, cost and refusal controls stay; static review and pinned rustfmt are not executable verification.
+
+### Topology Checkpoint Lint Failure
+
+At `da704a5c1174ab19c7bf0156b09ff34d97ac2a33`, the completed [formatting/lint job](https://github.com/IABTechLab/auctioneer/actions/runs/45936812263/job/140301799750) returns exit 101. The downloaded job log reports three `clippy::absolute_paths` diagnostics (the NFA config and two look constants), plus `cognitive_complexity` **31/25** and `too_many_lines` **172/100** in `nfa_heap_public_state_variants_charge_only_boxed_children`. These are author-owned lint failures, not the required logical-checker assertion RED.
+
+The repair imports the named types and extracts the same root and successor checks into two private inline test helpers, called by the unchanged case. Every original assertion, boundary, expected result and matrix entry is retained. No allowance, selection, timeout or assertion is weakened. Pinned rustfmt is editing only; hosted lint acceptance remains required. The running source/feature jobs are retained to obtain semantic evidence before implementing the logical checker.
+
+### Logical ID Kernel Reaches Hosted Assertion RED
+
+At `da704a5c1174ab19c7bf0156b09ff34d97ac2a33`, the completed [secure-feature job](https://github.com/IABTechLab/auctioneer/actions/runs/45936812209/job/140301800328) runs the unchanged `cargo test --locked -p auctioneer-bidder -p auctioneer-exchange -p auctioneer-core --all-targets` owner. Its downloaded log (job-log API fetch exit 0) shows the existing `schema_cache_bounds` target execute all 260 cases:
+
+```text
+test result: FAILED. 258 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s
+Process completed with exit code 101.
+```
+
+`nfa_heap_public_state_variants_charge_only_boxed_children` reaches `mod.rs:1055`: `left: Err(MissingProof)`, `right: Ok(())`. `nfa_heap_shape_and_checked_group_arithmetic_refuse` reaches `mod.rs:785`: `left: Err(MissingProof)`, `right: Ok(NfaDimensions { states: 12, slots: 4, patterns: 1, branch_frames: 2, capture_states: 4 })`. Both fail after the original per-case assertions. The latter first completes all independent dimension literals and overflow checks. This is semantic missing-kernel RED after compilation, separate from the lint failure; it is not a wrong setup, missing symbol or zero-test selection.
+
+This result permits implementing the logical kernel. The actual descriptor-body assertions in both source lanes and the remaining full-matrix results are still pending at this recording, not inferred from these two unit failures. The running job is retained. Later root/successor negative assertions require fixing-head GREEN; the final whole-feature completion gate remains strict.
+
+The narrow implementation now removes `MissingProof` entirely. The logical consumer and target projection share one root checker and one per-state successor checker; `NfaDimensions` remains the dimension owner. Target root checks retain their position after the existing shape/group checks, and successor checks remain within the original per-state iteration. An earlier state's checked layout/cost failure therefore still precedes a later state's invalid ID. Every independent interval/order/length, look, group/slot, pattern, UTF-8/empty, layout and overflow guard remains. No source authority, target facts, qualified cost or completion status is added.
+
+Static SPEC-compliance review followed by code-quality review finds no scoped issue in the implementation plus test-helper/import repairs. Those reviews and pinned rustfmt are not executable GREEN or independent GitHub approval. The existing full fixing-head matrix, both source lanes and strict source-target lint remain required. No local executable verification runs; sparse initialization, epoch/caller/search/cleanup and the other whole-feature derivations remain unfinished.

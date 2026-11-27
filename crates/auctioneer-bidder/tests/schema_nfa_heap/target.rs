@@ -4,7 +4,9 @@
 //! Excludes constructor peaks, other programs, caches, work, stack and physical
 //! memory. Native topology is structural input, never a target layout witness.
 
-use super::{GroupInfoRetainedHeap, NativeField, NfaRetainedHeap};
+use super::{
+    GroupInfoRetainedHeap, NativeField, NfaRetainedHeap, check_roots, check_state_successors,
+};
 use regex_automata::{
     nfa::thompson::{NFA, State, Transition},
     util::{
@@ -112,27 +114,22 @@ fn selected_topology(
     if group_info.patterns != usize::from(!nfa.is_reverse()) {
         return Err(TargetHeapError::UnboundShape);
     }
-    let valid_id = |id: StateID| id.as_usize() < states;
-    if !valid_id(nfa.start_anchored())
-        || !valid_id(nfa.start_unanchored())
-        || nfa
-            .start_pattern(PatternID::ZERO)
-            .is_none_or(|id| !valid_id(id))
-    {
-        return Err(TargetHeapError::UnboundShape);
-    }
+    check_roots(
+        states,
+        nfa.start_anchored(),
+        nfa.start_unanchored(),
+        [nfa.start_pattern(PatternID::ZERO)],
+    )
+    .map_err(|_error| TargetHeapError::UnboundShape)?;
     let mut sparse_bytes = 0_usize;
     let mut union_bytes = 0_usize;
     for state in nfa.states() {
+        check_state_successors(states, state).map_err(|_error| TargetHeapError::UnboundShape)?;
         match state {
-            State::ByteRange { trans } if valid_transition(*trans) && valid_id(trans.next) => {}
+            State::ByteRange { trans } if valid_transition(*trans) => {}
             State::Sparse(sparse) => {
                 if sparse.transitions.len() < 2
-                    || !sparse
-                        .transitions
-                        .iter()
-                        .copied()
-                        .all(|trans| valid_transition(trans) && valid_id(trans.next))
+                    || !sparse.transitions.iter().copied().all(valid_transition)
                     || sparse
                         .transitions
                         .array_windows::<2>()
@@ -146,7 +143,7 @@ fn selected_topology(
                 )?;
             }
             State::Union { alternates } => {
-                if alternates.len() < 3 || !alternates.iter().copied().all(valid_id) {
+                if alternates.len() < 3 {
                     return Err(TargetHeapError::UnboundShape);
                 }
                 union_bytes = add(
@@ -156,16 +153,15 @@ fn selected_topology(
             }
             State::Look {
                 look: Look::Start | Look::End,
-                next,
-            } if valid_id(*next) => {}
-            State::BinaryUnion { alt1, alt2 } if valid_id(*alt1) && valid_id(*alt2) => {}
+                ..
+            }
+            | State::BinaryUnion { .. } => {}
             State::Capture {
-                next,
                 pattern_id,
                 group_index,
                 slot,
-            } if valid_id(*next)
-                && *pattern_id == PatternID::ZERO
+                ..
+            } if *pattern_id == PatternID::ZERO
                 && group_index.as_usize() < group_info.groups
                 && slot.as_usize() < nfa.group_info().slot_len() => {}
             State::Match { pattern_id } if *pattern_id == PatternID::ZERO => {}
@@ -173,7 +169,6 @@ fn selected_topology(
             State::ByteRange { .. }
             | State::Dense(_)
             | State::Look { .. }
-            | State::BinaryUnion { .. }
             | State::Capture { .. }
             | State::Match { .. } => return Err(TargetHeapError::UnboundShape),
         }
@@ -360,6 +355,7 @@ mod tests {
     use crate::schema_cache_bounds::{forward_nfa, reverse_nfa};
     use crate::schema_formats::HOSTNAME_SOURCE;
     use regex_automata::{
+        nfa::thompson::Config as NfaConfig,
         nfa::thompson::State,
         nfa::thompson::Transition,
         util::primitives::{SmallIndex, StateID},
@@ -589,7 +585,7 @@ mod tests {
             Err(TargetHeapError::UnboundShape)
         );
         let non_utf8 = NFA::compiler()
-            .configure(regex_automata::nfa::thompson::Config::new().utf8(false))
+            .configure(NfaConfig::new().utf8(false))
             .build("^a$")
             .unwrap();
         for nfa in [

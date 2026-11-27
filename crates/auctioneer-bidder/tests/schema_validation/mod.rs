@@ -23,6 +23,7 @@ mod tests {
     use crate::schema_selection_source::{Lane, public_names};
     use std::collections::{BTreeMap, BTreeSet};
     use std::path::Path;
+    use std::ptr;
 
     struct BodyAnalysis {
         owner: String,
@@ -191,10 +192,10 @@ mod tests {
         {
             assert_eq!(id, again_id);
             assert_eq!(pattern, again_pattern);
-            assert!(std::ptr::eq(*id, *again_id));
-            assert!(std::ptr::eq(*pattern, *again_pattern));
-            assert!(std::ptr::eq(nfas[0], again_nfas[0]));
-            assert!(std::ptr::eq(nfas[1], again_nfas[1]));
+            assert!(ptr::eq(*id, *again_id));
+            assert!(ptr::eq(*pattern, *again_pattern));
+            assert!(ptr::eq(nfas[0], again_nfas[0]));
+            assert!(ptr::eq(nfas[1], again_nfas[1]));
             assert!(!nfas[0].is_reverse(), "forward borrow: {id}");
             assert!(nfas[1].is_reverse(), "reverse borrow: {id}");
         }

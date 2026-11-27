@@ -526,6 +526,7 @@ mod tests {
         nfa::thompson::WhichCaptures,
         util::{prefilter::Prefilter, syntax},
     };
+    use std::ptr;
 
     fn fake_config() -> Config {
         Config::new()
@@ -632,13 +633,13 @@ mod tests {
             556_usize
         );
         let borrowed = source.nfas();
-        assert!(std::ptr::eq(borrowed[0], &source.forward));
-        assert!(std::ptr::eq(borrowed[1], &source.reverse));
+        assert!(ptr::eq(borrowed[0], &source.forward));
+        assert!(ptr::eq(borrowed[1], &source.reverse));
         assert!(!borrowed[0].is_reverse());
         assert!(borrowed[1].is_reverse());
         let again = source.nfas();
-        assert!(std::ptr::eq(borrowed[0], again[0]));
-        assert!(std::ptr::eq(borrowed[1], again[1]));
+        assert!(ptr::eq(borrowed[0], again[0]));
+        assert!(ptr::eq(borrowed[1], again[1]));
     }
 
     #[test]
