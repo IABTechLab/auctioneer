@@ -2,8 +2,8 @@
 //!
 //! The sealed seed/view supply the expected compiler identity. Probe results,
 //! paths, bytes and digests are data, not permission to approve changed bodies.
-//! The fixed roster below is the single actual-source roster for the primitive
-//! adapter; its existing supplied-facts collector is not an authority producer.
+//! The helper prefix and owner-declared context/caller paths share one roster.
+//! Supplied-facts collectors and checked bytes are not authority producers.
 //! This window does not discharge builtin resolution, helper recipes, resource
 //! bounds, target facts, cleanup or qualification. No serving API is introduced.
 
@@ -11,6 +11,7 @@ use crate::schema_build::application::CapturedSeed;
 use crate::schema_build::selected::probe_compiler;
 use crate::schema_residency::descriptor::ValidationView;
 use crate::schema_residency::read_regular;
+use crate::schema_validation::work::{self, CallerSourceUnit, SourceRole};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use std::path::{Path, PathBuf};
@@ -37,6 +38,8 @@ enum SourceUnit {
     RegexMacros,
     RegexUtil,
     RegexManifest,
+    Context(SourceRole),
+    Caller(CallerSourceUnit),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,13 +48,15 @@ enum SourceRoot {
     RustLibrary,
 }
 
+#[derive(Clone, Copy)]
 struct SourceSpec {
     unit: SourceUnit,
     root: SourceRoot,
     relative: &'static str,
 }
 
-// These are source identities, not workload limits or a discovered owner census.
+// Primitive identities only; context/caller paths stay with their owning modules.
+// The combined census is not a workload limit or a compiled-source closure.
 const ROSTER: [SourceSpec; 20] = [
     SourceSpec {
         unit: SourceUnit::Nfa,
@@ -163,6 +168,24 @@ struct CompilerData {
     verbose: String,
 }
 
+fn source_roster() -> impl Iterator<Item = SourceSpec> {
+    let contexts = work::context_source_paths()
+        .iter()
+        .map(|&(role, relative)| SourceSpec {
+            unit: SourceUnit::Context(role),
+            root: SourceRoot::Workspace,
+            relative,
+        });
+    let callers = work::caller_source_paths()
+        .iter()
+        .map(|&(unit, relative)| SourceSpec {
+            unit: SourceUnit::Caller(unit),
+            root: SourceRoot::Workspace,
+            relative,
+        });
+    ROSTER.iter().copied().chain(contexts).chain(callers)
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct SourceData {
     // Untrusted labels deliberately allow unknown/extra records in controls.
@@ -193,6 +216,29 @@ impl SourceInputs<'_> {
             .iter()
             .find(|source| source.unit == unit)
             .map(|source| source.bytes.as_slice())
+    }
+
+    // Borrow checked DATA by an owning roster path, never a proof label or I/O.
+    pub(in crate::schema_validation) fn source_record(
+        &self,
+        relative: &str,
+    ) -> Option<(&Path, &[u8], &str)> {
+        let mut declared = source_roster().filter(|spec| spec.relative == relative);
+        let expected = declared.next()?;
+        if declared.next().is_some() {
+            return None;
+        }
+        let unit = format!("{:?}", expected.unit);
+        let mut matching = self.sources.iter().filter(|source| source.unit == unit);
+        let record = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        Some((
+            record.path.as_path(),
+            record.bytes.as_slice(),
+            record.sha256.as_str(),
+        ))
     }
 }
 
@@ -247,7 +293,7 @@ fn expected_compiler(seed: &CapturedSeed) -> Result<CompilerData, ()> {
     })
 }
 
-fn source_paths(compiler: &CompilerData) -> Result<[PathBuf; ROSTER.len()], ()> {
+fn source_paths(compiler: &CompilerData) -> Result<Vec<PathBuf>, ()> {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
@@ -258,10 +304,12 @@ fn source_paths(compiler: &CompilerData) -> Result<[PathBuf; ROSTER.len()], ()> 
         .and_then(Path::parent)
         .ok_or(())?
         .join("lib/rustlib/src/rust/library");
-    Ok(ROSTER.map(|spec| match spec.root {
-        SourceRoot::Workspace => workspace.join(spec.relative),
-        SourceRoot::RustLibrary => library.join(spec.relative),
-    }))
+    Ok(source_roster()
+        .map(|spec| match spec.root {
+            SourceRoot::Workspace => workspace.join(spec.relative),
+            SourceRoot::RustLibrary => library.join(spec.relative),
+        })
+        .collect())
 }
 
 fn source_digest(bytes: &[u8]) -> String {
@@ -269,7 +317,7 @@ fn source_digest(bytes: &[u8]) -> String {
 }
 
 struct CurrentSources {
-    paths: [PathBuf; ROSTER.len()],
+    paths: Vec<PathBuf>,
 }
 
 impl SourceReads for CurrentSources {
@@ -283,9 +331,9 @@ impl SourceReads for CurrentSources {
     }
 
     fn sources(&mut self, _phase: Phase) -> Result<Vec<SourceData>, SourceUnit> {
-        let mut sources = Vec::with_capacity(ROSTER.len());
+        let mut sources = Vec::with_capacity(self.paths.len());
         let mut first_error = None;
-        for (spec, path) in ROSTER.iter().zip(&self.paths) {
+        for (spec, path) in source_roster().zip(&self.paths) {
             match read_regular(path) {
                 Ok(bytes) => sources.push(SourceData {
                     unit: format!("{:?}", spec.unit),
@@ -314,26 +362,28 @@ fn source_row(sources: &[SourceData], unit: SourceUnit) -> Option<&SourceData> {
 
 fn checked_sources<'a, E>(
     records: &'a Result<Vec<SourceData>, SourceUnit>,
-    paths: &[PathBuf; ROSTER.len()],
+    paths: &[PathBuf],
 ) -> Result<&'a [SourceData], SourceError<E>> {
     let sources = records
         .as_ref()
         .map_err(|unit| SourceError::SourceRead(*unit))?;
-    if sources.len() != ROSTER.len()
-        || ROSTER.iter().any(|spec| {
+    let expected_count = source_roster().count();
+    if sources.len() != expected_count
+        || paths.len() != expected_count
+        || source_roster().any(|spec| {
             let name = format!("{:?}", spec.unit);
             sources.iter().filter(|source| source.unit == name).count() != 1
         })
     {
         return Err(SourceError::SourceCoverage);
     }
-    for (spec, path) in ROSTER.iter().zip(paths) {
+    for (spec, path) in source_roster().zip(paths) {
         let source = source_row(sources, spec.unit).ok_or(SourceError::SourceCoverage)?;
         if source.path != *path {
             return Err(SourceError::SourcePath(spec.unit));
         }
     }
-    for spec in &ROSTER {
+    for spec in source_roster() {
         let source = source_row(sources, spec.unit).ok_or(SourceError::SourceCoverage)?;
         if source.sha256 != source_digest(&source.bytes) {
             return Err(SourceError::SourceChanged(spec.unit));
@@ -414,7 +464,7 @@ fn with_source_data<T, E>(
     let before = sources_before
         .as_ref()
         .map_err(|unit| SourceError::SourceRead(*unit))?;
-    for spec in &ROSTER {
+    for spec in source_roster() {
         let prior = source_row(before, spec.unit).ok_or(SourceError::SourceCoverage)?;
         let current = source_row(after, spec.unit).ok_or(SourceError::SourceCoverage)?;
         if prior != current {
@@ -431,7 +481,7 @@ mod tests {
 
     use super::{
         CompilerData, Phase, ROSTER, SourceData, SourceError, SourceInputs, SourceReads,
-        SourceRoot, SourceUnit, with_current_sources, with_source_data,
+        SourceRoot, SourceUnit, source_roster, with_current_sources, with_source_data,
     };
     use crate::schema_build::{application::CapturedSeed, selected::probe_compiler};
     use crate::schema_residency::{
@@ -439,12 +489,13 @@ mod tests {
     };
     use crate::schema_validation::handoff;
     use crate::schema_validation::work::{
-        self, ConditionalHelperCostProjection, HelperInterpretationRefusal,
-        HelperSourceJoinRefusal, HelperSourceUnit,
+        self, CallerSourceUnit, ConditionalHelperCostProjection, HelperInterpretationRefusal,
+        HelperSourceJoinRefusal, HelperSourceUnit, SourceRole,
     };
     use quote::ToTokens as _;
     use serde_json::Value;
     use sha2::{Digest as _, Sha256};
+    use std::collections::BTreeSet;
     use std::fs::{self, File, OpenOptions};
     use std::io::{self, Seek as _, Write as _};
     use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
@@ -562,8 +613,7 @@ mod tests {
             .expect("matched compiler sysroot")
             .join("lib/rustlib/src/rust/library");
         // Setup snapshots are data only, not a source-consumption window.
-        let sources = ROSTER
-            .iter()
+        let sources = source_roster()
             .map(|spec| {
                 let root = match spec.root {
                     SourceRoot::Workspace => workspace,
@@ -607,8 +657,8 @@ mod tests {
     fn inspect_inputs(inputs: &SourceInputs<'_>, data: &Fixture) -> usize {
         assert_eq!(inputs.compiler, &data.expected);
         assert_eq!(inputs.sources, data.sources.as_slice());
-        assert_eq!(inputs.source_count(), 20);
-        for (source, spec) in inputs.sources.iter().zip(&ROSTER) {
+        assert_eq!(inputs.source_count(), 44);
+        for (source, spec) in inputs.sources.iter().zip(source_roster()) {
             assert_eq!(source.unit, format!("{:?}", spec.unit));
             assert!(source.path.is_absolute());
             assert!(source.path.ends_with(spec.relative));
@@ -758,6 +808,105 @@ mod tests {
         ),
     ];
 
+    const INDEPENDENT_ADDITIONAL_SOURCES: [(SourceUnit, &str); 24] = [
+        (
+            SourceUnit::Context(SourceRole::Native),
+            "crates/auctioneer-bidder/src/schema/native.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::Budget),
+            "crates/auctioneer-bidder/src/schema/mod.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::Input),
+            "crates/auctioneer-bidder/src/schema/input.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::JsonSize),
+            "crates/auctioneer-runtime/src/json_size.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::ExchangeSchema),
+            "crates/auctioneer-exchange/src/run/schema.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::ExchangeRun),
+            "crates/auctioneer-exchange/src/run/mod.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::ExchangeSplit),
+            "crates/auctioneer-exchange/src/split/mod.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::ExchangeLimits),
+            "crates/auctioneer-exchange/src/limits.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::DispatchGenerator),
+            "crates/auctioneer-config/src/schema_staging_build.rs",
+        ),
+        (
+            SourceUnit::Context(SourceRole::Formats),
+            "crates/auctioneer-bidder/src/schema/staging.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::CorePrepare),
+            "crates/auctioneer-core/src/auction/prepare.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::CoreServices),
+            "crates/auctioneer-core/src/auction/services.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::CoreOperation),
+            "crates/auctioneer-core/src/auction/operation.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::PolicyHost),
+            "crates/auctioneer-core/src/config/policy_host.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::PolicyResolve),
+            "crates/auctioneer-core/src/config/resolve.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::NormalizedPrepare),
+            "crates/auctioneer-openrtb/src/prepare/mod.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::ImplicitFill),
+            "crates/auctioneer-openrtb/src/prepare/implicit_fill.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::ExchangeContext),
+            "crates/auctioneer-exchange/src/context.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::RuntimeBudget),
+            "crates/auctioneer-runtime/src/budget.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::CoreAuctionRoot),
+            "crates/auctioneer-core/src/auction/mod.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::CoreConfigRoot),
+            "crates/auctioneer-core/src/config/mod.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::OpenRtbRoot),
+            "crates/auctioneer-openrtb/src/lib.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::RuntimeRoot),
+            "crates/auctioneer-runtime/src/lib.rs",
+        ),
+        (
+            SourceUnit::Caller(CallerSourceUnit::ExchangeRoot),
+            "crates/auctioneer-exchange/src/lib.rs",
+        ),
+    ];
+
     fn assert_roster() {
         assert_eq!(
             ROSTER
@@ -765,6 +914,78 @@ mod tests {
                 .map(|spec| (spec.unit, spec.root, spec.relative))
                 .collect::<Vec<_>>(),
             INDEPENDENT_SOURCE_ROSTER
+        );
+        let complete: Vec<_> = source_roster().collect();
+        assert_eq!(
+            complete
+                .iter()
+                .map(|spec| (spec.unit, spec.root, spec.relative))
+                .collect::<Vec<_>>(),
+            INDEPENDENT_SOURCE_ROSTER
+                .into_iter()
+                .chain(
+                    INDEPENDENT_ADDITIONAL_SOURCES
+                        .into_iter()
+                        .map(|(unit, path)| (unit, SourceRoot::Workspace, path))
+                )
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(complete.len(), 44);
+        assert_eq!(
+            complete
+                .iter()
+                .filter(|spec| matches!(spec.unit, SourceUnit::Context(_)))
+                .count(),
+            10
+        );
+        assert_eq!(
+            complete
+                .iter()
+                .filter(|spec| matches!(spec.unit, SourceUnit::Caller(_)))
+                .count(),
+            14
+        );
+        let units: BTreeSet<_> = complete
+            .iter()
+            .map(|spec| format!("{:?}", spec.unit))
+            .collect();
+        let paths: BTreeSet<_> = complete.iter().map(|spec| spec.relative).collect();
+        assert_eq!(units.len(), 44);
+        assert_eq!(paths.len(), 44);
+    }
+
+    fn assert_opening_coverage_control(
+        seed: &CapturedSeed,
+        view: ValidationView<'_>,
+        data: &Fixture,
+    ) {
+        let mut reads = replay(data);
+        assert_eq!(run_data(seed, view, data, &mut reads, false), Ok(44));
+        assert_eq!(*reads.events.borrow(), expected_events());
+        // CoreOption is not a helper dependency; global coverage still
+        // gates consumer entry and retains every closing check.
+        let mut missing = replay(data);
+        let sources = missing.before.sources.as_mut().unwrap();
+        let option = sources
+            .iter()
+            .position(|source| source.unit == "CoreOption")
+            .expect("CoreOption present before independent opening coverage control");
+        assert_eq!(sources[option], data.sources[option]);
+        assert_eq!(sources.remove(option), data.sources[option]);
+        assert_eq!(
+            run_data(seed, view, data, &mut missing, false),
+            Err(SourceError::SourceCoverage)
+        );
+        assert_eq!(
+            *missing.events.borrow(),
+            vec![
+                Event::Check(Phase::Before),
+                Event::Compiler(Phase::Before),
+                Event::Sources(Phase::Before),
+                Event::Sources(Phase::After),
+                Event::Compiler(Phase::After),
+                Event::Check(Phase::After),
+            ]
         );
     }
 
@@ -848,7 +1069,7 @@ mod tests {
 
     #[test]
     fn actual_sources_are_consumed_inside_the_bound_window() {
-        with_current_descriptor(|seed, descriptor| {
+        let (caller_setup, caller_projection) = with_current_descriptor(|seed, descriptor| {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             assert_roster();
@@ -859,6 +1080,8 @@ mod tests {
             let mut semantic_setup = None;
             let mut helper_costs = None;
             let mut refused_costs = None;
+            let mut caller_setup = None;
+            let mut caller_projection = None;
             let actual = with_current_sources(seed, view, |inputs| {
                 let count = inspect_inputs(inputs, &data);
                 semantic_setup = Some(work::check_helper_source_setup(inputs));
@@ -874,37 +1097,15 @@ mod tests {
                         .map(|(demand, _)| work::join_helper_costs(inputs, demand))
                         .collect::<Vec<_>>(),
                 );
+                caller_setup = Some(work::consumed_source_setup(inputs, seed, view));
+                caller_projection = Some([
+                    work::join_caller_sources(inputs, seed, view, 1),
+                    work::join_caller_sources(inputs, seed, view, 0),
+                ]);
                 Ok::<_, ConsumerError>(count)
             });
-            assert_eq!(actual, Ok(20));
-            let mut reads = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut reads, false), Ok(20));
-            assert_eq!(*reads.events.borrow(), expected_events());
-            // CoreOption is not a helper dependency; global coverage still
-            // gates consumer entry and retains every closing check.
-            let mut missing = replay(&data);
-            let sources = missing.before.sources.as_mut().unwrap();
-            let option = sources
-                .iter()
-                .position(|source| source.unit == "CoreOption")
-                .expect("CoreOption present before independent opening coverage control");
-            assert_eq!(sources[option], data.sources[option]);
-            assert_eq!(sources.remove(option), data.sources[option]);
-            assert_eq!(
-                run_data(seed, view, &data, &mut missing, false),
-                Err(SourceError::SourceCoverage)
-            );
-            assert_eq!(
-                *missing.events.borrow(),
-                vec![
-                    Event::Check(Phase::Before),
-                    Event::Compiler(Phase::Before),
-                    Event::Sources(Phase::Before),
-                    Event::Sources(Phase::After),
-                    Event::Compiler(Phase::After),
-                    Event::Check(Phase::After),
-                ]
-            );
+            assert_eq!(actual, Ok(44));
+            assert_opening_coverage_control(seed, view, &data);
             assert_postcapture_control(seed, view, &data);
             let changed = CapturedSeed {
                 identity_sha256: seed.identity_sha256.clone(),
@@ -942,9 +1143,12 @@ mod tests {
             assert_vendor_ancestry_controls(seed, view, &data);
             core_routes::assert_controls(seed, view, &data);
             leaf_imports::assert_controls(seed, view, &data);
-            Ok(())
+            Ok((caller_setup, caller_projection))
         })
         .unwrap();
+        // The outer descriptor/artifact checks must also finish before RED.
+        assert_eq!(caller_setup, Some(Ok(())));
+        work::assert_consumed_projection(caller_projection.unwrap());
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -1314,7 +1518,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut valid = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(20));
+            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(44));
             for phase in [Phase::Before, Phase::After] {
                 for change_path in [true, false] {
                     let mut reads = replay(&data);
@@ -1428,7 +1632,7 @@ mod tests {
     }
 
     fn assert_hash_controls(seed: &CapturedSeed, view: ValidationView<'_>, data: &Fixture) {
-        for (index, spec) in ROSTER.iter().enumerate() {
+        for (index, spec) in source_roster().enumerate() {
             for phase in [Phase::Before, Phase::After] {
                 let mut reads = replay(data);
                 let round = match phase {
@@ -1464,10 +1668,10 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut valid = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(20));
+            assert_eq!(run_data(seed, view, &data, &mut valid, false), Ok(44));
             assert_coverage_controls(seed, view, &data);
             assert_hash_controls(seed, view, &data);
-            for (index, spec) in ROSTER.iter().enumerate() {
+            for (index, spec) in source_roster().enumerate() {
                 for phase in [Phase::Before, Phase::After] {
                     let mut reads = replay(&data);
                     let round = match phase {
@@ -1475,6 +1679,7 @@ mod tests {
                         Phase::After => &mut reads.after,
                     };
                     let source = round.sources.as_mut().unwrap().get_mut(index).unwrap();
+                    assert_eq!(*source, data.sources[index]);
                     source.path = source.path.with_file_name("unmatched-source.rs");
                     assert_ne!(source.path, data.sources[index].path);
                     assert_eq!(
@@ -1490,6 +1695,7 @@ mod tests {
                     .unwrap()
                     .get_mut(index)
                     .unwrap();
+                assert_eq!(*changed, data.sources[index]);
                 changed.bytes.push(b' ');
                 changed.sha256 = digest(&changed.bytes);
                 assert_ne!(changed.bytes, data.sources[index].bytes);
@@ -1526,7 +1732,7 @@ mod tests {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             let mut positive = replay(&data);
-            assert_eq!(run_data(seed, view, &data, &mut positive, false), Ok(20));
+            assert_eq!(run_data(seed, view, &data, &mut positive, false), Ok(44));
             assert_eq!(*positive.events.borrow(), expected_events());
             let mut refused = replay(&data);
             assert_eq!(
@@ -1534,7 +1740,7 @@ mod tests {
                 Err(SourceError::Interpretation(ConsumerError::UnreviewedSource))
             );
             assert_eq!(*refused.events.borrow(), expected_events());
-            for (index, spec) in ROSTER.iter().enumerate() {
+            for (index, spec) in source_roster().enumerate() {
                 let mut drift = replay(&data);
                 let changed = drift
                     .after
@@ -1543,6 +1749,7 @@ mod tests {
                     .unwrap()
                     .get_mut(index)
                     .unwrap();
+                assert_eq!(*changed, data.sources[index]);
                 changed.bytes.push(b' ');
                 changed.sha256 = digest(&changed.bytes);
                 assert_eq!(

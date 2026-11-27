@@ -27,6 +27,12 @@ mod entropy;
 mod epsilon_closure;
 pub(super) mod partition;
 mod prefix;
+pub(super) use caller::source_paths as caller_source_paths;
+#[cfg(test)]
+pub(super) use caller::tests::{assert_consumed_projection, consumed_source_setup};
+pub(super) use caller::{
+    CallerUnit as CallerSourceUnit, join_consumed_sources as join_caller_sources,
+};
 use epsilon_closure::primitives;
 #[cfg(test)]
 pub(super) use primitives::conditional_fixture::{
@@ -47,17 +53,30 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::from_utf8;
 
-const NATIVE: &[u8] = include_bytes!("../../../src/schema/native.rs");
-const BUDGET: &[u8] = include_bytes!("../../../src/schema/mod.rs");
-const INPUT: &[u8] = include_bytes!("../../../src/schema/input.rs");
-const JSON_SIZE: &[u8] = include_bytes!("../../../../auctioneer-runtime/src/json_size.rs");
-const EXCHANGE_SCHEMA: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/run/schema.rs");
-const EXCHANGE_RUN: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/run/mod.rs");
-const EXCHANGE_SPLIT: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/split/mod.rs");
-const EXCHANGE_LIMITS: &[u8] = include_bytes!("../../../../auctioneer-exchange/src/limits.rs");
-const DISPATCH_GENERATOR: &[u8] =
-    include_bytes!("../../../../auctioneer-config/src/schema_staging_build.rs");
-const FORMATS: &[u8] = include_bytes!("../../../src/schema/staging.rs");
+// One owning path declaration supplies both frozen DATA and the window roster.
+macro_rules! context_source_data {
+    ($($constant:ident: $role:ident => $path:literal),+ $(,)?) => {
+        $(const $constant: &[u8] = include_bytes!(concat!("../../../../../", $path));)+
+        const CONTEXT_PATHS: &[(SourceRole, &str)] = &[$((SourceRole::$role, $path)),+];
+    };
+}
+
+context_source_data! {
+    NATIVE: Native => "crates/auctioneer-bidder/src/schema/native.rs",
+    BUDGET: Budget => "crates/auctioneer-bidder/src/schema/mod.rs",
+    INPUT: Input => "crates/auctioneer-bidder/src/schema/input.rs",
+    JSON_SIZE: JsonSize => "crates/auctioneer-runtime/src/json_size.rs",
+    EXCHANGE_SCHEMA: ExchangeSchema => "crates/auctioneer-exchange/src/run/schema.rs",
+    EXCHANGE_RUN: ExchangeRun => "crates/auctioneer-exchange/src/run/mod.rs",
+    EXCHANGE_SPLIT: ExchangeSplit => "crates/auctioneer-exchange/src/split/mod.rs",
+    EXCHANGE_LIMITS: ExchangeLimits => "crates/auctioneer-exchange/src/limits.rs",
+    DISPATCH_GENERATOR: DispatchGenerator => "crates/auctioneer-config/src/schema_staging_build.rs",
+    FORMATS: Formats => "crates/auctioneer-bidder/src/schema/staging.rs",
+}
+
+pub(super) fn context_source_paths() -> &'static [(SourceRole, &'static str)] {
+    CONTEXT_PATHS
+}
 
 // Borrow existing parent provenance; none of these values creates authority.
 #[derive(Debug)]

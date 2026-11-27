@@ -10,6 +10,9 @@
 //! independent test-side source assertions as its implementation.
 
 use super::ContextSources;
+use crate::schema_build::application::CapturedSeed;
+use crate::schema_residency::descriptor::ValidationView;
+use crate::schema_validation::handoff::SourceInputs;
 use crate::schema_validation::operations::source_syntax::{
     literal_doc, parse_file, tokens, without_docs,
 };
@@ -18,7 +21,7 @@ use sha2::{Digest as _, Sha256};
 use std::mem;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum CallerUnit {
+pub(in crate::schema_validation) enum CallerUnit {
     CorePrepare,
     CoreServices,
     CoreOperation,
@@ -104,7 +107,7 @@ enum BorrowDuty {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct CallerContract {
+pub(in crate::schema_validation) struct CallerContract {
     original_impressions_upper: CapExpression,
     effective_bidder_cap: CapExpression,
     scoped_nodes_upper: CapExpression,
@@ -121,7 +124,8 @@ struct CallerContract {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum Refusal {
+pub(in crate::schema_validation) enum Refusal {
+    MissingSourceProof,
     MissingSource(CallerUnit),
     SourceShape(CallerUnit),
     Context(super::Refusal),
@@ -188,6 +192,22 @@ const CALLER_PATHS: [(CallerUnit, &str); 14] = [
 
 struct ParsedSources {
     files: Vec<(Owner, syn::File)>,
+}
+
+pub(in crate::schema_validation) fn source_paths() -> &'static [(CallerUnit, &'static str)] {
+    &CALLER_PATHS
+}
+
+// Tests-first byte-correspondence seam only. No compiled/type/cfg/full-closure
+// authority follows from these inputs. Replace only after hosted assertion RED,
+// reusing ParsedSources/derive_caller_sources through borrowed source views.
+pub(in crate::schema_validation) fn join_consumed_sources(
+    _inputs: &SourceInputs<'_>,
+    _seed: &CapturedSeed,
+    _view: ValidationView<'_>,
+    _attempts: u64,
+) -> Result<CallerContract, Refusal> {
+    Err(Refusal::MissingSourceProof)
 }
 
 fn shape(owner: Owner) -> Refusal {
@@ -1839,19 +1859,23 @@ fn derive_caller_sources(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
+    use super::super::context::check_sources;
     use super::{
-        BorrowDuty, CallerContract, CallerSource, CallerUnit, CapExpression, CapField, CleanupDuty,
-        GuardSource, Owner, Refusal, ScopeGuard, SourceAnchor, derive_caller_sources, match_method,
-        method_rule,
+        BorrowDuty, CALLER_PATHS, CallerContract, CallerSource, CallerUnit, CapExpression,
+        CapField, CleanupDuty, GuardSource, Owner, Refusal, ScopeGuard, SourceAnchor,
+        derive_caller_sources, match_method, method_rule,
     };
+    use crate::schema_build::application::CapturedSeed;
+    use crate::schema_residency::descriptor::ValidationView;
+    use crate::schema_validation::handoff::SourceInputs;
     use crate::schema_validation::work::{
         BUDGET, ContextBinding, ContextSources, DISPATCH_GENERATOR, EXCHANGE_LIMITS, EXCHANGE_RUN,
         EXCHANGE_SCHEMA, EXCHANGE_SPLIT, FORMATS, INPUT, JSON_SIZE, NATIVE, SourceRole,
-        bind_attempt_context,
+        bind_attempt_context, context_source_paths,
     };
     use quote::{ToTokens as _, quote};
-    use serde_json::json;
+    use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
     use std::str::from_utf8;
 
@@ -1956,6 +1980,144 @@ mod tests {
             exchange_limits: EXCHANGE_LIMITS,
             dispatch_generator: DISPATCH_GENERATOR,
             formats: FORMATS,
+        }
+    }
+
+    // Independent setup oracle only, never the implementation of the join.
+    // Return diagnostics so the caller checks them after the window closes.
+    pub(in crate::schema_validation) fn consumed_source_setup(
+        inputs: &SourceInputs<'_>,
+        seed: &CapturedSeed,
+        view: ValidationView<'_>,
+    ) -> Result<(), &'static str> {
+        if inputs.source_count() != 44 {
+            return Err("exact caller/context/primitive source census");
+        }
+        for unknown in [
+            "mod.rs",
+            "native.rs",
+            "Nfa",
+            "../src/schema/native.rs",
+            "/crates/auctioneer-bidder/src/schema/native.rs",
+        ] {
+            if inputs.source_record(unknown).is_some() {
+                return Err("undeclared or suffix-only source lookup");
+            }
+        }
+        let frozen = context();
+        for &(role, path) in context_source_paths() {
+            let (absolute, bytes, sha256) = inputs.source_record(path).ok_or("context source")?;
+            if !absolute.ends_with(path)
+                || bytes != source_bytes(&frozen, &[], Owner::Context(role))
+                || sha256 != digest(bytes)
+            {
+                return Err("context byte correspondence");
+            }
+            if role == SourceRole::Native {
+                let matched = ContextSources {
+                    native: bytes,
+                    ..frozen
+                };
+                let limits =
+                    check_sources(&matched).map_err(|_error| "matched native source limits")?;
+                if (limits.serialized_bytes, limits.nodes, limits.depth) != (65_536, 4_096, 32) {
+                    return Err("independent native input limits");
+                }
+            }
+        }
+        for (unit, path) in CALLER_PATHS {
+            let (absolute, bytes, sha256) = inputs.source_record(path).ok_or("caller source")?;
+            let mut matching = CALLER_SOURCES.iter().filter(|row| row.0 == unit);
+            let frozen_row = matching.next().ok_or("caller fixture before-state")?;
+            if matching.next().is_some()
+                || frozen_row.1 != path
+                || !absolute.ends_with(path)
+                || frozen_row.2 != bytes
+                || sha256 != digest(bytes)
+            {
+                return Err("caller byte correspondence");
+            }
+        }
+        consumed_binding_setup(inputs, seed, view)
+    }
+
+    fn consumed_binding_setup(
+        inputs: &SourceInputs<'_>,
+        seed: &CapturedSeed,
+        view: ValidationView<'_>,
+    ) -> Result<(), &'static str> {
+        let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
+            .map_err(|_error| "captured manifest JSON")?;
+        let rows = manifest
+            .pointer("/identity/inputs")
+            .and_then(Value::as_array)
+            .ok_or("captured source input rows")?;
+        for (role, kind, runtime) in [
+            (SourceRole::Native, None, Some("native")),
+            (
+                SourceRole::Formats,
+                Some("FormatHelperSource"),
+                Some("staging"),
+            ),
+            (SourceRole::DispatchGenerator, Some("GeneratorSource"), None),
+        ] {
+            let path = context_source_paths()
+                .iter()
+                .find(|row| row.0 == role)
+                .map(|row| row.1)
+                .ok_or("owning context path")?;
+            let (_, bytes, sha256) = inputs.source_record(path).ok_or("bound context source")?;
+            if sha256 != digest(bytes) {
+                return Err("bound context digest");
+            }
+            if let Some(receipt) = runtime {
+                let recorded = &view.binding()["runtime"][receipt];
+                if recorded["path"].as_str() != Some(path)
+                    || recorded["sha256"].as_str() != Some(sha256)
+                {
+                    return Err("descriptor runtime path/digest correspondence");
+                }
+            }
+            if let Some(input_kind) = kind {
+                let matching: Vec<_> = rows.iter().filter(|row| row["id"] == path).collect();
+                let [row] = matching.as_slice() else {
+                    return Err("manifest source input coverage");
+                };
+                if row["kind"] != input_kind || row["sha256"].as_str() != Some(sha256) {
+                    return Err("manifest generator/format correspondence");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(in crate::schema_validation) fn assert_consumed_projection(
+        projections: [Result<CallerContract, Refusal>; 2],
+    ) {
+        // Literal cap expressions, source chain and every unresolved duty come
+        // from the existing independent oracle, never from the deriver.
+        let wanted = expected();
+        pending(&wanted);
+        assert_eq!(
+            project(&wanted.original_impressions_upper, 7, 19, 3, 23, 41),
+            7
+        );
+        assert_eq!(
+            project(&wanted.original_impressions_upper, 137, 19, 3, 23, 41),
+            100
+        );
+        assert_eq!(project(&wanted.effective_bidder_cap, 7, 19, 3, 23, 41), 3);
+        assert_eq!(project(&wanted.effective_bidder_cap, 7, 2, 13, 23, 41), 2);
+        assert_eq!(project(&wanted.effective_bidder_cap, 7, 0, 13, 23, 41), 1);
+        assert_eq!(project(&wanted.scoped_nodes_upper, 7, 19, 3, 23, 41), 94);
+        assert_eq!(project(&wanted.scoped_nodes_upper, 7, 19, 3, 29, 41), 100);
+        assert_eq!(project(&wanted.scoped_nodes_upper, 7, 19, 3, 23, 47), 100);
+        for projection in projections {
+            assert_eq!(
+                projection.as_ref(),
+                Ok(&wanted),
+                "actual byte correspondence only; tests-first refusal is MissingSourceProof"
+            );
         }
     }
 

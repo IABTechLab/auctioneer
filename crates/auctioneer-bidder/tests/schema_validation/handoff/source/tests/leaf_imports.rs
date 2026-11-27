@@ -129,7 +129,7 @@ fn edit_imports(syntax: &mut syn::File, change: LeafImport) {
 }
 
 fn ids_source(data: &Fixture, edit: impl FnOnce(&mut syn::File)) -> Fixture {
-    assert_eq!(data.sources.len(), 20);
+    assert_eq!(data.sources.len(), 44);
     let positions: Vec<_> = data
         .sources
         .iter()
@@ -177,7 +177,7 @@ fn ids_source(data: &Fixture, edit: impl FnOnce(&mut syn::File)) -> Fixture {
             unchanged = unchanged.checked_add(1).unwrap();
         }
     }
-    assert_eq!(unchanged, 19);
+    assert_eq!(unchanged, 43);
     changed
 }
 
