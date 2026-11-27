@@ -217,21 +217,42 @@ pub(crate) struct MetaCacheHeap {
 
 impl MetaCacheHeap {
     /// Conditional component projection from an existing fixed NFA pair.
-    /// The caller supplies matching forward/reverse programs and prefix facts.
+    /// One cache is used for serial earliest searches, then dropped; every
+    /// full haystack fits `max_input_bytes`. No reset/clone/rebind is covered.
+    /// The caller supplies matching programs and prefix facts for this layout.
     /// Native graph exploration is not a target capacity or layout witness.
     pub(crate) fn from_nfas(
-        _nfas: [&NFA; 2],
-        _max_input_bytes: usize,
-        _layout: HeapLayout,
-        _prefix: impl FnOnce() -> Result<OptionalPrefixEnvelope, PrefixError>,
+        nfas: [&NFA; 2],
+        max_input_bytes: usize,
+        layout: HeapLayout,
+        prefix: impl FnOnce() -> Result<OptionalPrefixEnvelope, PrefixError>,
     ) -> Result<Self, MetaHeapError> {
-        Err(MetaHeapError::Projection {
-            stage: ProjectionStage::Composition,
-            reason: BoundsError::Shape,
+        let [forward_source, reverse_source] = nfas;
+        let eager = CoreEagerHeap::from_nfa(forward_source, layout).map_err(|reason| {
+            MetaHeapError::Projection {
+                stage: ProjectionStage::Eager,
+                reason,
+            }
+        })?;
+        let forward = directional_heap(forward_source, HybridDirection::Forward, layout)?;
+        let reverse = directional_heap(reverse_source, HybridDirection::Reverse, layout)?;
+        let prefix_envelope = prefix().map_err(MetaHeapError::Prefix)?;
+        let fallback =
+            FallbackHeap::from_nfa(forward_source, layout, max_input_bytes).map_err(|reason| {
+                MetaHeapError::Projection {
+                    stage: ProjectionStage::Fallback,
+                    reason,
+                }
+            })?;
+        Self::compose(&eager, &forward, &reverse, &prefix_envelope, &fallback).map_err(|reason| {
+            MetaHeapError::Projection {
+                stage: ProjectionStage::Composition,
+                reason,
+            }
         })
     }
 
-    /// One fixed native cache: new, serial earliest searches, then drop.
+    /// Native test-data constructor for the shared fixed-cache projection.
     /// All full haystacks in its lifetime must fit `max_input_bytes`.
     /// No reset, clone, rebind, shared-program or physical-heap bound is supplied.
     pub(crate) fn from_pattern(
@@ -252,25 +273,8 @@ impl MetaCacheHeap {
                 reason: BoundsError::from(reason),
             }
         })?;
-        let eager =
-            CoreEagerHeap::from_nfa(&nfa, layout).map_err(|reason| MetaHeapError::Projection {
-                stage: ProjectionStage::Eager,
-                reason,
-            })?;
-        let forward = directional_heap(&nfa, HybridDirection::Forward)?;
-        let reverse = directional_heap(&reverse_nfa, HybridDirection::Reverse)?;
-        let prefix = for_meta_pattern(pattern).map_err(MetaHeapError::Prefix)?;
-        let fallback = FallbackHeap::from_nfa(&nfa, layout, max_input_bytes).map_err(|reason| {
-            MetaHeapError::Projection {
-                stage: ProjectionStage::Fallback,
-                reason,
-            }
-        })?;
-        Self::compose(&eager, &forward, &reverse, &prefix, &fallback).map_err(|reason| {
-            MetaHeapError::Projection {
-                stage: ProjectionStage::Composition,
-                reason,
-            }
+        Self::from_nfas([&nfa, &reverse_nfa], max_input_bytes, layout, || {
+            for_meta_pattern(pattern)
         })
     }
 
@@ -321,16 +325,15 @@ impl MetaCacheHeap {
     }
 }
 
-fn directional_heap(nfa: &NFA, direction: HybridDirection) -> Result<HybridHeap, MetaHeapError> {
+fn directional_heap(
+    nfa: &NFA,
+    direction: HybridDirection,
+    layout: HeapLayout,
+) -> Result<HybridHeap, MetaHeapError> {
     let dfa = candidate_hybrid(nfa, direction)
         .map_err(|_error| MetaHeapError::HybridBuild { direction })?;
     ReportedCapacityProof::from_non_quitting_dfa(&dfa)
         .map_err(|reason| MetaHeapError::Capacity { direction, reason })?;
-    let layout =
-        HeapLayout::new(size_of::<usize>(), 16).map_err(|reason| MetaHeapError::Projection {
-            stage: ProjectionStage::Layout,
-            reason: BoundsError::from(reason),
-        })?;
     HybridHeap::from_complete_dfa(&dfa, layout)
         .map_err(|reason| MetaHeapError::Heap { direction, reason })?
         .ok_or(MetaHeapError::RecoveryUnavailable { direction })
