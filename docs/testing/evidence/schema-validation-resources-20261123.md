@@ -1417,3 +1417,23 @@ The implementation deletes the temporary caller `MissingSourceProof` variant and
 No parser, reader, capture, public serving API, target/job, dependency, engine, setting, limit or resource status is added. Broad parameter preservation, compiled binding, ordinary work/navigation/cleanup and all other unresolved duties remain unchanged. The actual result still passes through the original inner and outer closing checks before assertions. Source-byte correspondence cannot stand in for actual compiled/type/cfg/artifact or cost authority.
 
 Scoped SPEC review followed by quality review finds no remaining issue after removing shadowing-prone local names and making the receipt-role match exhaustive. Those static reviews, pinned rustfmt editing, whitespace and ownership checks are not executable GREEN. The full fixing-head hosted matrix and the separate Axum failure remain acceptance obligations. EdgeZero PR #275 is re-read before publication and remains at `0e2a58ae54860842c3490ff2ad2d79897bb06b37`; its six workspace requirements, eight lock entries and the recorded lock SHA-256 remain aligned. No new spec, plan or PR is created; #47 remains open and #268 remains draft.
+
+### Caller Join Completes Its Hosted Checkpoint
+
+At `3604bbac653a22d4445d5ca59d3a7e16c1f58c14`, the unchanged full [hosted matrix](https://github.com/IABTechLab/auctioneer/actions/runs/45959119877) completes with twenty checks passing and five failing. The [source/compiler owner](https://github.com/IABTechLab/auctioneer/actions/runs/45959119877/job/140372464855) records secure source, development residency and development validation:
+
+```text
+test result: FAILED. 975 passed; 2 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1463.12s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 92.14s
+test result: FAILED. 137 passed; 2 failed; 0 ignored; 0 measured; 844 filtered out; finished in 524.93s
+```
+
+Both source lanes pass the actual-window and all four caller cases, including receipt controls and the original source/refusal/zero-attempt controls. The two remaining source failures and all four application-owner failures are the unchanged `Incomplete` versus `CommonSourceComplete` assertions. Source owners exit 101; later compiler controls and explicit source-target lint are not run, not passing evidence. The separate default-workspace transport target records `test result: ok. 12 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.49s`; the earlier connection failure does not recur, but its cause remains unproved. This is scoped caller-join acceptance, not whole-proof completion.
+
+### Explicit Complete-Graph Layout Prepared For Hosted RED
+
+Task 5 requires a common projection, not a host-width substitution. The complete-DFA heap entrypoint now accepts the existing `HeapLayout`, and its population/recovery owner takes an explicit word width. Every existing native caller passes its former native word width and hash-group bound explicitly. There is no legacy overload or new reader, capture, graph algorithm, artifact build, dependency, serving route, workload, limit or ceiling.
+
+Two existing cases retain their assertions and gain independent controls. The same never-match DFA must project to literal `(live, overlap, peak)` rows `(644,56,700)`, `(648,60,708)`, `(656,68,724)`, `(908,108,1016)` and `(916,116,1032)` for `(word,group)` inputs `(4,4)`, `(4,8)`, `(4,16)`, `(8,8)` and `(8,16)`. A separate undersized-capacity case requires the eight-byte layout to refuse recovery before exploration while the four-byte layout reaches the existing typed graph-clear refusal. It distinguishes recovery-width propagation from final byte summands. None of these projections establishes guest compilation, physical fit or actual artifact/layout correspondence.
+
+This tests-first checkpoint deliberately preserves the complete-heap method's old native-width/group behavior while the new explicit-layout assertions await hosted RED. After that assertion failure is observed, the same layout must feed both recovery admission and the checked heap projection, removing the internal native substitution. No executed result is claimed for these additions at preparation; the canonical common-completion gates remain unchanged and all missing common derivations remain owed. No local Cargo, compiler, test, Clippy, proof or mutation execution is used.

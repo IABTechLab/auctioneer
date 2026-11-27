@@ -4,7 +4,6 @@ use crate::schema_cache_bounds::{BoundsError, NfaDimensions};
 use crate::schema_hybrid_bounds::HybridDimensions;
 use regex_automata::hybrid::dfa::DFA;
 use std::fmt;
-use std::mem::size_of;
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct HybridPopulation {
@@ -15,18 +14,17 @@ pub(crate) struct HybridPopulation {
 
 impl HybridPopulation {
     /// None means recovery is unproved, never that this cache has no residency.
-    pub(crate) fn from_dfa(dfa: &DFA) -> Result<Option<Self>, BoundsError> {
+    pub(crate) fn from_dfa(dfa: &DFA, word_bytes: usize) -> Result<Option<Self>, BoundsError> {
         if dfa.get_config().get_skip_cache_capacity_check() {
             return Err(BoundsError::Shape);
         }
         let shape = NfaDimensions::from_nfa(dfa.get_nfa())?;
         let storage = HybridDimensions::from_dfa(dfa)?;
-        let width = size_of::<usize>();
         let capacity = dfa.get_config().get_cache_capacity();
-        if capacity < recovery_ceiling(shape, &storage, width)? {
+        if capacity < recovery_ceiling(shape, &storage, word_bytes)? {
             return Ok(None);
         }
-        Self::project(&storage, capacity, width).map(Some)
+        Self::project(&storage, capacity, word_bytes).map(Some)
     }
 
     /// Assumes fixed-DFA ownership and nonrecursive five-state recovery.
@@ -241,7 +239,11 @@ mod tests {
     fn automatic_capacity_upgrades_cannot_claim_a_projection_for_the_smaller_setting() {
         let nfa = forward_nfa("a+b").unwrap();
         let ordinary = candidate_hybrid(&nfa, HybridDirection::Forward).unwrap();
-        assert!(HybridPopulation::from_dfa(&ordinary).unwrap().is_some());
+        assert!(
+            HybridPopulation::from_dfa(&ordinary, size_of::<usize>())
+                .unwrap()
+                .is_some()
+        );
         let upgraded = DFA::builder()
             .configure(
                 ordinary
@@ -253,7 +255,7 @@ mod tests {
             .build_from_nfa(nfa)
             .unwrap();
         assert_eq!(
-            HybridPopulation::from_dfa(&upgraded),
+            HybridPopulation::from_dfa(&upgraded, size_of::<usize>()),
             Err(BoundsError::Shape)
         );
     }
@@ -277,7 +279,9 @@ mod tests {
                 .build_from_nfa(nfa.clone())
                 .unwrap();
             assert_eq!(
-                HybridPopulation::from_dfa(&dfa).unwrap().is_some(),
+                HybridPopulation::from_dfa(&dfa, size_of::<usize>())
+                    .unwrap()
+                    .is_some(),
                 accepted
             );
         }
@@ -379,7 +383,7 @@ mod tests {
                 .unwrap();
             let storage = HybridDimensions::from_dfa(&dfa).unwrap();
             let bound = HybridPopulation::project(&storage, capacity, size_of::<usize>()).unwrap();
-            let checked_population = HybridPopulation::from_dfa(&dfa).unwrap();
+            let checked_population = HybridPopulation::from_dfa(&dfa, size_of::<usize>()).unwrap();
             if slot == 0 {
                 assert_eq!(
                     checked_population, None,

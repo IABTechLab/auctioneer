@@ -380,7 +380,11 @@ mod tests {
             .configure(DFA::config().cache_capacity(usize::MAX.checked_div(2).unwrap()))
             .build_from_nfa(NFA::never_match())
             .unwrap();
-        assert!(HybridPopulation::from_dfa(&dfa).unwrap().is_some());
+        assert!(
+            HybridPopulation::from_dfa(&dfa, size_of::<usize>())
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(
             ReportedCapacityProof::from_dfa(&dfa),
             Err(CapacityError::Projection(BoundsError::Arithmetic))

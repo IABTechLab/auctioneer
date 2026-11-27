@@ -85,7 +85,9 @@ impl FreshAnchoredHalfHeap {
                 reason,
             })
         })?;
-        let forward_heap = HybridHeap::from_complete_dfa(&forward)
+        let layout = HeapLayout::new(size_of::<usize>(), 16)
+            .map_err(|reason| projection(ProjectionStage::Layout, BoundsError::from(reason)))?;
+        let forward_heap = HybridHeap::from_complete_dfa(&forward, layout)
             .map_err(|reason| {
                 FreshMetaHeapError::Meta(MetaHeapError::Heap {
                     direction: HybridDirection::Forward,
@@ -97,8 +99,6 @@ impl FreshAnchoredHalfHeap {
                     direction: HybridDirection::Forward,
                 },
             ))?;
-        let layout = HeapLayout::new(size_of::<usize>(), 16)
-            .map_err(|reason| projection(ProjectionStage::Layout, BoundsError::from(reason)))?;
         let eager = CoreEagerHeap::from_nfa(&forward_nfa, layout)
             .map_err(|reason| projection(ProjectionStage::Eager, reason))?;
         let reverse_heap = HybridHeap::from_fresh_dfa(&reverse, layout)
@@ -311,7 +311,12 @@ fn directional_heap(nfa: &NFA, direction: HybridDirection) -> Result<HybridHeap,
         .map_err(|_error| MetaHeapError::HybridBuild { direction })?;
     ReportedCapacityProof::from_non_quitting_dfa(&dfa)
         .map_err(|reason| MetaHeapError::Capacity { direction, reason })?;
-    HybridHeap::from_complete_dfa(&dfa)
+    let layout =
+        HeapLayout::new(size_of::<usize>(), 16).map_err(|reason| MetaHeapError::Projection {
+            stage: ProjectionStage::Layout,
+            reason: BoundsError::from(reason),
+        })?;
+    HybridHeap::from_complete_dfa(&dfa, layout)
         .map_err(|reason| MetaHeapError::Heap { direction, reason })?
         .ok_or(MetaHeapError::RecoveryUnavailable { direction })
 }

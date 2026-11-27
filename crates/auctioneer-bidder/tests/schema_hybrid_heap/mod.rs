@@ -132,8 +132,11 @@ impl HybridHeap {
     }
 
     /// Internally binds the same fixed DFA's graph to its conditional heap model.
-    pub(crate) fn from_complete_dfa(dfa: &DFA) -> Result<Option<Self>, CompleteHeapError> {
-        let Some(coarse) = HybridPopulation::from_dfa(dfa)? else {
+    pub(crate) fn from_complete_dfa(
+        dfa: &DFA,
+        _layout: HeapLayout,
+    ) -> Result<Option<Self>, CompleteHeapError> {
+        let Some(coarse) = HybridPopulation::from_dfa(dfa, size_of::<usize>())? else {
             return Ok(None);
         };
         let storage = HybridDimensions::from_dfa(dfa)?;
@@ -170,7 +173,7 @@ impl HybridHeap {
     }
 
     pub(crate) fn from_dfa(dfa: &DFA) -> Result<Option<Self>, BoundsError> {
-        let Some(population) = HybridPopulation::from_dfa(dfa)? else {
+        let Some(population) = HybridPopulation::from_dfa(dfa, size_of::<usize>())? else {
             return Ok(None);
         };
         let storage = HybridDimensions::from_dfa(dfa)?;
@@ -577,7 +580,7 @@ mod tests {
             (953, 92, 1045)
         };
         assert_eq!(
-            HybridHeap::from_complete_dfa(&dfa),
+            HybridHeap::from_complete_dfa(&dfa, HeapLayout::new(size_of::<usize>(), 16).unwrap()),
             Ok(Some(HybridHeap {
                 live_envelope,
                 growth_overlap,
@@ -590,7 +593,10 @@ mod tests {
     fn complete_heap_has_a_literal_positive_envelope_for_the_same_never_match_dfa() {
         let dfa = DFA::never_match().unwrap();
         let coarse = HybridHeap::from_dfa(&dfa).unwrap().unwrap();
-        let complete = HybridHeap::from_complete_dfa(&dfa).unwrap().unwrap();
+        let complete =
+            HybridHeap::from_complete_dfa(&dfa, HeapLayout::new(size_of::<usize>(), 16).unwrap())
+                .unwrap()
+                .unwrap();
         let (live_envelope, growth_overlap, peak) = if size_of::<usize>() == 8 {
             (916, 116, 1032)
         } else {
@@ -606,6 +612,25 @@ mod tests {
         );
         assert!(complete.live_envelope < coarse.live_envelope);
         assert!(complete.peak < coarse.peak);
+        // One identical logical graph, with independent width and hash-group
+        // inputs. Native graph exploration is not guest-artifact qualification.
+        for (word, group, live, overlap, peak) in [
+            (4, 4, 644, 56, 700),
+            (4, 8, 648, 60, 708),
+            (4, 16, 656, 68, 724),
+            (8, 8, 908, 108, 1016),
+            (8, 16, 916, 116, 1032),
+        ] {
+            assert_eq!(
+                HybridHeap::from_complete_dfa(&dfa, HeapLayout::new(word, group).unwrap()),
+                Ok(Some(HybridHeap {
+                    live_envelope: live,
+                    growth_overlap: overlap,
+                    peak,
+                })),
+                "word={word} group={group}"
+            );
+        }
     }
 
     #[test]
@@ -627,7 +652,31 @@ mod tests {
             )
             .build_from_nfa(nfa)
             .unwrap();
-        assert_eq!(HybridHeap::from_complete_dfa(&dfa), Ok(None));
+        assert_eq!(
+            HybridHeap::from_complete_dfa(&dfa, HeapLayout::new(size_of::<usize>(), 16).unwrap()),
+            Ok(None)
+        );
+        // A narrow layout reaches graph exploration where the wider layout
+        // must refuse recovery first. This independently pins the width used
+        // by recovery admission, not only the final heap summands.
+        let wide_required = recovery_ceiling(
+            NfaDimensions::from_nfa(dfa.get_nfa()).unwrap(),
+            &HybridDimensions::from_dfa(&dfa).unwrap(),
+            8,
+        )
+        .unwrap();
+        let cross_layout = DFA::builder()
+            .configure(dfa.get_config().clone().cache_capacity(wide_required - 1))
+            .build_from_nfa(dfa.get_nfa().clone())
+            .unwrap();
+        assert_eq!(
+            HybridHeap::from_complete_dfa(&cross_layout, HeapLayout::new(8, 16).unwrap()),
+            Ok(None)
+        );
+        assert_eq!(
+            HybridHeap::from_complete_dfa(&cross_layout, HeapLayout::new(4, 16).unwrap()),
+            Err(CompleteHeapError::Exploration(GraphError::Cleared))
+        );
     }
 
     #[test]
@@ -639,7 +688,7 @@ mod tests {
         .unwrap();
         HybridHeap::from_dfa(&dfa).unwrap().unwrap();
         assert_eq!(
-            HybridHeap::from_complete_dfa(&dfa),
+            HybridHeap::from_complete_dfa(&dfa, HeapLayout::new(size_of::<usize>(), 16).unwrap()),
             Err(CompleteHeapError::Exploration(GraphError::Cleared))
         );
     }

@@ -248,7 +248,7 @@ fn reverse_heap_parts(
         .map_err(|reason| projection(ProjectionStage::Layout, BoundsError::from(reason)))?;
     let eager = CoreEagerHeap::from_nfa(forward.get_nfa(), layout)
         .map_err(|reason| projection(ProjectionStage::Eager, reason))?;
-    let active = HybridHeap::from_complete_dfa(reverse)
+    let active = HybridHeap::from_complete_dfa(reverse, layout)
         .map_err(|reason| {
             HalfSearchError::Meta(MetaHeapError::Heap {
                 direction: HybridDirection::Reverse,
@@ -312,7 +312,9 @@ pub(crate) fn assert_source_components(
         HalfDirection::ReverseAnchored => (&reverse, &forward),
     };
     let capacity = ReportedCapacityProof::from_non_quitting_dfa(active).unwrap();
-    let active_heap = HybridHeap::from_complete_dfa(active).unwrap().unwrap();
+    let active_heap = HybridHeap::from_complete_dfa(active, layout)
+        .unwrap()
+        .unwrap();
     let cold_heap = HybridHeap::from_fresh_dfa(inactive, layout).unwrap();
     assert_eq!(certificate.capacity, capacity);
     assert_eq!(capacity.configured, 0x0001_0000);

@@ -348,9 +348,16 @@ mod tests {
             assert_eq!(projected, expected);
             let reported = projected.fresh_reported_bytes(size_of::<usize>()).unwrap();
             assert_eq!(dfa.create_cache().memory_usage(), reported);
-            let population = HybridPopulation::from_dfa(&dfa).unwrap().unwrap();
+            let population = HybridPopulation::from_dfa(&dfa, size_of::<usize>())
+                .unwrap()
+                .unwrap();
             let heap = HybridHeap::from_dfa(&dfa).unwrap().unwrap();
-            let closed = HybridHeap::from_complete_dfa(&dfa).unwrap().unwrap();
+            let closed = HybridHeap::from_complete_dfa(
+                &dfa,
+                super::schema_heap_layout::HeapLayout::new(size_of::<usize>(), 16).unwrap(),
+            )
+            .unwrap()
+            .unwrap();
             assert!(closed.live_envelope < heap.live_envelope);
             assert!(closed.growth_overlap <= heap.growth_overlap);
             assert!(closed.peak > 0 && closed.peak < heap.peak);
