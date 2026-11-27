@@ -1451,3 +1451,32 @@ Both failures are the two augmented complete-heap cases, not setup or compilatio
 The separate [format/lint owner](https://github.com/IABTechLab/auctioneer/actions/runs/46048228668/job/140672734687) completes formatting successfully but exits 101 during default Clippy: `clippy::shadow_unrelated` for the new loop variable `peak`, and `clippy::too_many_lines` for the 102-line hostname candidate case. The repair renames the expected field to `expected_peak` and creates one immutable layout before that case's loop. Assertions, literals, case names and lint policy are unchanged. Later insecure Clippy is not run, not passing evidence. These fixes still require correcting-head hosted acceptance.
 
 The independently completed Axum application owner reaches the unchanged `schema_source_conformance.rs:848` assertion: `Incomplete` versus `CommonSourceComplete`, with `test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 982 filtered out; finished in 221.64s`. Its result is not the intended layout RED and is not waived. At this record's preparation the full tests-first matrix remains running. No overall GREEN, complete common proof or readiness is claimed.
+
+### Explicit Layout Repair Completes Its Hosted Checkpoint
+
+At `d8828ec40238e89dda636f4f405b14f57a324be1`, the unchanged [full hosted matrix](https://github.com/IABTechLab/auctioneer/actions/runs/46053448429) completes all twenty-five checks: twenty pass and five fail. Formatting and both strict workspace Clippy feature lanes pass. The [secure native owner](https://github.com/IABTechLab/auctioneer/actions/runs/46053448429/job/140690182884) records:
+
+```text
+test result: ok. 260 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+test result: ok. 195 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+```
+
+Both augmented layout cases execute successfully. The full default and insecure workspace jobs pass those targets too. The [source/compiler owner](https://github.com/IABTechLab/auctioneer/actions/runs/46053448429/job/140690182925) records secure source, development residency and development validation:
+
+```text
+test result: FAILED. 975 passed; 2 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1322.52s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 66.36s
+test result: FAILED. 137 passed; 2 failed; 0 ignored; 0 measured; 844 filtered out; finished in 408.61s
+```
+
+The two source failures remain the canonical report/current-body completion assertions. All four application owners retain the same `Incomplete` versus `CommonSourceComplete` status mismatch. Later compiler controls, strict source-target lint and success-gated stages are not run, not passing evidence. No check is cancelled, waived or treated as overall GREEN. These results close the conditional layout/lint repair, not the whole common proof.
+
+### Borrowed Cache Composition Prepared For Hosted RED
+
+Task 5's next component entry accepts the existing forward/reverse NFA borrows, full-lifetime input bound, supplied `HeapLayout` and a once-only prefix projection. The latter preserves the original eager/forward/reverse/prefix/fallback/composition order when the native pattern adapter is factored into this same entry. It creates no new source reader, qualifier or serving route. Its tests-first body refuses composition until a hosted assertion RED; the correcting implementation must remove that body and delegate the existing native adapter to one assembly kernel.
+
+Two existing unit cases retain all assertions and gain private inline controls. A one-fail-state synthetic NFA pair independently pins whole heap rows for five width/group combinations. At `(word,group,B)=(4,4,0)`, `(eager,forward,reverse,prefix,fallback,live,growth,peak)=(0,644,644,0,176,1464,56,1520)`; changing only B to 128 yields `(0,644,644,0,200,1488,56,1544)`. The bitmap uses the existing conservative `2*high_water` append envelope, not an observed tight capacity. An independently supplied optional-prefix peak of 31 adds 31 to live/peak without changing other owners or growth. Prefix construction must occur once when reached, and not occur after an earlier quit refusal. Prefix errors retain their typed variant and precedence. These fixtures establish no actual pattern association or target capacity witness.
+
+The existing current-body case additionally consumes every descriptor-owned program's original NFA pair, including the separately checked hostname owner. It uses supplied native model dimensions, the existing prefix superset and existing child heap owners; it neither recompiles the primary NFAs nor substitutes a borrower-created program list. Exact graph-plus-runtime membership and component-edge results are checked after the same inner and outer capture guards. Returned test records own only identities/results, not borrowed source authority. The unchanged common-completion assertion remains last, after all original factory/input/search/topology/report checks and the new component assertions.
+
+These are conditional component integration controls, not completed construction/drop lifetimes, common source authority, portable capacity admission, actual target layouts, physical fit or serving qualification. The existing native reported-capacity and optional-prefix subchecks keep their original scope. No new case name, target, job, capture/build plan, dependency, engine, runtime setting, workload limit, ceiling or accounting equation is added. No executable result is claimed for the new controls before hosted RED; no local Cargo/compiler/test/Clippy/proof/mutation execution runs. #47 remains open and #268 remains draft.

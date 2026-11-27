@@ -35,6 +35,109 @@ mod tests {
         searches: Option<Result<partition::CoupledSearchBounds, partition::CoupledRefusal>>,
     }
 
+    struct ProgramHeapAnalysis {
+        identity: String,
+        heap:
+            Result<crate::schema_meta_heap::MetaCacheHeap, crate::schema_meta_heap::MetaHeapError>,
+        components: Result<[usize; 4], String>,
+    }
+
+    // Component integration only: existing independent literal cases own the
+    // formulas. Reusing these child owners does not issue common-proof credit.
+    fn program_heap_components(
+        nfas: [&regex_automata::nfa::thompson::NFA; 2],
+        layout: crate::schema_heap_layout::HeapLayout,
+    ) -> Result<[usize; 4], String> {
+        use crate::schema_fallback_heap::FallbackHeap;
+        use crate::schema_hybrid_bounds::{HybridDirection, candidate_hybrid};
+        use crate::schema_hybrid_heap::HybridHeap;
+        use crate::schema_meta_eager::CoreEagerHeap;
+
+        let project_direction = |nfa, kind| {
+            let dfa = candidate_hybrid(nfa, kind).map_err(|error| format!("{error:?}"))?;
+            HybridHeap::from_complete_dfa(&dfa, layout)
+                .map_err(|error| format!("{error:?}"))?
+                .map(|heap| heap.live_envelope)
+                .ok_or_else(|| "conditional recovery unavailable".to_owned())
+        };
+        Ok([
+            CoreEagerHeap::from_nfa(nfas[0], layout)
+                .map_err(|error| format!("{error:?}"))?
+                .total,
+            project_direction(nfas[0], HybridDirection::Forward)?,
+            project_direction(nfas[1], HybridDirection::Reverse)?,
+            FallbackHeap::from_nfa(nfas[0], layout, 65_536)
+                .map_err(|error| format!("{error:?}"))?
+                .live_envelope,
+        ])
+    }
+
+    fn inspect_program_heaps(view: ValidationView<'_>) -> (Vec<ProgramHeapAnalysis>, Vec<String>) {
+        use crate::schema_heap_layout::HeapLayout;
+        use crate::schema_hybrid_prefix::for_meta_pattern;
+        use crate::schema_meta_heap::MetaCacheHeap;
+
+        // Supplied native model DATA, not actual target/layout authority.
+        let layout = HeapLayout::new(size_of::<usize>(), 16).unwrap();
+        let rows = view
+            .programs()
+            .map(|(identity, pattern, nfas)| ProgramHeapAnalysis {
+                identity: identity.to_owned(),
+                heap: MetaCacheHeap::from_nfas(nfas, 65_536, layout, || for_meta_pattern(pattern)),
+                components: program_heap_components(nfas, layout),
+            })
+            .collect();
+        let mut expected = view.graph()["declarations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|row| row["programs"].as_array().unwrap())
+            .map(|program| program["identity"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        expected.push(view.runtime_hostname().0.to_owned());
+        (rows, expected)
+    }
+
+    fn assert_program_heaps((rows, expected): (Vec<ProgramHeapAnalysis>, Vec<String>)) {
+        assert!(!expected.is_empty());
+        {
+            let expected_set = expected.iter().collect::<BTreeSet<_>>();
+            let actual_set = rows
+                .iter()
+                .map(|row| &row.identity)
+                .collect::<BTreeSet<_>>();
+            assert_eq!(expected_set.len(), expected.len());
+            assert_eq!(actual_set.len(), rows.len());
+            assert_eq!(actual_set, expected_set, "exact graph plus runtime owner");
+        }
+        let mut asymmetric = false;
+        for row in rows {
+            assert!(
+                row.components.is_ok(),
+                "conditional child setup {}: {:?}",
+                row.identity,
+                row.components
+            );
+            let components = row.components.unwrap();
+            asymmetric |= components[1] != components[2];
+            assert_eq!(
+                row.heap.map(|heap| [
+                    heap.eager_bytes,
+                    heap.forward_bytes,
+                    heap.reverse_bytes,
+                    heap.fallback_bytes,
+                ]),
+                Ok(components),
+                "borrowed program components: {}",
+                row.identity
+            );
+        }
+        assert!(
+            asymmetric,
+            "the source fixture must discriminate directions"
+        );
+    }
+
     fn inspect_body(body: &DeclarationBody<'_>, view: ValidationView<'_>) -> BodyAnalysis {
         let operations = operations::classify_source_body(body.syntax, &[], &[]);
         let schedule = operations.as_ref().ok().map(|classified| {
@@ -246,7 +349,7 @@ mod tests {
 
     #[test]
     fn current_body_shapes_have_declared_operation_obligations() {
-        with_current_descriptor(|seed, descriptor| {
+        let (document, projection_rows) = with_current_descriptor(|seed, descriptor| {
             let view = descriptor.validation_view().unwrap();
             let result = handoff::checked_bodies(seed, view, |body| Ok(inspect_body(&body, view)));
             assert!(
@@ -295,6 +398,8 @@ mod tests {
             }
             assert_eq!(bodies.recheck(view), Ok(()));
             assert_owned_program_topologies(view);
+            let heap_results = inspect_program_heaps(view);
+            assert_eq!(view.recheck(), Ok(()));
             // Keep whole-feature completion last so an unfinished derivation
             // cannot mask the existing factory, input and search controls.
             let lane = if cfg!(feature = "insecure-bidders") {
@@ -312,9 +417,11 @@ mod tests {
             ] {
                 assert_eq!(report[field], false);
             }
-            assert_eq!(report["status"], "CommonSourceComplete");
-            Ok(())
+            Ok((report, heap_results))
         })
         .unwrap();
+        // New result assertions follow both inner and outer capture checks.
+        assert_program_heaps(projection_rows);
+        assert_eq!(document["status"], "CommonSourceComplete");
     }
 }
