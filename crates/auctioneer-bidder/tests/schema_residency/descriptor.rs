@@ -11,6 +11,7 @@ use crate::schema_program_heap::{
 use crate::schema_vendor;
 use auctioneer_bidder::catalog::CatalogOwner;
 use regex_automata::meta::Config;
+use regex_automata::nfa::thompson::NFA;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::slice;
@@ -70,6 +71,30 @@ pub(crate) struct ActualSourceDescriptor {
 #[derive(Clone, Copy)]
 pub(crate) struct ValidationView<'a> {
     descriptor: &'a ActualSourceDescriptor,
+}
+
+impl<'a> ValidationView<'a> {
+    /// Borrow checked program identity, pattern and retained NFAs in
+    /// forward/reverse order; no construction or target-layout evaluation.
+    pub(crate) fn programs(
+        self,
+    ) -> impl ExactSizeIterator<Item = (&'a str, &'a str, [&'a NFA; 2])> + 'a {
+        self.descriptor.programs.iter().map(|program| {
+            (
+                program.id.as_str(),
+                program.pattern.as_str(),
+                program.retained.nfas(),
+            )
+        })
+    }
+
+    /// The separately authenticated runtime owner, not an emitted graph row.
+    pub(crate) fn runtime_hostname(self) -> (&'a str, &'a str) {
+        (
+            runtime_sources::HOSTNAME,
+            self.descriptor.runtime.hostname(),
+        )
+    }
 }
 
 impl ValidationView<'_> {

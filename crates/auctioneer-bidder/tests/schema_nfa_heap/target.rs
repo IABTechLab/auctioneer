@@ -588,5 +588,63 @@ mod tests {
             project_nfa(&multiple, &facts(4)),
             Err(TargetHeapError::UnboundShape)
         );
+        let non_utf8 = NFA::compiler()
+            .configure(regex_automata::nfa::thompson::Config::new().utf8(false))
+            .build("^a$")
+            .unwrap();
+        for nfa in [
+            forward_nfa("^$").unwrap(),
+            forward_nfa("a").unwrap(),
+            forward_nfa("^a").unwrap(),
+            forward_nfa("^[\\u{80}-\\u{ff}]$").unwrap(),
+            non_utf8,
+        ] {
+            assert_eq!(
+                project_nfa(&nfa, &facts(4)),
+                Err(TargetHeapError::UnboundShape)
+            );
+        }
+        // Layout refusal must still precede topology and unnamed-group checks.
+        for nfa in [
+            word_boundary,
+            multiple,
+            forward_nfa("^(?P<named>a)$").unwrap(),
+        ] {
+            let mut missing = facts(4);
+            missing.remove(NFA_INNER).unwrap();
+            assert_eq!(
+                project_nfa(&nfa, &missing),
+                Err(TargetHeapError::MissingType(NFA_INNER.into()))
+            );
+            let mut invalid = facts(4);
+            invalid.insert(
+                NFA_INNER.into(),
+                NativeField {
+                    bytes: 0,
+                    alignment: 1,
+                },
+            );
+            assert_eq!(
+                project_nfa(&nfa, &invalid),
+                Err(TargetHeapError::InvalidLayout(NFA_INNER.into()))
+            );
+        }
+        for (start, end, valid) in [
+            (b'a', b'z', true),
+            (0, 127, true),
+            (0, 255, true),
+            (b'z', b'a', false),
+            (128, 255, false),
+            (1, 255, false),
+        ] {
+            assert_eq!(
+                valid_transition(Transition {
+                    start,
+                    end,
+                    next: StateID::ZERO
+                }),
+                valid
+            );
+        }
     }
 }

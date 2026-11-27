@@ -1267,3 +1267,38 @@ The resulting `Cargo.lock` SHA-256 is `0533475871e6376150c6a7b85a36389b728b15c83
 Source inspection retains outbound scope/cancellation ownership. Fastly now preserves typed Image Optimizer unavailability under its new SDK instead of an ordinary-origin fallback. Axum's ingress shutdown adds declared-upload discard-draining, upload state, a boxed timer and 8-KiB scratch, with a two-second overall/250-ms idle bound. Those are changed source/storage lifetimes, not a newly proved physical bound; the existing resource-ownership index keeps their #50/#72 correspondence explicitly unproved. No new reserve, serving activation or target readiness is inferred.
 
 `git diff --check` returns exit 0. No local build, test, Clippy, proof, parser-control or mutation execution runs. All executable verification belongs to the unchanged hosted matrix on the new head. The existing whole-feature `Incomplete` versus `CommonSourceComplete` failures remain separate #47 implementation work, not acceptance of this SDK change or a waived check. No new specification, plan, PR, test target or job is created.
+
+### SDK Refresh Executes The Helper Paths; Common Completion Still Fails
+
+At `ac93bc4292da8f1e496b048611299123d47115bc`, all twenty-five hosted checks complete: twenty pass and five fail. The completed [source/compiler job](https://github.com/IABTechLab/auctioneer/actions/runs/45901379407/job/140187810264) log is fetched with `gh api --allow-escape-sequences repos/IABTechLab/auctioneer/actions/jobs/140187810264/logs` (fetch exit 0). Secure source, development residency and development validation report:
+
+```text
+test result: FAILED. 975 passed; 2 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1416.11s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 92.00s
+test result: FAILED. 137 passed; 2 failed; 0 ignored; 0 measured; 844 filtered out; finished in 449.96s
+```
+
+Both source steps return exit 101. The twelve primitive cases and the actual-source-window case that exposed the missing helper paths at `8305f69` now pass in both lanes, with their earlier independent assertions retained. The two remaining source failures are `current_source_covers_every_discovered_owner` and `current_body_shapes_have_declared_operation_obligations`: both receive `String("Incomplete")`, not `"CommonSourceComplete"`. Compiler controls and explicit strict source-target lint are not reached after the source failure; later success-gated normal/staged checks are not passing evidence. The four application-attachment owners also fail. No failed check is dismissed.
+
+The other twenty checks, including ordinary native feature lanes, formatting/broad lint, three WASM checks and all three provider packaging checks, pass at this exact SDK-updated head. No SDK compatibility failure is observed in that matrix. This does not establish physical resource correspondence or qualify any adapter.
+
+Completed application logs are separately retrieved through the same GitHub job-log API, each with fetch exit 0. All four reach the same `schema_source_conformance.rs:848` assertion: `String("Incomplete")` versus `"CommonSourceComplete"`, after their build/projection steps. Each exits 101; no later feature-lane assertion is credited. Their actual result lines are:
+
+| Adapter / Job | Result |
+| --- | --- |
+| Axum / `140187810380` | `test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 982 filtered out; finished in 221.45s` |
+| Cloudflare / `140187810444` | `test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 982 filtered out; finished in 195.02s` |
+| Fastly / `140187810294` | `test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 982 filtered out; finished in 146.07s` |
+| Spin / `140187810478` | `test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 982 filtered out; finished in 179.41s` |
+
+A subsequent source audit finds that the current-body case places its final completion assertion before its original factory/input/search result loops. Those later assertions are therefore not executed evidence at `ac93bc4`, although retained in source. The next checkpoint moves the unchanged final report/completion and qualification restrictions after all original loops and the closing descriptor recheck. It keeps the same case and requirements; missing whole-feature completion must not mask earlier component controls. The canonical report remains incomplete, #47 remains open and PR #268 remains draft.
+
+### Descriptor-Owned Logical Topology Prepared For Hosted RED
+
+The next tests-first checkpoint exposes immutable borrows of the sealed descriptor's existing program identities, patterns and forward/reverse NFAs. It neither constructs a descriptor from test data nor rebuilds programs. The existing current-body case first executes every original factory/input/search result loop and closing recheck. It then compares the complete borrowed membership against all graph programs plus the separately checked runtime hostname owner, verifies uniqueness and repeated pointer-identical borrows, and evaluates every direction before checking any logical result. The unchanged whole-feature completion requirement remains last.
+
+The NFA owner reuses `NfaDimensions::from_nfa`; the new logical-root/successor check deliberately returns `MissingProof` until hosted semantic RED. Independent supplied-data controls cover IDs zero, n-minus-one and n at each root and each successor-bearing state variant, missing pattern roots and empty states. Existing component arithmetic has literal storage expectations and separately overflowing inputs. Existing target controls retain layout-first refusal, UTF-8/empty/anchor restrictions, pattern multiplicity, look variants and transition-range checks; its implementation is unchanged in this checkpoint.
+
+Expected RED is the logical checker refusing valid graphs, after successful compilation and the original assertions, not a missing symbol, setup failure or zero-test selection. Those expectations are not execution evidence before hosted results. After observed RED, one shared ID checker must replace the refusal seam, with target reuse preserving every other shape/layout guard and refusal order. The temporary missing-proof variant must be removed rather than retained as another path.
+
+No case, target, source reader, program reconstruction, dependency, engine, workload, ceiling or serving path is added. Native NFA topology remains structural data, not target ABI proof. Sparse initialization, epochs, cache-start/search invocation, caller/cleanup and whole common completion remain unproved. All original source, cost and refusal controls stay; static review and pinned rustfmt are not executable verification.

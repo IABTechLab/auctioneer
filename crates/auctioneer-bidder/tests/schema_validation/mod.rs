@@ -21,7 +21,7 @@ mod tests {
         descriptor::ValidationView, expanded::DeclarationBody, with_current_descriptor,
     };
     use crate::schema_selection_source::{Lane, public_names};
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeMap, BTreeSet};
     use std::path::Path;
 
     struct BodyAnalysis {
@@ -144,6 +144,105 @@ mod tests {
         }
     }
 
+    // Check the exact borrowed graph before the final whole-feature gate.
+    fn assert_owned_program_topologies(view: ValidationView<'_>) {
+        use crate::schema_cache_bounds::NfaDimensions;
+        use crate::schema_nfa_heap::logical_dimensions;
+
+        let programs = view.programs().collect::<Vec<_>>();
+        let again = view.programs().collect::<Vec<_>>();
+        // Evaluate every program/direction before asserting any proof result.
+        let checked = programs
+            .iter()
+            .flat_map(|(id, _, nfas)| {
+                nfas.iter()
+                    .map(move |nfa| (*id, *nfa, logical_dimensions(nfa)))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(view.recheck(), Ok(()));
+
+        let mut expected = BTreeMap::new();
+        for declaration in view.graph()["declarations"].as_array().unwrap() {
+            for program in declaration["programs"].as_array().unwrap() {
+                let id = program["identity"].as_str().unwrap();
+                let pattern = program["pattern"].as_str().unwrap();
+                assert!(
+                    expected.insert(id, pattern).is_none(),
+                    "duplicate graph program: {id}"
+                );
+            }
+        }
+        let (hostname, hostname_pattern) = view.runtime_hostname();
+        assert!(expected.insert(hostname, hostname_pattern).is_none());
+        assert!(!expected.is_empty());
+        assert!(!programs.is_empty());
+        let actual = programs
+            .iter()
+            .map(|(id, pattern, _)| (*id, *pattern))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(actual.len(), programs.len(), "duplicate borrowed program");
+        assert_eq!(
+            actual, expected,
+            "exact graph plus checked hostname correspondence"
+        );
+        assert_eq!(again.len(), programs.len());
+        for ((id, pattern, nfas), (again_id, again_pattern, again_nfas)) in
+            programs.iter().zip(&again)
+        {
+            assert_eq!(id, again_id);
+            assert_eq!(pattern, again_pattern);
+            assert!(std::ptr::eq(*id, *again_id));
+            assert!(std::ptr::eq(*pattern, *again_pattern));
+            assert!(std::ptr::eq(nfas[0], again_nfas[0]));
+            assert!(std::ptr::eq(nfas[1], again_nfas[1]));
+            assert!(!nfas[0].is_reverse(), "forward borrow: {id}");
+            assert!(nfas[1].is_reverse(), "reverse borrow: {id}");
+        }
+        let expected_directions = expected
+            .keys()
+            .flat_map(|id| [(*id, false), (*id, true)])
+            .collect::<BTreeSet<_>>();
+        let actual_directions = checked
+            .iter()
+            .map(|(id, nfa, _)| (*id, nfa.is_reverse()))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_directions.len(),
+            checked.len(),
+            "duplicate program/direction"
+        );
+        assert_eq!(actual_directions, expected_directions);
+        for (id, nfa, result) in checked {
+            let dimensions = NfaDimensions::from_nfa(nfa).unwrap();
+            assert_eq!(
+                result,
+                Ok(dimensions),
+                "shared logical checker: {id}, reverse={}",
+                nfa.is_reverse()
+            );
+            let proof = result.unwrap();
+            assert_eq!(proof.states, nfa.states().len());
+            assert_eq!(proof.patterns, nfa.pattern_len());
+            assert_eq!(proof.slots, nfa.group_info().slot_len());
+            // Consume the returned n/b/capture dimensions through their
+            // existing component owner, not a target ABI or another counter.
+            let storage = proof.pike_storage().unwrap();
+            assert_eq!(storage.meta_capture_entries, nfa.group_info().slot_len());
+            assert_eq!(
+                storage.stack_frames,
+                proof
+                    .branch_frames
+                    .checked_add(proof.capture_states)
+                    .unwrap()
+                    .max(1)
+            );
+        }
+        assert_eq!(view.recheck(), Ok(()));
+        // Sparse initialization, epochs, start-cache, search invocations,
+        // caller/cleanup and common completion remain unproved here. No new
+        // zero values or target facts discharge those source obligations.
+    }
+
     #[test]
     fn current_body_shapes_have_declared_operation_obligations() {
         with_current_descriptor(|seed, descriptor| {
@@ -161,24 +260,6 @@ mod tests {
                 view.graph()["declarations"].as_array().unwrap().len()
             );
             assert_body_setup(bodies.analyses(), view);
-            // Declaring primitive obligations is not discharging their work,
-            // storage or stack lemmas, nor does it issue completeness authority.
-            let lane = if cfg!(feature = "insecure-bidders") {
-                Lane::Development
-            } else {
-                Lane::Secure
-            };
-            let census = public_names::discover(Path::new(env!("CARGO_MANIFEST_DIR")), lane)?;
-            let report = super::current_report(seed, view, &census)?;
-            assert_eq!(super::report::check_current_report(&report), Ok(()));
-            assert_eq!(report["status"], "CommonSourceComplete");
-            for field in [
-                "resource_qualification",
-                "physical_fit",
-                "serving_permission",
-            ] {
-                assert_eq!(report[field], false);
-            }
             // The new factory result is buffered through the same closing
             // checks. Its success will not close input grammar or source work.
             for row in bodies.analyses() {
@@ -212,6 +293,25 @@ mod tests {
                 );
             }
             assert_eq!(bodies.recheck(view), Ok(()));
+            assert_owned_program_topologies(view);
+            // Keep whole-feature completion last so an unfinished derivation
+            // cannot mask the existing factory, input and search controls.
+            let lane = if cfg!(feature = "insecure-bidders") {
+                Lane::Development
+            } else {
+                Lane::Secure
+            };
+            let census = public_names::discover(Path::new(env!("CARGO_MANIFEST_DIR")), lane)?;
+            let report = super::current_report(seed, view, &census)?;
+            assert_eq!(super::report::check_current_report(&report), Ok(()));
+            assert_eq!(report["status"], "CommonSourceComplete");
+            for field in [
+                "resource_qualification",
+                "physical_fit",
+                "serving_permission",
+            ] {
+                assert_eq!(report[field], false);
+            }
             Ok(())
         })
         .unwrap();

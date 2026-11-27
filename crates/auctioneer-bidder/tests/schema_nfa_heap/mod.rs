@@ -3,7 +3,7 @@
 
 pub(crate) mod target;
 
-use super::schema_cache_bounds::{forward_nfa, reverse_nfa};
+use super::schema_cache_bounds::{BoundsError, NfaDimensions, forward_nfa, reverse_nfa};
 use super::schema_heap_layout::{
     HeapLayout, LayoutError, NativeField, native_arc_layout, private_struct_slot_bound,
 };
@@ -19,6 +19,37 @@ use regex_automata::util::{
 use regex_syntax::hir::Look;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum LogicalNfaError {
+    MissingProof,
+    StateId,
+    MissingPattern,
+    Dimensions(BoundsError),
+}
+
+/// Logical IDs and existing dimensions only, not initialization, epochs,
+/// start-cache/search/caller/cleanup proofs, target layout or completeness.
+pub(crate) fn logical_dimensions(nfa: &NFA) -> Result<NfaDimensions, LogicalNfaError> {
+    check_state_ids(
+        nfa.states(),
+        nfa.start_anchored(),
+        nfa.start_unanchored(),
+        nfa.patterns().map(|pid| nfa.start_pattern(pid)),
+    )?;
+    NfaDimensions::from_nfa(nfa).map_err(LogicalNfaError::Dimensions)
+}
+
+// Tests-first DATA seam. Replace this refusal after hosted assertion RED;
+// both the logical consumer and target projection must then share this check.
+fn check_state_ids(
+    _states: &[State],
+    _anchored: StateID,
+    _unanchored: StateID,
+    _pattern_roots: impl IntoIterator<Item = Option<StateID>>,
+) -> Result<(), LogicalNfaError> {
+    Err(LogicalNfaError::MissingProof)
+}
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum NfaHeapError {
@@ -708,6 +739,50 @@ mod tests {
         }
         assert_eq!(owner_sum(&[usize::MAX, 1]), Err(NfaHeapError::Arithmetic));
         assert_eq!(owner_sum(&[17, 31, 43]), Ok(91));
+
+        // Supplied dimensions exercise the existing arithmetic owner only.
+        let dimensions = NfaDimensions {
+            states: 3,
+            slots: 4,
+            patterns: 1,
+            branch_frames: 2,
+            capture_states: 4,
+        };
+        let storage = dimensions.pike_storage().unwrap();
+        assert_eq!(storage.set_entries, 12);
+        assert_eq!(storage.table_entries, 32);
+        assert_eq!(storage.meta_capture_entries, 4);
+        assert_eq!(storage.stack_frames, 6);
+        for invalid in [
+            NfaDimensions {
+                states: usize::MAX,
+                ..dimensions
+            },
+            NfaDimensions {
+                slots: usize::MAX,
+                ..dimensions
+            },
+            NfaDimensions {
+                patterns: usize::MAX,
+                ..dimensions
+            },
+            NfaDimensions {
+                branch_frames: usize::MAX,
+                ..dimensions
+            },
+            NfaDimensions {
+                capture_states: usize::MAX,
+                ..dimensions
+            },
+        ] {
+            assert_eq!(invalid.pike_storage(), Err(BoundsError::Arithmetic));
+        }
+        let nfa = forward_nfa("^(a|ab|abc)$").unwrap();
+        let expected = NfaDimensions::from_nfa(&nfa).unwrap();
+        assert_eq!(expected.branch_frames, 2);
+        assert_eq!(expected.capture_states, 4);
+        assert_eq!(expected.pike_storage().unwrap().stack_frames, 6);
+        assert_eq!(logical_dimensions(&nfa), Ok(expected));
     }
 
     #[test]
@@ -963,6 +1038,144 @@ mod tests {
             })),
             Err(NfaHeapError::Shape)
         );
+
+        // Private DATA fixtures, not descriptor or actual-source authority.
+        let zero = StateID::ZERO;
+        let last = StateID::new(2).unwrap();
+        let outside = StateID::new(3).unwrap();
+        let roots = [Some(zero), Some(last)];
+        let states = [
+            State::Fail,
+            State::Fail,
+            State::Match {
+                pattern_id: PatternID::ZERO,
+            },
+        ];
+        for root in [zero, last] {
+            assert_eq!(check_state_ids(&states, root, root, [Some(root)]), Ok(()));
+        }
+        assert_eq!(
+            check_state_ids(&states, outside, last, roots),
+            Err(LogicalNfaError::StateId)
+        );
+        assert_eq!(
+            check_state_ids(&states, zero, outside, roots),
+            Err(LogicalNfaError::StateId)
+        );
+        for missing in [[None, Some(last)], [Some(zero), None]] {
+            assert_eq!(
+                check_state_ids(&states, zero, last, missing),
+                Err(LogicalNfaError::MissingPattern)
+            );
+        }
+        for bad in [[Some(outside), Some(last)], [Some(zero), Some(outside)]] {
+            assert_eq!(
+                check_state_ids(&states, zero, last, bad),
+                Err(LogicalNfaError::StateId)
+            );
+        }
+        assert_eq!(
+            check_state_ids(&[], zero, zero, roots),
+            Err(LogicalNfaError::StateId)
+        );
+        assert_eq!(
+            check_state_ids(&[State::Fail], zero, zero, [Some(zero)]),
+            Ok(())
+        );
+        assert_eq!(
+            check_state_ids(&[State::Fail], StateID::new(1).unwrap(), zero, [Some(zero)]),
+            Err(LogicalNfaError::StateId)
+        );
+
+        for next in [zero, last, outside] {
+            let expected = if next == outside {
+                Err(LogicalNfaError::StateId)
+            } else {
+                Ok(())
+            };
+            for state in [
+                State::ByteRange {
+                    trans: Transition {
+                        start: b'a',
+                        end: b'z',
+                        next,
+                    },
+                },
+                State::Look {
+                    look: regex_automata::util::look::Look::Start,
+                    next,
+                },
+                State::Look {
+                    look: regex_automata::util::look::Look::End,
+                    next,
+                },
+                State::Capture {
+                    next,
+                    pattern_id: PatternID::ZERO,
+                    group_index: SmallIndex::ZERO,
+                    slot: SmallIndex::ZERO,
+                },
+            ] {
+                assert_eq!(
+                    check_state_ids(&[State::Fail, state, State::Fail], zero, last, roots),
+                    expected
+                );
+            }
+            // Vary each stored successor independently, including the last
+            // sparse/union/dense entry and each BinaryUnion arm.
+            for edge in 0..2 {
+                let mut transitions = [
+                    Transition {
+                        start: b'a',
+                        end: b'b',
+                        next: last,
+                    },
+                    Transition {
+                        start: b'x',
+                        end: b'z',
+                        next: last,
+                    },
+                ];
+                transitions[edge].next = next;
+                let sparse = State::Sparse(SparseTransitions {
+                    transitions: transitions.into(),
+                });
+                assert_eq!(
+                    check_state_ids(&[State::Fail, sparse, State::Fail], zero, last, roots),
+                    expected
+                );
+                let binary = State::BinaryUnion {
+                    alt1: if edge == 0 { next } else { last },
+                    alt2: if edge == 1 { next } else { last },
+                };
+                assert_eq!(
+                    check_state_ids(&[State::Fail, binary, State::Fail], zero, last, roots),
+                    expected
+                );
+            }
+            for edge in 0..3 {
+                let mut alternates = vec![last; 3];
+                alternates[edge] = next;
+                let union = State::Union {
+                    alternates: alternates.into_boxed_slice(),
+                };
+                assert_eq!(
+                    check_state_ids(&[State::Fail, union, State::Fail], zero, last, roots),
+                    expected
+                );
+            }
+            for edge in 0..256 {
+                let mut transitions = vec![last; 256];
+                transitions[edge] = next;
+                let dense = State::Dense(DenseTransitions {
+                    transitions: transitions.into_boxed_slice(),
+                });
+                assert_eq!(
+                    check_state_ids(&[State::Fail, dense, State::Fail], zero, last, roots),
+                    expected
+                );
+            }
+        }
     }
 
     #[test]
