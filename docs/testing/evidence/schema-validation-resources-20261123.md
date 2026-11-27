@@ -1325,3 +1325,21 @@ This result permits implementing the logical kernel. The actual descriptor-body 
 The narrow implementation now removes `MissingProof` entirely. The logical consumer and target projection share one root checker and one per-state successor checker; `NfaDimensions` remains the dimension owner. Target root checks retain their position after the existing shape/group checks, and successor checks remain within the original per-state iteration. An earlier state's checked layout/cost failure therefore still precedes a later state's invalid ID. Every independent interval/order/length, look, group/slot, pattern, UTF-8/empty, layout and overflow guard remains. No source authority, target facts, qualified cost or completion status is added.
 
 Static SPEC-compliance review followed by code-quality review finds no scoped issue in the implementation plus test-helper/import repairs. Those reviews and pinned rustfmt are not executable GREEN or independent GitHub approval. The existing full fixing-head matrix, both source lanes and strict source-target lint remain required. No local executable verification runs; sparse initialization, epoch/caller/search/cleanup and the other whole-feature derivations remain unfinished.
+
+### Descriptor Topology Reaches Hosted RED In Both Source Lanes
+
+The completed [source/compiler job](https://github.com/IABTechLab/auctioneer/actions/runs/45936812209/job/140301800232) at `da704a5c1174ab19c7bf0156b09ff34d97ac2a33` supplies the actual descriptor-bound assertion in both lanes. The final log is downloaded with `gh api --allow-escape-sequences repos/IABTechLab/auctioneer/actions/jobs/140301800232/logs` (fetch exit 0). Secure source, development residency and development validation report:
+
+```text
+test result: FAILED. 973 passed; 4 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1403.65s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 92.08s
+test result: FAILED. 137 passed; 2 failed; 0 ignored; 0 measured; 844 filtered out; finished in 451.17s
+```
+
+Both source steps exit 101. In each lane the current-body case reaches `schema_validation/mod.rs:217`: `shared logical checker: schema::staging::formats::HOSTNAME_PATTERN, reverse=false`, with `left: Err(MissingProof)` and `right: Ok(NfaDimensions { states: 265, slots: 8, patterns: 1, branch_frames: 125, capture_states: 8 })`. Every original factory/input/search result assertion and its closing `bodies.recheck` executes before that point. Exact graph-plus-hostname membership, unique direction coverage and pointer-identical borrowed objects are also checked before this failure. All program/direction checker calls are collected before any result assertion; later per-result assertions and the helper's final recheck remain fixing-head obligations, not RED-run acceptance.
+
+Secure source also reaches the two earlier logical-kernel unit failures; the report case retains its separate `Incomplete` versus `CommonSourceComplete` failure in both lanes. Compiler controls and explicit strict source-target lint are not reached after source failure. Success-gated normal/staged core and secure metadata steps are skipped, not passing evidence.
+
+The completed default-workspace and development-workspace logs (`140301800284` and `140301800345`, each fetched through the job-log API with exit 0) independently show only the same two `schema_cache_bounds` assertion failures. Their result lines are respectively `test result: FAILED. 258 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.11s` and `test result: FAILED. 258 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s`.
+
+All twenty-five same-head checks complete: sixteen pass and nine fail (format/lint, three native feature owners, source/compiler and four application attachments). None is cancelled, pending, waived or treated as GREEN. The checker implementation and lint repair are prepared from the executed kernel RED, then held until this run completes. The correcting checkpoint additionally places the unchanged qualification/fit/serving flag assertions before the final completion assertion. Its whole common-source completion requirement remains last and unchanged. Full correcting-head execution remains required; #47 and the draft PR stay incomplete.
