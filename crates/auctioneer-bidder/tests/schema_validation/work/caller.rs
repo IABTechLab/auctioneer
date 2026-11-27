@@ -6,10 +6,10 @@
 //! Successful core preparation is the entry premise; arbitrary low-level owned
 //! preparation and cleanup before that entry are not covered. Panic mode,
 //! ordinary cleanup costs and compiled-artifact correspondence stay missing.
-//! The eventual join must reuse the context/source-window owners, not the
+//! The byte join reuses the context/source-window owners, not the
 //! independent test-side source assertions as its implementation.
 
-use super::ContextSources;
+use super::{ContextSources, SourceRole};
 use crate::schema_build::application::CapturedSeed;
 use crate::schema_residency::descriptor::ValidationView;
 use crate::schema_validation::handoff::SourceInputs;
@@ -17,6 +17,7 @@ use crate::schema_validation::operations::source_syntax::{
     literal_doc, parse_file, tokens, without_docs,
 };
 use quote::{ToTokens, quote};
+use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use std::mem;
 
@@ -38,12 +39,11 @@ pub(in crate::schema_validation) enum CallerUnit {
     ExchangeRoot,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct CallerSource {
+struct BorrowedCallerSource<'a> {
     unit: CallerUnit,
     path: &'static str,
-    bytes: Vec<u8>,
-    sha256: String,
+    bytes: &'a [u8],
+    sha256: &'a str,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -125,7 +125,6 @@ pub(in crate::schema_validation) struct CallerContract {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::schema_validation) enum Refusal {
-    MissingSourceProof,
     MissingSource(CallerUnit),
     SourceShape(CallerUnit),
     Context(super::Refusal),
@@ -198,16 +197,107 @@ pub(in crate::schema_validation) fn source_paths() -> &'static [(CallerUnit, &'s
     &CALLER_PATHS
 }
 
-// Tests-first byte-correspondence seam only. No compiled/type/cfg/full-closure
-// authority follows from these inputs. Replace only after hosted assertion RED,
-// reusing ParsedSources/derive_caller_sources through borrowed source views.
+// Byte correspondence only, within the owning source window. No compiled/type/
+// cfg/full-closure or cost authority follows from these borrowed inputs.
 pub(in crate::schema_validation) fn join_consumed_sources(
-    _inputs: &SourceInputs<'_>,
-    _seed: &CapturedSeed,
-    _view: ValidationView<'_>,
-    _attempts: u64,
+    inputs: &SourceInputs<'_>,
+    seed: &CapturedSeed,
+    view: ValidationView<'_>,
+    attempts: u64,
 ) -> Result<CallerContract, Refusal> {
-    Err(Refusal::MissingSourceProof)
+    let manifest: Value = serde_json::from_slice(&seed.manifest_bytes)
+        .map_err(|_error| Refusal::Context(super::Refusal::BindingMismatch))?;
+    let context = consumed_context_sources(inputs, &manifest, view.binding())?;
+    let sources = CALLER_PATHS
+        .iter()
+        .map(|&(unit, path)| {
+            let (_, bytes, sha256) = inputs
+                .source_record(path)
+                .ok_or(Refusal::MissingSource(unit))?;
+            Ok(BorrowedCallerSource {
+                unit,
+                path,
+                bytes,
+                sha256,
+            })
+        })
+        .collect::<Result<Vec<_>, Refusal>>()?;
+    derive_caller_sources(&context, &sources, attempts)
+}
+
+fn consumed_context_sources<'a>(
+    inputs: &'a SourceInputs<'_>,
+    manifest: &Value,
+    binding: &Value,
+) -> Result<ContextSources<'a>, Refusal> {
+    let source = |role| -> Result<&'a [u8], Refusal> {
+        let path = super::context_source_paths()
+            .iter()
+            .find(|row| row.0 == role)
+            .map(|row| row.1)
+            .ok_or_else(|| shape(Owner::Context(role)))?;
+        let (_, bytes, sha256) = inputs
+            .source_record(path)
+            .ok_or_else(|| shape(Owner::Context(role)))?;
+        check_context_receipt(role, path, sha256, manifest, binding)?;
+        Ok(bytes)
+    };
+    Ok(ContextSources {
+        native: source(SourceRole::Native)?,
+        budget: source(SourceRole::Budget)?,
+        input: source(SourceRole::Input)?,
+        json_size: source(SourceRole::JsonSize)?,
+        exchange_schema: source(SourceRole::ExchangeSchema)?,
+        exchange_run: source(SourceRole::ExchangeRun)?,
+        exchange_split: source(SourceRole::ExchangeSplit)?,
+        exchange_limits: source(SourceRole::ExchangeLimits)?,
+        dispatch_generator: source(SourceRole::DispatchGenerator)?,
+        formats: source(SourceRole::Formats)?,
+    })
+}
+
+fn check_context_receipt(
+    role: SourceRole,
+    path: &str,
+    sha256: &str,
+    manifest: &Value,
+    binding: &Value,
+) -> Result<(), Refusal> {
+    let (runtime_receipt, input_kind) = match role {
+        SourceRole::Native => (Some("native"), None),
+        SourceRole::Formats => (Some("staging"), Some("FormatHelperSource")),
+        SourceRole::DispatchGenerator => (None, Some("GeneratorSource")),
+        SourceRole::Budget
+        | SourceRole::Input
+        | SourceRole::JsonSize
+        | SourceRole::ExchangeSchema
+        | SourceRole::ExchangeRun
+        | SourceRole::ExchangeSplit
+        | SourceRole::ExchangeLimits => return Ok(()),
+    };
+    if let Some(runtime) = runtime_receipt {
+        let receipt = &binding["runtime"][runtime];
+        if receipt["path"].as_str() != Some(path) || receipt["sha256"].as_str() != Some(sha256) {
+            return Err(Refusal::Context(super::Refusal::BindingMismatch));
+        }
+    }
+    if let Some(kind) = input_kind {
+        let rows = manifest
+            .pointer("/identity/inputs")
+            .and_then(Value::as_array)
+            .ok_or(Refusal::Context(super::Refusal::BindingMismatch))?;
+        let mut matching = rows.iter().filter(|row| row["id"].as_str() == Some(path));
+        let row = matching
+            .next()
+            .ok_or(Refusal::Context(super::Refusal::BindingMismatch))?;
+        if matching.next().is_some()
+            || row["kind"].as_str() != Some(kind)
+            || row["sha256"].as_str() != Some(sha256)
+        {
+            return Err(Refusal::Context(super::Refusal::BindingMismatch));
+        }
+    }
+    Ok(())
 }
 
 fn shape(owner: Owner) -> Refusal {
@@ -236,7 +326,10 @@ fn root_attributes(file: &syn::File) -> bool {
 }
 
 impl ParsedSources {
-    fn new(context: &ContextSources<'_>, sources: &[CallerSource]) -> Result<Self, Refusal> {
+    fn new(
+        context: &ContextSources<'_>,
+        sources: &[BorrowedCallerSource<'_>],
+    ) -> Result<Self, Refusal> {
         let mut files = Vec::new();
         for (unit, path) in CALLER_PATHS {
             let owner = Owner::Caller(unit);
@@ -244,11 +337,11 @@ impl ParsedSources {
             let source = matching.next().ok_or(Refusal::MissingSource(unit))?;
             if matching.next().is_some()
                 || source.path != path
-                || source.sha256 != hex::encode(Sha256::digest(&source.bytes))
+                || source.sha256 != hex::encode(Sha256::digest(source.bytes))
             {
                 return Err(shape(owner));
             }
-            let file = parse_file(&source.bytes).map_err(|()| shape(owner))?;
+            let file = parse_file(source.bytes).map_err(|()| shape(owner))?;
             if !root_attributes(&file) {
                 return Err(shape(owner));
             }
@@ -1808,7 +1901,7 @@ fn expressions(
 // semantics below. They do not close an actual caller/artifact or cost proof.
 fn derive_caller_sources(
     context: &ContextSources<'_>,
-    sources: &[CallerSource],
+    sources: &[BorrowedCallerSource<'_>],
     _attempts: u64,
 ) -> Result<CallerContract, Refusal> {
     super::context::check_sources(context).map_err(Refusal::Context)?;
@@ -1862,9 +1955,9 @@ fn derive_caller_sources(
 pub(super) mod tests {
     use super::super::context::check_sources;
     use super::{
-        BorrowDuty, CALLER_PATHS, CallerContract, CallerSource, CallerUnit, CapExpression,
+        BorrowDuty, BorrowedCallerSource, CALLER_PATHS, CallerContract, CallerUnit, CapExpression,
         CapField, CleanupDuty, GuardSource, Owner, Refusal, ScopeGuard, SourceAnchor,
-        derive_caller_sources, match_method, method_rule,
+        check_context_receipt, match_method, method_rule,
     };
     use crate::schema_build::application::CapturedSeed;
     use crate::schema_residency::descriptor::ValidationView;
@@ -1878,6 +1971,32 @@ pub(super) mod tests {
     use serde_json::{Value, json};
     use sha2::{Digest as _, Sha256};
     use std::str::from_utf8;
+
+    // Owned mutation DATA only; the actual join borrows source-window bytes.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct CallerSource {
+        unit: CallerUnit,
+        path: &'static str,
+        bytes: Vec<u8>,
+        sha256: String,
+    }
+
+    fn derive_caller_sources(
+        context: &ContextSources<'_>,
+        sources: &[CallerSource],
+        attempts: u64,
+    ) -> Result<CallerContract, Refusal> {
+        let borrowed: Vec<_> = sources
+            .iter()
+            .map(|source| BorrowedCallerSource {
+                unit: source.unit,
+                path: source.path,
+                bytes: &source.bytes,
+                sha256: &source.sha256,
+            })
+            .collect();
+        super::derive_caller_sources(context, &borrowed, attempts)
+    }
 
     const CALLER_SOURCES: [(CallerUnit, &str, &[u8]); 14] = [
         (
@@ -2116,7 +2235,7 @@ pub(super) mod tests {
             assert_eq!(
                 projection.as_ref(),
                 Ok(&wanted),
-                "actual byte correspondence only; tests-first refusal is MissingSourceProof"
+                "actual byte correspondence only; unresolved duties remain unchanged"
             );
         }
     }
@@ -3049,6 +3168,89 @@ pub(super) mod tests {
         );
     }
 
+    // Literal receipt DATA exercises only the join's correspondence guards.
+    fn assert_consumed_receipt_controls() {
+        let native = "crates/auctioneer-bidder/src/schema/native.rs";
+        let formats = "crates/auctioneer-bidder/src/schema/staging.rs";
+        let generator = "crates/auctioneer-config/src/schema_staging_build.rs";
+        let manifest = json!({"identity":{"inputs":[
+            {"id":formats,"kind":"FormatHelperSource","sha256":"format-sha"},
+            {"id":generator,"kind":"GeneratorSource","sha256":"generator-sha"}
+        ]}});
+        let binding = json!({"runtime":{
+            "native":{"path":native,"sha256":"native-sha"},
+            "staging":{"path":formats,"sha256":"format-sha"}
+        }});
+        let refused = Err(Refusal::Context(super::super::Refusal::BindingMismatch));
+        for (role, path, sha256, runtime_receipt, input_row) in [
+            (
+                SourceRole::Native,
+                native,
+                "native-sha",
+                Some("native"),
+                None,
+            ),
+            (
+                SourceRole::Formats,
+                formats,
+                "format-sha",
+                Some("staging"),
+                Some(0),
+            ),
+            (
+                SourceRole::DispatchGenerator,
+                generator,
+                "generator-sha",
+                None,
+                Some(1),
+            ),
+        ] {
+            let check = |manifest_data: &Value, binding_data: &Value| {
+                check_context_receipt(role, path, sha256, manifest_data, binding_data)
+            };
+            assert_eq!(check(&manifest, &binding), Ok(()));
+            if let Some(runtime) = runtime_receipt {
+                let mut missing = binding.clone();
+                assert!(
+                    missing["runtime"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(runtime)
+                        .is_some()
+                );
+                assert_eq!(check(&manifest, &missing), refused);
+                for field in ["path", "sha256"] {
+                    let mut changed = binding.clone();
+                    assert_ne!(changed["runtime"][runtime][field], json!("native.rs"));
+                    changed["runtime"][runtime][field] = json!("native.rs");
+                    assert_eq!(check(&manifest, &changed), refused);
+                }
+            }
+            if let Some(index) = input_row {
+                assert_eq!(check(&Value::Null, &binding), refused);
+                let mut missing = manifest.clone();
+                let removed = missing["identity"]["inputs"]
+                    .as_array_mut()
+                    .unwrap()
+                    .remove(index);
+                assert_eq!(removed, manifest["identity"]["inputs"][index]);
+                assert_eq!(check(&missing, &binding), refused);
+                let mut duplicate = manifest.clone();
+                duplicate["identity"]["inputs"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(manifest["identity"]["inputs"][index].clone());
+                assert_eq!(check(&duplicate, &binding), refused);
+                for field in ["id", "kind", "sha256"] {
+                    let mut changed = manifest.clone();
+                    assert_ne!(changed["identity"]["inputs"][index][field], json!("wrong"));
+                    changed["identity"]["inputs"][index][field] = json!("wrong");
+                    assert_eq!(check(&changed, &binding), refused);
+                }
+            }
+        }
+    }
+
     #[test]
     fn missing_and_rehashed_caller_sources_refuse_at_zero_attempts() {
         let context = context();
@@ -3061,5 +3263,6 @@ pub(super) mod tests {
         assert_changed_effective_floor(&context, &rows);
         assert_rehashed_import_redirects(&context, &rows);
         assert_impl_kind_selection();
+        assert_consumed_receipt_controls();
     }
 }

@@ -212,7 +212,15 @@ mod tests {
             body: &[u8],
         ) -> WireResponse {
             let mut stream = TcpStream::connect_timeout(&self.addr, Duration::from_secs(2))
-                .expect("connect to Axum child");
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "connect to Axum child at {} (pid {:?}, {} headers): {error}; child log: {}",
+                        self.addr,
+                        self.child.as_ref().map(Child::id),
+                        headers.len(),
+                        self.log()
+                    )
+                });
             stream
                 .set_write_timeout(Some(Duration::from_secs(3)))
                 .expect("write timeout");
