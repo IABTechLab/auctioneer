@@ -3,6 +3,7 @@
 //! `BundleHeap` cost owners. No engine heap model or serving authority lives here.
 
 use crate::schema_build::application::CapturedSeed;
+use crate::schema_bundle_heap::{BundleHeapError, CacheBundleHeap};
 use crate::schema_residency::descriptor::ValidationView;
 use crate::schema_validation::{
     handoff::{self, CheckedBodies},
@@ -42,6 +43,18 @@ pub(in crate::schema_validation) struct OwnerSchedule {
 }
 
 impl OwnerSchedule {
+    // Conditional component DATA only. A successful projection does not price
+    // cache construction, cleanup, ordinary helpers or complete call frames.
+    pub(in crate::schema_validation) fn component_bundle(
+        &self,
+        _program_peaks: &[(String, usize)],
+        _wrapper_inline: usize,
+        _hostname_peak: Option<usize>,
+    ) -> Result<CacheBundleHeap, Refusal> {
+        let _: &Self = self;
+        Err(Refusal::NotDerived)
+    }
+
     pub(in crate::schema_validation) fn roots(&self) -> (usize, usize) {
         (self.factory_root, self.validation_root)
     }
@@ -96,6 +109,11 @@ pub(in crate::schema_validation) enum Refusal {
     CacheRebind,
     MissingRoot,
     CallbackOverlap,
+    MissingProgramCost(String),
+    DuplicateProgramCost(String),
+    UnexpectedProgramCost(String),
+    CallbackCost,
+    ComponentHeap(BundleHeapError),
 }
 
 fn native_roots(graph: &Value, owner: &str, marker: &str) -> NativeRoots {
@@ -1103,6 +1121,18 @@ mod tests {
 
     // Private emitter-shaped input only; it never enters the actual-source join.
     fn fixture(with_fields: bool) -> BodyOperations {
+        fixture_with_body(
+            with_fields,
+            quote::quote! {
+                match instance {
+                    serde_json::Value::String(value) => crate::schema::staging::formats::hostname(value),
+                    _ => true,
+                }
+            },
+        )
+    }
+
+    fn fixture_with_body(with_fields: bool, body: proc_macro2::TokenStream) -> BodyOperations {
         let fields = if with_fields {
             quote::quote! {
                 pattern_0_cache: __ra::meta::Cache,
@@ -1150,10 +1180,7 @@ mod tests {
                     Some(__SearchCache { #initializers })
                 }
                 fn entry_is_valid(instance: &serde_json::Value, cache: &mut __SearchCache) -> bool {
-                    match instance {
-                        serde_json::Value::String(value) => crate::schema::staging::formats::hostname(value),
-                        _ => true,
-                    }
+                    #body
                 }
             }
         }).expect("private typed source input");
@@ -1276,6 +1303,175 @@ mod tests {
         fields.push(("extra_cache".into(), additional));
         assert_eq!(fields.len(), 3);
         assert_eq!(derive_owner(&extra, &roots()), Err(Refusal::Constructor));
+        assert_component_bundle(original);
+    }
+
+    fn assert_component_bundle(recipe: &Recipe) {
+        let schedule = derive_owner(recipe, &roots()).unwrap();
+        let first = "__fakemarker_impl::PATTERN_0_REGEX".to_owned();
+        let second = "__fakemarker_impl::PATTERN_1_REGEX".to_owned();
+        let costs = vec![(second.clone(), 29), (first.clone(), 11)];
+        assert_eq!(schedule.initializers.len(), 2);
+        assert_eq!(schedule.initializers[0].program, first);
+        assert_eq!(schedule.initializers[1].program, second);
+        assert_eq!(schedule.callbacks.len(), 1);
+        assert_eq!(schedule.callbacks[0].helper, Primitive::HostnameFormat);
+        assert_eq!(
+            schedule.component_bundle(&costs, 7, Some(13)),
+            Ok(bundle_literal(40, 7, 13, 60))
+        );
+        for (rows, inline, hostname, wanted) in [
+            (
+                vec![(first.clone(), 17), (second.clone(), 29)],
+                7,
+                13,
+                bundle_literal(46, 7, 13, 66),
+            ),
+            (
+                vec![(first.clone(), 11), (second.clone(), 31)],
+                7,
+                13,
+                bundle_literal(42, 7, 13, 62),
+            ),
+            (costs.clone(), 19, 13, bundle_literal(40, 19, 13, 72)),
+            (costs.clone(), 7, 23, bundle_literal(40, 7, 23, 70)),
+        ] {
+            assert_eq!(
+                schedule.component_bundle(&rows, inline, Some(hostname)),
+                Ok(wanted)
+            );
+        }
+        assert_component_cost_refusals(&schedule, &first, &second, &costs);
+        assert_component_overflow(&schedule, &first, &second);
+        assert_component_callback_shapes(&costs);
+    }
+
+    fn bundle_literal(
+        patterns: usize,
+        inline: usize,
+        format: usize,
+        total: usize,
+    ) -> crate::schema_bundle_heap::CacheBundleHeap {
+        crate::schema_bundle_heap::CacheBundleHeap {
+            pattern_bytes: patterns,
+            inline_bytes: inline,
+            format_bytes: format,
+            peak: total,
+        }
+    }
+
+    fn assert_component_cost_refusals(
+        schedule: &OwnerSchedule,
+        first: &str,
+        second: &str,
+        costs: &[(String, usize)],
+    ) {
+        let first = first.to_owned();
+        let second = second.to_owned();
+        assert_eq!(
+            schedule.component_bundle(&[(first.clone(), 11)], 7, Some(13)),
+            Err(Refusal::MissingProgramCost(second.clone()))
+        );
+        assert_eq!(
+            schedule.component_bundle(&[(first.clone(), 11), (first.clone(), 29)], 7, Some(13)),
+            Err(Refusal::DuplicateProgramCost(first.clone()))
+        );
+        let mut extra = costs.to_vec();
+        extra.push(("fake_unowned_program".into(), 0));
+        assert_eq!(
+            schedule.component_bundle(&extra, 7, Some(13)),
+            Err(Refusal::UnexpectedProgramCost(
+                "fake_unowned_program".into()
+            ))
+        );
+        for absent in [None, Some(0)] {
+            assert_eq!(
+                schedule.component_bundle(costs, 7, absent),
+                Err(Refusal::CallbackCost)
+            );
+        }
+    }
+
+    fn assert_component_overflow(schedule: &OwnerSchedule, first: &str, second: &str) {
+        use crate::schema_bundle_heap::BundleHeapError;
+        let first = first.to_owned();
+        let second = second.to_owned();
+        for (rows, inline, callback) in [
+            (
+                vec![(first.clone(), usize::MAX), (second.clone(), 1)],
+                0,
+                13,
+            ),
+            (
+                vec![(first.clone(), usize::MAX), (second.clone(), 0)],
+                1,
+                13,
+            ),
+            (
+                vec![(first.clone(), usize::MAX), (second.clone(), 0)],
+                0,
+                13,
+            ),
+        ] {
+            assert_eq!(
+                schedule.component_bundle(&rows, inline, Some(callback)),
+                Err(Refusal::ComponentHeap(BundleHeapError::Arithmetic))
+            );
+        }
+    }
+
+    fn assert_component_callback_shapes(costs: &[(String, usize)]) {
+        let repeated_operations = fixture_with_body(
+            true,
+            quote::quote! {
+                match instance {
+                    serde_json::Value::String(value) => {
+                        crate::schema::staging::formats::hostname(value)
+                            && crate::schema::staging::formats::hostname(value)
+                    }
+                    _ => true,
+                }
+            },
+        );
+        let repeated = derive_owner(repeated_operations.recipe(), &roots()).unwrap();
+        assert_eq!(repeated.callbacks.len(), 2);
+        assert_ne!(repeated.callbacks[0].site, repeated.callbacks[1].site);
+        assert_eq!(
+            repeated.component_bundle(costs, 7, Some(13)),
+            Ok(bundle_literal(40, 7, 13, 60))
+        );
+
+        let no_format_operations = fixture_with_body(true, quote::quote! { true });
+        let without_hostname = derive_owner(no_format_operations.recipe(), &roots()).unwrap();
+        assert!(without_hostname.callbacks.is_empty());
+        assert_eq!(
+            without_hostname.component_bundle(costs, 7, None),
+            Ok(bundle_literal(40, 7, 0, 47))
+        );
+        assert_eq!(
+            without_hostname.component_bundle(costs, 7, Some(13)),
+            Err(Refusal::CallbackCost)
+        );
+        let uuid_operations = fixture_with_body(
+            true,
+            quote::quote! {
+                match instance {
+                    serde_json::Value::String(value) => crate::schema::staging::formats::uuid(value),
+                    _ => true,
+                }
+            },
+        );
+        let uuid = derive_owner(uuid_operations.recipe(), &roots()).unwrap();
+        assert_eq!(uuid.callbacks.len(), 1);
+        assert_eq!(uuid.callbacks[0].helper, Primitive::UuidFormat);
+        assert_eq!(
+            uuid.component_bundle(costs, 7, None),
+            Ok(bundle_literal(40, 7, 0, 47))
+        );
+        assert_eq!(
+            uuid.component_bundle(costs, 7, Some(13)),
+            Err(Refusal::CallbackCost)
+        );
     }
 
     fn append_effect(recipe: &mut Recipe, effect: impl FnOnce(Op) -> Kind) {
@@ -1417,6 +1613,26 @@ mod tests {
         assert_eq!(
             derive_owner(original, &missing_overlap),
             Err(Refusal::CallbackOverlap)
+        );
+        let schedule = derive_owner(original, &roots()).unwrap();
+        assert_eq!(
+            schedule.component_bundle(&[], 7, Some(13)),
+            Ok(crate::schema_bundle_heap::CacheBundleHeap {
+                pattern_bytes: 0,
+                inline_bytes: 7,
+                format_bytes: 13,
+                peak: 20,
+            })
+        );
+        assert_eq!(
+            schedule.component_bundle(&[], 7, None),
+            Err(Refusal::CallbackCost)
+        );
+        assert_eq!(
+            schedule.component_bundle(&[("fake_unowned_program".into(), 0)], 7, Some(13)),
+            Err(Refusal::UnexpectedProgramCost(
+                "fake_unowned_program".into()
+            ))
         );
     }
 }

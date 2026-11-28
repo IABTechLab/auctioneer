@@ -33,6 +33,7 @@ mod tests {
         factory: Option<Result<partition::CoupledFactoryBounds, partition::CoupledRefusal>>,
         input: Option<Result<partition::CoupledFactoryBounds, partition::CoupledRefusal>>,
         searches: Option<Result<partition::CoupledSearchBounds, partition::CoupledRefusal>>,
+        bundle: Option<Result<crate::schema_bundle_heap::CacheBundleHeap, String>>,
     }
 
     struct ProgramHeapAnalysis {
@@ -138,7 +139,11 @@ mod tests {
         );
     }
 
-    fn inspect_body(body: &DeclarationBody<'_>, view: ValidationView<'_>) -> BodyAnalysis {
+    fn inspect_body(
+        body: &DeclarationBody<'_>,
+        view: ValidationView<'_>,
+        heaps: &[ProgramHeapAnalysis],
+    ) -> BodyAnalysis {
         let operations = operations::classify_source_body(body.syntax, &[], &[]);
         let schedule = operations.as_ref().ok().map(|classified| {
             storage::owner_schedule_data(classified.recipe(), view.graph(), body.owner, body.marker)
@@ -191,6 +196,10 @@ mod tests {
                 },
             ))
         });
+        let bundle = schedule.as_ref().and_then(|scheduled| {
+            let owner_schedule = scheduled.as_ref().ok()?;
+            Some(inspect_bundle(body, view, owner_schedule, heaps))
+        });
         BodyAnalysis {
             owner: body.owner.to_owned(),
             marker: body.marker.to_owned(),
@@ -199,7 +208,81 @@ mod tests {
             factory,
             input,
             searches,
+            bundle,
         }
+    }
+
+    // Joins actual membership to conditional native component DATA. This is
+    // not a whole-constructor/drop or compiled-wrapper-layout certificate.
+    fn inspect_bundle(
+        body: &DeclarationBody<'_>,
+        view: ValidationView<'_>,
+        schedule: &storage::OwnerSchedule,
+        heaps: &[ProgramHeapAnalysis],
+    ) -> Result<crate::schema_bundle_heap::CacheBundleHeap, String> {
+        use operations::Primitive;
+        use regex_automata::meta::Cache;
+
+        let declarations = view.graph()["declarations"]
+            .as_array()
+            .ok_or("declarations")?;
+        let mut matching_declarations = declarations.iter().filter(|row| {
+            row["owner"].as_str() == Some(body.owner) && row["marker"].as_str() == Some(body.marker)
+        });
+        let declaration = matching_declarations.next().ok_or("declaration")?;
+        if matching_declarations.next().is_some() {
+            return Err("duplicate declaration".into());
+        }
+        let programs = declaration["programs"].as_array().ok_or("programs")?;
+        let mut costs = Vec::new();
+        for (_, name, _, _) in schedule.initializers() {
+            let symbol = name.rsplit_once("::").ok_or("program name")?.1;
+            let mut declared = programs
+                .iter()
+                .filter(|row| row["symbol"].as_str() == Some(symbol));
+            let declared_program = declared.next().ok_or("missing declared program")?;
+            if declared.next().is_some() {
+                return Err("duplicate declared program".into());
+            }
+            let identity = declared_program["identity"]
+                .as_str()
+                .ok_or("program identity")?;
+            costs.push((name.to_owned(), program_peak(heaps, identity)?));
+        }
+        if costs.len() != programs.len() {
+            return Err("incomplete program population".into());
+        }
+        let has_hostname = schedule
+            .callbacks()
+            .any(|(_, kind, _)| kind == Primitive::HostnameFormat);
+        let hostname = if has_hostname {
+            Some(
+                program_peak(heaps, view.runtime_hostname().0)?
+                    .checked_add(size_of::<Cache>())
+                    .ok_or("hostname inline overflow")?,
+            )
+        } else {
+            None
+        };
+        let inline = costs
+            .len()
+            .checked_mul(size_of::<Cache>())
+            .ok_or("wrapper inline overflow")?;
+        schedule
+            .component_bundle(&costs, inline, hostname)
+            .map_err(|error| format!("{error:?}"))
+    }
+
+    fn program_peak(heaps: &[ProgramHeapAnalysis], identity: &str) -> Result<usize, String> {
+        let mut matching = heaps.iter().filter(|row| row.identity == identity);
+        let row = matching.next().ok_or("missing borrowed program cost")?;
+        if matching.next().is_some() {
+            return Err("duplicate borrowed program cost".into());
+        }
+        row.heap
+            .as_ref()
+            .map(|heap| heap.peak)
+            .map_err(|error| format!("{error:?}"))
     }
 
     fn assert_body_setup(analyses: &[BodyAnalysis], view: ValidationView<'_>) {
@@ -349,79 +432,125 @@ mod tests {
 
     #[test]
     fn current_body_shapes_have_declared_operation_obligations() {
-        let (document, projection_rows) = with_current_descriptor(|seed, descriptor| {
-            let view = descriptor.validation_view().unwrap();
-            let result = handoff::checked_bodies(seed, view, |body| Ok(inspect_body(&body, view)));
-            assert!(
-                result.is_ok(),
-                "source bodies must first pass the sealed join"
-            );
-            let bodies = result.unwrap();
-            assert_eq!(bodies.recheck(view), Ok(()));
-            assert!(!bodies.analyses().is_empty());
-            assert_eq!(
-                bodies.analyses().len(),
-                view.graph()["declarations"].as_array().unwrap().len()
-            );
-            assert_body_setup(bodies.analyses(), view);
-            // The new factory result is buffered through the same closing
-            // checks. Its success will not close input grammar or source work.
-            for row in bodies.analyses() {
-                let factory_result = row.factory.as_ref().expect("factory owner setup checked");
-                assert_eq!(
-                    factory_result.as_ref().map(|_| ()),
-                    Ok(()),
-                    "coupled factory frontier for {}::{}",
-                    row.owner,
-                    row.marker
+        let (document, projection_rows, bundle_rows) =
+            with_current_descriptor(|seed, descriptor| {
+                let view = descriptor.validation_view().unwrap();
+                let heap_results = inspect_program_heaps(view);
+                let result = handoff::checked_bodies(seed, view, |body| {
+                    Ok(inspect_body(&body, view, &heap_results.0))
+                });
+                assert!(
+                    result.is_ok(),
+                    "source bodies must first pass the sealed join"
                 );
-            }
-            for row in bodies.analyses() {
-                let input_result = row.input.as_ref().expect("coupled factory setup checked");
+                let bodies = result.unwrap();
+                assert_eq!(bodies.recheck(view), Ok(()));
+                assert!(!bodies.analyses().is_empty());
                 assert_eq!(
-                    input_result.as_ref().map(|_| ()),
-                    Ok(()),
-                    "coupled input frontier for {}::{}",
-                    row.owner,
-                    row.marker
+                    bodies.analyses().len(),
+                    view.graph()["declarations"].as_array().unwrap().len()
                 );
-            }
-            for row in bodies.analyses() {
-                let search_result = row.searches.as_ref().expect("input setup checked");
-                assert_eq!(
-                    search_result.as_ref().map(|_| ()),
-                    Ok(()),
-                    "coupled search frontier for {}::{}",
-                    row.owner,
-                    row.marker
-                );
-            }
-            assert_eq!(bodies.recheck(view), Ok(()));
-            assert_owned_program_topologies(view);
-            let heap_results = inspect_program_heaps(view);
-            assert_eq!(view.recheck(), Ok(()));
-            // Keep whole-feature completion last so an unfinished derivation
-            // cannot mask the existing factory, input and search controls.
-            let lane = if cfg!(feature = "insecure-bidders") {
-                Lane::Development
-            } else {
-                Lane::Secure
-            };
-            let census = public_names::discover(Path::new(env!("CARGO_MANIFEST_DIR")), lane)?;
-            let report = super::current_report(seed, view, &census)?;
-            assert_eq!(super::report::check_current_report(&report), Ok(()));
-            for field in [
-                "resource_qualification",
-                "physical_fit",
-                "serving_permission",
-            ] {
-                assert_eq!(report[field], false);
-            }
-            Ok((report, heap_results))
-        })
-        .unwrap();
+                assert_body_setup(bodies.analyses(), view);
+                assert_coupled_results(bodies.analyses());
+                assert_eq!(bodies.recheck(view), Ok(()));
+                assert_owned_program_topologies(view);
+                let bundle_results = bodies
+                    .analyses()
+                    .iter()
+                    .map(|row| {
+                        let result = row.bundle.as_ref().expect("source owner schedule checked");
+                        (
+                            row.owner.clone(),
+                            result
+                                .as_ref()
+                                .map(|heap| {
+                                    [
+                                        heap.pattern_bytes,
+                                        heap.inline_bytes,
+                                        heap.format_bytes,
+                                        heap.peak,
+                                    ]
+                                })
+                                .map_err(Clone::clone),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(view.recheck(), Ok(()));
+                // Keep whole-feature completion last so an unfinished derivation
+                // cannot mask the existing factory, input and search controls.
+                let lane = if cfg!(feature = "insecure-bidders") {
+                    Lane::Development
+                } else {
+                    Lane::Secure
+                };
+                let census = public_names::discover(Path::new(env!("CARGO_MANIFEST_DIR")), lane)?;
+                let report = super::current_report(seed, view, &census)?;
+                assert_eq!(super::report::check_current_report(&report), Ok(()));
+                for field in [
+                    "resource_qualification",
+                    "physical_fit",
+                    "serving_permission",
+                ] {
+                    assert_eq!(report[field], false);
+                }
+                Ok((report, heap_results, bundle_results))
+            })
+            .unwrap();
         // New result assertions follow both inner and outer capture checks.
         assert_program_heaps(projection_rows);
+        assert!(!bundle_rows.is_empty());
+        let mut no_patterns = false;
+        let mut with_patterns = false;
+        let mut with_callback = false;
+        for (owner, result) in bundle_rows {
+            assert!(
+                result.is_ok(),
+                "source-scheduled component bundle {owner}: {result:?}"
+            );
+            let [patterns, _, callback, _] = result.unwrap();
+            no_patterns |= patterns == 0;
+            with_patterns |= patterns > 0;
+            with_callback |= callback > 0;
+        }
+        assert!(
+            no_patterns && with_patterns && with_callback,
+            "nondegenerate actual source population"
+        );
         assert_eq!(document["status"], "CommonSourceComplete");
+    }
+
+    // Original independent source-stage checks; no result is weakened or
+    // skipped by buffering the new component-bundle results for closing checks.
+    fn assert_coupled_results(analyses: &[BodyAnalysis]) {
+        for row in analyses {
+            let factory_result = row.factory.as_ref().expect("factory owner setup checked");
+            assert_eq!(
+                factory_result.as_ref().map(|_| ()),
+                Ok(()),
+                "coupled factory frontier for {}::{}",
+                row.owner,
+                row.marker
+            );
+        }
+        for row in analyses {
+            let input_result = row.input.as_ref().expect("coupled factory setup checked");
+            assert_eq!(
+                input_result.as_ref().map(|_| ()),
+                Ok(()),
+                "coupled input frontier for {}::{}",
+                row.owner,
+                row.marker
+            );
+        }
+        for row in analyses {
+            let search_result = row.searches.as_ref().expect("input setup checked");
+            assert_eq!(
+                search_result.as_ref().map(|_| ()),
+                Ok(()),
+                "coupled search frontier for {}::{}",
+                row.owner,
+                row.marker
+            );
+        }
     }
 }

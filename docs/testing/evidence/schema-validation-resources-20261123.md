@@ -1492,3 +1492,30 @@ test result: FAILED. 258 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out
 The two failures are the augmented constructor and refusal cases, after their original assertions. The first receives `Err(Projection { stage: Composition, reason: Shape })` rather than the complete literal `(0,644,644,0,176,1464,56,1520)` heap row. The second receives that same placeholder instead of `Err(Prefix(Parse))`. These are assertion failures, not compilation, fixture or initial native-model failures. The completed default-workspace log independently records `258 passed; 2 failed` (`1.13s`) and `193 passed; 2 failed` (`2.67s`) for the same two case names. Later comparisons in those cases remain uncredited until correcting-head execution.
 
 The correcting implementation deletes the refusal body and moves the existing eager/directional/prefix/fallback assembly into the borrowed entry. The native test-data constructor delegates to it; no copied or alternative assembly remains. Both directional projections receive the supplied layout, while native subsidiary capacity admission keeps its documented conditional scope. The lazy prefix argument retains the original stage/error ordering. No assertion, case name, bound or arithmetic owner changes. Full tests-first source/feature/adapter results and correcting-head GREEN remain required; at preparation the source owner is still running. No missing common derivation is marked complete.
+
+### Borrowed Composition Completes Its Hosted Checkpoint
+
+At `780263b3359b304540087cd665d76e5e6310cde1`, the unchanged [full matrix](https://github.com/IABTechLab/auctioneer/actions/runs/46071715456) completes all twenty-five checks: twenty pass and five fail. The [secure native owner](https://github.com/IABTechLab/auctioneer/actions/runs/46071715456/job/140749976936) records:
+
+```text
+test result: ok. 260 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+test result: ok. 195 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.82s
+```
+
+Both expanded borrowed-constructor/refusal controls execute successfully. Default/insecure workspace jobs, formatting, both strict workspace Clippy lanes, fanout Clippy, packaging, WASM checks, CLI, fresh producers and independent probes pass. The [source owner](https://github.com/IABTechLab/auctioneer/actions/runs/46071715456/job/140749976994) records secure source, development residency and development validation:
+
+```text
+test result: FAILED. 975 passed; 2 failed; 0 ignored; 0 measured; 6 filtered out; finished in 1584.04s
+test result: ok. 127 passed; 0 failed; 0 ignored; 0 measured; 856 filtered out; finished in 120.52s
+test result: FAILED. 137 passed; 2 failed; 0 ignored; 0 measured; 844 filtered out; finished in 561.44s
+```
+
+Both source lanes pass every borrowed-program component, membership and direction-asymmetry check after their capture closing checks, then reach the unchanged final `Incomplete` versus `CommonSourceComplete` assertion at `schema_validation/mod.rs:425`. The separate report case and all four application owners retain that same completion mismatch. Later compiler controls, explicit strict source-target lint and success-gated later stages are not run, not passing evidence. All checks finish; none is cancelled or waived. This verifies the scoped component, not #47 or whole-PR readiness.
+
+### Source-Scheduled Component Bundle Prepared For Hosted RED
+
+The next Task 5 connection assigns existing component peaks to the generated storage schedule's exact program set and hostname duty, using the existing `CacheBundleHeap` as its only arithmetic owner. Supplied program rows are not positional: reordered rows must retain correct membership, while missing, duplicate and unowned rows refuse even when the extra cost is zero. A hostname duty requires an explicit nonzero supplied callback peak; repeated serial callback sites reuse that peak rather than multiplying storage. UUID retains its separate frame obligation and adds no callback heap row. Missing constructor/cleanup/ordinary helper derivations are not discharged by this conditional projection.
+
+Two existing inline cases retain all original assertions. Independent literals use pattern peaks 11 and 29, wrapper inline 7 and callback 13 to obtain `(pattern,inline,callback,total)=(40,7,13,60)`. Each of the four operands varies independently. Separate overflow controls reach pattern, inline and callback additions. No-pattern, no-hostname, UUID and repeated-hostname inputs pass through the existing classifier rather than forged operation nodes. The temporary implementation returns `NotDerived` pending actual hosted assertion RED; it must be removed in the correcting implementation.
+
+The existing current-body case reuses its one set of borrowed-program results, joins symbols under the same sealed declaration, and buffers the resulting bundle checks through both source closing checks. Native inline sizes and the existing broad hostname envelope remain conditional model DATA, not compiled-wrapper, target or complete constructor/drop facts. The larger hostname input envelope is retained conservatively; no cap is reduced and no extra compilation, capture, graph exploration or measurement owner is added. Existing final common-completion assertions, child-component oracles, case names, CI jobs, limits and qualification restrictions remain unchanged. No new executable result is claimed before hosted RED. No local Cargo/compiler/test/Clippy/proof/mutation execution runs.
