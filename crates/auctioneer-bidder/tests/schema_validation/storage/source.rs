@@ -16,7 +16,7 @@ use crate::schema_validation::{
     },
 };
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct FieldInitializer {
@@ -47,12 +47,40 @@ impl OwnerSchedule {
     // cache construction, cleanup, ordinary helpers or complete call frames.
     pub(in crate::schema_validation) fn component_bundle(
         &self,
-        _program_peaks: &[(String, usize)],
-        _wrapper_inline: usize,
-        _hostname_peak: Option<usize>,
+        program_peaks: &[(String, usize)],
+        wrapper_inline: usize,
+        hostname_peak: Option<usize>,
     ) -> Result<CacheBundleHeap, Refusal> {
-        let _: &Self = self;
-        Err(Refusal::NotDerived)
+        let mut supplied = BTreeMap::new();
+        for (program, peak) in program_peaks {
+            if supplied.insert(program.as_str(), *peak).is_some() {
+                return Err(Refusal::DuplicateProgramCost(program.clone()));
+            }
+            if !self.initializers.iter().any(|row| row.program == *program) {
+                return Err(Refusal::UnexpectedProgramCost(program.clone()));
+            }
+        }
+        let pattern_peaks = self
+            .initializers
+            .iter()
+            .map(|row| {
+                supplied
+                    .get(row.program.as_str())
+                    .copied()
+                    .ok_or_else(|| Refusal::MissingProgramCost(row.program.clone()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_hostname = self
+            .callbacks
+            .iter()
+            .any(|row| row.helper == Primitive::HostnameFormat);
+        let callback_peak = match (has_hostname, hostname_peak) {
+            (true, Some(bytes)) if bytes > 0 => bytes,
+            (false, None) => 0,
+            _ => return Err(Refusal::CallbackCost),
+        };
+        CacheBundleHeap::compose(&pattern_peaks, wrapper_inline, callback_peak)
+            .map_err(Refusal::ComponentHeap)
     }
 
     pub(in crate::schema_validation) fn roots(&self) -> (usize, usize) {

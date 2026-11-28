@@ -43,6 +43,11 @@ mod tests {
         components: Result<[usize; 4], String>,
     }
 
+    struct BundleAnalysis {
+        owner: String,
+        result: Result<[usize; 4], String>,
+    }
+
     // Component integration only: existing independent literal cases own the
     // formulas. Reusing these child owners does not issue common-proof credit.
     fn program_heap_components(
@@ -285,6 +290,75 @@ mod tests {
             .map_err(|error| format!("{error:?}"))
     }
 
+    // Independent metadata join, not a second numeric oracle. Literal unit
+    // rows own arithmetic; this follows descriptor IDs rather than initializer
+    // symbols or program_peak, keeping the lookup under test out of its oracle.
+    fn expected_cache_bundles(
+        view: ValidationView<'_>,
+        heaps: &[ProgramHeapAnalysis],
+    ) -> Result<BTreeMap<String, [usize; 4]>, String> {
+        use crate::schema_bundle_heap::CacheBundleHeap;
+        use regex_automata::meta::Cache;
+
+        let mut by_identity = BTreeMap::new();
+        for row in heaps {
+            let heap = row.heap.as_ref().map_err(|error| format!("{error:?}"))?;
+            if by_identity
+                .insert(row.identity.as_str(), heap.peak)
+                .is_some()
+            {
+                return Err("duplicate expected program identity".into());
+            }
+        }
+        let mut bundles = BTreeMap::new();
+        for declaration in view.graph()["declarations"]
+            .as_array()
+            .ok_or("declarations")?
+        {
+            let mut peaks = Vec::new();
+            for program in declaration["programs"].as_array().ok_or("programs")? {
+                let identity = program["identity"].as_str().ok_or("program identity")?;
+                peaks.push(*by_identity.get(identity).ok_or("expected program cost")?);
+            }
+            let callback = if declaration["callbacks"]
+                .as_array()
+                .ok_or("callbacks")?
+                .iter()
+                .any(|format| format.as_str() == Some("hostname"))
+            {
+                by_identity
+                    .get(view.runtime_hostname().0)
+                    .ok_or("expected hostname cost")?
+                    .checked_add(size_of::<Cache>())
+                    .ok_or("expected hostname overflow")?
+            } else {
+                0
+            };
+            let inline = peaks
+                .len()
+                .checked_mul(size_of::<Cache>())
+                .ok_or("expected inline overflow")?;
+            let heap = CacheBundleHeap::compose(&peaks, inline, callback)
+                .map_err(|error| format!("{error:?}"))?;
+            let owner = declaration["owner"].as_str().ok_or("owner")?.to_owned();
+            if bundles
+                .insert(
+                    owner,
+                    [
+                        heap.pattern_bytes,
+                        heap.inline_bytes,
+                        heap.format_bytes,
+                        heap.peak,
+                    ],
+                )
+                .is_some()
+            {
+                return Err("duplicate expected owner".into());
+            }
+        }
+        Ok(bundles)
+    }
+
     fn assert_body_setup(analyses: &[BodyAnalysis], view: ValidationView<'_>) {
         assert!(!analyses.is_empty());
         let expected: Vec<_> = view.graph()["declarations"]
@@ -432,7 +506,7 @@ mod tests {
 
     #[test]
     fn current_body_shapes_have_declared_operation_obligations() {
-        let (document, projection_rows, bundle_rows) =
+        let (document, projection_rows, bundle_rows, expected_bundles) =
             with_current_descriptor(|seed, descriptor| {
                 let view = descriptor.validation_view().unwrap();
                 let heap_results = inspect_program_heaps(view);
@@ -459,9 +533,9 @@ mod tests {
                     .iter()
                     .map(|row| {
                         let result = row.bundle.as_ref().expect("source owner schedule checked");
-                        (
-                            row.owner.clone(),
-                            result
+                        BundleAnalysis {
+                            owner: row.owner.clone(),
+                            result: result
                                 .as_ref()
                                 .map(|heap| {
                                     [
@@ -472,9 +546,10 @@ mod tests {
                                     ]
                                 })
                                 .map_err(Clone::clone),
-                        )
+                        }
                     })
                     .collect::<Vec<_>>();
+                let expected_bundles = expected_cache_bundles(view, &heap_results.0);
                 assert_eq!(view.recheck(), Ok(()));
                 // Keep whole-feature completion last so an unfinished derivation
                 // cannot mask the existing factory, input and search controls.
@@ -493,21 +568,43 @@ mod tests {
                 ] {
                     assert_eq!(report[field], false);
                 }
-                Ok((report, heap_results, bundle_results))
+                Ok((report, heap_results, bundle_results, expected_bundles))
             })
             .unwrap();
         // New result assertions follow both inner and outer capture checks.
         assert_program_heaps(projection_rows);
+        assert_actual_bundles(bundle_rows, &expected_bundles.unwrap());
+        assert_eq!(document["status"], "CommonSourceComplete");
+    }
+
+    fn assert_actual_bundles(
+        bundle_rows: Vec<BundleAnalysis>,
+        expected_bundles: &BTreeMap<String, [usize; 4]>,
+    ) {
         assert!(!bundle_rows.is_empty());
+        assert_eq!(expected_bundles.len(), bundle_rows.len());
+        assert_eq!(
+            bundle_rows
+                .iter()
+                .map(|row| &row.owner)
+                .collect::<BTreeSet<_>>(),
+            expected_bundles.keys().collect::<BTreeSet<_>>()
+        );
         let mut no_patterns = false;
         let mut with_patterns = false;
         let mut with_callback = false;
-        for (owner, result) in bundle_rows {
+        for BundleAnalysis { owner, result } in bundle_rows {
             assert!(
                 result.is_ok(),
                 "source-scheduled component bundle {owner}: {result:?}"
             );
-            let [patterns, _, callback, _] = result.unwrap();
+            let fields = result.unwrap();
+            assert_eq!(
+                &fields,
+                expected_bundles.get(&owner).unwrap(),
+                "independent descriptor-ID cost join: {owner}"
+            );
+            let [patterns, _, callback, _] = fields;
             no_patterns |= patterns == 0;
             with_patterns |= patterns > 0;
             with_callback |= callback > 0;
@@ -516,7 +613,6 @@ mod tests {
             no_patterns && with_patterns && with_callback,
             "nondegenerate actual source population"
         );
-        assert_eq!(document["status"], "CommonSourceComplete");
     }
 
     // Original independent source-stage checks; no result is weakened or
