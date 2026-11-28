@@ -1069,7 +1069,7 @@ mod tests {
 
     #[test]
     fn actual_sources_are_consumed_inside_the_bound_window() {
-        let (caller_setup, caller_projection) = with_current_descriptor(|seed, descriptor| {
+        let checked = with_current_descriptor(|seed, descriptor| {
             let view = descriptor.validation_view().unwrap();
             let data = fixture(seed, view);
             assert_roster();
@@ -1082,8 +1082,35 @@ mod tests {
             let mut refused_costs = None;
             let mut caller_setup = None;
             let mut caller_projection = None;
+            let mut runtime_sources = None;
             let actual = with_current_sources(seed, view, |inputs| {
                 let count = inspect_inputs(inputs, &data);
+                runtime_sources = Some(
+                    [
+                        "vendor/regex-automata/src/meta/regex.rs",
+                        "vendor/regex-automata/src/meta/strategy.rs",
+                        "vendor/regex-automata/src/meta/wrappers.rs",
+                        "vendor/regex-automata/src/hybrid/regex.rs",
+                        "vendor/regex-automata/src/hybrid/dfa.rs",
+                        "vendor/regex-automata/src/dfa/onepass.rs",
+                        "vendor/regex-automata/src/nfa/thompson/pikevm.rs",
+                        "vendor/regex-automata/src/nfa/thompson/backtrack.rs",
+                        "vendor/regex-automata/src/util/captures.rs",
+                        "vendor/regex-automata/src/util/determinize/state.rs",
+                    ]
+                    .map(|relative| {
+                        (
+                            relative,
+                            inputs.source_record(relative).map(|(path, bytes, sha256)| {
+                                (
+                                    path.ends_with(relative),
+                                    !bytes.is_empty(),
+                                    digest(bytes) == sha256,
+                                )
+                            }),
+                        )
+                    }),
+                );
                 semantic_setup = Some(work::check_helper_source_setup(inputs));
                 helper_costs = Some(
                     demands
@@ -1143,12 +1170,24 @@ mod tests {
             assert_vendor_ancestry_controls(seed, view, &data);
             core_routes::assert_controls(seed, view, &data);
             leaf_imports::assert_controls(seed, view, &data);
-            Ok((caller_setup, caller_projection))
+            Ok((caller_setup, caller_projection, runtime_sources))
         })
         .unwrap();
         // The outer descriptor/artifact checks must also finish before RED.
+        let (caller_setup, caller_projection, runtime_sources) = checked;
         assert_eq!(caller_setup, Some(Ok(())));
         work::assert_consumed_projection(caller_projection.unwrap());
+        // Consume only after both source and outer descriptor checks close.
+        // These records grant identity/availability, not runtime cost authority.
+        let runtime_sources = runtime_sources.expect("source interpretation executed");
+        assert_eq!(runtime_sources.len(), 10);
+        for (relative, observed) in runtime_sources {
+            assert_eq!(
+                observed,
+                Some((true, true, true)),
+                "runtime source: {relative}"
+            );
+        }
     }
 
     #[derive(Clone, Copy, Debug)]
