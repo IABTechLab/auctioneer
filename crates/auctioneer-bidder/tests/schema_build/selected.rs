@@ -332,7 +332,7 @@ fn source(
     Ok((text, membership))
 }
 
-pub(super) fn probe_compiler() -> Result<(PathBuf, String), String> {
+pub(crate) fn probe_compiler() -> Result<(PathBuf, String), String> {
     let output = super::successful(
         Command::new("rustc")
             .args(["--print", "sysroot"])

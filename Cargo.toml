@@ -60,13 +60,13 @@ jsonschema-macros-core = "=0.62.0"
 testing_logger = "0.1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
-edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
-edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
-edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
-edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
-edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "ea2549fb13728debf5afc34da2e70593061aa05f", default-features = false }
-fastly = "=0.13.1"
+edgezero-adapter-axum = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-axum", rev = "0e2a58ae54860842c3490ff2ad2d79897bb06b37", default-features = false }
+edgezero-adapter-cloudflare = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-cloudflare", rev = "0e2a58ae54860842c3490ff2ad2d79897bb06b37", default-features = false }
+edgezero-adapter-fastly = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-fastly", rev = "0e2a58ae54860842c3490ff2ad2d79897bb06b37", default-features = false }
+edgezero-adapter-spin = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-adapter-spin", rev = "0e2a58ae54860842c3490ff2ad2d79897bb06b37", default-features = false }
+edgezero-cli = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-cli", rev = "0e2a58ae54860842c3490ff2ad2d79897bb06b37", default-features = false }
+edgezero-core = { git = "https://github.com/IABTechLab/edgezero.git", package = "edgezero-core", rev = "0e2a58ae54860842c3490ff2ad2d79897bb06b37", default-features = false }
+fastly = "=0.13.3"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # GVL-archive build gate: brotli-11 compressed-bundle pass in
 # auctioneer-config-data's build.rs (pin matches the bounded fanout budget work).

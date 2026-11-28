@@ -1,6 +1,7 @@
 //! Structural optional-prefix superset; no claim about the selected strategy.
 
 use crate::schema_cache_bounds::BoundsError;
+use crate::schema_heap_layout::HeapLayout;
 use crate::schema_hybrid_bounds::{HybridDirection, candidate_hybrid};
 use crate::schema_hybrid_capacity::{CapacityError, ReportedCapacityProof};
 use crate::schema_hybrid_graph::GraphError;
@@ -9,6 +10,7 @@ use regex_automata::nfa::thompson::{self, NFA, WhichCaptures};
 use regex_automata::util::{look::LookMatcher, syntax};
 use regex_syntax::hir::{Hir, HirKind, Look};
 use std::fmt;
+use std::mem::size_of;
 
 #[derive(Clone, Copy)]
 pub(crate) struct PrefixBudget {
@@ -94,7 +96,9 @@ impl PrefixEnvelope {
             // This constructor checks coarse heap/recovery before any graph.
             let capacity = ReportedCapacityProof::from_non_quitting_dfa(&dfa)
                 .map_err(PrefixError::Capacity)?;
-            let heap = HybridHeap::from_complete_dfa(&dfa)
+            let layout = HeapLayout::new(size_of::<usize>(), 16)
+                .map_err(|reason| PrefixError::Projection(BoundsError::from(reason)))?;
+            let heap = HybridHeap::from_complete_dfa(&dfa, layout)
                 .map_err(|error| match error {
                     CompleteHeapError::Projection(reason) => PrefixError::Projection(reason),
                     CompleteHeapError::Exploration(reason) => PrefixError::Graph(reason),
@@ -335,9 +339,11 @@ mod tests {
 
     #[test]
     fn optional_envelope_binds_all_literal_prefixes_to_real_reverse_components() {
+        use crate::schema_heap_layout::HeapLayout;
         use crate::schema_hybrid_bounds::{HybridDirection, candidate_hybrid};
         use crate::schema_hybrid_capacity::ReportedCapacityProof;
         use crate::schema_hybrid_heap::HybridHeap;
+        use std::mem::size_of;
         let mut expected_peaks = Vec::new();
         let mut expected_reports = Vec::new();
         // Independent explicit prefixes, not the implementation's HIR slicing.
@@ -345,7 +351,12 @@ mod tests {
             let nfa = reverse_prefix_nfa(&syntax::parse(pattern).unwrap()).unwrap();
             let dfa = candidate_hybrid(&nfa, HybridDirection::ReverseSharedStarts).unwrap();
             let capacity = ReportedCapacityProof::from_dfa(&dfa).unwrap();
-            let heap = HybridHeap::from_complete_dfa(&dfa).unwrap().unwrap();
+            let heap = HybridHeap::from_complete_dfa(
+                &dfa,
+                HeapLayout::new(size_of::<usize>(), 16).unwrap(),
+            )
+            .unwrap()
+            .unwrap();
             expected_peaks.push(heap.peak);
             expected_reports.push(capacity.required);
         }

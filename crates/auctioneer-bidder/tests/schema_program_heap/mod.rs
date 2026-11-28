@@ -88,6 +88,11 @@ enum Projection<'a> {
 }
 
 impl SourceRecipe {
+    /// Immutable borrows of the already retained forward and reverse NFAs.
+    pub(crate) fn nfas(&self) -> [&NFA; 2] {
+        [&self.forward, &self.reverse]
+    }
+
     pub(crate) fn from_pattern(pattern: &str, config: &Config) -> Result<Self, ProgramHeapError> {
         require_configuration(config)?;
         let candidate = Regex::builder()
@@ -521,6 +526,7 @@ mod tests {
         nfa::thompson::WhichCaptures,
         util::{prefilter::Prefilter, syntax},
     };
+    use std::ptr;
 
     fn fake_config() -> Config {
         Config::new()
@@ -626,6 +632,14 @@ mod tests {
                 .unwrap(),
             556_usize
         );
+        let borrowed = source.nfas();
+        assert!(ptr::eq(borrowed[0], &source.forward));
+        assert!(ptr::eq(borrowed[1], &source.reverse));
+        assert!(!borrowed[0].is_reverse());
+        assert!(borrowed[1].is_reverse());
+        let again = source.nfas();
+        assert!(ptr::eq(borrowed[0], again[0]));
+        assert!(ptr::eq(borrowed[1], again[1]));
     }
 
     #[test]

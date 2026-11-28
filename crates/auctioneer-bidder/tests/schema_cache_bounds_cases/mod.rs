@@ -3,6 +3,7 @@ mod tests {
     use crate::schema_backtrack_bounds::BacktrackDimensions;
     use crate::schema_cache_bounds::reverse_nfa;
     use crate::schema_cache_bounds::{NfaDimensions, emitted_patterns, forward_nfa};
+    use crate::schema_heap_layout::HeapLayout;
     use crate::schema_hybrid_bounds::{HybridDimensions, HybridDirection, candidate_hybrid};
     use crate::schema_hybrid_capacity::ReportedCapacityProof;
     use crate::schema_hybrid_graph::{QUALIFICATION_BUDGET, certify};
@@ -227,9 +228,14 @@ mod tests {
             dfa.create_cache().memory_usage(),
             projected.fresh_reported_bytes(size_of::<usize>()).unwrap()
         );
-        let population = HybridPopulation::from_dfa(&dfa).unwrap().unwrap();
+        let population = HybridPopulation::from_dfa(&dfa, size_of::<usize>())
+            .unwrap()
+            .unwrap();
         let heap = HybridHeap::from_dfa(&dfa).unwrap().unwrap();
-        let closed = HybridHeap::from_complete_dfa(&dfa).unwrap().unwrap();
+        let closed =
+            HybridHeap::from_complete_dfa(&dfa, HeapLayout::new(size_of::<usize>(), 16).unwrap())
+                .unwrap()
+                .unwrap();
         assert!(closed.live_envelope <= heap.live_envelope);
         assert!(closed.growth_overlap <= heap.growth_overlap);
         assert!(closed.peak > 0 && closed.peak <= heap.peak);

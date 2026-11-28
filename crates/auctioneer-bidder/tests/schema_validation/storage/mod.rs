@@ -1,0 +1,1072 @@
+//! Tests-first lifetime-composition contract, not a source proof or serving API.
+//!
+//! All facts below are supplied hypotheses, including coverage and lifetimes.
+//! Evaluating them must never issue source-proof authority. Later source joins
+//! must reuse the existing MetaCache/BundleHeap owners, not duplicate them here.
+//! Success checks only the supplied accounting, never its source completeness.
+
+mod source;
+pub(super) use source::{OwnerSchedule, owner_schedule_data};
+
+use std::iter::once;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct OwnerId(&'static str);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct AllocationId(&'static str);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct StateId(usize);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HeapBytes(u64);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct InlineBytes(u64);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SourceState {
+    FreshConstruction,
+    Callback,
+    HostnameValidation,
+    PartialFailure,
+    Released,
+}
+
+// Half-open: live at `first`, already released on entry to `released_at`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Lifetime {
+    first: StateId,
+    released_at: StateId,
+}
+
+impl Lifetime {
+    fn contains(self, state: StateId) -> bool {
+        self.first.0 <= state.0 && state.0 < self.released_at.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HeapKind {
+    DisjointLiveOwner,
+    TransientRelocation,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct HeapOwner {
+    owner: OwnerId,
+    allocation: AllocationId,
+    kind: HeapKind,
+    bytes: HeapBytes,
+    lifetime: Lifetime,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct InlineWrapper {
+    owner: OwnerId,
+    bytes: InlineBytes,
+    lifetime: Lifetime,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CoverageObligation {
+    child: OwnerId,
+    lifetime: Lifetime,
+}
+
+// The child's heap is included in the parent's bytes; this is not an allocation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CoveredBy {
+    child: OwnerId,
+    parent: OwnerId,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Release {
+    owner: OwnerId,
+    at: StateId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LifetimeTrace {
+    states: Vec<SourceState>,
+    heap: Vec<HeapOwner>,
+    wrapper: InlineWrapper,
+    coverage_obligations: Vec<CoverageObligation>,
+    covered_by: Vec<CoveredBy>,
+    releases: Vec<Release>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HypotheticalPeak {
+    heap: HeapBytes,
+    wrapper_inline: InlineBytes,
+    combined: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SerialBoundary {
+    UnchangedAndExclusive,
+    OverlappingCall,
+    EscapingCallback,
+    CacheReset,
+    SourceChanged,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum StorageError {
+    MissingSourceProof,
+    InvalidState(StateId),
+    MissingCoverage(OwnerId),
+    DuplicateCoverage(OwnerId),
+    InvalidCoverage { child: OwnerId, parent: OwnerId },
+    CoveredChildAlsoOwned(OwnerId),
+    DuplicateOwnership(AllocationId),
+    DuplicateOwner(OwnerId),
+    InvalidLifetime(OwnerId),
+    ReleaseMismatch { owner: OwnerId, expected: StateId },
+    UnexpectedRelease(Release),
+    LiveHeapOverflow(StateId),
+    CombinedOverflow(StateId),
+    SerialBoundaryCount,
+    InvalidSerialComposition(SerialBoundary),
+}
+
+fn check_states(states: &[SourceState]) -> Result<(), StorageError> {
+    let Some((last, preceding)) = states.split_last() else {
+        return Err(StorageError::MissingSourceProof);
+    };
+    if states.first() != Some(&SourceState::FreshConstruction) {
+        return Err(StorageError::InvalidState(StateId(0)));
+    }
+    if *last != SourceState::Released {
+        return Err(StorageError::InvalidState(StateId(preceding.len())));
+    }
+    let mut released = false;
+    for (index, state) in states.iter().enumerate() {
+        if released && *state != SourceState::Released {
+            return Err(StorageError::InvalidState(StateId(index)));
+        }
+        released |= *state == SourceState::Released;
+    }
+    Ok(())
+}
+
+fn check_lifetime(
+    owner: OwnerId,
+    lifetime: Lifetime,
+    states: &[SourceState],
+) -> Result<(), StorageError> {
+    if lifetime.first.0 >= lifetime.released_at.0
+        || states.get(lifetime.released_at.0).is_none()
+        || states
+            .get(lifetime.first.0..lifetime.released_at.0)
+            .is_none_or(|live| live.contains(&SourceState::Released))
+    {
+        return Err(StorageError::InvalidLifetime(owner));
+    }
+    Ok(())
+}
+
+fn check_coverage(trace: &LifetimeTrace) -> Result<(), StorageError> {
+    for (index, obligation) in trace.coverage_obligations.iter().enumerate() {
+        let child = obligation.child;
+        if trace
+            .coverage_obligations
+            .iter()
+            .take(index)
+            .any(|row| row.child == child)
+        {
+            return Err(StorageError::DuplicateCoverage(child));
+        }
+        if trace.wrapper.owner == child || trace.heap.iter().any(|row| row.owner == child) {
+            return Err(StorageError::CoveredChildAlsoOwned(child));
+        }
+        let mut edges = trace.covered_by.iter().filter(|edge| edge.child == child);
+        let edge = edges.next().ok_or(StorageError::MissingCoverage(child))?;
+        if edges.next().is_some() {
+            return Err(StorageError::DuplicateCoverage(child));
+        }
+        let Some(parent) = trace.heap.iter().find(|row| row.owner == edge.parent) else {
+            return Err(StorageError::InvalidCoverage {
+                child,
+                parent: edge.parent,
+            });
+        };
+        check_lifetime(child, obligation.lifetime, &trace.states).map_err(|_error| {
+            StorageError::InvalidCoverage {
+                child,
+                parent: edge.parent,
+            }
+        })?;
+        if parent.lifetime.first.0 > obligation.lifetime.first.0
+            || parent.lifetime.released_at.0 < obligation.lifetime.released_at.0
+        {
+            return Err(StorageError::InvalidCoverage {
+                child,
+                parent: edge.parent,
+            });
+        }
+    }
+    for edge in &trace.covered_by {
+        if !trace
+            .coverage_obligations
+            .iter()
+            .any(|row| row.child == edge.child)
+        {
+            return Err(StorageError::InvalidCoverage {
+                child: edge.child,
+                parent: edge.parent,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn check_ownership(trace: &LifetimeTrace) -> Result<(), StorageError> {
+    for (index, owner) in trace.heap.iter().enumerate() {
+        if owner.owner == trace.wrapper.owner
+            || trace
+                .heap
+                .iter()
+                .take(index)
+                .any(|row| row.owner == owner.owner)
+        {
+            return Err(StorageError::DuplicateOwner(owner.owner));
+        }
+        if trace.heap.iter().take(index).any(|row| {
+            row.allocation == owner.allocation
+                && row.lifetime.first.0 < owner.lifetime.released_at.0
+                && owner.lifetime.first.0 < row.lifetime.released_at.0
+        }) {
+            return Err(StorageError::DuplicateOwnership(owner.allocation));
+        }
+    }
+    Ok(())
+}
+
+fn check_releases(trace: &LifetimeTrace) -> Result<(), StorageError> {
+    let owners = trace
+        .heap
+        .iter()
+        .map(|row| (row.owner, row.lifetime))
+        .chain(once((trace.wrapper.owner, trace.wrapper.lifetime)));
+    for (owner, lifetime) in owners {
+        let mut releases = trace.releases.iter().filter(|row| row.owner == owner);
+        if releases
+            .next()
+            .is_none_or(|row| row.at != lifetime.released_at)
+            || releases.next().is_some()
+        {
+            return Err(StorageError::ReleaseMismatch {
+                owner,
+                expected: lifetime.released_at,
+            });
+        }
+    }
+    for release in &trace.releases {
+        if release.owner != trace.wrapper.owner
+            && !trace.heap.iter().any(|row| row.owner == release.owner)
+        {
+            return Err(StorageError::UnexpectedRelease(*release));
+        }
+    }
+    Ok(())
+}
+
+// Checked sum of disjoint live heap, including relocation, then state maxima.
+// Inline remains separate; combined is a per-state sum, not another heap row.
+fn evaluate_supplied_facts_hypothetically(
+    trace: &LifetimeTrace,
+) -> Result<HypotheticalPeak, StorageError> {
+    // Reject malformed facts before interpreting release events or byte totals.
+    check_states(&trace.states)?;
+    check_lifetime(trace.wrapper.owner, trace.wrapper.lifetime, &trace.states)?;
+    for owner in &trace.heap {
+        check_lifetime(owner.owner, owner.lifetime, &trace.states)?;
+    }
+    check_coverage(trace)?;
+    check_ownership(trace)?;
+    check_releases(trace)?;
+
+    let mut peak = HypotheticalPeak {
+        heap: HeapBytes(0),
+        wrapper_inline: InlineBytes(0),
+        combined: 0,
+    };
+    for (index, _) in trace.states.iter().enumerate() {
+        let state = StateId(index);
+        let heap = trace
+            .heap
+            .iter()
+            .filter(|row| row.lifetime.contains(state))
+            .try_fold(0_u64, |sum, row| {
+                sum.checked_add(row.bytes.0)
+                    .ok_or(StorageError::LiveHeapOverflow(state))
+            })?;
+        let inline = if trace.wrapper.lifetime.contains(state) {
+            trace.wrapper.bytes.0
+        } else {
+            0
+        };
+        let combined = heap
+            .checked_add(inline)
+            .ok_or(StorageError::CombinedOverflow(state))?;
+        peak.heap.0 = peak.heap.0.max(heap);
+        peak.wrapper_inline.0 = peak.wrapper_inline.0.max(inline);
+        peak.combined = peak.combined.max(combined);
+    }
+    Ok(peak)
+}
+
+// Exactly one unchanged/exclusive boundary per adjacent call is required.
+// Calls compose by maximum storage, never by call count or cumulative sums.
+fn evaluate_serial_facts_hypothetically(
+    calls: &[LifetimeTrace],
+    boundaries: &[SerialBoundary],
+) -> Result<HypotheticalPeak, StorageError> {
+    let boundary_count = calls
+        .len()
+        .checked_sub(1)
+        .ok_or(StorageError::MissingSourceProof)?;
+    if boundaries.len() != boundary_count {
+        return Err(StorageError::SerialBoundaryCount);
+    }
+    for boundary in boundaries {
+        if *boundary != SerialBoundary::UnchangedAndExclusive {
+            return Err(StorageError::InvalidSerialComposition(*boundary));
+        }
+    }
+    let mut peak = HypotheticalPeak {
+        heap: HeapBytes(0),
+        wrapper_inline: InlineBytes(0),
+        combined: 0,
+    };
+    for call in calls {
+        let current = evaluate_supplied_facts_hypothetically(call)?;
+        peak.heap.0 = peak.heap.0.max(current.heap.0);
+        peak.wrapper_inline.0 = peak.wrapper_inline.0.max(current.wrapper_inline.0);
+        peak.combined = peak.combined.max(current.combined);
+    }
+    Ok(peak)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AllocationId, CoverageObligation, CoveredBy, HeapBytes, HeapKind, HeapOwner,
+        HypotheticalPeak, InlineBytes, InlineWrapper, Lifetime, LifetimeTrace, OwnerId, Release,
+        SerialBoundary, SourceState, StateId, StorageError, evaluate_serial_facts_hypothetically,
+        evaluate_supplied_facts_hypothetically,
+    };
+    use std::slice::from_ref;
+
+    const META: OwnerId = OwnerId("hypothetical-meta-cache");
+    const SIBLING: OwnerId = OwnerId("hypothetical-sibling-cache");
+    const CALLBACK: OwnerId = OwnerId("hypothetical-callback-work");
+    const RELOCATION: OwnerId = OwnerId("hypothetical-relocation");
+    const FALLBACK: OwnerId = OwnerId("hypothetical-covered-fallback");
+    const WRAPPER: OwnerId = OwnerId("hypothetical-inline-wrapper");
+    const HOSTNAME: OwnerId = OwnerId("hypothetical-hostname-cache");
+    const CONSTRUCTION: OwnerId = OwnerId("hypothetical-construction-work");
+
+    fn lifetime(first: usize, released_at: usize) -> Lifetime {
+        Lifetime {
+            first: StateId(first),
+            released_at: StateId(released_at),
+        }
+    }
+
+    fn heap_owner(owner: OwnerId, bytes: u64, first: usize, released_at: usize) -> HeapOwner {
+        HeapOwner {
+            owner,
+            allocation: AllocationId(owner.0),
+            kind: HeapKind::DisjointLiveOwner,
+            bytes: HeapBytes(bytes),
+            lifetime: lifetime(first, released_at),
+        }
+    }
+
+    fn peak(heap: u64, wrapper_inline: u64, combined: u64) -> HypotheticalPeak {
+        HypotheticalPeak {
+            heap: HeapBytes(heap),
+            wrapper_inline: InlineBytes(wrapper_inline),
+            combined,
+        }
+    }
+
+    fn hypothetical_trace() -> LifetimeTrace {
+        LifetimeTrace {
+            states: vec![
+                SourceState::FreshConstruction,
+                SourceState::Callback,
+                SourceState::Released,
+            ],
+            heap: vec![
+                heap_owner(META, 11, 0, 2),
+                heap_owner(SIBLING, 29, 0, 2),
+                heap_owner(CALLBACK, 13, 1, 2),
+                HeapOwner {
+                    kind: HeapKind::TransientRelocation,
+                    ..heap_owner(RELOCATION, 17, 1, 2)
+                },
+            ],
+            wrapper: InlineWrapper {
+                owner: WRAPPER,
+                bytes: InlineBytes(7),
+                lifetime: lifetime(0, 2),
+            },
+            coverage_obligations: vec![CoverageObligation {
+                child: FALLBACK,
+                lifetime: lifetime(0, 2),
+            }],
+            covered_by: vec![CoveredBy {
+                child: FALLBACK,
+                parent: META,
+            }],
+            releases: vec![
+                Release {
+                    owner: META,
+                    at: StateId(2),
+                },
+                Release {
+                    owner: SIBLING,
+                    at: StateId(2),
+                },
+                Release {
+                    owner: CALLBACK,
+                    at: StateId(2),
+                },
+                Release {
+                    owner: RELOCATION,
+                    at: StateId(2),
+                },
+                Release {
+                    owner: WRAPPER,
+                    at: StateId(2),
+                },
+            ],
+        }
+    }
+
+    fn set_heap_bytes(trace: &mut LifetimeTrace, owner: OwnerId, bytes: u64) {
+        let row = trace
+            .heap
+            .iter_mut()
+            .find(|row| row.owner == owner)
+            .unwrap();
+        row.bytes = HeapBytes(bytes);
+    }
+
+    #[test]
+    fn fallback_is_covered_once() {
+        let original = hypothetical_trace();
+        assert_eq!(original.coverage_obligations[0].child, FALLBACK);
+        assert_eq!(original.coverage_obligations[0].lifetime, lifetime(0, 2));
+        assert_eq!(original.covered_by.len(), 1);
+        assert_eq!(
+            (original.covered_by[0].child, original.covered_by[0].parent),
+            (FALLBACK, META)
+        );
+        assert!(!original.heap.iter().any(|row| row.owner == FALLBACK));
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+
+        let mut missing = original.clone();
+        assert_eq!(missing.covered_by.remove(0), original.covered_by[0]);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&missing),
+            Err(StorageError::MissingCoverage(FALLBACK))
+        );
+
+        let mut duplicate = original.clone();
+        duplicate.covered_by.push(original.covered_by[0]);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&duplicate),
+            Err(StorageError::DuplicateCoverage(FALLBACK))
+        );
+
+        let mut counted_twice = original.clone();
+        counted_twice.heap.push(heap_owner(FALLBACK, 5, 0, 2));
+        counted_twice.releases.push(Release {
+            owner: FALLBACK,
+            at: StateId(2),
+        });
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&counted_twice),
+            Err(StorageError::CoveredChildAlsoOwned(FALLBACK))
+        );
+
+        let mut unknown_parent = original.clone();
+        let unknown = OwnerId("hypothetical-unknown-parent");
+        unknown_parent.covered_by[0].parent = unknown;
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&unknown_parent),
+            Err(StorageError::InvalidCoverage {
+                child: FALLBACK,
+                parent: unknown,
+            })
+        );
+
+        let mut outliving_parent = original.clone();
+        outliving_parent.coverage_obligations[0]
+            .lifetime
+            .released_at = StateId(3);
+        outliving_parent.states.push(SourceState::Released);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&outliving_parent),
+            Err(StorageError::InvalidCoverage {
+                child: FALLBACK,
+                parent: META
+            })
+        );
+    }
+
+    #[test]
+    fn heap_terms_and_inline_wrapper_vary_independently() {
+        let original = hypothetical_trace();
+        let supplied_heap = original
+            .heap
+            .iter()
+            .map(|row| {
+                (
+                    row.owner,
+                    row.allocation.0,
+                    row.kind,
+                    row.bytes.0,
+                    row.lifetime.first.0,
+                    row.lifetime.released_at.0,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            supplied_heap,
+            vec![
+                (META, META.0, HeapKind::DisjointLiveOwner, 11, 0, 2),
+                (SIBLING, SIBLING.0, HeapKind::DisjointLiveOwner, 29, 0, 2),
+                (CALLBACK, CALLBACK.0, HeapKind::DisjointLiveOwner, 13, 1, 2),
+                (
+                    RELOCATION,
+                    RELOCATION.0,
+                    HeapKind::TransientRelocation,
+                    17,
+                    1,
+                    2
+                ),
+            ]
+        );
+        // Literal oracle: heap children 11 + 29, callback 13, relocation 17.
+        // The inline 7 explains combined 77; it is NOT another heap allocation.
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original).map(|value| (
+                value.heap.0,
+                value.wrapper_inline.0,
+                value.combined
+            )),
+            Ok((70, 7, 77))
+        );
+        for (owner, bytes, expected) in [
+            (META, 16, peak(75, 7, 82)),
+            (SIBLING, 37, peak(78, 7, 85)),
+            (CALLBACK, 19, peak(76, 7, 83)),
+            (RELOCATION, 23, peak(76, 7, 83)),
+        ] {
+            let mut changed = original.clone();
+            set_heap_bytes(&mut changed, owner, bytes);
+            assert_eq!(
+                evaluate_supplied_facts_hypothetically(&changed),
+                Ok(expected)
+            );
+        }
+        let mut inline_only = original.clone();
+        inline_only.wrapper.bytes = InlineBytes(31);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&inline_only),
+            Ok(peak(70, 31, 101))
+        );
+        assert_eq!(inline_only.heap, original.heap);
+    }
+
+    #[test]
+    fn hostname_overlaps_the_live_wrapper() {
+        let mut original = hypothetical_trace();
+        original.states[1] = SourceState::HostnameValidation;
+        original.heap.push(heap_owner(HOSTNAME, 19, 1, 2));
+        original.releases.push(Release {
+            owner: HOSTNAME,
+            at: StateId(2),
+        });
+        assert_eq!(original.wrapper.owner, WRAPPER);
+        assert_eq!(original.wrapper.bytes, InlineBytes(7));
+        assert_eq!(original.wrapper.lifetime, lifetime(0, 2));
+        assert!(
+            original
+                .heap
+                .iter()
+                .any(|row| { row.owner == SIBLING && row.lifetime == lifetime(0, 2) })
+        );
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(89, 7, 96))
+        );
+
+        let mut hostname_only = original.clone();
+        set_heap_bytes(&mut hostname_only, HOSTNAME, 23);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&hostname_only),
+            Ok(peak(93, 7, 100))
+        );
+        let mut sibling_only = original.clone();
+        set_heap_bytes(&mut sibling_only, SIBLING, 31);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&sibling_only),
+            Ok(peak(91, 7, 98))
+        );
+        let mut inline_only = original.clone();
+        inline_only.wrapper.bytes = InlineBytes(9);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&inline_only),
+            Ok(peak(89, 9, 98))
+        );
+    }
+
+    #[test]
+    fn fresh_cache_construction_and_partial_failure_are_included() {
+        let mut fresh = hypothetical_trace();
+        fresh.heap.push(HeapOwner {
+            kind: HeapKind::TransientRelocation,
+            ..heap_owner(CONSTRUCTION, 41, 0, 1)
+        });
+        fresh.releases.push(Release {
+            owner: CONSTRUCTION,
+            at: StateId(1),
+        });
+        // Construction 11 + 29 + 41 = 81 exceeds the later 70, not 81 + 70.
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&fresh),
+            Ok(peak(81, 7, 88))
+        );
+
+        let mut partial_failure = fresh.clone();
+        partial_failure.states[1] = SourceState::PartialFailure;
+        set_heap_bytes(&mut partial_failure, RELOCATION, 61);
+        // Failure still owns 11 + 29 + 13 + 61 until the exact release state.
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&partial_failure),
+            Ok(peak(114, 7, 121))
+        );
+
+        let mut missing_release = partial_failure.clone();
+        let index = missing_release
+            .releases
+            .iter()
+            .position(|row| row.owner == CONSTRUCTION)
+            .unwrap();
+        assert_eq!(
+            missing_release.releases.remove(index),
+            Release {
+                owner: CONSTRUCTION,
+                at: StateId(1)
+            }
+        );
+        let result = evaluate_supplied_facts_hypothetically(&missing_release);
+        assert_eq!(
+            result,
+            Err(StorageError::ReleaseMismatch {
+                owner: CONSTRUCTION,
+                expected: StateId(1),
+            })
+        );
+    }
+
+    #[test]
+    fn exact_release_rejects_missing_early_late_and_duplicate_events() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        for (index, release) in original.releases.iter().enumerate() {
+            let expected = Err(StorageError::ReleaseMismatch {
+                owner: release.owner,
+                expected: release.at,
+            });
+            let mut missing = original.clone();
+            assert_eq!(missing.releases.remove(index), *release);
+            assert_eq!(evaluate_supplied_facts_hypothetically(&missing), expected);
+            let mut duplicate = original.clone();
+            duplicate.releases.push(*release);
+            assert_eq!(evaluate_supplied_facts_hypothetically(&duplicate), expected);
+            for at in [StateId(1), StateId(3)] {
+                let mut changed = original.clone();
+                changed.states.push(SourceState::Released);
+                changed.releases[index].at = at;
+                assert_eq!(evaluate_supplied_facts_hypothetically(&changed), expected);
+            }
+        }
+        let mut extra = original.clone();
+        let release = Release {
+            owner: FALLBACK,
+            at: StateId(2),
+        };
+        extra.releases.push(release);
+        let result = evaluate_supplied_facts_hypothetically(&extra);
+        assert_eq!(result, Err(StorageError::UnexpectedRelease(release)));
+    }
+
+    #[test]
+    fn serial_calls_do_not_multiply_peak() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(from_ref(&original), &[]),
+            Ok(peak(70, 7, 77))
+        );
+        let calls = [original.clone(), original.clone(), original.clone()];
+        let boundaries = [SerialBoundary::UnchangedAndExclusive; 2];
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&calls, &boundaries),
+            Ok(peak(70, 7, 77))
+        );
+
+        let mut different_calls = calls.clone();
+        set_heap_bytes(&mut different_calls[1], CALLBACK, 31);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&different_calls[1]),
+            Ok(peak(88, 7, 95))
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&different_calls, &boundaries),
+            Ok(peak(88, 7, 95))
+        );
+
+        let mut at_limit = original.clone();
+        set_heap_bytes(&mut at_limit, META, u64::MAX - 66);
+        let large_calls = [at_limit.clone(), at_limit];
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(
+                &large_calls,
+                &[SerialBoundary::UnchangedAndExclusive]
+            ),
+            Ok(peak(u64::MAX - 7, 7, u64::MAX))
+        );
+    }
+
+    #[test]
+    fn overlap_change_invalidates_serial_composition() {
+        let original = hypothetical_trace();
+        let calls = [original.clone(), original];
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&calls, &[SerialBoundary::UnchangedAndExclusive]),
+            Ok(peak(70, 7, 77))
+        );
+        for invalidation in [
+            SerialBoundary::OverlappingCall,
+            SerialBoundary::EscapingCallback,
+            SerialBoundary::CacheReset,
+            SerialBoundary::SourceChanged,
+        ] {
+            let result = evaluate_serial_facts_hypothetically(&calls, &[invalidation]);
+            assert_eq!(
+                result,
+                Err(StorageError::InvalidSerialComposition(invalidation))
+            );
+        }
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&calls, &[]),
+            Err(StorageError::SerialBoundaryCount)
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(
+                &calls,
+                &[SerialBoundary::UnchangedAndExclusive; 2]
+            ),
+            Err(StorageError::SerialBoundaryCount)
+        );
+    }
+
+    #[test]
+    fn duplicate_ownership_is_not_a_disjoint_live_child() {
+        let original = hypothetical_trace();
+        assert_ne!(original.heap[0].allocation, original.heap[1].allocation);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        for owner in [SIBLING, RELOCATION] {
+            let mut aliased = original.clone();
+            let allocation = aliased.heap[0].allocation;
+            let row = aliased
+                .heap
+                .iter_mut()
+                .find(|row| row.owner == owner)
+                .unwrap();
+            assert_ne!(row.owner, META);
+            row.allocation = allocation;
+            let result = evaluate_supplied_facts_hypothetically(&aliased);
+            assert_eq!(result, Err(StorageError::DuplicateOwnership(allocation)));
+        }
+    }
+
+    #[test]
+    fn checked_sums_reject_heap_and_combined_overflow() {
+        let mut boundary = hypothetical_trace();
+        set_heap_bytes(&mut boundary, META, u64::MAX - 66);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&boundary),
+            Ok(peak(u64::MAX - 7, 7, u64::MAX))
+        );
+        let mut heap_overflow = boundary.clone();
+        set_heap_bytes(&mut heap_overflow, META, u64::MAX - 58);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&heap_overflow),
+            Err(StorageError::LiveHeapOverflow(StateId(1)))
+        );
+        let mut combined_overflow = boundary.clone();
+        combined_overflow.wrapper.bytes = InlineBytes(8);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&combined_overflow),
+            Err(StorageError::CombinedOverflow(StateId(1)))
+        );
+    }
+
+    #[test]
+    fn lifetimes_require_ordered_in_trace_release_states() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        for invalid in [lifetime(1, 1), lifetime(2, 1), lifetime(0, 3)] {
+            let mut changed = original.clone();
+            let row = changed
+                .heap
+                .iter_mut()
+                .find(|row| row.owner == CALLBACK)
+                .unwrap();
+            row.lifetime = invalid;
+            let result = evaluate_supplied_facts_hypothetically(&changed);
+            assert_eq!(result, Err(StorageError::InvalidLifetime(CALLBACK)));
+        }
+    }
+
+    #[test]
+    fn missing_and_invalid_states_are_not_zero_storage_proofs() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        let mut missing = original.clone();
+        assert_eq!(missing.states.len(), 3);
+        missing.states.clear();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&missing),
+            Err(StorageError::MissingSourceProof)
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&[], &[]),
+            Err(StorageError::MissingSourceProof)
+        );
+        for (states, expected) in [
+            (
+                vec![SourceState::Callback, SourceState::Released],
+                StateId(0),
+            ),
+            (
+                vec![SourceState::FreshConstruction, SourceState::Callback],
+                StateId(1),
+            ),
+            (
+                vec![
+                    SourceState::FreshConstruction,
+                    SourceState::Released,
+                    SourceState::Callback,
+                    SourceState::Released,
+                ],
+                StateId(2),
+            ),
+        ] {
+            let mut invalid = original.clone();
+            invalid.states = states;
+            assert_eq!(
+                evaluate_supplied_facts_hypothetically(&invalid),
+                Err(StorageError::InvalidState(expected))
+            );
+        }
+    }
+
+    #[test]
+    fn structural_and_release_refusals_precede_arithmetic() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        let mut invalid_lifetime = original.clone();
+        invalid_lifetime.heap[2].lifetime = lifetime(1, 1);
+        set_heap_bytes(&mut invalid_lifetime, META, u64::MAX);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&invalid_lifetime),
+            Err(StorageError::InvalidLifetime(CALLBACK))
+        );
+
+        let mut live_after_release = original.clone();
+        live_after_release.states.push(SourceState::Released);
+        live_after_release.heap[2].lifetime = lifetime(1, 3);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&live_after_release),
+            Err(StorageError::InvalidLifetime(CALLBACK))
+        );
+
+        let mut missing_coverage = original.clone();
+        assert_eq!(
+            missing_coverage.covered_by.remove(0),
+            original.covered_by[0]
+        );
+        missing_coverage.releases[0].at = StateId(1);
+        set_heap_bytes(&mut missing_coverage, META, u64::MAX);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&missing_coverage),
+            Err(StorageError::MissingCoverage(FALLBACK))
+        );
+
+        let mut missing_release = original.clone();
+        assert_eq!(missing_release.releases.remove(0), original.releases[0]);
+        set_heap_bytes(&mut missing_release, META, u64::MAX);
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&missing_release),
+            Err(StorageError::ReleaseMismatch {
+                owner: META,
+                expected: StateId(2)
+            })
+        );
+
+        let calls = [original, invalid_lifetime];
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&calls, &[SerialBoundary::UnchangedAndExclusive]),
+            Err(StorageError::InvalidLifetime(CALLBACK))
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&calls, &[SerialBoundary::OverlappingCall]),
+            Err(StorageError::InvalidSerialComposition(
+                SerialBoundary::OverlappingCall
+            ))
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(&calls, &[]),
+            Err(StorageError::SerialBoundaryCount)
+        );
+    }
+
+    #[test]
+    fn coverage_requires_exact_obligations_and_live_heap_parents() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        let mut duplicate = original.clone();
+        duplicate
+            .coverage_obligations
+            .push(original.coverage_obligations[0].clone());
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&duplicate),
+            Err(StorageError::DuplicateCoverage(FALLBACK))
+        );
+
+        let mut extra = original.clone();
+        let unknown = OwnerId("hypothetical-unrequired-child");
+        extra.covered_by.push(CoveredBy {
+            child: unknown,
+            parent: META,
+        });
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&extra),
+            Err(StorageError::InvalidCoverage {
+                child: unknown,
+                parent: META
+            })
+        );
+        for (parent, live) in [(WRAPPER, lifetime(0, 2)), (META, lifetime(1, 1))] {
+            let mut invalid = original.clone();
+            invalid.covered_by[0].parent = parent;
+            invalid.coverage_obligations[0].lifetime = live;
+            assert_eq!(
+                evaluate_supplied_facts_hypothetically(&invalid),
+                Err(StorageError::InvalidCoverage {
+                    child: FALLBACK,
+                    parent
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn owner_names_are_unique_and_allocation_aliases_must_not_overlap() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        let mut duplicate = original.clone();
+        duplicate.heap[1].owner = META;
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&duplicate),
+            Err(StorageError::DuplicateOwner(META))
+        );
+        let mut inline_collision = original.clone();
+        inline_collision.wrapper.owner = META;
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&inline_collision),
+            Err(StorageError::DuplicateOwner(META))
+        );
+
+        let mut disjoint = original.clone();
+        disjoint.heap[1].lifetime = lifetime(0, 1);
+        disjoint.releases[1].at = StateId(1);
+        disjoint.heap.push(HeapOwner {
+            allocation: disjoint.heap[1].allocation,
+            ..heap_owner(CONSTRUCTION, 31, 1, 2)
+        });
+        disjoint.releases.push(Release {
+            owner: CONSTRUCTION,
+            at: StateId(2),
+        });
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&disjoint),
+            Ok(peak(72, 7, 79))
+        );
+    }
+
+    #[test]
+    fn combined_peak_uses_same_state_not_independent_maxima() {
+        let original = hypothetical_trace();
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&original),
+            Ok(peak(70, 7, 77))
+        );
+        let mut separated = original.clone();
+        separated.wrapper.bytes = InlineBytes(100);
+        separated.wrapper.lifetime = lifetime(0, 1);
+        separated.releases[4].at = StateId(1);
+        // Construction is 40 heap + 100 inline; the later heap peak is 70.
+        assert_eq!(
+            evaluate_supplied_facts_hypothetically(&separated),
+            Ok(peak(70, 100, 140))
+        );
+        assert_eq!(
+            evaluate_serial_facts_hypothetically(
+                &[original, separated],
+                &[SerialBoundary::UnchangedAndExclusive]
+            ),
+            Ok(peak(70, 100, 140))
+        );
+    }
+}

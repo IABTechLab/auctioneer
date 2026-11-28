@@ -11,6 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub(crate) mod public_names;
+
 const SOURCE: &str =
     include_str!("../conformance/fixtures/reference/catalog/source-inventory.toml");
 const BINDINGS: &str =
@@ -47,6 +49,18 @@ struct Definition {
     feature: Option<String>,
     owner: Option<String>,
     local_free: bool,
+}
+
+impl Definition {
+    fn schema<'a>(&'a self, owners: &'a [&'a str]) -> Schema<'a> {
+        if self.local_free {
+            Schema::LocalSchemaFree
+        } else if self.owner.is_some() {
+            Schema::Owners(owners)
+        } else {
+            Schema::Inherit
+        }
+    }
 }
 #[derive(Clone, Serialize)]
 struct Publication {
@@ -520,13 +534,7 @@ impl Inputs {
                 parent: row.parent.as_deref(),
                 implementation: &row.implementation,
                 required_feature: row.feature.as_deref(),
-                schema: if row.local_free {
-                    Schema::LocalSchemaFree
-                } else if row.owner.is_some() {
-                    Schema::Owners(owner)
-                } else {
-                    Schema::Inherit
-                },
+                schema: row.schema(owner),
             })
             .collect();
         let roots: Vec<_> = self.implemented.iter().map(String::as_str).collect();

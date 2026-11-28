@@ -310,6 +310,7 @@ mod tests {
     #[test]
     fn hostname_hybrid_candidates_account_each_direction_separately() {
         use super::schema_cache_bounds::{forward_nfa, reverse_nfa};
+        use super::schema_heap_layout::HeapLayout;
         use super::schema_hybrid_bounds::{HybridDimensions, HybridDirection, candidate_hybrid};
         use super::schema_hybrid_heap::HybridHeap;
         use super::schema_hybrid_population::{HybridPopulation, recovery_ceiling};
@@ -317,6 +318,8 @@ mod tests {
         let forward = forward_nfa(super::schema_formats::HOSTNAME_SOURCE).unwrap();
         let reverse = reverse_nfa(super::schema_formats::HOSTNAME_SOURCE).unwrap();
         let mut reported_total = 0_usize;
+        let word = size_of::<usize>();
+        let layout = HeapLayout::new(word, 16).unwrap();
         for (nfa, direction, expected, expected_recovery) in [
             (
                 &forward,
@@ -346,11 +349,13 @@ mod tests {
             let dfa = candidate_hybrid(nfa, direction).unwrap();
             let projected = HybridDimensions::from_dfa(&dfa).unwrap();
             assert_eq!(projected, expected);
-            let reported = projected.fresh_reported_bytes(size_of::<usize>()).unwrap();
+            let reported = projected.fresh_reported_bytes(word).unwrap();
             assert_eq!(dfa.create_cache().memory_usage(), reported);
-            let population = HybridPopulation::from_dfa(&dfa).unwrap().unwrap();
+            let population = HybridPopulation::from_dfa(&dfa, word).unwrap().unwrap();
             let heap = HybridHeap::from_dfa(&dfa).unwrap().unwrap();
-            let closed = HybridHeap::from_complete_dfa(&dfa).unwrap().unwrap();
+            let closed = HybridHeap::from_complete_dfa(&dfa, layout)
+                .unwrap()
+                .unwrap();
             assert!(closed.live_envelope < heap.live_envelope);
             assert!(closed.growth_overlap <= heap.growth_overlap);
             assert!(closed.peak > 0 && closed.peak < heap.peak);
@@ -358,26 +363,19 @@ mod tests {
                 recovery_ceiling(
                     super::schema_cache_bounds::NfaDimensions::from_nfa(nfa).unwrap(),
                     &projected,
-                    size_of::<usize>()
+                    word
                 )
                 .unwrap(),
-                if size_of::<usize>() == 4 {
+                if word == 4 {
                     expected_recovery.0
                 } else {
                     expected_recovery.1
                 }
             );
-            assert_eq!(
-                population.states,
-                if size_of::<usize>() == 4 { 809 } else { 736 }
-            );
+            assert_eq!(population.states, if word == 4 { 809 } else { 736 });
             assert_eq!(
                 population.transition_entries,
-                if size_of::<usize>() == 4 {
-                    12944
-                } else {
-                    11776
-                }
+                if word == 4 { 12944 } else { 11776 }
             );
             assert_eq!(
                 population.encoded_payload_envelope,
@@ -395,10 +393,7 @@ mod tests {
             )
             .unwrap();
         }
-        assert_eq!(
-            reported_total,
-            if size_of::<usize>() == 4 { 9006 } else { 9070 }
-        );
+        assert_eq!(reported_total, if word == 4 { 9006 } else { 9070 });
         writeln!(
             stderr(),
             "hostname hybrid candidate pair: fresh-reported-total={reported_total}"

@@ -6,8 +6,7 @@
 # or that the package it emits fits the platform ceiling. This workflow
 # runs the vendor tool.
 #
-# Run from the workspace root: CLI 16.0.0 cannot parse the adapter's
-# inherited [package] keys when invoked in the member directory. The root
+# Run from the workspace root to resolve inherited package metadata. The root
 # fastly.toml explicitly selects the adapter binary, so package metadata
 # stays inherited and unrelated workspace crates are not built for WASI.
 # Keep the vendor packager here; a Cargo-only build is not equivalent.

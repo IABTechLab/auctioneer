@@ -10,6 +10,8 @@ The [dated evidence](../testing/evidence/schema-residency-initialization-2026112
 
 Both source projections remain `TargetIncomplete`, with numeric costs null and receipt/physical-fit/serving flags false. Actual native requested-allocation observations and explicitly hypothetical C/I evaluation do not establish target layouts, physical/allocator bounds, actual linked-byte growth, adapter fit or permission to serve. #72-#75 and #47 retain those respective downstream obligations; reservations and guest publication restrictions are unchanged.
 
+**2026-11-25 validation-report cutover:** The [current validation owner](../../crates/auctioneer-bidder/tests/schema_validation/report.rs) emits one strict `schema_validation_resources` report from the sealed descriptor, same-capture checked bodies and independent public-name census. It remains `Incomplete`: ordinary work, complete attempted-work bounds, storage/stack closure and source/compiler correspondence are not yet established. Policy adequacy is `not_evaluated`, attempted-work funding is `not_established`, and resource qualification, physical fit and serving permission remain false. [Executed checkpoint evidence](../testing/evidence/schema-validation-resources-20261123.md) identifies the tested heads and outstanding checks; it does not certify the current target graph.
+
 **2026-11-13 dependency amendment (historical):** That checkpoint selected
 `jsonschema = "=0.61.2"`, with the three compiler patches replayed against
 that release. Current source/archive/patch identities are recorded in
@@ -227,6 +229,12 @@ checkpoint's stated premises. The complete 261-schema suite was not rerun.
 
 ## Selected Validation-Cache Heap
 
+The current selected probe emits `native_cache_observations` with status `ObservationOnly`, through [its dedicated owner](../../crates/auctioneer-bidder/tests/schema_validation/observations.rs). It preserves captured/authored verdicts, population histories and release checks, but neither supplies the canonical report's missing derivations nor authenticates the child's or guests' layouts. Each actual application capture separately attaches `validation_resources` while its own source window is live. There is no current cache-candidate reader, translation path or failed-proof fallback.
+
+### Historical Observation Checkpoint
+
+The following description is retained as historical context, explicitly marked on 2026-11-25. Its original source, host, sample counts and non-qualification limits are not recertified by the report cutover. The old candidate kind described below is not an accepted current format.
+
 The selected probe reuses the existing serial `MetaCacheHeap` derivation and
 `CacheBundleHeap` composition rather than adding another engine or private
 layout patch. Each generated wrapper funds every sibling pattern's full
@@ -259,7 +267,7 @@ controls independently vary prior storage, transient growth, retained changes,
 owner/input counts, verdicts and release order; a zero-iteration check cannot
 stand in for exercising a populated history.
 
-The report is explicitly a
+The retired checkpoint report used kind
 `conditional_native_schema_cache_heap_candidate`, with
 `application_or_resource_qualification = false`. Its native model assumes a
 fixed program/cache, serial earliest searches and bounded full haystacks;

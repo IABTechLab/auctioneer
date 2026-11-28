@@ -11,6 +11,7 @@ use crate::schema_program_heap::{
 use crate::schema_vendor;
 use auctioneer_bidder::catalog::CatalogOwner;
 use regex_automata::meta::Config;
+use regex_automata::nfa::thompson::NFA;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::slice;
@@ -64,6 +65,63 @@ pub(crate) struct ActualSourceDescriptor {
     programs: Vec<Program>,
     groups: Vec<LinkedGroup>,
     validation: Vec<ValidationAssignment>,
+}
+
+/// A borrow of checked source identity, not a cost or qualification receipt.
+#[derive(Clone, Copy)]
+pub(crate) struct ValidationView<'a> {
+    descriptor: &'a ActualSourceDescriptor,
+}
+
+impl<'a> ValidationView<'a> {
+    /// Borrow checked program identity, pattern and retained NFAs in
+    /// forward/reverse order; no construction or target-layout evaluation.
+    pub(crate) fn programs(
+        self,
+    ) -> impl ExactSizeIterator<Item = (&'a str, &'a str, [&'a NFA; 2])> + 'a {
+        self.descriptor.programs.iter().map(|program| {
+            (
+                program.id.as_str(),
+                program.pattern.as_str(),
+                program.retained.nfas(),
+            )
+        })
+    }
+
+    /// The separately authenticated runtime owner, not an emitted graph row.
+    pub(crate) fn runtime_hostname(self) -> (&'a str, &'a str) {
+        (
+            runtime_sources::HOSTNAME,
+            self.descriptor.runtime.hostname(),
+        )
+    }
+}
+
+impl ValidationView<'_> {
+    pub(crate) fn binding(&self) -> &Value {
+        &self.descriptor.binding
+    }
+
+    pub(crate) fn graph(&self) -> &Value {
+        &self.descriptor.graph
+    }
+
+    pub(crate) fn selection(&self) -> &Value {
+        &self.descriptor.selection
+    }
+
+    pub(crate) fn assignments(&self) -> &[ValidationAssignment] {
+        &self.descriptor.validation
+    }
+
+    pub(crate) fn check_handoff(self, rows: &[ValidationAssignment]) -> Result<(), Refusal> {
+        self.recheck()?;
+        self.descriptor.check_validation_handoff(rows)
+    }
+
+    pub(crate) fn recheck(self) -> Result<(), Refusal> {
+        self.descriptor.runtime.recheck()
+    }
 }
 
 /// Conditional premises, supplied by the target evidence owner, never defaults.
@@ -460,7 +518,8 @@ fn validation_assignments(
     Ok(rows)
 }
 
-fn exact_assignments(
+/// Data correspondence only; this cannot construct descriptor authority.
+pub(crate) fn exact_assignments(
     expected: &[ValidationAssignment],
     actual: &[ValidationAssignment],
 ) -> Result<(), Refusal> {
@@ -563,6 +622,12 @@ pub(crate) fn describe(
 }
 
 impl ActualSourceDescriptor {
+    pub(crate) fn validation_view(&self) -> Result<ValidationView<'_>, Refusal> {
+        let view = ValidationView { descriptor: self };
+        view.recheck()?;
+        Ok(view)
+    }
+
     /// Stable data projection for the existing pure consumer; not a receipt.
     pub(crate) fn projection(&self) -> Value {
         let programs = self

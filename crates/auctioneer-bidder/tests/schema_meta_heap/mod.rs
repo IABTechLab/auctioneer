@@ -85,7 +85,9 @@ impl FreshAnchoredHalfHeap {
                 reason,
             })
         })?;
-        let forward_heap = HybridHeap::from_complete_dfa(&forward)
+        let layout = HeapLayout::new(size_of::<usize>(), 16)
+            .map_err(|reason| projection(ProjectionStage::Layout, BoundsError::from(reason)))?;
+        let forward_heap = HybridHeap::from_complete_dfa(&forward, layout)
             .map_err(|reason| {
                 FreshMetaHeapError::Meta(MetaHeapError::Heap {
                     direction: HybridDirection::Forward,
@@ -97,8 +99,6 @@ impl FreshAnchoredHalfHeap {
                     direction: HybridDirection::Forward,
                 },
             ))?;
-        let layout = HeapLayout::new(size_of::<usize>(), 16)
-            .map_err(|reason| projection(ProjectionStage::Layout, BoundsError::from(reason)))?;
         let eager = CoreEagerHeap::from_nfa(&forward_nfa, layout)
             .map_err(|reason| projection(ProjectionStage::Eager, reason))?;
         let reverse_heap = HybridHeap::from_fresh_dfa(&reverse, layout)
@@ -216,7 +216,43 @@ pub(crate) struct MetaCacheHeap {
 }
 
 impl MetaCacheHeap {
-    /// One fixed native cache: new, serial earliest searches, then drop.
+    /// Conditional component projection from an existing fixed NFA pair.
+    /// One cache is used for serial earliest searches, then dropped; every
+    /// full haystack fits `max_input_bytes`. No reset/clone/rebind is covered.
+    /// The caller supplies matching programs and prefix facts for this layout.
+    /// Native graph exploration is not a target capacity or layout witness.
+    pub(crate) fn from_nfas(
+        nfas: [&NFA; 2],
+        max_input_bytes: usize,
+        layout: HeapLayout,
+        prefix: impl FnOnce() -> Result<OptionalPrefixEnvelope, PrefixError>,
+    ) -> Result<Self, MetaHeapError> {
+        let [forward_source, reverse_source] = nfas;
+        let eager = CoreEagerHeap::from_nfa(forward_source, layout).map_err(|reason| {
+            MetaHeapError::Projection {
+                stage: ProjectionStage::Eager,
+                reason,
+            }
+        })?;
+        let forward = directional_heap(forward_source, HybridDirection::Forward, layout)?;
+        let reverse = directional_heap(reverse_source, HybridDirection::Reverse, layout)?;
+        let prefix_envelope = prefix().map_err(MetaHeapError::Prefix)?;
+        let fallback =
+            FallbackHeap::from_nfa(forward_source, layout, max_input_bytes).map_err(|reason| {
+                MetaHeapError::Projection {
+                    stage: ProjectionStage::Fallback,
+                    reason,
+                }
+            })?;
+        Self::compose(&eager, &forward, &reverse, &prefix_envelope, &fallback).map_err(|reason| {
+            MetaHeapError::Projection {
+                stage: ProjectionStage::Composition,
+                reason,
+            }
+        })
+    }
+
+    /// Native test-data constructor for the shared fixed-cache projection.
     /// All full haystacks in its lifetime must fit `max_input_bytes`.
     /// No reset, clone, rebind, shared-program or physical-heap bound is supplied.
     pub(crate) fn from_pattern(
@@ -237,25 +273,8 @@ impl MetaCacheHeap {
                 reason: BoundsError::from(reason),
             }
         })?;
-        let eager =
-            CoreEagerHeap::from_nfa(&nfa, layout).map_err(|reason| MetaHeapError::Projection {
-                stage: ProjectionStage::Eager,
-                reason,
-            })?;
-        let forward = directional_heap(&nfa, HybridDirection::Forward)?;
-        let reverse = directional_heap(&reverse_nfa, HybridDirection::Reverse)?;
-        let prefix = for_meta_pattern(pattern).map_err(MetaHeapError::Prefix)?;
-        let fallback = FallbackHeap::from_nfa(&nfa, layout, max_input_bytes).map_err(|reason| {
-            MetaHeapError::Projection {
-                stage: ProjectionStage::Fallback,
-                reason,
-            }
-        })?;
-        Self::compose(&eager, &forward, &reverse, &prefix, &fallback).map_err(|reason| {
-            MetaHeapError::Projection {
-                stage: ProjectionStage::Composition,
-                reason,
-            }
+        Self::from_nfas([&nfa, &reverse_nfa], max_input_bytes, layout, || {
+            for_meta_pattern(pattern)
         })
     }
 
@@ -306,12 +325,16 @@ impl MetaCacheHeap {
     }
 }
 
-fn directional_heap(nfa: &NFA, direction: HybridDirection) -> Result<HybridHeap, MetaHeapError> {
+fn directional_heap(
+    nfa: &NFA,
+    direction: HybridDirection,
+    layout: HeapLayout,
+) -> Result<HybridHeap, MetaHeapError> {
     let dfa = candidate_hybrid(nfa, direction)
         .map_err(|_error| MetaHeapError::HybridBuild { direction })?;
     ReportedCapacityProof::from_non_quitting_dfa(&dfa)
         .map_err(|reason| MetaHeapError::Capacity { direction, reason })?;
-    HybridHeap::from_complete_dfa(&dfa)
+    HybridHeap::from_complete_dfa(&dfa, layout)
         .map_err(|reason| MetaHeapError::Heap { direction, reason })?
         .ok_or(MetaHeapError::RecoveryUnavailable { direction })
 }
@@ -576,6 +599,72 @@ mod tests {
         assert!(full.peak > empty.peak);
         let unanchored = MetaCacheHeap::from_pattern("[a-z]+[0-9]+", 128).unwrap();
         assert!(unanchored.prefix_peak_bytes > 0);
+        assert_borrowed_heap_literals();
+    }
+
+    fn assert_borrowed_heap_literals() {
+        use crate::schema_heap_layout::HeapLayout;
+        use regex_automata::nfa::thompson::{Builder, NFA};
+        use std::cell::Cell;
+
+        let forward = NFA::never_match();
+        let mut builder = Builder::new();
+        builder.set_reverse(true);
+        let fail = builder.add_fail().unwrap();
+        let reverse = builder.build(fail, fail).unwrap();
+        for nfa in [&forward, &reverse] {
+            assert_eq!(nfa.states().len(), 1);
+            assert_eq!(nfa.pattern_len(), 0);
+            assert_eq!(nfa.group_info().slot_len(), 0);
+        }
+        assert!(!forward.is_reverse());
+        assert!(reverse.is_reverse());
+        // Synthetic component DATA, not target facts. Every byte expectation
+        // is literal; the optional owner varies independently of NFA/layout.
+        for (word, group, bytes, direction, fallback, live, overlap, peak) in [
+            (4_usize, 4, 0, 644, 176, 1464_usize, 56, 1520_usize),
+            (4, 8, 0, 648, 176, 1472, 60, 1532),
+            (4, 16, 0, 656, 176, 1488, 68, 1556),
+            (8, 8, 0, 908, 288, 2104, 108, 2212),
+            (8, 16, 0, 916, 288, 2120, 116, 2236),
+            (4, 4, 128, 644, 200, 1488, 56, 1544),
+        ] {
+            for extra in [0, 31] {
+                let prefix_calls = Cell::new(0_usize);
+                let actual = MetaCacheHeap::from_nfas(
+                    [&forward, &reverse],
+                    bytes,
+                    HeapLayout::new(word, group).unwrap(),
+                    || {
+                        prefix_calls.set(prefix_calls.get().checked_add(1).unwrap());
+                        Ok(if extra == 0 {
+                            OptionalPrefixEnvelope::NoConcat
+                        } else {
+                            OptionalPrefixEnvelope::Alternatives(PrefixEnvelope {
+                                candidates: 2,
+                                peak_bytes: 31,
+                                required_reported_bytes: 7,
+                            })
+                        })
+                    },
+                );
+                assert_eq!(
+                    actual,
+                    Ok(MetaCacheHeap {
+                        eager_bytes: 0,
+                        forward_bytes: direction,
+                        reverse_bytes: direction,
+                        prefix_peak_bytes: extra,
+                        fallback_bytes: fallback,
+                        live_envelope: live.checked_add(extra).unwrap(),
+                        growth_overlap: overlap,
+                        peak: peak.checked_add(extra).unwrap(),
+                    }),
+                    "word={word} group={group} bytes={bytes} extra={extra}"
+                );
+                assert_eq!(prefix_calls.get(), 1);
+            }
+        }
     }
 
     #[test]
@@ -605,6 +694,50 @@ mod tests {
                 reason: CapacityError::Exploration(GraphError::Cleared),
             })
         );
+        assert_borrowed_heap_refusals();
+    }
+
+    fn assert_borrowed_heap_refusals() {
+        use super::{HybridDirection, MetaHeapError};
+        use crate::schema_cache_bounds::{forward_nfa, reverse_nfa};
+        use crate::schema_heap_layout::HeapLayout;
+        use crate::schema_hybrid_bounds::QuitAdmissionError;
+        use crate::schema_hybrid_capacity::CapacityError;
+        use crate::schema_hybrid_prefix::PrefixError;
+        use std::cell::Cell;
+
+        let layout = HeapLayout::new(size_of::<usize>(), 16).unwrap();
+        let forward = forward_nfa("a").unwrap();
+        let reverse = reverse_nfa("a").unwrap();
+        let prefix_calls = Cell::new(0_usize);
+        assert_eq!(
+            MetaCacheHeap::from_nfas([&forward, &reverse], 128, layout, || {
+                prefix_calls.set(prefix_calls.get().checked_add(1).unwrap());
+                Err(PrefixError::Parse)
+            }),
+            Err(MetaHeapError::Prefix(PrefixError::Parse))
+        );
+        assert_eq!(prefix_calls.get(), 1);
+        // Both directional refusals precede even a failing prefix projection.
+        let quitting = forward_nfa(r"\bword").unwrap();
+        let reverse_quitting = reverse_nfa(r"\bword").unwrap();
+        for (nfas, direction) in [
+            ([&quitting, &reverse], HybridDirection::Forward),
+            ([&forward, &reverse_quitting], HybridDirection::Reverse),
+        ] {
+            prefix_calls.set(0);
+            assert_eq!(
+                MetaCacheHeap::from_nfas(nfas, 128, layout, || {
+                    prefix_calls.set(prefix_calls.get().checked_add(1).unwrap());
+                    Err(PrefixError::Parse)
+                }),
+                Err(MetaHeapError::Capacity {
+                    direction,
+                    reason: CapacityError::Quit(QuitAdmissionError::UnicodeWordAssertion),
+                })
+            );
+            assert_eq!(prefix_calls.get(), 0);
+        }
     }
 
     #[test]

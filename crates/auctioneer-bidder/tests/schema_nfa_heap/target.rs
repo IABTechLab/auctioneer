@@ -4,7 +4,9 @@
 //! Excludes constructor peaks, other programs, caches, work, stack and physical
 //! memory. Native topology is structural input, never a target layout witness.
 
-use super::{GroupInfoRetainedHeap, NativeField, NfaRetainedHeap};
+use super::{
+    GroupInfoRetainedHeap, NativeField, NfaRetainedHeap, check_roots, check_state_successors,
+};
 use regex_automata::{
     nfa::thompson::{NFA, State, Transition},
     util::{
@@ -112,27 +114,22 @@ fn selected_topology(
     if group_info.patterns != usize::from(!nfa.is_reverse()) {
         return Err(TargetHeapError::UnboundShape);
     }
-    let valid_id = |id: StateID| id.as_usize() < states;
-    if !valid_id(nfa.start_anchored())
-        || !valid_id(nfa.start_unanchored())
-        || nfa
-            .start_pattern(PatternID::ZERO)
-            .is_none_or(|id| !valid_id(id))
-    {
-        return Err(TargetHeapError::UnboundShape);
-    }
+    check_roots(
+        states,
+        nfa.start_anchored(),
+        nfa.start_unanchored(),
+        [nfa.start_pattern(PatternID::ZERO)],
+    )
+    .map_err(|_error| TargetHeapError::UnboundShape)?;
     let mut sparse_bytes = 0_usize;
     let mut union_bytes = 0_usize;
     for state in nfa.states() {
+        check_state_successors(states, state).map_err(|_error| TargetHeapError::UnboundShape)?;
         match state {
-            State::ByteRange { trans } if valid_transition(*trans) && valid_id(trans.next) => {}
+            State::ByteRange { trans } if valid_transition(*trans) => {}
             State::Sparse(sparse) => {
                 if sparse.transitions.len() < 2
-                    || !sparse
-                        .transitions
-                        .iter()
-                        .copied()
-                        .all(|trans| valid_transition(trans) && valid_id(trans.next))
+                    || !sparse.transitions.iter().copied().all(valid_transition)
                     || sparse
                         .transitions
                         .array_windows::<2>()
@@ -146,7 +143,7 @@ fn selected_topology(
                 )?;
             }
             State::Union { alternates } => {
-                if alternates.len() < 3 || !alternates.iter().copied().all(valid_id) {
+                if alternates.len() < 3 {
                     return Err(TargetHeapError::UnboundShape);
                 }
                 union_bytes = add(
@@ -156,24 +153,22 @@ fn selected_topology(
             }
             State::Look {
                 look: Look::Start | Look::End,
-                next,
-            } if valid_id(*next) => {}
-            State::BinaryUnion { alt1, alt2 } if valid_id(*alt1) && valid_id(*alt2) => {}
+                ..
+            }
+            | State::BinaryUnion { .. }
+            | State::Fail => {}
             State::Capture {
-                next,
                 pattern_id,
                 group_index,
                 slot,
-            } if valid_id(*next)
-                && *pattern_id == PatternID::ZERO
+                ..
+            } if *pattern_id == PatternID::ZERO
                 && group_index.as_usize() < group_info.groups
                 && slot.as_usize() < nfa.group_info().slot_len() => {}
             State::Match { pattern_id } if *pattern_id == PatternID::ZERO => {}
-            State::Fail => {}
             State::ByteRange { .. }
             | State::Dense(_)
             | State::Look { .. }
-            | State::BinaryUnion { .. }
             | State::Capture { .. }
             | State::Match { .. } => return Err(TargetHeapError::UnboundShape),
         }
@@ -360,6 +355,7 @@ mod tests {
     use crate::schema_cache_bounds::{forward_nfa, reverse_nfa};
     use crate::schema_formats::HOSTNAME_SOURCE;
     use regex_automata::{
+        nfa::thompson::Config as NfaConfig,
         nfa::thompson::State,
         nfa::thompson::Transition,
         util::primitives::{SmallIndex, StateID},
@@ -588,5 +584,63 @@ mod tests {
             project_nfa(&multiple, &facts(4)),
             Err(TargetHeapError::UnboundShape)
         );
+        let non_utf8 = NFA::compiler()
+            .configure(NfaConfig::new().utf8(false))
+            .build("^a$")
+            .unwrap();
+        for nfa in [
+            forward_nfa("^$").unwrap(),
+            forward_nfa("a").unwrap(),
+            forward_nfa("^a").unwrap(),
+            forward_nfa("^[\\u{80}-\\u{ff}]$").unwrap(),
+            non_utf8,
+        ] {
+            assert_eq!(
+                project_nfa(&nfa, &facts(4)),
+                Err(TargetHeapError::UnboundShape)
+            );
+        }
+        // Layout refusal must still precede topology and unnamed-group checks.
+        for nfa in [
+            word_boundary,
+            multiple,
+            forward_nfa("^(?P<named>a)$").unwrap(),
+        ] {
+            let mut missing = facts(4);
+            missing.remove(NFA_INNER).unwrap();
+            assert_eq!(
+                project_nfa(&nfa, &missing),
+                Err(TargetHeapError::MissingType(NFA_INNER.into()))
+            );
+            let mut invalid = facts(4);
+            invalid.insert(
+                NFA_INNER.into(),
+                NativeField {
+                    bytes: 0,
+                    alignment: 1,
+                },
+            );
+            assert_eq!(
+                project_nfa(&nfa, &invalid),
+                Err(TargetHeapError::InvalidLayout(NFA_INNER.into()))
+            );
+        }
+        for (start, end, valid) in [
+            (b'a', b'z', true),
+            (0, 127, true),
+            (0, 255, true),
+            (b'z', b'a', false),
+            (128, 255, false),
+            (1, 255, false),
+        ] {
+            assert_eq!(
+                valid_transition(Transition {
+                    start,
+                    end,
+                    next: StateID::ZERO
+                }),
+                valid
+            );
+        }
     }
 }
